@@ -8,7 +8,7 @@
 
 import { schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 import type { Requester } from './access';
 import type { Db } from './db';
@@ -23,9 +23,32 @@ import {
   unsign,
 } from './auth/cookies';
 
+/**
+ * The one place that branches on client type — design §3.
+ *
+ * The web carries identity in a signed httpOnly cookie; native carries the
+ * same signed value as a bearer token out of the keychain, because a native
+ * client has no cookie jar worth relying on. Same string, same signature, same
+ * actor id on the other side: everything downstream sees an actor and does not
+ * know or care how it arrived.
+ */
+async function bearerActorId(): Promise<string | null> {
+  const header = (await headers()).get('authorization');
+  if (!header?.toLowerCase().startsWith('bearer ')) return null;
+  return unsign(header.slice(7).trim());
+}
+
 export async function currentActorId(): Promise<string | null> {
   const jar = await cookies();
-  return unsign(jar.get(ACTOR_COOKIE)?.value);
+  return unsign(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerActorId());
+}
+
+/**
+ * The signed form of an actor id, for a native client to keep in the keychain.
+ * Identical to the cookie value — there is one credential format.
+ */
+export function actorToken(actorId: string): string {
+  return sign(actorId);
 }
 
 /** Creates a guest actor and sets the cookie. Call only when contributing. */
@@ -67,7 +90,7 @@ export async function requesterFor(
   const jar = await cookies();
   const claim = decodeCapability(jar.get(capabilityCookieName(eventId))?.value);
   return {
-    actorId: unsign(jar.get(ACTOR_COOKIE)?.value),
+    actorId: await currentActorId(),
     linkToken: extra.linkToken,
     code: extra.code,
     capEpoch: claim?.eventId === eventId ? claim.capEpoch : undefined,

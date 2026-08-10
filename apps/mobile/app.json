@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Parea",
+    "slug": "parea",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "parea",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.parea",
+      "associatedDomains": ["applinks:parea.example"]
+    },
+    "android": {
+      "package": "com.example.parea",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "parea.example", "pathPrefix": "/e" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose the photos you want to add. Nothing is read until you pick it."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Save everyone's photos from this event to your camera roll.",
+          "savePhotosPermission": "Save everyone's photos from this event to your camera roll.",
+          "granularPermissions": ["photo"]
+        }
+      ],
+      [
+        "expo-camera",
+        { "cameraPermission": "Scan the QR code someone is holding up." }
+      ]
+    ]
+  }
+}
