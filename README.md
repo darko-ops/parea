@@ -1,0 +1,90 @@
+# Parea
+
+**Every photo from everyone who was there.**
+
+A place to put everyone's photos from one thing that happened. Someone creates
+an event and drops the link in the group chat; anyone with the link adds their
+photos — no account, no app, no setup — and everyone gets the full collection
+at full quality.
+
+The problem is social rather than technical. The photos exist and someone has
+them; asking is a favour, and nobody wants to ask. See
+[`docs/concept.md`](docs/concept.md) for the argument and
+[`docs/design.md`](docs/design.md) for how it is built.
+
+## Status
+
+Every feature in the v1 design exists and is tested. **Nothing has been
+deployed, and nothing has met a real device, a real R2 bucket or a real user.**
+Two things gate launch and neither is code:
+
+- the geotag coverage measurement (`tools/geotag-probe`), which decides how well
+  auto-selection actually works;
+- the child-safety launch checklist in [`docs/csam-runbook.md`](docs/csam-runbook.md)
+  — a scanning provider onboarded, credentials in place *before* the first
+  detection, counsel briefed, and a named human who receives alerts.
+
+## Running it
+
+```
+npm install
+cp apps/web/.env.example apps/web/.env.local   # set SESSION_SECRET, DATABASE_URL
+npm run dev --workspace @parea/web
+```
+
+Without R2 credentials, photos go to `./.storage` through a development-only
+endpoint that cannot exist in a production build. Ingest is a separate process:
+
+```
+CSAM_SCANNER=disabled npm run watch --workspace @parea/deriver
+```
+
+`npm test` and `npm run typecheck` cover the workspace. The suite shells out to
+real tools rather than mocking them — `exiftool`, `unzip`, libheif — so those
+need to be installed; see `.github/workflows/ci.yml` for the exact list.
+
+## Shape
+
+```
+packages/core        schema, access policy, credentials, visibility
+packages/zip         streaming Zip64 writer, download manifests
+packages/urls        signed, cacheable image URLs
+packages/autoselect  which photos to offer, and when not to guess
+apps/web             Next.js — the app, the API, and the browser client
+apps/mobile          Expo — the native client
+services/deriver     ingest: strip, scan, derive, dedup; plus scheduled jobs
+services/image-worker  Cloudflare Worker serving images from R2
+services/zip-worker    Cloudflare Worker streaming archives from R2
+tests/e2e            one photo, all the way through
+tools/geotag-probe   measures whether auto-selection will work
+```
+
+The control plane and the data plane are deliberately separate. Next.js serves
+HTML and JSON and issues signed URLs; **photo bytes never pass through it**.
+Bulk download is the product's core action, so the difference between free
+R2 egress and metered origin bandwidth is the difference between a cheap
+product and an expensive one. A test fails the build if anything reaches around
+that.
+
+## A few decisions worth knowing before reading the code
+
+**`ready` is the gate.** Nothing is listed, served or downloaded before ingest
+completes, which is what stops an un-stripped original — or an unscanned one —
+reaching a viewer. Ingest fails closed in both directions.
+
+**Pixel data is never re-encoded**, and it is verified rather than assumed:
+metadata is rewritten in place and the compressed image data is hashed before
+and after.
+
+**Access is one function.** `authorize()` in `@parea/core` is pure and total;
+the data layer resolves relationship facts and asks it. It fails closed on an
+unrecognised policy, and denials that would confirm an event exists answer 404
+rather than 403.
+
+**A photo can be invisible for four different reasons** — deleted, removed,
+hidden, blocked — and they undo differently, so they are four states behind one
+shared predicate.
+
+**Confidence decides how much auto-selection pre-selects**, never whether the
+screen appears. A suggestion containing one private photo costs more than
+twenty missing ones.

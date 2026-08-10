@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A superseded run tells you about code nobody is looking at any more.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    name: typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The test suite shells out to real tools rather than mocking them, which
+      # is the point — metadata stripping is verified with exiftool and archives
+      # are opened with a real unzip. Both have to exist here too.
+      #
+      # libheif-plugin-libde265 is the one that looks optional and is not:
+      # sharp's prebuilt libvips parses the HEIF container without being able to
+      # decode HEVC, so without this the HEIC tests fail in a way that reads
+      # like a code bug rather than a missing package.
+      - name: Install native tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libimage-exiftool-perl \
+            libheif1 \
+            libheif-plugin-libde265 \
+            libheif-examples \
+            unzip
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # A schema edit without a generated migration is invisible until deploy,
+      # where it fails against a database that does not match the code.
+      - name: Migrations match the schema
+        run: |
+          npm run db:generate --workspace @parea/core
+          if [ -n "$(git status --porcelain packages/core/drizzle)" ]; then
+            echo "::error::Schema changed without a migration. Run:"
+            echo "  npm run db:generate --workspace @parea/core"
+            git --no-pager diff --stat packages/core/drizzle
+            exit 1
+          fi
+
+      - name: Build the web app
+        run: npm run build --workspace @parea/web
+        env:
+          SESSION_SECRET: ci-not-a-real-secret
+          DATABASE_URL: postgres://ci/unused
+
+  probe:
+    name: geotag probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Its own job because it is a standalone Expo project outside the
+    # workspace, with its own dependency tree. It earns a place in CI because
+    # it cross-validates the auto-selection algorithm against analyze.py — if
+    # the probe and the app disagree, the coverage measurement that gates a
+    # feature is measuring something else.
+    steps:
+      - uses: actions/checkout@v4
+
+      # No cache and no lock file: this is a throwaway measurement tool, not a
+      # shipped artefact, and pinning it would mean carrying a half-megabyte
+      # Expo lock file for something that runs a handful of times.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+        working-directory: tools/geotag-probe/app
+
+      - run: npm run typecheck
+        working-directory: tools/geotag-probe/app
+
+      - run: npm test
+        working-directory: tools/geotag-probe/app
+
+  desktop-probe:
+    name: geotag probe (desktop script)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install exiftool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libimage-exiftool-perl
+
+      # Generates a fixture with known ground truth and checks the analyser
+      # reports it correctly — the script is trusted to inform a build
+      # decision, so it should not be the one thing nobody runs.
+      - name: Analyse a known fixture
+        working-directory: tools/geotag-probe
+        run: |
+          python3 make_fixture.py /tmp/fixture
+          python3 analyze.py /tmp/fixture --json /tmp/result.json
+          python3 - <<'PY'
+          import json
+          sessions = json.load(open('/tmp/result.json'))['sessions']
+          confident = [s for s in sessions if s['would_preselect']]
+          assert len(sessions) == 3, sessions
+          assert len(confident) == 1, confident
+          # The party session: 43 in window, 2 screenshots dropped, the three
+          # strays excluded by the location filter.
+          party = confident[0]
+          assert party['photos_in_window'] == 43, party
+          assert party['screenshots_dropped'] == 2, party
+          assert party['preselect_count'] == 40, party
+          print('probe agrees with its fixture')
+          PY
