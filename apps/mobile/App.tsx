@@ -60,7 +60,7 @@ import {
   uploadItem,
   type SavedEvent,
 } from './src/platform';
-import { UploadQueue } from './src/queue';
+import { UploadQueue } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -321,7 +321,7 @@ function EventScreen({
   }, [event, feed]);
 
   const enqueue = useCallback(
-    async (files: { id: string; uri: string; name: string; size: number; mime: string }[]) => {
+    async (files: { id: string; source: string; name: string; size: number; mime: string }[]) => {
       if (files.length === 0) return;
       if (!(await loadActorToken())) {
         await saveActorToken(await api.startSession());
@@ -378,7 +378,7 @@ function EventScreen({
     await enqueue(
       picked.assets.map((asset, index) => ({
         id: `${Date.now()}-${index}`,
-        uri: asset.uri,
+        source: asset.uri,
         name: asset.fileName ?? `photo-${index}.jpg`,
         size: asset.fileSize ?? 0,
         mime: asset.mimeType ?? 'image/jpeg',

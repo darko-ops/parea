@@ -16,12 +16,12 @@ import {
   type Deps,
   type QueueItem,
   type QueueState,
-} from '../src/queue';
+} from '../src/index';
 
 function file(n: number) {
   return {
     id: `local-${n}`,
-    uri: `file:///photo-${n}.heic`,
+    source: `file:///photo-${n}.heic`,
     name: `IMG_${n}.heic`,
     size: 1000 + n,
     mime: 'image/heic',
@@ -53,7 +53,7 @@ function harness(overrides: Partial<Deps> = {}): Harness {
       }));
     },
     async upload(item) {
-      uploaded.push(item.uri);
+      uploaded.push(item.source);
     },
     async complete(photoId) {
       completed.push(photoId);
@@ -135,7 +135,7 @@ describe('surviving a kill', () => {
       async upload(item) {
         uploads++;
         if (uploads === 2) throw new Error('process died');
-        first.uploaded.push(item.uri);
+        first.uploaded.push(item.source);
       },
     });
     const queueA = new UploadQueue(first.deps);
@@ -239,8 +239,8 @@ describe('failure', () => {
   it('gives up on a file after repeated attempts, keeping the rest', async () => {
     const h = harness({
       async upload(item) {
-        if (item.uri.includes('photo-2')) throw new Error('nope');
-        h.uploaded.push(item.uri);
+        if (item.source.includes('photo-2')) throw new Error('nope');
+        h.uploaded.push(item.source);
       },
     });
     const queue = new UploadQueue(h.deps);
@@ -294,7 +294,7 @@ describe('housekeeping', () => {
     const h = harness({
       async upload(item) {
         await new Promise((r) => setTimeout(r, 10));
-        h.uploaded.push(item.uri);
+        h.uploaded.push(item.source);
       },
     });
     const queue = new UploadQueue(h.deps);

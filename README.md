@@ -55,6 +55,7 @@ packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
 packages/autoselect  which photos to offer, and when not to guess
 packages/push        the three notifications this product is allowed to send
+packages/upload      the upload queue, shared by both clients
 apps/web             Next.js — the app, the API, and the browser client
 apps/mobile          Expo — the native client
 services/deriver     ingest: strip, scan, derive, dedup; plus scheduled jobs
@@ -93,3 +94,10 @@ shared predicate.
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
 twenty missing ones.
+
+**A stored `File` handle can outlive its bytes.** The web upload queue survives
+a reload by persisting the handles rather than the contents — copying a
+gigabyte of photos into origin storage to insure against a refresh trades a
+cheap failure for an expensive one. The cost is that a handle can come back
+dead, so every one is read before it is trusted, and a photo whose bytes are
+gone asks to be picked again instead of pretending a retry would help.

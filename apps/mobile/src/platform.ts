@@ -12,7 +12,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import type { QueueItem, QueueState } from './queue';
+import type { QueueItem, QueueState } from '@parea/upload';
 
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
@@ -117,7 +117,7 @@ export async function saveQueue(state: QueueState): Promise<void> {
 export async function uploadItem(item: QueueItem): Promise<void> {
   if (!item.uploadUrl) throw new Error('no upload url');
 
-  const task = new UploadTask(new File(item.uri), item.uploadUrl, {
+  const task = new UploadTask(new File(item.source), item.uploadUrl, {
     httpMethod: 'PUT',
     headers: item.headers ?? {},
     mimeType: item.mime,

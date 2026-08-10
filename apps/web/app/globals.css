@@ -72,3 +72,9 @@ button.secondary {
 .danger { background: #b3261e; }
 .pending { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; }
 .pending img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; }
+/* An inline action inside a sentence — a button because it does something,
+   shaped like a link because it sits in running text. */
+.link {
+  background: none; border: 0; padding: 0; color: inherit; font: inherit;
+  text-decoration: underline; cursor: pointer; width: auto;
+}

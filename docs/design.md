@@ -553,8 +553,59 @@ anti-catastrophe bounds, not product limits — log every time one bites.
 Same API, same presigned PUTs, no auto-selection. A single-screen flow:
 `<input type="file" multiple accept="image/*">`, files streamed straight to
 `fetch` bodies, concurrency 3, queue persisted in IndexedDB **including the
-`File` handles** — Safari structured-clones them, so a reloaded tab resumes
-instead of restarting.
+`File` handles**, so a reloaded tab resumes instead of restarting.
+
+The queue's state machine is shared with the native client (`@parea/upload`)
+rather than written twice. The failure modes are identical and subtle enough
+that two copies would drift; a queue item names its source with an opaque
+string, and only the platform layer knows whether that is an asset URI or a key
+into IndexedDB.
+
+### A stored `File` handle can outlive its bytes
+
+This subsection replaces an earlier claim that structured-cloning the handles
+was sufficient. The clone is the easy half.
+
+A `Blob` carries a **snapshot** of its underlying storage, and the File API
+requires a read to fail once the real thing no longer matches that snapshot.
+A `File` from `<input type=file>` is a reference to something on disk, so the
+handle can survive a reload perfectly while the bytes behind it do not — and on
+iOS this is ordinary rather than exotic, because photos chosen from the library
+are temp copies the OS later reclaims. The reload we are trying to survive can
+be the very thing that outlives them.
+
+Three consequences:
+
+- **Probe before trusting.** On resume every handle gets a one-byte read.
+  `file.size` and `file.name` answer from the snapshot and keep answering
+  happily after the bytes are gone, so checking those is worse than not
+  checking. The probe also has to happen before the PUT, because a `fetch`
+  whose body cannot be read rejects with the same opaque network error as a
+  dropped connection, and those two want opposite responses.
+- **A dead handle is a fifth queue state, not a failure.** `stale` skips the
+  retry budget — no attempt will find the bytes — and the UI asks for those
+  files to be picked again rather than offering a retry that cannot work. The
+  native client can reach the same state when an asset is deleted from the
+  camera roll mid-batch, which is why it lives in the shared package.
+- **Do not copy the bytes as insurance.** The tempting fix is to read each file
+  and store its contents. That puts 200 photos — most of a gigabyte — into
+  origin storage to protect against a reload, and Safari evicts an origin's
+  storage all at once. It buys resilience against the cheap failure by risking
+  the expensive one: losing the queue *and* the copies together.
+
+Item ids are derived from name, size and mtime rather than generated, so the
+same file re-picked after going stale lands on the same record and the live
+handle replaces the dead one. A persisted queue is not resumed after 24 hours;
+resume is for the tab that just reloaded, not for someone returning next week
+to a page that silently starts uploading.
+
+**Unverified on a real device.** That a browser preserves a `File` across a
+reload at all is asserted from the spec, not measured — no in-process
+IndexedDB fake carries a real `File`, so the tests supply handles directly and
+check the logic around them. How often the handles are actually alive after a
+reload on iOS Safari belongs on the launch checklist next to the geotag
+measurement; if the answer is "rarely", the resume path degrades to the
+re-pick prompt, which is why that prompt is built rather than bolted on later.
 
 ### iOS Safari strips EXIF on upload, and it costs us the timeline
 
@@ -600,9 +651,11 @@ concrete than the upload-plumbing one.
 ### Two things the web client must do that the app doesn't
 
 - **Tell the truth about the tab.** iOS web has no background completion. The UI
-  states how many remain and that the tab must stay open. Progress is per-file,
-  so a partial upload is partial photos rather than zero. The concept's "close
-  the tab" affordance is honest for four photos and a lie for two hundred.
+  states how many remain and that the tab must stay open, and a `beforeunload`
+  handler makes closing it mid-batch deliberate — a statement is not a guard.
+  Progress is per-file, so a partial upload is partial photos rather than zero.
+  The concept's "close the tab" affordance is honest for four photos and a lie
+  for two hundred.
 - **Offer the app at the right moment** — after a successful contribution, or
   when a selection is large enough that the tab-open constraint will hurt. Not
   an interstitial on arrival. A contributor who bounces off an install prompt is

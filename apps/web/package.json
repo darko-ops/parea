@@ -13,20 +13,22 @@
     "@aws-sdk/client-s3": "^3.1106.0",
     "@aws-sdk/s3-request-presigner": "^3.1106.0",
     "@parea/core": "*",
+    "@parea/push": "*",
+    "@parea/upload": "*",
+    "@parea/urls": "*",
+    "@parea/zip": "*",
     "drizzle-orm": "^0.45.2",
     "next": "^16.3.0",
     "postgres": "^3.4.9",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "@parea/zip": "*",
-    "@parea/urls": "*",
-    "@parea/push": "*"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "fake-indexeddb": "^6.2.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

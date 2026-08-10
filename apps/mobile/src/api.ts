@@ -7,7 +7,7 @@
  * a bearer token out of the keychain.
  */
 
-import type { PresignRequest, PresignResponse } from './queue';
+import type { PresignRequest, PresignResponse } from '@parea/upload';
 
 export type EventSummary = {
   id: string;

@@ -1,8 +1,10 @@
 /**
- * The upload queue — docs/design.md §7.5.
+ * The upload queue — docs/design.md §7.5 (native) and §8 (web).
  *
- * The hard part of the native client, and the reason it exists at all for the
- * person with 200 photos. Everything here is about surviving interruption:
+ * The hard part of both clients, and the reason either exists at all for the
+ * person with 200 photos. Shared rather than written twice because the failure
+ * modes are identical and subtle, and two copies of this would drift.
+ * Everything here is about surviving interruption:
  *
  *   - state is persisted after every transition, so a cold start resumes
  *     rather than restarts;
@@ -14,8 +16,11 @@
  *   - retries are safe because keys are content-addressed server-side, so
  *     re-uploading a file that actually completed is a no-op.
  *
- * Deliberately free of React Native imports so the logic can be tested in node.
- * Everything platform-specific arrives through `Deps`.
+ * Deliberately free of any platform import — no React Native, no DOM. A queue
+ * item names its source with an opaque string; what that string means, and how
+ * bytes are got out of it, lives entirely in `Deps`. On native it is a
+ * `content://` or `ph://` asset URI; on the web it is a key into the
+ * IndexedDB store holding the `File` handle.
  */
 
 export type QueueItemStatus =
@@ -23,13 +28,20 @@ export type QueueItemStatus =
   | 'presigned'
   | 'uploaded'
   | 'done'
-  | 'failed';
+  | 'failed'
+  /**
+   * The bytes are gone and no retry will bring them back — see `SourceGone`.
+   * Distinct from 'failed' because the remedy is different: a failed item
+   * wants another attempt, a stale one wants the file picked again.
+   */
+  | 'stale';
 
 export type QueueItem = {
   /** Local id, stable across restarts. */
   id: string;
   eventId: string;
-  uri: string;
+  /** Opaque to this module; only `Deps` knows how to turn it into bytes. */
+  source: string;
   name: string;
   size: number;
   mime: string;
@@ -52,6 +64,26 @@ export type PresignResponse = {
   headers: Record<string, string>;
   expiresAt: string;
 };
+
+/**
+ * The source cannot be read and never will be again.
+ *
+ * Both clients can hit this and it is not exotic. On the web a `File` from
+ * `<input type=file>` is a reference to a file on disk carrying a snapshot of
+ * its state; the File API requires a read to fail once the underlying storage
+ * no longer matches that snapshot, which is what happens when iOS reclaims the
+ * temp copy the photo picker made. On native, the asset can be deleted from
+ * the camera roll between queueing and upload.
+ *
+ * Retrying costs a round trip and cannot succeed, so this skips straight to
+ * `stale` and asks a human for the file again.
+ */
+export class SourceGone extends Error {
+  constructor(message = 'source is no longer readable') {
+    super(message);
+    this.name = 'SourceGone';
+  }
+}
 
 export type Deps = {
   presign(eventId: string, files: PresignRequest[]): Promise<PresignResponse[]>;
@@ -94,8 +126,9 @@ export class UploadQueue {
   }
 
   get pendingCount(): number {
-    return this.items.filter((i) => i.status !== 'done' && i.status !== 'failed')
-      .length;
+    return this.items.filter(
+      (i) => i.status !== 'done' && i.status !== 'failed' && i.status !== 'stale',
+    ).length;
   }
 
   get doneCount(): number {
@@ -106,6 +139,23 @@ export class UploadQueue {
     return this.items.filter((i) => i.status === 'failed').length;
   }
 
+  /** Items whose bytes vanished, and which therefore need re-picking. */
+  get staleItems(): QueueItem[] {
+    return this.items.filter((i) => i.status === 'stale');
+  }
+
+  /**
+   * Forgets items so they can be queued again.
+   *
+   * The web client calls this when someone re-picks files that had gone stale:
+   * without it the dedupe in `add` would recognise the same source and drop
+   * the replacement on the floor.
+   */
+  forget(sources: string[]): void {
+    const drop = new Set(sources);
+    this.items = this.items.filter((i) => !drop.has(i.source));
+  }
+
   private now(): number {
     return this.deps.now?.() ?? Date.now();
   }
@@ -113,7 +163,7 @@ export class UploadQueue {
   add(eventId: string, files: Omit<QueueItem, 'status' | 'attempts' | 'eventId'>[]) {
     for (const file of files) {
       // Same asset queued twice in one session is a double-tap, not intent.
-      if (this.items.some((i) => i.uri === file.uri && i.eventId === eventId)) {
+      if (this.items.some((i) => i.source === file.source && i.eventId === eventId)) {
         continue;
       }
       this.items.push({ ...file, eventId, status: 'pending', attempts: 0 });
@@ -224,6 +274,11 @@ export class UploadQueue {
   private fail(item: QueueItem, err: unknown): void {
     item.attempts += 1;
     item.error = err instanceof Error ? err.message : String(err);
+    if (err instanceof SourceGone) {
+      // No attempt will find the bytes again, so do not spend three more.
+      item.status = 'stale';
+      return;
+    }
     // Back to pending so the next run retries; retries are safe because the
     // server addresses objects by content.
     item.status = item.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';

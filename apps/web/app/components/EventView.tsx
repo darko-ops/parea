@@ -9,19 +9,19 @@
  *     because one `arrayBuffer()` over a 200-file selection is a tab crash;
  *   - concurrency 3, because more hurts throughput on cellular;
  *   - progress is per-file, so a partial upload is partial photos, not zero;
+ *   - the queue is persisted, so a reload resumes rather than restarts;
  *   - the UI says the tab has to stay open, because on iOS that is true and
  *     pretending otherwise loses people's photos.
  *
- * Not yet here, and both are real gaps rather than polish: the IndexedDB queue
- * that survives a reload, and auto-selection (native only, and gated on the
- * geotag measurement).
+ * The mechanism is in `useUploads`; what is left here is the part someone
+ * looks at. Still missing: auto-selection, which is native-only and gated on
+ * the geotag measurement.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PhotoLightbox } from './PhotoLightbox';
-
-const CONCURRENCY = 3;
+import { useUploads } from './useUploads';
 
 type Photo = {
   id: string;
@@ -47,12 +47,8 @@ type Feed = {
   photos: Photo[];
 };
 
-type Job = { file: File; status: 'waiting' | 'sending' | 'done' | 'failed' };
-
 export function EventView({ eventId, initial }: { eventId: string; initial: Feed }) {
   const [feed, setFeed] = useState<Feed>(initial);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
@@ -63,75 +59,21 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     if (res.ok) setFeed(await res.json());
   }, [eventId]);
 
+  const uploads = useUploads(eventId, refresh);
+
+  // Photos appear as ingest finishes, which is seconds behind the upload.
   useEffect(() => {
-    if (!busy) return;
+    if (!uploads.running) return;
     const timer = setInterval(refresh, 4000);
     return () => clearInterval(timer);
-  }, [busy, refresh]);
+  }, [uploads.running, refresh]);
 
-  const upload = useCallback(
-    async (files: File[]) => {
-      if (!files.length) return;
-      setBusy(true);
-      setJobs(files.map((file) => ({ file, status: 'waiting' as const })));
-
-      const mark = (index: number, status: Job['status']) =>
-        setJobs((prev) =>
-          prev.map((job, i) => (i === index ? { ...job, status } : job)),
-        );
-
-      try {
-        const res = await fetch(`/api/events/${eventId}/uploads`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            files: files.map((f) => ({
-              name: f.name,
-              size: f.size,
-              type: f.type || 'image/jpeg',
-            })),
-          }),
-        });
-        if (!res.ok) throw new Error(`presign failed: ${res.status}`);
-        const { uploads } = (await res.json()) as {
-          uploads: { photoId: string; url: string; headers: Record<string, string> }[];
-        };
-
-        let next = 0;
-        const worker = async () => {
-          while (next < uploads.length) {
-            const index = next++;
-            const target = uploads[index]!;
-            mark(index, 'sending');
-            try {
-              // The File goes straight in as the body — it streams from disk.
-              const put = await fetch(target.url, {
-                method: 'PUT',
-                headers: target.headers,
-                body: files[index]!,
-              });
-              if (!put.ok) throw new Error(`upload failed: ${put.status}`);
-              await fetch(`/api/uploads/${target.photoId}/complete`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: '{}',
-              });
-              mark(index, 'done');
-            } catch {
-              mark(index, 'failed');
-            }
-          }
-        };
-        await Promise.all(
-          Array.from({ length: Math.min(CONCURRENCY, uploads.length) }, worker),
-        );
-      } finally {
-        setBusy(false);
-        await refresh();
-        if (inputRef.current) inputRef.current.value = '';
-      }
+  const pick = useCallback(
+    async (picked: File[]) => {
+      await uploads.add(picked);
+      if (inputRef.current) inputRef.current.value = '';
     },
-    [eventId, refresh],
+    [uploads],
   );
 
   const download = useCallback(
@@ -160,9 +102,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     },
     [eventId],
   );
-
-  const remaining = jobs.filter((j) => j.status === 'waiting' || j.status === 'sending').length;
-  const failed = jobs.filter((j) => j.status === 'failed').length;
 
   return (
     <main className="wrap">
@@ -193,19 +132,49 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             type="file"
             multiple
             accept="image/*,video/*"
-            disabled={busy}
-            onChange={(e) => upload(Array.from(e.target.files ?? []))}
+            disabled={uploads.running}
+            onChange={(e) => pick(Array.from(e.target.files ?? []))}
           />
-          {busy && (
+
+          {uploads.resumed && uploads.items.length > 0 && (
             <p className="muted">
-              {remaining} of {jobs.length} to go — keep this tab open until it
-              finishes. Uploads do not continue in the background.
+              Picking up where the last tab left off.{' '}
+              <button className="link" onClick={() => uploads.discard()}>
+                Start over instead
+              </button>
             </p>
           )}
-          {!busy && jobs.length > 0 && (
+
+          {uploads.running && (
             <p className="muted">
-              Added {jobs.filter((j) => j.status === 'done').length} of {jobs.length}
-              {failed > 0 && ` · ${failed} failed`}
+              {uploads.remaining} of {uploads.items.length} to go — keep this tab
+              open until it finishes. Uploads do not continue in the background,
+              but if this tab reloads it will carry on from here.
+            </p>
+          )}
+
+          {!uploads.running && uploads.done > 0 && (
+            <p className="muted">
+              Added {uploads.done} of {uploads.items.length}
+              {uploads.failed > 0 && ` · ${uploads.failed} failed`}
+            </p>
+          )}
+
+          {/*
+            Not an error message, a request. These photos were queued by a tab
+            that is gone, and the browser will not hand over their contents any
+            more — nothing retries into existence, so the only thing that helps
+            is choosing them again. Saying "failed" here would send someone to
+            a button that cannot work.
+          */}
+          {uploads.stale.length > 0 && (
+            <p className="muted">
+              {uploads.stale.length}{' '}
+              {uploads.stale.length === 1 ? 'photo' : 'photos'} could not be read
+              after the reload — your browser only lends a file to the tab that
+              picked it. Choose{' '}
+              {uploads.stale.length === 1 ? 'it' : 'them'} again to finish:{' '}
+              {uploads.stale.map((item) => item.name).join(', ')}
             </p>
           )}
         </section>

@@ -141,14 +141,15 @@ export async function scanWindow(window: Window): Promise<LibraryScan> {
 /** Turns library ids back into files the upload queue can send. */
 export async function resolveForUpload(
   ids: string[],
-): Promise<{ id: string; uri: string; name: string; size: number; mime: string }[]> {
+): Promise<{ id: string; source: string; name: string; size: number; mime: string }[]> {
   return pooled(ids, CONCURRENCY, async (id) => {
     const asset = new Asset(id);
     const info = await asset.getInfo();
     const uri = await asset.getUri();
     return {
       id,
-      uri,
+      // The queue's opaque source string; on native it is the asset URI.
+      source: uri,
       name: info.filename,
       // The queue sends the real size from disk; the media store's is
       // advisory, and the server only uses it for a sanity bound.
