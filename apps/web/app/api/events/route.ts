@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
+import { asDateString, parseWindow } from '@/eventwindow';
 import { CREATE_EVENT_LIMIT, withinLimit } from '@/ratelimit';
 import { ensureActor, grantCapability } from '@/session';
 
@@ -33,6 +34,16 @@ export async function POST(request: Request) {
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name || name.length > 120) {
     return NextResponse.json({ error: 'name_required' }, { status: 400 });
+  }
+
+  // The auto-selection window (§7.3), validated here because this is the
+  // first release in which any client sends one. A window that does not run
+  // forwards, or half of one, would be stored happily and then pre-select the
+  // wrong photos for every contributor — the asymmetric failure §17 names,
+  // and one nothing downstream can detect.
+  const window = parseWindow(body.startsAt, body.endsAt);
+  if (window === 'invalid') {
+    return NextResponse.json({ error: 'invalid_window' }, { status: 400 });
   }
 
   const db = getDb();
@@ -70,8 +81,8 @@ export async function POST(request: Request) {
       // Drives auto-selection later (design §7.3). Captured at creation
       // because inferring it from uploads only helps contributor five, not
       // contributor one — who is often the person with 200 photos.
-      startsAt: asDate(body.startsAt),
-      endsAt: asDate(body.endsAt),
+      startsAt: window?.startsAt ?? null,
+      endsAt: window?.endsAt ?? null,
       // Retention lever, populated but not enforced in v1 (design §15). Null
       // for grouped events: a group's archive is the thing that accrues value,
       // and expiring it is what the group is bought to prevent.
@@ -136,15 +147,4 @@ async function claimCode(
     returning words
   `);
   return claimed[0]?.words ?? null;
-}
-
-function asDate(value: unknown): Date | null {
-  if (typeof value !== 'string') return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function asDateString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }

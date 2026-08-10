@@ -55,6 +55,7 @@ export function GroupScreen({
   t,
   onBack,
   onOpenEvent,
+  onCreateEvent,
   Button,
 }: {
   api: Api;
@@ -62,6 +63,7 @@ export function GroupScreen({
   t: GroupTheme;
   onBack: () => void;
   onOpenEvent: (event: OpenableEvent) => void;
+  onCreateEvent: (groupName: string) => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -243,6 +245,18 @@ export function GroupScreen({
               ))
             )}
           </View>
+
+          {/*
+            Any member, not just an admin: the point of a group is that the
+            next dinner does not need the person who made the last one. This
+            is also the only producer of §12's second notification.
+          */}
+          <Button
+            label="New event in this group"
+            onPress={() => onCreateEvent(group.name)}
+            t={t}
+            primary
+          />
 
           <Button label="Leave this group" onPress={leave} t={t} />
         </>

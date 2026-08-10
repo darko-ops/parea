@@ -38,6 +38,7 @@ import {
 import { resolveWindow, type Window } from '@parea/autoselect';
 
 import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
+import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
 import { AutoSelect } from './src/AutoSelect';
@@ -77,7 +78,8 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
 type Route =
   | { screen: 'home' }
   | { screen: 'event'; event: SavedEvent }
-  | { screen: 'group'; id: string };
+  | { screen: 'group'; id: string }
+  | { screen: 'create'; groupId?: string; groupName?: string };
 
 export default function App() {
   const dark = useColorScheme() === 'dark';
@@ -199,6 +201,34 @@ export default function App() {
         />
       )}
 
+      {route.screen === 'create' && (
+        <CreateEvent
+          api={api}
+          webBase={API_BASE}
+          groupId={route.groupId}
+          groupName={route.groupName}
+          t={t}
+          onCancel={() =>
+            setRoute(
+              route.groupId
+                ? { screen: 'group', id: route.groupId }
+                : { screen: 'home' },
+            )
+          }
+          onCreated={(created) => {
+            void refreshGroups();
+            void open({
+              id: created.id,
+              name: created.name,
+              linkToken: created.linkToken,
+              startsAt: created.startsAt,
+              endsAt: created.endsAt,
+            });
+          }}
+          Button={Button}
+        />
+      )}
+
       {route.screen === 'group' && (
         <GroupScreen
           api={api}
@@ -209,6 +239,7 @@ export default function App() {
             setRoute({ screen: 'home' });
           }}
           onOpenEvent={open}
+          onCreateEvent={(name) => setRoute({ screen: 'create', groupId: route.id, groupName: name })}
           Button={Button}
         />
       )}
@@ -221,6 +252,7 @@ export default function App() {
           t={t}
           onOpen={open}
           onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+          onCreateEvent={() => setRoute({ screen: 'create' })}
           onJoin={join}
           busy={arriving}
           error={joinError}
@@ -251,6 +283,7 @@ function JoinScreen({
   t,
   onOpen,
   onOpenGroup,
+  onCreateEvent,
   onJoin,
   busy,
   error,
@@ -261,6 +294,7 @@ function JoinScreen({
   t: Theme;
   onOpen: (event: SavedEvent) => void;
   onOpenGroup: (groupId: string) => void;
+  onCreateEvent: () => void;
   onJoin: (input: { linkToken?: string; code?: string }) => Promise<boolean>;
   busy: boolean;
   error: string | null;
@@ -318,6 +352,13 @@ function JoinScreen({
         />
         {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
       </View>
+
+      {/*
+        Below the ways in, not above them. Most people arriving here were sent
+        a link; the host making one is the rarer case, and putting creation
+        first would make the app look like a thing you have to set up.
+      */}
+      <Button label="Start an event" onPress={onCreateEvent} t={t} />
 
       {/*
         Groups first, and above the recent events, because they are the thing

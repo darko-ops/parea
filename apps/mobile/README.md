@@ -68,6 +68,42 @@ Search is last on the join screen and never above the link box. It is the
 backstop for a lost link, not the way in; putting discovery first would suggest
 browsing is how this product works.
 
+## Making an event
+
+The app can start one, which until now only the web could. The interesting
+field is the window.
+
+`event.starts_at` / `ends_at` have been in the schema since the first migration
+and **no client ever set them** — the web create form asks only for a date. So
+the window §7.3 says is "captured at creation, because inferring it from
+uploads only helps contributor five, not contributor one" has in fact always
+been inferred from uploads, and contributor one has always fallen through to
+the system picker. This screen is the first place it is asked.
+
+It asks with a short list of phrases rather than a time picker, because §17
+records the constraint: *a wrong window is worse than no window*. Someone
+creating an event is standing at the thing, and two spinners get a careless
+answer; "Tonight" and "Last night" get a considered one. Both run to 4am,
+because a night is not a calendar day and photos from 1am belong to the party
+that started at 8pm. Nothing is pre-selected — a default here is a guess
+wearing the clothes of an answer — and "Not sure yet" is one of the options
+rather than something you reach by skipping the question.
+
+The server validates it, since this is the first release where anything sends
+one: both ends or neither, and forwards. A half-window resolves against an open
+interval, which is every photo on the contributor's device.
+
+Creating is offered below the ways in, not above them. Most people arriving
+here were sent a link; putting creation first would make the app look like
+something you have to set up. From inside a group, any member can make the next
+event — the point of a group is that it does not need the person who made the
+last one — and that is the only thing in either client that produces §12's
+second notification.
+
+Afterwards the screen becomes the share step: the link, the system share sheet,
+and the spoken code. An event is worth nothing until the link reaches the group
+chat, and the likeliest moment for that is the second after it is made.
+
 ## Auto-selection
 
 The reason this client exists (design §1). With photo-library access and a

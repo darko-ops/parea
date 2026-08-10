@@ -123,6 +123,29 @@ export class Api {
     });
   }
 
+  /**
+   * Create an event — design §3 screen 1.
+   *
+   * `startsAt`/`endsAt` are the auto-selection window (§7.3), and this is the
+   * first client that sends them: the web form asks only for a date, so the
+   * window that is supposed to be "captured at creation" has always been
+   * inferred from uploads instead — which helps contributor five and not
+   * contributor one.
+   */
+  createEvent(input: {
+    name: string;
+    groupId?: string;
+    eventDate?: string | null;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    createdByName?: string;
+  }): Promise<{ id: string; name: string; linkToken: string; url: string; code: string | null }> {
+    return this.call('/api/events', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
   /** Minted on first contribution, never on first launch. */
   async startSession(displayName?: string): Promise<string> {
     const { actorToken } = await this.call<{ actorToken: string }>('/api/session', {
