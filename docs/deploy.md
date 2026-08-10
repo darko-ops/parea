@@ -12,6 +12,12 @@ Most first-deploy failures are a secret that matches in two places out of three
 | `parea-img`, `parea-zip` | Cloudflare Workers | R2 reads are free from inside Cloudflare |
 | Deriver + jobs | Fly.io | needs libvips and libheif; will not run in a Worker |
 
+The native client is built and submitted separately — see
+[`apps/mobile/README.md`](../apps/mobile/README.md). It needs one thing from
+this side that is easy to miss: `/.well-known/apple-app-site-association` and
+`/.well-known/assetlinks.json`, without which the app's deep links are
+declared and never verified.
+
 ## Two kinds of deployment
 
 **Private soak** — everything stood up, only you can reach it, no scanning.

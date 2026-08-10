@@ -68,6 +68,68 @@ Permission is asked for **after** a first contribution, never in front of one:
 the picker path needs no permission at all, and the upgrade is pitched as
 "next time we can find them for you".
 
+## Building and submitting
+
+Identifiers are `photos.parea` on both platforms and `parea.photos` for links.
+**Both application identifiers are permanent from the first store upload** —
+they are asserted in `test/config.test.ts` alongside the two places the domain
+has to match, because three of those four can be wrong without anything
+failing to build. Deep links just quietly stop opening the app.
+
+```
+npm install -g eas-cli && eas login
+eas build --profile development --platform ios     # a dev client, not Expo Go
+eas build --profile production --platform all
+eas submit --profile production --platform ios
+```
+
+Three profiles. `development` builds a dev client against `localhost` —
+everything native here (background upload, granular photo permissions, the
+camera) is unavailable in Expo Go. `preview` is a release build against
+staging, installable without a store, and is the app-side half of the private
+soak in [`../../docs/deploy.md`](../../docs/deploy.md). `production` is the
+store build; EAS owns the build number, because a duplicate one is rejected at
+upload after you have already paid for and waited on the build.
+
+Submit credentials are referenced, never written down:
+
+```
+eas secret:create --scope project --name APPLE_ID --value you@example.com
+eas secret:create --scope project --name ASC_APP_ID --value 1234567890
+eas secret:create --scope project --name APPLE_TEAM_ID --value ABCDE12345
+eas secret:create --scope project --name GOOGLE_SERVICE_ACCOUNT_KEY_PATH --value ./play.json
+```
+
+Android submits to the `internal` track, not straight to production.
+
+### Still missing before a build is submittable
+
+- **An icon.** There is no `assets/` directory, so Expo's default is what ships.
+  App Store Connect wants 1024×1024 and will not take a placeholder twice.
+- **`/.well-known/apple-app-site-association`,** served by the web app. The
+  entitlement now names a real domain and nothing answers for it, so Universal
+  Links will not verify and every link falls through to Safari. The file needs
+  `<TeamID>.photos.parea`, so it is blocked on the Apple Team ID and on
+  nothing else. Android needs `/.well-known/assetlinks.json` the same way, with
+  the release signing certificate's fingerprint.
+- **Nutrition labels**, in App Store Connect rather than in this repository.
+  The privacy manifest here declares photos, the push token and the optional
+  display name — all unlinked, none for tracking.
+
+  **One question in there is genuinely open and should not be answered by a
+  programmer.** Precise location is *not* declared, on the reading that it is
+  never stored: it arrives inside the original, and the deriver strips it
+  before the photo is served or kept. But the un-stripped original does sit in
+  R2 between upload and ingest, which is longer than "servicing the request in
+  real time" — so the other reading is defensible too. Declaring it makes the
+  label say this app collects precise location, which materially misdescribes
+  the product; not declaring it and being wrong is a rejection at best. The
+  facts are all here; the call is not a technical one.
+- **An age rating and a EULA.** Guideline 1.2 wants terms with explicit zero
+  tolerance for objectionable content and abusive users, on top of the
+  filtering, reporting, blocking and published contact that exist. And a
+  user-generated-content app does not get to claim 4+.
+
 ## Notes
 
 Identity is a bearer token in the keychain, the same signed value the web
