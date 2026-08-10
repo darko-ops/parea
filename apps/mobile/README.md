@@ -13,6 +13,38 @@ can run without a device. The upload queue, which is the part worth testing
 most, is platform-free by design and lives in `@parea/upload` with its tests;
 everything else in `src/` imports Expo at module scope and needs a simulator.
 
+## Three tabs
+
+**Albums** — what you can reach, most recently active first, as rounded cards
+carrying the two numbers that matter: how many people are in it and how many
+photos. "6 people, 88 photos" is the recruiting device the concept names (§2),
+and it reads the same whether you are deciding to open an album or to add to
+one.
+
+**Find** — two halves that are different in kind. Group search reaches groups
+you are *not* in; it is the only discovery surface in the product and it
+returns findable groups by name. There is deliberately no album search: §3's
+rule is that groups can be findable and photos never are, and searching albums
+is searching photos. The map half is the reverse — only albums you are already
+in, arranged by where they were, so nothing is discovered and nothing is
+exposed that you could not already see.
+
+**You** — your name, your groups, and everything you are in. The name is the
+whole of a profile here; there is no account to log into.
+
+An album's place is typed by whoever starts it, and never derived. The obvious
+source is the photos and it is the one source that must not be used: §7.6
+strips GPS at ingest and the deriver *fails* a photo if any survives, so there
+is no location in this system to derive from, on purpose. The map opens the
+system maps app rather than embedding one — a map view is a native module
+nothing here can test, and handing the place to the maps app someone already
+uses gets them directions as well as a pin.
+
+Finding people is not built, and is marked as such rather than left blank. It
+needs accounts, which §3 deliberately does not have: identity is a credential
+on a device, so there is nobody to look up. Building it is a decision about
+what the product is, not a screen.
+
 ## What native buys
 
 Uploads that survive backgrounding **and app termination**, on iOS. SDK 57's

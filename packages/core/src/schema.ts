@@ -152,6 +152,20 @@ export const events = pgTable(
     /** Drives auto-selection (design §7.3). Set at creation where possible. */
     startsAt: timestamp('starts_at', { withTimezone: true }),
     endsAt: timestamp('ends_at', { withTimezone: true }),
+    /**
+     * Where it was, as a person would say it — "Hackney", "Mum's".
+     *
+     * Typed by the host, never derived. The obvious source is the photos and
+     * it is the one source that must not be used: §7.6 strips GPS at ingest
+     * and the deriver *fails* a photo if any survives, so there is no location
+     * in this system to derive from, deliberately. Reversing that to power a
+     * map would trade a safety guarantee for a nicety.
+     *
+     * Free text rather than coordinates, because it is shown to the people who
+     * were already there and its job is to be recognised, not resolved. Any
+     * mapping happens client-side, from the string.
+     */
+    place: text('place'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),

@@ -38,7 +38,8 @@ import {
 
 import { resolveWindow, type Window } from '@parea/autoselect';
 
-import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
+import { Api, tokenFromInput, type Album, type Feed, type FeedPhoto } from './src/api';
+import { HomeTab, ProfileTab, SearchTab } from './src/Albums';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
@@ -79,8 +80,20 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
  * here is one step from home, and a navigation library would be more moving
  * parts than the product has screens.
  */
+/**
+ * Three tabs, and the screens that open on top of them.
+ *
+ * The tabs are where someone lives — albums, finding things, themselves — and
+ * everything else is pushed over the top and dismissed back to whichever tab
+ * they came from. No history stack and no navigation library: there are six
+ * destinations in this product and a library would be more moving parts than
+ * screens.
+ */
+type Tab = 'home' | 'search' | 'profile';
+
 type Route =
-  | { screen: 'home' }
+  | { screen: 'tabs' }
+  | { screen: 'join' }
   | { screen: 'event'; event: SavedEvent }
   | { screen: 'group'; id: string }
   | { screen: 'create'; groupId?: string; groupName?: string };
@@ -96,7 +109,11 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [events, setEvents] = useState<SavedEvent[]>([]);
   const [groups, setGroups] = useState<MyGroup[]>([]);
-  const [route, setRoute] = useState<Route>({ screen: 'home' });
+  const [route, setRoute] = useState<Route>({ screen: 'tabs' });
+  const [tab, setTab] = useState<Tab>('home');
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(true);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -114,6 +131,31 @@ export default function App() {
   const refreshGroups = useCallback(async () => {
     setGroups(await api.myGroups().catch(() => []));
   }, [api]);
+
+  /**
+   * The albums this actor can reach.
+   *
+   * Fetched rather than remembered locally, for the same reason groups are:
+   * a list on the device is a list of links this phone was sent, and a
+   * reinstall loses it. Membership is the durable thing.
+   */
+  const refreshAlbums = useCallback(async () => {
+    const next = await api.albums().catch(() => null);
+    if (next) setAlbums(next);
+    setLoadingAlbums(false);
+  }, [api]);
+
+  const openAlbum = useCallback(
+    (album: Album) =>
+      open({
+        id: album.id,
+        name: album.name,
+        linkToken: album.linkToken,
+        startsAt: album.startsAt,
+        endsAt: album.endsAt,
+      }),
+    [open],
+  );
 
   /**
    * The one path in, whether the link was pasted, scanned or tapped.
@@ -202,6 +244,7 @@ export default function App() {
       // as them. Groups are empty for anyone who has never contributed, which
       // is the common first launch and not an error.
       void refreshGroups();
+      void refreshAlbums();
       await arrive(await Linking.getInitialURL());
       // The notification equivalent of `getInitialURL`: the app may have been
       // launched by a tap, and that arrives here rather than on the listener.
@@ -216,7 +259,7 @@ export default function App() {
       subscription.remove();
       untap();
     };
-  }, [api, arrive, follow, refreshGroups]);
+  }, [api, arrive, follow, refreshAlbums, refreshGroups]);
 
   if (!ready) {
     return (
@@ -234,7 +277,10 @@ export default function App() {
           api={api}
           event={route.event}
           t={t}
-          onBack={() => setRoute({ screen: 'home' })}
+          onBack={() => {
+            void refreshAlbums();
+            setRoute({ screen: 'tabs' });
+          }}
           onOpenGroup={(id) => setRoute({ screen: 'group', id })}
           onGroupsChanged={refreshGroups}
         />
@@ -251,7 +297,7 @@ export default function App() {
             setRoute(
               route.groupId
                 ? { screen: 'group', id: route.groupId }
-                : { screen: 'home' },
+                : { screen: 'tabs' },
             )
           }
           onCreated={(created) => {
@@ -275,7 +321,8 @@ export default function App() {
           t={t}
           onBack={() => {
             void refreshGroups();
-            setRoute({ screen: 'home' });
+            void refreshAlbums();
+            setRoute({ screen: 'tabs' });
           }}
           onOpenEvent={open}
           onCreateEvent={(name) => setRoute({ screen: 'create', groupId: route.id, groupName: name })}
@@ -283,7 +330,7 @@ export default function App() {
         />
       )}
 
-      {route.screen === 'home' && (
+      {route.screen === 'join' && (
         <JoinScreen
           api={api}
           events={events}
@@ -293,9 +340,95 @@ export default function App() {
           onOpenGroup={(id) => setRoute({ screen: 'group', id })}
           onCreateEvent={() => setRoute({ screen: 'create' })}
           onJoin={join}
+          onBack={() => setRoute({ screen: 'tabs' })}
           busy={arriving}
           error={joinError}
         />
+      )}
+
+      {route.screen === 'tabs' && (
+        <>
+          {tab === 'home' && (
+            <HomeTab
+              albums={albums}
+              loading={loadingAlbums}
+              t={t}
+              onOpen={openAlbum}
+              onRefresh={refreshAlbums}
+              onCreate={() => setRoute({ screen: 'create' })}
+              Button={Button}
+            />
+          )}
+          {tab === 'search' && (
+            <SearchTab
+              api={api}
+              albums={albums}
+              t={t}
+              onOpen={openAlbum}
+              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+            />
+          )}
+          {tab === 'profile' && (
+            <ProfileTab
+              albums={albums}
+              groups={groups}
+              displayName={displayName}
+              t={t}
+              onOpen={openAlbum}
+              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+              onRename={(next) => {
+                setDisplayName(next);
+                if (next) void api.setDisplayName(next).catch(() => {});
+              }}
+              Button={Button}
+            />
+          )}
+
+          {/*
+            Above the tab bar and on every tab: being sent a link is how most
+            people arrive, and it should never be more than one tap away
+            wherever they happen to be.
+          */}
+          <Pressable
+            style={[styles.joinBar, { backgroundColor: t.card, borderColor: t.line }]}
+            onPress={() => setRoute({ screen: 'join' })}
+            accessibilityRole="button"
+            accessibilityLabel="Open an album from a link, a code or a QR code"
+          >
+            <Text style={[styles.body, { color: t.accent }]}>
+              Have a link or a code? Open it
+            </Text>
+          </Pressable>
+
+          <View style={[styles.tabBar, { backgroundColor: t.card, borderColor: t.line }]}>
+            {(
+              [
+                ['home', 'Albums'],
+                ['search', 'Find'],
+                ['profile', 'You'],
+              ] as [Tab, string][]
+            ).map(([id, label]) => (
+              <Pressable
+                key={id}
+                style={styles.tab}
+                onPress={() => setTab(id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: tab === id }}
+                accessibilityLabel={label}
+              >
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    { color: tab === id ? t.accent : t.dim },
+                    tab === id && styles.tabLabelActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
       )}
 
       {/*
@@ -303,7 +436,7 @@ export default function App() {
         Without this the screen simply changes under someone who is watching
         an upload, with no account of why.
       */}
-      {arriving && route.screen !== 'home' && (
+      {arriving && route.screen !== 'join' && (
         <View style={[styles.center, styles.overlay]}>
           <ActivityIndicator color={t.accent} />
           <Text style={[styles.body, { color: t.fg }]}>Opening…</Text>
@@ -324,6 +457,7 @@ function JoinScreen({
   onOpenGroup,
   onCreateEvent,
   onJoin,
+  onBack,
   busy,
   error,
 }: {
@@ -335,6 +469,7 @@ function JoinScreen({
   onOpenGroup: (groupId: string) => void;
   onCreateEvent: () => void;
   onJoin: (input: { linkToken?: string; code?: string }) => Promise<boolean>;
+  onBack: () => void;
   busy: boolean;
   error: string | null;
 }) {
@@ -355,6 +490,9 @@ function JoinScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
+      <Pressable onPress={onBack}>
+        <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
+      </Pressable>
       <Text style={[styles.h1, { color: t.fg }]}>
         Every photo from everyone who was there
       </Text>
@@ -1111,6 +1249,34 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
+  // Pinned above the tab bar rather than inside a tab: arriving from a link
+  // is how most people get here, and it should never be a tab away.
+  joinBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 76,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  tabBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    // Room for the home indicator. A safe-area library would be exact; this
+    // is a constant that is right on every phone with one and slightly
+    // generous on the few without.
+    paddingBottom: 24,
+    paddingTop: 10,
+  },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 6 },
+  tabLabel: { fontSize: 14 },
+  tabLabelActive: { fontWeight: '700' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },

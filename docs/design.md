@@ -340,6 +340,20 @@ The concept's rule — *groups can be findable, photos never are* — is enforce
 structurally. Group search hits an index containing no photo join. There is no
 event index and no photo index. Search returns a door.
 
+**The app's "albums by place" screen is not an exception.** It arranges albums
+the viewer is *already in* by where they were, so nothing is discovered and
+nothing is shown that they could not already see; there is no query by place
+across albums they are not in, and adding one would be event search wearing a
+map. An event's `place` is free text typed by its host at creation, never
+derived: §7.6 strips GPS at ingest and ingest *fails* if any survives, so
+there is no photo location in this system to derive from, deliberately. A map
+drawn from retained photo GPS would trade that guarantee for a nicety.
+
+**Finding people is unbuilt**, and the reason is structural rather than
+scheduling. §3 has no accounts on the contribution path — identity is a
+credential on a device — so there is nobody to look up. Building it is a
+decision about what the product is, not a screen to add.
+
 ## 7. Contribution — the native flow
 
 This is the part that justifies the app. Everything else is plumbing.

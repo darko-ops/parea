@@ -22,6 +22,7 @@ export const runtime = 'nodejs';
 type Body = {
   groupId?: unknown;
   name?: unknown;
+  place?: unknown;
   eventDate?: unknown;
   startsAt?: unknown;
   endsAt?: unknown;
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
       linkToken: newLinkToken(),
       createdBy: actorId,
       eventDate: asDateString(body.eventDate),
+      // Typed by the host, never derived from the photos — there is no
+      // location in them to derive from, by design (§7.6).
+      place:
+        typeof body.place === 'string' && body.place.trim()
+          ? body.place.trim().slice(0, 80)
+          : null,
       // Drives auto-selection later (design §7.3). Captured at creation
       // because inferring it from uploads only helps contributor five, not
       // contributor one — who is often the person with 200 photos.

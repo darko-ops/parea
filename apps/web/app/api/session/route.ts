@@ -11,6 +11,7 @@
  */
 
 import { schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
@@ -23,10 +24,22 @@ export async function POST(request: Request) {
   const displayName =
     typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : null;
 
-  const existing = await currentActorId();
-  if (existing) return NextResponse.json({ actorToken: actorToken(existing) });
-
   const db = getDb();
+
+  const existing = await currentActorId();
+  if (existing) {
+    // A name given now is a rename, not a no-op. The profile tab is the only
+    // place someone can set one after the fact, and this used to answer with
+    // the token and quietly discard it.
+    if (displayName) {
+      await db
+        .update(schema.actors)
+        .set({ displayName })
+        .where(eq(schema.actors.id, existing));
+    }
+    return NextResponse.json({ actorToken: actorToken(existing) });
+  }
+
   const [actor] = await db
     .insert(schema.actors)
     .values({ kind: 'guest', displayName })

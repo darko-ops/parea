@@ -65,6 +65,7 @@ export function CreateEvent({
   }) => React.ReactElement;
 }) {
   const [name, setName] = useState('');
+  const [place, setPlace] = useState('');
   const [when, setWhen] = useState<WindowId | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export function CreateEvent({
       const window = windowFor(when, now);
       const created = await api.createEvent({
         name: trimmed,
+        place: place.trim() || undefined,
         groupId,
         eventDate: eventDateFor(when, now),
         startsAt: window?.startsAt ?? null,
@@ -105,7 +107,7 @@ export function CreateEvent({
     } finally {
       setBusy(false);
     }
-  }, [api, groupId, name, webBase, when]);
+  }, [api, groupId, name, place, webBase, when]);
 
   if (made) {
     return (
@@ -166,6 +168,22 @@ export function CreateEvent({
           maxLength={120}
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
+      </View>
+
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>Where? (optional)</Text>
+        <TextInput
+          value={place}
+          onChangeText={setPlace}
+          placeholder="Hackney"
+          placeholderTextColor={t.dim}
+          maxLength={80}
+          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+        />
+        <Text style={[styles.small, { color: t.dim }]}>
+          As you&rsquo;d say it, not an address. It puts this album on your map
+          and is only ever shown to people who are already in it.
+        </Text>
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>

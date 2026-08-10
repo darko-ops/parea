@@ -49,6 +49,27 @@ export type Feed = {
   photos: FeedPhoto[];
 };
 
+/**
+ * An album — an event, in the word the product says out loud.
+ *
+ * What a card on the home screen needs and nothing more: no photos, because
+ * a list of albums is not a place to serve two hundred thumbnails.
+ */
+export type Album = {
+  id: string;
+  name: string;
+  linkToken: string;
+  place: string | null;
+  eventDate: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  memberCount: number;
+  photoCount: number;
+  lastActiveAt: string;
+};
+
 /** A group as a stranger sees it: a door, never the room. */
 export type GroupDoor = {
   id: string;
@@ -155,6 +176,7 @@ export class Api {
    */
   createEvent(input: {
     name: string;
+    place?: string;
     groupId?: string;
     eventDate?: string | null;
     startsAt?: string | null;
@@ -221,6 +243,26 @@ export class Api {
     }>(`/api/events/${eventId}/download`, {
       method: 'POST',
       body: JSON.stringify({ linkToken, format }),
+    });
+  }
+
+  /**
+   * Every album this actor can reach — the home and profile tabs.
+   *
+   * Membership rather than possession: events they took part in, plus every
+   * event in a group they are in. An album they opened once from a link a
+   * year ago is not somewhere they live.
+   */
+  async albums(): Promise<Album[]> {
+    const { albums } = await this.call<{ albums: Album[] }>('/api/albums');
+    return albums;
+  }
+
+  /** The name shown beside your uploads. The whole of a profile here. */
+  setDisplayName(displayName: string): Promise<unknown> {
+    return this.call('/api/session', {
+      method: 'POST',
+      body: JSON.stringify({ displayName }),
     });
   }
 
