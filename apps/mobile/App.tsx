@@ -84,7 +84,10 @@ type Route =
 export default function App() {
   const dark = useColorScheme() === 'dark';
   const t = useMemo(() => theme(dark), [dark]);
-  const api = useMemo(() => new Api(API_BASE), []);
+  const api = useMemo(
+    () => new Api(API_BASE, null, RNPlatform.OS === 'android' ? 'android' : 'ios'),
+    [],
+  );
 
   const [ready, setReady] = useState(false);
   const [events, setEvents] = useState<SavedEvent[]>([]);
@@ -570,6 +573,11 @@ function EventScreen({
     });
     if (picked.canceled || picked.assets.length === 0) return;
 
+    // The other half of §18's precision number: a contribution that never got
+    // a suggestion. Without this, "precision looks fine" and "almost nobody
+    // saw a suggestion" are the same reading.
+    api.observe({ kind: 'picker_used', eventId: event.id });
+
     await enqueue(
       picked.assets.map((asset, index) => ({
         id: `${Date.now()}-${index}`,
@@ -634,8 +642,26 @@ function EventScreen({
         window={autoWindow}
         theme={t}
         onCancel={() => setAutoWindow(null)}
-        onConfirm={async (assetIds) => {
+        onShown={(preselected, candidates) =>
+          api.observe({
+            kind: 'autoselect_shown',
+            eventId: event.id,
+            count: preselected,
+            outOf: candidates,
+          })
+        }
+        onConfirm={async (assetIds, preselected) => {
           setAutoWindow(null);
+          // How much of the suggestion survived. `outOf` is what was ticked
+          // when the screen opened, not what was offered — precision is about
+          // the guess, and someone adding photos the guess missed should not
+          // read as the guess having been right.
+          api.observe({
+            kind: 'autoselect_confirmed',
+            eventId: event.id,
+            count: assetIds.filter((id) => preselected.includes(id)).length,
+            outOf: preselected.length,
+          });
           await enqueue(await resolveForUpload(assetIds));
         }}
       />

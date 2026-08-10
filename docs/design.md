@@ -1122,3 +1122,40 @@ Two more that exist only because of the native decision, and that judge it:
   creator-set time window, and whether contributor #1 got a suggestion or fell
   through to manual picking (§7.3). The bootstrap gap is known and narrowed but
   not closed, and this is the number that says whether it matters.
+
+### How it is actually wired
+
+**Most of this is a query, not tracking.** Contributors per event, photos per
+contributor, time to the first non-creator upload, group formation, and the
+fraction of events carrying a creator-set window are all facts the schema
+already holds. Collecting them a second time through a pipeline would move
+user data somewhere new and answer nothing extra.
+
+Five things are not derivable, and they are a closed list in one first-party
+table — `observation`, in the same spirit as the three notifications. Nothing
+is sent anywhere and there is no third-party SDK, which is also what keeps the
+app's privacy manifest honest: it declares no tracking and no tracking
+domains, and that has to stay true.
+
+| Observation | Recorded by | Because |
+|---|---|---|
+| `joined` | the join route | nothing else knows which client someone arrived on |
+| `download` | the download route | the zip Worker has no database; minting the URL is the only trace |
+| `autoselect_shown` | the app | a suggestion happens on a device |
+| `autoselect_confirmed` | the app | precision is the gap between offered and kept |
+| `picker_used` | the app | without it, "precision is fine" and "almost nobody saw a suggestion" read alike |
+
+Only the three the device is the sole witness to are accepted from a client.
+An endpoint that let a client assert *someone downloaded this* would make the
+one metric about delivery unfalsifiable.
+
+Read out with `deriver metrics`, which prints each number alongside what a bad
+one would mean — a number without a reading is not a signal. It is a CLI
+command rather than a page because there is no admin authentication in this
+product, and inventing one so a dashboard can exist is a larger security
+surface than these numbers are worth.
+
+Rows expire after a year. Return rate is the slowest metric and needs enough
+history to see a second event; beyond that this is the only table in the
+product holding anything purely because it was interesting, and it should not
+grow forever.

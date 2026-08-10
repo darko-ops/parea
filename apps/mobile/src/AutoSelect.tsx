@@ -48,11 +48,15 @@ export function AutoSelect({
   theme: t,
   onCancel,
   onConfirm,
+  onShown,
 }: {
   window: Window;
   theme: AutoSelectTheme;
   onCancel: () => void;
-  onConfirm: (assetIds: string[]) => void;
+  /** Receives the final selection, and what was ticked when the screen opened. */
+  onConfirm: (assetIds: string[], preselected: string[]) => void;
+  /** §18's precision numerator and denominator, once the scan has run. */
+  onShown?: (preselected: number, candidates: number) => void;
 }) {
   const [scan, setScan] = useState<LibraryScan | null>(null);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
@@ -66,7 +70,12 @@ export function AutoSelect({
       setScan(result);
       setSuggestion(next);
       setSelected(new Set(next.preselected));
+      onShown?.(next.preselected.length, next.candidates.length);
     })();
+    // `onShown` deliberately out of the deps: it is a fire-and-forget report,
+    // and re-running the scan because a parent re-rendered would be a real
+    // cost paid for a duplicate metric.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [window]);
 
   const toggle = useCallback((id: string) => {
@@ -186,7 +195,7 @@ export function AutoSelect({
           <Text style={[styles.buttonText, { color: t.fg }]}>Cancel</Text>
         </Pressable>
         <Pressable
-          onPress={() => onConfirm([...selected])}
+          onPress={() => onConfirm([...selected], suggestion.preselected)}
           disabled={selected.size === 0}
           style={[
             styles.footerButton,

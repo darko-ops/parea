@@ -433,6 +433,62 @@ export const blocks = pgTable(
 // --- relations -------------------------------------------------------------
 
 /**
+ * The observations this product is allowed to make — design §18.
+ *
+ * A closed list, in the same spirit as the three notifications: the constraint
+ * is what makes it safe to have at all. §18 names the numbers the first
+ * release needs, and **most of them are already in the tables above** —
+ * contributors per event, photos per contributor, time to the first
+ * non-creator upload, group formation, what fraction of events carry a
+ * creator-set window. Those are queries, not tracking, and adding a pipeline
+ * to collect what Postgres already knows would move user data somewhere new
+ * for no answer.
+ *
+ * What is left is the handful of facts nothing records, and each row here
+ * exists because one §18 metric cannot be computed without it. Nothing is
+ * sent anywhere: first-party, one table, no third-party SDK, and no profile —
+ * which is also what keeps the app's privacy manifest honest, since it
+ * declares no tracking and no tracking domains.
+ *
+ * If a kind is ever added, the question to answer first is which metric it
+ * serves. An observation collected "in case it is useful later" is the thing
+ * this list exists to prevent.
+ */
+export const observations = pgTable(
+  'observation',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind', {
+      enum: [
+        /** Someone got in. `client` answers §18's install-conversion question. */
+        'joined',
+        /** An archive was minted. Nothing else records that anyone left with the photos. */
+        'download',
+        /** A suggestion was shown: `count` pre-selected out of `outOf` candidates. */
+        'autoselect_shown',
+        /** `count` of the `outOf` pre-selected survived to upload — precision. */
+        'autoselect_confirmed',
+        /** No window or no permission, so the system picker. The other half of precision. */
+        'picker_used',
+      ],
+    }).notNull(),
+    eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }),
+    /**
+     * Nullable, and pseudonymous when set. Needed for the two metrics that
+     * are about people rather than events — return rate, and return rate
+     * among heavy deselectors — which cannot be computed from anonymous rows.
+     */
+    actorId: uuid('actor_id').references(() => actors.id, { onDelete: 'set null' }),
+    client: text('client', { enum: ['web', 'ios', 'android'] }).notNull(),
+    /** Meaning depends on `kind`; read as "count out of outOf". */
+    count: integer('count'),
+    outOf: integer('out_of'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('observation_kind_idx').on(t.kind, t.createdAt)],
+);
+
+/**
  * Fixed-window request counters — design §7.8.
  *
  * The per-actor and per-event caps bound how much any one identity or any one

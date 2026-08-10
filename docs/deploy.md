@@ -126,6 +126,10 @@ fly deploy -c fly.jobs.toml
 fly machine run --schedule daily <image> -a parea-jobs -- npx tsx services/deriver/src/jobs.ts
 ```
 
+Running it with no argument also prints the §18 metrics — the concept's own
+test, *does anyone other than the creator upload?*, plus what a bad number
+means. `deriver metrics` on its own for just the report; it writes nothing.
+
 `nudge`, `auto-hide` and `expire-rate-limits` are the ones with clocks
 attached — an unanswered removal request hides the photo after 48 hours only if
 this runs. Run `seed-codes` once by hand

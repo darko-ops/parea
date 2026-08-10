@@ -104,6 +104,13 @@ cookie buys a fresh allowance. The cap that actually bounds a leaked link is
 per *event*, because a link grants access to exactly one, and rate limits per
 source close the "just make more events" door behind it.
 
+**Instrumentation is mostly SQL.** Design §18 names the numbers the first
+release needs, and the database already holds most of them. Only five facts
+are not derivable, and those are a closed list in one first-party table — no
+SDK, nothing leaves the deployment, and the app's privacy manifest declaring
+no tracking stays true. `deriver metrics` prints them with what a bad number
+would mean.
+
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
 twenty missing ones.

@@ -35,6 +35,7 @@ import {
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
+import { formatReport, report } from './metrics';
 import { objectStoreFromEnv, type ObjectStore } from './objects';
 
 
@@ -156,6 +157,26 @@ export async function purge(
  * longest of them is right whatever they are tuned to. Being wrong here costs
  * some rows staying a while longer.
  */
+/**
+ * Observations older than a year.
+ *
+ * §18's slowest metric is return rate, which needs enough history to see a
+ * second event; a year is generous for that and bounded, which is the point.
+ * Nothing here is needed to run the product, so keeping it forever would be
+ * hoarding — and this table is the only place the product stores anything
+ * purely because it was interesting.
+ */
+export async function expireObservations(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - 365 * 24 * 3600_000);
+  const removed = await database
+    .delete(schema.observations)
+    .where(lt(schema.observations.createdAt, cutoff))
+    .returning({ id: schema.observations.id });
+  return removed.length;
+}
+
 export async function expireRateLimits(
   database: ReturnType<typeof db>,
 ): Promise<number> {
@@ -349,6 +370,14 @@ async function main(): Promise<void> {
   await run('purge', () => purge(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
   await run('expire-rate-limits', () => expireRateLimits(database));
+  await run('expire-observations', () => expireObservations(database));
+
+  // Read-only, and last: a report is not a job, but this is the only process
+  // with a database connection and a schedule, and §18's numbers are worth
+  // seeing on a cadence rather than when someone remembers to look.
+  if (!only || only === 'metrics') {
+    console.log(`\nmetrics — design §18\n${formatReport(await report(database))}`);
+  }
   process.exit(0);
 }
 

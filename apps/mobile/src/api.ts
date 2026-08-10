@@ -91,6 +91,7 @@ export class Api {
   constructor(
     private readonly baseUrl: string,
     private token: string | null = null,
+    private readonly client: 'ios' | 'android' = 'ios',
   ) {}
 
   setToken(token: string | null): void {
@@ -103,6 +104,9 @@ export class Api {
       ...((init.headers as Record<string, string>) ?? {}),
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
+    // Which client this is, for §18's install-conversion split. Advisory by
+    // nature: a caller lying about it skews a number and reaches nothing.
+    headers['x-parea-client'] = this.client;
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!res.ok) {
@@ -276,6 +280,30 @@ export class Api {
       method: 'POST',
       body: JSON.stringify({ fromEventId, name, findable }),
     });
+  }
+
+  // --- instrumentation ---------------------------------------------------
+
+  /**
+   * The three §18 observations only a device witnesses — whether a suggestion
+   * was shown, how much of it survived, and whether it fell through to the
+   * picker. Everything else in §18 is a query over data the server already
+   * has, and is not reported from here.
+   *
+   * Fire and forget in the strongest sense: never awaited for its result,
+   * never retried, and a failure is a rounding error in a number. A client
+   * retrying metrics is a bug that shows up as traffic.
+   */
+  observe(input: {
+    kind: 'autoselect_shown' | 'autoselect_confirmed' | 'picker_used';
+    eventId: string;
+    count?: number;
+    outOf?: number;
+  }): void {
+    void this.call('/api/observations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }).catch(() => {});
   }
 
   /** Fire and forget: failing to register must never block anything. */

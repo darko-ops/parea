@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 
 import { decide, findEventByLinkToken } from '@/access';
 import { getDb } from '@/db';
+import { clientOf, observe } from '@/observe';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -63,6 +64,16 @@ export async function POST(request: Request) {
   if (!decision.allow) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+
+  // §18's install-conversion question: which client people actually arrive on,
+  // and therefore whether the install wall is costing contribution. Recorded
+  // after the decision, so a refused join is not counted as one.
+  await observe(db, {
+    kind: 'joined',
+    eventId: event.id,
+    actorId,
+    client: clientOf(request),
+  });
 
   return NextResponse.json({
     id: event.id,
