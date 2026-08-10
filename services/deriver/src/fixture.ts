@@ -1,0 +1,12 @@
+/**
+ * A real HEVC-coded HEIC, 64x48, ~440 bytes.
+ *
+ * Exists so the boot probe can prove HEIC decode against actual HEVC bytes
+ * rather than trusting sharp's format table. The table reports `heif: true`
+ * for a build that can read AVIF and not HEVC — and HEVC is what every iPhone
+ * produces, so the table's answer and the answer that matters can differ.
+ */
+export const HEVC_HEIC_SAMPLE = Buffer.from(
+  'AAAAHGZ0eXBoZWljAAAAAG1pZjFoZWljbWlhZgAAAXptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABwaWN0AAAAAAAAAAAAAAAAAAAAAA5waXRtAAAAAAABAAAAImlsb2MAAAAAREAAAQABAAAAAAGeAAEAAAAAAAAAHAAAACNpaW5mAAAAAAABAAAAFWluZmUCAAAAAAEAAGh2YzEAAAAA+mlwcnAAAADaaXBjbwAAAHNodmNDAQNwAAAAAAAAAAAAHvAA/P34+AAADwMgAAEAGEABDAH//wNwAAADAJAAAAMAAAMAHroCQCEAAQAnQgEBA3AAAAMAkAAAAwAAAwAeoCCBBZbq5Ka5sCAAAAMAIAAAAwAhIgABAAZEAcFzwIkAAAAUaXNwZQAAAAAAAABAAAAAQAAAAChjbGFwAAAAQAAAAAEAAAAwAAAAAQAAAAAAAAAC////8AAAAAIAAAATY29scm5jbHgAAQANAAaAAAAAEHBpeGkAAAAAAwgICAAAABhpcG1hAAAAAAAAAAEAAQWBAoMEBQAAACRtZGF0AAAAGCgBrxOA+BDhp3/pCj/+nXPD488vzopDPg==',
+  'base64',
+);

@@ -1,0 +1,28 @@
+{
+  "name": "@parea/deriver",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "deriver": "./src/index.ts" },
+  "scripts": {
+    "probe": "tsx src/index.ts probe",
+    "once": "tsx src/index.ts once",
+    "watch": "tsx src/index.ts watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
+    "@parea/core": "*",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
