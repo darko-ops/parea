@@ -7,6 +7,7 @@
  */
 
 import { newLinkToken, schema } from '@parea/core';
+import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
     .values({ eventId: event!.id, actorId })
     .onConflictDoNothing();
 
+  const code = await claimCode(db, event!.id);
   await grantCapability(event!.id, event!.capEpoch);
 
   return NextResponse.json(
@@ -66,9 +68,35 @@ export async function POST(request: Request) {
       name: event!.name,
       linkToken: event!.linkToken,
       url: `/e/${event!.linkToken}`,
+      code,
     },
     { status: 201 },
   );
+}
+
+/**
+ * Take a code from the free pool — design §5.
+ *
+ * SELECT ... FOR UPDATE SKIP LOCKED so two simultaneous creations take
+ * different codes rather than one failing on a unique violation.
+ *
+ * Returns null when the pool is empty, which is survivable: the link still
+ * works and the code is a convenience. Run `deriver jobs seed-codes` to fill
+ * it — an empty pool means the spoken-code door never opens.
+ */
+async function claimCode(
+  db: ReturnType<typeof getDb>,
+  eventId: string,
+): Promise<string | null> {
+  const claimed = await db.execute<{ words: string }>(sql`
+    update "code" set event_id = ${eventId}, claimed_at = now(), released_at = null
+    where id = (
+      select id from "code" where event_id is null
+      order by random() limit 1 for update skip locked
+    )
+    returning words
+  `);
+  return claimed[0]?.words ?? null;
 }
 
 function asDate(value: unknown): Date | null {

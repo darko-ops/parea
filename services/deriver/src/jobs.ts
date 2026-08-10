@@ -15,7 +15,7 @@
  * people's photos should not exist until someone decides it should run.
  */
 
-import { schema } from '@parea/core';
+import { codeWordPairs, schema } from '@parea/core';
 import { and, eq, isNotNull, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -144,6 +144,31 @@ export async function recycleCodes(
   return released.length;
 }
 
+/**
+ * Fill the spoken-code pool.
+ *
+ * Idempotent, so it is safe to run on every deploy — which is how the pool
+ * grows when the wordlist does. Without this the pool is empty, event creation
+ * silently gets no code, and one of the three documented ways into an event
+ * never works at all.
+ */
+export async function seedCodes(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const pairs = [...codeWordPairs()].map((words) => ({ words }));
+  let inserted = 0;
+  // Chunked: a single insert of ~18k rows is a needlessly large statement.
+  for (let at = 0; at < pairs.length; at += 1000) {
+    const rows = await database
+      .insert(schema.codes)
+      .values(pairs.slice(at, at + 1000))
+      .onConflictDoNothing()
+      .returning({ id: schema.codes.id });
+    inserted += rows.length;
+  }
+  return inserted;
+}
+
 async function main(): Promise<void> {
   const database = db();
   const objects = objectStoreFromEnv();
@@ -155,6 +180,7 @@ async function main(): Promise<void> {
     console.log(`${name}: ${count}`);
   };
 
+  await run('seed-codes', () => seedCodes(database));
   await run('auto-hide', () => autoHide(database));
   await run('purge', () => purge(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
