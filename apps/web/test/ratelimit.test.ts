@@ -20,9 +20,11 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   CREATE_EVENT_LIMIT,
   PRESIGN_LIMIT,
+  SIGN_IN_ADDRESS_LIMIT,
   consume,
   expiredBefore,
   staleRateLimits,
+  withinLimitFor,
 } from '../src/ratelimit';
 
 const MIGRATIONS = fileURLToPath(
@@ -220,5 +222,45 @@ describe('the per-event total', () => {
     // A big wedding is a few thousand photos across thirty people.
     expect(source).toContain('MAX_PHOTOS_PER_EVENT = 20_000');
     expect(source).toContain('MAX_BYTES_PER_EVENT = 100 * 1024 * 1024 * 1024');
+  });
+});
+
+describe('the bound on what one address receives', () => {
+  /*
+   * The half a per-source cap cannot reach. Ten sign-in requests an hour per
+   * source bounds what one caller spends; it does not bound what one *person*
+   * is sent, because the address is chosen by whoever asks and a handful of
+   * sources is not hard to have. The party being mailed at is not a user of
+   * this product and never agreed to any of it.
+   */
+  const SECRET = 'test-secret';
+
+  it('stops after the limit, per address', async () => {
+    const allowed = [];
+    for (let i = 0; i < SIGN_IN_ADDRESS_LIMIT.max + 2; i++) {
+      allowed.push(await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, SECRET, 'sam@example.com'));
+    }
+    expect(allowed.filter(Boolean)).toHaveLength(SIGN_IN_ADDRESS_LIMIT.max);
+
+    // Someone else signing in is unaffected — the point of keying by address.
+    expect(await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, SECRET, 'kim@example.com')).toBe(true);
+  });
+
+  it('stores no addresses', async () => {
+    await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, SECRET, 'sam@example.com');
+    const rows: any = await db.execute(sql`select "bucket" from "rate_limit"`);
+    const buckets = (rows.rows ?? rows).map((r: any) => r.bucket).join(' ');
+
+    // A counter key has no business being a list of who has tried to sign in,
+    // and this table is not covered by anything that deletes an account.
+    expect(buckets).not.toContain('sam@example.com');
+    expect(buckets).not.toContain('example.com');
+  });
+
+  it('allows when there is no secret to hash with', async () => {
+    // Same failure direction as the rest of this file: a bound on abuse, not
+    // an authorization decision, and the caps that must not fail open are
+    // elsewhere.
+    expect(await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, undefined, 'sam@example.com')).toBe(true);
   });
 });

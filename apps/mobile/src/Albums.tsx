@@ -461,7 +461,7 @@ function AccountCard({
       {sent && (
         <Text style={[styles.small, { color: t.dim }]}>
           Sent, if that address is one we can reach. It works once and expires
-          in ten minutes.
+          in ten minutes — check spam if it is not there.
         </Text>
       )}
     </View>

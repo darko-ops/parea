@@ -10,9 +10,11 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "db:migrate": "npm run db:migrate --workspace @parea/core"
+    "db:migrate": "npm run db:migrate --workspace @parea/core",
+    "mail:test": "tsx scripts/send-test-email.ts"
   },
   "devDependencies": {
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }

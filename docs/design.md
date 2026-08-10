@@ -188,9 +188,30 @@ in ten minutes, and carry a per-code attempt ceiling — per code rather than pe
 request, or asking for a new one resets the budget.
 
 **Both account endpoints answer the same however it went.** Whether the address
-has an account, whether it exists, whether the mailer was reachable: anything
-else makes this a way to ask *does this person use Parea?*, which is a question
-about who was at which party.
+has an account, whether it exists, whether the mailer was reachable, whether
+that address has already had its share this hour: anything else makes this a
+way to ask *does this person use Parea?*, which is a question about who was at
+which party.
+
+The cost of that is paid by whoever operates the deployment: a broken mailer is
+completely silent. The page says a code is on its way and nothing arrives, and
+no error reaches anyone. So the mailer is not allowed to be a guess. Each
+provider's request shape is written down and asserted — `{from, to, subject,
+text}` under a bearer token is Resend's API and nobody else's, and the single
+"any provider with an HTTP send endpoint" transport this started as would have
+sent it to Postmark, SendGrid and Mailgun and collected three 4xxs nobody would
+have seen. An unrecognised `MAIL_PROVIDER` refuses even in development, because
+the console fallback would make a typo look exactly like working local
+development. `npm run mail:test` sends one through the same path, which is the
+only thing that establishes the key is valid and the domain is verified.
+
+**Codes are bounded per address as well as per source.** Ten an hour per source
+bounds what one caller can spend and says nothing about what one *person*
+receives — the address is chosen by whoever asks, and the person on the
+receiving end of a flood is not a user of this product and never agreed to any
+of it. Five an hour per address, silently: exceeding it still answers 204, and
+no code is stored, because a row nobody will be told about is just a row. The
+bucket is an HMAC of the address, so the rate-limit table holds no addresses.
 
 **Signing in on a second device merges two actors, and the rows move.**
 `actor.merged_into_id` invites the other design — leave the rows and resolve

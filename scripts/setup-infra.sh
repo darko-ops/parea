@@ -146,9 +146,13 @@ SAFETY_CONTACT_EMAIL=
 
 # Sign-in codes. Accounts are optional; without these nobody can claim one,
 # and in production the mailer refuses rather than dropping codes silently.
-MAIL_API_URL=
+# resend | postmark | sendgrid | mailgun (default resend). MAIL_API_URL only
+# to override the endpoint, and for mailgun, whose path carries the domain.
+# Check with: npm run mail:test -- you@example.com
+MAIL_PROVIDER=
 MAIL_API_KEY=
 MAIL_FROM=
+MAIL_API_URL=
 
 # Only needed once the app exists. Until they are set, the two .well-known
 # files 404 and every tapped link opens a browser on a phone that has the app

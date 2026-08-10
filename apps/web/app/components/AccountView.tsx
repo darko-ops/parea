@@ -162,7 +162,7 @@ export function AccountView() {
               />
               <p className="muted">
                 Sent, if that address is one we can reach. It works once and
-                expires in ten minutes.
+                expires in ten minutes — check spam if it is not there.
               </p>
             </>
           )}

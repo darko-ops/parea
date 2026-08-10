@@ -9,6 +9,8 @@
  * time.
  */
 
+import { DEFAULT_PROVIDER, PROVIDERS, isKnownProvider } from './email';
+
 export type ConfigItem = {
   name: string;
   present: boolean;
@@ -93,17 +95,32 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'MAIL_PROVIDER',
+      // Not "is it set" — unset is fine and means the default. This reports
+      // whether the mailer can be *built*, so the answer is false only when
+      // someone has set it to something no transport exists for. A typo here
+      // would otherwise be indistinguishable from working configuration: the
+      // code route swallows send failures on purpose, so the symptom is
+      // nobody ever receiving a code.
+      present: isKnownProvider(process.env.MAIL_PROVIDER?.trim() || DEFAULT_PROVIDER),
+      consequence: `unrecognised; must be one of ${Object.keys(PROVIDERS).join(', ')}`,
+      requiredInProduction: false,
+    },
+    {
       name: 'MAIL_API_URL',
+      // Optional twice over: three of the four providers have a fixed
+      // endpoint this fills in, and it is only load-bearing for Mailgun,
+      // whose path carries the sending domain.
       present: has('MAIL_API_URL'),
-      // Not required: the product works without accounts, which are optional
-      // by design. But an app that offers sign-in and cannot send is worse
-      // than one that does not offer it, so the deriver-style rule applies —
-      // in production an unconfigured mailer refuses rather than pretending.
-      consequence: 'sign-in codes are never sent; accounts cannot be claimed',
+      consequence: 'defaults to the provider endpoint; required for mailgun',
       requiredInProduction: false,
     },
     {
       name: 'MAIL_API_KEY',
+      // Not required: the product works without accounts, which are optional
+      // by design. But an app that offers sign-in and cannot send is worse
+      // than one that does not offer it, so the deriver-style rule applies —
+      // in production an unconfigured mailer refuses rather than pretending.
       present: has('MAIL_API_KEY'),
       consequence: 'sign-in codes are never sent; accounts cannot be claimed',
       requiredInProduction: false,

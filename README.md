@@ -37,7 +37,13 @@ npm run dev --workspace @parea/web
 ```
 
 Without R2 credentials, photos go to `./.storage` through a development-only
-endpoint that cannot exist in a production build. Ingest is a separate process:
+endpoint that cannot exist in a production build. Without mail credentials,
+sign-in codes are printed to the console — a real deployment sets
+`MAIL_PROVIDER`, `MAIL_API_KEY` and `MAIL_FROM`, and checks them with
+`npm run mail:test -- you@example.com`, because the sign-in endpoint answers
+the same however it went and will not tell you the mailer is broken.
+
+Ingest is a separate process:
 
 ```
 CSAM_SCANNER=disabled npm run watch --workspace @parea/deriver

@@ -104,6 +104,46 @@ curl -s https://<app>/api/health | jq
 It answers 503 while anything required is missing, and names what. A load
 balancer can use it; it reports names and booleans, never values.
 
+## 4b. Mail
+
+Only needed for accounts, which are optional — everything else works without
+it. But the sign-in endpoint answers 204 however it went, on purpose, so that
+it cannot be used to ask whether an address has an account. The cost of that is
+that a broken mailer is completely silent: the page says a code is on its way,
+and nothing ever arrives.
+
+So set it up deliberately and then check it.
+
+1. **Pick a provider and verify a domain.** Any of `resend`, `postmark`,
+   `sendgrid`, `mailgun`. Verify `parea.photos` rather than a single address —
+   a shared-domain sender puts sign-in codes behind someone else's reputation.
+2. **Publish the DNS the provider asks for.** SPF and DKIM at minimum, and a
+   DMARC record, which several large mailbox providers now effectively expect:
+
+   ```
+   _dmarc.parea.photos.  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@parea.photos"
+   ```
+
+   `p=none` to begin with — it reports without rejecting, so a missed DKIM
+   record shows up as a report instead of as silence.
+3. **Set `MAIL_PROVIDER`, `MAIL_API_KEY` and `MAIL_FROM`.** `MAIL_FROM` has to
+   be at the verified domain; most providers answer 422 otherwise. Mailgun also
+   needs `MAIL_API_URL`, because its path carries the sending domain.
+4. **Send one:**
+
+   ```
+   npm run mail:test -- you@example.com
+   ```
+
+   It goes through the same `mailerFromEnv` the app uses, so a provider typo or
+   an unverified domain fails here rather than in production. "Accepted" is not
+   "delivered" — open the inbox, and check spam, because the first message from
+   a new domain often lands there.
+
+A sign-in code is transactional mail. If the provider offers separate streams
+(Postmark does), keep it off the broadcast one: shared with marketing, it gets
+rate-shaped like marketing.
+
 ## 5. Deriver and jobs
 
 ```
@@ -171,9 +211,10 @@ Generate with `openssl rand -base64 32`.
 | `ZIP_BASE_URL` | ● | | the deployed zip Worker |
 | `IMAGE_BASE_URL` | ● | | the deployed image Worker |
 | `SAFETY_CONTACT_EMAIL` | ● | | published on `/safety`; App Store 1.2 |
-| `MAIL_API_URL` | ● | | sign-in codes; unset means accounts cannot be claimed |
-| `MAIL_API_KEY` | ● | | |
-| `MAIL_FROM` | ● | | |
+| `MAIL_PROVIDER` | ● | | `resend`, `postmark`, `sendgrid` or `mailgun`; default `resend` |
+| `MAIL_API_KEY` | ● | | sign-in codes; unset means accounts cannot be claimed |
+| `MAIL_FROM` | ● | | must be at a domain verified with the provider |
+| `MAIL_API_URL` | ● | | only to override the endpoint; required for `mailgun` |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
@@ -205,6 +246,9 @@ Generate with `openssl rand -base64 32`.
       whether it resumes or asks for the files again. Both are handled; which
       one happens is a device fact nothing in the test suite can establish
       (design §8), and it decides how good the web path actually is.
+- [ ] `npm run mail:test -- you@example.com`, then sign in at `/account` and
+      confirm the code arrives and works. Nothing else surfaces a broken
+      mailer: the endpoint answers 204 either way by design.
 - [ ] Fire a synthetic safety alert and confirm a human receives it.
       (Private soak: skip — and remember there is nothing there to receive it.)
 
