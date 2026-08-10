@@ -17,10 +17,11 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",
     "@parea/core": "*",
+    "@parea/push": "*",
+    "@parea/urls": "*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
-    "sharp": "^0.34.5",
-    "@parea/push": "*"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

@@ -8,7 +8,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { execFile } from 'node:child_process';
@@ -21,7 +21,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { crc32 } from '../src/crc32';
-import { canDecode, canDecodeViaHeifConvert } from '../src/derivatives';
+import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/derivatives';
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
@@ -196,7 +196,7 @@ describe('pipeline results', () => {
     expect(row.byteSize).toBe(stored!.length);
   });
 
-  it('writes three derivatives, none larger than its bound', async () => {
+  it('writes every size in every encoding, none larger than its bound', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(5));
     await processPhoto({ db, objects, scanner }, photo.id);
 
@@ -204,12 +204,67 @@ describe('pipeline results', () => {
       .select()
       .from(schema.derivatives)
       .where(eq(schema.derivatives.photoId, photo.id));
-    expect(rows.map((r: any) => r.kind).sort()).toEqual(['full', 'grid', 'thumb']);
+
+    // The grid sizes exist twice — AVIF for the browsers that can decode it,
+    // JPEG for the ~6% that cannot. `full` does not: it is the member of the
+    // "download as JPEG" archive and has to stay a JPEG.
+    expect(rows.map((r: any) => `${r.kind}.${r.format}`).sort()).toEqual([
+      'full.jpeg',
+      'grid.avif',
+      'grid.jpeg',
+      'thumb.avif',
+      'thumb.jpeg',
+    ]);
 
     for (const row of rows) {
-      expect(await objects.get(row.storageKey)).not.toBeNull();
+      expect(await objects.get(row.storageKey), row.storageKey).not.toBeNull();
       const bound = { thumb: 320, grid: 1280, full: 2560 }[row.kind as string]!;
       expect(Math.max(row.width, row.height)).toBeLessThanOrEqual(bound);
+      // The key must be the one the Worker will ask for, extension included.
+      expect(row.storageKey.endsWith(row.format === 'avif' ? '.avif' : '.jpg')).toBe(true);
+    }
+  });
+
+  it('proves the AV1 encoder exists before trusting the format table', async () => {
+    // What the boot probe asserts. `sharp.format.heif.output` is true for a
+    // build with no AV1 encoder, exactly as it is true for one with no HEVC
+    // decoder — so the probe encodes pixels and checks the brand.
+    expect(await canEncodeAvif()).toBe(true);
+  });
+
+  it('writes AVIF that is actually AVIF', async () => {
+    // libvips aliases avif onto its heif support, so a build with no AV1
+    // encoder fails here rather than at the format table.
+    const { photo } = await seedPhoto(await geotaggedJpeg(15));
+    await processPhoto({ db, objects, scanner }, photo.id);
+
+    const [row] = await db
+      .select()
+      .from(schema.derivatives)
+      .where(
+        and(
+          eq(schema.derivatives.photoId, photo.id),
+          eq(schema.derivatives.format, 'avif'),
+        ),
+      );
+    const bytes = (await objects.get(row.storageKey))!;
+    expect(bytes.subarray(4, 12).toString('latin1')).toBe('ftypavif');
+    expect(row.mime).toBe('image/avif');
+  });
+
+  it('records size and CRC for every encoding, not only the JPEG', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(16));
+    await processPhoto({ db, objects, scanner }, photo.id);
+
+    const rows = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+
+    for (const row of rows) {
+      const bytes = (await objects.get(row.storageKey))!;
+      expect(Number(row.byteSize), row.storageKey).toBe(bytes.length);
+      expect(Number(row.crc32), row.storageKey).toBe(crc32(bytes));
     }
   });
 
@@ -326,7 +381,8 @@ describe('HEIC', () => {
       .select()
       .from(schema.derivatives)
       .where(eq(schema.derivatives.photoId, photo.id));
-    expect(rows).toHaveLength(3);
+    // Three sizes, two encodings for the two grid ones.
+    expect(rows).toHaveLength(5);
   });
 });
 

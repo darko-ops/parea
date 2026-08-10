@@ -21,8 +21,33 @@
  * Web Crypto only, so the same code signs in Next and verifies in a Worker.
  */
 
-export const IMAGE_KINDS = ['thumb', 'grid', 'full', 'orig'] as const;
-export type ImageKind = (typeof IMAGE_KINDS)[number];
+export {
+  AVIF_KINDS,
+  IMAGE_FORMATS,
+  IMAGE_KINDS,
+  MIME,
+  derivativeKey,
+  epochMarkerKey,
+  extensionOf,
+  formatFromExtension,
+  formatOf,
+  formatsFor,
+  objectKeyFor,
+  type ImageFormat,
+  type ImageKind,
+  type ImageRef,
+} from './keys';
+
+import {
+  IMAGE_KINDS,
+  extensionOf,
+  formatFromExtension,
+  formatOf,
+  formatsFor,
+  type ImageFormat,
+  type ImageKind,
+  type ImageRef,
+} from './keys';
 
 export const HOUR_SECONDS = 3600;
 
@@ -44,7 +69,10 @@ export function hourBucket(now: Date, minTtlSeconds = HOUR_SECONDS): number {
   return Math.ceil(target / HOUR_SECONDS) * HOUR_SECONDS;
 }
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
+// Return type inferred rather than annotated `Promise<CryptoKey>`: this
+// package is compiled under both DOM and Node type roots, which each declare
+// `CryptoKey`, and naming it makes the build depend on which one wins.
+async function hmacKey(secret: string) {
   return crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -60,33 +88,34 @@ function base64url(bytes: ArrayBuffer): string {
   return btoa(out).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
-export type ImageRef = {
-  eventId: string;
-  /** Hex content hash. The object key is derived from it, not carried. */
-  hash: string;
-  kind: ImageKind;
-  /** The event's cap_epoch at mint time — see the note on rotation below. */
-  capEpoch: number;
-};
-
 async function signature(
   secret: string,
   ref: ImageRef,
   expires: number,
 ): Promise<string> {
-  const payload = `${ref.eventId}:${ref.hash}:${ref.kind}:${ref.capEpoch}:${expires}`;
+  // The format is signed like everything else in the path. Leaving it out
+  // would let anyone holding a valid thumb URL edit the extension and pull
+  // whichever encoding they liked — harmless today, and exactly the kind of
+  // "the signature covers most of the URL" that stops being harmless later.
+  const payload =
+    `${ref.eventId}:${ref.hash}:${ref.kind}:${formatOf(ref)}:` +
+    `${ref.capEpoch}:${expires}`;
   return base64url(
     await crypto.subtle.sign('HMAC', await hmacKey(secret), encoder.encode(payload)),
   );
 }
 
 /**
- * `/img/<eventId>/<hash>/<kind>?v=<epoch>&e=<expiry>&s=<sig>`
+ * `/img/<eventId>/<hash>/<kind>.<ext>?v=<epoch>&e=<expiry>&s=<sig>`
  *
  * The path carries everything needed to derive the object key, so the Worker
  * needs no database. The content hash is not a secret — it grants nothing
  * without the signature — and putting it in the path is what makes the URL
  * stable and therefore cacheable.
+ *
+ * The extension is part of that path, so the AVIF and the JPEG of the same
+ * thumbnail are two URLs and two cache entries. No `Vary`, and no way for one
+ * to be served in place of the other.
  */
 export async function signImagePath(
   secret: string,
@@ -96,7 +125,10 @@ export async function signImagePath(
 ): Promise<string> {
   const expires = hourBucket(now, minTtlSeconds);
   const sig = await signature(secret, ref, expires);
-  return `/img/${ref.eventId}/${ref.hash}/${ref.kind}?v=${ref.capEpoch}&e=${expires}&s=${sig}`;
+  return (
+    `/img/${ref.eventId}/${ref.hash}/${ref.kind}.${extensionOf(ref)}` +
+    `?v=${ref.capEpoch}&e=${expires}&s=${sig}`
+  );
 }
 
 export type VerifyResult =
@@ -112,11 +144,26 @@ export async function verifyImageRequest(
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length !== 4 || parts[0] !== 'img') return { ok: false, reason: 'malformed' };
 
-  const [, eventId, hash, kind] = parts as [string, string, string, string];
+  const [, eventId, hash, leaf] = parts as [string, string, string, string];
   if (!UUID_RE.test(eventId) || !HASH_RE.test(hash)) {
     return { ok: false, reason: 'malformed' };
   }
+
+  const dot = leaf.lastIndexOf('.');
+  // The extension is required. An older unsuffixed URL is not accepted with a
+  // default, because it would verify against a signature computed over a
+  // format the caller never named — better to let those expire than to guess.
+  if (dot <= 0) return { ok: false, reason: 'malformed' };
+  const kind = leaf.slice(0, dot);
+  const ext = leaf.slice(dot + 1);
+
   if (!(IMAGE_KINDS as readonly string[]).includes(kind)) {
+    return { ok: false, reason: 'malformed' };
+  }
+  const format = formatFromExtension(ext);
+  // Only the encodings that exist for this size. Asking for `full.avif`
+  // resolves to an object nobody wrote, so it is malformed rather than a 404.
+  if (!format || !formatsFor(kind as ImageKind).includes(format)) {
     return { ok: false, reason: 'malformed' };
   }
 
@@ -127,7 +174,7 @@ export async function verifyImageRequest(
     return { ok: false, reason: 'malformed' };
   }
 
-  const ref: ImageRef = { eventId, hash, kind: kind as ImageKind, capEpoch };
+  const ref: ImageRef = { eventId, hash, kind: kind as ImageKind, format, capEpoch };
   const expected = await signature(secret, ref, expires);
 
   if (provided.length !== expected.length) return { ok: false, reason: 'bad_signature' };
@@ -144,29 +191,3 @@ export async function verifyImageRequest(
   return { ok: true, ref, expires };
 }
 
-/**
- * Where an event's current cap_epoch is recorded.
- *
- * The image Worker has no database, so rotation has to leave a trace it can
- * read. A dotted name cannot collide with a photo key, since those are always
- * a 64-character hex hash.
- *
- * Absent means "never rotated", i.e. epoch 1 — which is correct for every
- * event created before rotation existed, so no backfill is needed.
- */
-export function epochMarkerKey(eventId: string): string {
-  return `ev/${eventId}/.epoch`;
-}
-
-/**
- * Object key for a reference. Must match what the deriver writes.
- *
- * Derivatives are siblings of the original (`<key>.thumb.jpg`) rather than
- * children (`<key>/thumb.jpg`), because the latter makes the original's key a
- * directory prefix as well as an object — fine on S3, impossible on a
- * filesystem.
- */
-export function objectKeyFor(ref: ImageRef): string {
-  const base = `ev/${ref.eventId}/${ref.hash}`;
-  return ref.kind === 'orig' ? base : `${base}.${ref.kind}.jpg`;
-}

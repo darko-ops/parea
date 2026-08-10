@@ -280,6 +280,16 @@ export const derivatives = pgTable(
       .notNull()
       .references(() => photos.id, { onDelete: 'cascade' }),
     kind: text('kind', { enum: ['thumb', 'grid', 'full'] }).notNull(),
+    /**
+     * A size can exist in two encodings — §11. AVIF is smaller and JPEG is
+     * the fallback for the viewers who cannot decode it, so both are stored
+     * and the client picks; nothing here negotiates.
+     *
+     * Defaulted rather than nullable: every derivative written before this
+     * column existed was a JPEG, so the default is a fact rather than a guess,
+     * and it keeps the primary key non-null.
+     */
+    format: text('format', { enum: ['jpeg', 'avif'] }).notNull().default('jpeg'),
     storageKey: text('storage_key').notNull(),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
@@ -296,7 +306,7 @@ export const derivatives = pgTable(
     byteSize: bigint('byte_size', { mode: 'number' }),
     crc32: bigint('crc32', { mode: 'number' }),
   },
-  (t) => [primaryKey({ columns: [t.photoId, t.kind] })],
+  (t) => [primaryKey({ columns: [t.photoId, t.kind, t.format] })],
 );
 
 export const reports = pgTable(

@@ -70,6 +70,11 @@ export async function resolveArchive(
       and(
         eq(schema.derivatives.photoId, schema.photos.id),
         eq(schema.derivatives.kind, 'full'),
+        // A size can exist in several encodings (§11), and the primary key
+        // permits it, so this has to name one. Without it the join fans out
+        // the moment `full` gains a second format and every archive silently
+        // doubles — the kind of bug that shows up as a corrupt download.
+        eq(schema.derivatives.format, 'jpeg'),
       ),
     )
     .where(

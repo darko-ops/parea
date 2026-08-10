@@ -110,8 +110,8 @@ fly deploy
 ```
 
 The image runs its boot probe and **refuses to start** if it cannot decode
-HEIC, cannot find exiftool, or has no scanner configured. A deriver that starts
-is one that can actually do the job.
+HEIC, cannot encode AVIF, cannot find exiftool, or has no scanner configured.
+A deriver that starts is one that can actually do the job.
 
 Jobs run on a schedule from the same image:
 
@@ -173,9 +173,16 @@ Generate with `openssl rand -base64 32`.
 - [ ] Create an event, add a photo from a phone, watch it reach `ready`.
       If it stays `pending`, the deriver is not running or has no scanner.
 - [ ] The grid shows a thumbnail — proves `IMAGE_SECRET` matches.
+- [ ] In devtools, confirm the grid requested `.avif` and got `image/avif`;
+      then load the same event somewhere without AVIF and confirm it falls back
+      to `.jpg` rather than showing an empty grid.
 - [ ] Download the event — proves `MANIFEST_SECRET` matches, and that R2
       egress is going where you think.
 - [ ] Check the photo you downloaded has no GPS: `exiftool -GPSLatitude file`.
+- [ ] On an iPhone, on Safari: start a large upload, reload mid-batch, and see
+      whether it resumes or asks for the files again. Both are handled; which
+      one happens is a device fact nothing in the test suite can establish
+      (design §8), and it decides how good the web path actually is.
 - [ ] On an iPhone, on Safari: start a large upload, reload mid-batch, and see
       whether it resumes or asks for the files again. Both are handled; which
       one happens is a device fact nothing in the test suite can establish

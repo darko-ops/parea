@@ -91,6 +91,12 @@ rather than 403.
 hidden, blocked — and they undo differently, so they are four states behind one
 shared predicate.
 
+**The image encoding is in the URL, not the `Accept` header.** `thumb.avif` and
+`thumb.jpg` are two signed URLs and two cache entries, and `<picture>` lets the
+browser choose — the only party that knows what its decoder can do. Negotiating
+at the edge would let one cached AVIF answer for a viewer who cannot decode it,
+which is an empty grid rather than a slow one.
+
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
 twenty missing ones.

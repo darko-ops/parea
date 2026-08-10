@@ -25,8 +25,10 @@ import { useUploads } from './useUploads';
 
 type Photo = {
   id: string;
-  /** Thumbnail. */
+  /** Thumbnail, JPEG — the `<img>` fallback every browser can render. */
   src: string;
+  /** The same thumbnail in every encoding that exists, best first (§11). */
+  sources?: { type: string; src: string }[];
   /** Larger rendition, for a lightbox that does not exist yet. */
   full: string;
   takenAt: string;
@@ -227,8 +229,21 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
               // wants reporting reachable, not merely implemented.
               aria-label="Open photo"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.src} alt="" loading="lazy" />
+              {/*
+                The browser picks the encoding, because it is the only party
+                that knows what it can decode. The `<img>` is the JPEG and it
+                is not optional — a `<picture>` whose sources a browser all
+                rejects renders nothing at all.
+              */}
+              <picture>
+                {(photo.sources ?? [])
+                  .filter((source) => source.type !== 'image/jpeg')
+                  .map((source) => (
+                    <source key={source.type} srcSet={source.src} type={source.type} />
+                  ))}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo.src} alt="" loading="lazy" />
+              </picture>
             </button>
           ))}
         </div>

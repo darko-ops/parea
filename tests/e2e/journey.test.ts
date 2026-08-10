@@ -25,7 +25,12 @@ import {
   visiblePhotos,
 } from '@parea/core';
 import { archiveEntryName, planArchive, streamArchive } from '@parea/zip';
-import { objectKeyFor, signImagePath, verifyImageRequest } from '@parea/urls';
+import {
+  formatsFor,
+  objectKeyFor,
+  signImagePath,
+  verifyImageRequest,
+} from '@parea/urls';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -201,6 +206,31 @@ describe('a party, from link to download', () => {
     if (check.ok) {
       // The URL the image Worker would resolve must name an object that exists.
       expect(await objects.get(objectKeyFor(check.ref))).not.toBeNull();
+    }
+
+    // Both encodings, both reachable. The deriver names these objects and the
+    // Worker names them again from a signed path; the two never meet, so an
+    // extension the two spell differently is a 404 with no failing unit test.
+    for (const format of formatsFor('thumb')) {
+      const signed = await signImagePath(IMAGE_SECRET, {
+        eventId: event.id,
+        hash,
+        kind: 'thumb',
+        format,
+        capEpoch: event.capEpoch,
+      });
+      const resolved = await verifyImageRequest(
+        IMAGE_SECRET,
+        new URL(signed, 'https://img.test'),
+      );
+      expect(resolved.ok, format).toBe(true);
+      if (!resolved.ok) continue;
+      const bytes = await objects.get(objectKeyFor(resolved.ref));
+      expect(bytes, `${format} thumbnail must exist at the key the Worker asks for`)
+        .not.toBeNull();
+      if (format === 'avif') {
+        expect(bytes!.subarray(4, 12).toString('latin1')).toBe('ftypavif');
+      }
     }
 
     // --- someone downloads everything -------------------------------------

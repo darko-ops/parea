@@ -25,6 +25,7 @@ import postgres from 'postgres';
 import {
   canDecode,
   canDecodeViaHeifConvert,
+  canEncodeAvif,
   decodeCapabilities,
 } from './derivatives';
 import { HEVC_HEIC_SAMPLE } from './fixture';
@@ -78,6 +79,16 @@ async function probe(): Promise<number> {
       : 'FAILED — apt install libheif-examples libheif-plugin-libde265',
   ]);
 
+  // Same failure shape as HEVC, in the other direction: libvips aliases avif
+  // onto its heif support, so `sharp.format` says yes for a build with no AV1
+  // encoder. Every thumbnail would fail at ingest, so encode real pixels.
+  const avifOk = await canEncodeAvif();
+  results.push([
+    'encode:avif',
+    avifOk,
+    avifOk ? 'encoded' : 'FAILED — no AV1 encoder; every derivative will fail',
+  ]);
+
   // Ingest without child-safety scanning is not a degraded mode, it is a
   // different product. An unconfigured scanner stalls every upload rather than
   // letting anything through, so this is fatal and says so here rather than
@@ -100,7 +111,7 @@ async function probe(): Promise<number> {
     console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name.padEnd(width)}  ${note}`);
   }
 
-  const fatal = !heicOk || !exiftoolVersion || !scannerReady;
+  const fatal = !heicOk || !avifOk || !exiftoolVersion || !scannerReady;
   console.log(
     fatal
       ? '\nThis container cannot ingest photos. See services/deriver/README.md.'

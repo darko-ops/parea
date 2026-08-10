@@ -36,6 +36,13 @@
       "when": 1786377937711,
       "tag": "0004_outstanding_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786381367394,
+      "tag": "0005_avif-derivatives",
+      "breakpoints": true
     }
   ]
 }

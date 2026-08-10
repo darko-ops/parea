@@ -52,6 +52,8 @@ button.secondary {
   border-radius: 8px; overflow: hidden;
 }
 .tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* <picture> is inline by default, which leaves a baseline gap under each tile. */
+.tile picture { display: block; }
 .footer { margin-top: 48px; font-size: 14px; }
 .lightbox {
   position: fixed; inset: 0; background: rgba(0, 0, 0, .82);

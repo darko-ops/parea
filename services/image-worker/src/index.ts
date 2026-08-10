@@ -29,23 +29,16 @@
  */
 
 import {
+  MIME,
   epochMarkerKey,
+  formatOf,
   objectKeyFor,
   verifyImageRequest,
-  type ImageKind,
 } from '@parea/urls';
 
 export type Env = {
   BUCKET: R2Bucket;
   IMAGE_SECRET: string;
-};
-
-const CONTENT_TYPE: Record<ImageKind, string | null> = {
-  thumb: 'image/jpeg',
-  grid: 'image/jpeg',
-  full: 'image/jpeg',
-  // Originals keep whatever they were stored as — HEIC stays HEIC.
-  orig: null,
 };
 
 export default {
@@ -82,7 +75,11 @@ export default {
     if (!object) return notFound();
 
     const headers = new Headers();
-    const declared = CONTENT_TYPE[check.ref.kind];
+    // Derivatives are declared from the signed path rather than from what R2
+    // reports, so a mislabelled object cannot make the Worker claim an AVIF is
+    // a JPEG. Originals keep whatever they were stored as — HEIC stays HEIC.
+    const declared =
+      check.ref.kind === 'orig' ? null : MIME[formatOf(check.ref)];
     headers.set(
       'content-type',
       declared ?? object.httpMetadata?.contentType ?? 'application/octet-stream',

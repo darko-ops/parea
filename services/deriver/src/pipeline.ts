@@ -19,13 +19,19 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { derivativeKey, type ImageFormat } from '@parea/urls';
+
 import { crc32 } from './crc32';
 import {
   alertResponder,
   ScanUnavailable,
   type CsamScanner,
 } from './safety';
-import { buildDerivatives, readDimensions } from './derivatives';
+import {
+  buildDerivatives,
+  readDimensions,
+  type DerivativeKind,
+} from './derivatives';
 import {
   extractMetadata,
   hasLocation,
@@ -177,15 +183,14 @@ export async function processPhoto(
 
     // Sibling keys, not `${finalKey}/${kind}` — that would make the original's
     // key a directory prefix as well as an object, which S3's flat namespace
-    // tolerates and a filesystem does not.
-    const derivativeKey = (kind: string) => `${finalKey}.${kind}.jpg`;
+    // tolerates and a filesystem does not. Shared with the URL layer so the
+    // Worker resolves exactly what was written; a private copy of this rule
+    // here would be a 404 nobody could explain.
+    const keyOf = (d: { kind: DerivativeKind; format: ImageFormat }) =>
+      derivativeKey(photo.eventId, hex, d.kind, d.format);
 
     for (const derivative of derivatives) {
-      await objects.put(
-        derivativeKey(derivative.kind),
-        derivative.bytes,
-        derivative.mime,
-      );
+      await objects.put(keyOf(derivative), derivative.bytes, derivative.mime);
     }
 
     await db
@@ -210,7 +215,8 @@ export async function processPhoto(
         derivatives.map((d) => ({
           photoId: photo.id,
           kind: d.kind,
-          storageKey: derivativeKey(d.kind),
+          format: d.format,
+          storageKey: keyOf(d),
           width: d.width,
           height: d.height,
           mime: d.mime,

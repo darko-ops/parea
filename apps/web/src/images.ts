@@ -15,7 +15,12 @@
  * process.
  */
 
-import { signImagePath, type ImageKind } from '@parea/urls';
+import {
+  formatsFor,
+  signImagePath,
+  type ImageFormat,
+  type ImageKind,
+} from '@parea/urls';
 
 export { epochMarkerKey } from '@parea/urls';
 
@@ -42,6 +47,7 @@ export async function imageSrc(
   photo: PhotoRef,
   kind: ImageKind,
   capEpoch: number,
+  format: ImageFormat = 'jpeg',
 ): Promise<string> {
   const config = workerConfig();
   const hash = photo.contentHash
@@ -53,15 +59,40 @@ export async function imageSrc(
       eventId: photo.eventId,
       hash,
       kind,
+      format,
       capEpoch,
     });
     return `${config.base}${path}`;
   }
 
   const storage = getStorage();
+  const ext = format === 'avif' ? 'avif' : 'jpg';
   const key =
-    hash && kind !== 'orig' ? `${photo.storageKey}.${kind}.jpg` : photo.storageKey;
+    hash && kind !== 'orig' ? `${photo.storageKey}.${kind}.${ext}` : photo.storageKey;
   return storage.presignGet(key, 3600);
+}
+
+/**
+ * Every encoding of one size, best first.
+ *
+ * The client renders these as `<source>` elements and the browser takes the
+ * first it can decode — which is the only place the decision can be made
+ * correctly, because it is the only place that knows what the decoder is.
+ * Negotiating on `Accept` at the edge would make one cached response answer
+ * for viewers who disagree about AVIF; see the note in @parea/urls.
+ */
+export async function imageSources(
+  photo: PhotoRef,
+  kind: ImageKind,
+  capEpoch: number,
+): Promise<{ type: string; src: string }[]> {
+  if (!hasDerivatives(photo)) return [];
+  return Promise.all(
+    formatsFor(kind).map(async (format) => ({
+      type: format === 'avif' ? 'image/avif' : 'image/jpeg',
+      src: await imageSrc(photo, kind, capEpoch, format),
+    })),
+  );
 }
 
 /** True when derivatives exist, so callers know a thumbnail is available. */

@@ -5,6 +5,11 @@
  * Three sizes, and the largest one earns its place twice: it backs the lightbox
  * *and* it is the "download as JPEG" option, so an Android recipient handed a
  * folder of iPhone HEICs has something their gallery can open.
+ *
+ * The two grid sizes are encoded twice, AVIF and JPEG. Both are stored and the
+ * browser picks with `<picture>`; see §11 for why that beats negotiating on
+ * `Accept`. `full` stays JPEG-only — it is an archive member, and it has to
+ * stay one.
  */
 
 import { execFile } from 'node:child_process';
@@ -13,6 +18,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
+
+import { MIME, formatsFor } from '@parea/urls';
 
 const run = promisify(execFile);
 
@@ -24,23 +31,37 @@ export const DERIVATIVES = [
 
 export type DerivativeKind = (typeof DERIVATIVES)[number]['kind'];
 
+/**
+ * AVIF quality runs lower than JPEG for comparable output — the scales are not
+ * the same scale — so this is a subtraction rather than a second table, which
+ * would drift the moment someone tuned one and not the other.
+ */
+const AVIF_QUALITY_OFFSET = 12;
+
+/**
+ * How hard libaom searches. Measured, not guessed.
+ *
+ * At libvips' default of 4, a 1280px AVIF encode took ~5.6s against ~185ms for
+ * the JPEG of the same image on the CI machine. The deriver is a single
+ * machine that cannot be scaled out yet (two would race on the same pending
+ * rows), so a 250-photo event would spend an extra twenty-odd minutes in
+ * ingest — for a file the viewer sees only after ingest completes.
+ *
+ * At effort 2 the same encode took ~0.7s. Slower than JPEG, cheap enough to
+ * pay per photo. If the deriver ever scales out, raising this is the first
+ * thing worth revisiting.
+ */
+const AVIF_EFFORT = 2;
+
 export type Derivative = {
   kind: DerivativeKind;
+  format: 'jpeg' | 'avif';
   bytes: Buffer;
   width: number;
   height: number;
   mime: string;
 };
 
-/**
- * JPEG for every size, for now.
- *
- * The design specifies AVIF with a JPEG fallback for thumb and grid, which is
- * meaningfully smaller. That means storing two encodings per size and picking
- * by Accept header at the edge — work that belongs with the image Worker,
- * which does not exist yet. Serving JPEG until then is a bandwidth cost, not a
- * correctness one, and R2 egress is free.
- */
 export async function buildDerivatives(input: Buffer): Promise<Derivative[]> {
   try {
     return await encodeAll(input);
@@ -59,27 +80,37 @@ async function encodeAll(input: Buffer): Promise<Derivative[]> {
   const out: Derivative[] = [];
 
   for (const spec of DERIVATIVES) {
-    const pipeline = sharp(input, { failOn: 'error' })
-      // Bakes in EXIF orientation, so viewers do not have to honour it, and
-      // strips metadata from the derivative entirely — a thumbnail has no
-      // business carrying the original's tags.
-      .rotate()
-      .resize({
-        width: spec.edge,
-        height: spec.edge,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: spec.quality, mozjpeg: true });
+    for (const format of formatsFor(spec.kind)) {
+      const resized = sharp(input, { failOn: 'error' })
+        // Bakes in EXIF orientation, so viewers do not have to honour it, and
+        // strips metadata from the derivative entirely — a thumbnail has no
+        // business carrying the original's tags.
+        .rotate()
+        .resize({
+          width: spec.edge,
+          height: spec.edge,
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
 
-    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
-    out.push({
-      kind: spec.kind,
-      bytes: data,
-      width: info.width,
-      height: info.height,
-      mime: 'image/jpeg',
-    });
+      const encoded =
+        format === 'avif'
+          ? resized.avif({
+              quality: spec.quality - AVIF_QUALITY_OFFSET,
+              effort: AVIF_EFFORT,
+            })
+          : resized.jpeg({ quality: spec.quality, mozjpeg: true });
+
+      const { data, info } = await encoded.toBuffer({ resolveWithObject: true });
+      out.push({
+        kind: spec.kind,
+        format,
+        bytes: data,
+        width: info.width,
+        height: info.height,
+        mime: MIME[format],
+      });
+    }
   }
 
   return out;
@@ -155,6 +186,29 @@ export async function canDecode(input: Buffer): Promise<boolean> {
   try {
     await sharp(input).jpeg().toBuffer();
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether this build can *write* AVIF, which is a different question from
+ * whether it can read HEIF.
+ *
+ * `sharp.format.heif.output` reports the container, and libvips aliases avif
+ * onto it — so the table says yes for a build with no AV1 encoder, in exactly
+ * the way it says yes to HEIF for a build with no HEVC decoder. Every ingest
+ * would fail at the first thumbnail, so the boot probe encodes real pixels.
+ */
+export async function canEncodeAvif(): Promise<boolean> {
+  try {
+    const pixel = await sharp({
+      create: { width: 32, height: 32, channels: 3, background: '#888' },
+    })
+      .avif({ quality: 50, effort: AVIF_EFFORT })
+      .toBuffer();
+    // ftyp box, then the avif brand. A zero-length buffer would also "succeed".
+    return pixel.length > 0 && pixel.subarray(4, 12).toString('latin1') === 'ftypavif';
   } catch {
     return false;
   }

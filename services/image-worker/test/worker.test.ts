@@ -84,6 +84,41 @@ describe('serving', () => {
     expect(await res.text()).toBe('thumbnail-bytes');
   });
 
+  it('declares AVIF from the signed path, not from what R2 says', async () => {
+    // The path is signed and the object's stored content type is not, so the
+    // path is the one to trust. A mislabelled object must not make the Worker
+    // tell a browser an AVIF is a JPEG — it would render nothing and there
+    // would be no fallback left, because the browser already chose.
+    makeCache();
+    // The fake bucket reports `image/heic` for everything, which is exactly
+    // the wrong answer here and the point of the assertion.
+    const { env } = makeEnv({
+      [`ev/${EVENT}/${HASH}.thumb.avif`]: 'avif-bytes',
+    });
+    const res = await fetchPath(env, await signImagePath(SECRET, { ...ref, format: 'avif' }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/avif');
+    expect(await res.text()).toBe('avif-bytes');
+  });
+
+  it('serves the two encodings of one thumbnail as two cache entries', async () => {
+    // The property the whole format-in-the-path decision exists for. If these
+    // shared an entry, one viewer's AVIF would be handed to the next viewer
+    // whose browser cannot decode it.
+    makeCache();
+    const { env } = makeEnv({
+      [`ev/${EVENT}/${HASH}.thumb.avif`]: 'avif-bytes',
+      [`ev/${EVENT}/${HASH}.thumb.jpg`]: 'jpeg-bytes',
+    });
+
+    const avif = await fetchPath(env, await signImagePath(SECRET, { ...ref, format: 'avif' }));
+    const jpeg = await fetchPath(env, await signImagePath(SECRET, { ...ref, format: 'jpeg' }));
+
+    expect(await avif.text()).toBe('avif-bytes');
+    expect(await jpeg.text()).toBe('jpeg-bytes');
+  });
+
   it('keeps the stored content type for originals', async () => {
     // A HEIC original must not be relabelled as JPEG on the way out.
     makeCache();

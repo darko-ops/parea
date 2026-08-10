@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { findGroup } from '@/groups';
-import { hasDerivatives, imageSrc } from '@/images';
+import { hasDerivatives, imageSources, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -70,6 +70,10 @@ export async function GET(
       // A 320px thumbnail rather than a multi-megabyte original: a 200-photo
       // grid of originals is ~800MB of pointless transfer.
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      // The same thumbnail in every encoding that exists, best first, so the
+      // browser can take the AVIF if it can decode one (§11). Empty before
+      // ingest, in which case `src` is the original and there is no choice.
+      sources: await imageSources(photo, 'thumb', event.capEpoch),
       full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
     })),
   );

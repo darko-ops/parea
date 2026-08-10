@@ -515,9 +515,30 @@ libheif/libvips will not run in a Workers isolate, so the deriver is a container
 
 | Kind | Longest edge | Format | Use |
 |---|---|---|---|
-| `thumb` | 320px | AVIF, JPEG fallback | grid |
-| `grid` | 1280px | AVIF, JPEG fallback | retina grid, quick look |
-| `full` | 2560px | JPEG | lightbox, and the "give me something I can open" download |
+| `thumb` | 320px | AVIF **and** JPEG | grid |
+| `grid` | 1280px | AVIF **and** JPEG | retina grid, quick look |
+| `full` | 2560px | JPEG only | lightbox, and the "give me something I can open" download |
+
+Both encodings are stored, not one with the other generated on demand. Which
+one a viewer gets is decided by the browser, not the edge — see §11. `full`
+stays JPEG-only because it is the member of the download-as-JPEG archive, so
+its format is load-bearing elsewhere.
+
+**AVIF encoding is slow enough to need a setting.** At libvips' default effort
+of 4, a 1280px AVIF encode measured ~5.6s against ~185ms for the JPEG of the
+same image; at effort 2 it was ~0.7s. The deriver is one machine that cannot
+yet be scaled out (two would race on the same pending rows), so a 250-photo
+event at the default would add twenty-odd minutes to ingest — time during
+which nothing is visible, because `ready` is the gate. Effort 2 is the
+setting; raising it is the first thing worth revisiting if the deriver ever
+scales out.
+
+**The size win is unmeasured.** AVIF is smaller than JPEG on typical
+photographic content, but "typical" is doing work in that sentence and this
+codebase has no real photo set to measure against — synthetic test images
+compress nothing like a camera's output. The encode cost above is measured;
+the saving is not. Worth checking against a real event before treating the
+bandwidth argument as settled.
 
 That last row matters more than it looks: an Android recipient downloading HEIC
 originals gets files their gallery may not open. Both clients offer **download
@@ -731,11 +752,42 @@ A grid requests 200 thumbnails. Two bad options and one good one:
 - Worker checks the credential — correct, but credential-varying responses are
   effectively uncacheable at the edge.
 - **Signed path with a coarse expiry.**
-  `/img/<photoId>/<kind>?e=<hourBucket>&s=<hmac>`, where the signature covers
-  photo, kind, the event's `cap_epoch`, and an expiry rounded up to the next
-  hour. Every viewer of the same event within the same hour generates
-  *identical* URLs, so the edge cache actually works, and the URL dies within
-  the hour. `Cache-Control: private, max-age=3600` at the client.
+  `/img/<eventId>/<hash>/<kind>.<ext>?v=<epoch>&e=<hourBucket>&s=<hmac>`, where
+  the signature covers event, photo, kind, format, the event's `cap_epoch`, and
+  an expiry rounded up to the next hour. Every viewer of the same event within
+  the same hour generates *identical* URLs, so the edge cache actually works,
+  and the URL dies within the hour. `Cache-Control: private, max-age=3600` at
+  the client.
+
+### The encoding is in the URL, not in `Accept`
+
+Content negotiation is the textbook answer for AVIF-with-a-JPEG-fallback and it
+is the wrong one here.
+
+A response that varies by `Accept` is only correct if the cache in front of it
+keys on that header. Cloudflare's Workers Cache grew `Vary` support in mid-2026
+— weeks before this was written — and the grid's entire cache-hit rate is the
+thing §11 exists to protect. More to the point, the failure mode is silent and
+severe: one viewer's AVIF served to the next viewer whose browser cannot decode
+it is not a slow grid, it is an empty one.
+
+AVIF is around 94% globally, and the missing few percent are iOS 15 and older
+plus a tail of in-app webviews. This product's links live in group chats, so
+in-app webviews are its traffic, not a rounding error.
+
+So `thumb.avif` and `thumb.jpg` are two URLs, two signatures and two cache
+entries, and the client renders `<picture>` with the AVIF as a `<source>` and
+the JPEG as the `<img>`. The browser picks, because it is the only party that
+knows what its decoder can do. The `<img>` is not optional — a `<picture>`
+whose sources are all rejected renders nothing.
+
+The format is inside the signature like everything else in the path, so a valid
+JPEG URL cannot be edited into an AVIF one, and `full.avif` — an object nobody
+writes — is rejected as malformed rather than 404ing.
+
+Native clients ask for a URL and cannot negotiate, so they take the JPEG. If
+`expo-image` turns out to decode AVIF on both platforms, switching is a
+one-line change to which format the app requests.
 
 Because the signature includes `cap_epoch`, rotating the link invalidates
 outstanding image URLs too.
