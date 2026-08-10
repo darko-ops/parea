@@ -1,0 +1,26 @@
+{
+  "name": "geotag-probe",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "test": "tsc -p tsconfig.test.json && node dist-test/scripts/test-analysis.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~57.0.11",
+    "expo-clipboard": "~57.0.1",
+    "expo-media-library": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

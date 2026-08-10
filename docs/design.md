@@ -841,10 +841,15 @@ the column from day one costs nothing.
   people whose camera writes GPS. If that's a large majority, auto-select feels
   like magic; if it's half, most contributors fall to the time-only path with
   nothing pre-selected, and the app's central justification is a nicer grid.
-  **Instrumented — see [`tools/geotag-probe`](../tools/geotag-probe/).** Run it
-  before committing to the build. Note its README on collection paths first:
-  several obvious ways of getting photos off a phone strip the exact metadata
-  being measured and will report 0% on a healthy library.
+  **Instrumented, two ways — see [`tools/geotag-probe`](../tools/geotag-probe/).**
+  `analyze.py` measures a folder of exported originals; [`app/`](../tools/geotag-probe/app/)
+  is an Expo build that reads the photo library directly through the same
+  `expo-media-library` calls this design specifies, and runs in Expo Go so
+  testers scan a QR instead of installing anything. Use the app for coverage
+  across several phones — one camera roll is n=1 for that question — and the
+  script for clustering quality on your own. Read the README on collection paths
+  before trusting any number from the script: several obvious ways of getting
+  photos off a phone strip the exact metadata being measured.
 - **Exactly what iOS Safari strips.** If GPS goes but `DateTimeOriginal`
   survives, §8's timeline problem is a footnote. If both go, web-contributed
   photos can't be placed on the timeline at all and the grid needs a

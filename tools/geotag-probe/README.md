@@ -83,11 +83,13 @@ n=1 for it. The per-device breakdown in the report is a weak proxy if your
 library contains AirDropped photos from other people's phones — treat it as a
 hint, not a measurement.
 
-For the real coverage number, two options, and the second is free:
+For the real coverage number, two options, and they compose:
 
-1. **Distribute a probe build.** The only fully faithful instrument, because
-   `expo-media-library` sees the same `PHAsset.location` the app would. This is
-   the thing to build if the answer stays ambiguous.
+1. **Run the on-device probe — [`app/`](./app/).** The faithful instrument: it
+   reads the photo library through the same `expo-media-library` API the real
+   app would, so nothing sits between the measurement and the truth. It runs in
+   Expo Go, so testers scan a QR rather than installing a build. Same thresholds
+   as this script, cross-checked against it by `npm test`.
 2. **Fold it into the test already planned.** `concept.md` §6 says the next step
    is a plain shared album at the next party, counting whether anyone other than
    you uploads. That collection is also a geotag sample across several people's
@@ -96,7 +98,9 @@ For the real coverage number, two options, and the second is free:
    Shared Album**, or the geotag half of the finding is destroyed and you won't
    be able to tell.
 
-Same party, same effort, two findings. Do that before building a probe app.
+Same party, same effort, two findings — and the app-based probe running on a few
+of those same phones turns it into a real coverage sample rather than an
+anecdote.
 
 ## 4. Reading the result
 

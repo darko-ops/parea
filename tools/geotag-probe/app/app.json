@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Geotag probe",
+    "slug": "geotag-probe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.geotagprobe"
+    },
+    "android": {
+      "package": "com.example.geotagprobe"
+    },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "This probe reads capture times and locations to measure how well automatic photo selection would work. It never reads, copies, or uploads a photo.",
+          "savePhotosPermission": false,
+          "granularPermissions": ["photo"],
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ]
+  }
+}
