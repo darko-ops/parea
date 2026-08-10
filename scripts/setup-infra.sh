@@ -143,6 +143,13 @@ ZIP_BASE_URL=
 IMAGE_BASE_URL=
 
 SAFETY_CONTACT_EMAIL=
+
+# Only needed once the app exists. Until they are set, the two .well-known
+# files 404 and every tapped link opens a browser on a phone that has the app
+# installed — which looks exactly like not having it installed.
+APPLE_TEAM_ID=
+ANDROID_CERT_FINGERPRINTS=
+
 APP_URL=http://localhost:3000
 EOF
   chmod 600 "$ENV_FILE"
