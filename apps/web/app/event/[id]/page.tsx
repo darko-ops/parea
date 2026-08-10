@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
+import { findGroup } from '@/groups';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentActorId, requesterFor } from '@/session';
@@ -67,6 +68,10 @@ export default async function EventPage({
           name: event.name,
           uploadsOpen: event.uploadsOpen,
           canAdminister: (await decide(db, event, 'administer', requester)).allow,
+          groupId: event.groupId,
+          groupName: event.groupId
+            ? ((await findGroup(db, event.groupId))?.name ?? null)
+            : null,
         },
         contributors: new Set(rows.map((p) => p.uploaderId)).size,
         count: photos.length,

@@ -11,11 +11,13 @@ import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
+import { membershipOf } from '@/groups';
 import { ensureActor, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
 
 type Body = {
+  groupId?: unknown;
   name?: unknown;
   eventDate?: unknown;
   startsAt?: unknown;
@@ -37,10 +39,21 @@ export async function POST(request: Request) {
     typeof body.createdByName === 'string' ? body.createdByName.trim() : undefined,
   );
 
+  // Creating inside a group is the whole point of having one: its members get
+  // access without anyone re-solving "how do I reach everyone" (design §3).
+  let groupId: string | null = null;
+  if (typeof body.groupId === 'string') {
+    if (!(await membershipOf(db, body.groupId, actorId))) {
+      return NextResponse.json({ error: 'not_a_member' }, { status: 403 });
+    }
+    groupId = body.groupId;
+  }
+
   const [event] = await db
     .insert(schema.events)
     .values({
       name,
+      groupId,
       linkToken: newLinkToken(),
       createdBy: actorId,
       eventDate: asDateString(body.eventDate),
@@ -49,8 +62,10 @@ export async function POST(request: Request) {
       // contributor one — who is often the person with 200 photos.
       startsAt: asDate(body.startsAt),
       endsAt: asDate(body.endsAt),
-      // Retention lever, populated but not enforced in v1 (design §15).
-      expiresAt: new Date(Date.now() + 60 * 24 * 3600 * 1000),
+      // Retention lever, populated but not enforced in v1 (design §15). Null
+      // for grouped events: a group's archive is the thing that accrues value,
+      // and expiring it is what the group is bought to prevent.
+      expiresAt: groupId ? null : new Date(Date.now() + 60 * 24 * 3600 * 1000),
     })
     .returning();
 

@@ -27,3 +27,4 @@ export {
   type ViewerContext,
 } from './visibility';
 export { PRESERVATION_DAYS, preservationHold } from './preservation';
+export { groupSlug, type GroupDoor } from './groups';

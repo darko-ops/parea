@@ -99,6 +99,41 @@ export const groupMembers = pgTable(
   (t) => [primaryKey({ columns: [t.groupId, t.actorId] })],
 );
 
+/**
+ * Asking to join a findable group — design §3.
+ *
+ * Only needed for the search path: someone who found a group by name has no
+ * relationship to it yet, so an admin decides. People who arrive through an
+ * event they were already in do not go through this — they had access to the
+ * photos already, and joining the group is just saying "keep me in the loop".
+ */
+export const groupJoinRequests = pgTable(
+  'group_join_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'approved', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    // One open request per person per group; a declined one can be re-made.
+    uniqueIndex('group_join_request_open_idx')
+      .on(t.groupId, t.actorId)
+      .where(sql`${t.status} = 'open'`),
+  ],
+);
+
 // --- events ----------------------------------------------------------------
 
 export const events = pgTable(

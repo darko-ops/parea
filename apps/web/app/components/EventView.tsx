@@ -39,6 +39,8 @@ type Feed = {
     name: string;
     uploadsOpen: boolean;
     canAdminister: boolean;
+    groupId: string | null;
+    groupName: string | null;
   };
   contributors: number;
   count: number;
@@ -169,6 +171,12 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         <p className="muted">
           {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from {feed.contributors}{' '}
           {feed.contributors === 1 ? 'person' : 'people'}
+          {feed.event.groupId && (
+            <>
+              {' · '}
+              <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
+            </>
+          )}
           {feed.event.canAdminister && (
             <>
               {' · '}

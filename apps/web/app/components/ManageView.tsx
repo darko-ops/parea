@@ -28,7 +28,14 @@ export function ManageView({
   initial,
 }: {
   eventId: string;
-  initial: { name: string; joinsOpen: boolean; uploadsOpen: boolean; code: string | null; url: string };
+  initial: {
+    name: string;
+    joinsOpen: boolean;
+    uploadsOpen: boolean;
+    code: string | null;
+    url: string;
+    groupId: string | null;
+  };
 }) {
   const [joinsOpen, setJoinsOpen] = useState(initial.joinsOpen);
   const [uploadsOpen, setUploadsOpen] = useState(initial.uploadsOpen);
@@ -39,6 +46,8 @@ export function ManageView({
   const [error, setError] = useState<string | null>(null);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [findable, setFindable] = useState(false);
 
   const loadReports = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/reports`);
@@ -226,6 +235,70 @@ export function ManageView({
           </button>
         )}
       </section>
+
+      {!initial.groupId && (
+        <section className="panel">
+          <h2>Keep doing this?</h2>
+          <p className="muted">
+            If the same people keep turning up, make a group. The next thing you
+            create reaches everyone in it without you sending anything to
+            anyone, and the photos land in one running archive instead of a
+            series of links people lose.
+          </p>
+          <label htmlFor="gname">Call it</label>
+          <input
+            id="gname"
+            type="text"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            placeholder="The Flat"
+            maxLength={80}
+          />
+          <div className="switch" style={{ marginTop: 12 }}>
+            <span>
+              Let people find it by name
+              <br />
+              <span className="muted">
+                Off for a friend group. On for a club or a team — people can see
+                the name and ask to join, never the photos.
+              </span>
+            </span>
+            <button
+              className="secondary"
+              onClick={() => setFindable((v) => !v)}
+              type="button"
+            >
+              {findable ? 'On' : 'Off'}
+            </button>
+          </div>
+          <button
+            style={{ marginTop: 12 }}
+            disabled={busy === 'group' || !groupName.trim()}
+            onClick={async () => {
+              setBusy('group');
+              try {
+                const res = await fetch('/api/groups', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({
+                    name: groupName,
+                    fromEventId: eventId,
+                    findable,
+                  }),
+                });
+                if (!res.ok) throw new Error('Could not make the group.');
+                const created = (await res.json()) as { id: string };
+                window.location.href = `/group/${created.id}`;
+              } catch (err) {
+                setError(err instanceof Error ? err.message : String(err));
+                setBusy(null);
+              }
+            }}
+          >
+            {busy === 'group' ? 'Making it…' : 'Make a group'}
+          </button>
+        </section>
+      )}
 
       <section className="panel">
         <h2>Delete</h2>

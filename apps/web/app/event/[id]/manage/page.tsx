@@ -42,6 +42,7 @@ export default async function ManagePage({
         uploadsOpen: event.uploadsOpen,
         code: code?.words ?? null,
         url: `/e/${event.linkToken}`,
+        groupId: event.groupId,
       }}
     />
   );
