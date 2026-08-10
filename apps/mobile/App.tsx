@@ -34,7 +34,16 @@ import {
   useColorScheme,
 } from 'react-native';
 
+import { resolveWindow, type Window } from '@parea/autoselect';
+
 import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
+import { AutoSelect } from './src/AutoSelect';
+import {
+  libraryAccess,
+  requestLibraryAccess,
+  resolveForUpload,
+  type LibraryAccess,
+} from './src/library';
 import {
   BACKGROUND_UPLOAD_SUPPORTED,
   loadActorToken,
@@ -128,7 +137,13 @@ function JoinScreen({
         const summary = await api.join(
           token ? { linkToken: token } : { code: raw },
         );
-        onOpen({ id: summary.id, name: summary.name, linkToken: summary.linkToken });
+        onOpen({
+          id: summary.id,
+          name: summary.name,
+          linkToken: summary.linkToken,
+          startsAt: summary.startsAt,
+          endsAt: summary.endsAt,
+        });
         setInput('');
       } catch {
         setError("Couldn't find that. Check the link or the code and try again.");
@@ -226,6 +241,13 @@ function EventScreen({
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
+  const [autoWindow, setAutoWindow] = useState<Window | null>(null);
+  const [access, setAccess] = useState<LibraryAccess>('undetermined');
+  const [offerUpgrade, setOfferUpgrade] = useState(false);
+
+  useEffect(() => {
+    void libraryAccess().then(setAccess);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -284,10 +306,51 @@ function EventScreen({
     [api, event, refresh],
   );
 
+  const windowFor = useCallback((): Window | null => {
+    return resolveWindow({
+      startsAt: event.startsAt ? Date.parse(event.startsAt) : null,
+      endsAt: event.endsAt ? Date.parse(event.endsAt) : null,
+      // Inference from what is already there helps contributor five, not
+      // contributor one — which is why the host-set window comes first.
+      existing: (feed?.photos ?? []).map((p) => Date.parse(p.takenAt)),
+    });
+  }, [event, feed]);
+
+  const enqueue = useCallback(
+    async (files: { id: string; uri: string; name: string; size: number; mime: string }[]) => {
+      if (files.length === 0) return;
+      if (!(await loadActorToken())) {
+        await saveActorToken(await api.startSession());
+      }
+      const state = await loadQueue();
+      const queue = new UploadQueue(
+        {
+          presign: (eventId, batch) => api.presign(eventId, event.linkToken, batch),
+          upload: uploadItem,
+          complete: (photoId) => api.complete(photoId, event.linkToken),
+          save: saveQueue,
+        },
+        state,
+      );
+      queue.add(event.id, files);
+      await saveQueue(queue.state);
+      await runQueue(queue.state);
+    },
+    [api, event, runQueue],
+  );
+
   const addPhotos = useCallback(async () => {
-    // The system picker: no permission prompt at all, and no library access.
-    // The permission upgrade that unlocks auto-selection is offered later,
-    // after someone has contributed once — design §7.4.
+    // With library access and a known window, offer the photos rather than
+    // asking someone to find them — the reason this client exists (§7.1).
+    const window = windowFor();
+    if ((access === 'granted' || access === 'limited') && window) {
+      setAutoWindow(window);
+      return;
+    }
+
+    // Otherwise the system picker: no permission prompt at all, and no library
+    // access. The upgrade that unlocks auto-selection is offered after a
+    // contribution, never in front of the first one — design §7.4.
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -296,23 +359,7 @@ function EventScreen({
     });
     if (picked.canceled || picked.assets.length === 0) return;
 
-    if (!(await loadActorToken())) {
-      const token = await api.startSession();
-      await saveActorToken(token);
-    }
-
-    const state = await loadQueue();
-    const queue = new UploadQueue(
-      {
-        presign: (eventId, files) => api.presign(eventId, event.linkToken, files),
-        upload: uploadItem,
-        complete: (photoId) => api.complete(photoId, event.linkToken),
-        save: saveQueue,
-      },
-      state,
-    );
-    queue.add(
-      event.id,
+    await enqueue(
       picked.assets.map((asset, index) => ({
         id: `${Date.now()}-${index}`,
         uri: asset.uri,
@@ -321,9 +368,11 @@ function EventScreen({
         mime: asset.mimeType ?? 'image/jpeg',
       })),
     );
-    await saveQueue(queue.state);
-    await runQueue(queue.state);
-  }, [api, event, runQueue]);
+
+    // Earned the right to ask: they have contributed, so the pitch is
+    // concrete rather than a permission wall in front of a stranger.
+    if (access === 'undetermined' && windowFor()) setOfferUpgrade(true);
+  }, [access, enqueue, windowFor]);
 
   const saveAll = useCallback(async () => {
     if (!feed || feed.photos.length === 0) return;
@@ -345,6 +394,20 @@ function EventScreen({
       setSaving(null);
     }
   }, [feed]);
+
+  if (autoWindow) {
+    return (
+      <AutoSelect
+        window={autoWindow}
+        theme={t}
+        onCancel={() => setAutoWindow(null)}
+        onConfirm={async (assetIds) => {
+          setAutoWindow(null);
+          await enqueue(await resolveForUpload(assetIds));
+        }}
+      />
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -386,6 +449,26 @@ function EventScreen({
                   ' — keep the app open until this finishes'}
               </Text>
             )}
+            {offerUpgrade && (
+              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+                <Text style={[styles.body, { color: t.fg }]}>
+                  Next time we can find them for you — pick out the photos from
+                  the event so you do not have to scroll. Your photos stay on
+                  your phone; only the ones you choose are uploaded.
+                </Text>
+                <Button
+                  label="Let it find them"
+                  t={t}
+                  primary
+                  onPress={async () => {
+                    setAccess(await requestLibraryAccess());
+                    setOfferUpgrade(false);
+                  }}
+                />
+                <Button label="Not now" t={t} onPress={() => setOfferUpgrade(false)} />
+              </View>
+            )}
+
             {(feed?.photos.length ?? 0) > 0 && (
               <Button
                 label={saving ?? 'Save all to my camera roll'}

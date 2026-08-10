@@ -70,5 +70,9 @@ export async function POST(request: Request) {
     linkToken: event.linkToken,
     capEpoch: event.capEpoch,
     uploadsOpen: event.uploadsOpen,
+    // Drives auto-selection on the native client (design §7.3). Null is a
+    // normal answer — the client falls back rather than guessing a window.
+    startsAt: event.startsAt?.toISOString() ?? null,
+    endsAt: event.endsAt?.toISOString() ?? null,
   });
 }

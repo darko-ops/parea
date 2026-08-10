@@ -21,6 +21,9 @@ export type SavedEvent = {
   id: string;
   name: string;
   linkToken: string;
+  /** ISO 8601, from the host. Null is normal — the client falls back. */
+  startsAt?: string | null;
+  endsAt?: string | null;
 };
 
 // --- identity ---------------------------------------------------------------

@@ -15,6 +15,8 @@ export type EventSummary = {
   linkToken: string;
   capEpoch: number;
   uploadsOpen: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
 };
 
 export type FeedPhoto = {

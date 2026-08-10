@@ -32,16 +32,40 @@ returns get written to the photo library instead.
 QR scanning and spoken codes, so the at-the-party join moment works without
 anyone typing a URL.
 
-## What is deliberately missing
+## Auto-selection
 
-**Auto-selection.** The single strongest argument for building a native client
-at all (design §1) and the one piece whose design depends on the geotag
-coverage number that has not been measured. `tools/geotag-probe` exists to get
-that number; until it does, the app uses the system picker and asks for no
-photo-library permission whatsoever.
+The reason this client exists (design §1). With photo-library access and a
+known time window, "Add photos" opens on what it thinks are your photos from
+the event, already ticked — one tap instead of scrolling a camera roll.
 
-That ordering is intentional. Everything here works without auto-selection, and
-the screen it lands on — the picker — is already built.
+Built to degrade correctly rather than to assume it works, because the geotag
+coverage number it depends on **has not been measured** (`tools/geotag-probe`
+exists to get it). Confidence decides how much is pre-selected, never whether
+the screen appears:
+
+| Signal | What happens |
+|---|---|
+| Most photos geotagged, tightly clustered | the cluster is pre-selected |
+| Under 60% carry GPS | grid appears, **nothing ticked** |
+| Geotagged but spread across places | grid appears, **nothing ticked** |
+| No usable window | system picker |
+
+Degrading to "here is a useful grid of the right time range, you pick" is a
+good outcome. Degrading to forty-seven pre-ticked photos, three of which you
+would be mortified to send, is the outcome that kills the feature — it spends
+the contributor's trust and the photo-library permission in the same moment.
+"Show everything from this window" is always available, which is what makes a
+tight default safe rather than annoying.
+
+The measurement therefore decides *which row of that table people mostly land
+on*, not whether any of it works. Run the probe before assuming the top row.
+
+The selection logic lives in `@parea/autoselect` and is shared, by fixture,
+with the probe — so what the probe measures is what the app will do.
+
+Permission is asked for **after** a first contribution, never in front of one:
+the picker path needs no permission at all, and the upgrade is pitched as
+"next time we can find them for you".
 
 ## Notes
 
