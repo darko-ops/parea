@@ -27,7 +27,7 @@ concept; the sixth is a consequence of going native.
 4. **Access control must be a policy layer, not an assumption.** Paid galleries
    are deferred, not ruled out.
 5. **Originals, not compressed copies.** Constrains what we may do to the bytes
-   at ingest (§7.4).
+   at ingest (§7.6).
 6. **An install is a wall in front of contribution.** The concept is right that
    requiring one would gut contribution rates. Native is justified only if it
    *removes more friction than the install adds* — which is a claim about the
@@ -134,7 +134,7 @@ revisit later, the app tier is deliberately thin enough to move).
 | ORM | Drizzle | SQL-first, migrations checked in |
 | Objects | Cloudflare R2 | zero egress, S3-compatible |
 | Edge | Cloudflare Workers | image reads, zip streaming |
-| Async | Cloudflare Queues → container consumer | libvips/libheif won't run in a Worker (§7.3) |
+| Async | Cloudflare Queues → container consumer | libvips/libheif won't run in a Worker (§7.7) |
 | Push | expo-notifications → APNs/FCM | one nudge, group events (§12) |
 
 ## 3. Identity without accounts
@@ -275,7 +275,7 @@ Decisions embedded above:
   foreign key.
 - **`starts_at` / `ends_at` exist for the native picker.** They are what turn
   "your camera roll" into "photos from this party." Nullable, inferred from the
-  first uploads when the creator doesn't set them (§7.1).
+  first uploads when the creator doesn't set them (§7.3).
 - **Content-addressed keys** make re-uploads idempotent. A photo forwarded and
   contributed by two people collapses to one object, via a unique index on
   `(event_id, content_hash) where deleted_at is null`. This is also what lets
@@ -342,22 +342,89 @@ This is the part that justifies the app. Everything else is plumbing.
 ### 7.1 Auto-selection
 
 On opening an event, the app queries the local photo library for the event's
-time window (`expo-media-library`'s `getAssetsAsync({ createdAfter, createdBefore })`)
-and presents them pre-selected: *"47 photos from Saturday 8:14pm–1:40am."*
-Deselect what you don't want, tap once, done.
+time window (`expo-media-library`'s `getAssetsAsync({ createdAfter, createdBefore })`),
+narrows the result (§7.2), and presents what survives: *"31 photos from Saturday
+night."* Confirm, tap once, done.
 
-Window inference when the creator sets no times: take the span of photos already
-uploaded, widen by an hour on each side, and let the user drag the boundaries.
-An event with no photos yet falls back to a date picker. The window is a
-suggestion the user can always override — never a filter they can't escape.
+**The failure mode is not "we missed some," it is "we showed you something
+private."** Saturday 8:14pm–1:40am also contains the screenshot, the photo of a
+text thread, the parking spot, and the thing you photographed in the bathroom
+mirror. A suggestion that surfaces one of those is not a small miss — the
+contributor learns the feature cannot be trusted, and they never use it again.
+Worse, it burns the photo-library permission at the same moment, and the
+permission is not re-askable in practice.
+
+So the governing rule is **precision over recall, always**. Thirty photos that
+are all correct beats forty-seven with three wrong ones, and it beats it by a
+lot, because the costs are asymmetric: a missed photo is recovered with one tap
+on "show everything from this window," and a wrong photo is not recovered at
+all.
+
+### 7.2 Narrowing, and how confidence sets the default
+
+Three filters, applied on-device, in order:
+
+1. **Time window** — the event's `starts_at`/`ends_at` (below).
+2. **Location cluster** — take the dominant spatial cluster among candidates
+   that carry GPS, and keep only that cluster. Most events happen in one place,
+   so this is the filter that does the real work.
+3. **Not a screenshot** — subtract the Screenshots album membership rather than
+   inspecting each asset, which is one extra query instead of hundreds.
+
+Filter 2 deserves its own note, because it earns its place twice: screenshots,
+saved images from other apps, photos of text threads, and photos taken somewhere
+else all lack the event's GPS, so a single geometric rule removes most of the
+embarrassing categories at once. That is a better mechanism than enumerating the
+categories. Earlier drafts of this design deferred location narrowing as a
+nice-to-have; it is load-bearing for precision and belongs in v1.
+
+**Confidence decides how much is pre-selected, not whether the screen appears.**
+
+| Signal | Behaviour |
+|---|---|
+| Most candidates carry GPS and cluster tightly | pre-select the cluster |
+| Location sparse (camera geotagging off) or diffuse | show the time window with **nothing pre-selected** — the grid is still a shortcut, but the user does the choosing |
+| No usable window at all | plain library picker |
+
+Degrading to "here's a useful grid, you pick" is a good outcome. Degrading to
+"here are 47 pre-ticked photos, three of which you'd be mortified to send" is
+the outcome that kills the feature. When in doubt, suggest less.
+
+A single **"show everything from this window"** affordance restores recall for
+anyone who wants it, which is what makes the tight default safe.
 
 **All of this happens on-device.** Capture times and locations are read from the
-local library to decide *what to offer*; they are not uploaded, and GPS is
-stripped from the files that are (§7.4). Location-based narrowing ("photos taken
-near here") is possible with the same local-only property and is deliberately
-deferred — the time window is most of the value and none of the creepiness.
+local library to decide *what to offer*. They are not uploaded, no clustering
+happens server-side, and GPS is stripped from the files that are uploaded
+(§7.5). The app knows where your photos were taken only in the sense that your
+phone already does.
 
-### 7.2 Permissions, staged like the account ask
+### 7.3 Where the window comes from, and the bootstrap problem
+
+Three sources, in order of preference:
+
+1. **Set at creation.** The create flow captures a window with a live default
+   ("happening now" → opens at `now − 3h`, closes 6h later, both draggable).
+   This is one interaction on a screen the host is already on.
+2. **Inferred from existing uploads** — the span of what's already there,
+   widened by an hour each side.
+3. **A date picker**, if there's nothing to go on.
+
+Inference is the fallback, not the primary path, specifically because of the
+ordering problem: inferring from existing uploads works for contributor five and
+not for contributor one — who is frequently the heavy shooter with 200 photos,
+the single most valuable contributor at the event. Making the window a
+creation-time field with a sensible default is what stops the best experience
+from arriving last.
+
+It does not fully solve it. A creator who skips the field, or sets it wrong,
+leaves the first contributor on the manual path — which is precisely the
+experience the app is selling against. Location clustering at least works from
+the first contributor onward, since it is computed locally over their own
+candidates and needs no server-side data from anyone else. **Known, narrowed,
+not eliminated.** Watch it in the numbers (§18).
+
+### 7.4 Permissions, staged like the account ask
 
 iOS offers two paths with a real trade-off, so the app uses both:
 
@@ -377,7 +444,7 @@ error: auto-select over the subset the user granted, with a clear path to widen.
 Android maps to `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` (API 33+) with the
 older storage permission below that.
 
-### 7.3 Upload engine
+### 7.5 Upload engine
 
 ```
 1. client   POST /api/events/:id/uploads   { files: [{name, size, type}, …] }
@@ -419,7 +486,7 @@ Other measures, each against a specific failure:
 - **Idempotent retries** via content-addressed keys, so re-PUTting a file that
   actually completed is a no-op.
 
-### 7.4 What we do to the bytes
+### 7.6 What we do to the bytes
 
 "Originals, not compressed copies" and "strip precise location metadata by
 default" are in tension. Resolution:
@@ -439,7 +506,7 @@ state, since photos are only readable at `status='ready'`.
 a phone is minutes of blocked CPU and a dead battery, and the original is what
 we promised. Derivatives are made server-side.
 
-### 7.5 Deriving
+### 7.7 Deriving
 
 libheif/libvips will not run in a Workers isolate, so the deriver is a container
 (Fly.io or Railway) consuming a Cloudflare Queue, with R2 over the S3 API.
@@ -459,7 +526,7 @@ Alternative: Cloudflare Images handles HEIC and removes the container, at a
 per-image cost on exactly the axis that grows. Container first; switch if
 operating it becomes the tax rather than the saving.
 
-### 7.6 Rate limits
+### 7.8 Rate limits
 
 Anyone with a link can upload anything. Per-actor, per-event: 500 photos and
 5GB; 50 files per presign request; per-IP presign limits on top. These are
@@ -505,9 +572,16 @@ and someone who has never heard of the product.
 - **Deferred: iOS App Clips.** A QR scan that runs a lightweight contribution
   flow with no install is almost exactly this product's join moment, and it
   would partially collapse the two-client problem on iOS. It needs a separate
-  native target outside the Expo managed flow and a hard 15MB budget, so it is
-  not v1 — but it is the highest-value thing on the other side of v1. Android's
-  equivalent (Play Instant) is declining and not worth matching.
+  native target outside the Expo managed flow and a hard size budget, so it is
+  not v1 — but it is the highest-value thing on the other side of v1.
+- **There is no Android equivalent, and there won't be.** Google Play Instant
+  was removed from Play in December 2025: publishing disabled, APIs dead,
+  tooling pulled from Android Studio, and Google's own migration guidance is to
+  deeplink into the installed app. So the instant-contribution path on Android
+  is the web client, permanently. That is not a stopgap — it upgrades the web
+  path from "concession to non-installers" to "the only zero-install
+  contribution route on half the phones at the party," and it should be resourced
+  accordingly.
 
 ## 10. Download
 
@@ -585,7 +659,7 @@ Day-one needs from the concept, concretely:
 - **Delete event** — creator or group admin, soft delete then purge.
 - **Block a contributor** — hides their uploads from you and prevents them
   rejoining events you administer.
-- **Location metadata stripped** by default (§7.4).
+- **Location metadata stripped** by default (§7.6).
 
 Going native makes two of these non-negotiable on a schedule:
 
@@ -605,30 +679,71 @@ On **minors**, the concept's position is "avoid as a target market; private-only
 and no matching if it happens organically." Nothing in the schema encourages it,
 and there is no face matching to disable, which is most of the protection.
 
+### Schedule this, do not checklist it
+
+Everything above reads like six small features and is not. Blocking touches the
+query layer everywhere photos are listed. Auto-hide needs a timer, a state, and
+a notification. The report queue needs somewhere for reports to *go* and a human
+who looks. CSAM wiring needs a runbook, a named responder, and legal review of
+the reporting workflow before a single detection can be handled correctly. Then
+the whole thing gets judged by a reviewer who can reject on any one of them, and
+a rejection costs a review cycle, not an afternoon.
+
+**This is the most likely two weeks nobody put in the plan.** Treat it as a
+workstream with its own slice of the schedule, starting before the app is
+feature-complete — not as the checklist you run the week you intend to submit.
+
 ## 14. Consequence for monetization
 
-Worth stating plainly because it changes the numbers in `concept.md` §5.
+Worth stating because it changes the numbers in `concept.md` §5 — but the
+correct conclusion is *"do not assume a fixed cut,"* not *"subtract 30%."*
 
-The concept rules out paid galleries partly because **Apple takes 15–30% of
-in-app digital goods**. Going native applies that same cut to the *primary*
-monetization: a group subscription sold in-app is unambiguously a digital good,
-so it must go through StoreKit and Google Play Billing, not Stripe. At the
-proposed $4–8/mo that is $0.60–$2.40 a month off the top (15% under the Small
-Business Program, 30% above $1M).
+**Status as of August 2026, and it is genuinely unsettled.** In the US
+storefront, Apple currently takes **no commission on purchases made through an
+external link** out of the app, and cannot impose the anti-steering restrictions
+that used to make link-outs pointless. That is a consequence of the Epic
+contempt ruling, not a policy Apple chose, and it is under active challenge: on
+11 December 2025 the Ninth Circuit upheld the contempt finding but held that a
+*total* ban on link-out commissions was overbroad and remanded for the district
+court to set what Apple may charge. Apple has since sought Supreme Court review.
+So the live number is zero, the eventual number is being litigated, and it will
+land somewhere between zero and prohibitive.
 
-Three implications:
+Meanwhile the ordinary in-app purchase path is unchanged: StoreKit or Google
+Play Billing at 15% (Small Business Program / after year one on subscriptions)
+to 30%. Outside the US, separate regimes apply — the EU's DMA terms and other
+storefronts' external-purchase entitlements each carry their own fees.
 
-1. The group subscription is worth less than modelled. Not fatal — one payer
-   covering many free riders still works — but the price point should be set
-   after the cut, not before.
-2. Entitlements become platform receipts to validate and reconcile against a
-   server-side subscription record, on two platforms. Non-trivial work, and it
-   should not be started until there is a reason to charge anyone.
-3. **Physical artifacts (concept §5.4) are exempt** — physical goods go through
-   normal payments with no platform cut. That quietly improves their relative
-   standing versus the ranking in the concept.
+What follows for a $4–8/mo group subscription:
 
-Nothing here needs building now. The design just shouldn't assume Stripe.
+1. **Do not price as if the cut is fixed.** Model the margin across a range from
+   0% to 30% and make sure the price works at the bad end. A plan that only
+   works at 0% is a plan that depends on an appeal.
+2. **The link-out path is now economically real in the US, and it is worse in
+   every other way** — the user leaves the app to pay, conversion drops, and you
+   own the Stripe integration, tax handling, and dunning that StoreKit would
+   have done. "Zero commission" is not free. Offer both if it comes to that, and
+   let the numbers decide.
+3. **Entitlements become server-side regardless.** A subscription record on our
+   side, reconciled against whichever receipt source paid for it. Building it
+   platform-agnostic from the start is what keeps the choice open, and costs
+   nothing while there is no revenue.
+4. **Physical artifacts (concept §5.4) are exempt** — physical goods go through
+   normal payments with no platform cut in any storefront. That quietly improves
+   their standing relative to the concept's ranking, and it is the one direction
+   whose economics no court can move.
+
+Nothing here needs building now. Two things need *not* to be assumed: that
+payments go through Stripe, and that they don't.
+
+> Re-check before setting a price. This paragraph has a shelf life measured in
+> months, and the whole point of the note is that the number moves.
+
+Sources: [Ninth Circuit opinion, 11 Dec 2025](https://cdn.ca9.uscourts.gov/datastore/opinions/2025/12/11/25-2935.pdf) ·
+[Fenwick analysis](https://www.fenwick.com/insights/publications/ninth-circuit-largely-upholds-ruling-in-epic-v-apple) ·
+[Shinder Cantor Lerner, on the narrowed remedy](https://scl-llp.com/ninth-circuit-upholds-apple-contempt-finding-but-narrows-scope-of-remedial-relief/) ·
+[Apple's Supreme Court stay application, May 2026](https://www.supremecourt.gov/DocketPDF/25/25A1213/407958/20260504154515930_2026-05-04%20Apple-Epic%20SCT%20Application%20to%20Stay%20Mandate.pdf) ·
+[TechCrunch, 22 May 2026](https://techcrunch.com/2026/05/22/apple-says-epic-lawsuit-shouldnt-reshape-app-store-rules-for-all-developers/)
 
 ## 15. Jobs
 
@@ -678,11 +793,20 @@ the column from day one costs nothing.
 - **Clock skew in the timeline.** Ignored in v1. May look obviously broken the
   first time six phones contribute to one grid. Fix is per-uploader offset
   estimation, not a schema change.
-- **Auto-select window inference.** Whether "photos already uploaded, widened by
-  an hour" is good enough, or whether creators will reliably set times. The
-  whole native justification rests on this feeling like magic rather than a
-  wrong guess.
-- **App Clips.** Deferred, but the strongest candidate for the next thing built.
+- **Geotagging coverage — the biggest unknown in the native bet.** Location
+  clustering is the filter that buys precision (§7.2), and it only works for
+  people whose camera writes GPS. If that's a large majority, auto-select feels
+  like magic; if it's half, most contributors fall to the time-only path with
+  nothing pre-selected, and the app's central justification is a nicer grid.
+  This is measurable on day one of a prototype and should be measured before the
+  build is committed, not after.
+- **Auto-select window quality.** Whether creators reliably set a window at
+  creation, and whether "existing uploads widened by an hour" is good enough
+  when they don't (§7.3). The failure is asymmetric — a wrong window is worse
+  than no window.
+- **App Clips.** Deferred, but the strongest candidate for the next thing built,
+  and now iOS-only for good: Play Instant is gone (§9), so Android's
+  zero-install path is the web client permanently.
 - **Nudge timing.** Next morning? 48h? A product question the first real events
   should answer.
 - **Video.** Named as a candidate paywall. Nothing here forbids it — keys, zip
@@ -711,7 +835,18 @@ Two more that exist only because of the native decision, and that judge it:
   it. If web contributors are a large and healthy share, the install wall is
   cheaper than feared; if they're a small and failing share, the wall is doing
   the damage the concept predicted.
-- **Auto-select acceptance** — what fraction of the pre-selected set survives to
+- **Auto-select precision** — what fraction of the pre-selected set survives to
   upload, and how many taps a contribution took. If people are deselecting most
   of the suggestion or falling back to manual picking, the central justification
   for native is not holding and should be re-argued.
+- **Return rate among heavy deselectors**, split against everyone else. This is
+  the companion that makes the metric above mean something. A suggestion someone
+  had to untick thirty times is *worse than no suggestion*: it cost them thirty
+  seconds, and it spent the photo-library permission and their trust in the
+  feature at the same moment — neither of which is recoverable. If heavy
+  deselectors don't come back for a second event, the precision problem is not a
+  tuning issue, it's the product failing at its one differentiated moment.
+- **First-contributor experience**, specifically: what fraction of events have a
+  creator-set time window, and whether contributor #1 got a suggestion or fell
+  through to manual picking (§7.3). The bootstrap gap is known and narrowed but
+  not closed, and this is the number that says whether it matters.
