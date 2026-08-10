@@ -75,6 +75,23 @@ export const CREATE_EVENT_LIMIT: Limit = {
 };
 
 /**
+ * Sign-in codes, per source.
+ *
+ * Tighter than everything else, because this is the one endpoint that makes
+ * the deployment send mail to an address a stranger chose. Unbounded, it is a
+ * way to post things to other people over someone else's reputation, and the
+ * bill and the blocklisting both land here.
+ *
+ * Ten an hour is far more than a person signing in needs and far less than
+ * anyone would bother automating.
+ */
+export const SIGN_IN_LIMIT: Limit = {
+  name: 'sign-in',
+  max: 10,
+  windowSeconds: 3600,
+};
+
+/**
  * An opaque, stable-per-window handle for the caller.
  *
  * Returns null when no address is available, which is the local-development

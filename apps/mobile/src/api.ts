@@ -266,6 +266,58 @@ export class Api {
     });
   }
 
+  // --- account ----------------------------------------------------------
+
+  /**
+   * Ask for a sign-in code.
+   *
+   * Answers the same however it went — whether the address has an account,
+   * whether it exists, whether the mail was sent. Anything else would make
+   * this a way to ask "does this person use Parea?", which is a question
+   * about who was at which party.
+   */
+  requestSignIn(email: string): Promise<unknown> {
+    return this.call('/api/account/code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  /**
+   * Present the code. Returns the actor token to keep, which may not be the
+   * one this device had: signing in on a second device folds it into the
+   * first, and `merged` says so rather than swapping identities silently.
+   */
+  async completeSignIn(
+    email: string,
+    code: string,
+  ): Promise<{ actorToken: string; email: string; merged: boolean }> {
+    const result = await this.call<{
+      actorToken: string;
+      email: string;
+      merged: boolean;
+    }>('/api/account/session', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    this.token = result.actorToken;
+    return result;
+  }
+
+  async account(): Promise<{ email: string } | null> {
+    const { account } = await this.call<{ account: { email: string } | null }>(
+      '/api/account/session',
+    );
+    return account;
+  }
+
+  /** Guideline 5.1.1(v): an app that makes accounts has to unmake them. */
+  deleteAccount(alsoPhotos: boolean): Promise<{ deleted: boolean; photos: number }> {
+    return this.call(`/api/account${alsoPhotos ? '?photos=1' : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- groups ----------------------------------------------------------
 
   /**

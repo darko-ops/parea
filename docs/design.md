@@ -150,6 +150,57 @@ Three concepts, deliberately distinct:
   a link or code, or an actor's own token.
 - **Account** — optional, asked for only after value has been delivered.
 
+### Accounts, and the merge underneath them
+
+An account holds an email address and grants nothing an actor does not already
+have. Its one job is that a new phone is still you, which a credential in a
+keychain cannot manage alone. It sits at the bottom of the profile tab and
+nothing prompts for it.
+
+**A one-time code, not a password and not a link.** No password, because an
+account here holds an address and nothing else — a password would be the most
+sensitive thing in the system, protecting the least, and it would bring a reset
+flow that is its own weakest link. A code rather than a magic link because mail
+often opens on a different device from the one signing in, which is precisely
+the case accounts exist for. Codes are stored as an HMAC, are single-use, expire
+in ten minutes, and carry a per-code attempt ceiling — per code rather than per
+request, or asking for a new one resets the budget.
+
+**Both account endpoints answer the same however it went.** Whether the address
+has an account, whether it exists, whether the mailer was reachable: anything
+else makes this a way to ask *does this person use Parea?*, which is a question
+about who was at which party.
+
+**Signing in on a second device merges two actors, and the rows move.**
+`actor.merged_into_id` invites the other design — leave the rows and resolve
+through the pointer on every read — and that spreads the merge across
+`authorize()`, the visibility predicate, every ownership check, the quota and
+the block list. One missed call site is not cosmetic: it is *you cannot delete
+your own photo*, or a block that stops applying, and no test catches the site
+nobody thought of. So the rows move once, and the pointer keeps one narrower
+job: the losing actor's token is still in a keychain on a phone, and
+`currentActorId` follows the chain so that phone keeps working.
+
+Three composite keys can collide when two actors were both in the same group,
+the same event, or blocked the same person; the loser's row is dropped, since
+the survivor already records the relationship. A self-block produced by merging
+a blocker into their blockee is deleted — nothing else in the product can
+create one and the visibility predicate would honour it.
+`safety_incident.uploader_actor_id` is deliberately left alone: it has no
+foreign key because it is evidence under a preservation duty (§13), and
+rewriting it to match a later account change is editing evidence.
+
+The list of tables a merge touches is asserted against the schema in
+`accounts.test.ts`, because the failure of an incomplete merge is silent.
+
+**Deleting an account is required** — App Store Guideline 5.1.1(v) — and is two
+separate things. Deleting the account removes the address and the link to this
+person's devices; the actor reverts to a guest and keeps its uploads, which are
+in other people's albums and still theirs to remove one at a time. Deleting
+everything they uploaded is offered beside it rather than folded into it,
+because a closed account should not take away other people's copies of an
+evening they were also at.
+
 ```sql
 actor
   id            uuid pk

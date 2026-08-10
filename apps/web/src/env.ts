@@ -93,6 +93,28 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'MAIL_API_URL',
+      present: has('MAIL_API_URL'),
+      // Not required: the product works without accounts, which are optional
+      // by design. But an app that offers sign-in and cannot send is worse
+      // than one that does not offer it, so the deriver-style rule applies —
+      // in production an unconfigured mailer refuses rather than pretending.
+      consequence: 'sign-in codes are never sent; accounts cannot be claimed',
+      requiredInProduction: false,
+    },
+    {
+      name: 'MAIL_API_KEY',
+      present: has('MAIL_API_KEY'),
+      consequence: 'sign-in codes are never sent; accounts cannot be claimed',
+      requiredInProduction: false,
+    },
+    {
+      name: 'MAIL_FROM',
+      present: has('MAIL_FROM'),
+      consequence: 'sign-in codes are never sent; accounts cannot be claimed',
+      requiredInProduction: false,
+    },
+    {
       name: 'APPLE_TEAM_ID',
       present: has('APPLE_TEAM_ID'),
       // Not required, because the web client is complete without an app. But

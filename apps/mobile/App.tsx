@@ -370,6 +370,7 @@ export default function App() {
           )}
           {tab === 'profile' && (
             <ProfileTab
+              api={api}
               albums={albums}
               groups={groups}
               displayName={displayName}
@@ -379,6 +380,12 @@ export default function App() {
               onRename={(next) => {
                 setDisplayName(next);
                 if (next) void api.setDisplayName(next).catch(() => {});
+              }}
+              onSignedIn={() => {
+                // The account may speak for another device's actor, so what
+                // this person can reach has just changed.
+                void refreshAlbums();
+                void refreshGroups();
               }}
               Button={Button}
             />

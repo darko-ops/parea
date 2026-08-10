@@ -111,6 +111,12 @@ SDK, nothing leaves the deployment, and the app's privacy manifest declaring
 no tracking stays true. `deriver metrics` prints them with what a bad number
 would mean.
 
+**An account is an email address and nothing else.** It grants nothing an
+actor does not already have; its one job is that a new phone is still you.
+Signing in on a second device merges two actors, and the rows *move* rather
+than reads following a pointer — resolving an alias per call site is how one
+gets missed, and a missed one is "you cannot delete your own photo".
+
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
 twenty missing ones.

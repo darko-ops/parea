@@ -81,3 +81,52 @@ export function normaliseCode(input: string): string | null {
   if (parts.length !== 2) return null;
   return parts.join(CODE_SEPARATOR);
 }
+
+// --- accounts ----------------------------------------------------------------
+
+/**
+ * One canonical form per address, so an account cannot be created twice.
+ *
+ * Case-folded and trimmed, and nothing more. The tempting extra is stripping
+ * Gmail's dots and `+tags`, and it is a mistake: those rules are one
+ * provider's and applying them to every domain merges addresses that are
+ * genuinely different people. Someone who signs in with a different spelling
+ * of their own address gets a second account, which is recoverable; someone
+ * merged into a stranger's account is not.
+ */
+export function normaliseEmail(input: string): string | null {
+  const trimmed = input.trim().toLowerCase();
+  // Deliberately loose. Address syntax is famously baroque and this is not
+  // the check that matters — the code goes to the address, and an address
+  // that does not exist simply never produces one.
+  if (!/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(trimmed)) return null;
+  if (trimmed.length > 254) return null;
+  return trimmed;
+}
+
+export const SIGN_IN_CODE_LENGTH = 6;
+
+/**
+ * A code someone reads off a screen and types on another device.
+ *
+ * Digits only, and generated from a CSPRNG with rejection sampling rather than
+ * a modulo — a modulo over 10^6 from 32 random bits is very slightly biased,
+ * which does not matter here and costs nothing to avoid.
+ */
+export function newSignInCode(): string {
+  const digits: string[] = [];
+  while (digits.length < SIGN_IN_CODE_LENGTH) {
+    const bytes = crypto.getRandomValues(new Uint8Array(SIGN_IN_CODE_LENGTH));
+    for (const byte of bytes) {
+      if (byte >= 250) continue; // 250 = 25 * 10, so the rest is unbiased
+      if (digits.length < SIGN_IN_CODE_LENGTH) digits.push(String(byte % 10));
+    }
+  }
+  return digits.join('');
+}
+
+/** Forgiving about spaces and dashes, because people paste from mail clients. */
+export function normaliseSignInCode(input: string): string | null {
+  const digits = input.replace(/[\s-]/g, '');
+  return /^\d{6}$/.test(digits) ? digits : null;
+}

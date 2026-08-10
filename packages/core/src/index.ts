@@ -13,11 +13,15 @@ export {
 export {
   CODE_SEPARATOR,
   LINK_TOKEN_LENGTH,
+  SIGN_IN_CODE_LENGTH,
   codePoolSize,
   codeWordPairs,
   isWellFormedLinkToken,
   newLinkToken,
+  newSignInCode,
   normaliseCode,
+  normaliseEmail,
+  normaliseSignInCode,
 } from './tokens';
 export { ADJECTIVES, NOUNS } from './words';
 export {

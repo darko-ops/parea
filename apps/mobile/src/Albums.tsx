@@ -13,9 +13,10 @@
  * a year ago does not belong on a home screen.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -286,8 +287,190 @@ export function SearchTab({
   );
 }
 
+/**
+ * Signing in — design §3, and the only reason accounts exist here.
+ *
+ * "Optional, asked for only after value has been delivered." An account holds
+ * an email address and grants nothing an actor does not already have: its one
+ * job is that a new phone is still you, which a credential in a keychain
+ * cannot manage on its own. So it lives at the bottom of the profile tab and
+ * nothing anywhere prompts for it.
+ *
+ * A code rather than a link, because mail often opens on a different device
+ * from the one signing in — and setting up a new phone is exactly when that
+ * happens.
+ */
+function AccountCard({
+  api,
+  t,
+  Button,
+  onSignedIn,
+}: {
+  api: Api;
+  t: TabTheme;
+  Button: ButtonComponent;
+  onSignedIn: () => void;
+}) {
+  const [account, setAccount] = useState<{ email: string } | null | undefined>();
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api
+      .account()
+      .then(setAccount)
+      .catch(() => setAccount(null));
+  }, [api]);
+
+  const request = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.requestSignIn(email.trim());
+      setSent(true);
+    } catch {
+      // The server answers the same however it went, so the only thing that
+      // can be reported here is that the request itself did not land.
+      setError('Could not ask for a code. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  }, [api, email]);
+
+  const verify = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.completeSignIn(email.trim(), code);
+      setAccount({ email: result.email });
+      setSent(false);
+      setCode('');
+      if (result.merged) {
+        // Said out loud rather than swapped silently: everything they added
+        // on this phone has just become part of another identity, and that is
+        // the point of signing in but it should not be a surprise.
+        Alert.alert(
+          'Signed in',
+          'This phone has joined your account. Everything you added here is now part of it.',
+        );
+      }
+      onSignedIn();
+    } catch {
+      setError('That code did not work. Codes expire after ten minutes.');
+    } finally {
+      setBusy(false);
+    }
+  }, [api, code, email, onSignedIn]);
+
+  const remove = useCallback(() => {
+    // Two separate things, and conflating them would take other people's
+    // copies of an evening they were also at. Guideline 5.1.1(v) requires the
+    // first; the second is offered beside it rather than folded into it.
+    Alert.alert(
+      'Delete your account?',
+      'Your email address and this account are removed. The photos you added stay in their albums and stay yours to remove.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            await api.deleteAccount(false).catch(() => {});
+            setAccount(null);
+          },
+        },
+        {
+          text: 'Delete account and my photos',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await api.deleteAccount(true).catch(() => null);
+            setAccount(null);
+            if (result) {
+              Alert.alert('Deleted', `${result.photos} photos removed.`);
+            }
+          },
+        },
+      ],
+    );
+  }, [api]);
+
+  if (account === undefined) return null;
+
+  if (account) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
+        <Text style={[styles.body, { color: t.dim }]}>{account.email}</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          Your albums and groups follow you to a new phone. That is all an
+          account does here.
+        </Text>
+        <Button label="Delete account" onPress={remove} t={t} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+      <Text style={[styles.label, { color: t.fg }]}>Keep these on a new phone</Text>
+      <Text style={[styles.small, { color: t.dim }]}>
+        Optional. Add an email and your albums and groups follow you to another
+        device. No password — a code goes to your inbox.
+      </Text>
+
+      <TextInput
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@example.com"
+        placeholderTextColor={t.dim}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        accessibilityLabel="Your email address"
+        style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+      />
+
+      {sent && (
+        <TextInput
+          value={code}
+          onChangeText={setCode}
+          placeholder="6-digit code"
+          placeholderTextColor={t.dim}
+          keyboardType="number-pad"
+          // Lets iOS offer the code straight from the notification.
+          textContentType="oneTimeCode"
+          autoFocus
+          accessibilityLabel="The code from your email"
+          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+        />
+      )}
+
+      {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
+
+      <Button
+        label={busy ? 'Working…' : sent ? 'Sign in' : 'Send me a code'}
+        onPress={sent ? verify : request}
+        disabled={busy || (sent ? code.length < 6 : !email.includes('@'))}
+        t={t}
+        primary
+      />
+      {sent && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          Sent, if that address is one we can reach. It works once and expires
+          in ten minutes.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 /** Page 3 — everything you are in, by group. */
 export function ProfileTab({
+  api,
   albums,
   groups,
   displayName,
@@ -295,8 +478,10 @@ export function ProfileTab({
   onOpen,
   onOpenGroup,
   onRename,
+  onSignedIn,
   Button,
 }: {
+  api: Api;
   albums: Album[];
   groups: { id: string; name: string; role: 'member' | 'admin' }[];
   displayName: string | null;
@@ -304,6 +489,7 @@ export function ProfileTab({
   onOpen: (album: Album) => void;
   onOpenGroup: (groupId: string) => void;
   onRename: (name: string) => void;
+  onSignedIn: () => void;
   Button: ButtonComponent;
 }) {
   const [name, setName] = useState(displayName ?? '');
@@ -382,6 +568,8 @@ export function ProfileTab({
           ))
         )}
       </View>
+
+      <AccountCard api={api} t={t} Button={Button} onSignedIn={onSignedIn} />
 
       <Button
         label="Safety, reporting and contact"

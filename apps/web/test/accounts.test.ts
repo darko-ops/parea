@@ -1,0 +1,435 @@
+/**
+ * Accounts, and the merge underneath them — design §3.
+ *
+ * An account here holds an email address and grants nothing an actor did not
+ * already have. Almost all the risk is in one operation: folding two actors
+ * into one when somebody signs in on a second device. Get that wrong and a
+ * person owns some of their own photos, or a block silently stops applying,
+ * and nothing errors — they find out months later.
+ */
+
+import { PGlite } from '@electric-sql/pglite';
+import { groupSlug, newLinkToken, normaliseEmail, normaliseSignInCode, newSignInCode, schema } from '@parea/core';
+import { eq, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/pglite';
+import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+import {
+  MAX_CODE_ATTEMPTS,
+  accountFor,
+  consumeCode,
+  deleteAccount,
+  deleteEverything,
+  signIn,
+  storeCode,
+} from '../src/accounts';
+import type { Db } from '../src/db';
+import { MERGED_TABLES, mergeActor, resolveActor } from '../src/merge';
+
+const MIGRATIONS = fileURLToPath(
+  new URL('../../../packages/core/drizzle', import.meta.url),
+);
+const SECRET = 'test-secret';
+
+let db: Db;
+
+beforeAll(async () => {
+  db = drizzle(new PGlite(), { schema }) as unknown as Db;
+  await migrate(db as never, { migrationsFolder: MIGRATIONS });
+});
+
+beforeEach(async () => {
+  await db.execute(sql`
+    truncate "account", "actor", "block", "code", "derivative", "device",
+      "event", "event_participant", "group_join_request", "group_member",
+      "groups", "observation", "photo", "rate_limit", "report",
+      "safety_incident", "sign_in_code"
+    restart identity cascade
+  `);
+});
+
+async function actor(kind: 'guest' | 'user' = 'guest') {
+  const [row] = await db.insert(schema.actors).values({ kind }).returning();
+  return row!.id;
+}
+
+async function event(createdBy: string) {
+  const [row] = await db
+    .insert(schema.events)
+    .values({ name: 'Party', linkToken: newLinkToken(), createdBy })
+    .returning();
+  return row!.id;
+}
+
+async function photo(eventId: string, uploaderId: string) {
+  const [row] = await db
+    .insert(schema.photos)
+    .values({
+      eventId,
+      uploaderId,
+      storageKey: `k-${Math.random()}`,
+      byteSize: 1,
+      mime: 'image/jpeg',
+      status: 'ready',
+    })
+    .returning();
+  return row!.id;
+}
+
+// --- the address ------------------------------------------------------------
+
+describe('email normalisation', () => {
+  it('folds case and trims, so one address is one account', () => {
+    expect(normaliseEmail('  Sam@Example.COM ')).toBe('sam@example.com');
+  });
+
+  it('leaves dots and plus-tags alone', () => {
+    // Those rules are one provider's. Applying them everywhere merges people
+    // who are genuinely different — recoverable in one direction only.
+    expect(normaliseEmail('a.b+party@example.com')).toBe('a.b+party@example.com');
+  });
+
+  it('refuses what is obviously not an address', () => {
+    for (const bad of ['', 'sam', 'sam@', '@example.com', 'sam@example', 'a b@c.com']) {
+      expect(normaliseEmail(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe('the code itself', () => {
+  it('is six digits', () => {
+    for (let i = 0; i < 50; i++) expect(newSignInCode()).toMatch(/^\d{6}$/);
+  });
+
+  it('forgives the spacing a mail client adds', () => {
+    expect(normaliseSignInCode(' 123 456 ')).toBe('123456');
+    expect(normaliseSignInCode('123-456')).toBe('123456');
+    expect(normaliseSignInCode('12345')).toBeNull();
+    expect(normaliseSignInCode('1234567')).toBeNull();
+  });
+});
+
+describe('presenting a code', () => {
+  it('accepts the right one, once', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    expect(await consumeCode(db, SECRET, 'sam@example.com', '123456')).toEqual({
+      ok: true,
+      email: 'sam@example.com',
+    });
+    // Replay: a code in an inbox is a credential, and it has been spent.
+    expect((await consumeCode(db, SECRET, 'sam@example.com', '123456')).ok).toBe(false);
+  });
+
+  it('is never stored in the clear', async () => {
+    // Six digits is a space you can enumerate in microseconds, so an unkeyed
+    // hash of one is the code. A read of this table must grant nothing.
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const [row] = await db.select().from(schema.signInCodes);
+    expect(Buffer.from(row!.codeHash).toString('utf8')).not.toContain('123456');
+    expect(row!.codeHash.length).toBe(32);
+  });
+
+  it('is keyed to the address it was sent to', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    expect((await consumeCode(db, SECRET, 'other@example.com', '123456')).ok).toBe(false);
+  });
+
+  it('stops after a handful of wrong guesses', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    for (let i = 0; i < MAX_CODE_ATTEMPTS; i++) {
+      expect(await consumeCode(db, SECRET, 'sam@example.com', '000000')).toEqual({
+        ok: false,
+        reason: 'wrong',
+      });
+    }
+    // And the right code no longer helps: the budget is per code, so asking
+    // for a new one is the only way forward — which resets nothing an
+    // attacker controls.
+    expect(await consumeCode(db, SECRET, 'sam@example.com', '123456')).toEqual({
+      ok: false,
+      reason: 'too_many',
+    });
+  });
+
+  it('expires', async () => {
+    const past = new Date(Date.now() - 60 * 60_000);
+    await storeCode(db, SECRET, 'sam@example.com', '123456', past);
+    expect(await consumeCode(db, SECRET, 'sam@example.com', '123456')).toEqual({
+      ok: false,
+      reason: 'expired',
+    });
+  });
+
+  it('only honours the newest, so asking again invalidates the last', async () => {
+    // Otherwise every request widens the window instead of refreshing it, and
+    // three requests means three live secrets in an inbox.
+    await storeCode(db, SECRET, 'sam@example.com', '111111');
+    await new Promise((r) => setTimeout(r, 5));
+    await storeCode(db, SECRET, 'sam@example.com', '222222');
+
+    expect((await consumeCode(db, SECRET, 'sam@example.com', '111111')).ok).toBe(false);
+    expect((await consumeCode(db, SECRET, 'sam@example.com', '222222')).ok).toBe(true);
+  });
+});
+
+// --- signing in --------------------------------------------------------------
+
+describe('claiming an account', () => {
+  it('keeps the actor and moves nothing, the first time', async () => {
+    // §3: "claiming an account sets account_id; nothing else moves."
+    const me = await actor();
+    const id = await event(me);
+    await photo(id, me);
+
+    const result = await signIn(db, 'sam@example.com', me);
+
+    expect(result).toMatchObject({ actorId: me, merged: false });
+    expect(await accountFor(db, me)).toEqual({ email: 'sam@example.com' });
+    const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, me));
+    expect(row!.kind).toBe('user');
+  });
+
+  it('is idempotent on the same device', async () => {
+    const me = await actor();
+    await signIn(db, 'sam@example.com', me);
+    expect(await signIn(db, 'sam@example.com', me)).toMatchObject({ merged: false });
+  });
+
+  it('folds a second device into the first', async () => {
+    // The whole reason accounts exist here: a new phone should still be you.
+    const laptop = await actor();
+    await signIn(db, 'sam@example.com', laptop);
+
+    const phone = await actor();
+    const id = await event(phone);
+    await photo(id, phone);
+
+    const result = await signIn(db, 'sam@example.com', phone);
+
+    expect(result).toMatchObject({ actorId: laptop, merged: true });
+    const [p] = await db.select().from(schema.photos);
+    expect(p!.uploaderId, 'the phone’s photos are now the account’s').toBe(laptop);
+  });
+
+  it('adopts an account whose actor is gone', async () => {
+    const gone = await actor();
+    await signIn(db, 'sam@example.com', gone);
+    await db.delete(schema.actors).where(eq(schema.actors.id, gone));
+
+    const fresh = await actor();
+    expect(await signIn(db, 'sam@example.com', fresh)).toMatchObject({ actorId: fresh });
+  });
+});
+
+// --- the merge ---------------------------------------------------------------
+
+describe('merging two actors', () => {
+  it('moves everything owned', async () => {
+    const from = await actor();
+    const into = await actor();
+    const id = await event(from);
+    await photo(id, from);
+    await db.insert(schema.devices).values({ actorId: from, platform: 'ios' });
+
+    await mergeActor(db, from, into);
+
+    const [p] = await db.select().from(schema.photos);
+    const [e] = await db.select().from(schema.events);
+    const [d] = await db.select().from(schema.devices);
+    expect(p!.uploaderId).toBe(into);
+    expect(e!.createdBy).toBe(into);
+    expect(d!.actorId).toBe(into);
+  });
+
+  it('does not trip over a relationship both actors already had', async () => {
+    // Both at the same party, both in the same group. The composite keys make
+    // a naive UPDATE fail on the constraint.
+    const from = await actor();
+    const into = await actor();
+    const id = await event(into);
+    await db
+      .insert(schema.eventParticipants)
+      .values([{ eventId: id, actorId: from }, { eventId: id, actorId: into }]);
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Climbing', slug: groupSlug('Climbing') })
+      .returning();
+    await db.insert(schema.groupMembers).values([
+      { groupId: group!.id, actorId: from },
+      { groupId: group!.id, actorId: into },
+    ]);
+
+    await mergeActor(db, from, into);
+
+    expect(await db.select().from(schema.eventParticipants)).toHaveLength(1);
+    expect(await db.select().from(schema.groupMembers)).toHaveLength(1);
+  });
+
+  it('keeps the survivor’s role rather than the loser’s', async () => {
+    const from = await actor();
+    const into = await actor();
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Climbing', slug: groupSlug('Climbing') })
+      .returning();
+    await db.insert(schema.groupMembers).values([
+      { groupId: group!.id, actorId: from, role: 'member' },
+      { groupId: group!.id, actorId: into, role: 'admin' },
+    ]);
+
+    await mergeActor(db, from, into);
+
+    const [row] = await db.select().from(schema.groupMembers);
+    expect(row!.role).toBe('admin');
+  });
+
+  it('does not leave someone blocking themselves', async () => {
+    // A blocked B; A and B turn out to be one person. Nothing else in the
+    // product can produce a self-block, and the visibility predicate would
+    // honour it — someone's own photos would vanish for them.
+    const from = await actor();
+    const into = await actor();
+    await db
+      .insert(schema.blocks)
+      .values({ blockerActorId: into, blockedActorId: from });
+
+    await mergeActor(db, from, into);
+
+    expect(await db.select().from(schema.blocks)).toHaveLength(0);
+  });
+
+  it('leaves the old id working, because a phone still holds its token', async () => {
+    const from = await actor();
+    const into = await actor();
+    await mergeActor(db, from, into);
+
+    expect(await resolveActor(db, from)).toBe(into);
+    expect(await resolveActor(db, into)).toBe(into);
+  });
+
+  it('does not grow a chain when a third device signs in', async () => {
+    const first = await actor();
+    const second = await actor();
+    const third = await actor();
+    await mergeActor(db, first, second);
+    await mergeActor(db, second, third);
+
+    // One hop from anywhere, so resolution is bounded no matter how many
+    // devices someone has had.
+    expect(await resolveActor(db, first)).toBe(third);
+    const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, first));
+    expect(row!.mergedIntoId).toBe(third);
+  });
+
+  it('does nothing when asked to merge an actor into itself', async () => {
+    const me = await actor();
+    expect(await mergeActor(db, me, me)).toEqual({ into: me, merged: [] });
+  });
+
+  it('leaves safety evidence pointing at who actually uploaded', async () => {
+    // `safety_incident.uploader_actor_id` has no foreign key on purpose: it
+    // records who uploaded a thing at the time, under a preservation duty
+    // (§13). Rewriting it to match a later account change edits evidence.
+    const from = await actor();
+    const into = await actor();
+    const id = await event(from);
+    const photoId = await photo(id, from);
+    await db.insert(schema.safetyIncidents).values({
+      photoId,
+      eventId: id,
+      uploaderActorId: from,
+      provider: 'test',
+      classification: 'csam',
+      storageKey: 'k',
+      contentHash: Buffer.alloc(32),
+    });
+
+    await mergeActor(db, from, into);
+
+    const [incident] = await db.select().from(schema.safetyIncidents);
+    expect(incident!.uploaderActorId).toBe(from);
+  });
+});
+
+describe('the list of things a merge moves', () => {
+  it('covers every actor reference in the schema', async () => {
+    // The failure of an incomplete merge is silent: a table nobody listed
+    // keeps pointing at the old actor, and someone notices months later when
+    // half their photos are not theirs. So the list is checked against the
+    // schema rather than maintained by memory.
+    const source = readFileSync(
+      fileURLToPath(new URL('../../../packages/core/src/schema.ts', import.meta.url)),
+      'utf8',
+    );
+
+    const tables = [...source.matchAll(/pgTable\(\s*\n?\s*'(\w+)'/g)].map((m) => ({
+      name: m[1]!,
+      start: m.index!,
+    }));
+    const found = new Set<string>();
+    for (const [i, table] of tables.entries()) {
+      const body = source.slice(table.start, tables[i + 1]?.start ?? source.length);
+      for (const m of body.matchAll(/(\w+): uuid\('(\w+)'\)([\s\S]{0,200}?)(?=\n\s+\w+:|\n\s*\}|$)/g)) {
+        if (m[3]!.includes('actors.id')) found.add(`${table.name}.${m[2]}`);
+      }
+    }
+
+    const handled = new Set(MERGED_TABLES.map((t) => `${t.table}.${t.column}`));
+    // `actor.merged_into_id` is the pointer itself, handled separately.
+    handled.add('actor.merged_into_id');
+    handled.add('actor.account_id');
+
+    expect([...found].filter((ref) => !handled.has(ref)).sort()).toEqual([]);
+    expect(found.size, 'the extractor found nothing, which is not a pass').toBeGreaterThan(8);
+  });
+});
+
+// --- deleting ----------------------------------------------------------------
+
+describe('deleting an account', () => {
+  it('removes the address and the link, and leaves the person a guest', async () => {
+    // Guideline 5.1.1(v) requires this to exist in the app at all.
+    const me = await actor();
+    await signIn(db, 'sam@example.com', me);
+
+    expect(await deleteAccount(db, me)).toBe(true);
+    expect(await db.select().from(schema.accounts)).toHaveLength(0);
+    const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, me));
+    expect(row!.kind).toBe('guest');
+    expect(row!.accountId).toBeNull();
+  });
+
+  it('keeps their uploads, which are in other people’s albums', async () => {
+    // Deleting an account must not quietly take away other people's copies of
+    // an evening they were also at. Removing the photos is a separate,
+    // explicit action offered beside it.
+    const me = await actor();
+    const id = await event(me);
+    await photo(id, me);
+    await signIn(db, 'sam@example.com', me);
+
+    await deleteAccount(db, me);
+
+    const [p] = await db.select().from(schema.photos);
+    expect(p!.deletedAt).toBeNull();
+    expect(p!.uploaderId, 'and they are still theirs to remove').toBe(me);
+  });
+
+  it('removes everything when that is what was asked for', async () => {
+    const me = await actor();
+    const id = await event(me);
+    await photo(id, me);
+    await photo(id, me);
+
+    expect(await deleteEverything(db, me)).toBe(2);
+    const rows = await db.select().from(schema.photos);
+    expect(rows.every((p) => p.deletedAt !== null)).toBe(true);
+  });
+
+  it('says nothing happened for someone with no account', async () => {
+    expect(await deleteAccount(db, await actor())).toBe(false);
+  });
+});

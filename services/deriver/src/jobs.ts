@@ -177,6 +177,24 @@ export async function expireObservations(
   return removed.length;
 }
 
+/**
+ * Sign-in codes that have expired or been spent.
+ *
+ * They grant nothing once past their expiry — every check tests it — so this
+ * is housekeeping rather than security. It matters anyway: the table would
+ * otherwise keep one row per sign-in attempt since launch, each holding an
+ * email address, and the least data kept is the least to explain.
+ */
+export async function expireSignInCodes(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const removed = await database
+    .delete(schema.signInCodes)
+    .where(lt(schema.signInCodes.expiresAt, new Date()))
+    .returning({ id: schema.signInCodes.id });
+  return removed.length;
+}
+
 export async function expireRateLimits(
   database: ReturnType<typeof db>,
 ): Promise<number> {
@@ -371,6 +389,7 @@ async function main(): Promise<void> {
   await run('recycle-codes', () => recycleCodes(database));
   await run('expire-rate-limits', () => expireRateLimits(database));
   await run('expire-observations', () => expireObservations(database));
+  await run('expire-sign-in-codes', () => expireSignInCodes(database));
 
   // Read-only, and last: a report is not a job, but this is the only process
   // with a database connection and a schedule, and §18's numbers are worth

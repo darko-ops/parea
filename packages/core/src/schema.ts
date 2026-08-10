@@ -36,9 +36,46 @@ const createdAt = () =>
 
 export const accounts = pgTable('account', {
   id: uuid('id').primaryKey().defaultRandom(),
+  /** Normalised before it gets here — see `normaliseEmail`. */
   email: text('email').notNull().unique(),
   createdAt: createdAt(),
 });
+
+/**
+ * A one-time sign-in code — design §3.
+ *
+ * No passwords, and not because they are hard: an account here holds an email
+ * address and nothing else, so a password would be the most sensitive thing in
+ * the system, protecting the least. Codes need no storage of a secret, no
+ * reset flow, and no "forgot" path that is itself the weakest link.
+ *
+ * A code and not a magic link, for a reason specific to this product: mail
+ * often opens on a different device from the one signing in, and a link that
+ * has to be tapped on the right phone fails exactly when someone is setting up
+ * a new one — which is the main thing accounts are for here.
+ *
+ * The code is stored as an HMAC, never in the clear, so a read of this table
+ * grants nothing. Rows are consumed on use and expire quickly; the purge job
+ * clears the rest.
+ */
+export const signInCodes = pgTable(
+  'sign_in_code',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    codeHash: bytea('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    /**
+     * Wrong guesses against this code. Six digits is a million, but a million
+     * is only a few hours of guessing without a ceiling, and the ceiling has
+     * to be per code rather than per request or a new code resets it.
+     */
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index('sign_in_code_email_idx').on(t.email, t.createdAt)],
+);
 
 /**
  * Every upload, removal and membership belongs to an actor. A guest actor has

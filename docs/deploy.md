@@ -171,6 +171,9 @@ Generate with `openssl rand -base64 32`.
 | `ZIP_BASE_URL` | ● | | the deployed zip Worker |
 | `IMAGE_BASE_URL` | ● | | the deployed image Worker |
 | `SAFETY_CONTACT_EMAIL` | ● | | published on `/safety`; App Store 1.2 |
+| `MAIL_API_URL` | ● | | sign-in codes; unset means accounts cannot be claimed |
+| `MAIL_API_KEY` | ● | | |
+| `MAIL_FROM` | ● | | |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |

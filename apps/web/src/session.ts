@@ -11,7 +11,8 @@ import { eq } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 
 import type { Requester } from './access';
-import type { Db } from './db';
+import { getDb, type Db } from './db';
+import { resolveActor } from './merge';
 import {
   ACTOR_COOKIE,
   ACTOR_COOKIE_MAX_AGE,
@@ -40,7 +41,18 @@ async function bearerActorId(): Promise<string | null> {
 
 export async function currentActorId(): Promise<string | null> {
   const jar = await cookies();
-  return unsign(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerActorId());
+  const presented = unsign(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerActorId());
+  if (!presented) return null;
+
+  // Follows a merge. When someone signs in on a second device their old actor
+  // is folded into the account's, but this phone's keychain still holds the
+  // old token — and it has to keep working, because the alternative is asking
+  // someone to sign in again on the device they just signed in on.
+  //
+  // The one place the pointer is read. Everything downstream sees a single
+  // actor id and has no idea a merge ever happened, which is the point:
+  // resolving it per call site is how one gets missed.
+  return resolveActor(getDb(), presented).catch(() => presented);
 }
 
 /**
