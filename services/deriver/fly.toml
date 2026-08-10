@@ -1,0 +1,33 @@
+# Ingest runs as a long-lived worker, not a request handler.
+#
+# It polls for pending photos and processes them one at a time. There is no
+# HTTP surface, so no health check and no autoscaling — and deliberately a
+# single machine: two would race on the same pending rows, and the pipeline is
+# not built for that (design §7.5 notes serial processing as the first thing to
+# change if ingest ever becomes the bottleneck).
+
+app = "parea-deriver"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  DERIVER_POLL_MS = "5000"
+
+[processes]
+  # `watch` re-runs the boot probe and refuses to start if this machine cannot
+  # decode HEIC, strip metadata, or reach a child-safety scanner.
+  worker = "npx tsx services/deriver/src/index.ts watch"
+
+[[vm]]
+  # libvips and libheif want headroom on a 4000x3000 HEIC; 512MB is not enough.
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Exactly one. Scaling this out needs claim-based work distribution first.
+[machines]
+  auto_start = false
+  auto_stop = false

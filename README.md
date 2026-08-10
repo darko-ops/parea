@@ -24,6 +24,10 @@ Two things gate launch and neither is code:
   — a scanning provider onboarded, credentials in place *before* the first
   detection, counsel briefed, and a named human who receives alerts.
 
+Deploying is documented in [`docs/deploy.md`](docs/deploy.md), including the
+three secrets that are shared between services and fail silently when they
+disagree.
+
 ## Running it
 
 ```

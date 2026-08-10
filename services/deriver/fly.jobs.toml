@@ -1,0 +1,19 @@
+# The scheduled jobs, as a separate app so they cannot be starved by ingest.
+#
+#   fly deploy -c fly.jobs.toml
+#   fly machine run --schedule hourly ... (see docs/deploy.md)
+#
+# auto-hide is the one with a deadline attached: a removal request that nobody
+# answers hides the photo after 48 hours, and that only happens if this runs.
+
+app = "parea-jobs"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[processes]
+  jobs = "npx tsx services/deriver/src/jobs.ts"
