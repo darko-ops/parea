@@ -16,12 +16,10 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { hasDerivatives, imageSrc } from '@/images';
 import { currentActorId, requesterFor } from '@/session';
-import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
-
-const IMAGE_URL_TTL_SECONDS = 3600;
 
 export async function GET(
   request: Request,
@@ -59,7 +57,6 @@ export async function GET(
       asc(sql`coalesce(${schema.photos.capturedAt}, ${schema.photos.uploadedAt})`),
     );
 
-  const storage = getStorage();
   const viewerId = await currentActorId();
 
   const photos = await Promise.all(
@@ -72,7 +69,10 @@ export async function GET(
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
-      src: await storage.presignGet(photo.storageKey, IMAGE_URL_TTL_SECONDS),
+      // A 320px thumbnail rather than a multi-megabyte original: a 200-photo
+      // grid of originals is ~800MB of pointless transfer.
+      src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
     })),
   );
 

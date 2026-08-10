@@ -5,8 +5,8 @@ import { notFound } from 'next/navigation';
 import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
+import { hasDerivatives, imageSrc } from '@/images';
 import { currentActorId, requesterFor } from '@/session';
-import { getStorage } from '@/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,6 @@ export default async function EventPage({
       asc(sql`coalesce(${schema.photos.capturedAt}, ${schema.photos.uploadedAt})`),
     );
 
-  const storage = getStorage();
   const viewerId = await currentActorId();
 
   const photos = await Promise.all(
@@ -57,7 +56,8 @@ export default async function EventPage({
       id: photo.id,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
       mine: viewerId != null && photo.uploaderId === viewerId,
-      src: await storage.presignGet(photo.storageKey, 3600),
+      src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
     })),
   );
 

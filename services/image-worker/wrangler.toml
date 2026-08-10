@@ -1,0 +1,10 @@
+name = "parea-img"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "parea"
+
+# IMAGE_SECRET is set with `wrangler secret put IMAGE_SECRET` and must match
+# the app tier's value — the app signs these URLs, this Worker verifies them.

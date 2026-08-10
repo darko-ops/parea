@@ -23,7 +23,10 @@ const CONCURRENCY = 3;
 
 type Photo = {
   id: string;
+  /** Thumbnail. */
   src: string;
+  /** Larger rendition, for a lightbox that does not exist yet. */
+  full: string;
   takenAt: string;
   mine: boolean;
 };
