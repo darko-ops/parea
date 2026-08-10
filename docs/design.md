@@ -280,9 +280,11 @@ Decisions embedded above:
   contributed by two people collapses to one object, via a unique index on
   `(event_id, content_hash) where deleted_at is null`. This is also what lets
   the resume path be dumb and aggressive.
-- **`captured_at` is untrusted.** Six phones with six clocks will interleave a
-  chronological grid wrongly by minutes to hours. v1 sorts on
-  `coalesce(captured_at, uploaded_at)` and accepts it; see §16.
+- **`captured_at` is untrusted, and sometimes absent.** Six phones with six
+  clocks will interleave a chronological grid wrongly by minutes to hours. Worse,
+  iOS Safari strips EXIF on upload, so web-contributed iPhone photos may arrive
+  with no capture time at all (§8). v1 sorts on
+  `coalesce(captured_at, uploaded_at)` and accepts both problems; see §17.
 - **Soft delete everywhere**, purge job after a grace window (§14). Hard delete
   makes undo impossible and abuse investigation impossible.
 
@@ -540,7 +542,48 @@ Same API, same presigned PUTs, no auto-selection. A single-screen flow:
 `File` handles** — Safari structured-clones them, so a reloaded tab resumes
 instead of restarting.
 
-Two things the web client must do that the app doesn't:
+### iOS Safari strips EXIF on upload, and it costs us the timeline
+
+Safari on iOS removes EXIF from files handed over by `<input type="file">`. This
+is deliberate Apple privacy behaviour rather than a bug
+([WebKit #207088](https://bugs.webkit.org/show_bug.cgi?id=207088)), and Android
+and desktop browsers do not do it.
+
+One consequence is free: for iPhone web contributors our own GPS stripping
+(§7.6) is redundant, though it still has to run for native and Android uploads.
+
+The other consequence is real. If `DateTimeOriginal` goes with the rest, those
+photos arrive with **no capture time**, and `coalesce(captured_at, uploaded_at)`
+puts them at the moment of upload rather than the moment they were taken. In a
+mixed event — native contributors carrying accurate timestamps, iPhone web
+contributors carrying none — the chronological grid does not interleave slightly
+wrongly, it interleaves *categorically* wrongly: a whole contributor's evening
+lands in a block wherever they happened to upload.
+
+There is no client-side fix. The `File` object the page receives has already
+been stripped; the metadata is gone before any of our code runs.
+
+Three options, none free:
+
+1. **Accept it**, and sort web-contributed photos by upload time. Simplest, and
+   the damage is proportional to how many contributors use the web path on iOS.
+2. **Group by contributor** in the grid when a batch has no timestamps, rather
+   than interleaving on a time we know is wrong. Honest, and arguably a better
+   grid anyway.
+3. **Sort within-batch by file order** and anchor the batch to the event's
+   window rather than to upload time. A guess, but a better-shaped one.
+
+Ship (1), measure how often it bites, and treat (2) as the likely fix. Verify
+the exact tag set Safari removes on the target iOS version before committing —
+if `DateTimeOriginal` survives and only GPS goes, this whole subsection collapses
+to a footnote.
+
+Worth noting where this lands: the timeline — a core feature, not a nicety —
+degrades on the web in a way it cannot on native. That is a second argument for
+the app that emerged from testing rather than from design, and it is more
+concrete than the upload-plumbing one.
+
+### Two things the web client must do that the app doesn't
 
 - **Tell the truth about the tab.** iOS web has no background completion. The UI
   states how many remain and that the tab must stay open. Progress is per-file,
@@ -798,8 +841,15 @@ the column from day one costs nothing.
   people whose camera writes GPS. If that's a large majority, auto-select feels
   like magic; if it's half, most contributors fall to the time-only path with
   nothing pre-selected, and the app's central justification is a nicer grid.
-  This is measurable on day one of a prototype and should be measured before the
-  build is committed, not after.
+  **Instrumented — see [`tools/geotag-probe`](../tools/geotag-probe/).** Run it
+  before committing to the build. Note its README on collection paths first:
+  several obvious ways of getting photos off a phone strip the exact metadata
+  being measured and will report 0% on a healthy library.
+- **Exactly what iOS Safari strips.** If GPS goes but `DateTimeOriginal`
+  survives, §8's timeline problem is a footnote. If both go, web-contributed
+  photos can't be placed on the timeline at all and the grid needs a
+  contributor-grouped fallback. One device, ten minutes, and it decides a
+  feature — check it against the target iOS version.
 - **Auto-select window quality.** Whether creators reliably set a window at
   creation, and whether "existing uploads widened by an hour" is good enough
   when they don't (§7.3). The failure is asymmetric — a wrong window is worse
