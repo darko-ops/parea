@@ -26,6 +26,7 @@ import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
 import { processPhoto } from '../src/pipeline';
+import { DisabledScanner, ScanUnavailable, type CsamScanner } from '../src/safety';
 
 const run = promisify(execFile);
 const MIGRATIONS = fileURLToPath(
@@ -35,6 +36,8 @@ const MIGRATIONS = fileURLToPath(
 let db: any;
 let dir: string;
 let objects: LocalObjectStore;
+/** Clean by default; individual tests swap in a matching or broken scanner. */
+const scanner: CsamScanner = new DisabledScanner();
 
 beforeAll(async () => {
   db = drizzle(new PGlite(), { schema });
@@ -109,7 +112,7 @@ async function seedPhoto(bytes: Buffer, mime = 'image/jpeg') {
 describe('the promises this makes to users', () => {
   it('removes location, and keeps the time and camera', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg());
-    const outcome = await processPhoto({ db, objects }, photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     expect(outcome.status).toBe('ready');
 
     const [row] = await db
@@ -144,7 +147,7 @@ describe('the promises this makes to users', () => {
     expect(originalPixels).toBeTruthy();
 
     const { photo } = await seedPhoto(source);
-    await processPhoto({ db, objects }, photo.id);
+    await processPhoto({ db, objects, scanner }, photo.id);
 
     const [row] = await db
       .select()
@@ -160,7 +163,7 @@ describe('the promises this makes to users', () => {
 describe('pipeline results', () => {
   it('moves the object to a content-addressed key and records the hash', async () => {
     const { photo, key } = await seedPhoto(await geotaggedJpeg(3));
-    const outcome = await processPhoto({ db, objects }, photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     if (outcome.status !== 'ready') throw new Error(outcome.status);
 
     const [row] = await db
@@ -178,7 +181,7 @@ describe('pipeline results', () => {
 
   it('stores a crc32 matching the stored bytes', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(4));
-    await processPhoto({ db, objects }, photo.id);
+    await processPhoto({ db, objects, scanner }, photo.id);
     const [row] = await db
       .select()
       .from(schema.photos)
@@ -190,7 +193,7 @@ describe('pipeline results', () => {
 
   it('writes three derivatives, none larger than its bound', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(5));
-    await processPhoto({ db, objects }, photo.id);
+    await processPhoto({ db, objects, scanner }, photo.id);
 
     const rows = await db
       .select()
@@ -207,7 +210,7 @@ describe('pipeline results', () => {
 
   it('strips metadata from derivatives entirely', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(6));
-    await processPhoto({ db, objects }, photo.id);
+    await processPhoto({ db, objects, scanner }, photo.id);
     const [thumb] = await db
       .select()
       .from(schema.derivatives)
@@ -226,7 +229,7 @@ describe('dedup', () => {
   it('collapses the same photo contributed twice, first writer wins', async () => {
     const bytes = await geotaggedJpeg(7);
     const first = await seedPhoto(bytes);
-    const firstOutcome = await processPhoto({ db, objects }, first.photo.id);
+    const firstOutcome = await processPhoto({ db, objects, scanner }, first.photo.id);
     expect(firstOutcome.status).toBe('ready');
 
     // Same image, same event, different uploader.
@@ -245,7 +248,7 @@ describe('dedup', () => {
       })
       .returning();
 
-    const outcome = await processPhoto({ db, objects }, dup.id);
+    const outcome = await processPhoto({ db, objects, scanner }, dup.id);
     expect(outcome.status).toBe('deduped');
 
     const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, dup.id));
@@ -268,8 +271,8 @@ describe('dedup', () => {
     const bytes = await geotaggedJpeg(8);
     const a = await seedPhoto(bytes);
     const b = await seedPhoto(bytes); // different event, so no dedup
-    const one = await processPhoto({ db, objects }, a.photo.id);
-    const two = await processPhoto({ db, objects }, b.photo.id);
+    const one = await processPhoto({ db, objects, scanner }, a.photo.id);
+    const two = await processPhoto({ db, objects, scanner }, b.photo.id);
     if (one.status !== 'ready' || two.status !== 'ready') throw new Error('not ready');
     expect(one.contentHash).toBe(two.contentHash);
   });
@@ -279,7 +282,7 @@ describe('failure handling', () => {
   it('marks a photo failed when its object never arrived', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(9));
     await objects.delete(photo.storageKey);
-    const outcome = await processPhoto({ db, objects }, photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     expect(outcome).toMatchObject({ status: 'failed', reason: 'object_missing' });
 
     const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
@@ -289,13 +292,13 @@ describe('failure handling', () => {
 
   it('leaves an already-ready photo alone', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(10));
-    await processPhoto({ db, objects }, photo.id);
-    const outcome = await processPhoto({ db, objects }, photo.id);
+    await processPhoto({ db, objects, scanner }, photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     expect(outcome.status).toBe('ready');
   });
 
   it('reports a missing photo rather than throwing', async () => {
-    const outcome = await processPhoto({ db, objects }, crypto.randomUUID());
+    const outcome = await processPhoto({ db, objects, scanner }, crypto.randomUUID());
     expect(outcome).toMatchObject({ status: 'failed', reason: 'no_such_photo' });
   });
 });
@@ -312,7 +315,7 @@ describe('HEIC', () => {
 
   it('ingests a HEIC end to end', async () => {
     const { photo } = await seedPhoto(HEVC_HEIC_SAMPLE, 'image/heic');
-    const outcome = await processPhoto({ db, objects }, photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     expect(outcome.status).toBe('ready');
     const rows = await db
       .select()
@@ -349,5 +352,95 @@ describe('crc32', () => {
   it('matches the known IEEE check value', () => {
     expect(crc32(Buffer.from('123456789'))).toBe(0xcbf43926);
     expect(crc32(Buffer.alloc(0))).toBe(0);
+  });
+});
+
+describe('child-safety scanning', () => {
+  /** A scanner that matches everything, to exercise the quarantine path. */
+  const matching: CsamScanner = {
+    name: 'test-matcher',
+    async scan() {
+      return { match: true, classification: 'A1', providerReference: 'ref-123' };
+    },
+  };
+
+  /** A scanner that cannot answer — an outage, not a clean result. */
+  const broken: CsamScanner = {
+    name: 'test-broken',
+    async scan(): Promise<never> {
+      throw new ScanUnavailable('provider unreachable');
+    },
+  };
+
+  it('quarantines a match instead of publishing it', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(20));
+    const outcome = await processPhoto({ db, objects, scanner: matching }, photo.id);
+    expect(outcome.status).toBe('quarantined');
+
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    expect(row.status).toBe('quarantined');
+    expect(row.hiddenAt).not.toBeNull();
+  });
+
+  it('keeps the object rather than deleting it', async () => {
+    // Deleting would destroy evidence under a preservation duty, and the
+    // ordinary failure paths in this pipeline do delete.
+    const { photo, key } = await seedPhoto(await geotaggedJpeg(21));
+    await processPhoto({ db, objects, scanner: matching }, photo.id);
+    expect(await objects.get(key), 'the original must survive').not.toBeNull();
+  });
+
+  it('builds no derivatives for quarantined content', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(22));
+    await processPhoto({ db, objects, scanner: matching }, photo.id);
+    const rows = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('records an incident a reviewer can act on months later', async () => {
+    const { photo, event } = await seedPhoto(await geotaggedJpeg(23));
+    const outcome = await processPhoto({ db, objects, scanner: matching }, photo.id);
+    if (outcome.status !== 'quarantined') throw new Error('expected quarantine');
+
+    const [incident] = await db
+      .select()
+      .from(schema.safetyIncidents)
+      .where(eq(schema.safetyIncidents.id, outcome.incidentId));
+
+    expect(incident.photoId).toBe(photo.id);
+    expect(incident.eventId).toBe(event.id);
+    expect(incident.uploaderActorId).toBe(photo.uploaderId);
+    expect(incident.provider).toBe('test-matcher');
+    expect(incident.classification).toBe('A1');
+    expect(incident.providerReference).toBe('ref-123');
+    expect(incident.storageKey).toBe(photo.storageKey);
+    // Nothing has been filed, so the hold is open-ended and purge must skip it.
+    expect(incident.reportedAt).toBeNull();
+    expect(incident.preservationEndsAt).toBeNull();
+  });
+
+  it('never publishes a photo the scanner could not check', async () => {
+    // Fails closed. An outage stalls ingest; it does not let content through.
+    const { photo } = await seedPhoto(await geotaggedJpeg(24));
+    const outcome = await processPhoto({ db, objects, scanner: broken }, photo.id);
+    expect(outcome).toMatchObject({ status: 'failed' });
+    if (outcome.status === 'failed') {
+      expect(outcome.reason).toMatch(/scan_unavailable/);
+    }
+
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    expect(row.status, 'anything but ready').not.toBe('ready');
+  });
+
+  it('scans before anything becomes addressable', async () => {
+    // The content-addressed key is what image URLs are built from, so a match
+    // must be caught before the object is moved there.
+    const { photo, key } = await seedPhoto(await geotaggedJpeg(25));
+    await processPhoto({ db, objects, scanner: matching }, photo.id);
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    expect(row.storageKey).toBe(key);
   });
 });

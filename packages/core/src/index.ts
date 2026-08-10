@@ -26,3 +26,4 @@ export {
   visiblePhotos,
   type ViewerContext,
 } from './visibility';
+export { PRESERVATION_DAYS, preservationHold } from './preservation';

@@ -20,6 +20,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { crc32 } from './crc32';
+import {
+  alertResponder,
+  ScanUnavailable,
+  type CsamScanner,
+} from './safety';
 import { buildDerivatives, readDimensions } from './derivatives';
 import {
   extractMetadata,
@@ -38,15 +43,17 @@ export type PipelineDb = {
 export type Outcome =
   | { status: 'ready'; photoId: string; contentHash: string; derivatives: number }
   | { status: 'deduped'; photoId: string; contentHash: string }
+  | { status: 'quarantined'; photoId: string; incidentId: string }
   | { status: 'failed'; photoId: string; reason: string };
 
 export type Deps = {
   db: any;
   objects: ObjectStore;
+  scanner: CsamScanner;
 };
 
 export async function processPhoto(
-  { db, objects }: Deps,
+  { db, objects, scanner }: Deps,
   photoId: string,
 ): Promise<Outcome> {
   const [photo] = await db
@@ -124,6 +131,32 @@ export async function processPhoto(
         .set({ status: 'removed', deletedAt: new Date() })
         .where(eq(schema.photos.id, photo.id));
       return { status: 'deduped', photoId, contentHash: hex };
+    }
+
+    // Before derivatives, before publication, before anything is addressable.
+    // A scanner outage leaves the photo pending and retryable rather than
+    // letting it through — `ready` is the gate everything else keys off, so
+    // failing closed here means unscanned content is never served.
+    try {
+      const verdict = await scanner.scan({
+        bytes: stripped,
+        contentHash,
+        mime: photo.mime,
+      });
+      if (verdict.match) {
+        return quarantine(db, objects, photo, contentHash, {
+          provider: scanner.name,
+          classification: verdict.classification,
+          providerReference: verdict.providerReference,
+        });
+      }
+    } catch (err) {
+      if (err instanceof ScanUnavailable) {
+        // Deliberately not `fail()`: failed is terminal, and this photo is
+        // innocent until something can check it. Left pending to retry.
+        return { status: 'failed', photoId, reason: `scan_unavailable:${short(err)}` };
+      }
+      throw err;
     }
 
     const metadata = await extractMetadata(working);
@@ -211,6 +244,60 @@ export async function pendingPhotoIds(db: any, limit = 50): Promise<string[]> {
     .orderBy(schema.photos.uploadedAt)
     .limit(limit);
   return rows.map((r: { id: string }) => r.id);
+}
+
+/**
+ * Block it, keep it, tell a human — and nothing else.
+ *
+ * The object stays exactly where it is, unmoved and unmodified: no
+ * content-addressed rename, no derivatives, no deletion. Destroying it would
+ * destroy evidence subject to a preservation duty, and re-encoding it would
+ * destroy its provenance. The photo row goes to `quarantined`, which no
+ * listing, download or image URL will serve.
+ *
+ * No report is filed from here. See docs/csam-runbook.md for why that is a
+ * person's job.
+ */
+async function quarantine(
+  db: any,
+  objects: ObjectStore,
+  photo: any,
+  contentHash: Buffer,
+  detection: {
+    provider: string;
+    classification: string;
+    providerReference?: string;
+  },
+): Promise<Outcome> {
+  await db
+    .update(schema.photos)
+    .set({ status: 'quarantined', hiddenAt: new Date() })
+    .where(eq(schema.photos.id, photo.id));
+
+  const [incident] = await db
+    .insert(schema.safetyIncidents)
+    .values({
+      photoId: photo.id,
+      eventId: photo.eventId,
+      uploaderActorId: photo.uploaderId,
+      provider: detection.provider,
+      classification: detection.classification,
+      providerReference: detection.providerReference ?? null,
+      storageKey: photo.storageKey,
+      contentHash,
+      // Open-ended until someone files: the purge job skips a null hold.
+      preservationEndsAt: null,
+    })
+    .returning();
+
+  await alertResponder({
+    incidentId: incident.id,
+    eventId: photo.eventId,
+    provider: detection.provider,
+    classification: detection.classification,
+  });
+
+  return { status: 'quarantined', photoId: photo.id, incidentId: incident.id };
 }
 
 async function fail(db: any, photoId: string, reason: string): Promise<Outcome> {

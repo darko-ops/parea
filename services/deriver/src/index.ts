@@ -29,6 +29,7 @@ import {
 } from './derivatives';
 import { HEVC_HEIC_SAMPLE } from './fixture';
 import { objectStoreFromEnv } from './objects';
+import { scannerFromEnv, UnconfiguredScanner } from './safety';
 import { pendingPhotoIds, processPhoto } from './pipeline';
 
 const run = promisify(execFile);
@@ -77,13 +78,29 @@ async function probe(): Promise<number> {
       : 'FAILED — apt install libheif-examples libheif-plugin-libde265',
   ]);
 
+  // Ingest without child-safety scanning is not a degraded mode, it is a
+  // different product. An unconfigured scanner stalls every upload rather than
+  // letting anything through, so this is fatal and says so here rather than
+  // being discovered one stuck photo at a time.
+  const scanner = scannerFromEnv();
+  const scannerReady = !(scanner instanceof UnconfiguredScanner);
+  results.push([
+    'csam-scanner',
+    scannerReady,
+    scanner.name === 'disabled'
+      ? 'DISABLED — development only, refuses to load in production'
+      : scannerReady
+        ? scanner.name
+        : 'FAILED — not configured; every upload will stall unscanned',
+  ]);
+
   const heicOk = viaSharp || viaLibheif;
   const width = Math.max(...results.map(([n]) => n.length));
   for (const [name, ok, note] of results) {
     console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name.padEnd(width)}  ${note}`);
   }
 
-  const fatal = !heicOk || !exiftoolVersion;
+  const fatal = !heicOk || !exiftoolVersion || !scannerReady;
   console.log(
     fatal
       ? '\nThis container cannot ingest photos. See services/deriver/README.md.'
@@ -95,11 +112,12 @@ async function probe(): Promise<number> {
 async function drain(limit: number): Promise<number> {
   const database = db();
   const objects = objectStoreFromEnv();
+  const scanner = scannerFromEnv();
   const ids = await pendingPhotoIds(database, limit);
 
   let handled = 0;
   for (const id of ids) {
-    const outcome = await processPhoto({ db: database, objects }, id);
+    const outcome = await processPhoto({ db: database, objects, scanner }, id);
     handled++;
     if (outcome.status === 'failed') {
       console.error(`fail  ${id}  ${outcome.reason}`);

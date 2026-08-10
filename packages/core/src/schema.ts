@@ -208,8 +208,13 @@ export const photos = pgTable(
     uploadedAt: timestamp('uploaded_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * `quarantined` is terminal and unlike every other state: the object is
+     * retained rather than purged, because destroying it would destroy
+     * evidence subject to a preservation duty. See docs/csam-runbook.md.
+     */
     status: text('status', {
-      enum: ['pending', 'ready', 'failed', 'removed'],
+      enum: ['pending', 'ready', 'failed', 'removed', 'quarantined'],
     })
       .notNull()
       .default('pending'),
@@ -287,6 +292,63 @@ export const reports = pgTable(
   (t) => [
     index('report_open_idx').on(t.status, t.autoHideAt),
     index('report_photo_idx').on(t.photoId),
+  ],
+);
+
+/**
+ * A confirmed match from automated child-safety scanning at ingest.
+ *
+ * Separate from `report` on purpose. Reports are user-generated and routed to
+ * a moderation queue; this is machine-detected, carries statutory duties in
+ * the US (18 U.S.C. §2258A: report to NCMEC, then preserve for 90 days), and
+ * must never appear in any host- or user-facing surface.
+ *
+ * The row exists to answer, months later and under scrutiny: what was
+ * detected, by what, when, where is it, who uploaded it, was it reported, and
+ * is the preservation window still open.
+ */
+export const safetyIncidents = pgTable(
+  'safety_incident',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * Nullable, and cleared rather than cascaded when the photo is finally
+     * purged. Two requirements pull against each other here: the incident must
+     * outlive the photo row, and once a hold genuinely lifts the photo must
+     * become deletable. A cascade loses the record; a strict reference makes
+     * the photo undeletable forever. Everything a reviewer needs — the object
+     * key, the hash, the event, the uploader — is copied onto this row, so the
+     * pointer going null costs nothing.
+     */
+    photoId: uuid('photo_id').references(() => photos.id, { onDelete: 'set null' }),
+    eventId: uuid('event_id').notNull(),
+    uploaderActorId: uuid('uploader_actor_id').notNull(),
+    /** Which scanner, and what it called it. Both matter to a reviewer. */
+    provider: text('provider').notNull(),
+    classification: text('classification').notNull(),
+    /** Provider-side identifier, for corroboration without re-sending content. */
+    providerReference: text('provider_reference'),
+    /** The object, kept exactly where it was. Never re-encoded, never moved. */
+    storageKey: text('storage_key').notNull(),
+    contentHash: bytea('content_hash'),
+    detectedAt: createdAt(),
+    /**
+     * Set by a human after filing. Deliberately not settable by any automated
+     * path — see the runbook on why submission is not wired up.
+     */
+    reportedAt: timestamp('reported_at', { withTimezone: true }),
+    reportReference: text('report_reference'),
+    /**
+     * Objects under a hold are exempt from the purge job. Null means the hold
+     * is open-ended and purge must skip it regardless of age.
+     */
+    preservationEndsAt: timestamp('preservation_ends_at', { withTimezone: true }),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    notes: text('notes'),
+  },
+  (t) => [
+    index('safety_incident_open_idx').on(t.reportedAt, t.detectedAt),
+    index('safety_incident_photo_idx').on(t.photoId),
   ],
 );
 

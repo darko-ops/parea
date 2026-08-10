@@ -16,7 +16,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, eq, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -71,6 +71,15 @@ export async function autoHide(database: ReturnType<typeof db>): Promise<number>
  * Objects first, then the row. The other order would orphan bytes in storage
  * with nothing left pointing at them — invisible, unbilled to any event, and
  * impossible to find again.
+ *
+ * Skips anything under a preservation hold. This is the interaction most
+ * likely to go wrong quietly: a photo quarantined by child-safety scanning is
+ * also soft-deleted, so without this clause the ordinary 30-day cleanup would
+ * destroy evidence the law requires be kept for 90 days after a report — and
+ * it would look exactly like the job working correctly.
+ *
+ * A hold with no end date is open-ended, not expired: nothing has been filed,
+ * so the clock has not started.
  */
 export async function purge(
   database: ReturnType<typeof db>,
@@ -80,7 +89,27 @@ export async function purge(
   const rows = await database
     .select({ id: schema.photos.id, storageKey: schema.photos.storageKey })
     .from(schema.photos)
-    .where(and(isNotNull(schema.photos.deletedAt), lt(schema.photos.deletedAt, cutoff)))
+    .where(
+      and(
+        isNotNull(schema.photos.deletedAt),
+        lt(schema.photos.deletedAt, cutoff),
+        notExists(
+          database
+            .select({ one: sql`1` })
+            .from(schema.safetyIncidents)
+            .where(
+              and(
+                eq(schema.safetyIncidents.photoId, schema.photos.id),
+                isNull(schema.safetyIncidents.releasedAt),
+                or(
+                  isNull(schema.safetyIncidents.preservationEndsAt),
+                  sql`${schema.safetyIncidents.preservationEndsAt} > now()`,
+                ),
+              ),
+            ),
+        ),
+      ),
+    )
     .limit(500);
 
   let purged = 0;

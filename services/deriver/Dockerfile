@@ -22,7 +22,9 @@ COPY packages/core packages/core
 COPY services/deriver services/deriver
 
 # Fails the build if this image cannot actually ingest a photo, rather than
-# deploying something that discovers it one upload at a time.
-RUN npx tsx services/deriver/src/index.ts probe
+# deploying something that discovers it one upload at a time. Scanning is
+# checked at runtime rather than here, since credentials are not present at
+# build time — `watch` re-runs the probe and refuses to start without one.
+RUN CSAM_SCANNER=disabled NODE_ENV=development npx tsx services/deriver/src/index.ts probe
 
 CMD ["npx", "tsx", "services/deriver/src/index.ts", "watch"]
