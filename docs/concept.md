@@ -209,7 +209,10 @@ find, or retrieve shared photos?* If not, it's out.
 
 ## 4. Known hard parts
 
-**Web vs. native.** Guests must be able to contribute from a browser —
+**Web vs. native.** *(Decided — see [`design.md`](./design.md) §1: React Native
+via Expo as the primary client, with a stripped browser path that can still
+contribute. The rest of this section stands as the reasoning that led there.)*
+Guests must be able to contribute from a browser —
 requiring an install will gut contribution rates. But bulk uploading 200 HEIC
 originals through mobile Safari is genuinely difficult: tab suspension, memory
 limits on large multi-file selection, no background continuation, format

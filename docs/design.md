@@ -4,97 +4,154 @@ Companion to [`concept.md`](./concept.md). That document says what to build and
 why. This one says how, and records the decisions that are expensive to change
 later.
 
-Status: proposal. Nothing here is built. Open decisions are collected in §12.
+Status: proposal. Nothing here is built. Open decisions are collected in §16.
+
+**Amends the concept.** Section 4 of `concept.md` leaves web-vs-native open.
+It is now decided: **React Native (Expo) is the primary client, and a stripped
+browser path stays for people who won't install.** Two clients, one protocol.
+§1 explains what that buys and what it costs.
 
 ## 0. What the architecture has to survive
 
-Five constraints from the concept drive nearly every choice below.
+Six constraints drive nearly every choice below. The first five come from the
+concept; the sixth is a consequence of going native.
 
 1. **No account on the upload path.** Identity has to exist (you can delete your
-   own uploads) without authentication existing. This is the single most
-   structurally unusual requirement.
+   own uploads) without authentication existing. Structurally the most unusual
+   requirement in the product.
 2. **Egress kills photo products.** A 250-photo event is ~1GB; twenty people
    pulling the full set is 20GB. Bulk download is the *core action*, not a rare
    one. Bytes must never traverse a metered egress path.
-3. **Bulk upload happens in mobile Safari.** Tab suspension, memory limits,
-   HEIC, cellular. The upload client is the hardest piece of engineering in v1.
+3. **Bulk upload of HEIC originals from a phone, on cellular, from someone who
+   will lock their screen halfway through.**
 4. **Access control must be a policy layer, not an assumption.** Paid galleries
-   are deferred, not ruled out. "Everyone who is in gets everything" must be one
-   policy among possible others, evaluated in one place.
-5. **Originals, not compressed copies.** Constrains what we're allowed to do to
-   the bytes at ingest (§6.3).
+   are deferred, not ruled out.
+5. **Originals, not compressed copies.** Constrains what we may do to the bytes
+   at ingest (§7.4).
+6. **An install is a wall in front of contribution.** The concept is right that
+   requiring one would gut contribution rates. Native is justified only if it
+   *removes more friction than the install adds* — which is a claim about the
+   contribution flow, not about upload plumbing (§7).
 
-## 1. Shape of the system
+## 1. Two clients, one protocol
+
+### Why native at all
+
+Better background uploads are the obvious reason and the weak one. The real
+reason is that **a native client can select the photos for you.**
+
+The concept identifies the chore precisely: "go into their camera roll, find the
+ones with you in them, and send them over." A web file picker cannot help with
+that — it hands over files and nothing else, so the human does the finding. A
+native client with photo-library access can query the camera roll by capture
+time and open on *"47 photos from Saturday 8–2. Add them all?"*
+
+That collapses the central friction of the product from a fifteen-minute sorting
+task to one tap. It is the only thing in this design that attacks the actual
+problem statement rather than the plumbing around it, and it is impossible on
+the web. That is what pays for the install.
+
+### What the install costs, honestly
+
+Everyone who won't install is a contributor lost, and at a party that is a real
+fraction — the plus-one, the coworker, the person on 3% battery. The concept
+calls this correctly. So the web path survives:
+
+| | Native (Expo) | Web |
+|---|---|---|
+| Auto-select by event time window | ✅ the reason it exists | ✗ impossible |
+| Background / terminated upload | ✅ (iOS true, Android foreground service) | ✗ tab must stay open |
+| Offline queueing at a bad-signal venue | ✅ | ✗ |
+| Contribute | ✅ | ✅ degraded but complete |
+| View, download originals, bulk zip | ✅ | ✅ full parity |
+| Push nudge, group notifications | ✅ | ✗ |
+| Persistent group identity | ✅ | link/code only |
+
+**The web client is not a demo or a teaser.** It contributes and it downloads at
+full quality. Its only real deficits are automatic selection, background upload,
+and notifications. A four-photo contributor loses nothing worth naming; the
+200-photo shooter is exactly who the app is for.
+
+### One protocol
+
+Both clients speak the same HTTP API, and both upload by `PUT`ing to a presigned
+R2 URL. The server does not know or care which client it is talking to. This is
+what makes two clients affordable — the second client is a UI, not a system.
+
+Consequence to hold onto: **no upload feature may live in the server that only
+one client can reach.** If the native client needs a new capability, it becomes
+part of the shared protocol or it stays in the client.
+
+## 2. Shape of the system
 
 ```
-                    ┌────────────────────────────────────────┐
-   browser  ───────▶│  Next.js (app + API)          Vercel   │──▶ Postgres (Neon)
-   (HTML/JSON only) │  auth, policy, metadata, presigning    │
-                    └────────────────────────────────────────┘
-        │
-        │  photo bytes never touch the box above
-        ▼
-   ┌──────────────────────────────────────────────────────────┐
-   │  Cloudflare                                              │
-   │    R2 bucket            originals + derivatives          │
-   │    Worker: /img/*       signed reads, CDN-cacheable      │
-   │    Worker: /zip/*       streaming archive of an event    │
-   │    Queue → deriver      thumbnails, EXIF, hashes         │
-   └──────────────────────────────────────────────────────────┘
+  ┌───────────────┐   ┌───────────────┐
+  │ Expo app      │   │ Browser       │      HTML/JSON only
+  │ iOS + Android │   │ (contribute,  │───────────────────────┐
+  └───────────────┘   │  view, get)   │                       │
+          │           └───────────────┘                       ▼
+          │                   │              ┌────────────────────────────────┐
+          └───────────────────┴─────────────▶│ Next.js (app + API)  Vercel    │──▶ Postgres
+                                             │ auth, policy, metadata,        │    (Neon)
+                                             │ presigning, deep-link pages    │
+                                             └────────────────────────────────┘
+          │
+          │  photo bytes never touch the box above
+          ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ Cloudflare                                                 │
+  │   R2 bucket           originals + derivatives              │
+  │   Worker /img/*       signed reads, CDN-cacheable          │
+  │   Worker /zip/*       streaming archive of an event        │
+  │   Queue → deriver     thumbnails, EXIF strip, hashes, CRC  │
+  └────────────────────────────────────────────────────────────┘
 ```
 
-**The control plane and the data plane are separate on purpose.** Next.js on
-Vercel serves HTML and JSON and issues signed URLs; it never proxies image
-bytes. Every byte of photo data moves browser ↔ R2 directly, or browser ↔
-Cloudflare Worker ↔ R2. R2 has no egress fee, and Worker→R2 reads are free.
+**Control plane and data plane are separate on purpose.** Next.js serves HTML
+and JSON and issues signed URLs; it never proxies image bytes. Every photo byte
+moves client ↔ R2 directly, or client ↔ Cloudflare Worker ↔ R2. R2 has no egress
+fee and Worker→R2 reads are free.
 
 The failure mode this avoids is mundane and fatal: writing
-`return new Response(await r2.get(key).body)` from a Vercel function, which
-routes 20GB per event through metered bandwidth. It is easy to do by accident
-and invisible until the bill. Treat "no photo bytes through the Next.js origin"
-as an architectural invariant with a test (§11).
+`return new Response((await r2.get(key)).body)` in a Vercel route, which routes
+20GB per event through metered bandwidth. Easy to do by accident, invisible
+until the bill. Treat "no photo bytes through the Next.js origin" as an
+invariant with a test (§15).
 
-### Why not run everything on one platform
-
-Two coherent alternatives, both rejected for v1:
-
-- **All Cloudflare** (Next.js on Workers via OpenNext). Removes the split, but
-  puts the app framework on the less-trodden runtime while we're also doing the
-  genuinely hard upload work. Revisit once the product is real; the split above
-  is designed so the app tier is thin enough to move.
-- **All AWS** (S3 + CloudFront). CloudFront egress at ~$0.085/GB means a single
-  well-attended event costs more to deliver than a month of everything else.
-  Non-starter given bulk download is the point.
+Rejected alternatives: **all-AWS** (CloudFront at ~$0.085/GB makes one popular
+event cost more than a month of everything else); **all-Cloudflare** with
+Next.js on Workers via OpenNext (removes the split, but puts the app framework
+on the less-trodden runtime while we're also doing the hard client work —
+revisit later, the app tier is deliberately thin enough to move).
 
 ### Stack
 
 | Layer | Choice | Note |
 |---|---|---|
-| App | Next.js (App Router), TypeScript | |
-| DB | Postgres — Neon | serverless driver over HTTP, no pooler to run |
-| ORM/migrations | Drizzle | SQL-first, migrations checked in |
-| Object storage | Cloudflare R2 | zero egress, S3-compatible API |
-| Edge compute | Cloudflare Workers | image reads, zip streaming |
-| Async work | Cloudflare Queues → container consumer | libvips/libheif won't run in a Worker (§6.2) |
-| Rendering | Server components for grid; client island for upload | |
+| Mobile | Expo (React Native), EAS Build + EAS Update | dev builds, not Expo Go — native modules throughout |
+| Web | Next.js App Router, TypeScript | also the API and the deep-link landing pages |
+| DB | Postgres — Neon | serverless driver over HTTP |
+| ORM | Drizzle | SQL-first, migrations checked in |
+| Objects | Cloudflare R2 | zero egress, S3-compatible |
+| Edge | Cloudflare Workers | image reads, zip streaming |
+| Async | Cloudflare Queues → container consumer | libvips/libheif won't run in a Worker (§7.3) |
+| Push | expo-notifications → APNs/FCM | one nudge, group events (§12) |
 
-## 2. Identity without accounts
+## 3. Identity without accounts
 
 Three concepts, deliberately distinct:
 
-- **Actor** — *who did this*. Every upload, removal, and membership belongs to
-  an actor. An actor may be a guest (a signed cookie, no credentials) or a user
-  (an account with a login).
-- **Capability** — *what this browser is allowed to do right now*. Derived from
-  possession of a link or code, or from actor membership.
-- **Account** — optional, and only ever asked for after value has been
-  delivered.
+- **Actor** — *who did this*. Owns uploads, removals, memberships. Either a
+  guest (a credential on a device, no login) or a user (an account).
+- **Credential** — *what this client is allowed to do right now*. Possession of
+  a link or code, or an actor's own token.
+- **Account** — optional, asked for only after value has been delivered.
 
 ```sql
 actor
   id            uuid pk
   kind          text        -- 'guest' | 'user'
-  display_name  text null   -- the optional name field, guest-editable
+  display_name  text null   -- the optional name field
   account_id    uuid null   -- set when a guest claims an account
   created_at    timestamptz
 
@@ -102,156 +159,156 @@ account
   id            uuid pk
   email         citext unique
   created_at    timestamptz
+
+device                       -- one row per install; native only
+  id            uuid pk
+  actor_id      uuid fk
+  platform      text         -- 'ios' | 'android'
+  push_token    text null
+  last_seen_at  timestamptz
 ```
 
-A guest actor is minted lazily — on first *contribution*, not first visit — and
-carried in a signed, httpOnly, `SameSite=Lax`, 400-day cookie holding only the
-actor id. It is site-wide, not per-event: the same guest at three different
-parties is one actor, which is what makes "you already have 60 photos here, want
-to keep them?" a truthful upgrade prompt rather than a signup wall.
+A guest actor is minted lazily — on first *contribution*, not first launch — and
+is site-wide rather than per-event. The same guest at three parties is one
+actor, which is what makes "you have 60 photos across 3 events, want to keep
+them?" a true statement rather than a signup wall.
 
 **Claiming an account is `UPDATE actor SET account_id = …`.** Nothing moves, no
-uploads are reassigned, no merge logic. If a user later signs in on a second
-device, that device's guest actor is merged into the account's canonical actor
-(uploads repointed, guest actor tombstoned) — the one merge path in the system,
-and it only runs on explicit sign-in.
+uploads are reassigned. Signing in on a second device merges that device's guest
+actor into the account's canonical actor (uploads repointed, guest tombstoned) —
+the one merge path in the system, and it runs only on explicit sign-in.
+
+### Where the credential lives
+
+| Client | Storage | Notes |
+|---|---|---|
+| Native | `expo-secure-store` (Keychain / Keystore), bearer token | survives app updates; **may or may not survive uninstall** on iOS depending on OS version — do not depend on it |
+| Web | signed httpOnly `SameSite=Lax` cookie, 400 days | site-wide, actor id only |
+
+Different transport, one server-side notion. `authorize()` (§6) takes an
+already-resolved actor; credential extraction is the only place that branches on
+client type.
+
+### The link is a credential, so it must not leak
+
+On the web, a valid link visit exchanges the token for a scoped capability
+cookie (`cap_<eventId>`, signed, carrying a per-event `cap_epoch`), so the
+secret appears in exactly one URL, once. `Referrer-Policy: no-referrer`
+site-wide, or the capability rides along in referer headers to every third-party
+asset and outbound click. Native holds the equivalent as a scoped token.
+
+Rotating the link bumps `cap_epoch`, invalidating outstanding cookies, tokens,
+and signed image URLs at once. That — not "close uploads" — is the real answer
+to *a stranger got the link*.
 
 ### What breaks, and what we accept
 
-Losing the cookie loses the ability to delete your own uploads. There is no way
-around this without an account, and adding one costs contributors. Mitigations:
-the report/removal-request path (§9) works for anyone, the host can always
-remove, and the account upgrade prompt appears exactly when someone has
-something worth protecting. **Accepted.**
+Losing the device credential loses the ability to delete your own uploads. There
+is no fix that doesn't require an account, and requiring one costs contributors.
+Mitigations: the removal-request path (§13) works for anyone, the host can
+always remove, and the account prompt appears exactly when someone has something
+worth protecting. **Accepted.**
 
-### Capabilities and the referrer problem
-
-The event link *is* the credential. That means it must not leak. Two measures:
-
-- On a valid link visit, the server sets a scoped capability cookie
-  (`cap_<eventId>`, signed, session-length-ish) and every subsequent API call
-  authorizes off the cookie. The secret appears in exactly one URL, once.
-- `Referrer-Policy: no-referrer` site-wide, so the capability URL never rides
-  along to any third-party asset or outbound click.
-
-Rotating the link is a supported host action (§4), and it is the correct answer
-to "a stranger got the link" — stronger than closing uploads, since it also
-revokes reads.
-
-## 3. Data model
+## 4. Data model
 
 ```sql
 "group"
-  id            uuid pk
-  name          text
-  slug          text unique          -- vanity-ish, for group search results
-  findable      boolean default false -- asked once at creation
-  created_at    timestamptz
-  deleted_at    timestamptz null
+  id uuid pk, name text, slug text unique
+  findable boolean default false      -- asked once at creation
+  created_at timestamptz, deleted_at timestamptz null
 
 group_member
-  group_id      uuid fk
-  actor_id      uuid fk
-  role          text                 -- 'member' | 'admin'
-  joined_at     timestamptz
+  group_id uuid, actor_id uuid, role text, joined_at timestamptz
   primary key (group_id, actor_id)
 
 event
   id            uuid pk
-  link_token    text unique          -- 22-char base62 (~131 bits); the credential
+  link_token    text unique           -- 22-char base62 (~131 bits); the credential
+  cap_epoch     integer default 1     -- bumped on rotate
   name          text
   event_date    date null
+  starts_at     timestamptz null      -- drives auto-select (§7.1)
+  ends_at       timestamptz null
   group_id      uuid null fk
   created_by    uuid fk actor
-  access_policy text default 'link_open'   -- see §5
+  access_policy text default 'link_open'    -- §6
   joins_open    boolean default true
   uploads_open  boolean default true
-  expires_at    timestamptz null     -- retention lever; null for grouped events
-  last_active_at timestamptz         -- drives code recycling and expiry
-  created_at    timestamptz
-  deleted_at    timestamptz null
+  nudged_at     timestamptz null      -- hard cap of one, in the schema
+  expires_at    timestamptz null      -- retention lever; null when grouped
+  last_active_at timestamptz
+  created_at timestamptz, deleted_at timestamptz null
 
-code                                  -- spoken word-pairs, recycled
-  id            uuid pk
-  words         text unique           -- 'amber-fox'
-  event_id      uuid null fk          -- null when in the free pool
-  claimed_at    timestamptz null
-  released_at   timestamptz null
+code
+  id uuid pk, words text unique       -- 'amber-fox'
+  event_id uuid null fk               -- null while in the free pool
+  claimed_at timestamptz null, released_at timestamptz null
 
 photo
   id            uuid pk
   event_id      uuid fk
   uploader_id   uuid fk actor
-  storage_key   text                  -- r2 key, content-addressed
-  content_hash  bytea                 -- sha256 of stored bytes
-  crc32         bigint                -- precomputed for zip (§7)
+  storage_key   text                  -- content-addressed: ev/<eventId>/<sha256>
+  content_hash  bytea
+  crc32         bigint                -- precomputed for zip (§10)
   byte_size     bigint
   mime          text
   width, height integer null
-  captured_at   timestamptz null      -- from EXIF; falls back to uploaded_at
+  captured_at   timestamptz null      -- EXIF; falls back to uploaded_at
   captured_offset_minutes integer null
   uploaded_at   timestamptz
   status        text                  -- 'pending' | 'ready' | 'failed' | 'removed'
   deleted_at    timestamptz null
 
 derivative
-  photo_id      uuid fk
-  kind          text                  -- 'thumb' | 'grid' | 'full'
-  storage_key   text
-  width, height integer
-  mime          text
+  photo_id uuid, kind text, storage_key text, width int, height int, mime text
   primary key (photo_id, kind)
 
 report
   id, photo_id, reporter_actor_id null, kind, note, created_at, resolved_at
 ```
 
-Notes on decisions embedded above:
+Decisions embedded above:
 
 - **`link_token` is separate from `id`.** Rotation is a column update, not an
-  identity change. If the token were the primary key, revocation would mean
-  rewriting every foreign key.
-- **Content-addressed storage keys** (`ev/<eventId>/<sha256>`) make re-uploads
-  idempotent. The same photo forwarded and re-contributed by two people
-  collapses to one object with a unique index on `(event_id, content_hash)
-  where deleted_at is null`. Both uploaders can keep an attribution row if we
-  want it later; v1 keeps first-writer.
-- **`captured_at` is untrusted.** Phone clocks disagree, and a chronological
-  grid across six devices will interleave wrongly by minutes to hours. v1 sorts
-  by `coalesce(captured_at, uploaded_at)` and accepts it. If it looks bad in
-  practice, the fix is per-uploader offset estimation, not a schema change.
-- **Soft delete everywhere**, with a purge job that removes R2 objects after a
-  grace window (§10). Immediate hard delete makes "undo" impossible and makes
-  abuse investigation impossible.
+  identity change. As a primary key it would make revocation a rewrite of every
+  foreign key.
+- **`starts_at` / `ends_at` exist for the native picker.** They are what turn
+  "your camera roll" into "photos from this party." Nullable, inferred from the
+  first uploads when the creator doesn't set them (§7.1).
+- **Content-addressed keys** make re-uploads idempotent. A photo forwarded and
+  contributed by two people collapses to one object, via a unique index on
+  `(event_id, content_hash) where deleted_at is null`. This is also what lets
+  the resume path be dumb and aggressive.
+- **`captured_at` is untrusted.** Six phones with six clocks will interleave a
+  chronological grid wrongly by minutes to hours. v1 sorts on
+  `coalesce(captured_at, uploaded_at)` and accepts it; see §16.
+- **Soft delete everywhere**, purge job after a grace window (§14). Hard delete
+  makes undo impossible and abuse investigation impossible.
 
-## 4. Event lifecycle and the three switches
-
-The concept specifies three independent switches, all defaulting open. They map
-directly:
+## 5. Event lifecycle and the three switches
 
 | Switch | Column | Default | Closing it |
 |---|---|---|---|
-| Can new people join? | `joins_open` | true | link stops granting access to new actors; existing keep it |
+| Can new people join? | `joins_open` | true | link stops admitting new actors; existing keep access |
 | Is the code valid? | `code.event_id` | claimed | released on dormancy or host action |
 | Can people still upload? | `uploads_open` | true | reads unaffected |
 
-Plus **rotate link** — issues a new `link_token`, invalidates outstanding
-capability cookies for that event (bump a per-event `cap_epoch` included in the
-cookie signature). This is the "shut it down" button that actually works.
+Plus **rotate link** (above), the one that actually revokes.
 
 **Codes.** ~1,024 curated adjectives × ~1,024 nouns ≈ 1M pairs, pre-filtered for
-unfortunate combinations, wordlist checked into the repo and reviewed. Allocation
-is `SELECT … WHERE event_id IS NULL ORDER BY random() LIMIT 1 FOR UPDATE SKIP
-LOCKED` — no retry loop, no birthday-collision math, and the free pool is
-explicit. A code returns to the pool when its event has been dormant (no view,
-no upload) for 90 days. Short codes only stay short if they recycle; late
-arrivals only work if they recycle *slowly*. 90 days is a guess to revisit.
+unfortunate combinations, wordlist checked in and reviewed. Allocation is
+`SELECT … WHERE event_id IS NULL ORDER BY random() LIMIT 1 FOR UPDATE SKIP
+LOCKED` — no retry loop, no birthday-collision reasoning, and the free pool is
+explicit. A code returns to the pool after 90 days of dormancy. Codes only stay
+short if they recycle, and late arrivals only work if they recycle *slowly*; 90
+days is a guess worth revisiting.
 
-## 5. Access as a policy layer
+## 6. Access as a policy layer
 
-Every read, write, and download passes through one function. Not a middleware,
-not scattered `if` statements — one module, and a lint rule that forbids
-querying `photo` outside the data-access layer that calls it.
+Every read, write, and download passes through one function — not a middleware,
+not scattered conditionals — with a lint rule forbidding queries against `photo`
+outside the data-access layer that calls it.
 
 ```ts
 type Capability = 'view' | 'contribute' | 'download' | 'administer'
@@ -264,262 +321,397 @@ function authorize(
 ): Decision   // { allow: true } | { allow: false; reason: … }
 ```
 
-v1 ships exactly one policy, `link_open`: possession of a valid link or code
-grants `view`, `contribute`, and `download`; the creator and group admins also
-get `administer`. That is a handful of lines. The point is not the policy — it's
-that `event.access_policy` is a column with one value today, so adding
-`paid_gallery` later is a new branch in one function plus an entitlement check,
-not an archaeology project across forty call sites.
+v1 ships one policy, `link_open`: a valid link or code grants `view`,
+`contribute`, and `download`; creator and group admins also get `administer`. A
+handful of lines. The point isn't the policy — it's that `event.access_policy`
+is a column with one value today, so `paid_gallery` later is a branch in one
+function plus an entitlement check, not archaeology across forty call sites.
 
 Correspondingly: **events own photos, groups own events.** No photo is reachable
-except through an event, and no query fetches photos without an event in scope.
-This is what makes a future per-collection access rule expressible at all.
+except through an event. This is what makes a future per-collection rule
+expressible at all.
 
-The concept's governing rule — *groups can be findable, photos never are* — is
-enforced structurally. Group search hits a `group` index that contains no photo
-join. There is no event search index and no photo search index. Search returns a
-door.
+The concept's rule — *groups can be findable, photos never are* — is enforced
+structurally. Group search hits an index containing no photo join. There is no
+event index and no photo index. Search returns a door.
 
-## 6. Upload
+## 7. Contribution — the native flow
 
-The hard part. Design target: someone dumping 200 HEIC originals from an iPhone
-on cellular, who will lock their phone halfway through.
+This is the part that justifies the app. Everything else is plumbing.
 
-### 6.1 The path
+### 7.1 Auto-selection
+
+On opening an event, the app queries the local photo library for the event's
+time window (`expo-media-library`'s `getAssetsAsync({ createdAfter, createdBefore })`)
+and presents them pre-selected: *"47 photos from Saturday 8:14pm–1:40am."*
+Deselect what you don't want, tap once, done.
+
+Window inference when the creator sets no times: take the span of photos already
+uploaded, widen by an hour on each side, and let the user drag the boundaries.
+An event with no photos yet falls back to a date picker. The window is a
+suggestion the user can always override — never a filter they can't escape.
+
+**All of this happens on-device.** Capture times and locations are read from the
+local library to decide *what to offer*; they are not uploaded, and GPS is
+stripped from the files that are (§7.4). Location-based narrowing ("photos taken
+near here") is possible with the same local-only property and is deliberately
+deferred — the time window is most of the value and none of the creepiness.
+
+### 7.2 Permissions, staged like the account ask
+
+iOS offers two paths with a real trade-off, so the app uses both:
+
+- **`expo-image-picker`** wraps PHPicker: no permission prompt at all, but no
+  library metadata, so no auto-selection. This is the default first-run path —
+  someone can contribute without granting anything.
+- **`expo-media-library`** with full library access enables §7.1, and requires
+  a prompt.
+
+The prompt is therefore an *upgrade*, offered after a manual contribution, with
+the honest pitch: "next time we can find them for you." Same philosophy as the
+account ask — the permission sits at the moment of demonstrated value, not in
+front of the first upload.
+
+iOS "limited library" selection must be handled as a first-class state, not an
+error: auto-select over the subset the user granted, with a clear path to widen.
+Android maps to `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` (API 33+) with the
+older storage permission below that.
+
+### 7.3 Upload engine
 
 ```
 1. client   POST /api/events/:id/uploads   { files: [{name, size, type}, …] }
-2. server   authorize(contribute) → per-file presigned PUT to R2 (15 min)
-            → rows in `photo` with status='pending'
+2. server   authorize(contribute) → presigned PUT per file (15 min)
+            → `photo` rows at status='pending'
 3. client   PUT each file directly to R2, concurrency 3
 4. R2       event notification → Cloudflare Queue
-5. deriver  read original, sha256, EXIF, crc32, derivatives → R2
-            → PATCH photo: status='ready', dimensions, captured_at, hash
-6. client   grid subscribes and fills in as photos flip to 'ready'
+5. deriver  sha256, EXIF strip, crc32, derivatives → R2
+            → photo: status='ready', dimensions, captured_at, hash
+6. clients  grid fills in as photos flip to 'ready'
 ```
 
-Bytes go browser → R2. Nothing else is on that path.
+Bytes go client → R2. Nothing else is on that path, on either client.
 
-### 6.2 Deriving thumbnails
+**Background behaviour is asymmetric across platforms and the UI must not
+pretend otherwise:**
 
-HEIC decoding needs libheif; libvips/sharp will not run in a Workers isolate.
-So the deriver is a container (Fly.io or Railway) consuming a Cloudflare Queue,
-with R2 bindings over the S3 API. Three derivatives per photo:
+| Platform | Mechanism | Survives |
+|---|---|---|
+| iOS | `URLSession` background configuration, via Expo's upload task with a background session | app backgrounded, and app terminated |
+| Android | foreground service with a persistent notification | app backgrounded; killed by aggressive OEM battery managers on some devices |
+| Web | none | nothing — tab must stay open |
 
-| Kind | Longest edge | Format | Use |
-|---|---|---|---|
-| `thumb` | 320px | AVIF, JPEG fallback | grid |
-| `grid` | 1280px | AVIF, JPEG fallback | grid on retina / quick look |
-| `full` | 2560px | JPEG | lightbox, and the "just give me something I can open" download for non-Apple recipients |
+The Android foreground service is the piece most likely to need a config plugin
+or a community module rather than stock Expo; budget for it, and see §16.
 
-The alternative is Cloudflare Images, which handles HEIC and removes the
-container. It costs per image stored and per delivery, and it's a per-unit cost
-on exactly the axis that grows. Container first; switch if operating it becomes
-the tax rather than the savings.
+Other measures, each against a specific failure:
 
-**HEIC is not converted on the client.** WASM decode of 200 files on a phone is
-minutes of blocked CPU and a dead battery. Originals upload as HEIC; the server
-makes viewable derivatives. Note the consequence: an Android recipient
-downloading originals gets files their gallery may not open. v1 offers "download
-originals" and "download as JPEG" (the `full` derivative) side by side, which is
-also the honest framing of the format problem.
+- **Never read a file into memory.** Stream from the asset URI. One
+  `arrayBuffer()` over a 200-file selection is an out-of-memory crash on both
+  clients.
+- **Concurrency 3.** Higher hurts throughput on cellular and multiplies memory
+  pressure. Tune by measurement.
+- **Durable queue in SQLite on device** (`expo-sqlite`), holding asset ids and
+  per-file state, so a cold start resumes rather than restarts.
+- **Offline queueing.** Venues have bad signal. The queue accepts photos with no
+  connectivity and drains when there is some — a native-only capability that
+  matters more at a party than the background transfer does.
+- **Idempotent retries** via content-addressed keys, so re-PUTting a file that
+  actually completed is a no-op.
 
-### 6.3 What we do to the bytes
+### 7.4 What we do to the bytes
 
 "Originals, not compressed copies" and "strip precise location metadata by
 default" are in tension. Resolution:
 
 **Pixel data is never re-encoded.** Metadata is rewritten in place at ingest:
-GPS blocks, device serial numbers, and owner-name fields are removed;
-orientation, capture timestamp, camera model, and exposure data are kept. The
-stored object is not byte-identical to what left the phone, and it is
-pixel-identical. That is the right trade and it should be stated plainly in the
-UI ("location removed") rather than buried.
+GPS blocks, device serial numbers, and owner-name fields removed; orientation,
+capture timestamp, camera model, and exposure kept. The stored object is not
+byte-identical to what left the phone; it is pixel-identical. That is the right
+trade, and the UI should say "location removed" rather than bury it.
 
-Stripping happens in the deriver, not the client — client-side stripping can be
-bypassed by anyone who wants to, and the guarantee needs to hold server-side.
-Consequence: for a short window the un-stripped original sits in R2. Acceptable;
-it is never served in that state (photos are only readable at `status='ready'`).
+Stripping happens server-side in the deriver, not on the client — a client-side
+guarantee is bypassable by anyone who wants to bypass it. Consequence: the
+un-stripped original sits in R2 briefly. Acceptable; it is never served in that
+state, since photos are only readable at `status='ready'`.
 
-### 6.4 Surviving mobile Safari
+**HEIC is uploaded as-is and never converted on-device.** Decoding 200 files on
+a phone is minutes of blocked CPU and a dead battery, and the original is what
+we promised. Derivatives are made server-side.
 
-Specific measures, each against a specific failure:
+### 7.5 Deriving
 
-- **Never read a file into memory.** Pass the `File` straight to `fetch` as the
-  body; it streams from disk. One `arrayBuffer()` on a 200-file selection is an
-  out-of-memory tab crash.
-- **Concurrency 3.** Higher hurts throughput on cellular and multiplies memory
-  pressure. Tuned by measurement, not vibes.
-- **Persist the queue in IndexedDB, including the `File` handles.** Safari
-  structured-clones `File` objects into IndexedDB and they survive a reload, so
-  a suspended-and-killed tab resumes rather than restarts. This is the single
-  highest-value piece of the upload client.
-- **Idempotent retries.** Content-addressed keys plus the unique index mean
-  re-PUTting a file that actually completed is a no-op, so the resume path can
-  be dumb and aggressive.
-- **Screen Wake Lock** while a large upload runs, with a visible "keep this
-  screen on" line. Safari 16.4+; a no-op elsewhere.
-- **No background completion exists on iOS web.** Do not pretend otherwise. The
-  UI states plainly how many remain and that the tab must stay open — the
-  concept's "close the tab" affordance is honest for a four-photo contribution
-  and a lie for a 200-photo one. Progress is per-file, so a partial upload is
-  partial photos, not zero.
+libheif/libvips will not run in a Workers isolate, so the deriver is a container
+(Fly.io or Railway) consuming a Cloudflare Queue, with R2 over the S3 API.
 
-This is also where the native-app argument lives. Web handles the many-shooters
-mode well and the few-shooters mode adequately. If the 200-photo case turns out
-to be where the product's value is, that's the trigger for a native client — and
-it changes nothing server-side, which is the point of putting the upload
-protocol behind presigned PUTs.
+| Kind | Longest edge | Format | Use |
+|---|---|---|---|
+| `thumb` | 320px | AVIF, JPEG fallback | grid |
+| `grid` | 1280px | AVIF, JPEG fallback | retina grid, quick look |
+| `full` | 2560px | JPEG | lightbox, and the "give me something I can open" download |
 
-### 6.5 Rate limits
+That last row matters more than it looks: an Android recipient downloading HEIC
+originals gets files their gallery may not open. Both clients offer **download
+originals** and **download as JPEG** side by side, which is the honest framing
+of the format problem rather than a hidden downgrade.
+
+Alternative: Cloudflare Images handles HEIC and removes the container, at a
+per-image cost on exactly the axis that grows. Container first; switch if
+operating it becomes the tax rather than the saving.
+
+### 7.6 Rate limits
 
 Anyone with a link can upload anything. Per-actor, per-event: 500 photos and
-5GB, and 50 files per presign request. Per-IP presign rate limiting on top.
-These are anti-catastrophe bounds, not product limits; log when they bite.
+5GB; 50 files per presign request; per-IP presign limits on top. These are
+anti-catastrophe bounds, not product limits — log every time one bites.
 
-## 7. Download
+## 8. Contribution — the web path
+
+Same API, same presigned PUTs, no auto-selection. A single-screen flow:
+`<input type="file" multiple accept="image/*">`, files streamed straight to
+`fetch` bodies, concurrency 3, queue persisted in IndexedDB **including the
+`File` handles** — Safari structured-clones them, so a reloaded tab resumes
+instead of restarting.
+
+Two things the web client must do that the app doesn't:
+
+- **Tell the truth about the tab.** iOS web has no background completion. The UI
+  states how many remain and that the tab must stay open. Progress is per-file,
+  so a partial upload is partial photos rather than zero. The concept's "close
+  the tab" affordance is honest for four photos and a lie for two hundred.
+- **Offer the app at the right moment** — after a successful contribution, or
+  when a selection is large enough that the tab-open constraint will hurt. Not
+  an interstitial on arrival. A contributor who bounces off an install prompt is
+  the exact failure the web path exists to prevent.
+
+## 9. Links, codes, and getting into the app
+
+The link has to work identically for someone with the app, someone without it,
+and someone who has never heard of the product.
+
+- **Universal Links (iOS) / App Links (Android)** on the event URL: opens the app
+  when installed, the web page when not. Requires `apple-app-site-association`
+  and `assetlinks.json` served from the app domain, plus `associatedDomains` in
+  the Expo config. Get this right early — it is fiddly, it is cached by the OS,
+  and everything about distribution routes through it.
+- **The web page is the fallback and the preview surface.** Open Graph tags
+  carry event name, contribution count, and the action — *"Sarah's birthday · 88
+  photos from 6 people · add yours"* — generated dynamically and cached briefly.
+  **No photo appears in the preview image.** Unfurlers fetch without credentials
+  and previews get rendered in places the photos should never reach; the card is
+  a generated graphic, not a thumbnail.
+- **QR and code entry in-app** via `expo-camera` barcode scanning, and a plain
+  text field for `amber-fox`. This is the at-the-party path.
+- **Deferred: iOS App Clips.** A QR scan that runs a lightweight contribution
+  flow with no install is almost exactly this product's join moment, and it
+  would partially collapse the two-client problem on iOS. It needs a separate
+  native target outside the Expo managed flow and a hard 15MB budget, so it is
+  not v1 — but it is the highest-value thing on the other side of v1. Android's
+  equivalent (Play Instant) is declining and not worth matching.
+
+## 10. Download
 
 Bulk download of originals is the product's terminal action and its main cost
 centre.
 
-**A Worker streams the zip.** It reads objects from R2 (free) and writes a
-`STORE`-method (no compression — JPEG and HEIC are already compressed, so
-deflate burns CPU for ~0%) Zip64 archive to the response as it goes. Nothing is
-staged; there is no temporary archive object and no job queue.
+**A Worker streams the zip**, reading objects from R2 (free) and writing a
+`STORE`-method Zip64 archive to the response as it goes. No compression — JPEG
+and HEIC are already compressed, so deflate burns CPU for ~0%. Nothing is
+staged: no temporary archive object, no job queue.
 
-The refinement that matters: **crc32 and byte size are precomputed at ingest**,
-and the file ordering is deterministic. With those, the exact archive length is
-computable up front, so the response carries a real `Content-Length`. The
-browser shows a real progress bar and a real time estimate instead of an
-indeterminate spinner on a 1GB download — and deterministic layout makes
-`Range` resume implementable later without changing the format.
+The refinement that matters: **crc32 and byte size are precomputed at ingest**
+and file ordering is deterministic, so the exact archive length is computable up
+front and the response carries a real `Content-Length`. That means a real
+progress bar and time estimate on a 1GB download instead of an indeterminate
+spinner — and deterministic layout makes `Range` resume implementable later
+without a format change.
 
-Zip64 from the start, not conditionally: events crossing 4GB are ordinary for
-video, and a format switch under load is a bug waiting to happen.
+Zip64 unconditionally from day one. Events crossing 4GB are ordinary once video
+exists, and a format switch under load is a bug waiting to happen.
 
-Selection downloads (`some`) use the same endpoint with an id list, capped at a
-length that keeps the URL sane — POST to mint a short-lived manifest token, then
-GET the zip with it, so the download is a plain navigation the browser can own.
+Selection downloads use the same endpoint: POST an id list to mint a short-lived
+manifest token, then GET the zip with it, so the download is a plain navigation
+the browser or OS can own.
 
-## 8. Serving images, and CDN cache keys
+On native, "save all to camera roll" is the more natural terminal action than a
+zip, and it is a per-file loop with `expo-media-library` rather than an archive.
+Both exist; the app defaults to camera roll, the web to zip.
 
-Grid views request 200 thumbnails. Two bad options and one good one:
+## 11. Serving images
 
-- Presigned R2 URLs per image — 200 HMACs per page load is fine, but every URL
-  is unique per request, so the CDN cache hit rate is zero and every thumbnail
-  is an origin read forever.
-- Worker checks the capability cookie — correct, but cookie-varying responses
-  are effectively uncacheable at the edge.
-- **Signed path with a coarse expiry.** `/img/<photoId>/<kind>?e=<hourBucket>&s=<hmac>`
-  where the signature covers the photo, kind, and an expiry rounded up to the
-  next hour boundary. Every viewer of the same event within the same hour
-  generates *identical* URLs, so the edge cache actually works, and the URL
-  stops working within the hour. Cache-Control `private, max-age=3600` at the
-  browser, edge-cached by the Worker's own cache API.
+A grid requests 200 thumbnails. Two bad options and one good one:
 
-The signature is scoped to the event's `cap_epoch`, so rotating the link
-invalidates outstanding image URLs too.
+- Presigned R2 URLs per image — cheap to generate, but every URL is unique per
+  request, so CDN hit rate is zero and every thumbnail is an origin read forever.
+- Worker checks the credential — correct, but credential-varying responses are
+  effectively uncacheable at the edge.
+- **Signed path with a coarse expiry.**
+  `/img/<photoId>/<kind>?e=<hourBucket>&s=<hmac>`, where the signature covers
+  photo, kind, the event's `cap_epoch`, and an expiry rounded up to the next
+  hour. Every viewer of the same event within the same hour generates
+  *identical* URLs, so the edge cache actually works, and the URL dies within
+  the hour. `Cache-Control: private, max-age=3600` at the client.
 
-## 9. Safety, moderation, and legal floor
+Because the signature includes `cap_epoch`, rotating the link invalidates
+outstanding image URLs too.
 
-The concept lists the day-one needs. Concretely:
+## 12. Notifications
+
+Native unlocks the concept's "one well-timed reminder," and the concept is
+emphatic that it is *one*. The cap lives in the schema (`event.nudged_at`), not
+in config, so it cannot be lost to a deploy.
+
+Three notification types, total:
+
+1. **The nudge** — once per event, to attendees who joined but haven't uploaded.
+2. **New event in a group you're in** — the thing that makes groups worth
+   joining, and the answer to the distribution problem.
+3. **Your removal request was answered** — transactional.
+
+Nothing else. No "someone added 3 photos," no re-engagement, no digests. The
+feature test from the concept applies: *does this help people contribute, find,
+or retrieve shared photos?*
+
+## 13. Safety, moderation, and the App Store gate
+
+Day-one needs from the concept, concretely:
 
 - **Remove your own upload** — actor-scoped, immediate soft delete, no review.
 - **Request removal of a photo of you** — available to anyone with view access,
-  no account. Routes to the event creator with a 48h auto-hide if unanswered.
-  Auto-hide rather than auto-delete: the wrong default in either direction is
-  bad, but "temporarily invisible" is recoverable and "gone" isn't.
-- **Report** — to us, not the host. Queue, no SLA promises we can't keep.
+  no account. Routes to the creator with a 48h auto-hide if unanswered.
+  Auto-*hide* rather than auto-delete: wrong in either direction is bad, but
+  invisible is recoverable and gone isn't.
+- **Report** — to us, not the host.
 - **Delete event** — creator or group admin, soft delete then purge.
-- **Location metadata stripped** by default (§6.3).
+- **Block a contributor** — hides their uploads from you and prevents them
+  rejoining events you administer.
+- **Location metadata stripped** by default (§7.4).
 
-Two things that are not optional and should be designed in now rather than
-bolted on:
+Going native makes two of these non-negotiable on a schedule:
 
-- **CSAM detection.** Anonymous image uploads from unverified contributors is
+- **App Store Guideline 1.2 (user-generated content)** requires a content
+  filtering method, a reporting mechanism, the ability to block abusive users,
+  and published developer contact info. An app that accepts anonymous photo
+  uploads without all four does not get approved. These are launch gates now,
+  not backlog. Expect an age rating conversation as well.
+- **CSAM detection.** Anonymous image upload from unverified contributors is
   precisely the risk surface. Cloudflare's CSAM Scanning Tool works against R2
-  and is free; wire it at ingest. Detection carries a legal reporting obligation
-  to NCMEC (18 U.S.C. §2258A) and a preservation obligation — which means an
-  incident runbook and a named human, before launch, not after the first hit.
-  Get counsel on the reporting workflow; this design just ensures the hooks and
-  the preservation-safe soft-delete exist.
-- **Minors.** The concept's position is "avoid as a target market; if it happens
-  organically, private-only and no matching." Nothing in the schema encourages
-  it; there is no face matching to disable, which is most of the protection.
+  and is free; wire it at ingest. A detection carries a legal reporting duty to
+  NCMEC (18 U.S.C. §2258A) and a preservation duty — which means a runbook and a
+  named human before launch. Get counsel on the reporting workflow; this design
+  only guarantees the hooks and a preservation-safe soft delete exist.
 
-## 10. Jobs
+On **minors**, the concept's position is "avoid as a target market; private-only
+and no matching if it happens organically." Nothing in the schema encourages it,
+and there is no face matching to disable, which is most of the protection.
+
+## 14. Consequence for monetization
+
+Worth stating plainly because it changes the numbers in `concept.md` §5.
+
+The concept rules out paid galleries partly because **Apple takes 15–30% of
+in-app digital goods**. Going native applies that same cut to the *primary*
+monetization: a group subscription sold in-app is unambiguously a digital good,
+so it must go through StoreKit and Google Play Billing, not Stripe. At the
+proposed $4–8/mo that is $0.60–$2.40 a month off the top (15% under the Small
+Business Program, 30% above $1M).
+
+Three implications:
+
+1. The group subscription is worth less than modelled. Not fatal — one payer
+   covering many free riders still works — but the price point should be set
+   after the cut, not before.
+2. Entitlements become platform receipts to validate and reconcile against a
+   server-side subscription record, on two platforms. Non-trivial work, and it
+   should not be started until there is a reason to charge anyone.
+3. **Physical artifacts (concept §5.4) are exempt** — physical goods go through
+   normal payments with no platform cut. That quietly improves their relative
+   standing versus the ranking in the concept.
+
+Nothing here needs building now. The design just shouldn't assume Stripe.
+
+## 15. Jobs
 
 | Job | Cadence | Does |
 |---|---|---|
-| `purge-deleted` | hourly | hard-deletes R2 objects for rows soft-deleted > 30d |
-| `expire-events` | daily | ungrouped events past `expires_at` → soft delete (§ monetization lever 2) |
+| `purge-deleted` | hourly | hard-deletes R2 objects soft-deleted > 30d |
+| `expire-events` | daily | ungrouped events past `expires_at` → soft delete |
 | `recycle-codes` | daily | releases codes for events dormant 90d |
-| `nudge` | event-scoped | one reminder, once, at a time TBD |
-
-`nudge` is the only one that touches users, and the concept is explicit that it
-is one well-timed reminder and not notification spam. Build it as a
-single-shot scheduled message with a hard per-event cap of one, enforced in the
-schema (`event.nudged_at is null`), so the cap can't be lost to a config change.
+| `nudge` | event-scoped | one reminder, once, capped in schema (§12) |
 
 Retention default: ungrouped events get `expires_at = created_at + 60 days`,
-grouped events get null. Not enforced in v1 — the column is populated, the job
-is written, and the switch stays off until there's a reason. Backfilling an
-expiry policy onto events created without one is a support nightmare; having the
-column from day one costs nothing.
+grouped events null. **Not enforced in v1** — the column is populated and the
+job is written, but the switch stays off until there's a reason. Backfilling an
+expiry policy onto events created without one is a support nightmare; carrying
+the column from day one costs nothing.
 
-## 11. Testing the things that actually break
+## 16. Testing the things that actually break
 
-Ordinary unit tests aside, four checks earn their place:
+1. **Egress invariant.** Build fails if any Next.js route handler returns a body
+   sourced from R2. The cost failure is silent, gradual, and unrecoverable after
+   the fact.
+2. **Authorization matrix.** Table-driven over (actor kind × capability × policy
+   × switch state × client type). This is the file that will be wrong in a year.
+3. **Upload resume, per platform.** Kill the app mid-queue on iOS, on Android,
+   and mid-queue in a reloaded Safari tab; assert no duplicates and no missing
+   files. Content-addressing makes this assertable.
+4. **Zip correctness.** A >4GB archive with unicode filenames, verified by a real
+   unzip. Zip64 and filename encoding are where homegrown zip writers fail, and
+   they fail on the user's machine after a twenty-minute download.
+5. **Universal Link routing.** Installed / not installed / different platform,
+   on real devices. It is cached by the OS and cannot be debugged from a
+   simulator alone.
 
-1. **Egress invariant.** A test that fails the build if any Next.js route
-   handler returns a body sourced from R2. The cost failure is silent, gradual,
-   and unrecoverable after the fact.
-2. **Authorization matrix.** Table-driven over (actor kind × capability ×
-   policy × switch state). This is the file that will be wrong in a year.
-3. **Upload resume.** Integration test that kills the client mid-queue and
-   reopens it, asserting no duplicates and no missing files. Content-addressing
-   makes this assertable.
-4. **Zip correctness.** A generated archive of >4GB with unicode filenames,
-   verified by a real unzip implementation. Zip64 and filename encoding are
-   where homegrown zip writers fail, and they fail on the user's machine, after
-   a 20-minute download.
+## 17. Open decisions
 
-## 12. Open decisions
-
-Things this document does not settle, roughly by when they need settling.
-
-- **Deriver: container vs. Cloudflare Images.** Cost crossover depends on photos
-  stored vs. delivered; needs real numbers, not estimates. Container first.
-- **Nudge timing.** Next morning? 48h? Unknown, and it's a product question that
-  wants the first real events to answer it.
+- **Android background upload.** Stock Expo may not cover a long-running
+  foreground-service upload; likely a config plugin or community module, and
+  OEM battery managers will kill it on some devices anyway. Prototype this
+  before committing to the schedule — it is the highest-variance unknown in the
+  build.
+- **Expo background upload API surface.** `expo-file-system`'s upload task and
+  background session support has moved across recent SDKs. Verify against the
+  target SDK on a device before designing UI around it; fall back to a thin
+  native module over `URLSession` if needed.
+- **Deriver: container vs. Cloudflare Images.** Cost crossover needs real
+  numbers on stored-vs-delivered. Container first.
 - **Clock skew in the timeline.** Ignored in v1. May look obviously broken the
-  first time six phones contribute to one grid.
-- **Video.** Concept names it as a candidate paywall. Nothing here forbids it —
-  storage keys, zip streaming, and derivatives all generalize — but transcoding
-  is a second pipeline and it should stay out until the photo case works.
-- **The 200-photo web upload.** §6.4 mitigates, it does not solve. The honest
-  possibility is that it's *good enough* for four-photo contributors and never
-  good enough for the heavy shooter, and that a native client is not optional.
-  Measure completion rate by selection size from day one; that single metric
-  decides it.
+  first time six phones contribute to one grid. Fix is per-uploader offset
+  estimation, not a schema change.
+- **Auto-select window inference.** Whether "photos already uploaded, widened by
+  an hour" is good enough, or whether creators will reliably set times. The
+  whole native justification rests on this feeling like magic rather than a
+  wrong guess.
+- **App Clips.** Deferred, but the strongest candidate for the next thing built.
+- **Nudge timing.** Next morning? 48h? A product question the first real events
+  should answer.
+- **Video.** Named as a candidate paywall. Nothing here forbids it — keys, zip
+  streaming, derivatives all generalize — but transcoding is a second pipeline
+  and should stay out until photos work.
 - **Group-search abuse.** Findable groups are a namespace, and namespaces get
-  squatted and impersonated. Rate limits and a report path may not be enough.
-  Low urgency while groups are rare; revisit before promoting group search.
-- **Where the app tier lives long-term.** Vercel is right for now. If everything
-  interesting ends up in Workers anyway, consolidating is a small migration
-  precisely because the app tier stays thin.
+  squatted and impersonated. Low urgency while groups are rare; revisit before
+  promoting group search.
 
-## 13. Instrumentation for the §6 question
+## 18. Instrumentation
 
-The concept's next step is an unbuilt-product test: *does anyone other than the
-creator upload?* When code exists, the same question is the primary product
-metric, and these are the events that answer it. Worth wiring in the first
-release rather than the third.
+The concept's §6 test — *does anyone other than the creator upload?* — is also
+the primary product metric once code exists. Wire these in the first release:
 
-- contributors per event (the number; 1 is the failure case)
+- contributors per event (1 is the failure case)
 - time from event creation to first upload by a non-creator
-- distribution of photos per contributor (one heavy shooter vs. several light)
+- photos per contributor (one heavy shooter vs. several light)
 - download rate — did anyone actually leave with the photos
-- return rate — did a second event happen with an overlapping set of people
-- upload completion rate **bucketed by selection size** (decides web vs. native)
-- group formation rate (decides whether the monetization model exists at all)
+- return rate — a second event with an overlapping set of people
+- group formation rate — decides whether the monetization model exists at all
+
+Two more that exist only because of the native decision, and that judge it:
+
+- **Install conversion at the join moment**, and contribution rate for people
+  who *didn't* install. This is the number that says whether the app was worth
+  it. If web contributors are a large and healthy share, the install wall is
+  cheaper than feared; if they're a small and failing share, the wall is doing
+  the damage the concept predicted.
+- **Auto-select acceptance** — what fraction of the pre-selected set survives to
+  upload, and how many taps a contribution took. If people are deselecting most
+  of the suggestion or falling back to manual picking, the central justification
+  for native is not holding and should be re-argued.
