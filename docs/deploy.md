@@ -13,10 +13,10 @@ Most first-deploy failures are a secret that matches in two places out of three
 | Deriver + jobs | Fly.io | needs libvips and libheif; will not run in a Worker |
 
 The native client is built and submitted separately — see
-[`apps/mobile/README.md`](../apps/mobile/README.md). It needs one thing from
-this side that is easy to miss: `/.well-known/apple-app-site-association` and
-`/.well-known/assetlinks.json`, without which the app's deep links are
-declared and never verified.
+[`apps/mobile/README.md`](../apps/mobile/README.md). The web app serves the two
+`.well-known` files its deep links depend on, but they 404 until
+`APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` are set, and until then every
+tapped link opens a browser on a phone that has the app installed.
 
 ## Two kinds of deployment
 
@@ -167,6 +167,8 @@ Generate with `openssl rand -base64 32`.
 | `ZIP_BASE_URL` | ● | | the deployed zip Worker |
 | `IMAGE_BASE_URL` | ● | | the deployed image Worker |
 | `SAFETY_CONTACT_EMAIL` | ● | | published on `/safety`; App Store 1.2 |
+| `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
+| `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
 | `CSAM_SCANNER_KEY` | | ● | |
 | `CSAM_SCANNER` | | ● | `disabled`, private soak only |
@@ -180,6 +182,9 @@ Generate with `openssl rand -base64 32`.
 - [ ] Create an event, add a photo from a phone, watch it reach `ready`.
       If it stays `pending`, the deriver is not running or has no scanner.
 - [ ] The grid shows a thumbnail — proves `IMAGE_SECRET` matches.
+- [ ] `curl -s https://<app>/.well-known/apple-app-site-association | jq` names
+      your Team ID. A 404 means tapped links will open Safari instead of the
+      app, and Apple caches whatever it finds.
 - [ ] `curl -sI https://<app>/event/<id> | grep -i x-robots-tag` returns
       `noindex`. Possession of the link is the access model, so a crawler that
       reaches one indexes someone's photos.

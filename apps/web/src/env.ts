@@ -92,6 +92,21 @@ export function describeConfig(): ConfigItem[] {
       consequence: 'the safety page shows a placeholder address',
       requiredInProduction: true,
     },
+    {
+      name: 'APPLE_TEAM_ID',
+      present: has('APPLE_TEAM_ID'),
+      // Not required, because the web client is complete without an app. But
+      // the app's entitlement names this domain, so while it is unset every
+      // tapped link opens Safari on a phone that has the app installed.
+      consequence: 'iOS Universal Links do not verify; tapped links open Safari',
+      requiredInProduction: false,
+    },
+    {
+      name: 'ANDROID_CERT_FINGERPRINTS',
+      present: has('ANDROID_CERT_FINGERPRINTS'),
+      consequence: 'Android App Links do not verify; tapped links open Chrome',
+      requiredInProduction: false,
+    },
   ];
 }
 

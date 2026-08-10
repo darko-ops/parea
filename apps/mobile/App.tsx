@@ -17,12 +17,13 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -37,6 +38,7 @@ import {
 import { resolveWindow, type Window } from '@parea/autoselect';
 
 import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
+import { arrivalFromUrl } from './src/links';
 import { AutoSelect } from './src/AutoSelect';
 import {
   libraryAccess,
@@ -72,6 +74,65 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [events, setEvents] = useState<SavedEvent[]>([]);
   const [active, setActive] = useState<SavedEvent | null>(null);
+  const [arriving, setArriving] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  const open = useCallback(async (event: SavedEvent) => {
+    setEvents(await rememberEvent(event));
+    setActive(event);
+  }, []);
+
+  /**
+   * The one path in, whether the link was pasted, scanned or tapped.
+   *
+   * Lifted out of the join screen because a deep link can arrive when that
+   * screen is not mounted — the app may be sitting inside another event, or
+   * not running at all — and two copies of "exchange this for an event and
+   * remember it" would drift.
+   */
+  const join = useCallback(
+    async (input: { linkToken?: string; code?: string }) => {
+      setArriving(true);
+      setJoinError(null);
+      try {
+        const summary = await api.join(input);
+        await open({
+          id: summary.id,
+          name: summary.name,
+          linkToken: summary.linkToken,
+          startsAt: summary.startsAt,
+          endsAt: summary.endsAt,
+        });
+        return true;
+      } catch {
+        setJoinError("Couldn't find that. Check the link or the code and try again.");
+        return false;
+      } finally {
+        setArriving(false);
+      }
+    },
+    [api, open],
+  );
+
+  /**
+   * Cold start and warm start both deliver the URL, and on some platforms both
+   * deliver the *same* one — `getInitialURL` returns what launched the app and
+   * the listener can fire for it as well. Handling it twice means two joins and
+   * two writes to the recent-events list, so each URL is answered once.
+   */
+  const handled = useRef<string | null>(null);
+  const arrive = useCallback(
+    async (url: string | null) => {
+      if (!url || handled.current === url) return;
+      handled.current = url;
+      const arrival = arrivalFromUrl(url);
+      // A link we cannot act on is silently ignored rather than shown as an
+      // error: the person tapped something and got the app, which is not a
+      // failure they caused or can fix.
+      if (arrival) await join(arrival);
+    },
+    [join],
+  );
 
   useEffect(() => {
     (async () => {
@@ -79,13 +140,16 @@ export default function App() {
       if (token) api.setToken(token);
       setEvents(await loadEvents());
       setReady(true);
+      // After the token, so the join is made as whoever this device already
+      // is rather than as a stranger.
+      await arrive(await Linking.getInitialURL());
     })();
-  }, [api]);
 
-  const open = useCallback(async (event: SavedEvent) => {
-    setEvents(await rememberEvent(event));
-    setActive(event);
-  }, []);
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      void arrive(url);
+    });
+    return () => subscription.remove();
+  }, [api, arrive]);
 
   if (!ready) {
     return (
@@ -106,7 +170,26 @@ export default function App() {
           onBack={() => setActive(null)}
         />
       ) : (
-        <JoinScreen api={api} events={events} t={t} onOpen={open} />
+        <JoinScreen
+          events={events}
+          t={t}
+          onOpen={open}
+          onJoin={join}
+          busy={arriving}
+          error={joinError}
+        />
+      )}
+
+      {/*
+        A tapped link can land while the app is already inside another event.
+        Without this the screen simply changes under someone who is watching
+        an upload, with no account of why.
+      */}
+      {arriving && active && (
+        <View style={[styles.center, styles.overlay]}>
+          <ActivityIndicator color={t.accent} />
+          <Text style={[styles.body, { color: t.fg }]}>Opening…</Text>
+        </View>
       )}
     </View>
   );
@@ -115,48 +198,33 @@ export default function App() {
 // --- join --------------------------------------------------------------------
 
 function JoinScreen({
-  api,
   events,
   t,
   onOpen,
+  onJoin,
+  busy,
+  error,
 }: {
-  api: Api;
   events: SavedEvent[];
   t: Theme;
   onOpen: (event: SavedEvent) => void;
+  onJoin: (input: { linkToken?: string; code?: string }) => Promise<boolean>;
+  busy: boolean;
+  error: string | null;
 }) {
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
-  const join = useCallback(
+  const submit = useCallback(
     async (raw: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const token = tokenFromInput(raw);
-        // A link if it looks like one, otherwise treat it as a spoken code.
-        const summary = await api.join(
-          token ? { linkToken: token } : { code: raw },
-        );
-        onOpen({
-          id: summary.id,
-          name: summary.name,
-          linkToken: summary.linkToken,
-          startsAt: summary.startsAt,
-          endsAt: summary.endsAt,
-        });
-        setInput('');
-      } catch {
-        setError("Couldn't find that. Check the link or the code and try again.");
-      } finally {
-        setBusy(false);
-        setScanning(false);
-      }
+      const token = tokenFromInput(raw);
+      // A link if it looks like one, otherwise treat it as a spoken code.
+      const joined = await onJoin(token ? { linkToken: token } : { code: raw.trim() });
+      setScanning(false);
+      if (joined) setInput('');
     },
-    [api, onOpen],
+    [onJoin],
   );
 
   return (
@@ -174,12 +242,12 @@ function JoinScreen({
           placeholderTextColor={t.dim}
           autoCapitalize="none"
           autoCorrect={false}
-          onSubmitEditing={() => input.trim() && join(input)}
+          onSubmitEditing={() => input.trim() && submit(input)}
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
         <Button
           label={busy ? 'Looking…' : 'Go'}
-          onPress={() => join(input)}
+          onPress={() => submit(input)}
           disabled={busy || !input.trim()}
           t={t}
           primary
@@ -215,7 +283,7 @@ function JoinScreen({
             style={{ flex: 1 }}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             onBarcodeScanned={({ data }) => {
-              if (!busy) void join(data);
+              if (!busy) void submit(data);
             }}
           />
           <View style={{ padding: 20, paddingBottom: 40 }}>
@@ -665,6 +733,15 @@ function theme(dark: boolean) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    gap: 12,
+  },
   scroll: { padding: 20, paddingTop: 72, gap: 14 },
   gridContent: { padding: 12, paddingTop: 64 },
   h1: { fontSize: 26, fontWeight: '700' },

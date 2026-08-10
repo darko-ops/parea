@@ -33,6 +33,13 @@ returns get written to the photo library instead.
 QR scanning and spoken codes, so the at-the-party join moment works without
 anyone typing a URL.
 
+Tapped links. `https://parea.photos/e/<token>` opens the app when it is
+installed and the web client when it is not — the same URL either way, which is
+what lets the link be dropped in a group chat without anyone thinking about it.
+Cold start and warm start both route through one join path in `App.tsx`, and
+each URL is answered once: `getInitialURL` returns what launched the app and
+the listener can fire for the same URL, so handling both means joining twice.
+
 ## Auto-selection
 
 The reason this client exists (design §1). With photo-library access and a
@@ -106,12 +113,13 @@ Android submits to the `internal` track, not straight to production.
 
 - **An icon.** There is no `assets/` directory, so Expo's default is what ships.
   App Store Connect wants 1024×1024 and will not take a placeholder twice.
-- **`/.well-known/apple-app-site-association`,** served by the web app. The
-  entitlement now names a real domain and nothing answers for it, so Universal
-  Links will not verify and every link falls through to Safari. The file needs
-  `<TeamID>.photos.parea`, so it is blocked on the Apple Team ID and on
-  nothing else. Android needs `/.well-known/assetlinks.json` the same way, with
-  the release signing certificate's fingerprint.
+- **`APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` on the web deployment.**
+  Both `.well-known` files are served by the web app now, and both 404 until
+  those are set — absent rather than wrong, because Apple caches the AASA hard
+  and a file naming the wrong team is a link that stays broken long after
+  someone fixes the variable. Android needs *both* certificates: the upload key
+  and the one Google re-signs with under Play App Signing. `eas credentials`
+  prints them.
 - **Nutrition labels**, in App Store Connect rather than in this repository.
   The privacy manifest here declares photos, the push token and the optional
   display name — all unlinked, none for tracking.

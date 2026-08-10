@@ -753,6 +753,30 @@ and someone who has never heard of the product.
   contribution route on half the phones at the party," and it should be resourced
   accordingly.
 
+
+### The server half of a deep link
+
+An app that declares `applinks:` is making a claim the platform verifies before
+it honours: iOS fetches `/.well-known/apple-app-site-association` and looks for
+`<TeamID>.<bundle id>`, Android fetches `/.well-known/assetlinks.json` and
+matches the *signing certificate* of the installed app. Both are served by the
+web app, from route handlers rather than static files, because the Team ID and
+the fingerprints are deployment configuration and the identifiers are not.
+
+Both **404 when unconfigured rather than serving a file with a placeholder in
+it.** Apple caches the AASA aggressively, so a file naming the wrong team is a
+link that stays broken long after the variable is fixed; Android verifies only
+at install time, so a fingerprint corrected after release does not repair
+already-installed apps at all. Absent is recoverable. Wrong is not.
+
+Only `/e/*` is claimed. `/event/<id>` works in a browser because the token has
+already been exchanged for a capability cookie, and carries nothing a native
+client could use.
+
+The failure mode when any of this is wrong is the quietest in the product: the
+link opens a browser, which is exactly what it does for someone who has not
+installed the app. Nothing errors, and nobody reports it.
+
 ## 10. Download
 
 Bulk download of originals is the product's terminal action and its main cost

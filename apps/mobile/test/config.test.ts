@@ -18,7 +18,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const read = (name: string) =>
-  JSON.parse(readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8'));
+  JSON.parse(
+    readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8'),
+  );
 
 const app = read('app.json').expo;
 const eas = read('eas.json');
