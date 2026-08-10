@@ -118,11 +118,22 @@ export class Api {
    * On native the natural terminal action is the camera roll, not a zip — but
    * the endpoint is shared, and the URLs it returns are what get saved.
    */
-  download(eventId: string, linkToken: string) {
-    return this.call<{ url: string; count: number; totalBytes: number }>(
-      `/api/events/${eventId}/download`,
-      { method: 'POST', body: JSON.stringify({ linkToken }) },
-    );
+  download(
+    eventId: string,
+    linkToken: string,
+    format: 'original' | 'jpeg' = 'original',
+  ) {
+    return this.call<{
+      url: string;
+      format: 'original' | 'jpeg';
+      count: number;
+      /** Originals swapped for a JPEG rendition; 0 means the archives match. */
+      converted: number;
+      totalBytes: number;
+    }>(`/api/events/${eventId}/download`, {
+      method: 'POST',
+      body: JSON.stringify({ linkToken, format }),
+    });
   }
 
   /** Fire and forget: failing to register must never block anything. */

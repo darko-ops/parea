@@ -284,6 +284,17 @@ export const derivatives = pgTable(
     width: integer('width').notNull(),
     height: integer('height').notNull(),
     mime: text('mime').notNull(),
+    /**
+     * Recorded for the same reason the original's are (§10): an archive of
+     * derivatives can only carry an exact Content-Length if their sizes and
+     * CRCs are known without reading them.
+     *
+     * Nullable because derivatives written before this existed have neither,
+     * and backfilling means re-deriving every photo. The download path refuses
+     * rather than guessing — see the 409 in the download route.
+     */
+    byteSize: bigint('byte_size', { mode: 'number' }),
+    crc32: bigint('crc32', { mode: 'number' }),
   },
   (t) => [primaryKey({ columns: [t.photoId, t.kind] })],
 );

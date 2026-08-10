@@ -39,6 +39,8 @@ import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { resolveArchive } from '../../apps/web/src/archive';
+import { crc32 } from '../../services/deriver/src/crc32';
 import { seedCodes } from '../../services/deriver/src/jobs';
 import { LocalObjectStore } from '../../services/deriver/src/objects';
 import { processPhoto } from '../../services/deriver/src/pipeline';
@@ -271,6 +273,116 @@ describe('a party, from link to download', () => {
       // And the capture time survived, so the grid is chronological.
       expect(photo.capturedAt).not.toBeNull();
     }
+  }, 60_000);
+});
+
+describe('download as JPEG, against real bytes', () => {
+  /**
+   * The archive an Android recipient gets — design §7.7.
+   *
+   * Worth doing against real files rather than fixtures because the property
+   * that matters is an agreement between two pieces of code that never meet:
+   * the deriver records each derivative's size and CRC-32 at ingest, and the
+   * download path builds an archive header out of those numbers without ever
+   * reading the object. If they disagree by one byte, the zip is corrupt, and
+   * no unit test of either side alone would notice.
+   */
+  it('archives the derivative, and the numbers recorded at ingest are true', async () => {
+    const [actor] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    const [event] = await db
+      .insert(schema.events)
+      .values({ name: 'Rooftop', linkToken: newLinkToken(), createdBy: actor.id })
+      .returning();
+
+    // PNG, so it is not already JPEG and the substitution actually happens.
+    // (HEIC would be truer to the case, but encoding one needs an HEVC encoder
+    // that the test machine may not have; what is being tested is the
+    // substitution and the arithmetic, not the input codec.)
+    const png = await sharp({
+      create: { width: 3000, height: 2000, channels: 3, background: { r: 200, g: 40, b: 90 } },
+    })
+      .png()
+      .toBuffer();
+
+    const uploadKey = `ev/${event.id}/${crypto.randomUUID()}`;
+    await objects.put(uploadKey, png);
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId: event.id,
+        uploaderId: actor.id,
+        storageKey: uploadKey,
+        byteSize: png.length,
+        mime: 'image/png',
+        status: 'pending',
+      })
+      .returning();
+
+    expect(
+      (await processPhoto({ db, objects, scanner: new DisabledScanner() }, row.id)).status,
+    ).toBe('ready');
+
+    const [derivative] = await db
+      .select()
+      .from(schema.derivatives)
+      .where(
+        and(eq(schema.derivatives.photoId, row.id), eq(schema.derivatives.kind, 'full')),
+      );
+
+    // What the deriver wrote down must describe the object it stored.
+    const storedDerivative = (await objects.get(derivative.storageKey))!;
+    expect(Number(derivative.byteSize)).toBe(storedDerivative.length);
+    expect(Number(derivative.crc32)).toBe(crc32(storedDerivative));
+
+    // --- the two formats resolve to different objects ---------------------
+    const asOriginal = await resolveArchive(db, event.id, {
+      selection: 'all',
+      format: 'original',
+    });
+    const asJpeg = await resolveArchive(db, event.id, { selection: 'all', format: 'jpeg' });
+    expect(asOriginal.ok && asJpeg.ok).toBe(true);
+    if (!asOriginal.ok || !asJpeg.ok) return;
+
+    expect(asOriginal.entries[0]!.name).toMatch(/\.png$/);
+    expect(asJpeg.entries[0]!.name).toMatch(/\.jpg$/);
+    expect(asJpeg.converted).toBe(1);
+
+    // --- and the JPEG archive opens ---------------------------------------
+    const plan = planArchive(
+      asJpeg.entries.map((e) => ({
+        name: e.name,
+        size: e.size,
+        crc32: e.crc32,
+        modified: new Date(e.takenAt),
+      })),
+    );
+    const zip = await collect(
+      streamArchive(plan, async (index) => {
+        const bytes = (await objects.get(asJpeg.entries[index]!.key))!;
+        return new ReadableStream<Uint8Array>({
+          start(c) { c.enqueue(bytes); c.close(); },
+        });
+      }),
+    );
+    expect(zip.byteLength, 'the Content-Length the Worker promised').toBe(plan.totalBytes);
+
+    const zipPath = join(dir, 'jpeg.zip');
+    const outDir = join(dir, 'jpeg-extracted');
+    await writeFile(zipPath, zip);
+    // `unzip -t` verifies every CRC, which is the real check on the numbers
+    // the deriver recorded — a wrong CRC fails here and nowhere earlier.
+    expect((await run('unzip', ['-t', zipPath])).stdout).toMatch(/No errors detected/);
+    await run('unzip', ['-o', '-q', zipPath, '-d', outDir]);
+
+    // A file an Android gallery can actually open: real JPEG, right size.
+    const extracted = await readFile(join(outDir, asJpeg.entries[0]!.name));
+    const meta = await sharp(extracted).metadata();
+    expect(meta.format).toBe('jpeg');
+    expect(Math.max(meta.width!, meta.height!)).toBe(2560);
+
+    // And smaller than the original, which is the other half of why anyone
+    // would pick this button.
+    expect(extracted.length).toBeLessThan(png.length);
   }, 60_000);
 });
 

@@ -524,6 +524,20 @@ originals gets files their gallery may not open. Both clients offer **download
 originals** and **download as JPEG** side by side, which is the honest framing
 of the format problem rather than a hidden downgrade.
 
+Two consequences of building it that way, both non-obvious:
+
+- **The `full` derivative needs its own size and CRC-32**, recorded at ingest
+  alongside the original's, or the JPEG archive cannot carry an exact
+  `Content-Length` (§10). Both columns are nullable, because a derivative
+  written before they existed has neither and backfilling means re-deriving
+  every photo. The download path refuses the whole archive rather than guessing
+  or silently dropping the photo.
+- **An original that is already JPEG is not converted.** It goes into the JPEG
+  archive as-is, at full resolution. The ask is "files that open", which it
+  already satisfies; substituting a 2560px re-encode would be quality lost for
+  nothing. The response reports how many were actually converted, so a client
+  can say whether the two downloads differ at all.
+
 Alternative: Cloudflare Images handles HEIC and removes the container, at a
 per-image cost on exactly the axis that grows. Container first; switch if
 operating it becomes the tax rather than the saving.
@@ -637,8 +651,9 @@ and HEIC are already compressed, so deflate burns CPU for ~0%. Nothing is
 staged: no temporary archive object, no job queue.
 
 The refinement that matters: **crc32 and byte size are precomputed at ingest**
-and file ordering is deterministic, so the exact archive length is computable up
-front and the response carries a real `Content-Length`. That means a real
+— for the `full` derivative as well as the original, so both formats in §7.7
+get this — and file ordering is deterministic, so the exact archive length is
+computable up front and the response carries a real `Content-Length`. That means a real
 progress bar and time estimate on a 1GB download instead of an indeterminate
 spinner — and deterministic layout makes `Range` resume implementable later
 without a format change.

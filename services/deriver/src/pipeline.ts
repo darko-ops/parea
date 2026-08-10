@@ -214,6 +214,12 @@ export async function processPhoto(
           width: d.width,
           height: d.height,
           mime: d.mime,
+          // Same reason the original records them (§10): "download as JPEG"
+          // archives these objects, and an archive can only carry an exact
+          // Content-Length if every member's size and CRC are known before
+          // anything is read. The bytes are in hand here and nowhere else.
+          byteSize: d.bytes.length,
+          crc32: crc32(d.bytes),
         })),
       )
       .onConflictDoNothing();
