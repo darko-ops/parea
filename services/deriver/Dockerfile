@@ -14,11 +14,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY packages/core/package.json packages/core/
+
+# Every workspace package, not the ones the deriver imported the last time
+# anyone edited this file. Naming them individually has now silently broken
+# the image twice — once when jobs.ts took a dependency on @parea/push, once
+# when the pipeline took one on @parea/urls — and the failure is a build
+# error a long way from the import that caused it. These are TypeScript
+# sources measured in kilobytes; the layer-cache saving was never worth it.
+COPY packages packages
 COPY services/deriver/package.json services/deriver/
 RUN npm ci --omit=dev --workspace @parea/deriver --include-workspace-root
 
-COPY packages/core packages/core
 COPY services/deriver services/deriver
 
 # Fails the build if this image cannot actually ingest a photo, rather than

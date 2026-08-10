@@ -4,7 +4,10 @@ Companion to [`concept.md`](./concept.md). That document says what to build and
 why. This one says how, and records the decisions that are expensive to change
 later.
 
-Status: proposal. Nothing here is built. Open decisions are collected in §16.
+Status: built, undeployed. Everything below exists in the repository and is
+tested; nothing has met a real device, bucket or user. Open decisions are
+collected in §17, and what stands between here and a launch is in the
+repository README.
 
 **Amends the concept.** Section 4 of `concept.md` leaves web-vs-native open.
 It is now decided: **React Native (Expo) is the primary client, and a stripped

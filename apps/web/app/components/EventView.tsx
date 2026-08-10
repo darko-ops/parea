@@ -29,7 +29,7 @@ type Photo = {
   src: string;
   /** The same thumbnail in every encoding that exists, best first (§11). */
   sources?: { type: string; src: string }[];
-  /** Larger rendition, for a lightbox that does not exist yet. */
+  /** Larger rendition, for the lightbox. */
   full: string;
   takenAt: string;
   mine: boolean;

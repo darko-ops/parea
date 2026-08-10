@@ -81,11 +81,12 @@ instead, because that needs no Cloudflare account and keeps ingest working in
 development. The pipeline does not care how work arrives, so the queue is a
 change to `index.ts` only.
 
-**Derivatives are JPEG, not AVIF.** The design specifies AVIF with a JPEG
-fallback for the two smaller sizes. That means two encodings per size and
-`Accept`-based selection at the edge, which belongs with the image Worker that
-does not exist yet. Until then this is a bandwidth cost, not a correctness one,
-and R2 egress is free.
+**AVIF encoding is the slow step.** `thumb` and `grid` are encoded twice, AVIF
+and JPEG; `full` stays JPEG because it is the download-as-JPEG archive member.
+libaom effort is 2 rather than libvips' default of 4 — measured at ~0.7s versus
+~5.6s for a 1280px encode, against ~185ms for the JPEG. With one machine and no
+claim-based work distribution, the default would add twenty-odd minutes of
+ingest to a 250-photo event.
 
 **Serial processing.** One photo at a time per drain. Fine at current volumes;
 the obvious first change if ingest ever becomes the bottleneck.
