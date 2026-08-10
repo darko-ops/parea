@@ -12,6 +12,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CONCURRENCY,
   MAX_ATTEMPTS,
+  MAX_REPRESIGN_ROUNDS,
+  Offline,
   UploadQueue,
   type Deps,
   type QueueItem,
@@ -301,5 +303,192 @@ describe('housekeeping', () => {
     queue.add('event-1', [file(1), file(2)]);
     await Promise.all([queue.run(), queue.run()]);
     expect(h.uploaded).toHaveLength(2);
+  });
+});
+
+describe('a venue with no signal', () => {
+  /**
+   * Design §1's table promises "offline queueing at a bad-signal venue" as a
+   * thing native has and the web does not. Before this it did the opposite:
+   * four attempts spent in a few hundred milliseconds and two hundred photos
+   * marked permanently failed, at precisely the moment the native client is
+   * supposed to be earning its place.
+   */
+  function offlineDeps(overrides: Partial<Deps> = {}): { deps: Deps; attempts: () => number } {
+    let calls = 0;
+    return {
+      attempts: () => calls,
+      deps: {
+        presign: async (_eventId, files) =>
+          files.map((_f, i) => ({
+            photoId: `p${i}`,
+            url: `https://r2.test/${i}`,
+            headers: {},
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          })),
+        upload: async () => {
+          calls += 1;
+          throw new Offline();
+        },
+        complete: async () => {},
+        save: async () => {},
+        ...overrides,
+      },
+    };
+  }
+
+  it('spends no attempts, because none were made', async () => {
+    const { deps } = offlineDeps();
+    const queue = new UploadQueue(deps);
+    queue.add('ev', [file(1)]);
+
+    await queue.run();
+
+    expect(queue.failedCount).toBe(0);
+    expect(queue.state.items[0]!.attempts).toBe(0);
+    expect(queue.state.items[0]!.status).toBe('presigned');
+  });
+
+  it('says it is waiting rather than that it failed', async () => {
+    // The two ask opposite things of a person: one is "try again", the other
+    // is "wait, and do not do anything".
+    const { deps } = offlineDeps();
+    const queue = new UploadQueue(deps);
+    queue.add('ev', [file(1)]);
+    await queue.run();
+
+    expect(queue.waitingForNetwork).toBe(true);
+    expect(queue.state.items[0]!.error).toMatch(/connection/);
+  });
+
+  it('stops the whole batch at the first one, not per photo', async () => {
+    // Two hundred photos each discovering the network is gone is two hundred
+    // round trips into a wall, and on cellular it is two hundred timeouts.
+    const { deps, attempts } = offlineDeps();
+    const queue = new UploadQueue(deps);
+    queue.add('ev', Array.from({ length: 50 }, (_, i) => file(i)));
+
+    await queue.run();
+
+    expect(attempts()).toBeLessThanOrEqual(CONCURRENCY);
+    expect(queue.pendingCount).toBe(50);
+  });
+
+  it('picks up where it left off once there is a network', async () => {
+    let online = false;
+    const { deps } = offlineDeps({
+      upload: async () => {
+        if (!online) throw new Offline();
+      },
+    });
+    const queue = new UploadQueue(deps);
+    queue.add('ev', [file(1), file(2)]);
+
+    await queue.run();
+    expect(queue.doneCount).toBe(0);
+
+    online = true;
+    await queue.run();
+
+    expect(queue.doneCount).toBe(2);
+    expect(queue.waitingForNetwork).toBe(false);
+  });
+
+  it('leaves an ordinary failure alone', async () => {
+    // The distinction has to survive: a rejected upload still consumes its
+    // retries and still ends up failed.
+    const queue = new UploadQueue({
+      presign: async (_eventId, files) =>
+        files.map((_f, i) => ({
+          photoId: `p${i}`,
+          url: `https://r2.test/${i}`,
+          headers: {},
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        })),
+      upload: async () => {
+        throw new Error('upload failed: 500');
+      },
+      complete: async () => {},
+      save: async () => {},
+    });
+    queue.add('ev', [file(1)]);
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) await queue.run();
+
+    expect(queue.failedCount).toBe(1);
+    expect(queue.waitingForNetwork).toBe(false);
+  });
+
+  it('is not waiting once there is nothing left to send', async () => {
+    const queue = new UploadQueue(offlineDeps().deps);
+    expect(queue.waitingForNetwork).toBe(false);
+  });
+});
+
+describe('a grant that is stale the moment it arrives', () => {
+  /**
+   * Found by writing the offline tests, and older than them.
+   *
+   * Re-presigning is the right answer to a grant that went stale while the
+   * phone was locked, and the queue used to keep doing it until no item
+   * needed one — which assumes the fresh grant is usable. A server handing
+   * back an already-expired grant, or a device whose clock is wrong by more
+   * than the expiry margin, made `run()` recurse forever: no attempt
+   * consumed, no error raised, nothing logged, and on a phone it reads as the
+   * upload having silently stopped.
+   */
+  it('gives up rather than spinning', async () => {
+    let presigns = 0;
+    const queue = new UploadQueue({
+      presign: async (_eventId, files) => {
+        presigns += 1;
+        return files.map((_f, i) => ({
+          photoId: `p${i}`,
+          url: `https://r2.test/${i}`,
+          headers: {},
+          expiresAt: new Date(Date.now() - 1000).toISOString(),
+        }));
+      },
+      upload: async () => {},
+      complete: async () => {},
+      save: async () => {},
+    });
+    queue.add('ev', [file(1)]);
+
+    await queue.run();
+
+    expect(presigns).toBe(MAX_REPRESIGN_ROUNDS + 1);
+    // Left pending rather than failed: nothing is wrong with the photo, and
+    // the next run may find a server that has stopped misbehaving.
+    expect(queue.state.items[0]!.status).toBe('pending');
+    expect(queue.failedCount).toBe(0);
+  });
+
+  it('still re-presigns once for the ordinary case', async () => {
+    // The phone was locked and the grants went stale. One extra round is what
+    // this whole mechanism exists for, and bounding it must not remove it.
+    let presigns = 0;
+    const queue = new UploadQueue({
+      presign: async (_eventId, files) => {
+        presigns += 1;
+        return files.map((_f, i) => ({
+          photoId: `p${i}`,
+          url: `https://r2.test/${i}`,
+          headers: {},
+          expiresAt: new Date(
+            Date.now() + (presigns === 1 ? -1000 : 900_000),
+          ).toISOString(),
+        }));
+      },
+      upload: async () => {},
+      complete: async () => {},
+      save: async () => {},
+    });
+    queue.add('ev', [file(1)]);
+
+    await queue.run();
+
+    expect(presigns).toBe(2);
+    expect(queue.doneCount).toBe(1);
   });
 });

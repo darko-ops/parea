@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Image,
   Linking,
@@ -41,6 +42,7 @@ import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
+import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
 import {
   libraryAccess,
@@ -55,8 +57,10 @@ import {
   loadActorToken,
   pushAlreadyAsked,
   registerForPush,
+  launchNotification,
   loadEvents,
   loadQueue,
+  onNotificationTapped,
   rememberEvent,
   saveActorToken,
   saveQueue,
@@ -163,6 +167,31 @@ export default function App() {
     [join],
   );
 
+  /**
+   * Where a tapped notification goes.
+   *
+   * §12 allows one reminder per event, ever. Until this existed all three
+   * notifications arrived and did nothing but bring the app forward on
+   * whatever screen it was already showing, which spends that one interruption
+   * on nothing.
+   */
+  const follow = useCallback(
+    async (data: Record<string, unknown> | null) => {
+      const target = notificationTarget(data);
+      if (!target) return;
+      if (target.screen === 'group') {
+        setRoute({ screen: 'group', id: target.groupId });
+        return;
+      }
+      // A nudge is about an event this person already joined, so the token is
+      // on the device. If it is not — a reinstall — there is nothing to open
+      // with, and dropping them on the home screen beats a broken event.
+      const saved = (await loadEvents()).find((e) => e.id === target.eventId);
+      if (saved) void open(saved);
+    },
+    [open],
+  );
+
   useEffect(() => {
     (async () => {
       const token = await loadActorToken();
@@ -174,13 +203,20 @@ export default function App() {
       // is the common first launch and not an error.
       void refreshGroups();
       await arrive(await Linking.getInitialURL());
+      // The notification equivalent of `getInitialURL`: the app may have been
+      // launched by a tap, and that arrives here rather than on the listener.
+      await follow(await launchNotification());
     })();
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
       void arrive(url);
     });
-    return () => subscription.remove();
-  }, [api, arrive, refreshGroups]);
+    const untap = onNotificationTapped((data) => void follow(data));
+    return () => {
+      subscription.remove();
+      untap();
+    };
+  }, [api, arrive, follow, refreshGroups]);
 
   if (!ready) {
     return (
@@ -439,6 +475,7 @@ function EventScreen({
   const [feed, setFeed] = useState<Feed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
+  const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
@@ -499,14 +536,58 @@ function EventScreen({
         clearInterval(tick);
         queue.prune();
         await saveQueue(queue.state);
+        // Three outcomes, not two. "Waiting" and "failed" ask opposite things
+        // of a person: one is do nothing, the other is try again.
+        setWaitingForNetwork(queue.waitingForNetwork);
         setQueueStatus(
-          queue.failedCount > 0 ? `${queue.failedCount} didn't upload` : null,
+          queue.waitingForNetwork
+            ? `${queue.pendingCount} waiting for a connection`
+            : queue.failedCount > 0
+              ? `${queue.failedCount} didn't upload`
+              : null,
         );
         await refresh();
       }
     },
     [api, event, refresh],
   );
+
+  /**
+   * Try again when there is some reason to think the answer will differ.
+   *
+   * The queue stops rather than spinning when the network is gone, so
+   * something has to start it. Two triggers, and no new dependency for
+   * either: coming back to the app, which is when someone has walked outside,
+   * and a widening backoff for the person standing still in a basement with
+   * the app open.
+   *
+   * A connectivity library would be the precise answer. It is a native module
+   * this codebase cannot test and would only make the retry sooner, not more
+   * correct — the retry is cheap and the queue is idempotent.
+   */
+  useEffect(() => {
+    if (!waitingForNetwork) return;
+
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void runQueue();
+    });
+
+    let delay = 15_000;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      timer = setTimeout(() => {
+        void runQueue();
+        delay = Math.min(delay * 2, 5 * 60_000);
+        tick();
+      }, delay);
+    };
+    tick();
+
+    return () => {
+      subscription.remove();
+      clearTimeout(timer);
+    };
+  }, [waitingForNetwork, runQueue]);
 
   const windowFor = useCallback((): Window | null => {
     return resolveWindow({
@@ -712,8 +793,13 @@ function EventScreen({
             {queueStatus && (
               <Text style={[styles.body, { color: t.dim }]}>
                 {queueStatus}
-                {!BACKGROUND_UPLOAD_SUPPORTED &&
-                  ' — keep the app open until this finishes'}
+                {waitingForNetwork
+                  ? // Nothing is lost and nothing needs doing. Saying this
+                    // plainly is the difference between someone waiting and
+                    // someone force-quitting the app on their photos.
+                    ' — they are saved and will go up on their own.'
+                  : !BACKGROUND_UPLOAD_SUPPORTED &&
+                    ' — keep the app open until this finishes'}
               </Text>
             )}
             {offerUpgrade && (

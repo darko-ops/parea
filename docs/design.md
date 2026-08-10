@@ -883,6 +883,13 @@ Native unlocks the concept's "one well-timed reminder," and the concept is
 emphatic that it is *one*. The cap lives in the schema (`event.nudged_at`), not
 in config, so it cannot be lost to a deploy.
 
+A notification that cannot be acted on is the whole feature wasted, given
+there is only ever one per event: the payload carries a target and the native
+client routes on it. A `group_event` opens the **group**, not the event —
+the event is new, so no device holds a link token for it, and the group lists
+its events with theirs. Inventing an endpoint to trade an id for a credential
+would be the alternative, and it would be a second way into an event.
+
 Three notification types, total:
 
 1. **The nudge** — once per event, to attendees who joined but haven't uploaded.

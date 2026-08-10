@@ -22,6 +22,20 @@ the whole "close the app, it keeps going" promise rests on it. **Android has no
 equivalent** — uploads survive backgrounding for a while and die when the OS
 reclaims the process — so the UI says "keep the app open" there and not on iOS.
 
+A queue that survives a venue with no signal. §1's table promises offline
+queueing and the queue used to do the opposite — four attempts spent in a few
+hundred milliseconds and two hundred photos marked permanently failed, at the
+moment the native client is supposed to be earning its place. An `Offline`
+error now costs no attempt and stops the run; the app restarts it when
+something has changed, which is coming back to the app or a widening backoff.
+No connectivity library: it would make the retry sooner rather than more
+correct, and it is a native module nothing here can test.
+
+Tapped notifications go somewhere. §12 allows one reminder per event, ever,
+and all three used to arrive and do nothing but bring the app forward. A group
+event opens the group rather than the event, because the event is new and this
+device holds no link token for it — the group lists its events with theirs.
+
 A queue that survives being killed. State is persisted after every transition,
 each file moves through presign → upload → complete independently, and retries
 are safe because the server addresses objects by content.

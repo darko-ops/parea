@@ -12,7 +12,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import type { QueueItem, QueueState } from '@parea/upload';
+import { Offline, type QueueItem, type QueueState } from '@parea/upload';
 
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
@@ -124,7 +124,17 @@ export async function uploadItem(item: QueueItem): Promise<void> {
     sessionType: 'background',
   });
 
-  const result = await task.uploadAsync();
+  let result;
+  try {
+    result = await task.uploadAsync();
+  } catch (err) {
+    // A transfer that never got an answer. At a venue this is no signal, and
+    // the queue must not spend a retry on it — see `Offline`. Erring towards
+    // that reading: a stalled queue someone restarts beats a batch of photos
+    // marked permanently failed while they were standing in a basement.
+    throw new Offline(err instanceof Error ? err.message : undefined);
+  }
+
   if (result.status < 200 || result.status >= 300) {
     throw new Error(`upload failed: ${result.status}`);
   }
@@ -133,6 +143,39 @@ export async function uploadItem(item: QueueItem): Promise<void> {
 export const BACKGROUND_UPLOAD_SUPPORTED = Platform.OS === 'ios';
 
 // --- push --------------------------------------------------------------------
+
+/**
+ * How a notification behaves while the app is open.
+ *
+ * Shown rather than suppressed. Suppressing is the clever choice and the
+ * surprising one — a person who saw their phone light up and then finds
+ * nothing has been told something went wrong. §12 permits so few of these
+ * that none of them is noise.
+ */
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+/** The payload of the notification that launched the app, if one did. */
+export async function launchNotification(): Promise<Record<string, unknown> | null> {
+  const response = await Notifications.getLastNotificationResponseAsync();
+  return (response?.notification.request.content.data as Record<string, unknown>) ?? null;
+}
+
+/** Taps while the app is running. Returns an unsubscribe. */
+export function onNotificationTapped(
+  handler: (data: Record<string, unknown>) => void,
+): () => void {
+  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    handler((response.notification.request.content.data as Record<string, unknown>) ?? {});
+  });
+  return () => subscription.remove();
+}
 
 /**
  * Ask for notifications, once, and only when there is something worth being

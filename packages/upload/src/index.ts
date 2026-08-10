@@ -78,6 +78,33 @@ export type PresignResponse = {
  * Retrying costs a round trip and cannot succeed, so this skips straight to
  * `stale` and asks a human for the file again.
  */
+/**
+ * The network is not there. Nothing is wrong with this item.
+ *
+ * Design §1's table promises "offline queueing at a bad-signal venue" as
+ * something native has and the web does not, and without this the queue does
+ * the opposite: a venue with no signal burns all four attempts in a few
+ * hundred milliseconds and marks two hundred photos permanently failed, at
+ * exactly the moment the design says the native client earns its place.
+ *
+ * So an offline error consumes no attempt and stops the run. The item stays
+ * pending and the caller starts the queue again when there is some reason to
+ * think the answer will differ — the app coming back to the foreground, or a
+ * backoff timer. Retrying inside the run would be a tight loop against a
+ * network that is not there.
+ *
+ * The platform layer decides what counts, and errs towards this: a `fetch`
+ * that rejects rather than answering is indistinguishable from no signal, and
+ * being wrong here costs a stalled queue the person can restart, where being
+ * wrong the other way costs their photos.
+ */
+export class Offline extends Error {
+  constructor(message = 'no network') {
+    super(message);
+    this.name = 'Offline';
+  }
+}
+
 export class SourceGone extends Error {
   constructor(message = 'source is no longer readable') {
     super(message);
@@ -99,6 +126,14 @@ export const CONCURRENCY = 3;
 export const MAX_ATTEMPTS = 4;
 /** Re-presign rather than upload if the URL is this close to expiring. */
 const EXPIRY_MARGIN_MS = 30_000;
+/**
+ * How many times one run will go back for fresh grants.
+ *
+ * One covers the real case — the phone was locked and the grants went stale.
+ * More than that means the fresh grant was unusable too, which is a wrong
+ * clock or a broken server, and looping on it is a spin with nothing logged.
+ */
+export const MAX_REPRESIGN_ROUNDS = 2;
 
 export class UploadQueue {
   private items: QueueItem[];
@@ -113,6 +148,12 @@ export class UploadQueue {
    * which is what this did before the resume tests caught it.
    */
   private needsRepresign = false;
+  /**
+   * Set when the run stopped because the network was gone rather than because
+   * the work finished. The UI needs the difference: "waiting for a
+   * connection" and "3 didn't upload" ask for opposite things from a person.
+   */
+  private paused = false;
 
   constructor(
     private readonly deps: Deps,
@@ -137,6 +178,11 @@ export class UploadQueue {
 
   get failedCount(): number {
     return this.items.filter((i) => i.status === 'failed').length;
+  }
+
+  /** True when the last run stopped for want of a network, not for want of work. */
+  get waitingForNetwork(): boolean {
+    return this.paused && this.pendingCount > 0;
   }
 
   /** Items whose bytes vanished, and which therefore need re-picking. */
@@ -184,26 +230,36 @@ export class UploadQueue {
   async run(): Promise<void> {
     if (this.running) return;
     this.running = true;
-    this.needsRepresign = false;
+    this.paused = false;
     try {
-      await this.presignPending();
+      // Bounded, and a loop rather than a self-call. Re-presigning is the
+      // legitimate answer to a grant that went stale while the phone was
+      // locked, and one extra round covers it. Recursing until no item needs
+      // one assumed the fresh grant would be usable — a server handing back
+      // an already-expired grant, or a device with a badly wrong clock, made
+      // it spin forever with no attempt consumed and nothing logged. Stopping
+      // leaves the items pending, which the next run picks up.
+      for (let round = 0; round <= MAX_REPRESIGN_ROUNDS; round++) {
+        this.needsRepresign = false;
+        await this.presignPending();
 
-      let next = 0;
-      const workable = this.items.filter((i) => i.status === 'presigned');
-      const worker = async () => {
-        while (next < workable.length) {
-          const item = workable[next++]!;
-          await this.push(item);
-        }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(CONCURRENCY, workable.length) }, worker),
-      );
+        let next = 0;
+        const workable = this.items.filter((i) => i.status === 'presigned');
+        const worker = async () => {
+          // Stops the other workers too: once one request has found no
+          // network, the remaining hundred and ninety-nine will not find one.
+          while (next < workable.length && !this.paused) {
+            const item = workable[next++]!;
+            await this.push(item);
+          }
+        };
+        await Promise.all(
+          Array.from({ length: Math.min(CONCURRENCY, workable.length) }, worker),
+        );
 
-      // Only items sent back for a fresh grant, never failures.
-      if (this.needsRepresign) {
-        this.running = false;
-        return this.run();
+        // Only items sent back for a fresh grant, never failures — and never
+        // while the network is gone, which would presign into the same wall.
+        if (!this.needsRepresign || this.paused) break;
       }
     } finally {
       this.running = false;
@@ -240,6 +296,8 @@ export class UploadQueue {
         });
       } catch (err) {
         for (const item of items) this.fail(item, err);
+        // Nothing else will presign either.
+        if (this.paused) break;
       }
       await this.deps.save(this.state);
     }
@@ -272,6 +330,15 @@ export class UploadQueue {
   }
 
   private fail(item: QueueItem, err: unknown): void {
+    if (err instanceof Offline) {
+      // No attempt was spent, because none was made. The item is untouched
+      // apart from the note, and the run stops rather than eating the retry
+      // budget of every remaining photo against a network that is not there.
+      this.paused = true;
+      item.error = 'waiting for a connection';
+      return;
+    }
+
     item.attempts += 1;
     item.error = err instanceof Error ? err.message : String(err);
     if (err instanceof SourceGone) {

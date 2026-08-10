@@ -7,7 +7,7 @@
  * a bearer token out of the keychain.
  */
 
-import type { PresignRequest, PresignResponse } from '@parea/upload';
+import { Offline, type PresignRequest, type PresignResponse } from '@parea/upload';
 
 export type EventSummary = {
   id: string;
@@ -108,7 +108,17 @@ export class Api {
     // nature: a caller lying about it skews a number and reaches nothing.
     headers['x-parea-client'] = this.client;
 
-    const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    } catch {
+      // `fetch` rejects rather than answering, which at a venue means no
+      // signal. Distinguished from an HTTP error because the upload queue
+      // treats them oppositely: this one costs no retry attempt and stops the
+      // run, where a 500 spends one. Errs towards Offline — a stalled queue
+      // someone can restart beats photos marked permanently failed.
+      throw new Offline();
+    }
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       throw new ApiError(res.status, body.error ?? 'unknown');
