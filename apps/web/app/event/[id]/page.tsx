@@ -62,7 +62,12 @@ export default async function EventPage({
     <EventView
       eventId={event.id}
       initial={{
-        event: { id: event.id, name: event.name, uploadsOpen: event.uploadsOpen },
+        event: {
+          id: event.id,
+          name: event.name,
+          uploadsOpen: event.uploadsOpen,
+          canAdminister: (await decide(db, event, 'administer', requester)).allow,
+        },
         contributors: new Set(rows.map((p) => p.uploaderId)).size,
         count: photos.length,
         photos,

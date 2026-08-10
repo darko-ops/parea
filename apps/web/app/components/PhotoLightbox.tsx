@@ -1,0 +1,139 @@
+'use client';
+
+/**
+ * A single photo, and everything you can do about it — docs/design.md §13.
+ *
+ * The safety endpoints have existed for a while; this is what makes them
+ * reachable, which is the part App Store Guideline 1.2 actually requires. An
+ * API nobody can call is not a reporting mechanism.
+ *
+ * Which actions appear depends on whose photo it is, and the difference
+ * matters. Your own upload gets an unceremonious "Remove" — no confirmation
+ * beyond the obvious, no reason asked, because taking your own photo back is
+ * not a moderation event. Someone else's gets the three things you might
+ * legitimately want: ask for it down because you are in it, report it because
+ * it should not exist, or block the person so you stop seeing their uploads.
+ */
+
+import { useState } from 'react';
+
+export type LightboxPhoto = {
+  id: string;
+  full: string;
+  mine: boolean;
+};
+
+type Action = 'removal-request' | 'report' | 'block';
+
+const DONE: Record<Action, string> = {
+  'removal-request':
+    'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
+  report: 'Reported. Someone will look at it.',
+  block:
+    'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+};
+
+export function PhotoLightbox({
+  photo,
+  onClose,
+  onChanged,
+}: {
+  photo: LightboxPhoto;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  async function act(action: Action) {
+    setBusy(true);
+    setError(null);
+    try {
+      const url =
+        action === 'block' ? '/api/blocks' : `/api/photos/${photo.id}/${action}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(action === 'block' ? { photoId: photo.id } : {}),
+      });
+      if (!res.ok) throw new Error('That did not work. Try again.');
+      setDone(DONE[action]);
+      // A block changes what the grid should contain, so refresh behind us.
+      if (action === 'block') onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/photos/${photo.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Could not remove it. Try again.');
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="lightbox"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="lightbox-inner">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photo.full} alt="" />
+
+        <div className="lightbox-actions">
+          {done ? (
+            <p className="muted">{done}</p>
+          ) : photo.mine ? (
+            <>
+              <button onClick={remove} disabled={busy}>
+                {busy ? 'Removing…' : 'Remove my photo'}
+              </button>
+              <span className="muted">
+                Yours. Nobody has to approve this.
+              </span>
+            </>
+          ) : (
+            <>
+              <button className="secondary" onClick={() => act('removal-request')} disabled={busy}>
+                That&rsquo;s me — take it down
+              </button>
+              <button className="secondary" onClick={() => act('report')} disabled={busy}>
+                Report
+              </button>
+              {confirming ? (
+                <button onClick={() => act('block')} disabled={busy}>
+                  Block — hide all their photos
+                </button>
+              ) : (
+                <button className="secondary" onClick={() => setConfirming(true)} disabled={busy}>
+                  Block this person
+                </button>
+              )}
+            </>
+          )}
+          {error && <p className="muted">{error}</p>}
+        </div>
+
+        <button className="secondary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}

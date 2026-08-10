@@ -14,7 +14,7 @@ import { schema, visiblePhotos } from '@parea/core';
 import { asc, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { findEventById, guard, toResponse } from '@/access';
+import { decide, findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
@@ -82,6 +82,7 @@ export async function GET(
       id: event.id,
       name: event.name,
       uploadsOpen: event.uploadsOpen,
+      canAdminister: (await decide(db, event, 'administer', requester)).allow,
     },
     contributors,
     count: photos.length,

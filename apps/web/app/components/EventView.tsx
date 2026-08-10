@@ -19,6 +19,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { PhotoLightbox } from './PhotoLightbox';
+
 const CONCURRENCY = 3;
 
 type Photo = {
@@ -32,7 +34,12 @@ type Photo = {
 };
 
 type Feed = {
-  event: { id: string; name: string; uploadsOpen: boolean };
+  event: {
+    id: string;
+    name: string;
+    uploadsOpen: boolean;
+    canAdminister: boolean;
+  };
   contributors: number;
   count: number;
   photos: Photo[];
@@ -46,6 +53,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -161,6 +169,12 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         <p className="muted">
           {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from {feed.contributors}{' '}
           {feed.contributors === 1 ? 'person' : 'people'}
+          {feed.event.canAdminister && (
+            <>
+              {' · '}
+              <a href={`/event/${eventId}/manage`}>Manage</a>
+            </>
+          )}
         </p>
       </header>
 
@@ -206,10 +220,31 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       ) : (
         <div className="grid">
           {feed.photos.map((photo) => (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img key={photo.id} src={photo.src} alt="" loading="lazy" />
+            <button
+              key={photo.id}
+              className="tile"
+              onClick={() => setOpenPhoto(photo)}
+              // Every photo is a way in to the safety actions. Guideline 1.2
+              // wants reporting reachable, not merely implemented.
+              aria-label="Open photo"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo.src} alt="" loading="lazy" />
+            </button>
           ))}
         </div>
+      )}
+
+      <p className="muted footer">
+        <a href="/safety">Safety, reporting and contact</a>
+      </p>
+
+      {openPhoto && (
+        <PhotoLightbox
+          photo={openPhoto}
+          onClose={() => setOpenPhoto(null)}
+          onChanged={refresh}
+        />
       )}
     </main>
   );
