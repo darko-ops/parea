@@ -8,9 +8,10 @@ npm install
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npm start
 ```
 
-`npm test` covers the upload queue, which is the part worth testing: it is pure
-and takes the platform through injected dependencies, so a crash mid-batch is
-just constructing a new queue from the last persisted state.
+`npm test` here covers the join path and the API client — the two things that
+can run without a device. The upload queue, which is the part worth testing
+most, is platform-free by design and lives in `@parea/upload` with its tests;
+everything else in `src/` imports Expo at module scope and needs a simulator.
 
 ## What native buys
 
