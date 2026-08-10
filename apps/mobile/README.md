@@ -41,8 +41,16 @@ each file moves through presign → upload → complete independently, and retri
 are safe because the server addresses objects by content.
 
 Save-all to the camera roll, which is the terminal action people actually want
-and a browser cannot offer. The zip endpoint is shared; on native the URLs it
-returns get written to the photo library instead.
+and a browser cannot offer. It asks first — full quality or smaller copies —
+with the size, because the originals from a 250-photo event are about a
+gigabyte and pulling that over cellular onto a phone that may not have room is
+not a decision to make for someone. The web asks the equivalent question as
+"originals or JPEG" (§7.7); on a phone the honest axis is size, since the
+camera roll opens anything a camera made.
+
+It saved the 2560px rendition until recently, and said nothing about it —
+which made the native client's terminal action return downscaled copies of
+photos the product promises at full quality.
 
 QR scanning and spoken codes, so the at-the-party join moment works without
 anyone typing a URL.

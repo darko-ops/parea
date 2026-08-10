@@ -68,7 +68,7 @@ import {
   uploadItem,
   type SavedEvent,
 } from './src/platform';
-import { UploadQueue } from '@parea/upload';
+import { Offline, UploadQueue } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -488,11 +488,22 @@ function EventScreen({
     void libraryAccess().then(setAccess);
   }, []);
 
+  const [feedError, setFeedError] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     try {
       setFeed(await api.feed(event.id, event.linkToken));
-    } catch {
-      /* stale data beats an error screen over photos you already had */
+      setFeedError(null);
+    } catch (err) {
+      // Stale data beats an error screen over photos you already had, so a
+      // failed refresh is swallowed — but the *first* load has nothing to be
+      // stale, and swallowing it left the header saying "Loading…" for as
+      // long as someone was willing to look at it.
+      setFeedError(
+        err instanceof Offline
+          ? 'No connection. This will fill in when there is one.'
+          : 'Could not load the photos.',
+      );
     }
   }, [api, event]);
 
@@ -674,25 +685,57 @@ function EventScreen({
     if (access === 'undetermined' && windowFor()) setOfferUpgrade(true);
   }, [access, enqueue, windowFor]);
 
+  /**
+   * Save everything to the camera roll — the native terminal action.
+   *
+   * Asked rather than assumed, for the same reason the web offers "download
+   * originals" and "download as JPEG" side by side (§7.7). On a phone the
+   * honest axis is not format — the camera roll opens anything the camera
+   * made — it is size: the originals from a 250-photo event are about a
+   * gigabyte, and pulling that over cellular onto a phone that may not have
+   * room for it is not a decision to make on someone's behalf.
+   *
+   * This used to save the 2560px rendition with no mention of it, which meant
+   * the native client's terminal action quietly returned downscaled copies of
+   * photos the product promises at full quality.
+   */
   const saveAll = useCallback(async () => {
     if (!feed || feed.photos.length === 0) return;
-    setSaving('Starting…');
-    try {
-      const { saved, failed } = await saveToCameraRoll(
-        feed.photos.map((p) => ({ id: p.id, url: p.full })),
-        (done, total) => setSaving(`Saving ${done} of ${total}`),
-      );
-      Alert.alert(
-        'Saved',
-        failed > 0
-          ? `${saved} photos saved, ${failed} could not be saved.`
-          : `${saved} photos are in your camera roll.`,
-      );
-    } catch (err) {
-      Alert.alert('Could not save', err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(null);
-    }
+
+    const bytes = feed.photos.reduce((sum, p) => sum + (p.byteSize ?? 0), 0);
+    const run = async (kind: 'original' | 'full') => {
+      setSaving('Starting…');
+      try {
+        const { saved, failed } = await saveToCameraRoll(
+          feed.photos.map((p) => ({
+            id: p.id,
+            url: kind === 'original' ? p.original : p.full,
+            mime: kind === 'original' ? p.mime : 'image/jpeg',
+          })),
+          (done, total) => setSaving(`Saving ${done} of ${total}`),
+        );
+        Alert.alert(
+          'Saved',
+          failed > 0
+            ? `${saved} photos saved, ${failed} could not be saved.`
+            : `${saved} photos are in your camera roll.`,
+        );
+      } catch (err) {
+        Alert.alert('Could not save', err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(null);
+      }
+    };
+
+    Alert.alert(
+      `Save ${feed.photos.length} photos`,
+      `Full quality is about ${formatSize(bytes)}. Smaller copies are quicker and fine for looking at.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Smaller copies', onPress: () => void run('full') },
+        { text: 'Full quality', onPress: () => void run('original') },
+      ],
+    );
   }, [feed]);
 
   /**
@@ -776,7 +819,7 @@ function EventScreen({
             <Text style={[styles.body, { color: t.dim }]}>
               {feed
                 ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'} from ${feed.contributors} ${feed.contributors === 1 ? 'person' : 'people'}`
-                : 'Loading…'}
+                : (feedError ?? 'Loading…')}
             </Text>
 
             {feed?.event.groupId && (
@@ -1079,3 +1122,10 @@ const styles = StyleSheet.create({
   sheet: { padding: 16, paddingBottom: 40, gap: 10, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   sheetImage: { width: '100%', height: 240, borderRadius: 10, backgroundColor: '#8883' },
 });
+
+/** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 2) return `${Math.ceil(bytes / 1024 ** 2)} MB`;
+  return `${Math.ceil(bytes / 1024)} KB`;
+}

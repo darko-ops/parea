@@ -75,6 +75,12 @@ export async function GET(
       // ingest, in which case `src` is the original and there is no choice.
       sources: await imageSources(photo, 'thumb', event.capEpoch),
       full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
+      // What the camera produced, untouched apart from the metadata strip.
+      // The native client saves these to the camera roll: "everyone gets the
+      // full collection at full quality" is the product's headline, and the
+      // 2560px `full` above is a lightbox rendition, not the photo. The web
+      // has no use for it — its terminal action is the zip.
+      original: await imageSrc(photo, 'orig', event.capEpoch),
     })),
   );
 

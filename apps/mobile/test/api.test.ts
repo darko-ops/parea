@@ -15,6 +15,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Offline } from '@parea/upload';
+
 import { Api, ApiError, tokenFromInput } from '../src/api';
 
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUv'; // 22 chars, as minted by @parea/core
@@ -210,5 +212,60 @@ describe('failures', () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(502);
     expect(err.code).toBe('unknown');
+  });
+});
+
+describe('no signal', () => {
+  it('is an Offline error, not an ApiError', async () => {
+    // The upload queue treats the two oppositely: an HTTP failure spends a
+    // retry attempt, no network spends none and stops the run. Conflating
+    // them is what marked two hundred photos permanently failed at a venue.
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Network request failed');
+    });
+
+    const err = await new Api('https://api.test').feed('ev', TOKEN).catch((e) => e);
+    expect(err).toBeInstanceOf(Offline);
+    expect(err).not.toBeInstanceOf(ApiError);
+  });
+
+  it('leaves an HTTP failure as an ApiError', async () => {
+    // The server answered. That is not an outage, and retrying is right.
+    vi.stubGlobal('fetch', async () =>
+      new Response(JSON.stringify({ error: 'quota_exceeded' }), { status: 429 }),
+    );
+
+    const err = await new Api('https://api.test').feed('ev', TOKEN).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).not.toBeInstanceOf(Offline);
+    expect(err.status).toBe(429);
+  });
+});
+
+describe('what the camera roll gets', () => {
+  it('carries an original URL for every photo in the feed', async () => {
+    // The product's headline is the full collection at full quality, and the
+    // native terminal action is the camera roll. Saving `full` — a 2560px
+    // rendition — is a downgrade nobody asked for and nothing announced.
+    const route = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        new URL(
+          '../../web/app/api/events/[id]/photos/route.ts',
+          import.meta.url,
+        ).pathname,
+        'utf8',
+      ),
+    );
+    expect(route).toMatch(/original: await imageSrc\(photo, 'orig'/);
+  });
+
+  it('names the temp file so the photo library can read it', async () => {
+    const platform = await import('node:fs/promises').then((fs) =>
+      fs.readFile(new URL('../src/platform.ts', import.meta.url).pathname, 'utf8'),
+    );
+    // An extensionless HEIC is the kind of thing that works on one OS version
+    // and is rejected on the next.
+    expect(platform).toMatch(/extensionFor\(entry\.mime\)/);
+    expect(platform).toContain("case 'image/heic'");
   });
 });

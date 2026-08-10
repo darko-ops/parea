@@ -806,6 +806,15 @@ On native, "save all to camera roll" is the more natural terminal action than a
 zip, and it is a per-file loop with `expo-media-library` rather than an archive.
 Both exist; the app defaults to camera roll, the web to zip.
 
+**It saves originals, and asks first.** The feed carries a signed URL for the
+original alongside the thumbnail and the 2560px rendition, because the camera
+roll is where "full quality" has to mean the camera's own file — saving the
+lightbox rendition there is a downgrade with nothing announcing it. The same
+question §7.7 asks on the web is asked here on a different axis: not format,
+since the camera roll opens anything a camera made, but size, with the number
+attached. A 250-photo event is about a gigabyte, and that is not a decision to
+make on someone's behalf over cellular.
+
 ### Nothing behind a link is indexable
 
 Possession of the link is the whole access model, so a link that reaches a

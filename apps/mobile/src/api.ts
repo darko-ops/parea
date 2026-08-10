@@ -21,8 +21,15 @@ export type EventSummary = {
 
 export type FeedPhoto = {
   id: string;
+  /** Thumbnail, for the grid. */
   src: string;
+  /** 2560px rendition, for looking at one. */
   full: string;
+  /** The camera's own file. What gets saved to the camera roll. */
+  original: string;
+  /** Of the original — needed to say how large a save is before starting it. */
+  byteSize: number;
+  mime: string;
   takenAt: string;
   mine: boolean;
 };

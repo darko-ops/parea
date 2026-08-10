@@ -222,6 +222,36 @@ export async function registerForPush(): Promise<string | null> {
 // --- saving to the camera roll -----------------------------------------------
 
 /**
+ * A file extension the photo library will understand.
+ *
+ * A second copy of a mapping `@parea/zip` also makes for archive entry names,
+ * and deliberately so: the fallbacks differ. An archive entry it cannot name
+ * becomes `.bin`, which is honest in a folder someone unzips; a camera-roll
+ * temp file it cannot name is better off claiming to be a JPEG than being
+ * rejected outright. Pulling a zip writer into the app to share eight lines
+ * would cost more than the duplication does.
+ */
+function extensionFor(mime: string): string {
+  switch (mime) {
+    case 'image/heic':
+    case 'image/heif':
+      return '.heic';
+    case 'image/png':
+      return '.png';
+    case 'image/webp':
+      return '.webp';
+    case 'image/avif':
+      return '.avif';
+    case 'video/mp4':
+      return '.mp4';
+    case 'video/quicktime':
+      return '.mov';
+    default:
+      return '.jpg';
+  }
+}
+
+/**
  * "Save all" — the native terminal action, in place of a zip.
  *
  * Downloads each photo and adds it to the camera roll, which is where people
@@ -229,7 +259,7 @@ export async function registerForPush(): Promise<string | null> {
  * itself for bandwidth and makes progress meaningless.
  */
 export async function saveToCameraRoll(
-  urls: { id: string; url: string }[],
+  urls: { id: string; url: string; mime: string }[],
   onProgress: (done: number, total: number) => void,
 ): Promise<{ saved: number; failed: number }> {
   const permission = await MediaLibrary.requestPermissionsAsync(false, ['photo']);
@@ -239,7 +269,11 @@ export async function saveToCameraRoll(
   let failed = 0;
   for (const [index, entry] of urls.entries()) {
     try {
-      const target = new File(Paths.cache, `parea-${entry.id}`);
+      // With an extension, because the photo library reads one. An
+      // extensionless file is the sort of thing that works for JPEG on one OS
+      // version and silently fails for HEIC on another, and HEIC is what an
+      // iPhone original actually is.
+      const target = new File(Paths.cache, `parea-${entry.id}${extensionFor(entry.mime)}`);
       if (target.exists) target.delete();
       await File.downloadFileAsync(entry.url, target);
       await MediaLibrary.createAssetAsync(target.uri);
