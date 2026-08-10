@@ -17,6 +17,21 @@ Most first-deploy failures are a secret that matches in two places out of three
 provider, so a deploy without one comes up and quietly accepts uploads that
 never become visible. That is safe, and it is also broken.
 
+## The short way
+
+`./scripts/setup-infra.sh` does steps 1 and 2 with your own Cloudflare and Neon
+logins: creates the project and bucket, sets the lifecycle rule, generates all
+three secrets together so they cannot disagree, writes `apps/web/.env.local`,
+applies migrations and seeds the code pool. It is idempotent and deletes
+nothing.
+
+It stops at the two things that are dashboard-only — the R2 S3-API token and
+choosing a scanning provider — and prints the exact Worker commands using the
+secrets it just made.
+
+The rest of this page is what the script does, in case you would rather do it
+by hand or something goes wrong halfway.
+
 ## 1. Database
 
 ```
