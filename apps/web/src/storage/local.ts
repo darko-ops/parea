@@ -48,6 +48,10 @@ export class LocalStorage implements Storage {
     return this.signedUrl(key, 'get', ttlSeconds);
   }
 
+  async putSmall(key: string, bytes: Uint8Array): Promise<void> {
+    await this.writeBytes(key, Buffer.from(bytes));
+  }
+
   async head(key: string): Promise<ObjectHead | null> {
     const path = this.resolveKey(key);
     try {

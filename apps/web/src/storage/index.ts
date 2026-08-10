@@ -38,6 +38,15 @@ export interface Storage {
   /** A URL the client GETs the file from. Same rule, other direction. */
   presignGet(key: string, ttlSeconds?: number): Promise<string>;
 
+  /**
+   * Writes a small server-generated object — download manifests, nothing else.
+   *
+   * Writing is not the direction the egress invariant is about: uploads already
+   * go client → storage, and a 20KB JSON manifest costs nothing. There is still
+   * no way to read one back through this interface.
+   */
+  putSmall(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
+
   /** Metadata only — size and etag. Never a body. */
   head(key: string): Promise<ObjectHead | null>;
 

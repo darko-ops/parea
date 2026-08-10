@@ -1,0 +1,13 @@
+name = "parea-zip"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Reads from R2 are free and do not leave Cloudflare's network, which is the
+# entire reason bulk download is affordable. The Worker never talks to Postgres
+# — everything it needs arrives in a signed manifest.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "parea"
+
+# MANIFEST_SECRET is set with `wrangler secret put MANIFEST_SECRET` and must
+# match the app tier's value.

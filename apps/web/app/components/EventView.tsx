@@ -41,6 +41,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [feed, setFeed] = useState<Feed>(initial);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -119,6 +121,33 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     [eventId, refresh],
   );
 
+  const download = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/download`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          body.error === 'not_ready'
+            ? `${body.pending} photo(s) are still being processed. Try again in a moment.`
+            : 'Could not start the download.',
+        );
+      }
+      const { url } = (await res.json()) as { url: string };
+      // A plain navigation, so the browser or OS owns the download: real
+      // progress, a real filename, and no tab that has to stay open.
+      window.location.href = url;
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloading(false);
+    }
+  }, [eventId]);
+
   const remaining = jobs.filter((j) => j.status === 'waiting' || j.status === 'sending').length;
   const failed = jobs.filter((j) => j.status === 'failed').length;
 
@@ -154,6 +183,15 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
               {failed > 0 && ` · ${failed} failed`}
             </p>
           )}
+        </section>
+      )}
+
+      {feed.photos.length > 0 && (
+        <section className="panel">
+          <button onClick={download} disabled={downloading}>
+            {downloading ? 'Preparing…' : `Download all ${feed.count} at full quality`}
+          </button>
+          {downloadError && <p className="muted">{downloadError}</p>}
         </section>
       )}
 

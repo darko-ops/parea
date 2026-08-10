@@ -76,6 +76,17 @@ export class R2Storage implements Storage {
     );
   }
 
+  async putSmall(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+      }),
+    );
+  }
+
   async head(key: string): Promise<ObjectHead | null> {
     try {
       const out = await this.client.send(
