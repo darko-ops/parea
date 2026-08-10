@@ -17,6 +17,8 @@
 
 import { signImagePath, type ImageKind } from '@parea/urls';
 
+export { epochMarkerKey } from '@parea/urls';
+
 import { getStorage } from './storage';
 
 export type PhotoRef = {

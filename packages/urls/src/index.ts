@@ -145,6 +145,20 @@ export async function verifyImageRequest(
 }
 
 /**
+ * Where an event's current cap_epoch is recorded.
+ *
+ * The image Worker has no database, so rotation has to leave a trace it can
+ * read. A dotted name cannot collide with a photo key, since those are always
+ * a 64-character hex hash.
+ *
+ * Absent means "never rotated", i.e. epoch 1 — which is correct for every
+ * event created before rotation existed, so no backfill is needed.
+ */
+export function epochMarkerKey(eventId: string): string {
+  return `ev/${eventId}/.epoch`;
+}
+
+/**
  * Object key for a reference. Must match what the deriver writes.
  *
  * Derivatives are siblings of the original (`<key>.thumb.jpg`) rather than

@@ -12,22 +12,24 @@
  * app tier after `authorize(view)` has passed.
  *
  * ── On rotation ──────────────────────────────────────────────────────────
- * The design says rotating an event's link invalidates outstanding image URLs
- * because `cap_epoch` is in the signature. That is only half true here, and
- * knowingly so. The epoch is signed and carried in the URL, but this Worker
- * has no way to learn the event's *current* epoch without per-event state, so
- * a URL minted before a rotation stays valid until it expires — at most one
- * hour, bounded by the hour bucket.
+ * Rotating an event's link must stop old image URLs working, and the signed
+ * `cap_epoch` alone cannot do that: an old URL is internally consistent and
+ * verifies fine against its own epoch. So the app writes an epoch marker to
+ * storage on rotate, and every request here compares the URL's epoch against
+ * it and rejects anything older.
  *
- * That is the actual guarantee today: rotation revokes reads within the hour,
- * not instantly. Closing the gap needs the app to write a small
- * `ev/<id>/.epoch` marker on rotate and this Worker to read it (cached at the
- * edge for a minute or so) and reject anything older. Deliberately not built
- * yet, because the rotate endpoint itself does not exist — it would be
- * write-only code guarding a feature nobody can trigger.
+ * The marker read is cached at the edge, so it costs at most one small read
+ * per event per EPOCH_TTL_SECONDS per colo rather than one per image. That
+ * caching is also the limit of the guarantee: revocation takes effect within
+ * that window, not instantly. A minute is a deliberate trade against making
+ * every thumbnail request pay for a storage round trip.
+ *
+ * Absent marker means never rotated, i.e. epoch 1, so events created before
+ * rotation existed need no backfill.
  */
 
 import {
+  epochMarkerKey,
   objectKeyFor,
   verifyImageRequest,
   type ImageKind,
@@ -53,20 +55,27 @@ export default {
     }
 
     const url = new URL(request.url);
-
-    // Served from the edge before any verification work, because the signature
-    // is part of the cache key — a cached hit is by definition a URL that
-    // already verified.
     const cache = caches.default;
-    const hit = await cache.match(request);
-    if (hit) return hit;
 
+    // Verification happens before the cache lookup, not after. It is only an
+    // HMAC, and doing it first is what lets rotation revoke access to
+    // *already cached* responses — checking the cache first would serve them
+    // straight back out.
     const check = await verifyImageRequest(env.IMAGE_SECRET, url);
     if (!check.ok) {
       return check.reason === 'expired'
         ? new Response('expired', { status: 410 })
         : notFound();
     }
+
+    const currentEpoch = await currentEpochFor(check.ref.eventId, env, ctx);
+    if (check.ref.capEpoch < currentEpoch) {
+      // The link was rotated after this URL was minted.
+      return new Response('revoked', { status: 410 });
+    }
+
+    const hit = await cache.match(request);
+    if (hit) return hit;
 
     const key = objectKeyFor(check.ref);
     const object = await env.BUCKET.get(key);
@@ -103,6 +112,43 @@ export default {
     return response;
   },
 };
+
+const EPOCH_TTL_SECONDS = 60;
+
+/**
+ * The event's current cap_epoch, edge-cached.
+ *
+ * Cached under a synthetic URL rather than the real request, so one lookup
+ * serves every photo in the event. Failing open on a storage error would mean
+ * a blip re-enables revoked URLs, and failing closed would mean a blip breaks
+ * every grid — the former is a security regression, so this treats an error as
+ * "unknown" and falls back to the strictest thing it can know without state:
+ * the marker's absence, which is epoch 1.
+ */
+async function currentEpochFor(
+  eventId: string,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<number> {
+  const cacheKey = new Request(`https://epoch.internal/${eventId}`);
+  const cache = caches.default;
+
+  const cached = await cache.match(cacheKey);
+  if (cached) return Number(await cached.text()) || 1;
+
+  const object = await env.BUCKET.get(epochMarkerKey(eventId));
+  const epoch = object ? Number(await object.text()) || 1 : 1;
+
+  ctx.waitUntil(
+    cache.put(
+      cacheKey,
+      new Response(String(epoch), {
+        headers: { 'cache-control': `public, max-age=${EPOCH_TTL_SECONDS}` },
+      }),
+    ),
+  );
+  return epoch;
+}
 
 /** Seconds until this URL stops working. Never negative, never beyond an hour. */
 function maxAge(expiresAtSeconds: number): number {

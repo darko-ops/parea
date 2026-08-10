@@ -6,7 +6,7 @@
  * bad URL never reaches storage.
  */
 
-import { signImagePath, type ImageRef } from '@parea/urls';
+import { epochMarkerKey, signImagePath, type ImageRef } from '@parea/urls';
 import { describe, expect, it, vi } from 'vitest';
 
 import worker, { type Env } from '../src/index';
@@ -17,12 +17,20 @@ const HASH = 'a'.repeat(64);
 const ref: ImageRef = { eventId: EVENT, hash: HASH, kind: 'thumb', capEpoch: 1 };
 
 function makeEnv(objects: Record<string, string> = {}) {
-  const reads: string[] = [];
+  const allReads: string[] = [];
+  // Object reads only — the epoch marker is a separate, edge-cached lookup and
+  // counting it would hide whether photo bytes were served from cache.
+  const reads = {
+    get length() {
+      return allReads.filter((k) => !k.endsWith('/.epoch')).length;
+    },
+    all: allReads,
+  };
   const env: Env = {
     IMAGE_SECRET: SECRET,
     BUCKET: {
       async get(key: string) {
-        reads.push(key);
+        allReads.push(key);
         const value = objects[key];
         if (value === undefined) return null;
         const bytes = new TextEncoder().encode(value);
@@ -30,6 +38,7 @@ function makeEnv(objects: Record<string, string> = {}) {
           size: bytes.byteLength,
           httpEtag: '"abc"',
           httpMetadata: { contentType: 'image/heic' },
+          async text() { return value; },
           body: new ReadableStream<Uint8Array>({
             start(c) { c.enqueue(bytes); c.close(); },
           }),
@@ -111,11 +120,11 @@ describe('edge caching — the point of the component', () => {
     const path = await signImagePath(SECRET, ref);
 
     await (await fetchPath(env, path)).text();
-    expect(reads).toHaveLength(1);
+    expect(reads.length).toBe(1);
 
     const second = await fetchPath(env, path);
     expect(await second.text()).toBe('thumbnail-bytes');
-    expect(reads, 'the second request must not hit R2').toHaveLength(1);
+    expect(reads.length, 'the second request must not hit R2').toBe(1);
   });
 
   it('caches across viewers, because their URLs are identical', async () => {
@@ -134,7 +143,20 @@ describe('edge caching — the point of the component', () => {
     await (await fetchPath(env, bob)).text();
     vi.useRealTimers();
 
-    expect(reads).toHaveLength(1);
+    expect(reads.length).toBe(1);
+  });
+
+  it('looks the epoch up once per event, not once per photo', async () => {
+    makeCache();
+    const { env, reads } = makeEnv({
+      [`ev/${EVENT}/${HASH}.thumb.jpg`]: 'one',
+      [`ev/${EVENT}/${'b'.repeat(64)}.thumb.jpg`]: 'two',
+    });
+    await (await fetchPath(env, await signImagePath(SECRET, ref))).text();
+    await (await fetchPath(env, await signImagePath(SECRET, { ...ref, hash: 'b'.repeat(64) }))).text();
+
+    const epochReads = reads.all.filter((k) => k.endsWith('/.epoch'));
+    expect(epochReads).toHaveLength(1);
   });
 
   it('never caches for longer than the URL is valid', async () => {
@@ -179,6 +201,47 @@ describe('refusals', () => {
     expect(missing.status).toBe(404);
     expect(forged.status).toBe(404);
     expect(await missing.text()).toBe(await forged.text());
+  });
+
+  it('revokes URLs minted before a rotation', async () => {
+    // The point of the marker: an old URL verifies fine against its own epoch,
+    // so only comparing against the event's current epoch can stop it.
+    makeCache();
+    const { env } = makeEnv({
+      ...OBJECTS,
+      [epochMarkerKey(EVENT)]: '2',
+    });
+    const stale = await signImagePath(SECRET, { ...ref, capEpoch: 1 });
+    expect((await fetchPath(env, stale)).status).toBe(410);
+  });
+
+  it('still serves URLs minted after the rotation', async () => {
+    makeCache();
+    const { env } = makeEnv({ ...OBJECTS, [epochMarkerKey(EVENT)]: '2' });
+    const fresh = await signImagePath(SECRET, { ...ref, capEpoch: 2 });
+    expect((await fetchPath(env, fresh)).status).toBe(200);
+  });
+
+  it('revokes even a response already sitting in the edge cache', async () => {
+    // Verification runs before the cache lookup precisely so that rotation
+    // reaches cached responses; checking the cache first would serve them back.
+    makeCache();
+    const objects: Record<string, string> = { ...OBJECTS };
+    const { env } = makeEnv(objects);
+    const url = await signImagePath(SECRET, { ...ref, capEpoch: 1 });
+
+    expect((await fetchPath(env, url)).status).toBe(200);
+    objects[epochMarkerKey(EVENT)] = '2';
+    makeCache(); // epoch lookups are edge-cached for a minute; skip that window
+
+    expect((await fetchPath(env, url)).status).toBe(410);
+  });
+
+  it('treats a missing marker as never rotated', async () => {
+    // No backfill for events created before rotation existed.
+    makeCache();
+    const { env } = makeEnv(OBJECTS);
+    expect((await fetchPath(env, await signImagePath(SECRET, ref))).status).toBe(200);
   });
 
   it('refuses non-GET methods', async () => {
