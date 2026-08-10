@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   // @parea/core ships TypeScript source rather than a build step.
-  transpilePackages: ['@parea/core', '@parea/zip', '@parea/urls'],
+  transpilePackages: ['@parea/core', '@parea/zip', '@parea/urls', '@parea/push'],
   // Development-only routes are named `route.dev.ts` and are only recognised
   // as routes when this extension is registered. In a production build they
   // are not routes at all — the dev object-store endpoint cannot be deployed

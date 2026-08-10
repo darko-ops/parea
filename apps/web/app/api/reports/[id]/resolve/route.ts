@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { notifyRemovalAnswered } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -70,6 +71,14 @@ export async function POST(
       resolvedBy: actorId,
     })
     .where(eq(schema.reports.id, id));
+
+  // The person who asked may have no account and no reason to come back, so
+  // this is the only way they learn the answer.
+  await notifyRemovalAnswered(db, {
+    reporterActorId: found.report.reporterActorId,
+    eventId: found.photo.eventId,
+    removed: action === 'remove',
+  });
 
   return NextResponse.json({ resolved: action });
 }

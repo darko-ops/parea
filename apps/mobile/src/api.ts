@@ -125,6 +125,14 @@ export class Api {
     );
   }
 
+  /** Fire and forget: failing to register must never block anything. */
+  registerDevice(pushToken: string, platform: 'ios' | 'android'): Promise<unknown> {
+    return this.call('/api/devices', {
+      method: 'POST',
+      body: JSON.stringify({ pushToken, platform }),
+    });
+  }
+
   removalRequest(photoId: string): Promise<unknown> {
     return this.call(`/api/photos/${photoId}/removal-request`, {
       method: 'POST',

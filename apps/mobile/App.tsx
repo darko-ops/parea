@@ -44,9 +44,13 @@ import {
   resolveForUpload,
   type LibraryAccess,
 } from './src/library';
+import { Platform as RNPlatform } from 'react-native';
+
 import {
   BACKGROUND_UPLOAD_SUPPORTED,
   loadActorToken,
+  pushAlreadyAsked,
+  registerForPush,
   loadEvents,
   loadQueue,
   rememberEvent,
@@ -335,6 +339,18 @@ function EventScreen({
       queue.add(event.id, files);
       await saveQueue(queue.state);
       await runQueue(queue.state);
+
+      // Now there is something worth being told about: a reminder if this
+      // event goes quiet, and an answer if someone asks about one of these
+      // photos. Never on first launch — design §12.
+      if (!(await pushAlreadyAsked())) {
+        const token = await registerForPush();
+        if (token) {
+          await api
+            .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
+            .catch(() => {});
+        }
+      }
     },
     [api, event, runQueue],
   );

@@ -120,7 +120,7 @@ fly deploy -c fly.jobs.toml
 fly machine run --schedule daily <image> -a parea-jobs -- npx tsx services/deriver/src/jobs.ts
 ```
 
-`auto-hide` is the one with a clock attached — an unanswered removal request
+`nudge` and `auto-hide` are the two with clocks attached — an unanswered removal request
 hides the photo after 48 hours only if this runs. Run `seed-codes` once by hand
 after the first deploy, or the spoken-code door never opens:
 
@@ -165,6 +165,7 @@ Generate with `openssl rand -base64 32`.
 | `CSAM_SCANNER` | | ● | `disabled`, private soak only |
 | `PAREA_ALLOW_UNSCANNED` | | ● | `private-deployment`; remove before launch |
 | `SAFETY_ALERT_WEBHOOK` | | ● | a quarantine nobody sees is no scanning |
+| `EXPO_ACCESS_TOKEN` | ● | ● | optional; Expo accepts pushes without one |
 
 ## After the first deploy
 
@@ -192,9 +193,6 @@ change to one file when it stops being enough.
 
 **One deriver machine.** Two would race on the same pending rows. Scaling out
 needs claim-based work distribution first.
-
-**No push notifications.** Device tokens are captured; delivery is unwired, so
-group members see a new event when they open the app rather than being told.
 
 **Nothing here has been run.** These are the correct commands as far as the
 code is concerned, but no part of this deployment has been executed against a

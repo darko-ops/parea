@@ -11,7 +11,8 @@ import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { membershipOf } from '@/groups';
+import { findGroup, membershipOf } from '@/groups';
+import { notifyGroupEvent } from '@/notify';
 import { ensureActor, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
@@ -73,6 +74,20 @@ export async function POST(request: Request) {
     .insert(schema.eventParticipants)
     .values({ eventId: event!.id, actorId })
     .onConflictDoNothing();
+
+  if (groupId) {
+    const group = await findGroup(db, groupId);
+    if (group) {
+      // Not awaited for its result — a push outage must not fail the create.
+      await notifyGroupEvent(db, {
+        groupId,
+        groupName: group.name,
+        eventId: event!.id,
+        eventName: event!.name,
+        createdBy: actorId,
+      });
+    }
+  }
 
   const code = await claimCode(db, event!.id);
   await grantCapability(event!.id, event!.capEpoch);

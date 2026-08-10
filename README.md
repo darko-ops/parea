@@ -54,6 +54,7 @@ packages/core        schema, access policy, credentials, visibility
 packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
 packages/autoselect  which photos to offer, and when not to guess
+packages/push        the three notifications this product is allowed to send
 apps/web             Next.js — the app, the API, and the browser client
 apps/mobile          Expo — the native client
 services/deriver     ingest: strip, scan, derive, dedup; plus scheduled jobs

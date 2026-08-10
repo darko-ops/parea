@@ -16,7 +16,21 @@
  */
 
 import { codeWordPairs, schema } from '@parea/core';
-import { and, eq, isNotNull, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
+import { sendAll, toMessage } from '@parea/push';
+import {
+  and,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -169,6 +183,130 @@ export async function seedCodes(
   return inserted;
 }
 
+/**
+ * How long after an event is created before its one reminder goes out.
+ *
+ * A guess, and design §17 lists it as an open question. Twenty hours means an
+ * evening event is nudged the following afternoon, which is late enough that
+ * people have got home and early enough that they still remember. The right
+ * answer comes from real events, not from reasoning.
+ */
+const NUDGE_AFTER_HOURS = 20;
+/** Past this an event is over and a reminder is just noise. */
+const NUDGE_GIVE_UP_DAYS = 7;
+
+/**
+ * The one reminder — docs/design.md §12.
+ *
+ * Sent to people who joined an event and have not added anything. Once per
+ * event, ever: `nudged_at` is stamped whether or not anybody was eligible,
+ * because otherwise an event with no eligible recipients is reconsidered on
+ * every run forever, and the day someone finally becomes eligible they get a
+ * reminder about a party from three weeks ago.
+ *
+ * The cap lives in the schema rather than in this function so it cannot be
+ * lost to a change here.
+ */
+export async function nudge(database: ReturnType<typeof db>): Promise<number> {
+  const now = Date.now();
+  const due = await database
+    .select({
+      id: schema.events.id,
+      name: schema.events.name,
+      createdBy: schema.events.createdBy,
+    })
+    .from(schema.events)
+    .where(
+      and(
+        isNull(schema.events.nudgedAt),
+        isNull(schema.events.deletedAt),
+        lte(schema.events.createdAt, new Date(now - NUDGE_AFTER_HOURS * 3600_000)),
+        gt(schema.events.createdAt, new Date(now - NUDGE_GIVE_UP_DAYS * 24 * 3600_000)),
+      ),
+    )
+    .limit(200);
+
+  let notified = 0;
+
+  for (const event of due) {
+    // Participants who have contributed nothing. The creator is included:
+    // they may well have made the event and then forgotten to add theirs,
+    // which is the single most common way an event ends up empty.
+    const contributors = await database
+      .selectDistinct({ actorId: schema.photos.uploaderId })
+      .from(schema.photos)
+      .where(
+        and(
+          eq(schema.photos.eventId, event.id),
+          eq(schema.photos.status, 'ready'),
+          isNull(schema.photos.deletedAt),
+        ),
+      );
+    const contributed = new Set(contributors.map((c) => c.actorId));
+
+    const participants = await database
+      .select({ actorId: schema.eventParticipants.actorId })
+      .from(schema.eventParticipants)
+      .where(eq(schema.eventParticipants.eventId, event.id));
+
+    const targets = participants
+      .map((p) => p.actorId)
+      .filter((id) => !contributed.has(id));
+
+    if (targets.length > 0) {
+      const devices = await database
+        .select({ token: schema.devices.pushToken })
+        .from(schema.devices)
+        .where(
+          and(
+            inArray(schema.devices.actorId, targets),
+            isNotNull(schema.devices.pushToken),
+          ),
+        );
+
+      const tokens = [...new Set(devices.map((d) => d.token!).filter(Boolean))];
+      if (tokens.length > 0) {
+        const [photos] = await database
+          .select({ n: count() })
+          .from(schema.photos)
+          .where(
+            and(
+              eq(schema.photos.eventId, event.id),
+              eq(schema.photos.status, 'ready'),
+              isNull(schema.photos.deletedAt),
+            ),
+          );
+
+        const result = await sendAll(
+          tokens.map((token) =>
+            toMessage(token, {
+              kind: 'nudge',
+              eventId: event.id,
+              eventName: event.name,
+              photoCount: photos?.n ?? 0,
+            }),
+          ),
+        );
+        notified += result.sent;
+
+        if (result.unregistered.length > 0) {
+          await database
+            .delete(schema.devices)
+            .where(inArray(schema.devices.pushToken, result.unregistered));
+        }
+      }
+    }
+
+    // Stamped regardless — see the note above.
+    await database
+      .update(schema.events)
+      .set({ nudgedAt: new Date() })
+      .where(eq(schema.events.id, event.id));
+  }
+
+  return notified;
+}
+
 async function main(): Promise<void> {
   const database = db();
   const objects = objectStoreFromEnv();
@@ -182,6 +320,7 @@ async function main(): Promise<void> {
 
   await run('seed-codes', () => seedCodes(database));
   await run('auto-hide', () => autoHide(database));
+  await run('nudge', () => nudge(database));
   await run('purge', () => purge(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
   process.exit(0);

@@ -1,0 +1,158 @@
+/**
+ * Push delivery — docs/design.md §12.
+ *
+ * The notable thing about this module is how little it can send. There are
+ * exactly three kinds of notification in the product and they are enumerated
+ * below as a closed union, so adding a fourth is an edit to a type rather than
+ * a call site somebody slipped in. The concept is explicit: one well-timed
+ * reminder, not notification spam, and the feature test applies to
+ * notifications as much as anything else — does this help people contribute,
+ * find, or retrieve shared photos?
+ *
+ * No "someone added 3 photos". No digests. No re-engagement. Those are the
+ * notifications that make people turn all of them off, and the one that
+ * matters — a new event in your group — dies with them.
+ *
+ * Talks to Expo's push service, which accepts an ExponentPushToken without a
+ * server credential. `EXPO_ACCESS_TOKEN` is honoured when set, which Expo
+ * recommends once a project has one.
+ */
+
+const EXPO_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
+/** Expo's documented per-request limit. */
+const CHUNK = 100;
+
+export type Notification =
+  /** One per event, ever. Enforced in the schema, not here. */
+  | { kind: 'nudge'; eventId: string; eventName: string; photoCount: number }
+  /** The thing a group is actually for. */
+  | { kind: 'group_event'; groupId: string; eventId: string; eventName: string; groupName: string }
+  /** Transactional: you asked for a photo to come down and someone decided. */
+  | { kind: 'removal_answered'; eventId: string; removed: boolean };
+
+export type PushMessage = {
+  to: string;
+  title: string;
+  body: string;
+  data: Record<string, string>;
+};
+
+export function isExpoPushToken(token: string): boolean {
+  return /^Expo(nent)?PushToken\[[^\]]+\]$/.test(token);
+}
+
+/**
+ * Copy lives here rather than at the call sites, so all of it can be read at
+ * once. A notification is the only part of this product that interrupts
+ * someone, and the whole set fitting on one screen is the point.
+ */
+export function render(notification: Notification): { title: string; body: string } {
+  switch (notification.kind) {
+    case 'nudge':
+      return {
+        title: notification.eventName,
+        body:
+          notification.photoCount > 0
+            ? `${notification.photoCount} photos are waiting. Add yours?`
+            : 'Nobody has added photos yet. Yours would start it off.',
+      };
+    case 'group_event':
+      return {
+        title: notification.groupName,
+        body: `${notification.eventName} — add your photos.`,
+      };
+    case 'removal_answered':
+      return {
+        title: notification.removed ? 'Photo taken down' : 'Photo kept',
+        body: notification.removed
+          ? 'The photo you asked about has been removed.'
+          : 'The host decided to keep the photo you asked about.',
+      };
+  }
+}
+
+export function toMessage(token: string, notification: Notification): PushMessage {
+  const { title, body } = render(notification);
+  return {
+    to: token,
+    title,
+    body,
+    // Strings only: the payload is a deep link target, not a data channel.
+    data: Object.fromEntries(
+      Object.entries(notification).map(([k, v]) => [k, String(v)]),
+    ),
+  };
+}
+
+export type DeliveryResult = {
+  sent: number;
+  failed: number;
+  /**
+   * Tokens the device store should forget: the app was uninstalled, or the
+   * token was reissued. Left in place they are permanent errors on every
+   * future send.
+   */
+  unregistered: string[];
+};
+
+export type Fetcher = typeof fetch;
+
+/**
+ * Send, and report which tokens are dead.
+ *
+ * Never throws for a delivery failure. A notification is the least important
+ * thing in the system — nothing depends on it having arrived — so a push
+ * outage must not fail the request or the job that triggered it.
+ */
+export async function sendAll(
+  messages: PushMessage[],
+  options: { fetcher?: Fetcher; accessToken?: string } = {},
+): Promise<DeliveryResult> {
+  const send = options.fetcher ?? fetch;
+  const token = options.accessToken ?? process.env.EXPO_ACCESS_TOKEN;
+
+  const result: DeliveryResult = { sent: 0, failed: 0, unregistered: [] };
+  const valid = messages.filter((m) => isExpoPushToken(m.to));
+  result.failed += messages.length - valid.length;
+
+  for (let at = 0; at < valid.length; at += CHUNK) {
+    const chunk = valid.slice(at, at + CHUNK);
+    try {
+      const response = await send(EXPO_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(chunk),
+      });
+
+      if (!response.ok) {
+        result.failed += chunk.length;
+        continue;
+      }
+
+      const body = (await response.json()) as {
+        data?: { status?: string; details?: { error?: string } }[];
+      };
+      const tickets = body.data ?? [];
+
+      chunk.forEach((message, index) => {
+        const ticket = tickets[index];
+        if (ticket?.status === 'ok') {
+          result.sent++;
+          return;
+        }
+        result.failed++;
+        if (ticket?.details?.error === 'DeviceNotRegistered') {
+          result.unregistered.push(message.to);
+        }
+      });
+    } catch {
+      result.failed += chunk.length;
+    }
+  }
+
+  return result;
+}

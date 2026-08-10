@@ -7,6 +7,7 @@
  */
 
 import { File, Paths, UploadTask } from 'expo-file-system';
+import * as Notifications from 'expo-notifications';
 import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -16,6 +17,7 @@ import type { QueueItem, QueueState } from './queue';
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
 const QUEUE_FILE = 'upload-queue.json';
+const PUSH_ASKED_KEY = 'parea.pushAsked';
 
 export type SavedEvent = {
   id: string;
@@ -129,6 +131,50 @@ export async function uploadItem(item: QueueItem): Promise<void> {
 }
 
 export const BACKGROUND_UPLOAD_SUPPORTED = Platform.OS === 'ios';
+
+// --- push --------------------------------------------------------------------
+
+/**
+ * Ask for notifications, once, and only when there is something worth being
+ * told about — design §12.
+ *
+ * Called after a first contribution, not on first launch. All three
+ * notifications are about something you took part in, so before you have
+ * contributed there is nothing to be told about and the prompt is spent on
+ * nothing. A declined prompt is not re-askable in practice.
+ *
+ * Returns null when declined or unavailable, which every caller treats as
+ * ordinary rather than as an error.
+ */
+export async function pushAlreadyAsked(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(PUSH_ASKED_KEY)) === 'yes';
+}
+
+export async function registerForPush(): Promise<string | null> {
+  // Recorded before the prompt, not after: asking twice is worse than never
+  // learning the answer, and a crash mid-prompt should not re-ask.
+  await SecureStore.setItemAsync(PUSH_ASKED_KEY, 'yes');
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    const granted =
+      existing.granted ||
+      (existing.canAskAgain && (await Notifications.requestPermissionsAsync()).granted);
+    if (!granted) return null;
+
+    // Android needs a channel or notifications are silently dropped.
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Events',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+
+    const token = await Notifications.getExpoPushTokenAsync();
+    return token.data ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // --- saving to the camera roll -----------------------------------------------
 

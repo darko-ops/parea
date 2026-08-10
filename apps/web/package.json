@@ -19,7 +19,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "@parea/zip": "*",
-    "@parea/urls": "*"
+    "@parea/urls": "*",
+    "@parea/push": "*"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
