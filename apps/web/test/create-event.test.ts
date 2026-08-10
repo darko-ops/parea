@@ -60,6 +60,45 @@ describe('the window a creator sends', () => {
   });
 });
 
+describe('the clients that send one', () => {
+  // The gap this closes was invisible for the life of the project: the schema
+  // had the columns, the design said they were captured at creation, the
+  // create page's own comment said it asked for them — and nothing ever sent
+  // one. Nothing failed, because a null window is a legitimate answer. So the
+  // assertion is that the request body carries the pair, in both clients.
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+
+  it.each([
+    ['the web create form', '../app/page.tsx'],
+    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
+  ])('%s sends startsAt and endsAt', (_label, path) => {
+    const client = read(path);
+    expect(client).toMatch(/startsAt: window\?\.startsAt \?\? null/);
+    expect(client).toMatch(/endsAt: window\?\.endsAt \?\? null/);
+  });
+
+  it.each([
+    ['the web create form', '../app/page.tsx'],
+    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
+  ])('%s takes its phrasing from the shared module', (_label, path) => {
+    // Two copies of the preset list would drift on what "Tonight" means, and
+    // no test anywhere would notice.
+    expect(read(path)).toMatch(/from '@parea\/autoselect'/);
+    expect(read(path)).toContain('WHEN_OPTIONS');
+  });
+
+  it.each([
+    ['the web create form', '../app/page.tsx'],
+    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
+  ])('%s refuses to submit before the question is answered', (_label, path) => {
+    // Nothing is pre-selected, so the submit button has to wait for an answer
+    // rather than letting the question be skipped past. "Not sure yet" is one
+    // of the answers; skipping is not.
+    expect(read(path)).toMatch(/disabled=\{[^}]*(when === null|!when)/);
+  });
+});
+
 describe('the route', () => {
   it('answers 400 rather than storing a window it cannot trust', () => {
     expect(source).toContain("error: 'invalid_window'");

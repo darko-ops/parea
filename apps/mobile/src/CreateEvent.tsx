@@ -28,7 +28,7 @@ import {
 
 import type { Api } from './api';
 import type { GroupTheme } from './Groups';
-import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from './when';
+import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
 
 export type CreatedEvent = {
   id: string;

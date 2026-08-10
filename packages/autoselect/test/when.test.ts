@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { WHEN_OPTIONS, eventDateFor, windowFor } from '../src/when';
+import { WHEN_OPTIONS, eventDateFor, windowFor } from '../src/index';
 
 /** A Saturday night, 22:40 local — someone creating the event mid-party. */
 const MID_PARTY = new Date(2026, 6, 18, 22, 40);

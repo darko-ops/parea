@@ -80,6 +80,11 @@ uploads only helps contributor five, not contributor one" has in fact always
 been inferred from uploads, and contributor one has always fallen through to
 the system picker. This screen is the first place it is asked.
 
+The list lives in `@parea/autoselect`, next to the `resolveWindow` that
+consumes it, and the web create form asks the same question from the same
+module — two copies would drift on what "Tonight" means and nothing would
+notice.
+
 It asks with a short list of phrases rather than a time picker, because §17
 records the constraint: *a wrong window is worse than no window*. Someone
 creating an event is standing at the thing, and two spinners get a careless

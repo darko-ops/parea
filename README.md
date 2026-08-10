@@ -53,7 +53,8 @@ need to be installed; see `.github/workflows/ci.yml` for the exact list.
 packages/core        schema, access policy, credentials, visibility
 packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
-packages/autoselect  which photos to offer, and when not to guess
+packages/autoselect  which photos to offer, when not to guess, and the
+                     window both clients ask a creator for
 packages/push        the three notifications this product is allowed to send
 packages/upload      the upload queue, shared by both clients
 apps/web             Next.js — the app, the API, and the browser client

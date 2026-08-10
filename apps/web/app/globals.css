@@ -80,3 +80,14 @@ button.secondary {
   background: none; border: 0; padding: 0; color: inherit; font: inherit;
   text-decoration: underline; cursor: pointer; width: auto;
 }
+/* The window question on the create screen — one option per row, the hint
+   subordinate to the label, and nothing selected until someone picks. */
+.choices { border: 0; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+.choices legend { font-weight: 600; padding: 0; }
+.choice {
+  display: flex; gap: 10px; align-items: baseline; margin: 0;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  font-weight: 400; cursor: pointer;
+}
+.choice:has(input:checked) { border-color: var(--accent); }
+.choice input { width: auto; margin: 0; }

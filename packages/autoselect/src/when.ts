@@ -1,6 +1,11 @@
 /**
  * "When was this?" — design §7.3, and the input auto-selection runs on.
  *
+ * Lives beside `resolveWindow` rather than in a client, because the thing that
+ * produces a window and the thing that consumes it are two halves of one
+ * decision, and both clients ask the question. Two copies would drift on what
+ * "Tonight" means, which is not the kind of disagreement anyone would notice.
+ *
  * `event.starts_at` / `ends_at` have existed in the schema since the first
  * migration and no client has ever set them. The web create form sends only a
  * date. So the window that §7.3 says is "captured at creation, because

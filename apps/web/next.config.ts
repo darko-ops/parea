@@ -8,6 +8,7 @@ const config: NextConfig = {
     '@parea/urls',
     '@parea/push',
     '@parea/upload',
+    '@parea/autoselect',
   ],
   // Development-only routes are named `route.dev.ts` and are only recognised
   // as routes when this extension is registered. In a production build they

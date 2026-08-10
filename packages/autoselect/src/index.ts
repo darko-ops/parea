@@ -1,3 +1,12 @@
+export {
+  WHEN_OPTIONS,
+  eventDateFor,
+  windowFor,
+  type EventWindow,
+  type WhenOption,
+  type WindowId,
+} from './when';
+
 /**
  * Choosing which photos to offer — docs/design.md §7.1–7.3.
  *

@@ -1067,9 +1067,10 @@ the column from day one costs nothing.
   and "not sure", nothing pre-selected, and the server refuses a window that
   does not run forwards. Until that screen existed no client sent `starts_at`
   at all, so every event in the product had been falling back to inference.
-  The open part is the measurement — §18's "what fraction of events have a
-  creator-set window" — and the web create form, which still asks only for a
-  date.
+  Both clients ask, from the same list in `@parea/autoselect`, beside the
+  `resolveWindow` that consumes it. The open part is now only the measurement
+  — §18's "what fraction of events have a creator-set window", and whether the
+  phrases match how people actually describe when a thing happened.
 - **App Clips.** Deferred, but the strongest candidate for the next thing built,
   and now iOS-only for good: Play Instant is gone (§9), so Android's
   zero-install path is the web client permanently.
