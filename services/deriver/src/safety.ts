@@ -67,18 +67,46 @@ export class UnconfiguredScanner implements CsamScanner {
 }
 
 /**
- * Explicitly disabled — development and tests only.
+ * Explicitly disabled.
  *
  * Separate from unconfigured so that "we chose to run without scanning" is a
  * deliberate, greppable act rather than something achieved by forgetting an
- * environment variable. Refuses to load when NODE_ENV is production.
+ * environment variable.
+ *
+ * Free in development. In production it additionally requires
+ * `PAREA_ALLOW_UNSCANNED=private-deployment`, which exists for one situation:
+ * a real deployment that only its author can reach, before launch, to shake
+ * out the infrastructure. That is a reasonable thing to want, and the
+ * alternative — telling someone to set NODE_ENV=development on a production
+ * box — is worse, because it silently relaxes every other guard keyed off the
+ * same variable.
+ *
+ * It is a named flag rather than a quiet one so that it shows up in a
+ * deployment's environment, in `grep`, and in the boot banner below. The
+ * moment anyone but the author can reach the deployment, it has to go.
  */
+export const UNSCANNED_ACK = 'private-deployment';
+
 export class DisabledScanner implements CsamScanner {
   readonly name = 'disabled';
 
-  constructor() {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('CSAM_SCANNER=disabled is not permitted in production.');
+  constructor(env: NodeJS.ProcessEnv = process.env) {
+    if (env.NODE_ENV === 'production' && env.PAREA_ALLOW_UNSCANNED !== UNSCANNED_ACK) {
+      throw new Error(
+        'CSAM_SCANNER=disabled needs PAREA_ALLOW_UNSCANNED=private-deployment ' +
+          'in production, and is only appropriate for a deployment nobody else ' +
+          'can reach. See docs/csam-runbook.md.',
+      );
+    }
+    if (env.NODE_ENV === 'production') {
+      console.warn(
+        '\n' +
+          '  ┌────────────────────────────────────────────────────────────┐\n' +
+          '  │  RUNNING WITHOUT CHILD-SAFETY SCANNING                     │\n' +
+          '  │  Every upload is published unchecked.                      │\n' +
+          '  │  Only valid while nobody but you can reach this.           │\n' +
+          '  └────────────────────────────────────────────────────────────┘\n',
+      );
     }
   }
 

@@ -12,10 +12,25 @@ Most first-deploy failures are a secret that matches in two places out of three
 | `parea-img`, `parea-zip` | Cloudflare Workers | R2 reads are free from inside Cloudflare |
 | Deriver + jobs | Fly.io | needs libvips and libheif; will not run in a Worker |
 
-**Before any of this**, work through the launch checklist in
-[`csam-runbook.md`](csam-runbook.md). Ingest fails closed without a scanning
-provider, so a deploy without one comes up and quietly accepts uploads that
-never become visible. That is safe, and it is also broken.
+## Two kinds of deployment
+
+**Private soak** — everything stood up, only you can reach it, no scanning.
+Worth doing first: infrastructure fails in ways tests cannot predict, and it is
+better to find that out before anyone else is involved. Set
+`CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED=private-deployment` on the
+deriver; it starts, and prints a banner on every boot saying uploads are going
+out unchecked.
+
+The flag is named rather than quiet so it shows up in `fly secrets list`, in
+`grep`, and in the logs. The rule attached to it is simple: **the moment anyone
+but you can reach the deployment, it has to go.** Anyone with a link can
+upload, so "nobody else can reach it" means not sharing a link — there is no
+auth wall doing that for you.
+
+**Launch** — work through [`csam-runbook.md`](csam-runbook.md) first: a
+provider onboarded, credentials before the first detection, counsel briefed, a
+named human on alerts. Without a scanner and without the flag, ingest fails
+closed: uploads stall at `pending` and are never served. Safe, and broken.
 
 ## The short way
 
@@ -147,6 +162,8 @@ Generate with `openssl rand -base64 32`.
 | `SAFETY_CONTACT_EMAIL` | ● | | published on `/safety`; App Store 1.2 |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
 | `CSAM_SCANNER_KEY` | | ● | |
+| `CSAM_SCANNER` | | ● | `disabled`, private soak only |
+| `PAREA_ALLOW_UNSCANNED` | | ● | `private-deployment`; remove before launch |
 | `SAFETY_ALERT_WEBHOOK` | | ● | a quarantine nobody sees is no scanning |
 
 ## After the first deploy
@@ -159,6 +176,13 @@ Generate with `openssl rand -base64 32`.
       egress is going where you think.
 - [ ] Check the photo you downloaded has no GPS: `exiftool -GPSLatitude file`.
 - [ ] Fire a synthetic safety alert and confirm a human receives it.
+      (Private soak: skip — and remember there is nothing there to receive it.)
+
+## Before it stops being private
+
+- [ ] `fly secrets unset PAREA_ALLOW_UNSCANNED CSAM_SCANNER`, and set a real
+      provider. The deriver refuses to start without one, which is the check.
+- [ ] Everything in [`csam-runbook.md`](csam-runbook.md).
 
 ## Known gaps
 

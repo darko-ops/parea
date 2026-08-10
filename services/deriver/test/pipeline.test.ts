@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { crc32 } from '../src/crc32';
 import { canDecode, canDecodeViaHeifConvert } from '../src/derivatives';
@@ -26,7 +26,12 @@ import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
 import { processPhoto } from '../src/pipeline';
-import { DisabledScanner, ScanUnavailable, type CsamScanner } from '../src/safety';
+import {
+  DisabledScanner,
+  ScanUnavailable,
+  UNSCANNED_ACK,
+  type CsamScanner,
+} from '../src/safety';
 
 const run = promisify(execFile);
 const MIGRATIONS = fileURLToPath(
@@ -442,5 +447,41 @@ describe('child-safety scanning', () => {
     await processPhoto({ db, objects, scanner: matching }, photo.id);
     const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
     expect(row.storageKey).toBe(key);
+  });
+});
+
+describe('running without a scanner', () => {
+  it('is free in development', () => {
+    expect(() => new DisabledScanner({ NODE_ENV: 'development' })).not.toThrow();
+  });
+
+  it('refuses in production without an explicit acknowledgement', () => {
+    // Forgetting to configure a scanner must not look the same as choosing to
+    // run without one.
+    expect(() => new DisabledScanner({ NODE_ENV: 'production' })).toThrow(
+      /PAREA_ALLOW_UNSCANNED/,
+    );
+  });
+
+  it('refuses a wrong acknowledgement rather than any truthy value', () => {
+    expect(
+      () => new DisabledScanner({ NODE_ENV: 'production', PAREA_ALLOW_UNSCANNED: 'true' }),
+    ).toThrow();
+    expect(
+      () => new DisabledScanner({ NODE_ENV: 'production', PAREA_ALLOW_UNSCANNED: '1' }),
+    ).toThrow();
+  });
+
+  it('allows it with the acknowledgement, loudly', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      () =>
+        new DisabledScanner({
+          NODE_ENV: 'production',
+          PAREA_ALLOW_UNSCANNED: UNSCANNED_ACK,
+        }),
+    ).not.toThrow();
+    expect(warn, 'a silent opt-out is the thing to avoid').toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

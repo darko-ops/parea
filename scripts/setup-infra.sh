@@ -9,13 +9,19 @@
 # creates things in your accounts. It is idempotent: an existing bucket or
 # project is reused rather than clobbered, and nothing is ever deleted.
 #
-# Two things it cannot do, both dashboard-only, and it stops and tells you:
-# creating the R2 S3-API token, and choosing a child-safety scanning provider.
+# One thing it cannot do, because it is dashboard-only: creating the R2 S3-API
+# token. It stops and tells you.
+#
+# Pass --with-workers to also deploy the two Cloudflare Workers using the
+# secrets it just generated, so they cannot disagree with the app.
 #
 # See docs/deploy.md for the rest, and docs/csam-runbook.md before this
 # accepts a real photo from a real person.
 
 set -euo pipefail
+
+WITH_WORKERS=false
+[ "${1:-}" = "--with-workers" ] && WITH_WORKERS=true
 
 BUCKET="${R2_BUCKET:-parea}"
 NEON_PROJECT="${NEON_PROJECT:-parea}"
@@ -153,34 +159,70 @@ DATABASE_URL="$database_url" npm run db:migrate --silent
 bold "Seeding the code pool"
 DATABASE_URL="$database_url" npx tsx services/deriver/src/jobs.ts seed-codes
 
+# --- workers ----------------------------------------------------------------
+#
+# Deployed from here, with the secrets generated above, because a human copying
+# two base64 strings between three places is exactly how they come to disagree
+# — and a mismatch is a 404 with nothing in any log to explain it.
+
+deploy_worker() {
+  local dir="$1" secret_name="$2" secret_value="$3"
+  ( cd "$dir" || exit 1
+    printf '%s' "$secret_value" \
+      | npx --yes wrangler@latest secret put "$secret_name" >/dev/null 2>&1
+    npx --yes wrangler@latest deploy 2>&1 \
+      | grep -oE 'https://[A-Za-z0-9._-]+workers\.dev' | head -1
+  )
+}
+
+set_env() {
+  local key="$1" value="$2"
+  [ -n "$value" ] || return 0
+  # Only fills a blank; never overwrites something already set by hand.
+  sed -i.bak "s|^${key}=$|${key}=${value}|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+}
+
+if [ "$WITH_WORKERS" = true ]; then
+  bold "Deploying Workers"
+  image_url="$(deploy_worker services/image-worker IMAGE_SECRET "$image_secret" || true)"
+  zip_url="$(deploy_worker services/zip-worker MANIFEST_SECRET "$manifest_secret" || true)"
+
+  if [ -n "$image_url" ] && [ -n "$zip_url" ]; then
+    set_env IMAGE_BASE_URL "$image_url"
+    set_env ZIP_BASE_URL "$zip_url"
+    echo "  image  $image_url"
+    echo "  zip    $zip_url"
+  else
+    warn "  could not read the deployed URLs from wrangler output"
+    warn "  set IMAGE_BASE_URL and ZIP_BASE_URL in $ENV_FILE by hand"
+  fi
+fi
+
 # --- what is left -----------------------------------------------------------
 
-cat <<EOF
+bold ""
+bold "Done."
+echo
 
-$(bold "Done. Three things remain, and none of them can be scripted.")
+if [ "$WITH_WORKERS" != true ]; then
+  echo "Workers were not deployed. Re-run with --with-workers, or deploy them"
+  echo "by hand and put the two URLs into $ENV_FILE."
+  echo
+fi
 
-1. R2 S3-API token — dashboard only.
-   Cloudflare → R2 → Manage API tokens → Create, with Object Read & Write
-   scoped to '$BUCKET'. Put the account id, key id and secret into
-   $ENV_FILE.
+cat <<TEXT
+Left to do, and it is dashboard-only: the R2 S3-API token.
+  Cloudflare -> R2 -> Manage API tokens -> Create, Object Read & Write scoped
+  to '$BUCKET'. Put the account id, key id and secret into $ENV_FILE.
 
-2. Deploy the Workers, using the secrets just generated so they match:
+Then:
+  npm run dev --workspace @parea/web      and check /api/health
 
-     cd services/image-worker
-     echo "$image_secret" | npx wrangler secret put IMAGE_SECRET
-     npx wrangler deploy
+Ingest, for a deployment nobody else can reach:
+  CSAM_SCANNER=disabled PAREA_ALLOW_UNSCANNED=private-deployment \\
+    npm run watch --workspace @parea/deriver
 
-     cd ../zip-worker
-     echo "$manifest_secret" | npx wrangler secret put MANIFEST_SECRET
-     npx wrangler deploy
-
-   Then put the two deployed URLs into $ENV_FILE as IMAGE_BASE_URL and
-   ZIP_BASE_URL.
-
-3. A child-safety scanning provider, before this accepts a photo from anyone
-   who is not you. Ingest fails closed without one, so uploads will stall
-   rather than leak — safe, and broken. docs/csam-runbook.md lists what has
-   to be true first, including a named human who receives alerts.
-
-Then: npm run dev --workspace @parea/web, and check /api/health.
-EOF
+It starts, and says on every boot that uploads are going out unchecked. That
+is only true while you are the only person holding a link. Before anyone else
+has one, get a scanning provider - docs/csam-runbook.md.
+TEXT
