@@ -3,13 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "bin": { "deriver": "./src/index.ts" },
+  "bin": {
+    "deriver": "./src/index.ts"
+  },
   "scripts": {
     "probe": "tsx src/index.ts probe",
     "once": "tsx src/index.ts once",
     "watch": "tsx src/index.ts watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "jobs": "tsx src/jobs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",

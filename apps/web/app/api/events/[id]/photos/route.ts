@@ -10,13 +10,14 @@
  * (design §8). v1 accepts it.
  */
 
-import { schema } from '@parea/core';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { schema, visiblePhotos } from '@parea/core';
+import { asc, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { hasDerivatives, imageSrc } from '@/images';
+import { viewerContext } from '@/moderation';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -46,13 +47,9 @@ export async function GET(
   const rows = await db
     .select()
     .from(schema.photos)
-    .where(
-      and(
-        eq(schema.photos.eventId, event.id),
-        eq(schema.photos.status, 'ready'),
-        isNull(schema.photos.deletedAt),
-      ),
-    )
+    // One shared predicate for deleted / removed / hidden / blocked — see
+    // @parea/core's visibility module for why those are four states.
+    .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
     .orderBy(
       asc(sql`coalesce(${schema.photos.capturedAt}, ${schema.photos.uploadedAt})`),
     );

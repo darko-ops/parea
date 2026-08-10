@@ -213,6 +213,12 @@ export const photos = pgTable(
     })
       .notNull()
       .default('pending'),
+    /**
+     * Temporarily invisible, pending a host decision on a removal request.
+     * Distinct from deletion on purpose: being wrong in either direction is
+     * bad, but hidden is recoverable and deleted is not.
+     */
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => [
@@ -242,22 +248,69 @@ export const derivatives = pgTable(
   (t) => [primaryKey({ columns: [t.photoId, t.kind] })],
 );
 
-export const reports = pgTable('report', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  photoId: uuid('photo_id')
-    .notNull()
-    .references(() => photos.id, { onDelete: 'cascade' }),
-  /** Null: reporting never requires an account. */
-  reporterActorId: uuid('reporter_actor_id').references(() => actors.id, {
-    onDelete: 'set null',
-  }),
-  kind: text('kind', {
-    enum: ['removal_request', 'abuse', 'other'],
-  }).notNull(),
-  note: text('note'),
-  createdAt: createdAt(),
-  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-});
+export const reports = pgTable(
+  'report',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    /** Null: reporting never requires an account. */
+    reporterActorId: uuid('reporter_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * `removal_request` goes to the event's host — "that's a photo of me,
+     * please take it down". `abuse` comes to us, not the host, because the
+     * host may be the problem.
+     */
+    kind: text('kind', {
+      enum: ['removal_request', 'abuse', 'other'],
+    }).notNull(),
+    note: text('note'),
+    status: text('status', { enum: ['open', 'actioned', 'declined'] })
+      .notNull()
+      .default('open'),
+    /**
+     * When an unanswered removal request auto-hides the photo. Hosts are
+     * ordinary people who may not open the app for a week, and "wait
+     * indefinitely for the host" is not an answer to someone asking for a
+     * photo of themselves to come down.
+     */
+    autoHideAt: timestamp('auto_hide_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('report_open_idx').on(t.status, t.autoHideAt),
+    index('report_photo_idx').on(t.photoId),
+  ],
+);
+
+/**
+ * A personal block list — App Store Guideline 1.2 requires the ability to
+ * block abusive users, and it is the right feature regardless.
+ *
+ * Two effects: the blocker stops seeing the blocked actor's uploads anywhere,
+ * and the blocked actor cannot join events the blocker administers. It is
+ * deliberately one-directional and invisible to the blocked party.
+ */
+export const blocks = pgTable(
+  'block',
+  {
+    blockerActorId: uuid('blocker_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    blockedActorId: uuid('blocked_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerActorId, t.blockedActorId] })],
+);
 
 // --- relations -------------------------------------------------------------
 

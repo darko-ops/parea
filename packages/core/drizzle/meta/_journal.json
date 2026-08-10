@@ -8,6 +8,13 @@
       "when": 1786331130658,
       "tag": "0000_military_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786334295222,
+      "tag": "0001_bored_mephisto",
+      "breakpoints": true
     }
   ]
 }

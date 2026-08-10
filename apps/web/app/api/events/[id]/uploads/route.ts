@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, recordParticipant, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { isBlockedBy } from '@/moderation';
 import { ensureActor, requesterFor } from '@/session';
 import { getStorage, objectKey } from '@/storage';
 
@@ -58,6 +59,14 @@ export async function POST(
     db,
     typeof body.displayName === 'string' ? body.displayName.trim() : undefined,
   );
+
+  // The second half of what a block means: blocked by the host, cannot
+  // contribute here. Checked after the actor exists, because until someone
+  // contributes there is nobody to have blocked.
+  if (await isBlockedBy(db, event.createdBy, actorId)) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 });
+  }
+
   await recordParticipant(db, event.id, actorId);
 
   const storage = getStorage();
