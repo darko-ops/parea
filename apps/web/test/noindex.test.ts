@@ -62,6 +62,7 @@ function matches(source: string, pathname: string): boolean {
 
 const PRIVATE = [
   '/e/AbCdEfGhIjKlMnOpQrStUv',
+  '/account',
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/manage',
   '/group/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
@@ -101,7 +102,7 @@ describe('robots.txt', () => {
     const [rule] = robots().rules as { allow?: string; disallow?: string[] }[];
     expect(rule!.allow).toBe('/');
     expect(rule!.disallow).toEqual(
-      expect.arrayContaining(['/e/', '/event/', '/group/', '/api/']),
+      expect.arrayContaining(['/e/', '/event/', '/group/', '/account', '/api/']),
     );
   });
 
@@ -122,6 +123,7 @@ describe('the pages say so themselves', () => {
     'app/event/[id]/page.tsx',
     'app/event/[id]/manage/page.tsx',
     'app/group/[id]/page.tsx',
+    'app/account/page.tsx',
   ])('%s exports robots metadata', async (path) => {
     expect(await read(`../${path}`)).toMatch(/robots:\s*\{\s*index:\s*false/);
   });

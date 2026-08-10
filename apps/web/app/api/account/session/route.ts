@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { accountFor, consumeCode, signIn } from '@/accounts';
 import { getDb } from '@/db';
 import { SIGN_IN_LIMIT, withinLimit } from '@/ratelimit';
-import { actorToken, currentActorId, ensureActor } from '@/session';
+import { actorToken, currentActorId, ensureActor, fromBrowser } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +23,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Unlike `/api/session`, this one has a browser caller — the sign-in page —
+  // so it answers normally and only withholds the token.
+  const browser = await fromBrowser();
+
   const body = (await request.json().catch(() => ({}))) as {
     email?: unknown;
     code?: unknown;
@@ -57,7 +61,9 @@ export async function POST(request: Request) {
   const result = await signIn(db, email, actorId);
 
   return NextResponse.json({
-    actorToken: actorToken(result.actorId),
+    // Withheld from a browser, which already holds the same value in an
+    // httpOnly cookie — see `presentedActorCookie`.
+    ...(browser ? {} : { actorToken: actorToken(result.actorId) }),
     email: result.email,
     // True when this device's previous identity was folded into an existing
     // one. The client uses it to say so rather than silently swapping.

@@ -147,6 +147,17 @@ export default function CreatePage() {
         </button>
       </form>
       {error && <p className="muted">{error}</p>}
+
+      <p className="muted footer">
+        {/*
+          Below the fold on the one page someone lands on cold. An account is
+          optional and does one thing; putting it near the top would suggest
+          this is something you sign up for, which is the opposite of the
+          product.
+        */}
+        <a href="/account">Your account</a> ·{' '}
+        <a href="/safety">Safety, reporting and contact</a>
+      </p>
     </main>
   );
 }

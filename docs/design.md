@@ -157,6 +157,27 @@ have. Its one job is that a new phone is still you, which a credential in a
 keychain cannot manage alone. It sits at the bottom of the profile tab and
 nothing prompts for it.
 
+**The web has the same three verbs**, at `/account`, against the same
+endpoints — ask for a code, present it, delete the account. Only the carrier
+differs, and that is settled a layer down: the browser gets the httpOnly
+cookie, native gets the same signed value as a bearer token, and nothing above
+`currentActorId` knows which arrived. The reason for the page is that signing
+in has to be visibly worth something, and on a browser the "new phone is still
+you" argument lands weakly, so `/account` is also the one place the web lists
+what you are in.
+
+**The actor token is withheld from a browser.** Both routes that hand it out —
+`POST /api/session` and `POST /api/account/session` — check `fromBrowser()`
+first. The cookie is httpOnly so that a script on the page cannot read who you
+are and keep it; a same-origin fetch answering with the same signed string
+undoes that entirely, and the value now names a person rather than a throwaway
+guest. `/api/session` has no browser caller at all and answers 404 to one;
+`/api/account/session` answers normally and omits the field. The signal is
+`Sec-Fetch-Mode`, which every current browser sends and no script can add or
+strip, and explicitly *not* the actor cookie: React Native shares the platform
+cookie store, so the app sends back cookies the server set, and a native client
+denied its own token cannot stay signed in.
+
 **A one-time code, not a password and not a link.** No password, because an
 account here holds an address and nothing else — a password would be the most
 sensitive thing in the system, protecting the least, and it would bring a reset
@@ -1163,11 +1184,12 @@ the column from day one costs nothing.
 - **Group-search abuse.** Findable groups are a namespace, and namespaces get
   squatted and impersonated. Low urgency while groups are rare; revisit before
   promoting group search.
-- **Whether the web should list your groups too.** `GET /api/groups` was added
-  for the native client and is part of the shared protocol, so the web can use
-  it — but the web has no persistent place to put it, and a group list on a
-  page reached from a link is a strange thing. Deliberately unbuilt rather than
-  overlooked.
+- **Whether the web should list your groups too.** Half-answered. The premise
+  was that the web had no persistent place to put a list; `/account` is that
+  place, and it lists albums — a signed-in browser can now see what it is in.
+  Groups themselves still are not listed there. `GET /api/groups` exists and is
+  part of the shared protocol, so it is a page rather than a protocol question,
+  and the honest reason to wait is that nobody has asked for it on the web.
 
 ## 18. Instrumentation
 

@@ -250,6 +250,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       )}
 
       <p className="muted footer">
+        <a href="/account">Your account</a> ·{' '}
         <a href="/safety">Safety, reporting and contact</a>
       </p>
 

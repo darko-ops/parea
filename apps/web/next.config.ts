@@ -1,5 +1,8 @@
 import type { NextConfig } from 'next';
 
+/** Written once so the two private-path rules cannot drift apart. */
+const NOINDEX = 'noindex, nofollow, noarchive, noimageindex';
+
 const config: NextConfig = {
   // @parea/core ships TypeScript source rather than a build step.
   transpilePackages: [
@@ -47,12 +50,17 @@ const config: NextConfig = {
        */
       {
         source: '/:prefix(e|event|group)/:path*',
-        headers: [
-          {
-            key: 'X-Robots-Tag',
-            value: 'noindex, nofollow, noarchive, noimageindex',
-          },
-        ],
+        headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
+      },
+      /*
+       * `/account` is its own rule rather than another alternative above,
+       * because the alternation requires a segment after the prefix and this
+       * path has none. It is the one page that names a person's email address
+       * and lists everything they are in.
+       */
+      {
+        source: '/account/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       },
       {
         source: '/api/:path*',

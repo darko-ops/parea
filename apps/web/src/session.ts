@@ -63,6 +63,39 @@ export function actorToken(actorId: string): string {
   return sign(actorId);
 }
 
+/**
+ * Whether this request came from a browser, for the two routes that hand out
+ * an actor token.
+ *
+ * They withhold it when this is true. One credential format is a good thing;
+ * putting it where a page's JavaScript can read it is not. The cookie is
+ * `httpOnly` precisely so a script cannot lift it, and a same-origin `fetch`
+ * answering with the same signed string undoes that in one line — worse than
+ * the cookie, because the token survives clearing site data and, now that
+ * accounts exist, names a person rather than a throwaway guest. The web needs
+ * it for nothing: every web caller is same-origin and already carries the
+ * cookie on the request.
+ *
+ * The signal is `Sec-Fetch-Mode`. Every current browser sends the
+ * fetch-metadata headers on every request, and the `Sec-` prefix makes them
+ * forbidden header names, so a script can neither add nor strip them: this is
+ * the browser's word rather than the caller's, which is the only kind worth
+ * having against an attacker who is already running in the page.
+ *
+ * Not the actor cookie, which is the tempting one and is wrong. React Native
+ * shares the platform cookie store on both iOS and Android, so the app *does*
+ * send back a cookie the server once set — and withholding the token from it
+ * would leave the app unable to keep its own identity, which is worse than
+ * what this protects against.
+ *
+ * Safari before 16.4 sends no fetch metadata and is handed a token, which is
+ * where every browser was before this existed. It fails in the direction of
+ * the old behaviour rather than of a broken client.
+ */
+export async function fromBrowser(): Promise<boolean> {
+  return (await headers()).get('sec-fetch-mode') !== null;
+}
+
 /** Creates a guest actor and sets the cookie. Call only when contributing. */
 export async function ensureActor(db: Db, displayName?: string): Promise<string> {
   const existing = await currentActorId();

@@ -115,7 +115,9 @@ would mean.
 actor does not already have; its one job is that a new phone is still you.
 Signing in on a second device merges two actors, and the rows *move* rather
 than reads following a pointer — resolving an alias per call site is how one
-gets missed, and a missed one is "you cannot delete your own photo".
+gets missed, and a missed one is "you cannot delete your own photo". Both
+clients sign in the same way against the same endpoints; only the carrier
+differs, and a browser is never handed the bearer form of its own cookie.
 
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than

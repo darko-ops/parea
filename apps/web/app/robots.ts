@@ -13,6 +13,10 @@
  * Listing the prefixes here does disclose their shape, which is why they are
  * prefixes and never tokens: `/e/` says events exist and says nothing about
  * which. Everything under them is unguessable and signed.
+ *
+ * `/account` has no trailing slash and the others do, because it is a page
+ * rather than a prefix — robots.txt matching is literal, and `/account/` would
+ * not cover the one URL that matters.
  */
 
 import type { MetadataRoute } from 'next';
@@ -23,7 +27,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/e/', '/event/', '/group/', '/api/'],
+        disallow: ['/e/', '/event/', '/group/', '/account', '/api/'],
       },
     ],
   };

@@ -152,6 +152,11 @@ export function GroupView({ group }: { group: GroupData }) {
           Leave this group
         </button>
       </p>
+
+      <p className="muted footer">
+        <a href="/account">Your account</a> ·{' '}
+        <a href="/safety">Safety, reporting and contact</a>
+      </p>
     </main>
   );
 }

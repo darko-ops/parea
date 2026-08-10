@@ -205,10 +205,6 @@ Generate with `openssl rand -base64 32`.
       whether it resumes or asks for the files again. Both are handled; which
       one happens is a device fact nothing in the test suite can establish
       (design §8), and it decides how good the web path actually is.
-- [ ] On an iPhone, on Safari: start a large upload, reload mid-batch, and see
-      whether it resumes or asks for the files again. Both are handled; which
-      one happens is a device fact nothing in the test suite can establish
-      (design §8), and it decides how good the web path actually is.
 - [ ] Fire a synthetic safety alert and confirm a human receives it.
       (Private soak: skip — and remember there is nothing there to receive it.)
 
