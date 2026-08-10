@@ -28,10 +28,54 @@ export type FeedPhoto = {
 };
 
 export type Feed = {
-  event: { id: string; name: string; uploadsOpen: boolean; canAdminister: boolean };
+  event: {
+    id: string;
+    name: string;
+    uploadsOpen: boolean;
+    canAdminister: boolean;
+    /** The group this event belongs to, if it was rolled into one. */
+    groupId: string | null;
+    groupName: string | null;
+  };
   contributors: number;
   count: number;
   photos: FeedPhoto[];
+};
+
+/** A group as a stranger sees it: a door, never the room. */
+export type GroupDoor = {
+  id: string;
+  name: string;
+  memberCount: number;
+  member: false;
+  /** True for someone who was in one of its events — they can skip asking. */
+  canJoinDirectly: boolean;
+};
+
+export type GroupRoom = {
+  id: string;
+  name: string;
+  memberCount: number;
+  member: true;
+  role: 'member' | 'admin';
+  findable: boolean;
+  events: {
+    id: string;
+    name: string;
+    linkToken: string;
+    eventDate: string | null;
+    createdAt: string;
+    startsAt: string | null;
+    endsAt: string | null;
+  }[];
+};
+
+export type GroupView = GroupDoor | GroupRoom;
+
+export type JoinRequest = {
+  id: string;
+  createdAt: string;
+  displayName: string | null;
 };
 
 export class ApiError extends Error {
@@ -133,6 +177,81 @@ export class Api {
     }>(`/api/events/${eventId}/download`, {
       method: 'POST',
       body: JSON.stringify({ linkToken, format }),
+    });
+  }
+
+  // --- groups ----------------------------------------------------------
+
+  /**
+   * The groups this actor is in.
+   *
+   * Empty for someone who has never contributed, which is the common case on
+   * first launch and not an error.
+   */
+  async myGroups(): Promise<{ id: string; name: string; role: 'member' | 'admin' }[]> {
+    const { groups } = await this.call<{
+      groups: { id: string; name: string; role: 'member' | 'admin' }[];
+    }>('/api/groups');
+    return groups;
+  }
+
+  /**
+   * A group, as much of it as this actor is allowed to see.
+   *
+   * 404 covers three different things on purpose — no such group, a private
+   * group, and a group you cannot see — because distinguishing them would
+   * make the endpoint a way to confirm a private group exists.
+   */
+  group(id: string): Promise<GroupView> {
+    return this.call<GroupView>(`/api/groups/${id}`);
+  }
+
+  /** Name search over findable groups. The backstop for a lost link. */
+  async searchGroups(query: string): Promise<{ id: string; name: string; memberCount: number }[]> {
+    const { groups } = await this.call<{
+      groups: { id: string; name: string; memberCount: number }[];
+    }>(`/api/groups/search?q=${encodeURIComponent(query)}`);
+    return groups;
+  }
+
+  /**
+   * Join, or ask to.
+   *
+   * One call because the client should not have to know which it is: someone
+   * who was in one of the group's events is added, anyone else's request goes
+   * to an admin, and the response says which happened.
+   */
+  joinGroup(id: string): Promise<{ member?: boolean; requested?: boolean }> {
+    return this.call(`/api/groups/${id}/requests`, { method: 'POST', body: '{}' });
+  }
+
+  leaveGroup(id: string): Promise<unknown> {
+    return this.call(`/api/groups/${id}/members`, { method: 'DELETE' });
+  }
+
+  async joinRequests(id: string): Promise<JoinRequest[]> {
+    const { requests } = await this.call<{ requests: JoinRequest[] }>(
+      `/api/groups/${id}/requests`,
+    );
+    return requests;
+  }
+
+  resolveRequest(
+    groupId: string,
+    requestId: string,
+    action: 'approve' | 'decline',
+  ): Promise<unknown> {
+    return this.call(`/api/groups/${groupId}/requests`, {
+      method: 'PATCH',
+      body: JSON.stringify({ requestId, action }),
+    });
+  }
+
+  /** Roll an event into a new group — design §3, and only a host can. */
+  createGroup(fromEventId: string, name: string, findable: boolean) {
+    return this.call<{ id: string; name: string }>('/api/groups', {
+      method: 'POST',
+      body: JSON.stringify({ fromEventId, name, findable }),
     });
   }
 

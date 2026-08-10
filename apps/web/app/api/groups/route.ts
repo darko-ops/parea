@@ -14,10 +14,23 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
-import { addMember } from '@/groups';
+import { addMember, groupsFor } from '@/groups';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
+
+/**
+ * The groups this actor is in.
+ *
+ * Answers an empty list rather than 403 for someone with no actor yet: having
+ * no groups and not existing look the same from here, and they should — the
+ * app asks this on launch, before anyone has contributed anything.
+ */
+export async function GET() {
+  return NextResponse.json({
+    groups: await groupsFor(getDb(), await currentActorId()),
+  });
+}
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {

@@ -40,6 +40,34 @@ Cold start and warm start both route through one join path in `App.tsx`, and
 each URL is answered once: `getInitialURL` returns what launched the app and
 the listener can fire for the same URL, so handling both means joining twice.
 
+## Groups
+
+The other half of §1's native case. A group is what "the same people keep doing
+things together" turns into: one place the events accumulate, so nobody
+re-solves *how do I reach everyone* for the fourth dinner running.
+
+On the web a group is reachable only from an event you still have the link to,
+which makes it an attribute of a link. Here it is fetched from `GET
+/api/groups` and belongs to the **actor**, so a reinstall does not lose it and
+a lost link is recoverable. That endpoint is new and shared — the web can use
+it too, and does not yet.
+
+The screen turns on **door versus room**. A member sees the events. Everyone
+else sees a name and a member count, and only if the group chose to be
+findable; a private group answers identically to one that does not exist. The
+client shows one message for all three refusals on purpose — distinguishing
+them would make the screen a way to confirm a private group is real.
+
+Making one is offered from an event, to its host, and only while the event has
+no group: "the same people keep doing things together" is something you notice
+afterwards, so the flow is roll this event into a group rather than create an
+empty one and fill it. Nobody who attended is auto-enrolled — conscripting
+everyone who once opened a link would make membership the opposite of opt-in.
+
+Search is last on the join screen and never above the link box. It is the
+backstop for a lost link, not the way in; putting discovery first would suggest
+browsing is how this product works.
+
 ## Auto-selection
 
 The reason this client exists (design §1). With photo-library access and a

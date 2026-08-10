@@ -110,10 +110,45 @@ export async function groupEvents(db: Db, groupId: string) {
       linkToken: schema.events.linkToken,
       eventDate: schema.events.eventDate,
       createdAt: schema.events.createdAt,
+      // Carried so a client opening an event from here can still auto-select.
+      // Without them the native client falls through to the system picker for
+      // every event reached through a group, which is most of them once a
+      // group exists — and the reason it would is invisible.
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
     })
     .from(schema.events)
     .where(and(eq(schema.events.groupId, groupId), isNull(schema.events.deletedAt)))
     .orderBy(desc(schema.events.createdAt));
+}
+
+/**
+ * The groups this actor belongs to.
+ *
+ * Design §1 lists persistent group identity as something native has and the
+ * web does not, and this is what makes it true of the *actor* rather than of
+ * a device: a list held in local storage is lost on reinstall, and a person
+ * who reinstalls has not left their groups.
+ *
+ * A door's worth of information per group, same as search — the room is
+ * behind `GET /api/groups/<id>`, which checks membership again rather than
+ * trusting that this list produced the id.
+ */
+export async function groupsFor(db: Db, actorId: string | null) {
+  if (!actorId) return [];
+  return db
+    .select({
+      id: schema.groups.id,
+      name: schema.groups.name,
+      role: schema.groupMembers.role,
+      joinedAt: schema.groupMembers.joinedAt,
+    })
+    .from(schema.groupMembers)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
+    .where(
+      and(eq(schema.groupMembers.actorId, actorId), isNull(schema.groups.deletedAt)),
+    )
+    .orderBy(desc(schema.groupMembers.joinedAt));
 }
 
 /**

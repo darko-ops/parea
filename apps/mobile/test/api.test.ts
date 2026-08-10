@@ -114,6 +114,78 @@ describe('identity on the wire', () => {
   });
 });
 
+describe('groups on the wire', () => {
+  function respond(body: unknown, status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status });
+    });
+    return calls;
+  }
+
+  it('unwraps the list, so callers never see the envelope', async () => {
+    respond({ groups: [{ id: 'g1', name: 'Climbing', role: 'admin' }] });
+    expect(await new Api('https://api.test').myGroups()).toEqual([
+      { id: 'g1', name: 'Climbing', role: 'admin' },
+    ]);
+  });
+
+  it('escapes a search query rather than pasting it into the URL', async () => {
+    // Group names are arbitrary text and people search for what they see.
+    const calls = respond({ groups: [] });
+    await new Api('https://api.test').searchGroups('Sunday roast & co');
+    expect(calls[0]!.url).toBe(
+      'https://api.test/api/groups/search?q=Sunday%20roast%20%26%20co',
+    );
+  });
+
+  it('joins and asks to join through one call, because the client cannot tell which', async () => {
+    // Whether this is a join or a request depends on whether the server
+    // thinks you were at one of the group's events, which the client does
+    // not know and should not guess.
+    const calls = respond({ requested: true }, 201);
+    expect(await new Api('https://api.test').joinGroup('g1')).toEqual({
+      requested: true,
+    });
+    expect(calls[0]!.url).toBe('https://api.test/api/groups/g1/requests');
+    expect(calls[0]!.init.method).toBe('POST');
+  });
+
+  it('sends an admin decision as a PATCH naming the request', async () => {
+    const calls = respond({ resolved: 'approve' });
+    await new Api('https://api.test').resolveRequest('g1', 'r1', 'approve');
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      requestId: 'r1',
+      action: 'approve',
+    });
+  });
+
+  it('creates a group from an event, private by default', async () => {
+    // Findability is asked once at creation and defaults closed — a friend
+    // group is not a public entity because nobody said otherwise.
+    const calls = respond({ id: 'g1', name: 'Sunday roast' }, 201);
+    await new Api('https://api.test').createGroup('ev1', 'Sunday roast', false);
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      fromEventId: 'ev1',
+      name: 'Sunday roast',
+      findable: false,
+    });
+  });
+
+  it('surfaces the 404 that covers a private group', async () => {
+    // One answer for "no such group", "private" and "not for you". The client
+    // must not try to tell them apart.
+    vi.stubGlobal('fetch', async () =>
+      new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }),
+    );
+    const err = await new Api('https://api.test').group('g1').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(404);
+  });
+});
+
 describe('failures', () => {
   it('keeps the status and the code, because the UI branches on both', async () => {
     // 404 is "no such event"; 403 blocked and 429 quota_exceeded both need

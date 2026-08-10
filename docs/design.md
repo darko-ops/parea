@@ -1075,6 +1075,11 @@ the column from day one costs nothing.
 - **Group-search abuse.** Findable groups are a namespace, and namespaces get
   squatted and impersonated. Low urgency while groups are rare; revisit before
   promoting group search.
+- **Whether the web should list your groups too.** `GET /api/groups` was added
+  for the native client and is part of the shared protocol, so the web can use
+  it — but the web has no persistent place to put it, and a group list on a
+  page reached from a link is a strange thing. Deliberately unbuilt rather than
+  overlooked.
 
 ## 18. Instrumentation
 

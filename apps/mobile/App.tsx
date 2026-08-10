@@ -38,6 +38,7 @@ import {
 import { resolveWindow, type Window } from '@parea/autoselect';
 
 import { Api, tokenFromInput, type Feed, type FeedPhoto } from './src/api';
+import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
 import { AutoSelect } from './src/AutoSelect';
 import {
@@ -66,6 +67,18 @@ import { UploadQueue } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
+
+/**
+ * Where the app is. Three destinations and no history stack — every screen
+ * here is one step from home, and a navigation library would be more moving
+ * parts than the product has screens.
+ */
+type Route =
+  | { screen: 'home' }
+  | { screen: 'event'; event: SavedEvent }
+  | { screen: 'group'; id: string };
+
 export default function App() {
   const dark = useColorScheme() === 'dark';
   const t = useMemo(() => theme(dark), [dark]);
@@ -73,14 +86,25 @@ export default function App() {
 
   const [ready, setReady] = useState(false);
   const [events, setEvents] = useState<SavedEvent[]>([]);
-  const [active, setActive] = useState<SavedEvent | null>(null);
+  const [groups, setGroups] = useState<MyGroup[]>([]);
+  const [route, setRoute] = useState<Route>({ screen: 'home' });
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(async (event: SavedEvent) => {
     setEvents(await rememberEvent(event));
-    setActive(event);
+    setRoute({ screen: 'event', event });
   }, []);
+
+  /**
+   * Groups belong to the actor, not the device — so they are fetched rather
+   * than remembered locally. A reinstall loses the event list and keeps the
+   * groups, which is the right way round: a link is a thing you were sent, a
+   * group is a thing you are in.
+   */
+  const refreshGroups = useCallback(async () => {
+    setGroups(await api.myGroups().catch(() => []));
+  }, [api]);
 
   /**
    * The one path in, whether the link was pasted, scanned or tapped.
@@ -140,8 +164,10 @@ export default function App() {
       if (token) api.setToken(token);
       setEvents(await loadEvents());
       setReady(true);
-      // After the token, so the join is made as whoever this device already
-      // is rather than as a stranger.
+      // Both after the token: one asks who this device is, the other answers
+      // as them. Groups are empty for anyone who has never contributed, which
+      // is the common first launch and not an error.
+      void refreshGroups();
       await arrive(await Linking.getInitialURL());
     })();
 
@@ -149,7 +175,7 @@ export default function App() {
       void arrive(url);
     });
     return () => subscription.remove();
-  }, [api, arrive]);
+  }, [api, arrive, refreshGroups]);
 
   if (!ready) {
     return (
@@ -162,18 +188,39 @@ export default function App() {
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      {active ? (
+      {route.screen === 'event' && (
         <EventScreen
           api={api}
-          event={active}
+          event={route.event}
           t={t}
-          onBack={() => setActive(null)}
+          onBack={() => setRoute({ screen: 'home' })}
+          onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+          onGroupsChanged={refreshGroups}
         />
-      ) : (
+      )}
+
+      {route.screen === 'group' && (
+        <GroupScreen
+          api={api}
+          groupId={route.id}
+          t={t}
+          onBack={() => {
+            void refreshGroups();
+            setRoute({ screen: 'home' });
+          }}
+          onOpenEvent={open}
+          Button={Button}
+        />
+      )}
+
+      {route.screen === 'home' && (
         <JoinScreen
+          api={api}
           events={events}
+          groups={groups}
           t={t}
           onOpen={open}
+          onOpenGroup={(id) => setRoute({ screen: 'group', id })}
           onJoin={join}
           busy={arriving}
           error={joinError}
@@ -181,11 +228,11 @@ export default function App() {
       )}
 
       {/*
-        A tapped link can land while the app is already inside another event.
+        A tapped link can land while the app is already somewhere else.
         Without this the screen simply changes under someone who is watching
         an upload, with no account of why.
       */}
-      {arriving && active && (
+      {arriving && route.screen !== 'home' && (
         <View style={[styles.center, styles.overlay]}>
           <ActivityIndicator color={t.accent} />
           <Text style={[styles.body, { color: t.fg }]}>Opening…</Text>
@@ -198,16 +245,22 @@ export default function App() {
 // --- join --------------------------------------------------------------------
 
 function JoinScreen({
+  api,
   events,
+  groups,
   t,
   onOpen,
+  onOpenGroup,
   onJoin,
   busy,
   error,
 }: {
+  api: Api;
   events: SavedEvent[];
+  groups: MyGroup[];
   t: Theme;
   onOpen: (event: SavedEvent) => void;
+  onOpenGroup: (groupId: string) => void;
   onJoin: (input: { linkToken?: string; code?: string }) => Promise<boolean>;
   busy: boolean;
   error: string | null;
@@ -266,6 +319,26 @@ function JoinScreen({
         {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
       </View>
 
+      {/*
+        Groups first, and above the recent events, because they are the thing
+        that survives: the event list is whatever links this device has been
+        sent, and the group list is where you actually belong.
+      */}
+      {groups.length > 0 && (
+        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+          <Text style={[styles.label, { color: t.fg }]}>Your groups</Text>
+          {groups.map((group) => (
+            <Pressable
+              key={group.id}
+              onPress={() => onOpenGroup(group.id)}
+              style={styles.listRow}
+            >
+              <Text style={[styles.body, { color: t.accent }]}>{group.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {events.length > 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.label, { color: t.fg }]}>Recently</Text>
@@ -276,6 +349,13 @@ function JoinScreen({
           ))}
         </View>
       )}
+
+      {/*
+        Last, and never above the link box. Search is the backstop for a lost
+        link, not the way in — putting discovery first would suggest browsing
+        is how this product works, and it is not.
+      */}
+      <GroupSearch api={api} t={t} onOpen={onOpenGroup} />
 
       <Modal visible={scanning} animationType="slide" onRequestClose={() => setScanning(false)}>
         <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -302,11 +382,15 @@ function EventScreen({
   event,
   t,
   onBack,
+  onOpenGroup,
+  onGroupsChanged,
 }: {
   api: Api;
   event: SavedEvent;
   t: Theme;
   onBack: () => void;
+  onOpenGroup: (groupId: string) => void;
+  onGroupsChanged: () => void;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -316,6 +400,8 @@ function EventScreen({
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
   const [offerUpgrade, setOfferUpgrade] = useState(false);
+  const [namingGroup, setNamingGroup] = useState(false);
+  const [groupName, setGroupName] = useState('');
 
   useEffect(() => {
     void libraryAccess().then(setAccess);
@@ -479,6 +565,28 @@ function EventScreen({
     }
   }, [feed]);
 
+  /**
+   * Roll this event into a group — design §3.
+   *
+   * Offered from an event rather than as "create a group", because "the same
+   * people keep doing things together" is something you notice afterwards.
+   * Only the host sees it, and only once: an event belongs to at most one
+   * group, and the server refuses a second.
+   */
+  const createGroup = useCallback(async () => {
+    const name = groupName.trim();
+    if (!name) return;
+    try {
+      const group = await api.createGroup(event.id, name, false);
+      setNamingGroup(false);
+      setGroupName('');
+      onGroupsChanged();
+      onOpenGroup(group.id);
+    } catch {
+      Alert.alert('Could not make the group', 'Try again in a moment.');
+    }
+  }, [api, event.id, groupName, onGroupsChanged, onOpenGroup]);
+
   if (autoWindow) {
     return (
       <AutoSelect
@@ -523,6 +631,14 @@ function EventScreen({
                 : 'Loading…'}
             </Text>
 
+            {feed?.event.groupId && (
+              <Pressable onPress={() => onOpenGroup(feed.event.groupId!)}>
+                <Text style={[styles.body, { color: t.accent }]}>
+                  in {feed.event.groupName} ›
+                </Text>
+              </Pressable>
+            )}
+
             {feed?.event.uploadsOpen !== false && (
               <Button label="Add photos" onPress={addPhotos} t={t} primary />
             )}
@@ -560,6 +676,57 @@ function EventScreen({
                 disabled={saving !== null}
                 t={t}
               />
+            )}
+
+            {/*
+              Only the host, and only for an event that is not already in one.
+              The pitch is the recurrence, not the feature: nobody wants "a
+              group", they want to stop sending the link every time.
+            */}
+            {feed?.event.canAdminister && !feed.event.groupId && (
+              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+                {namingGroup ? (
+                  <>
+                    <Text style={[styles.label, { color: t.fg }]}>Name the group</Text>
+                    <TextInput
+                      value={groupName}
+                      onChangeText={setGroupName}
+                      placeholder="Sunday roast"
+                      placeholderTextColor={t.dim}
+                      autoFocus
+                      onSubmitEditing={createGroup}
+                      style={[
+                        styles.input,
+                        { color: t.fg, borderColor: t.line, backgroundColor: t.bg },
+                      ]}
+                    />
+                    <Text style={[styles.small, { color: t.dim }]}>
+                      Everyone here keeps their access. Nobody is added to the
+                      group without choosing to.
+                    </Text>
+                    <Button
+                      label="Make the group"
+                      onPress={createGroup}
+                      disabled={!groupName.trim()}
+                      t={t}
+                      primary
+                    />
+                    <Button label="Cancel" onPress={() => setNamingGroup(false)} t={t} />
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.body, { color: t.fg }]}>
+                      Do this often with these people? A group keeps the events
+                      together, so you only send the link once.
+                    </Text>
+                    <Button
+                      label="Start a group from this event"
+                      onPress={() => setNamingGroup(true)}
+                      t={t}
+                    />
+                  </>
+                )}
+              </View>
             )}
           </View>
         }
@@ -747,6 +914,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
+  small: { fontSize: 13, lineHeight: 18 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },

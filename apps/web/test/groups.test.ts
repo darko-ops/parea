@@ -22,6 +22,7 @@ import {
   addMember,
   groupEvents,
   memberCount,
+  groupsFor,
   membershipOf,
   participatedInGroup,
   searchGroups,
@@ -252,6 +253,31 @@ describe('what membership buys', () => {
     });
   });
 
+  it('carries each event’s window, so auto-selection survives the trip', async () => {
+    // A client opening an event from the group archive has nothing else to
+    // learn the window from. Without these every grouped event silently
+    // falls through to the system picker — the app's whole justification,
+    // lost to a missing column in a select.
+    const host = await actor();
+    const club = await group('Climbing');
+    const [event] = await db
+      .insert(schema.events)
+      .values({
+        name: 'Peak trip',
+        linkToken: newLinkToken(),
+        createdBy: host,
+        groupId: club.id,
+        startsAt: new Date('2026-07-18T18:00:00Z'),
+        endsAt: new Date('2026-07-19T02:00:00Z'),
+      })
+      .returning();
+
+    const [row] = await groupEvents(db, club.id);
+    expect(row!.id).toBe(event!.id);
+    expect(row!.startsAt).not.toBeNull();
+    expect(row!.endsAt).not.toBeNull();
+  });
+
   it('lists the group’s events and nothing else', async () => {
     const house = await group('The Flat');
     const host = await actor();
@@ -273,6 +299,68 @@ describe('what membership buys', () => {
       .set({ deletedAt: new Date() })
       .where(eq(schema.events.id, event.id));
     expect(await groupEvents(db, house.id)).toHaveLength(0);
+  });
+});
+
+describe('the groups an actor is in', () => {
+  it('is empty for someone who has never contributed', async () => {
+    // Asked on every launch of the app, before anyone has done anything.
+    // Empty is the answer, not an error.
+    expect(await groupsFor(db, null)).toEqual([]);
+    expect(await groupsFor(db, await actor())).toEqual([]);
+  });
+
+  it('lists membership, with the role', async () => {
+    const person = await actor();
+    const club = await group('Climbing');
+    await addMember(db, club.id, person, 'admin');
+
+    const mine = await groupsFor(db, person);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ id: club.id, name: 'Climbing', role: 'admin' });
+  });
+
+  it('lists only this actor’s groups', async () => {
+    const person = await actor();
+    const other = await actor();
+    await addMember(db, (await group('Mine')).id, person);
+    await addMember(db, (await group('Theirs')).id, other);
+
+    expect((await groupsFor(db, person)).map((g) => g.name)).toEqual(['Mine']);
+  });
+
+  it('includes unfindable groups, which search never would', async () => {
+    // Findability governs discovery by strangers, not whether you can see
+    // what you are already in. Most groups are unfindable.
+    const person = await actor();
+    const secret = await group('The Flat', false);
+    await addMember(db, secret.id, person);
+
+    expect((await groupsFor(db, person)).map((g) => g.name)).toEqual(['The Flat']);
+    expect(await searchGroups(db, 'The Flat')).toEqual([]);
+  });
+
+  it('drops a group that has been deleted', async () => {
+    const person = await actor();
+    const gone = await group('Old');
+    await addMember(db, gone.id, person);
+    await db
+      .update(schema.groups)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.groups.id, gone.id));
+
+    expect(await groupsFor(db, person)).toEqual([]);
+  });
+
+  it('drops a group after leaving it', async () => {
+    const person = await actor();
+    const club = await group('Climbing');
+    await addMember(db, club.id, person);
+    await db
+      .delete(schema.groupMembers)
+      .where(eq(schema.groupMembers.actorId, person));
+
+    expect(await groupsFor(db, person)).toEqual([]);
   });
 });
 
