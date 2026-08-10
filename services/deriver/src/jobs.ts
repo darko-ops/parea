@@ -17,6 +17,7 @@
 
 import { codeWordPairs, schema } from '@parea/core';
 import { sendAll, toMessage } from '@parea/push';
+import { allDerivativeKeysFor } from '@parea/urls';
 import {
   and,
   count,
@@ -35,6 +36,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 import { objectStoreFromEnv, type ObjectStore } from './objects';
+
 
 /** How long a tombstoned photo's bytes survive before they are really gone. */
 const PURGE_GRACE_DAYS = 30;
@@ -128,18 +130,41 @@ export async function purge(
 
   let purged = 0;
   for (const row of rows) {
-    for (const key of [
-      row.storageKey,
-      `${row.storageKey}.thumb.jpg`,
-      `${row.storageKey}.grid.jpg`,
-      `${row.storageKey}.full.jpg`,
-    ]) {
+    // Derived from the same table the deriver writes from, not a list kept in
+    // step by hand: this was three hardcoded `.jpg` keys, and the day AVIF
+    // arrived it started leaving two objects per purged photo in the bucket
+    // forever. A purge that misses is a storage bill nobody can explain.
+    for (const key of [row.storageKey, ...allDerivativeKeysFor(row.storageKey)]) {
       await objects.delete(key).catch(() => {});
     }
     await database.delete(schema.photos).where(eq(schema.photos.id, row.id));
     purged++;
   }
   return purged;
+}
+
+/**
+ * Drops rate-limit counters whose window has closed.
+ *
+ * Nothing depends on this for correctness — a stale row is reset in place the
+ * next time that source appears. It exists so the table does not accumulate a
+ * row per address seen since launch, which for a link that travels is a lot of
+ * rows holding nothing anyone wants.
+ *
+ * The window is hardcoded rather than read from the limits: this job runs in
+ * the deriver, the limits live in the web app, and a cutoff an hour past the
+ * longest of them is right whatever they are tuned to. Being wrong here costs
+ * some rows staying a while longer.
+ */
+export async function expireRateLimits(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - 2 * 3600_000);
+  const removed = await database
+    .delete(schema.rateLimits)
+    .where(lt(schema.rateLimits.windowStart, cutoff))
+    .returning({ bucket: schema.rateLimits.bucket });
+  return removed.length;
 }
 
 /** Codes only stay short if they recycle, and late arrivals only work if they recycle slowly. */
@@ -323,6 +348,7 @@ async function main(): Promise<void> {
   await run('nudge', () => nudge(database));
   await run('purge', () => purge(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
+  await run('expire-rate-limits', () => expireRateLimits(database));
   process.exit(0);
 }
 

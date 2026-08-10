@@ -100,6 +100,29 @@ describe('purge', () => {
     expect(await db.select().from(schema.photos)).toHaveLength(0);
   });
 
+  it('takes every derivative with it, in every encoding', async () => {
+    // This was a hardcoded list of three `.jpg` keys, and the day AVIF was
+    // added it started leaving two objects per purged photo in the bucket
+    // with nothing pointing at them. An incomplete purge is a storage bill
+    // nobody can account for, and a deletion that did not fully happen.
+    const { photo } = await tombstonedPhoto();
+    const objects = store();
+    await purge(db, objects);
+
+    expect(objects.deleted).toEqual(
+      expect.arrayContaining([
+        photo.storageKey,
+        `${photo.storageKey}.thumb.jpg`,
+        `${photo.storageKey}.thumb.avif`,
+        `${photo.storageKey}.grid.jpg`,
+        `${photo.storageKey}.grid.avif`,
+        `${photo.storageKey}.full.jpg`,
+      ]),
+    );
+    // And nothing for a size that has no such encoding.
+    expect(objects.deleted).not.toContain(`${photo.storageKey}.full.avif`);
+  });
+
   it('leaves evidence alone while the hold is open-ended', async () => {
     // Nothing filed yet, so the clock has not started. Open-ended is not
     // expired, and treating null as "no hold" is the bug this guards.

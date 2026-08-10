@@ -23,10 +23,12 @@
 
 export {
   AVIF_KINDS,
+  allDerivativeKeysFor,
   IMAGE_FORMATS,
   IMAGE_KINDS,
   MIME,
   derivativeKey,
+  derivativeKeyFrom,
   epochMarkerKey,
   extensionOf,
   formatFromExtension,

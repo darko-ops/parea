@@ -107,7 +107,7 @@ export function epochMarkerKey(eventId: string): string {
 export function objectKeyFor(ref: ImageRef): string {
   const base = `ev/${ref.eventId}/${ref.hash}`;
   if (ref.kind === 'orig') return base;
-  return `${base}.${ref.kind}.${EXTENSION[formatOf(ref)]}`;
+  return derivativeKeyFrom(base, ref.kind, formatOf(ref));
 }
 
 /** The same, for the deriver, which holds the parts loose rather than as a ref. */
@@ -118,4 +118,29 @@ export function derivativeKey(
   format: ImageFormat,
 ): string {
   return objectKeyFor({ eventId, hash, kind, format, capEpoch: 0 });
+}
+
+/**
+ * A derivative's key given the original's, which is what callers holding a
+ * `photo.storage_key` have. The single place the suffix is spelled.
+ */
+export function derivativeKeyFrom(
+  originalKey: string,
+  kind: ImageKind,
+  format: ImageFormat,
+): string {
+  return `${originalKey}.${kind}.${EXTENSION[format]}`;
+}
+
+/**
+ * Every derivative an original can own — what a purge has to delete.
+ *
+ * Derived from the format table rather than listed, because a hand-kept list
+ * silently stopped covering AVIF the day AVIF was added, and the symptom of
+ * an incomplete purge is a storage bill with no explanation attached.
+ */
+export function allDerivativeKeysFor(originalKey: string): string[] {
+  return IMAGE_KINDS.filter((kind) => kind !== 'orig').flatMap((kind) =>
+    formatsFor(kind).map((format) => derivativeKeyFrom(originalKey, kind, format)),
+  );
 }

@@ -97,6 +97,12 @@ browser choose — the only party that knows what its decoder can do. Negotiatin
 at the edge would let one cached AVIF answer for a viewer who cannot decode it,
 which is an empty grid rather than a slow one.
 
+**The bounds that matter are the ones a client cannot reset.** An actor is
+minted on demand, so a per-actor upload cap is a cap on honesty — clearing a
+cookie buys a fresh allowance. The cap that actually bounds a leaked link is
+per *event*, because a link grants access to exactly one, and rate limits per
+source close the "just make more events" door behind it.
+
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
 twenty missing ones.

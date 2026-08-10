@@ -10,6 +10,15 @@ import { requesterFor } from '@/session';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Belt and braces with the `X-Robots-Tag` header in `next.config.ts`. The
+ * header is the one that covers non-HTML responses and survives a crawler
+ * finding the URL elsewhere; this one survives the headers not being applied,
+ * which is a deployment property rather than a code one.
+ */
+export const metadata = { robots: { index: false, follow: false } };
+
+
+/**
  * Host controls. Guarded with `administer`, and a denial renders as not-found
  * rather than forbidden so the page cannot be used to discover which event ids
  * are real.

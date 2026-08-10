@@ -43,6 +43,13 @@
       "when": 1786381367394,
       "tag": "0005_avif-derivatives",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786384548448,
+      "tag": "0006_rate-limits",
+      "breakpoints": true
     }
   ]
 }

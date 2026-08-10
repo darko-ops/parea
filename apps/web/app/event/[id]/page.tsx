@@ -13,6 +13,15 @@ import { currentActorId, requesterFor } from '@/session';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Belt and braces with the `X-Robots-Tag` header in `next.config.ts`. The
+ * header is the one that covers non-HTML responses and survives a crawler
+ * finding the URL elsewhere; this one survives the headers not being applied,
+ * which is a deployment property rather than a code one.
+ */
+export const metadata = { robots: { index: false, follow: false } };
+
+
+/**
  * The event page. Reached after `/e/<token>` has exchanged the link for a
  * capability cookie, so no secret is in this URL.
  *

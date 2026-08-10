@@ -568,9 +568,45 @@ operating it becomes the tax rather than the saving.
 
 ### 7.8 Rate limits
 
-Anyone with a link can upload anything. Per-actor, per-event: 500 photos and
-5GB; 50 files per presign request; per-IP presign limits on top. These are
-anti-catastrophe bounds, not product limits — log every time one bites.
+Anyone with a link can upload anything. These are anti-catastrophe bounds, not
+product limits — every one of them logs when it bites, because they are set far
+above real use and one firing means either abuse or a wrong assumption about
+real use.
+
+| Bound | Value | What it stops |
+|---|---|---|
+| Files per presign request | 50 | one absurd request |
+| Bytes per file | 200MB | one absurd file |
+| Per actor, per event | 500 photos / 5GB | an honest heavy shooter running away with it |
+| **Per event, total** | **20,000 photos / 100GB** | **one leaked link, whoever presents it** |
+| Presign requests per source | 300/hour | an unattended script |
+| Events created per source | 20/hour | minting events to escape every per-event bound |
+
+**The per-actor cap does not bound anyone hostile, and it never did.** An actor
+is minted on demand and costs nothing, so clearing a cookie buys a fresh 500
+photos. Anything that survives that has to be counted somewhere the client does
+not control, which is why the event total is the important row in that table:
+a link grants access to exactly one event, so the event is the unit whose blast
+radius can actually be capped, and an aggregate over rows is not something a
+client can reset.
+
+The two rate limits are *rates*, not volumes, and that is deliberate. A
+per-source volume cap would fire on the exact case the product exists for —
+twenty people at a wedding behind one NAT address, uploading at once. A rate
+limit does not care how much they upload, only how fast the requests arrive,
+and twenty humans tapping a file picker never approach what one loop does in a
+second.
+
+Rate-limit buckets are keyed by an HMAC of the address, not the address, so the
+table is opaque to anyone who reads it and holds no personal data to retain or
+delete. Closed windows are dropped by a scheduled job.
+
+Worth being honest about the limit of this: `x-forwarded-for` is only as
+truthful as the proxy in front of it. Vercel overwrites it and does not pass a
+client-supplied one through, so on the intended deployment it is the connecting
+address; behind a proxy that appends, or none, a caller can claim any source
+and the two rate limits bound nothing. That is why they are the second line.
+The per-event cap depends on none of it.
 
 ## 8. Contribution — the web path
 
@@ -745,6 +781,28 @@ the browser or OS can own.
 On native, "save all to camera roll" is the more natural terminal action than a
 zip, and it is a per-file loop with `expo-media-library` rather than an archive.
 Both exist; the app defaults to camera roll, the web to zip.
+
+### Nothing behind a link is indexable
+
+Possession of the link is the whole access model, so a link that reaches a
+crawler is a set of someone's photos in a search index — served back to
+strangers, at scale, for as long as the cache lives.
+
+`X-Robots-Tag: noindex, nofollow, noarchive, noimageindex` on `/e/*`,
+`/event/*`, `/group/*` and `/api/*`, plus `robots.txt` and a page-level
+directive. Three layers because they fail differently: `robots.txt` asks a
+crawler not to *fetch*, which does not stop a URL found elsewhere from being
+indexed anyway and covers no non-HTML response; the header travels with the
+response but is applied by the server, which is a deployment property; the page
+directive survives the header not being applied. `noimageindex` is not
+decoration — the photos come from the image Worker on another origin, so the
+page's directive is what speaks for them.
+
+`Referrer-Policy: no-referrer` is the same threat through the other channel:
+without it the event link rides along to every outbound click.
+
+The landing page stays indexable. It is the only page with nothing private on
+it.
 
 ## 11. Serving images
 

@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, recordParticipant, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { isBlockedBy } from '@/moderation';
+import { PRESIGN_LIMIT, withinLimit } from '@/ratelimit';
 import { ensureActor, requesterFor } from '@/session';
 import { getStorage, objectKey } from '@/storage';
 
@@ -30,6 +31,23 @@ const MAX_FILES_PER_REQUEST = 50;
 const MAX_BYTES_PER_FILE = 200 * 1024 * 1024;
 const MAX_PHOTOS_PER_ACTOR_PER_EVENT = 500;
 const MAX_BYTES_PER_ACTOR_PER_EVENT = 5 * 1024 * 1024 * 1024;
+
+/**
+ * The bound that does not depend on who is asking.
+ *
+ * The per-actor cap above is the right shape for an honest heavy shooter and
+ * no shape at all for anyone hostile: an actor is minted on demand and costs
+ * nothing, so clearing a cookie buys a fresh 500 photos, and the cap written
+ * to stop "one forwarded link in the wrong hands" stopped nothing.
+ *
+ * A link grants access to exactly one event, so the event is the unit whose
+ * total has to be bounded — and an aggregate over rows is not something a
+ * client can reset. 20,000 photos is roughly eighty times a typical event and
+ * eight times a large wedding; 100GB is the same again in bytes, and binds
+ * first for anyone uploading video.
+ */
+const MAX_PHOTOS_PER_EVENT = 20_000;
+const MAX_BYTES_PER_EVENT = 100 * 1024 * 1024 * 1024;
 
 const ALLOWED_MIME = /^(image\/(jpeg|png|heic|heif|webp|avif|gif)|video\/(mp4|quicktime))$/;
 
@@ -51,6 +69,15 @@ export async function POST(
   if (!files) return NextResponse.json({ error: 'invalid_files' }, { status: 400 });
 
   const db = getDb();
+
+  // Before the event lookup and before an actor exists, because the cheapest
+  // thing to refuse is a request nothing has been spent on yet — and because
+  // this is the one bound that survives the caller discarding their cookie
+  // between requests.
+  if (!(await withinLimit(db, PRESIGN_LIMIT, process.env.SESSION_SECRET))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+
   const event = await findEventById(db, id);
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
@@ -82,25 +109,42 @@ export async function POST(
 
   // Per-request limits alone bound nothing: a thousand requests of fifty files
   // is still a thousand requests. The cap that matters is cumulative.
-  const quota = await usedByActor(db, event.id, actorId);
   const incomingBytes = files.reduce((total, file) => total + file.size, 0);
+  const [mine, total] = await Promise.all([
+    used(db, event.id, actorId),
+    used(db, event.id),
+  ]);
 
   if (
-    quota.photos + files.length > MAX_PHOTOS_PER_ACTOR_PER_EVENT ||
-    quota.bytes + incomingBytes > MAX_BYTES_PER_ACTOR_PER_EVENT
+    mine.photos + files.length > MAX_PHOTOS_PER_ACTOR_PER_EVENT ||
+    mine.bytes + incomingBytes > MAX_BYTES_PER_ACTOR_PER_EVENT
   ) {
     // Worth knowing about: the bound is set far above real use, so hitting it
     // means either abuse or an assumption about real use being wrong.
     console.warn(
-      `quota: actor ${actorId} at ${quota.photos} photos / ${quota.bytes} bytes ` +
+      `quota: actor ${actorId} at ${mine.photos} photos / ${mine.bytes} bytes ` +
         `on event ${event.id}, requested ${files.length} more`,
     );
     return NextResponse.json(
       {
         error: 'quota_exceeded',
-        photos: quota.photos,
+        photos: mine.photos,
         maxPhotos: MAX_PHOTOS_PER_ACTOR_PER_EVENT,
       },
+      { status: 429 },
+    );
+  }
+
+  if (
+    total.photos + files.length > MAX_PHOTOS_PER_EVENT ||
+    total.bytes + incomingBytes > MAX_BYTES_PER_EVENT
+  ) {
+    console.warn(
+      `event quota: ${event.id} at ${total.photos} photos / ${total.bytes} bytes, ` +
+        `requested ${files.length} more`,
+    );
+    return NextResponse.json(
+      { error: 'event_full', photos: total.photos, maxPhotos: MAX_PHOTOS_PER_EVENT },
       { status: 429 },
     );
   }
@@ -140,17 +184,21 @@ export async function POST(
 }
 
 /**
- * What this actor has already put into this event.
+ * What is already in this event — all of it, or one actor's share.
  *
- * Counts pending rows as well as ready ones — a presign that was never
- * followed by an upload still reserved a row, and ignoring those would let
- * someone bypass the cap by never completing. Tombstoned photos do not count:
+ * Counts pending rows as well as ready ones: a presign that was never followed
+ * by an upload still reserved a row, and ignoring those would let someone
+ * bypass the cap by never completing. Tombstoned photos do not count, because
  * removing your own upload should give the space back.
+ *
+ * One function for both bounds so they cannot come to disagree about what
+ * counts. The accounting rules above are the subtle part, and they are the
+ * same rules whichever total is being taken.
  */
-async function usedByActor(
+async function used(
   db: ReturnType<typeof getDb>,
   eventId: string,
-  actorId: string,
+  actorId?: string,
 ): Promise<{ photos: number; bytes: number }> {
   const [row] = await db
     .select({ photos: count(), bytes: sum(schema.photos.byteSize) })
@@ -158,7 +206,7 @@ async function usedByActor(
     .where(
       and(
         eq(schema.photos.eventId, eventId),
-        eq(schema.photos.uploaderId, actorId),
+        actorId ? eq(schema.photos.uploaderId, actorId) : undefined,
         isNull(schema.photos.deletedAt),
       ),
     );

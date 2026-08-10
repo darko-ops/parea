@@ -432,6 +432,28 @@ export const blocks = pgTable(
 
 // --- relations -------------------------------------------------------------
 
+/**
+ * Fixed-window request counters — design §7.8.
+ *
+ * The per-actor and per-event caps bound how much any one identity or any one
+ * link can store. Neither bounds how fast an unattended script can ask, and
+ * neither survives the attacker simply making more identities, so this counts
+ * per source instead.
+ *
+ * **The bucket key holds no IP address.** It is an HMAC of one under the
+ * server secret, so this table is useless to anyone who reads it and carries
+ * no personal data to retain, explain or delete. Rows are dropped by the purge
+ * job once their window has passed.
+ */
+export const rateLimits = pgTable('rate_limit', {
+  /** `<name>:<hashed source>`. Opaque by construction — see above. */
+  bucket: text('bucket').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  count: integer('count').notNull().default(0),
+});
+
 export const eventRelations = relations(events, ({ one, many }) => ({
   group: one(groups, { fields: [events.groupId], references: [groups.id] }),
   creator: one(actors, { fields: [events.createdBy], references: [actors.id] }),

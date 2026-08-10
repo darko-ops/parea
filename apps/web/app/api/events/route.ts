@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
+import { CREATE_EVENT_LIMIT, withinLimit } from '@/ratelimit';
 import { ensureActor, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
@@ -35,6 +36,14 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
+
+  // Every storage bound in the product is per event, which means an attacker
+  // who can mint events without limit has no bound at all. This is the floor
+  // under all of them.
+  if (!(await withinLimit(db, CREATE_EVENT_LIMIT, process.env.SESSION_SECRET))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+
   const actorId = await ensureActor(
     db,
     typeof body.createdByName === 'string' ? body.createdByName.trim() : undefined,

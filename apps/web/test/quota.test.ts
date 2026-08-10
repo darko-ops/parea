@@ -10,6 +10,10 @@
  * wrong in two directions: counting only completed uploads lets someone
  * bypass the cap by never completing, and counting tombstoned photos means
  * removing your own upload does not give the space back.
+ *
+ * This cap alone does not bound a hostile caller — an actor is minted on
+ * demand, so dropping a cookie buys a fresh allowance. What closes that is in
+ * `ratelimit.test.ts`: a per-event total and a rate per source.
  */
 
 import { PGlite } from '@electric-sql/pglite';
@@ -40,7 +44,7 @@ beforeEach(async () => {
   `);
 });
 
-/** Mirrors usedByActor in the uploads route. */
+/** Mirrors `used(db, eventId, actorId)` in the uploads route. */
 async function used(eventId: string, actorId: string) {
   const [row] = await db
     .select({ photos: count(), bytes: sum(schema.photos.byteSize) })
@@ -150,8 +154,8 @@ describe('the bounds themselves', () => {
         'utf8',
       ),
     );
-    expect(source).toMatch(/usedByActor\(/);
-    expect(source).toMatch(/quota\.photos \+ files\.length/);
-    expect(source).toMatch(/quota\.bytes \+ incomingBytes/);
+    expect(source).toMatch(/used\(db, event\.id, actorId\)/);
+    expect(source).toMatch(/mine\.photos \+ files\.length/);
+    expect(source).toMatch(/mine\.bytes \+ incomingBytes/);
   });
 });

@@ -120,8 +120,9 @@ fly deploy -c fly.jobs.toml
 fly machine run --schedule daily <image> -a parea-jobs -- npx tsx services/deriver/src/jobs.ts
 ```
 
-`nudge` and `auto-hide` are the two with clocks attached — an unanswered removal request
-hides the photo after 48 hours only if this runs. Run `seed-codes` once by hand
+`nudge`, `auto-hide` and `expire-rate-limits` are the ones with clocks
+attached — an unanswered removal request hides the photo after 48 hours only if
+this runs. Run `seed-codes` once by hand
 after the first deploy, or the spoken-code door never opens:
 
 ```
@@ -173,6 +174,9 @@ Generate with `openssl rand -base64 32`.
 - [ ] Create an event, add a photo from a phone, watch it reach `ready`.
       If it stays `pending`, the deriver is not running or has no scanner.
 - [ ] The grid shows a thumbnail — proves `IMAGE_SECRET` matches.
+- [ ] `curl -sI https://<app>/event/<id> | grep -i x-robots-tag` returns
+      `noindex`. Possession of the link is the access model, so a crawler that
+      reaches one indexes someone's photos.
 - [ ] In devtools, confirm the grid requested `.avif` and got `image/avif`;
       then load the same event somewhere without AVIF and confirm it falls back
       to `.jpg` rather than showing an empty grid.

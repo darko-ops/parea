@@ -2,7 +2,13 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   // @parea/core ships TypeScript source rather than a build step.
-  transpilePackages: ['@parea/core', '@parea/zip', '@parea/urls', '@parea/push'],
+  transpilePackages: [
+    '@parea/core',
+    '@parea/zip',
+    '@parea/urls',
+    '@parea/push',
+    '@parea/upload',
+  ],
   // Development-only routes are named `route.dev.ts` and are only recognised
   // as routes when this extension is registered. In a production build they
   // are not routes at all — the dev object-store endpoint cannot be deployed
@@ -22,6 +28,34 @@ const config: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
         ],
+      },
+      /*
+       * Nothing behind a link is indexable — and possession of the link is the
+       * entire access model, so a link that reaches a crawler is a set of
+       * someone's photos in a search index.
+       *
+       * A header rather than only `robots.txt`, for three reasons: robots.txt
+       * asks a crawler not to *fetch*, which does not stop a URL discovered
+       * elsewhere from being indexed anyway; it covers no non-HTML response;
+       * and it lives at a path an attacker can read to enumerate the private
+       * prefixes. `X-Robots-Tag` travels with the response itself.
+       *
+       * `noimageindex` matters as much as `noindex` here. The photos are
+       * served from the image Worker on another origin, so the page's own
+       * directive is what tells a crawler not to index them.
+       */
+      {
+        source: '/:prefix(e|event|group)/:path*',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive, noimageindex',
+          },
+        ],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       },
     ];
   },
