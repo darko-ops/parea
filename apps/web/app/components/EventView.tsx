@@ -251,7 +251,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
 
       <p className="muted footer">
         <a href="/account">Your account</a> ·{' '}
-        <a href="/safety">Safety, reporting and contact</a>
+        <a href="/safety">Safety, reporting and contact</a> ·{' '}
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
       </p>
 
       {openPhoto && (

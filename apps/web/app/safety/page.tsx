@@ -54,6 +54,11 @@ export default function SafetyPage() {
           <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
         </p>
       </section>
+
+      <p className="muted footer">
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·{' '}
+        <a href="/account">Your account</a>
+      </p>
     </main>
   );
 }

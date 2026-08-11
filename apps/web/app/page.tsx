@@ -156,7 +156,8 @@ export default function CreatePage() {
           product.
         */}
         <a href="/account">Your account</a> ·{' '}
-        <a href="/safety">Safety, reporting and contact</a>
+        <a href="/safety">Safety, reporting and contact</a> ·{' '}
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
       </p>
     </main>
   );

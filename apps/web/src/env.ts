@@ -95,6 +95,22 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'LEGAL_ENTITY',
+      // Named on /terms and /privacy as the party making the promises. The
+      // fallback is a visible placeholder rather than a guess, because a
+      // published legal document confidently wrong about who wrote it is
+      // worse than one that is obviously unfinished.
+      present: has('LEGAL_ENTITY'),
+      consequence: 'the terms and privacy pages name no operator',
+      requiredInProduction: true,
+    },
+    {
+      name: 'LEGAL_JURISDICTION',
+      present: has('LEGAL_JURISDICTION'),
+      consequence: 'the terms state no governing law',
+      requiredInProduction: true,
+    },
+    {
       name: 'MAIL_PROVIDER',
       // Not "is it set" — unset is fine and means the default. This reports
       // whether the mailer can be *built*, so the answer is false only when

@@ -144,6 +144,11 @@ IMAGE_BASE_URL=
 
 SAFETY_CONTACT_EMAIL=
 
+# Named on /terms and /privacy. Production refuses to look finished without
+# them: the pages render a visible placeholder and /api/health reports both.
+LEGAL_ENTITY=
+LEGAL_JURISDICTION=
+
 # Sign-in codes. Accounts are optional; without these nobody can claim one,
 # and in production the mailer refuses rather than dropping codes silently.
 # resend | postmark | sendgrid | mailgun (default resend). MAIL_API_URL only

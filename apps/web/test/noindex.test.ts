@@ -84,11 +84,15 @@ describe('X-Robots-Tag', () => {
     expect(headers['x-robots-tag']).toContain('noimageindex');
   });
 
-  it('leaves the landing page indexable', async () => {
-    // The one page with nothing private on it, and being findable is its job.
-    const headers = await headersFor('/');
-    expect(headers['x-robots-tag']).toBeUndefined();
-  });
+  it.each(['/', '/safety', '/privacy', '/terms'])(
+    'leaves %s indexable',
+    async (pathname) => {
+      // The pages with nothing private on them, where being findable is the
+      // job: the landing page sells the product, and App Store review has to
+      // reach the other three without being sent a link.
+      expect((await headersFor(pathname))['x-robots-tag']).toBeUndefined();
+    },
+  );
 
   it('keeps the link out of the Referer on the way anywhere else', async () => {
     // Same threat, different channel: the link is the credential, and a

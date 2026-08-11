@@ -211,6 +211,8 @@ Generate with `openssl rand -base64 32`.
 | `ZIP_BASE_URL` | ● | | the deployed zip Worker |
 | `IMAGE_BASE_URL` | ● | | the deployed image Worker |
 | `SAFETY_CONTACT_EMAIL` | ● | | published on `/safety`; App Store 1.2 |
+| `LEGAL_ENTITY` | ● | | named on `/terms` and `/privacy` |
+| `LEGAL_JURISDICTION` | ● | | governing law on `/terms` |
 | `MAIL_PROVIDER` | ● | | `resend`, `postmark`, `sendgrid` or `mailgun`; default `resend` |
 | `MAIL_API_KEY` | ● | | sign-in codes; unset means accounts cannot be claimed |
 | `MAIL_FROM` | ● | | must be at a domain verified with the provider |
