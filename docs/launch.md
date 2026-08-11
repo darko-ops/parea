@@ -71,7 +71,9 @@ deletes nothing.
 
 - [ ] Neon project, `npm run db:migrate`.
 - [ ] R2 bucket, lifecycle rule on `tmp/manifest/` expiring after 1 day, and no
-      public access.
+      public access. Confirm the rule landed —
+      `npx wrangler r2 bucket lifecycle list parea` should name
+      `expire-manifests`. Nothing else ever deletes those objects.
 - [ ] R2 S3-API token — dashboard only, the script stops here and says so.
 - [ ] `seed-codes`, or the spoken-code door never opens.
 

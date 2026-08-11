@@ -57,7 +57,14 @@ echo "  neon        ok"
 
 bold "Neon project '$NEON_PROJECT'"
 
-existing_project="$(npx --yes neonctl@latest projects list --output json 2>/dev/null \
+# Captured before parsing, and `|| true` on purpose. Piping neonctl straight
+# into python looks tidier and is a trap: under `set -o pipefail` a neonctl
+# failure fails the whole substitution, `set -e` exits, and the graceful
+# fallback below never runs — the script just stops, printing nothing at all.
+projects_json="$(npx --yes neonctl@latest projects list --output json 2>/dev/null || true)"
+[ -n "$projects_json" ] || die "Could not list Neon projects. Check: npx neonctl projects list"
+
+existing_project="$(printf '%s' "$projects_json" \
   | python3 -c "
 import json,sys
 name = sys.argv[1]
@@ -95,13 +102,24 @@ fi
 # Download manifests are written under this prefix and referenced by a
 # 15-minute token. Without an expiry they accumulate forever — small, but
 # unbounded, and nothing else ever deletes them.
+#
+# `--force` is load-bearing: `lifecycle add` asks for confirmation by default,
+# and this used to send that prompt to /dev/null, so the script sat waiting on
+# an invisible question. Whatever happened next was swallowed by a warning that
+# said the rule "may already exist" — which read like reassurance and was never
+# once checked.
 bold "Lifecycle rule on tmp/manifest/"
-if npx --yes wrangler@latest r2 bucket lifecycle add "$BUCKET" \
-      expire-manifests tmp/manifest/ --expire-days 1 >/dev/null 2>&1; then
+if npx --yes wrangler@latest r2 bucket lifecycle list "$BUCKET" 2>/dev/null \
+    | grep -q 'expire-manifests'; then
+  echo "  already set"
+elif npx --yes wrangler@latest r2 bucket lifecycle add "$BUCKET" \
+      expire-manifests tmp/manifest/ --expire-days 1 --force >/dev/null 2>&1; then
   echo "  set to expire after 1 day"
 else
-  warn "  could not add it (it may already exist) — check:"
-  warn "    npx wrangler r2 bucket lifecycle list $BUCKET"
+  warn "  FAILED — and nothing else ever deletes these, so manifests will"
+  warn "  accumulate forever. Set it by hand:"
+  warn "    npx wrangler r2 bucket lifecycle add $BUCKET \\"
+  warn "      expire-manifests tmp/manifest/ --expire-days 1 --force"
 fi
 
 # --- secrets ----------------------------------------------------------------
@@ -112,12 +130,32 @@ fi
 
 bold "Secrets"
 
+# `|| true` because a missing line is an answer, not an error. Without it,
+# `set -o pipefail` turns grep's exit 1 into the script exiting 1 with nothing
+# printed — which is what happened if the file was missing any of the three.
+from_env() { grep "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+
 if [ -f "$ENV_FILE" ] && grep -q '^SESSION_SECRET=.\+' "$ENV_FILE" 2>/dev/null; then
   warn "  $ENV_FILE already has secrets — leaving them alone."
   warn "  Delete it first if you want fresh ones."
-  session_secret="$(grep '^SESSION_SECRET=' "$ENV_FILE" | cut -d= -f2-)"
-  manifest_secret="$(grep '^MANIFEST_SECRET=' "$ENV_FILE" | cut -d= -f2-)"
-  image_secret="$(grep '^IMAGE_SECRET=' "$ENV_FILE" | cut -d= -f2-)"
+  session_secret="$(from_env SESSION_SECRET)"
+  manifest_secret="$(from_env MANIFEST_SECRET)"
+  image_secret="$(from_env IMAGE_SECRET)"
+
+  # The trap this whole section exists to prevent, arriving by the back door.
+  # The web app falls back to SESSION_SECRET when MANIFEST_SECRET or
+  # IMAGE_SECRET is unset; a Worker has no such fallback. So a blank one here
+  # deploys a Worker that verifies against nothing, and every download — or
+  # every thumbnail — 404s with nothing in any log to explain it.
+  #
+  # It is an easy state to be in: the README says to copy .env.example and set
+  # SESSION_SECRET, and .env.example carries the other two as empty lines. The
+  # guard above sees a session secret and takes this branch.
+  for named in "SESSION_SECRET=$session_secret" "MANIFEST_SECRET=$manifest_secret" \
+               "IMAGE_SECRET=$image_secret"; do
+    [ -n "${named#*=}" ] || die "${named%%=*} is blank in $ENV_FILE.
+Set all three, or delete the file and re-run so they are generated together."
+  done
 else
   session_secret="$(openssl rand -base64 32)"
   manifest_secret="$(openssl rand -base64 32)"
@@ -188,12 +226,25 @@ DATABASE_URL="$database_url" npx tsx services/deriver/src/jobs.ts seed-codes
 # — and a mismatch is a 404 with nothing in any log to explain it.
 
 deploy_worker() {
-  local dir="$1" secret_name="$2" secret_value="$3"
+  local dir="$1" secret_name="$2" secret_value="$3" out
   ( cd "$dir" || exit 1
+
+    # stderr is deliberately not silenced. A `secret put` that fails, followed
+    # by a `deploy` that succeeds, is exactly the silent mismatch this function
+    # was written to avoid — and swallowing wrangler's complaint is how it
+    # would happen without anyone noticing.
     printf '%s' "$secret_value" \
-      | npx --yes wrangler@latest secret put "$secret_name" >/dev/null 2>&1
-    npx --yes wrangler@latest deploy 2>&1 \
-      | grep -oE 'https://[A-Za-z0-9._-]+workers\.dev' | head -1
+      | npx --yes wrangler@latest secret put "$secret_name" >/dev/null || exit 1
+
+    if ! out="$(npx --yes wrangler@latest deploy 2>&1)"; then
+      printf '%s\n' "$out" >&2
+      exit 1
+    fi
+
+    # `|| true` only here: a deploy onto a custom domain prints no workers.dev
+    # URL, and that is a success with nothing to extract, not a failure.
+    printf '%s' "$out" \
+      | grep -oE 'https://[A-Za-z0-9._-]+workers\.dev' | head -1 || true
   )
 }
 
@@ -206,8 +257,10 @@ set_env() {
 
 if [ "$WITH_WORKERS" = true ]; then
   bold "Deploying Workers"
-  image_url="$(deploy_worker services/image-worker IMAGE_SECRET "$image_secret" || true)"
-  zip_url="$(deploy_worker services/zip-worker MANIFEST_SECRET "$manifest_secret" || true)"
+  image_url="$(deploy_worker services/image-worker IMAGE_SECRET "$image_secret")" \
+    || die "image-worker failed — see the wrangler output above. Nothing was written to $ENV_FILE."
+  zip_url="$(deploy_worker services/zip-worker MANIFEST_SECRET "$manifest_secret")" \
+    || die "zip-worker failed — see the wrangler output above. Nothing was written to $ENV_FILE."
 
   if [ -n "$image_url" ] && [ -n "$zip_url" ]; then
     set_env IMAGE_BASE_URL "$image_url"
@@ -215,8 +268,11 @@ if [ "$WITH_WORKERS" = true ]; then
     echo "  image  $image_url"
     echo "  zip    $zip_url"
   else
-    warn "  could not read the deployed URLs from wrangler output"
-    warn "  set IMAGE_BASE_URL and ZIP_BASE_URL in $ENV_FILE by hand"
+    # Expected if the Workers are on custom domains: there is no workers.dev
+    # URL to read, and the custom hostnames are the ones you want anyway.
+    warn "  no workers.dev URL in the output — set IMAGE_BASE_URL and"
+    warn "  ZIP_BASE_URL in $ENV_FILE by hand (https://img.<domain>,"
+    warn "  https://zip.<domain> if you added custom domains)"
   fi
 fi
 
