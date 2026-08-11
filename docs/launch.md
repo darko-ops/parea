@@ -8,7 +8,12 @@ Two things here have latency nothing can compress — **mail reputation** (days)
 and **child-safety provider onboarding** (days to weeks) — so both start at the
 top even though neither is needed until much later.
 
-Nothing below has been executed. Tick as you go.
+Tick as you go. §1 is partly done; everything from §2 on is untouched.
+
+A ticked box here means somebody watched it work, not that it was attempted.
+Where the evidence is weaker than that, the box stays open and says what is
+still unproven — a checklist that records intentions is worse than no
+checklist, because it is consulted instead of the thing itself.
 
 ## 0. In parallel, starting now
 
@@ -29,35 +34,47 @@ Nothing below has been executed. Tick as you go.
 Everything downstream needs a name, and two things need DNS to have settled
 before they can even be verified.
 
-- [ ] Move the zone to Cloudflare. Keep the registration where it is — only the
+- [x] Move the zone to Cloudflare. Keep the registration where it is — only the
       nameservers change. Required if `img.` and `zip.` are to be real
       hostnames: Worker custom domains only exist for zones on Cloudflare.
-- [ ] **Check DNSSEC at the registrar first.** If it is on and the nameservers
+- [x] **Check DNSSEC at the registrar first.** If it is on and the nameservers
       change, the registry keeps publishing a DS record signed by keys the new
       nameservers do not have and the domain stops resolving entirely. Disable
       it, wait an hour, then switch.
-- [ ] Confirm with `dig +short NS parea.photos`. `dig +trace` if a resolver is
+- [x] Confirm with `dig +short NS parea.photos`. `dig +trace` if a resolver is
       holding the old answer.
-- [ ] Set SSL/TLS to **Full (strict)**.
+- [ ] Set SSL/TLS to **Full (strict)**. Not confirmed. It is the one setting
+      here that fails quietly in the wrong direction: Flexible serves the site
+      over plaintext to the origin and looks perfectly fine in a browser.
 
 Records, once the zone is live. Everything Vercel-facing is **DNS only** — grey
 cloud. Proxying Cloudflare in front of Vercel's own edge stacks two CDNs and
 commonly breaks certificate issuance outright.
 
-| Name | Type | Value | Notes |
-|---|---|---|---|
-| `@` | A | from Vercel | grey cloud |
-| `www` | CNAME | `cname.vercel-dns.com` | grey cloud |
-| `send` | MX + TXT | from the mail provider | return path and SPF |
-| `<selector>._domainkey` | TXT | from the mail provider | DKIM |
-| `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:dmarc@parea.photos` | start at `p=none` |
+| Name | Type | Value | Notes | State |
+|---|---|---|---|---|
+| `@` | A | from Vercel | grey cloud | resolving |
+| `www` | CNAME | `cname.vercel-dns.com` | grey cloud | resolving |
+| `send` | MX + TXT | from the mail provider | return path and SPF | provider reports verified |
+| `<selector>._domainkey` | TXT | from the mail provider | DKIM | provider reports verified |
+| `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:dmarc@parea.photos` | start at `p=none` | **unconfirmed** |
 
-- [ ] **Inbound email.** Three addresses have to actually receive:
+"Resolving" is the whole claim for the first two: the names answer with the
+right values. Nothing is served at them yet, and an A record pointing at
+Vercel's anycast address says nothing about whether a project is attached to
+it — `curl -s https://parea.photos/api/health` is what answers that, and it is
+§4's job.
+
+- [ ] **Inbound email.** Routing is switched on; nothing has been received
+      through it. Three addresses have to actually arrive in a real inbox:
       `SAFETY_CONTACT_EMAIL` (published on `/safety`, an App Store 1.2
       requirement a reviewer will check), the `rua` address above, and whatever
       `MAIL_FROM` is — someone will reply to a sign-in code saying "I did not
       ask for this", and that is exactly the person to hear from. Cloudflare
-      Email Routing is free and forwards to a real inbox.
+      Email Routing is free and forwards to a real inbox. Send one to each and
+      watch it land; a route that was configured and a route that delivers are
+      different facts, and the difference is only ever discovered by the person
+      who needed to reach you.
 
 `img.` and `zip.` come later: a Worker custom domain is added from the Worker's
 own settings and the Worker has to exist first.
