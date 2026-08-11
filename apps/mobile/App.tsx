@@ -289,6 +289,12 @@ export default function App() {
       {route.screen === 'create' && (
         <CreateEvent
           api={api}
+          // Distinct places from this person's own events, newest first. Three
+          // is enough to be a shortcut; more is a list to read, which is worse
+          // than typing the word.
+          recentPlaces={[
+            ...new Set(events.map((e) => e.place).filter((p): p is string => Boolean(p))),
+          ].slice(0, 3)}
           webBase={API_BASE}
           groupId={route.groupId}
           groupName={route.groupName}

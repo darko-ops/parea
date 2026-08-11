@@ -21,6 +21,7 @@
  * the second after they made it.
  */
 
+import * as Clipboard from 'expo-clipboard';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -69,6 +70,7 @@ export function CreateEvent({
   webBase,
   groupId,
   groupName,
+  recentPlaces = [],
   t,
   onCancel,
   onCreated,
@@ -79,6 +81,15 @@ export function CreateEvent({
   webBase: string;
   groupId?: string;
   groupName?: string;
+  /**
+   * Places this person has used before, newest first.
+   *
+   * Their own, from their own events. There is no directory of places and
+   * there should not be: suggesting somewhere they have never been would be
+   * inventing a fact about them, and a place here is free text a host typed,
+   * never anything derived from a photo.
+   */
+  recentPlaces?: string[];
   t: GroupTheme;
   onCancel: () => void;
   onCreated: (event: CreatedEvent) => void;
@@ -95,6 +106,9 @@ export function CreateEvent({
   const [when, setWhen] = useState<WindowId | null>(null);
   /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
   const [picked, setPicked] = useState<Bundle | null>(null);
+  const [copied, setCopied] = useState(false);
+  /** The code is revealed on request; most people just send the link. */
+  const [showCode, setShowCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<{
@@ -102,6 +116,18 @@ export function CreateEvent({
     url: string;
     code: string | null;
   } | null>(null);
+
+  const copy = useCallback(async (url: string) => {
+    await Clipboard.setStringAsync(url);
+    setCopied(true);
+    // The label changes back rather than a toast appearing. Feedback belongs
+    // on the thing that was pressed.
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
+
+  /** Both commit controls ask the same question, so it is asked once. */
+  const ready = Boolean(name.trim()) && (picked !== null || when !== null);
+  const chosenOption = WHEN_OPTIONS.find((option) => option.id === when);
 
   const create = useCallback(async () => {
     const trimmed = name.trim();
@@ -165,52 +191,125 @@ export function CreateEvent({
   );
 
   if (made) {
+    /*
+     * A sheet over the event it just made, rather than a page you are sent to.
+     *
+     * The event behind it is real and empty, dimmed: that is the thing the
+     * link leads to, and seeing it is what makes "an empty event stays empty"
+     * land as a fact rather than a slogan. The share step is the most
+     * important moment in the product — an event nobody was sent is worth
+     * nothing — and it should not feel like a confirmation page.
+     */
     return (
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={[styles.h1, { color: t.fg }]}>{made.event.name}</Text>
-        <Text style={[styles.body, { color: t.dim }]}>
-          Send this to everyone who was there. Anyone with it can add photos —
-          no account, no app.
-        </Text>
-
-        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-          <Text style={[styles.mono, { color: t.fg }]}>{made.url}</Text>
-          <Button
-            label="Share the link"
-            primary
-            t={t}
-            onPress={() => {
-              // The system sheet, because the destination is a group chat and
-              // the OS already knows which one people use.
-              void Share.share({ message: made.url });
-            }}
-          />
+      <View style={styles.sheetRoot}>
+        <View style={styles.behind}>
+          <Text style={[styles.h1, { color: t.fg }]}>{made.event.name}</Text>
+          <Text style={[styles.body, { color: t.dim }]}>
+            Nothing here yet — add yours first.
+          </Text>
         </View>
 
-        {made.code && (
-          <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-            <Text style={[styles.label, { color: t.fg }]}>Or say the code out loud</Text>
-            <Text style={[styles.code, { color: t.accent }]}>{made.code}</Text>
-            <Text style={[styles.small, { color: t.dim }]}>
-              For the person across the room whose phone you are not holding.
+        <View style={[styles.sheet, { backgroundColor: t.bg }]}>
+          <View style={[styles.grab, { backgroundColor: t.line }]} />
+
+          <View style={{ gap: 4 }}>
+            <Text style={[styles.sheetTitle, { color: t.fg }]}>
+              Send it to everyone who was there
+            </Text>
+            <Text style={[styles.body, { color: t.dim }]}>
+              Anyone with the link adds their photos. No account, no app.
             </Text>
           </View>
-        )}
 
-        <Button label="Open it" t={t} onPress={() => onCreated(made.event)} />
-      </ScrollView>
+          <View style={[styles.linkRow, { backgroundColor: t.card, borderColor: t.line }]}>
+            <Text style={[styles.mono, { color: t.dim }]} numberOfLines={1}>
+              {made.url}
+            </Text>
+            <Pressable onPress={() => copy(made.url)} accessibilityRole="button">
+              <Text style={[styles.copy, { color: t.accent }]}>
+                {copied ? 'Copied' : 'Copy'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {showCode && made.code && (
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.fieldLabel, { color: t.dim }]}>OR SAY IT OUT LOUD</Text>
+              <View style={[styles.codeCard, { backgroundColor: t.card, borderColor: t.line }]}>
+                <Text style={[styles.code, { color: t.fg }]}>{made.code}</Text>
+              </View>
+              <Text style={[styles.small, { color: t.dim }]}>
+                For the person across the room whose phone you are not holding.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.actions}>
+            <Pressable
+              onPress={() => {
+                // The system sheet. It already knows which group chat these
+                // people use, and picking someone in it tells this app
+                // nothing about who they are — which is why there is no
+                // contact list here of our own.
+                void Share.share({ message: made.url });
+              }}
+              style={[styles.action, { backgroundColor: t.accent }]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.actionText, { color: t.onAccent }]}>Send the link</Text>
+            </Pressable>
+            {made.code && !showCode && (
+              <Pressable
+                onPress={() => setShowCode(true)}
+                style={[styles.action, styles.actionQuiet, { borderColor: t.line }]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.actionText, { color: t.fg }]}>Say a code</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable onPress={() => onCreated(made.event)} accessibilityRole="button">
+            <Text style={[styles.body, { color: t.accent, textAlign: 'center' }]}>
+              Open it and add yours
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Pressable onPress={onCancel}>
-        <Text style={[styles.body, { color: t.accent }]}>‹ Cancel</Text>
-      </Pressable>
-
-      <Text style={[styles.h1, { color: t.fg }]}>
-        {groupName ? `New event in ${groupName}` : 'Start an event'}
-      </Text>
+      {/*
+        A modal header rather than a back chevron, and the commit action is in
+        it as well as at the foot. Not duplication for its own sake: the
+        detected runs make this screen long enough to scroll, and a button
+        below the fold is a button someone has to go looking for.
+      */}
+      <View style={styles.headerRow}>
+        <Pressable onPress={onCancel} accessibilityRole="button">
+          <Text style={[styles.headerSide, { color: t.accent }]}>Cancel</Text>
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: t.fg }]}>
+          {groupName ? `New in ${groupName}` : 'New event'}
+        </Text>
+        <Pressable
+          onPress={create}
+          disabled={ready === false || busy}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: ready === false || busy }}
+        >
+          <Text
+            style={[
+              styles.headerSide,
+              { color: ready ? t.accent : t.dim, opacity: ready ? 1 : 0.45 },
+            ]}
+          >
+            Share
+          </Text>
+        </Pressable>
+      </View>
 
       {/*
         First, because it is an answer rather than a question, and because the
@@ -236,8 +335,8 @@ export function CreateEvent({
         </Pressable>
       )}
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>What was it?</Text>
+      <View style={styles.field}>
+        <Text style={[styles.fieldLabel, { color: t.dim }]}>WHAT WAS IT?</Text>
         <TextInput
           value={name}
           onChangeText={setName}
@@ -247,23 +346,47 @@ export function CreateEvent({
           // name field; now the detected runs are above it and a keyboard
           // covering them on arrival hides the one thing worth looking at.
           maxLength={120}
-          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+          style={[
+            styles.input,
+            styles.inputBig,
+            { color: t.fg, borderColor: t.line, backgroundColor: t.card },
+          ]}
         />
       </View>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Where? (optional)</Text>
+      <View style={styles.field}>
+        <View style={styles.fieldHead}>
+          <Text style={[styles.fieldLabel, { color: t.dim }]}>WHERE</Text>
+          <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
+        </View>
         <TextInput
           value={place}
           onChangeText={setPlace}
-          placeholder="Hackney"
+          placeholder="Add a place"
           placeholderTextColor={t.dim}
           maxLength={80}
-          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.card }]}
         />
+        {/*
+          Places this person has used before, as one tap each. Drawn from
+          their own events — there is no directory of places, and suggesting
+          somewhere they have never been would be inventing a fact about them.
+        */}
+        {recentPlaces.length > 0 && (
+          <View style={styles.pills}>
+            {recentPlaces.map((suggestion) => (
+              <Pressable
+                key={suggestion}
+                onPress={() => setPlace(suggestion)}
+                style={[styles.pill, { borderColor: t.line, backgroundColor: t.card }]}
+              >
+                <Text style={[styles.pillText, { color: t.fg }]}>{suggestion}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <Text style={[styles.small, { color: t.dim }]}>
-          As you&rsquo;d say it, not an address. It puts this event on your map
-          and is only ever shown to people who are already in it.
+          Shows up under Find, by place. Never on the photos.
         </Text>
       </View>
 
@@ -275,32 +398,50 @@ export function CreateEvent({
         and the reason for asking are unchanged from when this was the only path.
       */}
       {!picked && (
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>When was it?</Text>
-        <Text style={[styles.small, { color: t.dim }]}>
-          This is what lets the app find everyone&rsquo;s photos from the right
-          hours later, instead of asking them to scroll.
-        </Text>
-        {WHEN_OPTIONS.map((option) => {
-          const chosen = when === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              onPress={() => setWhen(option.id)}
-              style={[
-                styles.choice,
-                { borderColor: chosen ? t.accent : t.line },
-                chosen && { backgroundColor: t.bg },
-              ]}
-            >
-              <Text style={[styles.body, { color: chosen ? t.accent : t.fg }]}>
-                {option.label}
-              </Text>
-              <Text style={[styles.small, { color: t.dim }]}>{option.hint}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: t.dim }]}>WHEN</Text>
+          <View style={styles.pills}>
+            {WHEN_OPTIONS.map((option) => {
+              const on = when === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => setWhen(option.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  style={[
+                    styles.pill,
+                    on
+                      ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
+                      : { borderColor: t.line, backgroundColor: t.card },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pillText,
+                      on && styles.pillTextOn,
+                      { color: on ? t.accent : t.fg },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {/*
+            The selected option's own description, then why the question is
+            being asked at all. The hint alone reads as trivia; the reason is
+            what makes someone answer it carefully, and a careless answer here
+            pre-selects the wrong photos on somebody else's phone.
+          */}
+          <Text style={[styles.small, { color: t.dim }]}>
+            {chosenOption ? `${capitalise(chosenOption.hint)}. ` : ''}
+            It is what lets everyone&rsquo;s own photos from the right hours be
+            found for them later, instead of asking them to scroll.
+            &ldquo;Not sure yet&rdquo; is a real answer.
+          </Text>
+        </View>
       )}
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
@@ -310,9 +451,9 @@ export function CreateEvent({
         letting one be skipped past. "Not sure yet" is one of the answers.
       */}
       <Button
-        label={busy ? 'Making it…' : picked ? `Make it and add ${picked.count}` : 'Make the event'}
+        label={busy ? 'Making it…' : picked ? `Get a link and add ${picked.count}` : 'Get a link'}
         onPress={create}
-        disabled={busy || !name.trim() || (picked === null && when === null)}
+        disabled={busy || !ready}
         t={t}
         primary
       />
@@ -322,7 +463,59 @@ export function CreateEvent({
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 72, gap: 14 },
+  scroll: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 18 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  headerSide: { fontSize: 16 },
+  headerTitle: { fontSize: 16, fontWeight: '600' },
+  field: { gap: 8 },
+  fieldHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  /* All-caps and small: a section marker, not the question. The question is
+     the input under it, which is large enough to be the thing you read. */
+  fieldLabel: { fontSize: 13, fontWeight: '600', letterSpacing: 0.3 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: { borderWidth: 1, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14 },
+  pillText: { fontSize: 15 },
+  pillTextOn: { fontWeight: '600' },
+  inputBig: { fontSize: 22, fontWeight: '700', borderRadius: 14, paddingVertical: 14 },
+  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
+  /* The real, empty event behind the sheet — dimmed, but there. Seeing it is
+     what makes "an empty event stays empty" a fact rather than a slogan. */
+  behind: { flex: 1, opacity: 0.5, padding: 20, paddingTop: 72, gap: 10 },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 26,
+    gap: 16,
+    shadowColor: '#14171c',
+    shadowOffset: { width: 0, height: -12 },
+    shadowOpacity: 0.14,
+    shadowRadius: 40,
+    elevation: 24,
+  },
+  grab: { width: 40, height: 5, borderRadius: 999, alignSelf: 'center' },
+  sheetTitle: { fontSize: 22, fontWeight: '700' },
+  linkRow: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  copy: { fontSize: 15, fontWeight: '600' },
+  codeCard: { borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
+  actions: { flexDirection: 'row', gap: 10 },
+  action: { flex: 1, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  actionQuiet: { backgroundColor: 'transparent', borderWidth: 1 },
+  actionText: { fontSize: 16, fontWeight: '600' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   h1: { fontSize: 26, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
@@ -331,5 +524,9 @@ const styles = StyleSheet.create({
   mono: { fontSize: 15, fontFamily: 'Courier' },
   code: { fontSize: 24, fontWeight: '700', letterSpacing: 1 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
-  choice: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 2 },
 });
+
+/** The hints read as sentence fragments; this one starts a sentence. */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

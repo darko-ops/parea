@@ -1244,6 +1244,27 @@ the column from day one costs nothing.
   part of the shared protocol, so it is a page rather than a protocol question,
   and the honest reason to wait is that nobody has asked for it on the web.
 
+### 17b. Contacts, and why the share sheet has none
+
+The design handoff's share step includes a row of contact avatars picked from
+the phone, with the OS picker behind a `+`. It is not built, and the reason is
+not effort.
+
+`/privacy` says, in a dated public document: *"No contacts, no address book,
+no social graph import."* Reading the address book would make that false, and
+the change is not one line of copy — it is a native dependency, an
+`NSContactsUsageDescription`, an entry in the privacy manifest, and a
+different answer on the App Store nutrition labels. That is a product decision
+about what the app collects, not a styling one.
+
+The system share sheet gets the same outcome and satisfies the handoff's own
+hard requirement — *no contact data may leave the device* — more completely,
+because nothing reads the contacts at all. It already knows which group chat
+these people use, and picking someone in it tells this app nothing.
+
+Revisit deliberately if the avatars are worth it. The cost is a permission
+prompt, a label change, and a rewritten line in a legal document.
+
 ### 17a. The web shell
 
 The web had no home. You landed on the create form whether or not you had ever

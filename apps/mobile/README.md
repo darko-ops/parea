@@ -168,6 +168,20 @@ Afterwards the screen becomes the share step: the link, the system share sheet,
 and the spoken code. An event is worth nothing until the link reaches the group
 chat, and the likeliest moment for that is the second after it is made.
 
+## Sharing, and the contacts row that is not here
+
+After creating, a sheet comes up over the new, empty event rather than a
+separate page: the link reaching the group chat is the most important moment
+in the product, and the empty event visible behind the sheet is what makes
+"an empty event stays empty" a fact rather than a slogan.
+
+The design's contact-avatar row is deliberately absent. `/privacy` says "No
+contacts, no address book, no social graph import" in a dated public document,
+and reading the address book would need a native dependency, a usage string, a
+privacy-manifest entry and a different nutrition label — a decision about what
+the app collects, not a styling one. The system share sheet reaches the same
+people and tells this app nothing about them. See design §17b.
+
 ## Auto-selection
 
 The reason this client exists (design §1). With photo-library access and a

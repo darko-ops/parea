@@ -97,14 +97,47 @@ describe('the clients that send one', () => {
     expect(read(path)).toContain('WHEN_OPTIONS');
   });
 
+  /*
+   * Nothing is pre-selected, so a submit control has to wait for an answer
+   * rather than letting the question be skipped past. "Not sure yet" is one of
+   * the answers; skipping is not.
+   *
+   * Read from the source, which is a proxy and worth naming as one: what would
+   * really settle it is rendering the screen and finding the button
+   * unpressable, and neither client has a rendering test. This asserts the
+   * next best thing — that every submit control is guarded, and that the guard
+   * takes the window state into account.
+   *
+   * It has already been too literal once. Pinned to `!when`, it failed the
+   * moment native moved the same rule into a named `ready`, which was a
+   * refactor rather than a regression.
+   */
   it.each([
     ['the web create form', '../app/page.tsx'],
     ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s refuses to submit before the question is answered', (_label, path) => {
-    // Nothing is pre-selected, so the submit button has to wait for an answer
-    // rather than letting the question be skipped past. "Not sure yet" is one
-    // of the answers; skipping is not.
-    expect(read(path)).toMatch(/disabled=\{[^}]*(when === null|!when)/);
+  ])('%s guards every submit control', (_label, path) => {
+    const client = read(path);
+    const guards = [...client.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]!);
+
+    expect(guards.length).toBeGreaterThan(0);
+    for (const guard of guards) {
+      // Either the window state directly, or a named rule defined in terms of
+      // it — checked below.
+      expect(guard, guard).toMatch(/when|ready/);
+    }
+  });
+
+  it.each([
+    ['the web create form', '../app/page.tsx'],
+    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
+  ])('%s ties that guard to an unanswered window', (_label, path) => {
+    const client = read(path);
+    const named = client.match(/const ready = ([^;]+);/)?.[1];
+
+    // Whichever form the client uses, the window has to be in it. On native
+    // a detected run answers the question instead, so `picked` counts.
+    if (named) expect(named).toMatch(/when/);
+    else expect(client).toMatch(/disabled=\{[^}]*!when/);
   });
 });
 
