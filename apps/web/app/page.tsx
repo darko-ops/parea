@@ -63,7 +63,7 @@ export default function CreatePage() {
             endsAt: window?.endsAt ?? null,
           }),
         });
-        if (!res.ok) throw new Error('Could not create the event.');
+        if (!res.ok) throw new Error(await explain(res));
         const created = (await res.json()) as { url: string; code: string | null };
         setLink(new URL(created.url, globalThis.location.origin).toString());
         setCode(created.code);
@@ -252,6 +252,35 @@ export default function CreatePage() {
       </main>
     </div>
   );
+}
+
+/**
+ * What actually went wrong, rather than "could not create the event".
+ *
+ * That message was all this page said for every failure, and it threw away
+ * the server's answer to produce it. The commonest cause by far is a
+ * deployment with no database — which looks, to whoever is typing, exactly
+ * like their event name being unacceptable. A message that sends someone to
+ * inspect their own input for a server problem is worse than no message.
+ */
+async function explain(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+
+  switch (body.error) {
+    case 'name_required':
+      return 'That name is empty or too long.';
+    case 'invalid_window':
+      return 'That time window did not make sense. Pick when it was again.';
+    case 'too_many_requests':
+      return 'Too many events made from here just now. Try again in a while.';
+    case 'not_a_member':
+      return 'You are not in that group.';
+    case 'not_configured':
+      return 'This deployment is not finished — it has no database yet. Check /api/health.';
+  }
+  return res.status >= 500
+    ? `The server failed (${res.status}). Check /api/health for what is missing.`
+    : `Could not create the event (${res.status}).`;
 }
 
 /** The hints read as sentence fragments; this one starts a sentence. */

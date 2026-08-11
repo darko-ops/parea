@@ -90,6 +90,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_window' }, { status: 400 });
   }
 
+  // Named rather than thrown. Without this the missing variable surfaces as a
+  // bare 500 with an empty body, and all a client can say about it is "could
+  // not create the event" — which sends someone looking at their form instead
+  // of at their configuration. Same shape as the sign-in route's answer when
+  // it has no secret.
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: 'not_configured' }, { status: 503 });
+  }
+
   const db = getDb();
 
   // Every storage bound in the product is per event, which means an attacker
