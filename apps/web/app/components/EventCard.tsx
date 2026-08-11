@@ -17,6 +17,8 @@
 
 import type { CardEvent } from '@/cards';
 
+import { MosaicTile } from './MosaicTile';
+
 /**
  * Tile arrangement, by how many photos there are.
  *
@@ -67,15 +69,13 @@ export function EventCard({ event }: { event: CardEvent }) {
               <div className="mosaic-split" key={i}>
                 {column.map((src) => (
                   <div key={src}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt="" loading="lazy" />
+                    <MosaicTile src={src} />
                   </div>
                 ))}
               </div>
             ) : (
               <div key={i}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={column[0]!} alt="" loading="lazy" />
+                <MosaicTile src={column[0]!} />
               </div>
             ),
           )}
@@ -100,8 +100,7 @@ export function EventCard({ event }: { event: CardEvent }) {
             <div className="card-bleed" aria-hidden="true">
               {groups.map((column, i) => (
                 <div key={i} style={{ flex: weights[i] }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={column[0]!} alt="" loading="lazy" />
+                  <MosaicTile src={column[0]!} hidden />
                 </div>
               ))}
             </div>

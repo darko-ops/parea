@@ -167,11 +167,17 @@ button.secondary {
 .card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-.mosaic { display: grid; gap: 2px; height: 150px; background: var(--line); }
-.mosaic > * { background: var(--card); overflow: hidden; }
+/* Gutters and tiles are the same colour, which is the whole trick behind how
+   this fails. MosaicTile removes an <img> that will not load, so a card whose
+   photos are all unreachable — the usual case, since one rotated `cap_epoch`
+   invalidates every URL on the card at once — collapses to a single even
+   panel instead of an empty grid with hairlines ruled across it. Between
+   photos that do load, the same colour reads as an ordinary gutter. */
+.mosaic { display: grid; gap: 2px; height: 150px; background: var(--bg); }
+.mosaic > * { background: var(--bg); overflow: hidden; }
 .mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* A split column: two tiles stacked in one grid track. */
-.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--line); }
+.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--bg); }
 
 /* The detail strip. No dividing line above it — instead the album's own
    colours bleed up underneath the text, which is what ties the two halves
