@@ -29,6 +29,30 @@ Useful flags: `--gap-hours` (what separates one candidate event from the next,
 default 4), `--min-session` (ignore runs smaller than this, default 8),
 `--cluster-radius-m` (default 150), `--json FILE`.
 
+The TypeScript the app actually runs is held to this file's numbers.
+`packages/autoselect/test/probe-fixture.json` is the synthetic library below as
+`load()` sees it, and `sessions.test.ts` asserts the port reaches the same
+verdicts. Regenerate it after changing `make_fixture.py`:
+
+```
+python3 make_fixture.py /tmp/fixture
+python3 - /tmp/fixture ../../packages/autoselect/test/probe-fixture.json <<'EOF'
+import json, sys
+from analyze import load
+photos, _ = load([sys.argv[1]])
+out = [{'id': p.name,
+        'createdAt': int(p.when.timestamp() * 1000) if p.when else None,
+        'lat': p.lat, 'lon': p.lon, 'isScreenshot': p.is_screenshot}
+       for p in photos]
+out.sort(key=lambda p: (p['createdAt'] is None, p['createdAt']))
+json.dump(out, open(sys.argv[2], 'w'), indent=0)
+EOF
+```
+
+Export through `load()` rather than a separate `exiftool` call. A hand-rolled
+extraction lost the two PNG screenshots, which carry no `DateTimeOriginal` —
+and a fixture built differently from the thing it checks proves nothing.
+
 To check the probe itself is behaving, `make_fixture.py` builds a synthetic
 library with known ground truth:
 
