@@ -536,6 +536,38 @@ the first contributor onward, since it is computed locally over their own
 candidates and needs no server-side data from anyone else. **Known, narrowed,
 not eliminated.** Watch it in the numbers (§18).
 
+### 7.3a Finding the event instead of asking for it
+
+The window above is a guess about the photos. The photos are on the phone and
+know the answer exactly: an evening out is a run of pictures with hours of
+nothing either side, and that run has edges no phrase has. So the native create
+screen reads the last three days, splits them into runs on a four-hour gap, and
+offers the recent ones as things to tap — "Last night · 34 photos · 8:14pm –
+1:40am". Tapping one sets `starts_at`/`ends_at` from the real first and last
+capture, padded by an hour.
+
+Three things this fixes at once. The window stops being a six-hour box. The
+question stops being asked, so it cannot be answered carelessly — §17's worry
+was a careless answer, and the fix turned out to be not asking. And the name
+field arrives with something in it.
+
+`sessionise` is a port of the same function in `tools/geotag-probe/analyze.py`,
+thresholds included, because the probe is what measures whether this finds a
+clean event on real camera rolls; a port that drifted would make the
+measurement describe software nobody runs. A shared fixture in the package's
+tests fails if they disagree.
+
+**Detection is not a licence to guess harder.** Knowing that photos were taken
+together says nothing about whether one of them is a screenshot of a bank
+balance, so §7.2's cluster filter still runs over the detected run and
+confidence still decides how much arrives ticked. A low-confidence run is still
+offered as a card — "34 photos from last night" is true either way — but it
+opens with nothing selected, and the card says so rather than letting the empty
+grid be a surprise.
+
+The picker in §7.3 stays for the two cases this cannot serve: the web, which has
+no library, and an event created before it has been photographed.
+
 ### 7.4 Permissions, staged like the account ask
 
 iOS offers two paths with a real trade-off, so the app uses both:

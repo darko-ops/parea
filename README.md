@@ -60,8 +60,8 @@ need to be installed; see `.github/workflows/ci.yml` for the exact list.
 packages/core        schema, access policy, credentials, visibility
 packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
-packages/autoselect  which photos to offer, when not to guess, and the
-                     window both clients ask a creator for
+packages/autoselect  find the event on the phone, decide which of its photos
+                     to offer, and know when not to guess
 packages/push        the three notifications this product is allowed to send
 packages/upload      the upload queue, shared by both clients
 apps/web             Next.js — the app, the API, and the browser client
@@ -126,9 +126,16 @@ gets missed, and a missed one is "you cannot delete your own photo". Both
 clients sign in the same way against the same endpoints; only the carrier
 differs, and a browser is never handed the bearer form of its own cookie.
 
+**The app finds the event rather than asking for it.** A night out is a run of
+photos with hours of nothing either side, so the create screen reads the last
+few days and offers the runs it finds — the window comes from the real first
+and last shutter press instead of from someone picking "Last night" off a list.
+The question survives only where there is no library to read.
+
 **Confidence decides how much auto-selection pre-selects**, never whether the
 screen appears. A suggestion containing one private photo costs more than
-twenty missing ones.
+twenty missing ones, and finding the run more accurately is not a reason to
+start guessing harder about what is in it.
 
 **A stored `File` handle can outlive its bytes.** The web upload queue survives
 a reload by persisting the handles rather than the contents — copying a

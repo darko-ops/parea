@@ -74,8 +74,17 @@ describe('the clients that send one', () => {
     ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
   ])('%s sends startsAt and endsAt', (_label, path) => {
     const client = read(path);
-    expect(client).toMatch(/startsAt: window\?\.startsAt \?\? null/);
-    expect(client).toMatch(/endsAt: window\?\.endsAt \?\? null/);
+    // The identifier is not the point and pinning it was a false failure
+    // waiting to happen — the native screen now resolves its window from a
+    // detected run and calls the result `span`. What has to hold is that both
+    // ends come from one nullable source, so the pair is sent together or not
+    // at all: half a window resolves against an open interval, which is every
+    // photo on a device.
+    expect(client).toMatch(/startsAt: (\w+)\?\.startsAt \?\? null/);
+    expect(client).toMatch(/endsAt: (\w+)\?\.endsAt \?\? null/);
+    expect(client.match(/startsAt: (\w+)\?\./)?.[1]).toBe(
+      client.match(/endsAt: (\w+)\?\./)?.[1],
+    );
   });
 
   it.each([

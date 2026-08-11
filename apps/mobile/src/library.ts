@@ -81,7 +81,26 @@ export type LibraryScan = {
   truncated: boolean;
 };
 
-export async function scanWindow(window: Window): Promise<LibraryScan> {
+/**
+ * Everything on the phone from the last few days, for session detection.
+ *
+ * `keep: 'newest'` is the whole reason this is not just a `scanWindow` call.
+ * Over a window a human chose, which end gets dropped on truncation is
+ * arbitrary. Over "the last three days" it is not: the run being looked for is
+ * the most recent one, and keeping the oldest 600 of a heavy shooter's weekend
+ * discards last night and offers Friday instead.
+ */
+export async function scanRecent(
+  days: number,
+  now: number = Date.now(),
+): Promise<LibraryScan> {
+  return scanWindow({ start: now - days * 24 * 60 * 60 * 1000, end: now }, 'newest');
+}
+
+export async function scanWindow(
+  window: Window,
+  keep: 'oldest' | 'newest' = 'oldest',
+): Promise<LibraryScan> {
   const metas = await new Query()
     .eq(AssetField.MEDIA_TYPE, MediaType.IMAGE)
     .gte(AssetField.CREATION_TIME, window.start)
@@ -93,7 +112,8 @@ export async function scanWindow(window: Window): Promise<LibraryScan> {
     (m): m is typeof m & { creationTime: number } => m.creationTime != null,
   );
   const truncated = dated.length > MAX_LOOKUPS;
-  const wanted = dated.slice(0, MAX_LOOKUPS);
+  const wanted =
+    keep === 'newest' ? dated.slice(-MAX_LOOKUPS) : dated.slice(0, MAX_LOOKUPS);
 
   let locationErrors = 0;
 

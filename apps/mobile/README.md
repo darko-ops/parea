@@ -169,6 +169,23 @@ The reason this client exists (design §1). With photo-library access and a
 known time window, "Add photos" opens on what it thinks are your photos from
 the event, already ticked — one tap instead of scrolling a camera roll.
 
+### Where the window comes from
+
+The create screen does not ask. It reads the last three days, splits them into
+runs on a four-hour gap, and offers the recent ones as cards — "Last night · 34
+photos · 8:14pm – 1:40am". Tapping one sets the event's window from the real
+first and last capture, padded by an hour, and prefills the name.
+
+It used to ask: a radio list of Tonight / Last night / Today / Yesterday. That
+put the question to the wrong party. The phone already held the answer and held
+it exactly, and §17's worry about a careless answer turns out to be best solved
+by not asking. The picker survives as the fallback for the case detection
+cannot serve — an event created before it has been photographed — and on the
+web, which has no library to read.
+
+Detection changes *which* photos get offered, not how confidently. Everything
+below still applies to the run once it is found.
+
 Built to degrade correctly rather than to assume it works, because the geotag
 coverage number it depends on **has not been measured** (`tools/geotag-probe`
 exists to get it). Confidence decides how much is pre-selected, never whether

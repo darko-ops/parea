@@ -1,5 +1,17 @@
 /**
- * "When was this?" — design §7.3, and the input auto-selection runs on.
+ * "When was this?" — design §7.3, and the fallback path.
+ *
+ * **No longer the primary way a window gets set.** `sessions.ts` reads the last
+ * few days off the phone, finds the runs of photos, and offers them; tapping
+ * one gives a window accurate to the actual first and last shutter press. That
+ * is better than every argument below, because it does not ask a question at
+ * all — and the argument below is largely about how to ask one without getting
+ * a careless answer.
+ *
+ * This survives for the two cases detection cannot serve, and they are real:
+ * the web, which has no library to read, and an event created before it has
+ * been photographed — someone making the album as the party starts. Both still
+ * need to be asked, and everything below still applies to the asking.
  *
  * Lives beside `resolveWindow` rather than in a client, because the thing that
  * produces a window and the thing that consumes it are two halves of one

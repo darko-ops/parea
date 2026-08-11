@@ -1,12 +1,19 @@
 /**
  * Making an event — design §3 screen 1, and §7.3's window.
  *
- * Three fields' worth of screen, and one of them matters more than the other
- * two: the window. It is the only input auto-selection gets that a human
- * chose, and until this screen existed no client sent it at all — see
- * `when.ts`. Everything else here is in service of asking that question at the
- * one moment someone can answer it accurately, which is while they are
- * standing at the thing.
+ * The window is the field that matters, and this screen no longer asks for it.
+ * It used to: a radio list of Tonight / Last night / Today / Yesterday, turned
+ * into a window by `when.ts`. That put the question to the wrong party. The
+ * phone holds the answer already and holds it exactly — a night out is a run
+ * of photos with hours of nothing either side — so `DetectedEvents` reads the
+ * last few days and offers the runs it finds. Tap one and the window comes
+ * from the actual first and last shutter press, accurate to the minute rather
+ * than to the nearest six hours.
+ *
+ * The picker survives as the fallback, because detection has two honest ways
+ * to come up empty: no library permission, and an event that has not been
+ * photographed yet — someone creating the album as the party starts. Both end
+ * with the same question, now asked second and only when needed.
  *
  * After creating, the screen becomes the share step rather than dumping the
  * host back into an empty grid. The event is worth nothing until the link
@@ -28,7 +35,14 @@ import {
 
 import type { Api } from './api';
 import type { GroupTheme } from './Groups';
-import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
+import { DetectedEvents } from './DetectedEvents';
+import {
+  WHEN_OPTIONS,
+  eventDateFor,
+  windowFor,
+  type Bundle,
+  type WindowId,
+} from '@parea/autoselect';
 
 export type CreatedEvent = {
   id: string;
@@ -37,6 +51,18 @@ export type CreatedEvent = {
   startsAt: string | null;
   endsAt: string | null;
 };
+
+/*
+ * The picked run is deliberately *not* carried on CreatedEvent.
+ *
+ * It was, briefly, so the event screen could open the grid on photos already
+ * read and narrowed. It did not need to: the run's window is stored on the
+ * event, and the event screen's `resolveWindow` already prefers a stored
+ * window over anything it could infer. Threading the bundle through bought a
+ * skipped rescan and cost a field on a shared type that one screen set and
+ * nothing read — which is how the other rotted lists in this repository
+ * started.
+ */
 
 export function CreateEvent({
   api,
@@ -67,6 +93,8 @@ export function CreateEvent({
   const [name, setName] = useState('');
   const [place, setPlace] = useState('');
   const [when, setWhen] = useState<WindowId | null>(null);
+  /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
+  const [picked, setPicked] = useState<Bundle | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<{
@@ -77,27 +105,37 @@ export function CreateEvent({
 
   const create = useCallback(async () => {
     const trimmed = name.trim();
-    if (!trimmed || when === null) return;
+    if (!trimmed || (picked === null && when === null)) return;
     setBusy(true);
     setError(null);
     try {
       const now = new Date();
-      const window = windowFor(when, now);
+
+      // A tapped run wins over the picker. Its window is the real first and
+      // last shutter press, padded — not a phrase resolved to a six-hour box.
+      const span = picked
+        ? {
+            startsAt: new Date(picked.window.start).toISOString(),
+            endsAt: new Date(picked.window.end).toISOString(),
+          }
+        : windowFor(when!, now);
+      const eventDate = picked ? picked.eventDate : eventDateFor(when!, now);
+
       const created = await api.createEvent({
         name: trimmed,
         place: place.trim() || undefined,
         groupId,
-        eventDate: eventDateFor(when, now),
-        startsAt: window?.startsAt ?? null,
-        endsAt: window?.endsAt ?? null,
+        eventDate,
+        startsAt: span?.startsAt ?? null,
+        endsAt: span?.endsAt ?? null,
       });
       setMade({
         event: {
           id: created.id,
           name: created.name,
           linkToken: created.linkToken,
-          startsAt: window?.startsAt ?? null,
-          endsAt: window?.endsAt ?? null,
+          startsAt: span?.startsAt ?? null,
+          endsAt: span?.endsAt ?? null,
         },
         url: `${webBase}/e/${created.linkToken}`,
         code: created.code,
@@ -107,7 +145,24 @@ export function CreateEvent({
     } finally {
       setBusy(false);
     }
-  }, [api, groupId, name, place, webBase, when]);
+  }, [api, groupId, name, picked, place, webBase, when]);
+
+  /**
+   * Tapping a run fills the name in rather than creating straight away.
+   *
+   * One tap to create would be one tap to publish a shareable link under a
+   * name nobody chose, and "Last night" is a poor name for the album your
+   * friends open next week. Prefilling gets it to one tap plus a glance, and
+   * the field is already correct if the glance says it is.
+   */
+  const pick = useCallback(
+    (bundle: Bundle) => {
+      setPicked(bundle);
+      setWhen(null);
+      setName((current) => current.trim() || bundle.label);
+    },
+    [],
+  );
 
   if (made) {
     return (
@@ -157,6 +212,30 @@ export function CreateEvent({
         {groupName ? `New event in ${groupName}` : 'Start an event'}
       </Text>
 
+      {/*
+        First, because it is an answer rather than a question, and because the
+        thing someone most often wants is the one that just happened. Renders
+        nothing at all when there is no permission to ask about or the library
+        has already been refused.
+      */}
+      {!picked && <DetectedEvents t={t} onPick={pick} />}
+
+      {picked && (
+        <Pressable
+          onPress={() => setPicked(null)}
+          style={[styles.card, { backgroundColor: t.card, borderColor: t.accent }]}
+        >
+          <Text style={[styles.label, { color: t.accent }]}>
+            {picked.label} · {picked.count}{' '}
+            {picked.count === 1 ? 'photo' : 'photos'}
+          </Text>
+          <Text style={[styles.small, { color: t.dim }]}>
+            {picked.timeRange}. You&rsquo;ll see them and choose before anything
+            uploads. Tap to start from something else.
+          </Text>
+        </Pressable>
+      )}
+
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>What was it?</Text>
         <TextInput
@@ -164,7 +243,9 @@ export function CreateEvent({
           onChangeText={setName}
           placeholder="Sarah's birthday"
           placeholderTextColor={t.dim}
-          autoFocus
+          // Deliberately not autoFocus. It was, when this screen opened on a
+          // name field; now the detected runs are above it and a keyboard
+          // covering them on arrival hides the one thing worth looking at.
           maxLength={120}
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
@@ -186,13 +267,16 @@ export function CreateEvent({
         </Text>
       </View>
 
+      {/*
+        The fallback, and only that. Detection covers the common case — someone
+        adding last night — and cannot cover the other one, which is an event
+        being created before it has been photographed. That person still has to
+        be asked, and a careless answer is still worse than none, so the phrases
+        and the reason for asking are unchanged from when this was the only path.
+      */}
+      {!picked && (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>When?</Text>
-        {/*
-          Said plainly, because a date question with no stated reason gets a
-          careless answer — and a careless one here is worse than none. §7.3:
-          a wrong window pre-selects the wrong photos.
-        */}
+        <Text style={[styles.label, { color: t.fg }]}>When was it?</Text>
         <Text style={[styles.small, { color: t.dim }]}>
           This is what lets the app find everyone&rsquo;s photos from the right
           hours later, instead of asking them to scroll.
@@ -217,6 +301,7 @@ export function CreateEvent({
           );
         })}
       </View>
+      )}
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
 
@@ -225,9 +310,9 @@ export function CreateEvent({
         letting one be skipped past. "Not sure yet" is one of the answers.
       */}
       <Button
-        label={busy ? 'Making it…' : 'Make the event'}
+        label={busy ? 'Making it…' : picked ? `Make it and add ${picked.count}` : 'Make the event'}
         onPress={create}
-        disabled={busy || !name.trim() || when === null}
+        disabled={busy || !name.trim() || (picked === null && when === null)}
         t={t}
         primary
       />
