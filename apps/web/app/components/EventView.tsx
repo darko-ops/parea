@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoTile } from './PhotoTile';
 import { useUploads } from './useUploads';
 
 type Photo = {
@@ -220,31 +221,18 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         </p>
       ) : (
         <div className="grid">
+          {/*
+            Every photo is a way in to the safety actions, which is why the
+            tile stays a button even when its thumbnail will not load —
+            guideline 1.2 wants reporting reachable, not merely implemented.
+          */}
           {feed.photos.map((photo) => (
-            <button
+            <PhotoTile
               key={photo.id}
-              className="tile"
-              onClick={() => setOpenPhoto(photo)}
-              // Every photo is a way in to the safety actions. Guideline 1.2
-              // wants reporting reachable, not merely implemented.
-              aria-label="Open photo"
-            >
-              {/*
-                The browser picks the encoding, because it is the only party
-                that knows what it can decode. The `<img>` is the JPEG and it
-                is not optional — a `<picture>` whose sources a browser all
-                rejects renders nothing at all.
-              */}
-              <picture>
-                {(photo.sources ?? [])
-                  .filter((source) => source.type !== 'image/jpeg')
-                  .map((source) => (
-                    <source key={source.type} srcSet={source.src} type={source.type} />
-                  ))}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.src} alt="" loading="lazy" />
-              </picture>
-            </button>
+              src={photo.src}
+              sources={photo.sources}
+              onOpen={() => setOpenPhoto(photo)}
+            />
           ))}
         </div>
       )}

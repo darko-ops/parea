@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useImageFailure } from './useImageFailure';
 
 /**
  * One photo in a card's mosaic, which disappears rather than breaking.
@@ -13,31 +13,17 @@ import { useEffect, useRef, useState } from 'react';
  * background is a perfectly good answer, and the card still has its name, its
  * count and its meta line.
  *
- * It happens for ordinary reasons, not just bugs. Image URLs are signed
- * against the event's `cap_epoch`, so a card rendered from a cached page after
- * someone rotated the link points at URLs the Worker will refuse — the
- * correct outcome, badly drawn.
+ * Disappearing is the right answer *here* specifically because the mosaic is
+ * decoration: it says which event this is faster than the name does, and when
+ * it cannot, the name is still there doing the same job. The photo grid on the
+ * event itself is the opposite case — there the photo is the content, so
+ * `PhotoTile` holds the slot open instead.
  *
- * A client component because `onError` needs one, kept to this leaf so the
- * card and the page stay server-rendered.
+ * A client component because failure detection needs one, kept to this leaf so
+ * the card and the page stay server-rendered.
  */
 export function MosaicTile({ src, hidden }: { src: string; hidden?: boolean }) {
-  const [failed, setFailed] = useState(false);
-  const ref = useRef<HTMLImageElement>(null);
-
-  /*
-   * `onError` alone is not enough, which cost a round of testing to find.
-   *
-   * These images are server-rendered, so the browser starts fetching them
-   * while the HTML streams and can finish failing before React hydrates.
-   * Hydration does not replay events that already fired, so the handler below
-   * never hears about it and the broken glyph stays. Checked here on mount
-   * instead: a finished image with no intrinsic width did not decode.
-   */
-  useEffect(() => {
-    const img = ref.current;
-    if (img?.complete && img.naturalWidth === 0) setFailed(true);
-  }, []);
+  const { ref, failed, onError } = useImageFailure(src);
 
   if (failed) return null;
 
@@ -49,7 +35,7 @@ export function MosaicTile({ src, hidden }: { src: string; hidden?: boolean }) {
       alt=""
       loading="lazy"
       aria-hidden={hidden ? 'true' : undefined}
-      onError={() => setFailed(true)}
+      onError={onError}
     />
   );
 }

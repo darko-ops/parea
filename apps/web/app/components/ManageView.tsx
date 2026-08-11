@@ -15,6 +15,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useImageFailure } from './useImageFailure';
+
 type PendingReport = {
   id: string;
   note: string | null;
@@ -142,8 +144,7 @@ export function ManageView({
         ) : (
           reports.map((report) => (
             <div key={report.id} className="pending">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={report.photo.src} alt="" />
+              <PendingThumb src={report.photo.src} />
               <div>
                 <p className="muted">
                   {report.alreadyHidden
@@ -327,6 +328,24 @@ export function ManageView({
       {error && <p className="muted">{error}</p>}
     </main>
   );
+}
+
+/**
+ * The photo a takedown request is about — or the fact that it would not load.
+ *
+ * The most important thumbnail in the product to not draw a broken glyph for.
+ * The host is about to decide whether to remove someone's photo, and a glyph
+ * is ambiguous in the one way that matters here: it looks like the photo is
+ * already gone, which is an argument for one of the two buttons. Saying it
+ * plainly leaves the host knowing they are deciding blind.
+ */
+function PendingThumb({ src }: { src: string }) {
+  const { ref, failed, onError } = useImageFailure(src);
+
+  if (failed) return <span className="tile-empty">Not available</span>;
+
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img ref={ref} src={src} alt="" onError={onError} />;
 }
 
 /** "in about 3 hours" / "shortly", without pulling in a date library. */

@@ -17,6 +17,8 @@
 
 import { useState } from 'react';
 
+import { useImageFailure } from './useImageFailure';
+
 export type LightboxPhoto = {
   id: string;
   full: string;
@@ -93,8 +95,7 @@ export function PhotoLightbox({
       }}
     >
       <div className="lightbox-inner">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo.full} alt="" />
+        <LightboxImage src={photo.full} />
 
         <div className="lightbox-actions">
           {done ? (
@@ -135,5 +136,35 @@ export function PhotoLightbox({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The photo itself, or an honest statement that it would not load.
+ *
+ * A broken glyph here would be the worst place for one: this dialog is where
+ * someone reports a photo or asks for it to be taken down, and those actions
+ * are underneath. They stay usable — you do not need to see a photo to know it
+ * is of you, and the grid tile that leads here deliberately stays clickable
+ * for exactly that reason — so the image failing must not read as the dialog
+ * being broken.
+ *
+ * Said out loud rather than left blank, because unlike a card mosaic there is
+ * only one image here and its absence would otherwise be unexplained.
+ */
+function LightboxImage({ src }: { src: string }) {
+  const { ref, failed, onError } = useImageFailure(src);
+
+  if (failed) {
+    return (
+      <p className="muted lightbox-empty">
+        This photo could not be loaded. The actions below still work.
+      </p>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img ref={ref} src={src} alt="" onError={onError} />
   );
 }
