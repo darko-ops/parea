@@ -1,11 +1,23 @@
 :root {
   --bg: #f7f8fa; --card: #fff; --line: #e3e6ea;
   --fg: #14171c; --dim: #5b6472; --accent: #1a5fd0;
+  /* Selected pill fill, and the active nav row in the rail. */
+  --accent-soft: #e8eefb;
+  /* Dashed affordances: the empty grid cell, the add-contact circle. */
+  --line-dashed: #d3d8de;
+  /* Lifts the card text off the blurred photo bleeding up behind it. */
+  --scrim: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .88));
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d0f12; --card: #171a1f; --line: #272b33;
     --fg: #f2f4f7; --dim: #9aa3af; --accent: #6ea8fe;
+    --accent-soft: #17273f;
+    --line-dashed: #3a404a;
+    /* Darkens rather than lightens — the job is contrast against the text
+       above it, and the text is light here. The design is specified in light
+       mode only; this is the same idea pointed the other way. */
+    --scrim: linear-gradient(180deg, rgba(13, 15, 18, .62), rgba(13, 15, 18, .88));
   }
 }
 * { box-sizing: border-box; }
@@ -93,3 +105,108 @@ button.secondary {
 .choice input { width: auto; margin: 0; }
 /* Lists that are lists, not bullets: event names and their counts. */
 .plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+
+/* ---------------------------------------------------------------------------
+   The shell — a left rail and a main column, which the web did not have.
+   Before this there was no home: you landed on the create form, and the only
+   way back to anything was a link someone had sent you.
+   --------------------------------------------------------------------------- */
+.shell { display: flex; min-height: 100vh; }
+.rail {
+  width: 212px; flex: none; padding: 22px 16px;
+  border-right: 1px solid var(--line); background: var(--bg);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.rail-mark { font-size: 15px; font-weight: 700; letter-spacing: -.01em; padding: 0 10px 14px; }
+.rail a.rail-row {
+  padding: 9px 10px; border-radius: 8px; font-size: 15px;
+  color: var(--dim); text-decoration: none;
+}
+.rail a.rail-row[aria-current='page'] {
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+.rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
+.rail-note { font-size: 12px; line-height: 1.45; color: var(--dim); }
+.main { flex: 1; min-width: 0; padding: 28px 30px; }
+.main-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 20px; gap: 16px; flex-wrap: wrap;
+}
+.main-head h1 { font-size: 28px; letter-spacing: -.02em; margin: 0; }
+
+/* Below tablet the rail becomes a bar across the top — the mobile client has
+   a bottom tab bar, and a 212px column on a phone-width browser is most of
+   the screen. */
+@media (max-width: 720px) {
+  .shell { display: block; }
+  .rail {
+    width: auto; flex-direction: row; align-items: center; gap: 2px;
+    border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .rail-mark { padding: 0 8px 0 4px; }
+  .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; }
+  .rail-note { display: none; }
+  .main { padding: 20px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Event cards — photo-led, because a name is a worse way to recognise a night
+   out than the photos from it.
+   --------------------------------------------------------------------------- */
+.cards {
+  display: grid; gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+.card {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
+}
+.card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
+.card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.mosaic { display: grid; gap: 2px; height: 150px; background: var(--line); }
+.mosaic > * { background: var(--card); overflow: hidden; }
+.mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A split column: two tiles stacked in one grid track. */
+.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--line); }
+
+/* The detail strip. No dividing line above it — instead the album's own
+   colours bleed up underneath the text, which is what ties the two halves
+   together. Same images again, mirrored and blurred, under a scrim. */
+.card-body { position: relative; overflow: hidden; }
+.card-bleed {
+  position: absolute; inset: -24px; display: flex;
+  transform: scaleY(-1); filter: blur(18px) saturate(1.15);
+  /* Decorative: the real copy is in the layer above. */
+  pointer-events: none;
+}
+.card-bleed > * { flex: 1; }
+.card-bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-scrim { position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
+.card-text {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px 13px;
+}
+.card-name {
+  font-size: 18px; font-weight: 700; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-meta { font-size: 13.5px; color: var(--dim); }
+.card-count {
+  flex: none; font-size: 18px; font-weight: 600; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+/* An event with no photos gets no mosaic and no bleed — blurring nothing
+   produces a grey smear that looks like a loading state that never finishes. */
+.card-bare .card-text { padding: 16px 14px; }
+
+.card-new {
+  border: 1px dashed var(--line-dashed); border-radius: 14px; min-height: 150px;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  padding: 20px; text-decoration: none; color: inherit; background: none;
+}
+.card-new strong { font-size: 17px; font-weight: 600; }
+.card-new span { font-size: 14px; color: var(--dim); }

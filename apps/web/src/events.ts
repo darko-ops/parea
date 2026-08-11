@@ -24,10 +24,31 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
+/** Enough of a photo to build a signed thumbnail URL from, and no more. */
+export type MosaicPhoto = {
+  id: string;
+  storageKey: string;
+  /** Hex, or null for a photo that has not been through the deriver. */
+  hash: string | null;
+};
+
+/**
+ * How many photos a card's mosaic can show.
+ *
+ * The layouts use one hero tile plus supporting tiles; four covers every
+ * arrangement in the design with nothing spare. Fetching more would be paid
+ * for on every card of every home screen and thrown away.
+ */
+export const MOSAIC_TILES = 4;
+
 export type EventListing = {
   id: string;
   name: string;
   linkToken: string;
+  /** Needed to sign the mosaic's image URLs; rotating a link invalidates them. */
+  capEpoch: number;
+  /** Most recent first. Empty for an event nobody has added to yet. */
+  mosaic: MosaicPhoto[];
   place: string | null;
   eventDate: string | null;
   startsAt: string | null;
@@ -54,7 +75,30 @@ export async function eventsFor(db: Db, actorId: string | null): Promise<EventLi
       endsAt: schema.events.endsAt,
       groupId: schema.events.groupId,
       groupName: schema.groups.name,
+      capEpoch: schema.events.capEpoch,
       lastActiveAt: schema.events.lastActiveAt,
+      /*
+       * The card leads with photos, so the photos come back with the list.
+       * A lateral top-4 per event in one statement rather than a query per
+       * card: the alternative is N+1 round trips on exactly the screen that
+       * has the most rows, and it degrades as someone uses the product more.
+       *
+       * The hash is hex-encoded here because that is the form the URL signer
+       * wants; handing back raw bytea would mean a Buffer round trip for
+       * nothing.
+       */
+      mosaic: sql<MosaicPhoto[]>`(
+        select coalesce(json_agg(row_to_json(t)), '[]'::json) from (
+          select p.id,
+                 p.storage_key as "storageKey",
+                 encode(p.content_hash, 'hex') as hash
+          from "photo" p
+          where p.event_id = ${schema.events.id}
+            and p.status = 'ready' and p.deleted_at is null
+          order by p.uploaded_at desc
+          limit ${MOSAIC_TILES}
+        ) t
+      )`,
       // Counted in the query rather than per row: a home screen that issues
       // two round trips per event is a home screen that is slow at exactly
       // the point someone has a lot of them.
@@ -91,6 +135,9 @@ export async function eventsFor(db: Db, actorId: string | null): Promise<EventLi
 
   return rows.map((row) => ({
     ...row,
+    // `encode()` on a null bytea is null, and json_agg keeps the key, so a
+    // photo mid-ingest arrives as {hash: null} rather than being dropped.
+    mosaic: (row.mosaic ?? []).filter((p) => p.hash !== null),
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),

@@ -155,7 +155,7 @@ export default function CreatePage() {
           this is something you sign up for, which is the opposite of the
           product.
         */}
-        <a href="/account">Your account</a> ·{' '}
+        <a href="/events">Your events</a> · <a href="/account">Your account</a> ·{' '}
         <a href="/safety">Safety, reporting and contact</a> ·{' '}
         <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
       </p>

@@ -17,7 +17,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { eventsFor } from '../src/events';
+import { MOSAIC_TILES, eventsFor } from '../src/events';
 import type { Db } from '../src/db';
 
 const MIGRATIONS = fileURLToPath(
@@ -212,5 +212,93 @@ describe('the place a map is drawn from', () => {
     );
     // Typed by the host at creation, and nowhere else.
     expect(route).toMatch(/place:\s*\n?\s*typeof body\.place === 'string'/);
+  });
+});
+
+describe('the photos the card leads with', () => {
+  /*
+   * The card is photo-led, so the list has to carry photos. Fetched in the
+   * same statement as the list — a query per card is N+1 on exactly the screen
+   * that grows as someone uses the product.
+   */
+  // Distinct hashes per photo, because `photo_event_hash_idx` is unique on
+  // (event_id, content_hash) — the dedup rule that stops one photo appearing
+  // twice in an event. A fixture that reuses one hash is testing against a
+  // schema that does not exist.
+  let nth = 0;
+  const photo = (
+    eventId: string,
+    uploaderId: string,
+    key: string,
+    at: string,
+    over: Record<string, unknown> = {},
+  ) => ({
+    eventId,
+    uploaderId,
+    storageKey: key,
+    byteSize: 1,
+    mime: 'image/jpeg',
+    status: 'ready' as const,
+    uploadedAt: new Date(at),
+    contentHash: Buffer.from(String(nth++).padStart(2, '0').repeat(16), 'hex'),
+    ...over,
+  });
+
+  it('returns the most recent first, capped', async () => {
+    const person = await actor();
+    const id = await event(person);
+    await participates(id, person);
+    await db.insert(schema.photos).values(
+      Array.from({ length: MOSAIC_TILES + 3 }, (_, i) =>
+        photo(id, person, `k${i}`, `2026-08-0${i + 1}T12:00:00Z`),
+      ),
+    );
+
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.mosaic).toHaveLength(MOSAIC_TILES);
+    // Newest first: the tiles are meant to show what just went in.
+    expect(listing!.mosaic[0]!.storageKey).toBe(`k${MOSAIC_TILES + 2}`);
+  });
+
+  it('leaves out what the grid leaves out', async () => {
+    // Same predicate the event view uses. A card that previewed a photo the
+    // event itself will not show would be a leak with a thumbnail on it.
+    const person = await actor();
+    const id = await event(person);
+    await participates(id, person);
+    await db.insert(schema.photos).values([
+      photo(id, person, 'ready', '2026-08-01T12:00:00Z'),
+      photo(id, person, 'pending', '2026-08-02T12:00:00Z', { status: 'pending' }),
+      photo(id, person, 'deleted', '2026-08-03T12:00:00Z', { deletedAt: new Date() }),
+    ]);
+
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.mosaic.map((p) => p.storageKey)).toEqual(['ready']);
+  });
+
+  it('drops a photo with no hash rather than offering an unbuildable URL', async () => {
+    // No content hash means no derivatives, so there is no thumbnail to
+    // address. Keeping the row would put a broken tile on the card.
+    const person = await actor();
+    const id = await event(person);
+    await participates(id, person);
+    await db.insert(schema.photos).values([
+      photo(id, person, 'hashed', '2026-08-01T12:00:00Z'),
+      photo(id, person, 'unhashed', '2026-08-02T12:00:00Z', { contentHash: null }),
+    ]);
+
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.mosaic.map((p) => p.storageKey)).toEqual(['hashed']);
+    expect(listing!.mosaic[0]!.hash).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('is an empty array for an event nobody has added to', async () => {
+    const person = await actor();
+    const id = await event(person);
+    await participates(id, person);
+
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.mosaic).toEqual([]);
+    expect(listing!.capEpoch).toBeGreaterThan(0);
   });
 });

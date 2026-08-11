@@ -1244,6 +1244,43 @@ the column from day one costs nothing.
   part of the shared protocol, so it is a page rather than a protocol question,
   and the honest reason to wait is that nobody has asked for it on the web.
 
+### 17a. The web shell
+
+The web had no home. You landed on the create form whether or not you had ever
+made anything, and an event you contributed to last week was unreachable
+unless you still had the message someone sent you. The native client grew three
+tabs for this and the web never got the equivalent, which made "two clients,
+one protocol" true of the API and false of the product.
+
+Same three destinations as the app's tab bar, in the same order, as a left
+rail: **Events, Find, You** — `/events`, `/find`, `/account`. Below tablet the
+rail becomes a bar across the top; a 212px column on a phone-width browser is
+most of the screen.
+
+`/` stays the public landing page and the create form. That is deliberate: it
+is the one indexable page, it is what a stranger sees, and moving the home
+onto it would either break that or make the front door depend on whether the
+visitor has a cookie.
+
+**Cards lead with photos.** A name is a poor way to recognise a night out. Each
+card is a mosaic of the four most recent photos over a detail strip, and the
+strip has no dividing line above it — the event's own colours bleed upward
+under the text, which is the same images again, mirrored, blurred and
+scrimmed. The mirrored copies are the URLs the mosaic already fetched, so the
+effect costs a blur filter rather than a second round of image loads. An event
+with no photos gets neither mosaic nor bleed: blurring nothing produces a grey
+smear that reads as a loading state which never finishes.
+
+The four thumbnails come back with the list, in the same statement, as a
+lateral top-4 per event. A query per card is N+1 on precisely the screen that
+grows as someone uses the product.
+
+The meta line under the name is `<n> people`, then place, except on the newest
+event where it is recency — at the top of the list "added to 20m ago" is the
+fact that makes someone open it, and further down *where* tells events apart
+better than *when*. The photo count is deliberately not in that line: it is
+already the large number on the right of the same row.
+
 ## 18. Instrumentation
 
 The concept's §6 test — *does anyone other than the creator upload?* — is also

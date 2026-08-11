@@ -53,15 +53,18 @@ const config: NextConfig = {
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       },
       /*
-       * `/account` is its own rule rather than another alternative above,
-       * because the alternation requires a segment after the prefix and this
-       * path has none. It is the one page that names a person's email address
-       * and lists everything they are in.
+       * The signed-in surfaces, each its own rule rather than another
+       * alternative above: that alternation requires a segment after the
+       * prefix and these paths have none.
+       *
+       * Every one of them lists what a particular person is in — `/account`
+       * also names their email address — which is exactly the thing the link
+       * model exists to keep out of an index.
        */
-      {
-        source: '/account/:path*',
+      ...['account', 'events', 'find'].map((root) => ({
+        source: `/${root}/:path*`,
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
-      },
+      })),
       {
         source: '/api/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],

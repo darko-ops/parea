@@ -65,6 +65,7 @@ packages/autoselect  find the event on the phone, decide which of its photos
 packages/push        the three notifications this product is allowed to send
 packages/upload      the upload queue, shared by both clients
 apps/web             Next.js — the app, the API, and the browser client
+                     (three surfaces behind a left rail: events, find, you)
 apps/mobile          Expo — the native client
 services/deriver     ingest: strip, scan, derive, dedup; plus scheduled jobs
 services/image-worker  Cloudflare Worker serving images from R2
