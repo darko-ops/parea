@@ -164,9 +164,13 @@ At this point the **web product is launchable**. Everything below is the app.
 
 ## 9. The app
 
-- [ ] **Assets.** There is no `assets/` directory, so Expo's default icon is
-      what ships. App Store Connect wants 1024×1024 and will not take a
-      placeholder twice.
+- [x] **Assets.** Icon, Android adaptive foreground and favicon are in
+      `apps/mobile/assets/`, rendered from `assets/icon.svg` by `npm run
+      icons`, and asserted by `test/assets.test.ts` — 1024×1024, no alpha on
+      the iOS icon, alpha on the Android foreground, and `app.json` pointing at
+      files that exist. Not yet seen on a device: nothing in this client has
+      been rendered, so how the icon looks under a launcher's mask is still
+      unobserved.
 - [ ] **`expo prebuild`, and run it.** No screen in this client has ever been
       rendered. Everything typechecks; nothing has been looked at. Budget a day
       for layout.
