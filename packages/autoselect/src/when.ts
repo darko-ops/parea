@@ -10,7 +10,7 @@
  *
  * This survives for the two cases detection cannot serve, and they are real:
  * the web, which has no library to read, and an event created before it has
- * been photographed — someone making the album as the party starts. Both still
+ * been photographed — someone making the event as the party starts. Both still
  * need to be asked, and everything below still applies to the asking.
  *
  * Lives beside `resolveWindow` rather than in a client, because the thing that

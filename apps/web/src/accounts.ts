@@ -174,9 +174,9 @@ export async function accountFor(
  * Deletes the account, and only the account.
  *
  * The actor survives as a guest, keeping its uploads. That is a judgement
- * worth stating: the photos are in other people's albums, and the person can
+ * worth stating: the photos are in other people's events, and the person can
  * still remove any of them one at a time or all at once — `deleteEverything`
- * below is offered next to this in the UI. Silently tombstoning a shared album
+ * below is offered next to this in the UI. Silently tombstoning a shared event
  * because someone closed an account would take away other people's copies of
  * an evening they were also at.
  *

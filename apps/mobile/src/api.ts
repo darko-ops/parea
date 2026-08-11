@@ -50,12 +50,12 @@ export type Feed = {
 };
 
 /**
- * An album — an event, in the word the product says out loud.
+ * One event as it appears in a list: enough to draw a card, and no more.
  *
  * What a card on the home screen needs and nothing more: no photos, because
- * a list of albums is not a place to serve two hundred thumbnails.
+ * a list of events is not a place to serve two hundred thumbnails.
  */
-export type Album = {
+export type EventListing = {
   id: string;
   name: string;
   linkToken: string;
@@ -247,15 +247,15 @@ export class Api {
   }
 
   /**
-   * Every album this actor can reach — the home and profile tabs.
+   * Every event this actor can reach — the home and profile tabs.
    *
    * Membership rather than possession: events they took part in, plus every
-   * event in a group they are in. An album they opened once from a link a
+   * event in a group they are in. One they opened once from a link a
    * year ago is not somewhere they live.
    */
-  async albums(): Promise<Album[]> {
-    const { albums } = await this.call<{ albums: Album[] }>('/api/albums');
-    return albums;
+  async myEvents(): Promise<EventListing[]> {
+    const { events } = await this.call<{ events: EventListing[] }>('/api/events');
+    return events;
   }
 
   /** The name shown beside your uploads. The whole of a profile here. */

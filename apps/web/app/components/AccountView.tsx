@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-type Album = {
+type EventListing = {
   id: string;
   name: string;
   place: string | null;
@@ -32,7 +32,7 @@ type Stage = 'loading' | 'email' | 'code' | 'in';
 export function AccountView() {
   const [stage, setStage] = useState<Stage>('loading');
   const [account, setAccount] = useState<{ email: string } | null>(null);
-  const [albums, setAlbums] = useState<Album[]>([]);
+  const [events, setEvents] = useState<EventListing[]>([]);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,10 +42,10 @@ export function AccountView() {
   const load = useCallback(async () => {
     const [session, mine] = await Promise.all([
       fetch('/api/account/session').then((r) => r.json()).catch(() => ({ account: null })),
-      fetch('/api/albums').then((r) => r.json()).catch(() => ({ albums: [] })),
+      fetch('/api/events').then((r) => r.json()).catch(() => ({ events: [] })),
     ]);
     setAccount(session.account ?? null);
-    setAlbums(mine.albums ?? []);
+    setEvents(mine.events ?? []);
     setStage(session.account ? 'in' : 'email');
   }, []);
 
@@ -102,7 +102,7 @@ export function AccountView() {
     async (alsoPhotos: boolean) => {
       const message = alsoPhotos
         ? 'Delete your account and remove every photo you have added? The photos cannot be brought back.'
-        : 'Delete your account? Your email address is removed. The photos you added stay in their albums, and stay yours to remove.';
+        : 'Delete your account? Your email address is removed. The photos you added stay in their events, and stay yours to remove.';
       if (!confirm(message)) return;
 
       setBusy(true);
@@ -129,7 +129,7 @@ export function AccountView() {
       {stage !== 'in' ? (
         <section className="panel">
           <p className="muted">
-            Optional, and it does one thing: your albums and groups follow you
+            Optional, and it does one thing: your events and groups follow you
             to another browser or a new phone. No password — a code goes to
             your inbox.
           </p>
@@ -189,25 +189,25 @@ export function AccountView() {
             Signed in as <strong>{account?.email}</strong>
           </p>
           <p className="muted">
-            Your albums and groups follow you to another browser or a new
+            Your events and groups follow you to another browser or a new
             phone. That is all an account does here.
           </p>
         </section>
       )}
 
-      {albums.length > 0 && (
+      {events.length > 0 && (
         <section className="panel">
           <h2>What you are in</h2>
           <ul className="plain">
-            {albums.map((album) => (
-              <li key={album.id}>
-                <a href={`/event/${album.id}`}>{album.name}</a>
+            {events.map((event) => (
+              <li key={event.id}>
+                <a href={`/event/${event.id}`}>{event.name}</a>
                 <span className="muted">
                   {' · '}
-                  {album.memberCount} {album.memberCount === 1 ? 'person' : 'people'}
+                  {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}
                   {' · '}
-                  {album.photoCount} {album.photoCount === 1 ? 'photo' : 'photos'}
-                  {album.groupName && ` · ${album.groupName}`}
+                  {event.photoCount} {event.photoCount === 1 ? 'photo' : 'photos'}
+                  {event.groupName && ` · ${event.groupName}`}
                 </span>
               </li>
             ))}
@@ -226,7 +226,7 @@ export function AccountView() {
           <p className="muted">
             Removing your account removes your email address and the link
             between it and your devices. The photos you added stay in their
-            albums and stay yours to remove.
+            events and stay yours to remove.
           </p>
           <div className="row">
             <button className="secondary" onClick={() => remove(false)} disabled={busy}>

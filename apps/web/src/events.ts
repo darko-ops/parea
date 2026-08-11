@@ -1,10 +1,10 @@
 /**
- * The albums someone can reach — the data behind the app's home and profile.
+ * The events someone can reach — the data behind the app's home and profile.
  *
- * "Album" is the word the product uses out loud for what the schema calls an
- * event. They are the same thing; the schema keeps `event` because that is
- * what §3 and every policy rule call it, and renaming a table to match a label
- * would be a migration paid for nothing.
+ * The product says "event", the schema says `event`, and this file says
+ * `EventListing` for one row of the list. It briefly said "album" everywhere —
+ * a second word for one thing, which cost a sentence of explanation in every
+ * file that touched it and bought nothing.
  *
  * Two ways to be in one, and both count:
  *
@@ -15,7 +15,7 @@
  *
  * Deliberately not "every event you could reach if you still had the link".
  * A link is a credential someone was sent, not a membership, and listing
- * events on the strength of one would put an album someone opened once and
+ * events on the strength of one would put an event someone opened once and
  * forgot on their home screen forever.
  */
 
@@ -24,7 +24,7 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
-export type Album = {
+export type EventListing = {
   id: string;
   name: string;
   linkToken: string;
@@ -40,7 +40,7 @@ export type Album = {
   lastActiveAt: string;
 };
 
-export async function albumsFor(db: Db, actorId: string | null): Promise<Album[]> {
+export async function eventsFor(db: Db, actorId: string | null): Promise<EventListing[]> {
   if (!actorId) return [];
 
   const rows = await db
@@ -56,7 +56,7 @@ export async function albumsFor(db: Db, actorId: string | null): Promise<Album[]
       groupName: schema.groups.name,
       lastActiveAt: schema.events.lastActiveAt,
       // Counted in the query rather than per row: a home screen that issues
-      // two round trips per album is a home screen that is slow at exactly
+      // two round trips per event is a home screen that is slow at exactly
       // the point someone has a lot of them.
       memberCount: sql<number>`(
         select count(*)::int from "event_participant" ep
@@ -86,7 +86,7 @@ export async function albumsFor(db: Db, actorId: string | null): Promise<Album[]
       ),
     )
     // Most recently active first: a timeline is about what is happening, and
-    // the album people are still adding to is the one worth being near the top.
+    // the event people are still adding to is the one worth being near the top.
     .orderBy(desc(schema.events.lastActiveAt));
 
   return rows.map((row) => ({

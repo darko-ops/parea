@@ -186,13 +186,13 @@ Three independent switches, all defaulting open:
 - **Is the code valid?** While the event is active; recycles after dormancy.
 - **Can people still upload?** Yes. Late photos are the point.
 
-Closing any of them is a host decision — sealing a wedding album, shutting down
+Closing any of them is a host decision — sealing a wedding event, shutting down
 after a stranger got the link — not a default the product imposes.
 
 ### Cut from version one
 
 - **Profiles, usernames, friend requests, mutual friends.** Stacks a
-  social-graph cold start on top of an album cold start. Group and event
+  social-graph cold start on top of an event cold start. Group and event
   membership already encode every relationship the product needs.
 - **Open discovery of events.** Nobody is browsing strangers' parties, and
   letting them is a moderation problem that can't be staffed. Group name search

@@ -2,7 +2,7 @@
  * Folding one actor into another — design §3.
  *
  * The situation is ordinary and the handling is not. Someone is a guest on
- * their phone with forty photos in three albums. They sign in, and the address
+ * their phone with forty photos in three events. They sign in, and the address
  * already belongs to an account bound to the guest actor on their laptop. Both
  * actors are the same person, and after this they have to behave as one.
  *

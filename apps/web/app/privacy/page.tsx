@@ -236,7 +236,7 @@ export default function PrivacyPage() {
             <strong>Delete your account</strong> at <a href="/account">/account</a>,
             or in the app. Two separate things are offered: removing the
             account and the email address, which leaves your photos in other
-            people&rsquo;s albums where they can still be removed one at a
+            people&rsquo;s events where they can still be removed one at a
             time; or removing the account and everything you ever uploaded.
           </li>
           <li>

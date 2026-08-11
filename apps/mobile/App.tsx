@@ -38,8 +38,8 @@ import {
 
 import { resolveWindow, type Window } from '@parea/autoselect';
 
-import { Api, tokenFromInput, type Album, type Feed, type FeedPhoto } from './src/api';
-import { HomeTab, ProfileTab, SearchTab } from './src/Albums';
+import { Api, tokenFromInput, type EventListing, type Feed, type FeedPhoto } from './src/api';
+import { HomeTab, ProfileTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
@@ -83,7 +83,7 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
 /**
  * Three tabs, and the screens that open on top of them.
  *
- * The tabs are where someone lives — albums, finding things, themselves — and
+ * The tabs are where someone lives — events, finding things, themselves — and
  * everything else is pushed over the top and dismissed back to whichever tab
  * they came from. No history stack and no navigation library: there are six
  * destinations in this product and a library would be more moving parts than
@@ -107,18 +107,18 @@ export default function App() {
   );
 
   const [ready, setReady] = useState(false);
-  const [events, setEvents] = useState<SavedEvent[]>([]);
+  const [remembered, setRemembered] = useState<SavedEvent[]>([]);
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
   const [tab, setTab] = useState<Tab>('home');
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [loadingAlbums, setLoadingAlbums] = useState(true);
+  const [events, setEvents] = useState<EventListing[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(async (event: SavedEvent) => {
-    setEvents(await rememberEvent(event));
+    setRemembered(await rememberEvent(event));
     setRoute({ screen: 'event', event });
   }, []);
 
@@ -133,26 +133,26 @@ export default function App() {
   }, [api]);
 
   /**
-   * The albums this actor can reach.
+   * The events this actor can reach.
    *
    * Fetched rather than remembered locally, for the same reason groups are:
    * a list on the device is a list of links this phone was sent, and a
    * reinstall loses it. Membership is the durable thing.
    */
-  const refreshAlbums = useCallback(async () => {
-    const next = await api.albums().catch(() => null);
-    if (next) setAlbums(next);
-    setLoadingAlbums(false);
+  const refreshEvents = useCallback(async () => {
+    const next = await api.myEvents().catch(() => null);
+    if (next) setEvents(next);
+    setLoadingEvents(false);
   }, [api]);
 
-  const openAlbum = useCallback(
-    (album: Album) =>
+  const openListing = useCallback(
+    (event: EventListing) =>
       open({
-        id: album.id,
-        name: album.name,
-        linkToken: album.linkToken,
-        startsAt: album.startsAt,
-        endsAt: album.endsAt,
+        id: event.id,
+        name: event.name,
+        linkToken: event.linkToken,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
       }),
     [open],
   );
@@ -238,13 +238,13 @@ export default function App() {
     (async () => {
       const token = await loadActorToken();
       if (token) api.setToken(token);
-      setEvents(await loadEvents());
+      setRemembered(await loadEvents());
       setReady(true);
       // Both after the token: one asks who this device is, the other answers
       // as them. Groups are empty for anyone who has never contributed, which
       // is the common first launch and not an error.
       void refreshGroups();
-      void refreshAlbums();
+      void refreshEvents();
       await arrive(await Linking.getInitialURL());
       // The notification equivalent of `getInitialURL`: the app may have been
       // launched by a tap, and that arrives here rather than on the listener.
@@ -259,7 +259,7 @@ export default function App() {
       subscription.remove();
       untap();
     };
-  }, [api, arrive, follow, refreshAlbums, refreshGroups]);
+  }, [api, arrive, follow, refreshEvents, refreshGroups]);
 
   if (!ready) {
     return (
@@ -278,7 +278,7 @@ export default function App() {
           event={route.event}
           t={t}
           onBack={() => {
-            void refreshAlbums();
+            void refreshEvents();
             setRoute({ screen: 'tabs' });
           }}
           onOpenGroup={(id) => setRoute({ screen: 'group', id })}
@@ -321,7 +321,7 @@ export default function App() {
           t={t}
           onBack={() => {
             void refreshGroups();
-            void refreshAlbums();
+            void refreshEvents();
             setRoute({ screen: 'tabs' });
           }}
           onOpenEvent={open}
@@ -333,7 +333,12 @@ export default function App() {
       {route.screen === 'join' && (
         <JoinScreen
           api={api}
-          events={events}
+          // `remembered`, not `events`: this strip is the links this device was
+          // sent, which is what someone arriving via a link wants to see. The
+          // server list is a superset and is structurally assignable to
+          // SavedEvent, so passing the wrong one here typechecks cleanly and
+          // silently changes what the screen shows.
+          events={remembered}
           groups={groups}
           t={t}
           onOpen={open}
@@ -350,11 +355,11 @@ export default function App() {
         <>
           {tab === 'home' && (
             <HomeTab
-              albums={albums}
-              loading={loadingAlbums}
+              events={events}
+              loading={loadingEvents}
               t={t}
-              onOpen={openAlbum}
-              onRefresh={refreshAlbums}
+              onOpen={openListing}
+              onRefresh={refreshEvents}
               onCreate={() => setRoute({ screen: 'create' })}
               Button={Button}
             />
@@ -362,20 +367,20 @@ export default function App() {
           {tab === 'search' && (
             <SearchTab
               api={api}
-              albums={albums}
+              events={events}
               t={t}
-              onOpen={openAlbum}
+              onOpen={openListing}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
             />
           )}
           {tab === 'profile' && (
             <ProfileTab
               api={api}
-              albums={albums}
+              events={events}
               groups={groups}
               displayName={displayName}
               t={t}
-              onOpen={openAlbum}
+              onOpen={openListing}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
               onRename={(next) => {
                 setDisplayName(next);
@@ -384,7 +389,7 @@ export default function App() {
               onSignedIn={() => {
                 // The account may speak for another device's actor, so what
                 // this person can reach has just changed.
-                void refreshAlbums();
+                void refreshEvents();
                 void refreshGroups();
               }}
               Button={Button}
@@ -400,7 +405,7 @@ export default function App() {
             style={[styles.joinBar, { backgroundColor: t.card, borderColor: t.line }]}
             onPress={() => setRoute({ screen: 'join' })}
             accessibilityRole="button"
-            accessibilityLabel="Open an album from a link, a code or a QR code"
+            accessibilityLabel="Open an event from a link, a code or a QR code"
           >
             <Text style={[styles.body, { color: t.accent }]}>
               Have a link or a code? Open it
@@ -410,7 +415,7 @@ export default function App() {
           <View style={[styles.tabBar, { backgroundColor: t.card, borderColor: t.line }]}>
             {(
               [
-                ['home', 'Albums'],
+                ['home', 'Events'],
                 ['search', 'Find'],
                 ['profile', 'You'],
               ] as [Tab, string][]

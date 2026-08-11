@@ -238,7 +238,7 @@ The list of tables a merge touches is asserted against the schema in
 **Deleting an account is required** — App Store Guideline 5.1.1(v) — and is two
 separate things. Deleting the account removes the address and the link to this
 person's devices; the actor reverts to a guest and keeps its uploads, which are
-in other people's albums and still theirs to remove one at a time. Deleting
+in other people's events and still theirs to remove one at a time. Deleting
 everything they uploaded is offered beside it rather than folded into it,
 because a closed account should not take away other people's copies of an
 evening they were also at.
@@ -433,10 +433,10 @@ The concept's rule — *groups can be findable, photos never are* — is enforce
 structurally. Group search hits an index containing no photo join. There is no
 event index and no photo index. Search returns a door.
 
-**The app's "albums by place" screen is not an exception.** It arranges albums
+**The app's "events by place" screen is not an exception.** It arranges events
 the viewer is *already in* by where they were, so nothing is discovered and
 nothing is shown that they could not already see; there is no query by place
-across albums they are not in, and adding one would be event search wearing a
+across events they are not in, and adding one would be event search wearing a
 map. An event's `place` is free text typed by its host at creation, never
 derived: §7.6 strips GPS at ingest and ingest *fails* if any survives, so
 there is no photo location in this system to derive from, deliberately. A map
@@ -1239,7 +1239,7 @@ the column from day one costs nothing.
   promoting group search.
 - **Whether the web should list your groups too.** Half-answered. The premise
   was that the web had no persistent place to put a list; `/account` is that
-  place, and it lists albums — a signed-in browser can now see what it is in.
+  place, and it lists events — a signed-in browser can now see what it is in.
   Groups themselves still are not listed there. `GET /api/groups` exists and is
   part of the shared protocol, so it is a page rather than a protocol question,
   and the honest reason to wait is that nobody has asked for it on the web.

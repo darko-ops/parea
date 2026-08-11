@@ -1,15 +1,15 @@
 /**
  * The three tabs' contents: home, search, profile.
  *
- * "Album" is the word the product says out loud for what the schema calls an
- * event. Same thing — the schema keeps `event` because that is what every
- * access rule in §3 is written against, and renaming a table to match a label
- * buys nothing.
+ * One word for one thing: an event. These tabs briefly said "album" while the
+ * schema said `event`, which meant every file that touched them opened with a
+ * paragraph explaining that the two were the same. That paragraph was the cost
+ * of the second word, and it bought nothing.
  *
- * All three read from `GET /api/albums`, which lists what this actor can
+ * All three read from `GET /api/events`, which lists what this actor can
  * actually reach: events they have presented a credential to, plus every event
  * in a group they belong to. Not "everything a link would still open" — a link
- * is something you were sent, not somewhere you live, and an album opened once
+ * is something you were sent, not somewhere you live, and an event opened once
  * a year ago does not belong on a home screen.
  */
 
@@ -27,7 +27,7 @@ import {
   View,
 } from 'react-native';
 
-import type { Album, Api } from './api';
+import type { Api, EventListing } from './api';
 import type { GroupTheme } from './Groups';
 
 export type TabTheme = GroupTheme;
@@ -36,18 +36,18 @@ const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
 
 /**
- * One album, as a rounded card.
+ * One event, as a rounded card.
  *
  * The counts are the point of the card rather than decoration: "6 people, 88
  * photos" is the recruiting device the concept names (§2), and it is the same
- * sentence whether you are deciding to open an album or deciding to add to it.
+ * sentence whether you are deciding to open an event or deciding to add to it.
  */
-function AlbumCard({
-  album,
+function EventCard({
+  event,
   t,
   onPress,
 }: {
-  album: Album;
+  event: EventListing;
   t: TabTheme;
   onPress: () => void;
 }) {
@@ -55,18 +55,18 @@ function AlbumCard({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${album.name}, ${plural(album.memberCount, 'member')}, ${plural(album.photoCount, 'photo')}`}
-      style={[styles.album, { backgroundColor: t.card, borderColor: t.line }]}
+      accessibilityLabel={`${event.name}, ${plural(event.memberCount, 'member')}, ${plural(event.photoCount, 'photo')}`}
+      style={[styles.event, { backgroundColor: t.card, borderColor: t.line }]}
     >
-      <Text style={[styles.albumName, { color: t.fg }]} numberOfLines={2}>
-        {album.name}
+      <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={2}>
+        {event.name}
       </Text>
       <Text style={[styles.body, { color: t.dim }]}>
-        {plural(album.memberCount, 'member')} · {plural(album.photoCount, 'photo')}
+        {plural(event.memberCount, 'member')} · {plural(event.photoCount, 'photo')}
       </Text>
-      {(album.place || album.groupName) && (
+      {(event.place || event.groupName) && (
         <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-          {[album.place, album.groupName].filter(Boolean).join(' · ')}
+          {[event.place, event.groupName].filter(Boolean).join(' · ')}
         </Text>
       )}
     </Pressable>
@@ -75,7 +75,7 @@ function AlbumCard({
 
 /** Page 1 — what is happening, most recently active first. */
 export function HomeTab({
-  albums,
+  events,
   loading,
   t,
   onOpen,
@@ -83,10 +83,10 @@ export function HomeTab({
   onCreate,
   Button,
 }: {
-  albums: Album[];
+  events: EventListing[];
   loading: boolean;
   t: TabTheme;
-  onOpen: (album: Album) => void;
+  onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
   Button: ButtonComponent;
@@ -108,24 +108,24 @@ export function HomeTab({
         />
       }
     >
-      <Text style={[styles.h1, { color: t.fg }]}>Albums</Text>
+      <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
 
-      {loading && albums.length === 0 && <ActivityIndicator color={t.accent} />}
+      {loading && events.length === 0 && <ActivityIndicator color={t.accent} />}
 
-      {!loading && albums.length === 0 && (
+      {!loading && events.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Albums you are sent, or make, show up here.
+            Nothing here yet. Events you are sent, or make, show up here.
           </Text>
-          <Button label="Start an album" onPress={onCreate} t={t} primary />
+          <Button label="Start an event" onPress={onCreate} t={t} primary />
         </View>
       )}
 
-      {albums.map((album) => (
-        <AlbumCard key={album.id} album={album} t={t} onPress={() => onOpen(album)} />
+      {events.map((event) => (
+        <EventCard key={event.id} event={event} t={t} onPress={() => onOpen(event)} />
       ))}
 
-      {albums.length > 0 && <Button label="Start an album" onPress={onCreate} t={t} />}
+      {events.length > 0 && <Button label="Start an event" onPress={onCreate} t={t} />}
     </ScrollView>
   );
 }
@@ -137,24 +137,24 @@ export function HomeTab({
  * person is *not* in, and is the only discovery surface in the product: it
  * returns findable groups by name, never events and never photos. §3's rule
  * holds — groups can be findable, photos never are — so there is deliberately
- * no album search here, and adding one would make people's photos
+ * no event search here, and adding one would make people's photos
  * discoverable by strangers.
  *
- * The map half is the opposite: it reaches only albums this person is already
+ * The map half is the opposite: it reaches only events this person is already
  * in, arranged by where they were. Nothing is discovered, and nothing is
  * exposed that they could not already see.
  */
 export function SearchTab({
   api,
-  albums,
+  events,
   t,
   onOpen,
   onOpenGroup,
 }: {
   api: Api;
-  albums: Album[];
+  events: EventListing[];
   t: TabTheme;
-  onOpen: (album: Album) => void;
+  onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -173,17 +173,17 @@ export function SearchTab({
     [api],
   );
 
-  /** Albums that know where they were, newest place first. */
+  /** Events that know where they were, newest place first. */
   const places = useMemo(() => {
-    const byPlace = new Map<string, Album[]>();
-    for (const album of albums) {
-      if (!album.place) continue;
-      byPlace.set(album.place, [...(byPlace.get(album.place) ?? []), album]);
+    const byPlace = new Map<string, EventListing[]>();
+    for (const event of events) {
+      if (!event.place) continue;
+      byPlace.set(event.place, [...(byPlace.get(event.place) ?? []), event]);
     }
     return [...byPlace.entries()];
-  }, [albums]);
+  }, [events]);
 
-  const unplaced = albums.filter((a) => !a.place).length;
+  const unplaced = events.filter((a) => !a.place).length;
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -202,7 +202,7 @@ export function SearchTab({
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
         <Text style={[styles.small, { color: t.dim }]}>
-          Groups can be findable. Albums and photos never are — the only way
+          Groups can be findable. Events and photos never are — the only way
           into one is being sent it.
         </Text>
         {results.map((group) => (
@@ -223,10 +223,10 @@ export function SearchTab({
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Your albums, by place</Text>
+        <Text style={[styles.label, { color: t.fg }]}>Your events, by place</Text>
         {places.length === 0 ? (
           <Text style={[styles.body, { color: t.dim }]}>
-            None of your albums say where they were yet. Whoever starts one can
+            None of your events say where they were yet. Whoever starts one can
             add a place, and it shows up here.
           </Text>
         ) : (
@@ -251,13 +251,13 @@ export function SearchTab({
                   <Text style={[styles.small, { color: t.accent }]}>Map ›</Text>
                 </Pressable>
               </View>
-              {inPlace.map((album) => (
+              {inPlace.map((event) => (
                 <Pressable
-                  key={album.id}
+                  key={event.id}
                   style={styles.row}
-                  onPress={() => onOpen(album)}
+                  onPress={() => onOpen(event)}
                 >
-                  <Text style={[styles.body, { color: t.accent }]}>{album.name}</Text>
+                  <Text style={[styles.body, { color: t.accent }]}>{event.name}</Text>
                 </Pressable>
               ))}
             </View>
@@ -265,7 +265,7 @@ export function SearchTab({
         )}
         {unplaced > 0 && places.length > 0 && (
           <Text style={[styles.small, { color: t.dim }]}>
-            {plural(unplaced, 'album')} without a place.
+            {plural(unplaced, 'event')} without a place.
           </Text>
         )}
       </View>
@@ -371,7 +371,7 @@ function AccountCard({
     // first; the second is offered beside it rather than folded into it.
     Alert.alert(
       'Delete your account?',
-      'Your email address and this account are removed. The photos you added stay in their albums and stay yours to remove.',
+      'Your email address and this account are removed. The photos you added stay in their events and stay yours to remove.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -405,7 +405,7 @@ function AccountCard({
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
         <Text style={[styles.body, { color: t.dim }]}>{account.email}</Text>
         <Text style={[styles.small, { color: t.dim }]}>
-          Your albums and groups follow you to a new phone. That is all an
+          Your events and groups follow you to a new phone. That is all an
           account does here.
         </Text>
         <Button label="Delete account" onPress={remove} t={t} />
@@ -417,7 +417,7 @@ function AccountCard({
     <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
       <Text style={[styles.label, { color: t.fg }]}>Keep these on a new phone</Text>
       <Text style={[styles.small, { color: t.dim }]}>
-        Optional. Add an email and your albums and groups follow you to another
+        Optional. Add an email and your events and groups follow you to another
         device. No password — a code goes to your inbox.
       </Text>
 
@@ -471,7 +471,7 @@ function AccountCard({
 /** Page 3 — everything you are in, by group. */
 export function ProfileTab({
   api,
-  albums,
+  events,
   groups,
   displayName,
   t,
@@ -482,11 +482,11 @@ export function ProfileTab({
   Button,
 }: {
   api: Api;
-  albums: Album[];
+  events: EventListing[];
   groups: { id: string; name: string; role: 'member' | 'admin' }[];
   displayName: string | null;
   t: TabTheme;
-  onOpen: (album: Album) => void;
+  onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
   onRename: (name: string) => void;
   onSignedIn: () => void;
@@ -494,8 +494,8 @@ export function ProfileTab({
 }) {
   const [name, setName] = useState(displayName ?? '');
 
-  const grouped = useMemo(() => albums.filter((a) => a.groupId), [albums]);
-  const loose = useMemo(() => albums.filter((a) => !a.groupId), [albums]);
+  const grouped = useMemo(() => events.filter((a) => a.groupId), [events]);
+  const loose = useMemo(() => events.filter((a) => !a.groupId), [events]);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -525,7 +525,7 @@ export function ProfileTab({
         </Text>
         {groups.length === 0 ? (
           <Text style={[styles.body, { color: t.dim }]}>
-            None yet. A group is what an album becomes when the same people keep
+            None yet. A group is what an event becomes when the same people keep
             doing things together.
           </Text>
         ) : (
@@ -547,10 +547,10 @@ export function ProfileTab({
       {grouped.length > 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.label, { color: t.fg }]}>In your groups</Text>
-          {grouped.map((album) => (
-            <Pressable key={album.id} style={styles.row} onPress={() => onOpen(album)}>
-              <Text style={[styles.body, { color: t.accent, flex: 1 }]}>{album.name}</Text>
-              <Text style={[styles.small, { color: t.dim }]}>{album.groupName}</Text>
+          {grouped.map((event) => (
+            <Pressable key={event.id} style={styles.row} onPress={() => onOpen(event)}>
+              <Text style={[styles.body, { color: t.accent, flex: 1 }]}>{event.name}</Text>
+              <Text style={[styles.small, { color: t.dim }]}>{event.groupName}</Text>
             </Pressable>
           ))}
         </View>
@@ -561,9 +561,9 @@ export function ProfileTab({
         {loose.length === 0 ? (
           <Text style={[styles.body, { color: t.dim }]}>Nothing here.</Text>
         ) : (
-          loose.map((album) => (
-            <Pressable key={album.id} style={styles.row} onPress={() => onOpen(album)}>
-              <Text style={[styles.body, { color: t.accent }]}>{album.name}</Text>
+          loose.map((event) => (
+            <Pressable key={event.id} style={styles.row} onPress={() => onOpen(event)}>
+              <Text style={[styles.body, { color: t.accent }]}>{event.name}</Text>
             </Pressable>
           ))
         )}
@@ -593,8 +593,8 @@ const styles = StyleSheet.create({
   h1: { fontSize: 30, fontWeight: '700' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   // Rounded, tall, one per row: the shape people scroll through.
-  album: { borderRadius: 18, borderWidth: 1, padding: 20, gap: 6, minHeight: 108 },
-  albumName: { fontSize: 22, fontWeight: '700' },
+  event: { borderRadius: 18, borderWidth: 1, padding: 20, gap: 6, minHeight: 108 },
+  eventName: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },

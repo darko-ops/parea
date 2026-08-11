@@ -91,5 +91,5 @@ button.secondary {
 }
 .choice:has(input:checked) { border-color: var(--accent); }
 .choice input { width: auto; margin: 0; }
-/* Lists that are lists, not bullets: album names and their counts. */
+/* Lists that are lists, not bullets: event names and their counts. */
 .plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }

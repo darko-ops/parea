@@ -11,11 +11,12 @@ import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
+import { eventsFor } from '@/events';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
 import { asDateString, parseWindow } from '@/eventwindow';
 import { CREATE_EVENT_LIMIT, withinLimit } from '@/ratelimit';
-import { ensureActor, grantCapability } from '@/session';
+import { currentActorId, ensureActor, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,24 @@ type Body = {
   endsAt?: unknown;
   createdByName?: unknown;
 };
+
+/**
+ * The events this actor can reach — backs the app's home and profile tabs, and
+ * the web account page.
+ *
+ * Lives here rather than at its own path because it is a list of the resource
+ * this route already creates. It was `GET /api/albums` while the product had a
+ * second word for an event; the word is gone, and so is the second path.
+ *
+ * Answers an empty list rather than 403 for someone with no actor: the app
+ * asks on launch, before anyone has contributed anything, and having no events
+ * and not existing look the same from here because they should.
+ */
+export async function GET() {
+  return NextResponse.json({
+    events: await eventsFor(getDb(), await currentActorId()),
+  });
+}
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Body;

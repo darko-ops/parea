@@ -402,7 +402,7 @@ describe('deleting an account', () => {
     expect(row!.accountId).toBeNull();
   });
 
-  it('keeps their uploads, which are in other people’s albums', async () => {
+  it('keeps their uploads, which are in other people’s events', async () => {
     // Deleting an account must not quietly take away other people's copies of
     // an evening they were also at. Removing the photos is a separate,
     // explicit action offered beside it.

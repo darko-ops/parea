@@ -1,12 +1,12 @@
 /**
- * What the app's home and profile tabs list — the albums someone can reach.
+ * What the app's home and profile tabs list — the events someone can reach.
  *
  * The interesting decision is what *does not* appear. A link is a credential
  * someone was sent, not somewhere they live, so holding one is not enough to
- * put an album on a home screen; and a group member reaches events they have
+ * put an event on a home screen; and a group member reaches events they have
  * never opened, which is what a group is for. Getting either wrong is quiet:
  * too little and the app looks empty to someone who is in things, too much
- * and it lists an album they opened once a year ago and forgot.
+ * and it lists an event they opened once a year ago and forgot.
  */
 
 import { PGlite } from '@electric-sql/pglite';
@@ -17,7 +17,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { albumsFor } from '../src/albums';
+import { eventsFor } from '../src/events';
 import type { Db } from '../src/db';
 
 const MIGRATIONS = fileURLToPath(
@@ -67,15 +67,15 @@ async function participates(eventId: string, actorId: string) {
 }
 
 describe('what counts as reachable', () => {
-  it('lists an album you took part in', async () => {
+  it('lists an event you took part in', async () => {
     const person = await actor();
     const id = await event(person);
     await participates(id, person);
 
-    expect((await albumsFor(db, person)).map((a) => a.id)).toEqual([id]);
+    expect((await eventsFor(db, person)).map((a) => a.id)).toEqual([id]);
   });
 
-  it('lists every album in a group you are in, including ones you never opened', async () => {
+  it('lists every event in a group you are in, including ones you never opened', async () => {
     // The whole point of a group (§3): next Sunday's dinner reaches you
     // without anybody sending you anything.
     const person = await actor();
@@ -87,35 +87,35 @@ describe('what counts as reachable', () => {
     await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: person });
     const id = await event(host, { groupId: group!.id });
 
-    expect((await albumsFor(db, person)).map((a) => a.id)).toEqual([id]);
+    expect((await eventsFor(db, person)).map((a) => a.id)).toEqual([id]);
   });
 
-  it('does not list an album you merely could open with a link', async () => {
+  it('does not list an event you merely could open with a link', async () => {
     // Holding a link is being sent something, not living somewhere. Listing
-    // on that basis would pin an album someone opened once to their home
+    // on that basis would pin an event someone opened once to their home
     // screen forever.
     const person = await actor();
     const stranger = await actor();
     await event(stranger);
 
-    expect(await albumsFor(db, person)).toEqual([]);
+    expect(await eventsFor(db, person)).toEqual([]);
   });
 
   it('lists nothing for someone with no actor yet', async () => {
     // Asked on launch, before anyone has contributed. Empty, not an error.
-    expect(await albumsFor(db, null)).toEqual([]);
+    expect(await eventsFor(db, null)).toEqual([]);
   });
 
-  it('drops a deleted album', async () => {
+  it('drops a deleted event', async () => {
     const person = await actor();
     const id = await event(person);
     await participates(id, person);
     await db.execute(sql`update "event" set deleted_at = now() where id = ${id}`);
 
-    expect(await albumsFor(db, person)).toEqual([]);
+    expect(await eventsFor(db, person)).toEqual([]);
   });
 
-  it('does not list an album twice for someone who is both a member and a participant', async () => {
+  it('does not list an event twice for someone who is both a member and a participant', async () => {
     const person = await actor();
     const [group] = await db
       .insert(schema.groups)
@@ -125,7 +125,7 @@ describe('what counts as reachable', () => {
     const id = await event(person, { groupId: group!.id });
     await participates(id, person);
 
-    expect(await albumsFor(db, person)).toHaveLength(1);
+    expect(await eventsFor(db, person)).toHaveLength(1);
   });
 });
 
@@ -144,9 +144,9 @@ describe('what a card shows', () => {
       { eventId: id, uploaderId: other, storageKey: 'c', byteSize: 1, mime: 'image/jpeg', status: 'ready', deletedAt: new Date() },
     ]);
 
-    const [album] = await albumsFor(db, person);
-    expect(album!.memberCount).toBe(2);
-    expect(album!.photoCount).toBe(1);
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.memberCount).toBe(2);
+    expect(listing!.photoCount).toBe(1);
   });
 
   it('carries the place, for the map, and the group it belongs to', async () => {
@@ -158,12 +158,12 @@ describe('what a card shows', () => {
     await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: person });
     await event(person, { groupId: group!.id, place: 'Hackney' });
 
-    const [album] = await albumsFor(db, person);
-    expect(album!.place).toBe('Hackney');
-    expect(album!.groupName).toBe('Climbing');
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.place).toBe('Hackney');
+    expect(listing!.groupName).toBe('Climbing');
   });
 
-  it('carries the window, so an album opened from here still auto-selects', async () => {
+  it('carries the window, so an event opened from here still auto-selects', async () => {
     const person = await actor();
     const id = await event(person);
     await participates(id, person);
@@ -171,9 +171,9 @@ describe('what a card shows', () => {
       sql`update "event" set starts_at = now(), ends_at = now() + interval '4 hours' where id = ${id}`,
     );
 
-    const [album] = await albumsFor(db, person);
-    expect(album!.startsAt).not.toBeNull();
-    expect(album!.endsAt).not.toBeNull();
+    const [listing] = await eventsFor(db, person);
+    expect(listing!.startsAt).not.toBeNull();
+    expect(listing!.endsAt).not.toBeNull();
   });
 
   it('puts the most recently active first', async () => {
@@ -186,7 +186,7 @@ describe('what a card shows', () => {
       sql`update "event" set last_active_at = now() - interval '2 days' where id = ${older}`,
     );
 
-    expect((await albumsFor(db, person)).map((a) => a.name)).toEqual(['Newer', 'Older']);
+    expect((await eventsFor(db, person)).map((a) => a.name)).toEqual(['Newer', 'Older']);
   });
 });
 

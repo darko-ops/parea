@@ -12,7 +12,7 @@
  *
  * The picker survives as the fallback, because detection has two honest ways
  * to come up empty: no library permission, and an event that has not been
- * photographed yet — someone creating the album as the party starts. Both end
+ * photographed yet — someone creating the event as the party starts. Both end
  * with the same question, now asked second and only when needed.
  *
  * After creating, the screen becomes the share step rather than dumping the
@@ -151,7 +151,7 @@ export function CreateEvent({
    * Tapping a run fills the name in rather than creating straight away.
    *
    * One tap to create would be one tap to publish a shareable link under a
-   * name nobody chose, and "Last night" is a poor name for the album your
+   * name nobody chose, and "Last night" is a poor name for the event your
    * friends open next week. Prefilling gets it to one tap plus a glance, and
    * the field is already correct if the glance says it is.
    */
@@ -262,7 +262,7 @@ export function CreateEvent({
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
         <Text style={[styles.small, { color: t.dim }]}>
-          As you&rsquo;d say it, not an address. It puts this album on your map
+          As you&rsquo;d say it, not an address. It puts this event on your map
           and is only ever shown to people who are already in it.
         </Text>
       </View>

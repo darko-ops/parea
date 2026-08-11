@@ -15,24 +15,24 @@ everything else in `src/` imports Expo at module scope and needs a simulator.
 
 ## Three tabs
 
-**Albums** — what you can reach, most recently active first, as rounded cards
+**Events** — what you can reach, most recently active first, as rounded cards
 carrying the two numbers that matter: how many people are in it and how many
 photos. "6 people, 88 photos" is the recruiting device the concept names (§2),
-and it reads the same whether you are deciding to open an album or to add to
+and it reads the same whether you are deciding to open an event or to add to
 one.
 
 **Find** — two halves that are different in kind. Group search reaches groups
 you are *not* in; it is the only discovery surface in the product and it
-returns findable groups by name. There is deliberately no album search: §3's
-rule is that groups can be findable and photos never are, and searching albums
-is searching photos. The map half is the reverse — only albums you are already
+returns findable groups by name. There is deliberately no event search: §3's
+rule is that groups can be findable and photos never are, and searching events
+is searching photos. The map half is the reverse — only events you are already
 in, arranged by where they were, so nothing is discovered and nothing is
 exposed that you could not already see.
 
 **You** — your name, your groups, and everything you are in. The name is the
 whole of a profile here; there is no account to log into.
 
-An album's place is typed by whoever starts it, and never derived. The obvious
+An event's place is typed by whoever starts it, and never derived. The obvious
 source is the photos and it is the one source that must not be used: §7.6
 strips GPS at ingest and the deriver *fails* a photo if any survives, so there
 is no location in this system to derive from, on purpose. The map opens the
