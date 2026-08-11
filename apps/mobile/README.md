@@ -15,7 +15,12 @@ everything else in `src/` imports Expo at module scope and needs a simulator.
 
 ## Three tabs
 
-**Events** — what you can reach, most recently active first, as rounded cards
+**Events** — photo-led cards: a mosaic of the four most recent photos over a
+detail strip whose background is those same photos again, mirrored and
+blurred, under a scrim. `blurRadius` on `expo-image` rather than a `BlurView`,
+because blurring the images is what the web card does and a BlurView here
+would be sampling the white card rather than the photos. Below that, what you
+can reach, most recently active first, as rounded cards
 carrying the two numbers that matter: how many people are in it and how many
 photos. "6 people, 88 photos" is the recruiting device the concept names (§2),
 and it reads the same whether you are deciding to open an event or to add to

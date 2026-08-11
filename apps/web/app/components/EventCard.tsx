@@ -28,26 +28,29 @@ import type { CardEvent } from '@/cards';
  * Returns the columns already grouped, so the caller renders what it is given
  * instead of re-deriving which column holds two.
  */
-function layout(photos: string[]): { columns: string; groups: string[][] } {
+function layout(
+  photos: string[],
+): { groups: string[][]; weights: number[] } {
   const [a, b, c, d] = photos;
   switch (photos.length) {
     case 1:
-      return { columns: '1fr', groups: [[a!]] };
+      return { groups: [[a!]], weights: [1] };
     case 2:
-      return { columns: '1fr 1fr', groups: [[a!], [b!]] };
+      return { groups: [[a!], [b!]], weights: [1, 1] };
     case 3:
-      return { columns: '1fr 1fr 2fr', groups: [[a!], [b!], [c!]] };
+      return { groups: [[a!], [b!], [c!]], weights: [1, 1, 2] };
     default:
       // Hero left, a stacked pair centre, one tall tile right. Four photos in
       // the shape the design draws with five, rather than fetching a fifth
       // for every card of every home screen to fill one corner.
-      return { columns: '2fr 1fr 1fr', groups: [[a!], [b!, d!], [c!]] };
+      return { groups: [[a!], [b!, d!], [c!]], weights: [2, 1, 1] };
   }
 }
 
 export function EventCard({ event }: { event: CardEvent }) {
   const photos = event.mosaic;
-  const { columns, groups } = layout(photos);
+  const { groups, weights } = layout(photos);
+  const columns = weights.map((w) => `${w}fr`).join(' ');
 
   return (
     <a
@@ -87,11 +90,18 @@ export function EventCard({ event }: { event: CardEvent }) {
               images again, and announcing them twice is noise. `-24px` inset
               so the blur has bleed and no soft edge shows at the corners.
             */}
+            {/*
+              One band per *column*, at the column's own width — not one per
+              photo at equal widths. The point of the effect is that the colour
+              under a piece of text is the colour of the photo directly above
+              it, and equal bands slide the hero's colour off to the left of
+              where it belongs.
+            */}
             <div className="card-bleed" aria-hidden="true">
-              {photos.map((src) => (
-                <div key={src}>
+              {groups.map((column, i) => (
+                <div key={i} style={{ flex: weights[i] }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" loading="lazy" />
+                  <img src={column[0]!} alt="" loading="lazy" />
                 </div>
               ))}
             </div>

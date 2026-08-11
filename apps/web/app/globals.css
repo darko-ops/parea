@@ -183,7 +183,7 @@ button.secondary {
   /* Decorative: the real copy is in the layer above. */
   pointer-events: none;
 }
-.card-bleed > * { flex: 1; }
+/* Widths come from the column weights inline — see EventCard's `layout`. */
 .card-bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .card-scrim { position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
 .card-text {

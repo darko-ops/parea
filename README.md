@@ -64,6 +64,7 @@ packages/autoselect  find the event on the phone, decide which of its photos
                      to offer, and know when not to guess
 packages/push        the three notifications this product is allowed to send
 packages/upload      the upload queue, shared by both clients
+packages/cards       what an event card says about itself, shared likewise
 apps/web             Next.js — the app, the API, and the browser client
                      (three surfaces behind a left rail: events, find, you)
 apps/mobile          Expo — the native client

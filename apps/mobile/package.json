@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@parea/autoselect": "*",
+    "@parea/cards": "*",
     "@parea/upload": "*",
     "expo": "~57.0.11",
     "expo-camera": "^57.0.3",

@@ -68,6 +68,14 @@ export type EventListing = {
   memberCount: number;
   photoCount: number;
   lastActiveAt: string;
+  /**
+   * Signed thumbnail URLs, most recent first, at most four.
+   *
+   * Signed by the server: this client has no image secret and must not have
+   * one. They expire with the event's `cap_epoch`, so rotating a link stops
+   * the old thumbnails resolving along with everything else.
+   */
+  mosaic: string[];
 };
 
 /** A group as a stranger sees it: a door, never the room. */

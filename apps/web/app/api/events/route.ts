@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { imageSrc } from '@/images';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
 import { asDateString, parseWindow } from '@/eventwindow';
@@ -43,8 +44,31 @@ type Body = {
  * and not existing look the same from here because they should.
  */
 export async function GET() {
+  const listings = await eventsFor(getDb(), await currentActorId());
+
   return NextResponse.json({
-    events: await eventsFor(getDb(), await currentActorId()),
+    events: await Promise.all(
+      listings.map(async (listing) => {
+        // Signed here rather than shipped raw. Two reasons: the native client
+        // cannot sign anything — it has no image secret and must not — and a
+        // storage key is an internal address that has no business crossing
+        // this boundary at all.
+        const mosaic = await Promise.all(
+          listing.mosaic.map((photo) =>
+            imageSrc(
+              {
+                eventId: listing.id,
+                storageKey: photo.storageKey,
+                contentHash: photo.hash ? Buffer.from(photo.hash, 'hex') : null,
+              },
+              'thumb',
+              listing.capEpoch,
+            ),
+          ),
+        );
+        return { ...listing, mosaic };
+      }),
+    ),
   });
 }
 

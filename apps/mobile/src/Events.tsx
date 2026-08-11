@@ -13,6 +13,8 @@
  * a year ago does not belong on a home screen.
  */
 
+import { metaFor } from '@parea/cards';
+import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,21 +38,99 @@ const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
 
 /**
- * One event, as a rounded card.
+ * The scrim over the blurred bleed.
  *
- * The counts are the point of the card rather than decoration: "6 people, 88
- * photos" is the recruiting device the concept names (§2), and it is the same
- * sentence whether you are deciding to open an event or deciding to add to it.
+ * A stack of bands rather than a gradient, because a gradient means
+ * `expo-linear-gradient` and that is a native dependency added, unrendered and
+ * untested, for one wash of white. The design's scrim runs from 62% to 88%
+ * alpha over roughly sixty points — a narrow enough range that four steps are
+ * indistinguishable from the real thing, and this needs no prebuild.
+ */
+function Scrim({ tint }: { tint: string }) {
+  const bands = [0.62, 0.71, 0.8, 0.88];
+  return (
+    <View style={styles.fill} pointerEvents="none">
+      {bands.map((alpha) => (
+        <View key={alpha} style={{ flex: 1, backgroundColor: withAlpha(tint, alpha) }} />
+      ))}
+    </View>
+  );
+}
+
+/** `#rrggbb` plus an alpha, as the `#rrggbbaa` React Native accepts. */
+function withAlpha(hex: string, alpha: number): string {
+  const byte = Math.round(Math.min(1, Math.max(0, alpha)) * 255);
+  return `${hex}${byte.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * The tile arrangement for a card's mosaic.
+ *
+ * One hero plus supporting tiles. Keyed on how many photos there are, so two
+ * photos is a deliberate two-tile layout rather than a four-tile layout with
+ * holes — the design is explicit that missing tiles fall back rather than
+ * stretch. Mirrors `layout()` in the web card; the shapes are the product
+ * decision and the two clients should draw the same one.
+ */
+function layout(photos: string[]): { flex: number; column: string[] }[] {
+  const [a, b, c, d] = photos;
+  switch (photos.length) {
+    case 0:
+      return [];
+    case 1:
+      return [{ flex: 1, column: [a!] }];
+    case 2:
+      return [
+        { flex: 1, column: [a!] },
+        { flex: 1, column: [b!] },
+      ];
+    case 3:
+      return [
+        { flex: 1, column: [a!] },
+        { flex: 1, column: [b!] },
+        { flex: 2, column: [c!] },
+      ];
+    default:
+      return [
+        { flex: 2, column: [a!] },
+        { flex: 1, column: [b!, d!] },
+        { flex: 1, column: [c!] },
+      ];
+  }
+}
+
+/**
+ * One event, led by its photos.
+ *
+ * A name is a poor way to recognise a night out and the photos are a good one,
+ * so most of the card is mosaic. Under it the detail strip has no dividing
+ * line — the event's own colours bleed upward beneath the text: the same
+ * images again, mirrored and blurred, under a scrim.
+ *
+ * `blurRadius` on `expo-image` rather than a `BlurView` behind it. Blurring
+ * the images themselves is what the web card does, it needs no extra native
+ * module, and a BlurView here would be sampling a white card rather than the
+ * photos — the wrong thing blurred.
+ *
+ * The counts still carry the card. "6 people, 88 photos" is the recruiting
+ * device the concept names (§2), and it reads the same whether you are
+ * deciding to open an event or to add to it. It is just no longer the only
+ * thing on the card.
  */
 function EventCard({
   event,
+  meta,
   t,
   onPress,
 }: {
   event: EventListing;
+  /** Precomputed so every card on screen agrees about what "now" was. */
+  meta: string;
   t: TabTheme;
   onPress: () => void;
 }) {
+  const columns = layout(event.mosaic);
+
   return (
     <Pressable
       onPress={onPress}
@@ -58,19 +138,91 @@ function EventCard({
       accessibilityLabel={`${event.name}, ${plural(event.memberCount, 'member')}, ${plural(event.photoCount, 'photo')}`}
       style={[styles.event, { backgroundColor: t.card, borderColor: t.line }]}
     >
-      <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={2}>
-        {event.name}
-      </Text>
-      <Text style={[styles.body, { color: t.dim }]}>
-        {plural(event.memberCount, 'member')} · {plural(event.photoCount, 'photo')}
-      </Text>
-      {(event.place || event.groupName) && (
-        <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-          {[event.place, event.groupName].filter(Boolean).join(' · ')}
-        </Text>
+      {columns.length > 0 && (
+        <View style={styles.mosaic}>
+          {columns.map(({ flex, column }, i) => (
+            <View key={i} style={{ flex, gap: 2 }}>
+              {column.map((uri) => (
+                <Image
+                  key={uri}
+                  source={{ uri }}
+                  style={styles.tile}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ))}
+            </View>
+          ))}
+        </View>
       )}
+
+      <View style={styles.eventBody}>
+        {columns.length > 0 && (
+          <>
+            {/*
+              Decorative. Inset past the edges so the blur has bleed and no
+              soft edge shows, and flipped so the colours meeting the text are
+              the ones from the bottom of the photos directly above.
+            */}
+            <View style={styles.bleed} pointerEvents="none">
+              {/*
+                One band per *column*, at the column's own width — not one per
+                photo at equal widths. The point of the effect is that the
+                colour under a piece of text is the colour of the photo
+                directly above it, and equal bands slide the hero's colour off
+                to the left of where it belongs.
+              */}
+              {columns.map(({ flex, column }, i) => (
+                <Image
+                  key={i}
+                  source={{ uri: column[0]! }}
+                  style={{ flex, height: '100%' }}
+                  contentFit="cover"
+                  blurRadius={18}
+                />
+              ))}
+            </View>
+            <Scrim tint={t.card} />
+          </>
+        )}
+
+        <View style={[styles.eventText, columns.length === 0 && styles.eventTextBare]}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
+              {event.name}
+            </Text>
+            <Text style={[styles.body, { color: t.dim }]} numberOfLines={1}>
+              {meta}
+            </Text>
+          </View>
+          {/*
+            A bare number. "88 photos" in a pill with an icon is three pieces
+            of furniture around one fact, and a column of numbers down the
+            right of the list is easier to read than any of them.
+          */}
+          <Text style={[styles.eventCount, { color: t.dim }]}>{event.photoCount}</Text>
+        </View>
+      </View>
     </Pressable>
   );
+}
+
+/**
+ * A clock that ticks once a minute, for the "20m ago" on each card.
+ *
+ * A phone left on this screen should not still claim the top event was added
+ * to twenty minutes ago an hour later. Once a minute is the coarsest interval
+ * that keeps every string it renders true, and the interval is cleared on
+ * unmount so a backgrounded app is not waking to re-render a list nobody is
+ * looking at.
+ */
+function useNow(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
 }
 
 /** Page 1 — what is happening, most recently active first. */
@@ -92,6 +244,7 @@ export function HomeTab({
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
+  const now = useNow();
 
   return (
     <ScrollView
@@ -108,7 +261,18 @@ export function HomeTab({
         />
       }
     >
-      <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
+      {/*
+        "Start one" sits on the title's baseline rather than being a button at
+        the end of the list. It is the one thing someone arriving with nothing
+        needs, and at the bottom of a long list it is the one place they will
+        not look.
+      */}
+      <View style={styles.headRow}>
+        <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
+        <Pressable onPress={onCreate} accessibilityRole="button">
+          <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
+        </Pressable>
+      </View>
 
       {loading && events.length === 0 && <ActivityIndicator color={t.accent} />}
 
@@ -121,11 +285,23 @@ export function HomeTab({
         </View>
       )}
 
-      {events.map((event) => (
-        <EventCard key={event.id} event={event} t={t} onPress={() => onOpen(event)} />
+      {events.map((event, i) => (
+        <EventCard
+          key={event.id}
+          event={event}
+          // Computed here, once, from a single `now`: formatting inside each
+          // card would let two cards rendered a tick apart disagree about
+          // where the minute boundary was. `newest` on the first only — at the
+          // top of the list "added to 20m ago" is what makes someone open it.
+          meta={metaFor(event, { newest: i === 0, now })}
+          t={t}
+          onPress={() => onOpen(event)}
+        />
       ))}
 
-      {events.length > 0 && <Button label="Start an event" onPress={onCreate} t={t} />}
+      {/* Deliberately not repeated at the foot: "Start one" is on the title
+          row above, and two buttons for one action on a scrolling list is
+          furniture rather than affordance. */}
     </ScrollView>
   );
 }
@@ -590,10 +766,38 @@ type ButtonComponent = (props: {
 
 const styles = StyleSheet.create({
   scroll: { padding: 20, paddingTop: 72, paddingBottom: 40, gap: 14 },
-  h1: { fontSize: 30, fontWeight: '700' },
+  headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  headAction: { fontSize: 14, fontWeight: '600' },
+  h1: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   // Rounded, tall, one per row: the shape people scroll through.
-  event: { borderRadius: 18, borderWidth: 1, padding: 20, gap: 6, minHeight: 108 },
+  event: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  mosaic: { flexDirection: 'row', gap: 2, height: 132 },
+  tile: { flex: 1, width: '100%', backgroundColor: '#8881' },
+  eventBody: { position: 'relative', overflow: 'hidden' },
+  /* Inset past every edge so the blur has bleed and no soft edge shows. */
+  bleed: {
+    position: 'absolute',
+    top: -24,
+    left: -24,
+    right: -24,
+    bottom: -24,
+    flexDirection: 'row',
+    transform: [{ scaleY: -1 }],
+  },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  eventText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  /* No mosaic above it, so the strip carries the whole card and needs the
+     breathing room the photos would otherwise have given it. */
+  eventTextBare: { paddingVertical: 18 },
+  eventCount: { fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
   eventName: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },

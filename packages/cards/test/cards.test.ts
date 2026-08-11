@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ago, metaFor } from '../src/cards';
+import { ago, metaFor } from '../src';
 
 const NOW = new Date('2026-08-11T21:00:00Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
