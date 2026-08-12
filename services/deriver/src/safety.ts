@@ -221,36 +221,5 @@ export function scannerFromEnv(): CsamScanner {
  * check a dashboard. Failure to alert is logged loudly but does not undo the
  * quarantine — the content is already blocked either way.
  */
-export async function alertResponder(summary: {
-  incidentId: string;
-  eventId: string;
-  provider: string;
-  classification: string;
-}): Promise<void> {
-  const url = process.env.SAFETY_ALERT_WEBHOOK;
-  if (!url) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error(
-        `SAFETY: no SAFETY_ALERT_WEBHOOK configured; incident ${summary.incidentId} ` +
-          'is quarantined but nobody has been told. Fix this immediately.',
-      );
-    }
-    return;
-  }
+export { alertResponder } from '@parea/core';
 
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // Identifiers only. No image, no thumbnail, no link that renders one —
-      // responders work from the runbook, not from a chat notification.
-      body: JSON.stringify({
-        kind: 'csam_quarantine',
-        ...summary,
-        runbook: 'docs/csam-runbook.md',
-      }),
-    });
-  } catch (err) {
-    console.error(`SAFETY: alert failed for incident ${summary.incidentId}`, err);
-  }
-}

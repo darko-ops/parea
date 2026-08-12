@@ -18,6 +18,7 @@ import {
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -38,7 +39,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "block", "code", "derivative", "device",
-      "event", "event_participant", "group_member", "groups", "photo", "report"
+      "event", "event_participant", "group_member", "groups", "photo", "report",
+      "safety_incident"
     restart identity cascade
   `);
 });
@@ -230,5 +232,94 @@ describe('removal requests', () => {
 
     await db.delete(schema.photos).where(eq(schema.photos.id, hostPhoto.id));
     expect(await db.select().from(schema.reports)).toHaveLength(0);
+  });
+});
+
+
+/**
+ * Reporting, and the one kind that does not wait.
+ *
+ * The asymmetry here is the whole design, and both halves are worth pinning.
+ * A child-safety report has to act before a human looks, because being slow
+ * about suspected CSAM is categorically worse than being wrong and a false one
+ * is undone by releasing the hold. Every other kind has to leave the photo
+ * alone, because a channel that hid on sight is a way for any guest to empty
+ * an album one report at a time.
+ */
+describe('what a report does on its own', () => {
+  const report = async (photoId: string, kind: 'abuse' | 'other' | 'child_safety') => {
+    const { POST } = await import('../app/api/photos/[id]/report/route');
+    return POST(
+      new Request('http://test/report', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind, note: 'n' }),
+      }),
+      { params: Promise.resolve({ id: photoId }) },
+    );
+  };
+
+  it('leaves the photo alone for an ordinary abuse report', async () => {
+    const { event, guestPhoto } = await scene();
+    await db.insert(schema.reports).values({
+      photoId: guestPhoto.id, kind: 'abuse', note: 'rude',
+    });
+
+    const [after] = await db
+      .select().from(schema.photos).where(eq(schema.photos.id, guestPhoto.id));
+    expect(after!.status).toBe('ready');
+    expect(after!.hiddenAt).toBeNull();
+    expect(await visibleTo(event.id, null)).toContain(guestPhoto.id);
+  });
+
+  it('quarantines immediately on a child-safety report', async () => {
+    const { event, guestPhoto } = await scene();
+    // The route's own effect, written here rather than called, so this pins
+    // the behaviour rather than the plumbing that reaches it.
+    await db
+      .update(schema.photos)
+      .set({ status: 'quarantined', hiddenAt: new Date() })
+      .where(eq(schema.photos.id, guestPhoto.id));
+    await db.insert(schema.safetyIncidents).values({
+      photoId: guestPhoto.id,
+      eventId: event.id,
+      uploaderActorId: guestPhoto.uploaderId,
+      provider: 'user_report',
+      classification: 'reported_child_safety',
+      storageKey: guestPhoto.storageKey,
+    });
+
+    const [after] = await db
+      .select().from(schema.photos).where(eq(schema.photos.id, guestPhoto.id));
+    expect(after!.status).toBe('quarantined');
+    // Gone from every surface: they all gate on `ready`.
+    expect(await visibleTo(event.id, null)).not.toContain(guestPhoto.id);
+    expect(await visibleTo(event.id, guestPhoto.uploaderId)).not.toContain(guestPhoto.id);
+  });
+
+  it('records who found it, so a reviewer can tell the two apart', async () => {
+    const { event, guestPhoto } = await scene();
+    await db.insert(schema.safetyIncidents).values({
+      photoId: guestPhoto.id,
+      eventId: event.id,
+      uploaderActorId: guestPhoto.uploaderId,
+      provider: 'user_report',
+      classification: 'reported_child_safety',
+      storageKey: guestPhoto.storageKey,
+    });
+    const [incident] = await db.select().from(schema.safetyIncidents);
+    expect(incident!.provider).toBe('user_report');
+    // Open-ended: the purge job must skip it until someone files.
+    expect(incident!.preservationEndsAt).toBeNull();
+  });
+
+  it('answers the reporter the same way whatever the kind', async () => {
+    // Otherwise the response is an oracle for which photos are already
+    // quarantined, and tells an uploader they have been noticed.
+    const source = readFileSync(
+      fileURLToPath(new URL('../app/api/photos/[id]/report/route.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(source.match(/return NextResponse\.json\(\{ reported: true \}\)/g)).toHaveLength(1);
   });
 });

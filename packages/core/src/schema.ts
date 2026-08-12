@@ -382,9 +382,17 @@ export const reports = pgTable(
      * `removal_request` goes to the event's host — "that's a photo of me,
      * please take it down". `abuse` comes to us, not the host, because the
      * host may be the problem.
+     *
+     * `child_safety` is the only kind that acts before a human looks. It
+     * quarantines on receipt and opens a safety incident, because the cost of
+     * being slow is categorically different from the cost of being wrong, and
+     * a false one is undone by a reviewer releasing the hold. Every other kind
+     * deliberately leaves the photo up: one report is not a verdict, and a
+     * kind that hid on sight would hand any guest a way to empty an album a
+     * photo at a time.
      */
     kind: text('kind', {
-      enum: ['removal_request', 'abuse', 'other'],
+      enum: ['removal_request', 'abuse', 'other', 'child_safety'],
     }).notNull(),
     note: text('note'),
     status: text('status', { enum: ['open', 'actioned', 'declined'] })
@@ -410,12 +418,19 @@ export const reports = pgTable(
 );
 
 /**
- * A confirmed match from automated child-safety scanning at ingest.
+ * The child-safety evidence trail: a scanner match at ingest, or a person
+ * reporting child sexual abuse material from a client.
  *
- * Separate from `report` on purpose. Reports are user-generated and routed to
- * a moderation queue; this is machine-detected, carries statutory duties in
- * the US (18 U.S.C. §2258A: report to NCMEC, then preserve for 90 days), and
- * must never appear in any host- or user-facing surface.
+ * Separate from `report` on purpose, and narrower than it. Reports are
+ * user-generated and routed to a moderation queue; a row here carries
+ * statutory duties in the US (18 U.S.C. §2258A: report to NCMEC, then preserve
+ * for 90 days) and must never appear in any host- or user-facing surface.
+ *
+ * `provider` says which of the two produced it — a scanner's name, or
+ * `user_report`. Nothing else may write here. A nudity or explicit-content
+ * classifier is a different check with different consequences, and putting its
+ * hits in this table would dilute the one record a reviewer needs to be able
+ * to trust months later.
  *
  * The row exists to answer, months later and under scrutiny: what was
  * detected, by what, when, where is it, who uploaded it, was it reported, and
