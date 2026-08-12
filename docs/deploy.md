@@ -71,7 +71,39 @@ once would race, and a half-applied schema is worse than a failed deploy.
 wrangler r2 bucket create parea
 ```
 
-Two rules to set on the bucket, both easy to skip and annoying later:
+Three rules to set on the bucket. The first one is not optional and the other
+two are easy to skip and annoying later:
+
+- **CORS, or no photo is ever uploaded.** The browser PUTs straight to R2 with
+  a presigned URL, and without a policy naming the app's origin it refuses the
+  request before it is sent. Nothing about this failure points at CORS: the
+  presign succeeds, a `pending` row appears with a key, the bytes never arrive,
+  and the deriver reports `object_missing` — which reads like storage lost the
+  object rather than like the upload never happened. Every upload on the first
+  real deployment failed this way.
+
+  ```
+  wrangler r2 bucket cors set parea --file r2-cors.json --force
+  ```
+
+  ```json
+  {
+    "rules": [{
+      "allowed": {
+        "origins": ["https://parea.photos", "https://www.parea.photos"],
+        "methods": ["PUT", "GET", "HEAD"],
+        "headers": ["content-type"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }]
+  }
+  ```
+
+  `content-type` is there because the presign signs it, so the browser sends it
+  and a policy that does not allow it fails the preflight. Add
+  `https://*.vercel.app` while deployments are being tested from preview URLs,
+  and `http://localhost:3000` for local work against real R2.
 
 - **Lifecycle on `tmp/manifest/`, expire after 1 day.** Download manifests are
   written there and referenced by a 15-minute token. Without this they

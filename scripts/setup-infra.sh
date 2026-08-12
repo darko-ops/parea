@@ -170,6 +170,43 @@ else
   warn "      expire-manifests tmp/manifest/ --expire-days 1 --force"
 fi
 
+# The browser PUTs straight to R2 with a presigned URL. Without a policy naming
+# the app's origin it refuses before sending, and nothing in the failure says
+# so: the presign succeeds, a pending row appears with a key, no bytes arrive,
+# and the deriver reports object_missing — which reads like storage lost the
+# object rather than like the upload never happened. Every upload on the first
+# real deployment failed this way, so it is set here rather than written down.
+#
+# `content-type` is allowed because presignPut signs it, so the browser sends
+# it and a policy without it fails the preflight. The Vercel and localhost
+# origins are for preview deployments and for local work against real R2;
+# neither can reach anything without a signed URL.
+bold "CORS"
+CORS_ORIGINS="${CORS_ORIGINS:-https://parea.photos,https://www.parea.photos,https://*.vercel.app,http://localhost:3000}"
+cors_file="$(mktemp -t parea-cors)"
+python3 - "$CORS_ORIGINS" > "$cors_file" <<'PY'
+import json, sys
+print(json.dumps({"rules": [{
+    "allowed": {
+        "origins": sys.argv[1].split(","),
+        "methods": ["PUT", "GET", "HEAD"],
+        "headers": ["content-type"],
+    },
+    "exposeHeaders": ["ETag"],
+    "maxAgeSeconds": 3600,
+}]}))
+PY
+if npx --yes wrangler@latest r2 bucket cors set "$BUCKET" \
+    --file "$cors_file" --force >/dev/null 2>&1; then
+  echo "  set for $CORS_ORIGINS"
+else
+  warn "  FAILED — every upload from a browser will fail, and the symptom is"
+  warn "  a photo stuck at pending that the deriver then marks failed with"
+  warn "  object_missing. Set it by hand — see docs/deploy.md §2:"
+  warn "    npx wrangler r2 bucket cors set $BUCKET --file r2-cors.json --force"
+fi
+rm -f "$cors_file"
+
 # --- secrets ----------------------------------------------------------------
 #
 # Generated together, once, because the failure mode when they disagree is

@@ -91,6 +91,11 @@ deletes nothing.
       public access. Confirm the rule landed —
       `npx wrangler r2 bucket lifecycle list parea` should name
       `expire-manifests`. Nothing else ever deletes those objects.
+- [ ] **R2 CORS.** Without it every browser upload fails, silently and in a way
+      that points somewhere else — see [`deploy.md`](deploy.md#2-r2). Confirm
+      with `npx wrangler r2 bucket cors list parea`, and confirm it names the
+      origin actually being used: a policy listing the wrong hostname reads as
+      configured and behaves as absent.
 - [ ] R2 S3-API token — dashboard only, the script stops here and says so.
 - [ ] `seed-codes`, or the spoken-code door never opens.
 
