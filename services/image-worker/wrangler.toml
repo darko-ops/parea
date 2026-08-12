@@ -2,6 +2,16 @@ name = "parea-img"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
+# A custom domain rather than workers.dev: this hostname is baked into every
+# image URL the app signs, so it wants to be one we own and can move. Declared
+# here rather than clicked, but it is the same mechanism as adding it from the
+# Worker's settings — Cloudflare writes the DNS record and issues the
+# certificate itself. Never hand-create the CNAME; a manual one is a proxied
+# record pointing at nothing.
+routes = [
+  { pattern = "img.parea.photos", custom_domain = true }
+]
+
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "parea"

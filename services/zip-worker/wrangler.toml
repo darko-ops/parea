@@ -2,6 +2,12 @@ name = "parea-zip"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
+# See the note in image-worker/wrangler.toml. Same reasoning: the hostname ends
+# up inside signed manifests, so it is ours.
+routes = [
+  { pattern = "zip.parea.photos", custom_domain = true }
+]
+
 # Reads from R2 are free and do not leave Cloudflare's network, which is the
 # entire reason bulk download is affordable. The Worker never talks to Postgres
 # — everything it needs arrives in a signed manifest.
