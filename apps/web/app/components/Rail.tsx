@@ -33,10 +33,7 @@ export function Rail({ current }: { current: RailPage }) {
             one lockup it appears in, and the number is a relationship to the
             wordmark beside it rather than a property of the mark. */}
         <Mark size={30} />
-        {/* Lowercase as a logotype. The name is still "Parea" in a sentence —
-            terms, privacy, the sign-in mail — and this is the only place it is
-            set as a mark rather than written as a word. */}
-        <span className="wordmark">parea</span>
+        <span className="wordmark">Parea</span>
       </div>
 
       {ROWS.map((row) => (
