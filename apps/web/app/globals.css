@@ -183,7 +183,7 @@ button.secondary {
      rendered side by side at this exact size: below this it is not a
      different weight, above it the counters of `a` and `e` begin to close,
      which is the same failure as synthetic bold arriving by another road. */
-  -webkit-text-stroke: 0.055em currentColor;
+  -webkit-text-stroke: 0.045em currentColor;
   /* Fallback faces have their own bold and do not need the stroke doing this
      job badly on top of it. */
   paint-order: stroke fill;
