@@ -49,7 +49,7 @@ import { crc32 } from '../../services/deriver/src/crc32';
 import { seedCodes } from '../../services/deriver/src/jobs';
 import { LocalObjectStore } from '../../services/deriver/src/objects';
 import { processPhoto } from '../../services/deriver/src/pipeline';
-import { DisabledScanner } from '../../services/deriver/src/safety';
+import { } from '../../services/deriver/src/safety';
 
 const run = promisify(execFile);
 const MIGRATIONS = fileURLToPath(
@@ -178,7 +178,7 @@ describe('a party, from link to download', () => {
     ).toHaveLength(0);
 
     // --- the deriver runs -------------------------------------------------
-    const scanner = new DisabledScanner();
+    const scanner = null;
     for (const id of photoIds) {
       const outcome = await processPhoto({ db, objects, scanner }, id);
       expect(outcome.status, `photo ${id}`).toBe('ready');
@@ -349,7 +349,7 @@ describe('download as JPEG, against real bytes', () => {
       .returning();
 
     expect(
-      (await processPhoto({ db, objects, scanner: new DisabledScanner() }, row.id)).status,
+      (await processPhoto({ db, objects, scanner: null }, row.id)).status,
     ).toBe('ready');
 
     const [derivative] = await db

@@ -71,6 +71,13 @@
       "when": 1786394737113,
       "tag": "0009_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786563287780,
+      "tag": "0010_cute_xavin",
+      "breakpoints": true
     }
   ]
 }

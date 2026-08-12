@@ -68,6 +68,7 @@ const OWNED: {
   { table: 'group_join_request', column: 'resolved_by' },
   { table: 'report', column: 'reporter_actor_id' },
   { table: 'report', column: 'resolved_by' },
+  { table: 'moderation_flag', column: 'resolved_by' },
   { table: 'block', column: 'blocker_actor_id', uniqueWith: ['blocked_actor_id'] },
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },
   { table: 'observation', column: 'actor_id' },

@@ -30,7 +30,12 @@ import {
 } from './derivatives';
 import { HEVC_HEIC_SAMPLE } from './fixture';
 import { objectStoreFromEnv } from './objects';
-import { type CsamScanner, scannerFromEnv, UnconfiguredScanner } from './safety';
+import {
+  contentModeratorFromEnv,
+  postureFromEnv,
+  type ContentModerator,
+} from './moderation';
+import { type CsamScanner, scannerFromEnv } from './safety';
 import { pendingPhotoIds, processPhoto } from './pipeline';
 
 const run = promisify(execFile);
@@ -42,7 +47,10 @@ function db() {
   return drizzle(postgres(url, { prepare: false }), { schema });
 }
 
-async function probe(scanner: CsamScanner): Promise<number> {
+async function probe(
+  scanner: CsamScanner | null,
+  moderator: ContentModerator | null,
+): Promise<number> {
   const results: [string, boolean, string][] = [];
 
   let exiftoolVersion = '';
@@ -89,20 +97,23 @@ async function probe(scanner: CsamScanner): Promise<number> {
     avifOk ? 'encoded' : 'FAILED — no AV1 encoder; every derivative will fail',
   ]);
 
-  // Ingest without child-safety scanning is not a degraded mode, it is a
-  // different product. An unconfigured scanner stalls every upload rather than
-  // letting anything through, so this is fatal and says so here rather than
-  // being discovered one stuck photo at a time.
-  const scannerReady = !(scanner instanceof UnconfiguredScanner);
+  // Two separate slots, and neither substitutes for the other. Hash matching
+  // finds catalogued child sexual abuse material; a classifier gives an
+  // opinion about explicit content. A deployment may legitimately have one,
+  // both or neither — what it may not have is no stated position.
   results.push([
     'csam-scanner',
-    scannerReady,
-    scanner.name === 'disabled'
-      ? 'DISABLED — development only, refuses to load in production'
-      : scannerReady
-        ? scanner.name
-        : 'FAILED — not configured; every upload will stall unscanned',
+    scanner !== null,
+    scanner ? scanner.name : 'absent — no hash matching (see posture below)',
   ]);
+  results.push([
+    'content-moderator',
+    moderator !== null,
+    moderator ? moderator.name : 'absent — nothing is classified automatically',
+  ]);
+
+  const posture = postureFromEnv();
+  results.push(['moderation', posture.ok, posture.detail]);
 
   const heicOk = viaSharp || viaLibheif;
   const width = Math.max(...results.map(([n]) => n.length));
@@ -110,7 +121,10 @@ async function probe(scanner: CsamScanner): Promise<number> {
     console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name.padEnd(width)}  ${note}`);
   }
 
-  const fatal = !heicOk || !avifOk || !exiftoolVersion || !scannerReady;
+  // A missing scanner is no longer fatal; an undeclared posture is. The
+  // difference is between a deployment that has decided how content is
+  // reviewed and one that has not thought about it.
+  const fatal = !heicOk || !avifOk || !exiftoolVersion || !posture.ok;
   console.log(
     fatal
       ? '\nThis container cannot ingest photos. See services/deriver/README.md.'
@@ -150,18 +164,19 @@ async function main(): Promise<void> {
   //     until Neon answered "remaining connection slots are reserved for
   //     roles with the SUPERUSER attribute" and ingest stopped entirely.
   //     Observed in production about fifteen minutes after the first deploy.
-  //   - DisabledScanner announces itself from its constructor, so the
-  //     unscanned banner printed every five seconds instead of once at boot —
+  //   - the scanner announced itself from its constructor, so the unscanned
+  //     banner printed every five seconds instead of once at boot —
   //     roughly 120,000 lines a day, and a warning that scrolls past
   //     continuously is one nobody reads.
   //
-  // The scanner comes first because `probe` needs it and nothing else, and
-  // the Dockerfile runs `probe` at build time with no database or R2 in the
-  // environment. Building the rest eagerly here would fail that build.
+  // Both reviewers come first because `probe` needs them and nothing else,
+  // and the Dockerfile runs `probe` at build time with no database or R2 in
+  // the environment. Building the rest eagerly here would fail that build.
   const scanner = scannerFromEnv();
+  const moderator = contentModeratorFromEnv();
 
   if (command === 'probe') {
-    process.exit(await probe(scanner));
+    process.exit(await probe(scanner, moderator));
   }
 
   if (command !== 'once' && command !== 'watch') {
@@ -170,7 +185,12 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const ingest = (): Ingest => ({ db: db(), objects: objectStoreFromEnv(), scanner });
+  const ingest = (): Ingest => ({
+    db: db(),
+    objects: objectStoreFromEnv(),
+    scanner,
+    moderator,
+  });
 
   if (command === 'once') {
     const handled = await drain(500, ingest());
@@ -179,7 +199,7 @@ async function main(): Promise<void> {
   }
 
   // Refuse to start rather than fail one photo at a time.
-  if ((await probe(scanner)) !== 0) process.exit(1);
+  if ((await probe(scanner, moderator)) !== 0) process.exit(1);
   const deps = ingest();
   console.log(`watching, every ${POLL_INTERVAL_MS}ms`);
   for (;;) {

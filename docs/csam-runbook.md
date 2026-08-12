@@ -16,11 +16,11 @@ That is the risk surface, and it exists whether or not anyone plans for it.
 metadata stripping and before derivatives, key assignment or anything that
 makes it addressable. `services/deriver/src/safety.ts`.
 
-**Fails closed.** If no scanner is configured, or the scanner is unreachable,
-the photo never reaches `ready` — and `ready` is the gate every listing,
-download and image URL keys off. Unscanned content is therefore never served,
-at the cost of ingest stalling during an outage. That is the correct way round,
-and `deriver probe` refuses to start a watcher without a scanner configured.
+**Fails closed on an outage, not on an absence.** A scanner that is configured
+and unreachable stalls the photo at `pending` — `ready` is the gate every
+listing, download and image URL keys off, so unscanned content is never
+served. A scanner that is *not configured at all* is a different thing and no
+longer stops ingest: see [The two slots](#the-two-slots).
 
 **Quarantines a match.** Status becomes `quarantined`, which no surface serves.
 The object stays exactly where it is: not moved to a content-addressed key, not
@@ -100,13 +100,63 @@ None of these are code, and all of them gate shipping:
 | `CSAM_SCANNER_URL` | Provider endpoint. |
 | `CSAM_SCANNER_KEY` | Bearer credential. |
 | `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them. |
+| `MODERATOR_URL` | Content classifier endpoint. Optional, and not a CSAM scanner. |
+| `MODERATOR_KEY` | Bearer credential for it. |
+| `MODERATOR_NAME` | Recorded on flags. |
+| `MODERATOR_THRESHOLD` | Score at or above which a photo is flagged. Default 80. |
+| `PAREA_MODERATION` | `automated` or `manual`. Required — a watcher refuses to start without it. |
 | `CSAM_SCANNER_SEND_BYTES` | Almost certainly `true` — read [What the hash-only path cannot do](#what-the-hash-only-path-cannot-do) before setting it to `false`. |
-| `CSAM_SCANNER=disabled` | Development only. Refuses to load in production. |
 | `SAFETY_ALERT_WEBHOOK` | Where alerts go. |
 
-`CSAM_SCANNER=disabled` exists so that running without scanning is a
-deliberate, greppable act rather than something achieved by forgetting a
-variable.
+`CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED` are gone. They existed to
+make running without scanning a deliberate, greppable act, which was right —
+but the thing they made deliberate was the wrong thing. See below.
+
+## The two slots
+
+Two independent checks, and neither substitutes for the other.
+
+**`CSAM_SCANNER_*` — hash matching.** Compares against curated lists of known
+child sexual abuse material. A match quarantines the photo immediately, writes
+a `safety_incident`, and wakes a responder. Access to these providers is gated
+behind vetting and a commercial agreement, so a legitimate operator may not
+have one for weeks. **Optional.**
+
+**`MODERATOR_*` — content classification.** A probabilistic opinion about
+explicit content, self-serve and cheap. A flag writes a `moderation_flag` and
+**hides nothing** — it orders a human queue. Acting on a probability would take
+down swimwear at a rate no small team can review. **Optional.**
+
+A nudity model does not detect CSAM. A photo can be flagrant to one and
+invisible to the other, in both directions, and putting classifier hits in
+`safety_incident` would bury the records that have to stay trustworthy under
+scrutiny. The tables are separate for that reason and must stay separate.
+
+### Why the gate moved
+
+The old rule was that a watcher refused to start without a CSAM scanner. That
+conflated "we have no hash-matching provider" with "it is unsafe to accept a
+photo", and the second does not follow from the first. Because approval takes
+weeks, the only route to launching was `PAREA_ALLOW_UNSCANNED=private-deployment`
+— a flag announcing you were running unsafely. An operator doing the
+responsible thing and one cutting corners set the same variable and printed the
+same banner.
+
+What is required now is that somebody decided, not that they bought something:
+
+| `PAREA_MODERATION` | Means |
+|---|---|
+| `automated` | A classifier is configured and flags to a queue. Refused if `MODERATOR_URL`/`KEY` are unset — claiming automation you do not have is worse than claiming nothing. |
+| `manual` | A person reviews reports, on an SLA documented here. |
+| unset | The watcher refuses to start. |
+
+Hash matching is reported separately by `deriver probe` and is not part of this
+check, in either direction: having it does not answer how the rest of the
+photos are reviewed, and lacking it does not stop a deployment that has
+answered.
+
+**If you are running `manual`, write the SLA down here.** An undocumented
+promise to look at reports is the same as no promise.
 
 ## What the hash-only path cannot do
 

@@ -25,11 +25,10 @@ import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/deriva
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
+import { postureFromEnv } from '../src/moderation';
 import { processPhoto } from '../src/pipeline';
 import {
-  DisabledScanner,
   ScanUnavailable,
-  UNSCANNED_ACK,
   type CsamScanner,
 } from '../src/safety';
 
@@ -42,7 +41,8 @@ let db: any;
 let dir: string;
 let objects: LocalObjectStore;
 /** Clean by default; individual tests swap in a matching or broken scanner. */
-const scanner: CsamScanner = new DisabledScanner();
+/** No hash-matching provider, which is now a supported way to run. */
+const scanner: CsamScanner | null = null;
 
 beforeAll(async () => {
   db = drizzle(new PGlite(), { schema });
@@ -506,38 +506,77 @@ describe('child-safety scanning', () => {
   });
 });
 
-describe('running without a scanner', () => {
-  it('is free in development', () => {
-    expect(() => new DisabledScanner({ NODE_ENV: 'development' })).not.toThrow();
+describe('the declared posture', () => {
+  /**
+   * What replaced the old acknowledgement flag.
+   *
+   * The previous gate refused to ingest anything without a CSAM scanner, so a
+   * company that had not yet been approved for one — approval being gated on
+   * vetting and a commercial agreement — could only launch by setting a flag
+   * that said it was running unsafely. That made the honest posture and the
+   * reckless one indistinguishable in the environment and in the logs.
+   *
+   * What has to be true now is that somebody decided. Not that they bought a
+   * particular product.
+   */
+  it('refuses when nothing has been declared', () => {
+    const { ok, detail } = postureFromEnv({});
+    expect(ok).toBe(false);
+    expect(detail).toMatch(/PAREA_MODERATION/);
   });
 
-  it('refuses in production without an explicit acknowledgement', () => {
-    // Forgetting to configure a scanner must not look the same as choosing to
-    // run without one.
-    expect(() => new DisabledScanner({ NODE_ENV: 'production' })).toThrow(
-      /PAREA_ALLOW_UNSCANNED/,
-    );
+  it('refuses a value that is not one of the two', () => {
+    expect(postureFromEnv({ PAREA_MODERATION: 'yes' }).ok).toBe(false);
+    expect(postureFromEnv({ PAREA_MODERATION: 'true' }).ok).toBe(false);
   });
 
-  it('refuses a wrong acknowledgement rather than any truthy value', () => {
-    expect(
-      () => new DisabledScanner({ NODE_ENV: 'production', PAREA_ALLOW_UNSCANNED: 'true' }),
-    ).toThrow();
-    expect(
-      () => new DisabledScanner({ NODE_ENV: 'production', PAREA_ALLOW_UNSCANNED: '1' }),
-    ).toThrow();
+  it('accepts a declared human process', () => {
+    // The posture of a small team at launch, and a legitimate one.
+    expect(postureFromEnv({ PAREA_MODERATION: 'manual' }).ok).toBe(true);
   });
 
-  it('allows it with the acknowledgement, loudly', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('will not take "automated" from a deployment with no classifier', () => {
+    // Claiming automation you do not have is worse than claiming nothing.
+    const { ok, detail } = postureFromEnv({ PAREA_MODERATION: 'automated' });
+    expect(ok).toBe(false);
+    expect(detail).toMatch(/MODERATOR_URL/);
+  });
+
+  it('accepts automation that is actually configured', () => {
     expect(
-      () =>
-        new DisabledScanner({
-          NODE_ENV: 'production',
-          PAREA_ALLOW_UNSCANNED: UNSCANNED_ACK,
-        }),
-    ).not.toThrow();
-    expect(warn, 'a silent opt-out is the thing to avoid').toHaveBeenCalled();
-    warn.mockRestore();
+      postureFromEnv({
+        PAREA_MODERATION: 'automated',
+        MODERATOR_URL: 'https://example.test/review',
+        MODERATOR_KEY: 'k',
+      }).ok,
+    ).toBe(true);
+  });
+
+  it('does not treat a hash scanner as a substitute for either', () => {
+    // The two answer different questions. Having one says nothing about
+    // whether anyone reviews the rest.
+    expect(
+      postureFromEnv({
+        CSAM_SCANNER_URL: 'https://example.test/scan',
+        CSAM_SCANNER_KEY: 'k',
+      }).ok,
+    ).toBe(false);
   });
 });
+
+describe('a photo with no scanner configured', () => {
+  it('still reaches ready', async () => {
+    // The old behaviour was to stall it forever, which is what made the
+    // absence of a commercial agreement into an inability to ship.
+    const { photo } = await seedPhoto(await geotaggedJpeg(30));
+    const outcome = await processPhoto({ db, objects, scanner: null }, photo.id);
+    expect(outcome.status).toBe('ready');
+  });
+
+  it('opens no safety incident, because nothing detected anything', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(31));
+    await processPhoto({ db, objects, scanner: null }, photo.id);
+    expect(await db.select().from(schema.safetyIncidents)).toHaveLength(0);
+  });
+});
+

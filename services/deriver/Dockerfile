@@ -39,9 +39,14 @@ RUN npm ci --omit=dev --workspace @parea/deriver --include-workspace-root
 COPY services/deriver services/deriver
 
 # Fails the build if this image cannot actually ingest a photo, rather than
-# deploying something that discovers it one upload at a time. Scanning is
-# checked at runtime rather than here, since credentials are not present at
-# build time — `watch` re-runs the probe and refuses to start without one.
-RUN CSAM_SCANNER=disabled NODE_ENV=development npx tsx services/deriver/src/index.ts probe
+# deploying something that discovers it one upload at a time. This is a check
+# on codecs and binaries, which are properties of the image; scanner and
+# classifier credentials are properties of a deployment and are not present
+# here, so `watch` re-runs the same probe against the real environment.
+#
+# The posture is declared only to get past the runtime gate during a build. It
+# says nothing about how the deployment reviews content — that is read from the
+# environment at boot, where the answer actually lives.
+RUN PAREA_MODERATION=manual NODE_ENV=development npx tsx services/deriver/src/index.ts probe
 
 CMD ["npx", "tsx", "services/deriver/src/index.ts", "watch"]

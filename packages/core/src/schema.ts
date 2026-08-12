@@ -482,6 +482,55 @@ export const safetyIncidents = pgTable(
 );
 
 /**
+ * What an automated content classifier thought about a photo.
+ *
+ * A separate table from `safety_incident`, and the separation is the point.
+ * A nudity or explicit-content classifier answers a different question with a
+ * different consequence: it is a probabilistic opinion about ordinary adult
+ * content, routed to a moderation queue a human works through. A safety
+ * incident is a child-safety matter carrying statutory duties, and a record
+ * that has to stay trustworthy under scrutiny months later. Mixing the two
+ * would bury the second in the first, and no volume of "possible swimwear"
+ * belongs in the evidence trail.
+ *
+ * A flag does not hide anything on its own. Hiding on a classifier's opinion
+ * would take down beach photographs at a rate no small team can review, and
+ * the classifier is here to decide what a human looks at first, not to decide
+ * anything. The one automated path that hides without a human is child safety,
+ * and it lives in `safety_incident`.
+ */
+export const moderationFlags = pgTable(
+  'moderation_flag',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** Which classifier, so an old row says what judged it. */
+    provider: text('provider').notNull(),
+    /** The provider's own labels, joined. Not interpreted here. */
+    labels: text('labels').notNull(),
+    /** 0-100 where the provider gives one, so the column is comparable. */
+    score: integer('score'),
+    status: text('status', { enum: ['open', 'cleared', 'actioned'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    index('moderation_flag_open_idx').on(t.status, t.createdAt),
+    index('moderation_flag_photo_idx').on(t.photoId),
+  ],
+);
+
+/**
  * A personal block list — App Store Guideline 1.2 requires the ability to
  * block abusive users, and it is the right feature regardless.
  *

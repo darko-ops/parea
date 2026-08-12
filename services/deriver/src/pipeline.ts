@@ -28,6 +28,10 @@ import {
   type CsamScanner,
 } from './safety';
 import {
+  ModerationUnavailable,
+  type ContentModerator,
+} from './moderation';
+import {
   buildDerivatives,
   readDimensions,
   type DerivativeKind,
@@ -55,11 +59,14 @@ export type Outcome =
 export type Deps = {
   db: any;
   objects: ObjectStore;
-  scanner: CsamScanner;
+  /** Null when no hash-matching provider is configured, which is allowed. */
+  scanner: CsamScanner | null;
+  /** Null when nothing classifies automatically, which is also allowed. */
+  moderator?: ContentModerator | null;
 };
 
 export async function processPhoto(
-  { db, objects, scanner }: Deps,
+  { db, objects, scanner, moderator }: Deps,
   photoId: string,
 ): Promise<Outcome> {
   const [photo] = await db
@@ -144,18 +151,20 @@ export async function processPhoto(
     // letting it through — `ready` is the gate everything else keys off, so
     // failing closed here means unscanned content is never served.
     try {
-      const verdict = await scanner.scan({
-        bytes: stripped,
-        contentHash,
-        mime: photo.mime,
-      });
-      if (verdict.match) {
+      // Absent scanner: nothing to match against, and that is a stated posture
+      // rather than a failure — see `postureFromEnv`. A photo is not held back
+      // for the absence of a check nobody is running.
+      const verdict = scanner
+        ? await scanner.scan({ bytes: stripped, contentHash, mime: photo.mime })
+        : { match: false as const };
+      if (verdict.match && scanner) {
         return quarantine(db, objects, photo, contentHash, {
           provider: scanner.name,
           classification: verdict.classification,
           providerReference: verdict.providerReference,
         });
       }
+      await classify(db, moderator ?? null, photo, stripped);
     } catch (err) {
       if (err instanceof ScanUnavailable) {
         // Deliberately not `fail()`: failed is terminal, and this photo is
@@ -323,4 +332,43 @@ async function fail(db: any, photoId: string, reason: string): Promise<Outcome> 
 function short(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   return message.split('\n')[0]!.slice(0, 120);
+}
+
+/**
+ * Ask the classifier, write down what it said, and carry on regardless.
+ *
+ * Never quarantines and never fails the photo. A classifier is a probabilistic
+ * opinion about ordinary adult content, and acting on one automatically would
+ * take down swimwear at a rate no small team can review. The row exists so a
+ * human queue has an order to work in.
+ *
+ * An outage is swallowed for the same reason. Failing closed on the CSAM
+ * scanner is what keeps unscanned material from being served; failing closed
+ * here would stop a birthday party because a third-party endpoint was slow,
+ * and leave the photo in exactly the state it would have been in with no
+ * classifier configured at all.
+ */
+async function classify(
+  db: any,
+  moderator: ContentModerator | null,
+  photo: any,
+  bytes: Buffer,
+): Promise<void> {
+  if (!moderator) return;
+  try {
+    const verdict = await moderator.review({ bytes, mime: photo.mime });
+    if (!verdict.flagged) return;
+    await db.insert(schema.moderationFlags).values({
+      photoId: photo.id,
+      eventId: photo.eventId,
+      provider: moderator.name,
+      labels: verdict.labels.join(','),
+      score: verdict.score === undefined ? null : Math.round(verdict.score),
+    });
+  } catch (err) {
+    console.error(
+      `moderation failed for ${photo.id}:`,
+      err instanceof ModerationUnavailable || err instanceof Error ? err.message : err,
+    );
+  }
 }

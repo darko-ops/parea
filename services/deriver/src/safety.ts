@@ -54,67 +54,6 @@ export class ScanUnavailable extends Error {}
  * until it matters. This makes an unconfigured deployment obvious on the first
  * upload instead.
  */
-export class UnconfiguredScanner implements CsamScanner {
-  readonly name = 'unconfigured';
-
-  async scan(): Promise<ScanVerdict> {
-    throw new ScanUnavailable(
-      'No child-safety scanner configured. Set CSAM_SCANNER_URL and ' +
-        'CSAM_SCANNER_KEY, or CSAM_SCANNER=disabled to run without ingest ' +
-        '(development only). See docs/csam-runbook.md.',
-    );
-  }
-}
-
-/**
- * Explicitly disabled.
- *
- * Separate from unconfigured so that "we chose to run without scanning" is a
- * deliberate, greppable act rather than something achieved by forgetting an
- * environment variable.
- *
- * Free in development. In production it additionally requires
- * `PAREA_ALLOW_UNSCANNED=private-deployment`, which exists for one situation:
- * a real deployment that only its author can reach, before launch, to shake
- * out the infrastructure. That is a reasonable thing to want, and the
- * alternative — telling someone to set NODE_ENV=development on a production
- * box — is worse, because it silently relaxes every other guard keyed off the
- * same variable.
- *
- * It is a named flag rather than a quiet one so that it shows up in a
- * deployment's environment, in `grep`, and in the boot banner below. The
- * moment anyone but the author can reach the deployment, it has to go.
- */
-export const UNSCANNED_ACK = 'private-deployment';
-
-export class DisabledScanner implements CsamScanner {
-  readonly name = 'disabled';
-
-  constructor(env: NodeJS.ProcessEnv = process.env) {
-    if (env.NODE_ENV === 'production' && env.PAREA_ALLOW_UNSCANNED !== UNSCANNED_ACK) {
-      throw new Error(
-        'CSAM_SCANNER=disabled needs PAREA_ALLOW_UNSCANNED=private-deployment ' +
-          'in production, and is only appropriate for a deployment nobody else ' +
-          'can reach. See docs/csam-runbook.md.',
-      );
-    }
-    if (env.NODE_ENV === 'production') {
-      console.warn(
-        '\n' +
-          '  ┌────────────────────────────────────────────────────────────┐\n' +
-          '  │  RUNNING WITHOUT CHILD-SAFETY SCANNING                     │\n' +
-          '  │  Every upload is published unchecked.                      │\n' +
-          '  │  Only valid while nobody but you can reach this.           │\n' +
-          '  └────────────────────────────────────────────────────────────┘\n',
-      );
-    }
-  }
-
-  async scan(): Promise<ScanVerdict> {
-    return { match: false };
-  }
-}
-
 /**
  * A hash-matching service over HTTP.
  *
@@ -198,19 +137,33 @@ export class HttpHashScanner implements CsamScanner {
   }
 }
 
-export function scannerFromEnv(): CsamScanner {
-  const mode = process.env.CSAM_SCANNER;
-  if (mode === 'disabled') return new DisabledScanner();
+/**
+ * The scanner, or null when there is none.
+ *
+ * Null used to be impossible: absence returned a stub that threw on every
+ * photo, so a deployment without a hash-matching provider could not ingest
+ * anything at all. That conflated two different things — "we have no CSAM
+ * scanner" and "it is unsafe to accept a photo" — and the second does not
+ * follow from the first. Access to these providers is gated behind vetting and
+ * commercial agreements a pre-launch company may not have yet, so the only
+ * route to launching was a flag declaring you were running unsafely, which
+ * made the honest posture and the reckless one look identical.
+ *
+ * What replaces it is a posture declared at boot — see `postureFromEnv` in
+ * index.ts. Running without hash matching is allowed and has to be said out
+ * loud; running without having said anything is not.
+ */
+export function scannerFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): CsamScanner | null {
+  const endpoint = env.CSAM_SCANNER_URL;
+  const apiKey = env.CSAM_SCANNER_KEY;
+  if (!endpoint || !apiKey) return null;
 
-  const endpoint = process.env.CSAM_SCANNER_URL;
-  const apiKey = process.env.CSAM_SCANNER_KEY;
-  if (endpoint && apiKey) {
-    return new HttpHashScanner(endpoint, apiKey, {
-      name: process.env.CSAM_SCANNER_NAME ?? 'http',
-      sendBytes: process.env.CSAM_SCANNER_SEND_BYTES === 'true',
-    });
-  }
-  return new UnconfiguredScanner();
+  return new HttpHashScanner(endpoint, apiKey, {
+    name: env.CSAM_SCANNER_NAME ?? 'http',
+    sendBytes: env.CSAM_SCANNER_SEND_BYTES === 'true',
+  });
 }
 
 /**
