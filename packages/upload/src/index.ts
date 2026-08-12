@@ -23,6 +23,13 @@
  * IndexedDB store holding the `File` handle.
  */
 
+export {
+  ACCEPTED_MIME,
+  ACCEPT_ATTRIBUTE,
+  acceptedMime,
+  type AcceptedMime,
+} from './accepted';
+
 export type QueueItemStatus =
   | 'pending'
   | 'presigned'

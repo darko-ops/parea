@@ -6,6 +6,7 @@
  */
 
 import { schema } from '@parea/core';
+import { acceptedMime } from '@parea/upload';
 import { and, count, eq, isNull, sum } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -48,8 +49,6 @@ const MAX_BYTES_PER_ACTOR_PER_EVENT = 5 * 1024 * 1024 * 1024;
  */
 const MAX_PHOTOS_PER_EVENT = 20_000;
 const MAX_BYTES_PER_EVENT = 100 * 1024 * 1024 * 1024;
-
-const ALLOWED_MIME = /^(image\/(jpeg|png|heic|heif|webp|avif|gif)|video\/(mp4|quicktime))$/;
 
 type FileRequest = { name: string; size: number; type: string };
 
@@ -224,8 +223,14 @@ function parseFiles(value: unknown): FileRequest[] | null {
     if (typeof name !== 'string' || name.length > 512) return null;
     if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) return null;
     if (size > MAX_BYTES_PER_FILE) return null;
-    if (typeof type !== 'string' || !ALLOWED_MIME.test(type)) return null;
-    out.push({ name, size, type });
+    // The authoritative check. A picker that hides videos is a courtesy; this
+    // is what makes it true, because anything can POST here — and what gets
+    // past it is stored, quota'd, and then fails in the deriver where nobody
+    // is watching.
+    if (typeof type !== 'string') return null;
+    const mime = acceptedMime(type);
+    if (!mime) return null;
+    out.push({ name, size, type: mime });
   }
   return out;
 }

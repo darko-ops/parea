@@ -18,6 +18,7 @@
     "@aws-sdk/client-s3": "^3.1106.0",
     "@parea/core": "*",
     "@parea/push": "*",
+    "@parea/upload": "*",
     "@parea/urls": "*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",

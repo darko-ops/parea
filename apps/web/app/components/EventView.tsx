@@ -18,6 +18,7 @@
  * the geotag measurement.
  */
 
+import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PhotoLightbox } from './PhotoLightbox';
@@ -55,6 +56,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
+  /** How many of the last selection were not photos. */
+  const [skipped, setSkipped] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -73,7 +76,23 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
 
   const pick = useCallback(
     async (picked: File[]) => {
-      await uploads.add(picked);
+      /*
+       * `accept` on the input is advice, not a rule — a drop, or "All Files"
+       * in the OS dialog, gets past it. The presign endpoint refuses the whole
+       * request if any one file is unacceptable, so without this a single
+       * video dropped alongside two hundred photos loses all two hundred.
+       *
+       * An empty `type` is not a rejection. Browsers routinely fail to type a
+       * HEIC, and the deriver reads the real format out of the bytes anyway;
+       * refusing those would turn "we could not guess" into "you may not
+       * upload your iPhone photos".
+       */
+      const usable = picked.filter(
+        (file) => file.type === '' || acceptedMime(file.type) !== null,
+      );
+      setSkipped(picked.length - usable.length);
+
+      if (usable.length > 0) await uploads.add(usable);
       if (inputRef.current) inputRef.current.value = '';
     },
     [uploads],
@@ -134,10 +153,34 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             ref={inputRef}
             type="file"
             multiple
-            accept="image/*,video/*"
+            // The same list the presign endpoint enforces, spelled out rather
+            // than an image wildcard. The wildcard is a superset — it offers
+            // TIFF, BMP and SVG, which the server then refuses, and one
+            // refusal fails the whole batch rather than the one file.
+            // Offering only what will be accepted is the difference between a
+            // greyed-out file and a failed upload.
+            //
+            // Written without the literal wildcard token on purpose: it
+            // contains a block-comment opener, and a source-scanning test that
+            // strips comments will swallow this attribute along with it. That
+            // is not hypothetical — see test/accepted-types.test.ts.
+            accept={ACCEPT_ATTRIBUTE}
             disabled={uploads.running}
             onChange={(e) => pick(Array.from(e.target.files ?? []))}
           />
+
+          {/*
+            Said out loud, because the alternative is a count that silently
+            does not match what was chosen. Photos only is a real limitation
+            and worth naming as one rather than letting someone conclude the
+            upload dropped their video.
+          */}
+          {skipped > 0 && (
+            <p className="muted">
+              {skipped === 1 ? '1 file was' : `${skipped} files were`} not added —
+              Parea takes photos, not video or other files.
+            </p>
+          )}
 
           {uploads.resumed && uploads.items.length > 0 && (
             <p className="muted">
