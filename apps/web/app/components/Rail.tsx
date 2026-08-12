@@ -29,7 +29,10 @@ export function Rail({ current }: { current: RailPage }) {
   return (
     <nav className="rail" aria-label="Sections">
       <div className="rail-mark">
-        <Mark />
+        {/* Sized at the call site rather than by the default: this is the
+            one lockup it appears in, and the number is a relationship to the
+            wordmark beside it rather than a property of the mark. */}
+        <Mark size={30} />
         {/* Lowercase as a logotype. The name is still "Parea" in a sentence —
             terms, privacy, the sign-in mail — and this is the only place it is
             set as a mark rather than written as a word. */}

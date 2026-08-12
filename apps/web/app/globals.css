@@ -168,8 +168,11 @@ button.secondary {
   border-right: 1px solid var(--line); background: var(--bg);
   display: flex; flex-direction: column; gap: 4px;
 }
+/* Mark and word as one lockup. 4px rather than 8: the mark is a circle
+   cluster with visual air already built into its bounding box, so a gap that
+   measures correctly reads as a gap that is too wide. */
 .rail-mark {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 4px;
   padding: 0 10px 14px;
 }
 /* Garet on the name and nowhere else. A display face set at 15px through a
