@@ -30,7 +30,7 @@ import {
 } from './derivatives';
 import { HEVC_HEIC_SAMPLE } from './fixture';
 import { objectStoreFromEnv } from './objects';
-import { scannerFromEnv, UnconfiguredScanner } from './safety';
+import { type CsamScanner, scannerFromEnv, UnconfiguredScanner } from './safety';
 import { pendingPhotoIds, processPhoto } from './pipeline';
 
 const run = promisify(execFile);
@@ -42,7 +42,7 @@ function db() {
   return drizzle(postgres(url, { prepare: false }), { schema });
 }
 
-async function probe(): Promise<number> {
+async function probe(scanner: CsamScanner): Promise<number> {
   const results: [string, boolean, string][] = [];
 
   let exiftoolVersion = '';
@@ -93,7 +93,6 @@ async function probe(): Promise<number> {
   // different product. An unconfigured scanner stalls every upload rather than
   // letting anything through, so this is fatal and says so here rather than
   // being discovered one stuck photo at a time.
-  const scanner = scannerFromEnv();
   const scannerReady = !(scanner instanceof UnconfiguredScanner);
   results.push([
     'csam-scanner',
@@ -120,15 +119,15 @@ async function probe(): Promise<number> {
   return fatal ? 1 : 0;
 }
 
-async function drain(limit: number): Promise<number> {
-  const database = db();
-  const objects = objectStoreFromEnv();
-  const scanner = scannerFromEnv();
-  const ids = await pendingPhotoIds(database, limit);
+/** Everything a drain needs, built once by the caller. */
+type Ingest = Parameters<typeof processPhoto>[0];
+
+async function drain(limit: number, ingest: Ingest): Promise<number> {
+  const ids = await pendingPhotoIds(ingest.db, limit);
 
   let handled = 0;
   for (const id of ids) {
-    const outcome = await processPhoto({ db: database, objects, scanner }, id);
+    const outcome = await processPhoto(ingest, id);
     handled++;
     if (outcome.status === 'failed') {
       console.error(`fail  ${id}  ${outcome.reason}`);
@@ -142,33 +141,55 @@ async function drain(limit: number): Promise<number> {
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'once';
 
+  // Built once per process and threaded through, rather than rebuilt where
+  // they are used. `drain` constructed all three itself, and under `watch`
+  // that meant new ones every poll:
+  //
+  //   - `db()` returns a *new* postgres.js client with its own pool, and
+  //     nothing ever closed it. One leaked connection every five seconds,
+  //     until Neon answered "remaining connection slots are reserved for
+  //     roles with the SUPERUSER attribute" and ingest stopped entirely.
+  //     Observed in production about fifteen minutes after the first deploy.
+  //   - DisabledScanner announces itself from its constructor, so the
+  //     unscanned banner printed every five seconds instead of once at boot —
+  //     roughly 120,000 lines a day, and a warning that scrolls past
+  //     continuously is one nobody reads.
+  //
+  // The scanner comes first because `probe` needs it and nothing else, and
+  // the Dockerfile runs `probe` at build time with no database or R2 in the
+  // environment. Building the rest eagerly here would fail that build.
+  const scanner = scannerFromEnv();
+
   if (command === 'probe') {
-    process.exit(await probe());
+    process.exit(await probe(scanner));
   }
 
+  if (command !== 'once' && command !== 'watch') {
+    console.error(`unknown command: ${command}`);
+    console.error('usage: deriver <probe|once|watch>');
+    process.exit(2);
+  }
+
+  const ingest = (): Ingest => ({ db: db(), objects: objectStoreFromEnv(), scanner });
+
   if (command === 'once') {
-    const handled = await drain(500);
+    const handled = await drain(500, ingest());
     console.log(`${handled} photo(s) processed`);
     process.exit(0);
   }
 
-  if (command === 'watch') {
-    // Refuse to start rather than fail one photo at a time.
-    if ((await probe()) !== 0) process.exit(1);
-    console.log(`watching, every ${POLL_INTERVAL_MS}ms`);
-    for (;;) {
-      try {
-        await drain(50);
-      } catch (err) {
-        console.error('drain failed:', err);
-      }
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  // Refuse to start rather than fail one photo at a time.
+  if ((await probe(scanner)) !== 0) process.exit(1);
+  const deps = ingest();
+  console.log(`watching, every ${POLL_INTERVAL_MS}ms`);
+  for (;;) {
+    try {
+      await drain(50, deps);
+    } catch (err) {
+      console.error('drain failed:', err);
     }
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
-
-  console.error(`unknown command: ${command}`);
-  console.error('usage: deriver <probe|once|watch>');
-  process.exit(2);
 }
 
 main().catch((err) => {
