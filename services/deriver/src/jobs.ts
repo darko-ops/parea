@@ -210,12 +210,24 @@ export async function expireRateLimits(
 export async function recycleCodes(
   database: ReturnType<typeof db>,
 ): Promise<number> {
+  // .toISOString(), not the Date. Every other cutoff in this file goes through
+  // drizzle's query builder, which serialises a Date for whichever driver is
+  // underneath; a raw `sql` template hands the parameter over untouched. PGlite
+  // — what the tests run on — accepts a Date and does the right thing, so this
+  // was green in CI and threw on the first real run against Neon:
+  //
+  //   ERR_INVALID_ARG_TYPE: The "string" argument must be of type string or an
+  //   instance of Buffer or ArrayBuffer. Received an instance of Date
+  //
+  // postgres.js writes parameters as bytes and has no Date case. An ISO string
+  // is unambiguous to both, and `last_active_at` is timestamptz, so Postgres
+  // infers the parameter type from the comparison without an explicit cast.
   const cutoff = new Date(Date.now() - CODE_DORMANCY_DAYS * 24 * 3600_000);
   const released = await database.execute<{ id: string }>(sql`
     update "code" set event_id = null, released_at = now()
     where event_id in (
       select id from "event"
-      where last_active_at < ${cutoff} or deleted_at is not null
+      where last_active_at < ${cutoff.toISOString()} or deleted_at is not null
     )
     returning id
   `);
