@@ -18,6 +18,8 @@ import { extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { stripComments } from './support/source';
+
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const APP = join(ROOT, 'app');
 
@@ -35,19 +37,17 @@ async function walk(dir: string): Promise<string[]> {
   return out;
 }
 
-/**
+/*
  * Comments are documentation, not code. These files quote the very
  * anti-patterns being scanned for — `r2.get(key).body` appears verbatim in the
  * Storage interface's header as the thing not to do — so scanning raw source
  * would flag the warning against the mistake as the mistake.
+ *
+ * This used to be two regexes here, and they could delete real code: a block
+ * comment "opener" occurs inside ordinary strings, and the naive version has
+ * no idea it is in one. A scan that never sees a file reports nothing wrong
+ * with it. `support/source.ts` says more, and is itself tested.
  */
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    // Not `://`, so URLs in string literals survive.
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
-
 async function readCode(path: string): Promise<string> {
   return stripComments(await readFile(path, 'utf8'));
 }

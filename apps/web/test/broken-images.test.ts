@@ -33,17 +33,13 @@ import { extname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+// Comments describe the very markup being scanned for — MosaicTile's header
+// explains what an `<img>` does when it fails — so raw source would flag the
+// warning against the mistake as the mistake.
+import { stripComments } from './support/source';
+
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const APP = join(ROOT, 'app');
-
-/**
- * Comments describe the very markup being scanned for — MosaicTile's header
- * explains what an `<img>` does when it fails — so raw source would flag the
- * warning against the mistake as the mistake.
- */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
 
 async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
