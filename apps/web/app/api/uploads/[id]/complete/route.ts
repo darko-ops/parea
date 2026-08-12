@@ -1,20 +1,27 @@
 /**
- * Mark an upload finished.
+ * Say that the bytes arrived. Not that the photo is ready.
  *
- * In the built-out system (design §7.5) an R2 event notification drives a queue
- * and a container that computes the hash, strips GPS, and builds derivatives —
- * and *that* is what flips a photo to 'ready'. None of that exists yet, so this
- * endpoint stands in: it verifies the object actually landed by asking storage
- * for its size, and promotes the row.
+ * This endpoint used to promote the row to 'ready' itself, as a stand-in for a
+ * deriver that did not exist yet. It does now — services/deriver claims
+ * 'pending' rows, computes the hash, strips location metadata, builds the
+ * derivatives and scans for known material, and only then promotes. So the
+ * stand-in has to go, because the two together were worse than either alone:
+ * `complete` won the race on every single upload, the deriver never saw a row,
+ * and photos went live unprocessed.
  *
- * Two things this deliberately does NOT do, because doing them here would mean
- * reading the bytes through this process:
- *   - compute a content hash, so dedup does not work yet;
- *   - strip location metadata, so nothing uploaded via this path is safe to
- *     serve to anyone but the uploader.
+ * That was not theoretical. On the first real deployment every uploaded photo
+ * reached 'ready' with a null content hash, no derivatives, and — checked with
+ * exiftool against the bytes R2 was serving — its original GPS coordinates
+ * still in place. With a scanner configured it would have skipped that too,
+ * which is the same hole wearing a much worse hat.
  *
- * Both land with the deriver. `status` stays the gate: only 'ready' photos are
- * listed, and nothing reaches 'ready' without going through here.
+ * What is left here is the one thing the deriver cannot do for itself: confirm
+ * the client's PUT actually landed. A presigned upload that silently failed
+ * leaves a 'pending' row pointing at nothing, and the deriver would rediscover
+ * that on its own — but slower, and after retries that cannot succeed.
+ *
+ * `status` is still the gate: only 'ready' photos are listed, and now nothing
+ * reaches 'ready' without going through the deriver.
  */
 
 import { schema } from '@parea/core';
@@ -74,9 +81,12 @@ export async function POST(
     return NextResponse.json({ error: 'object_missing' }, { status: 409 });
   }
 
+  // Size only. The status stays 'pending' so the deriver has something to
+  // claim; byteSize is corrected from what storage actually holds, because the
+  // number recorded at presign came from the client and is a claim, not a fact.
   await db
     .update(schema.photos)
-    .set({ status: 'ready', byteSize: head.size })
+    .set({ byteSize: head.size })
     .where(eq(schema.photos.id, photo.id));
 
   await db
@@ -84,5 +94,5 @@ export async function POST(
     .set({ lastActiveAt: new Date() })
     .where(eq(schema.events.id, event.id));
 
-  return NextResponse.json({ id: photo.id, status: 'ready', size: head.size });
+  return NextResponse.json({ id: photo.id, status: 'pending', size: head.size });
 }
