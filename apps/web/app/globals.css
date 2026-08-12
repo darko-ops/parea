@@ -1,27 +1,19 @@
 /* ---------------------------------------------------------------------------
    Garet, for the wordmark only.
-   
-   Licensed files are not in this repository and must not be: redistributing
-   font binaries is the one thing nearly every foundry licence forbids,
-   including the ones that are otherwise free. Drop the two weights into
-   `apps/web/public/fonts/` and this picks them up; until then the stack below
-   falls through to whatever geometric sans the machine has, which is the
-   closest thing available without shipping someone else's file.
+
+   One weight, Book, which is what was supplied. Declared as 400 and *used* at
+   400 rather than asked for at 700: a browser given a bold it does not have
+   will synthesise one by smearing the outlines, and on four large letters that
+   is visible. The wordmark gets its weight from size and spacing instead.
 
    `swap` rather than `block`: the wordmark is four letters in a corner, and a
-   blank space where the brand goes is worse than the brand in the wrong font
+   blank space where the brand goes is worse than the brand in a fallback face
    for 200ms.
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Garet';
-  src: url('/fonts/Garet-Book.woff2') format('woff2');
+  src: url('/fonts/garet-book.woff2') format('woff2');
   font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Garet';
-  src: url('/fonts/Garet-Heavy.woff2') format('woff2');
-  font-weight: 700;
   font-display: swap;
 }
 
@@ -170,10 +162,12 @@ button.secondary {
   padding: 0 10px 14px;
 }
 /* Garet on the name and nowhere else. A display face set at 15px through a
-   whole interface is a legibility problem; on four letters it is the brand. */
+   whole interface is a legibility problem; on four letters it is the brand.
+   Weight 400 because that is the weight that exists — see the @font-face
+   above. Presence comes from size and a little tracking. */
 .wordmark {
   font-family: 'Garet', 'Futura', 'Avenir Next', 'Century Gothic', system-ui, sans-serif;
-  font-size: 17px; font-weight: 700; letter-spacing: .01em;
+  font-size: 19px; font-weight: 400; letter-spacing: .02em;
 }
 .rail a.rail-row {
   padding: 9px 10px; border-radius: 8px; font-size: 15px;
