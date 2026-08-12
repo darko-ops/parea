@@ -11,7 +11,7 @@
  * requires an app that creates accounts to delete them in-app.
  */
 
-import { normaliseEmail, schema } from '@parea/core';
+import { normaliseEmail, recordModeration, REASON, schema } from '@parea/core';
 import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -207,7 +207,20 @@ export async function deleteEverything(db: Db, actorId: string): Promise<number>
     .update(schema.photos)
     .set({ deletedAt: new Date() })
     .where(and(eq(schema.photos.uploaderId, actorId), isNull(schema.photos.deletedAt)))
-    .returning({ id: schema.photos.id });
+    .returning({ id: schema.photos.id, eventId: schema.photos.eventId });
+
+  // One row each. A bulk deletion that leaves no trace is the case where
+  // "where did all of these go" has no answer at all, and it is the largest
+  // single removal the product can perform.
+  for (const photo of removed) {
+    await recordModeration(db, {
+      photoId: photo.id,
+      eventId: photo.eventId,
+      action: 'removed',
+      actorId,
+      reason: REASON.accountDeleted,
+    });
+  }
   return removed.length;
 }
 

@@ -40,7 +40,7 @@ beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "block", "code", "derivative", "device",
       "event", "event_participant", "group_member", "groups", "photo", "report",
-      "safety_incident"
+      "safety_incident", "moderation_action"
     restart identity cascade
   `);
 });
@@ -321,5 +321,69 @@ describe('what a report does on its own', () => {
       'utf8',
     );
     expect(source.match(/return NextResponse\.json\(\{ reported: true \}\)/g)).toHaveLength(1);
+  });
+});
+
+
+/**
+ * The audit trail — the user-facing claim is "who uploaded, reported,
+ * restricted and removed".
+ *
+ * Checked against the source rather than by exercising every path, because the
+ * failure being guarded is a *new* write site added later without a record,
+ * and no test of the paths that exist today can catch that.
+ */
+describe('every write that hides or removes a photo records why', () => {
+  const sources = [
+    'apps/web/app/api/photos/[id]/route.ts',
+    'apps/web/app/api/photos/[id]/report/route.ts',
+    'apps/web/app/api/reports/[id]/resolve/route.ts',
+    'apps/web/src/accounts.ts',
+    'services/deriver/src/pipeline.ts',
+    'services/deriver/src/jobs.ts',
+  ].map((rel) => ({
+    rel,
+    text: readFileSync(
+      fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
+      'utf8',
+    ),
+  }));
+
+  it('leaves no visibility change unrecorded', () => {
+    // Every file that sets one of these has to also call the recorder. Crude
+    // and deliberately so: a file-level check cannot be satisfied by writing
+    // an audit row for a *different* branch, but it does fail loudly the
+    // moment a new file starts hiding things.
+    const changes =
+      /status: 'quarantined'|status: 'removed'|hiddenAt: new Date\(\)|hiddenAt: null|deletedAt: new Date\(\)|deletedAt: now/;
+    for (const { rel, text } of sources) {
+      if (!changes.test(text)) continue;
+      expect(text, `${rel} changes visibility without recording it`).toMatch(
+        /recordModeration\(/,
+      );
+    }
+  });
+
+  it('names a rule whenever no person is responsible', () => {
+    // A null actor with no reason is an unexplained disappearance. Every
+    // machine-driven call passes one of the named constants.
+    for (const { rel, text } of sources) {
+      for (const call of text.match(/recordModeration\([\s\S]{0,400}?\}\)/g) ?? []) {
+        if (!/actorId: null/.test(call)) continue;
+        expect(call, `${rel} has a null actor with no named rule`).toMatch(
+          /reason: REASON\./,
+        );
+      }
+    }
+  });
+
+  it('records the purge before the row it describes is deleted', () => {
+    // The other order loses the record: nothing reads the photo's event after
+    // the delete, and the audit row needs it.
+    const jobs = sources.find((s) => s.rel.endsWith('jobs.ts'))!.text;
+    const record = jobs.indexOf("reason: REASON.purgeGrace");
+    const del = jobs.indexOf('.delete(schema.photos)');
+    expect(record).toBeGreaterThan(-1);
+    expect(record, 'the audit row must be written first').toBeLessThan(del);
   });
 });

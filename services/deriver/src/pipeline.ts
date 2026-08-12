@@ -12,7 +12,7 @@
  * photo stays invisible rather than becoming visible in an unsafe state.
  */
 
-import { schema } from '@parea/core';
+import { recordModeration, REASON, schema } from '@parea/core';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -143,6 +143,16 @@ export async function processPhoto(
         .update(schema.photos)
         .set({ status: 'removed', deletedAt: new Date() })
         .where(eq(schema.photos.id, photo.id));
+      // Not a moderation decision, but it is a photo that vanished after
+      // someone uploaded it. Recorded so "where did mine go" has an answer
+      // that is not silence.
+      await recordModeration(db, {
+        photoId: photo.id,
+        eventId: photo.eventId,
+        action: 'removed',
+        actorId: null,
+        reason: REASON.dedup,
+      });
       return { status: 'deduped', photoId, contentHash: hex };
     }
 
@@ -310,6 +320,14 @@ async function quarantine(
       preservationEndsAt: null,
     })
     .returning();
+
+  await recordModeration(db, {
+    photoId: photo.id,
+    eventId: photo.eventId,
+    action: 'quarantined',
+    actorId: null,
+    reason: REASON.csamScanner,
+  });
 
   await alertResponder({
     incidentId: incident.id,

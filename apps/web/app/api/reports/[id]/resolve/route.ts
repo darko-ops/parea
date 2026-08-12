@@ -7,7 +7,7 @@
  * was on holiday can still say no, and the photo comes back.
  */
 
-import { schema } from '@parea/core';
+import { recordModeration, REASON, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -62,6 +62,14 @@ export async function POST(
       .set({ hiddenAt: null })
       .where(eq(schema.photos.id, found.photo.id));
   }
+
+  await recordModeration(db, {
+    photoId: found.photo.id,
+    eventId: found.photo.eventId,
+    action: action === 'remove' ? 'removed' : 'unhidden',
+    actorId,
+    reason: action === 'remove' ? REASON.hostRemoved : REASON.hostDeclined,
+  });
 
   await db
     .update(schema.reports)

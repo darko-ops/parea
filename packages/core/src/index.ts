@@ -50,3 +50,9 @@ export {
   type ProviderId,
 } from './email';
 export { alertResponder, type QuarantineAlert } from './alerts';
+export {
+  recordModeration,
+  REASON,
+  type ModerationAction,
+  type ModerationRecord,
+} from './audit';

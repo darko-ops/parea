@@ -129,6 +129,27 @@ None of these are code, and all of them gate shipping:
 - [ ] Someone has confirmed the purge exemption works against the real
       database, not only in tests.
 
+## The audit trail
+
+`moderation_action` is one append-only row per visibility change: which photo,
+which event, what happened, who did it, and why. It answers "why is this photo
+hidden and who hid it" without joining three tables and inferring from
+timestamps, which is what the answer used to require.
+
+Nothing updates or deletes a row in it, and it has **no foreign keys at all** —
+not to the photo, not to the actor. Both omissions are the point. The purge job
+hard-deletes photo rows thirty days after they are tombstoned, and a cascade
+would take the record of the removal along with the thing removed. An actor
+reference with `on delete set null` would erase who acted at the moment that
+person deleted their account, which is exactly when the record matters most,
+and following an actor merge would rewrite who did something after the fact.
+Ids are frozen as they were; `actor.merged_into_id` still resolves one to a
+person if anyone needs it.
+
+A null `actor_id` means a rule acted rather than a person, and `reason` names
+which: `auto_hide_48h`, `dedup`, `purge_grace`. A null actor with no named rule
+would be an unexplained disappearance, and a test refuses one.
+
 ## Configuration
 
 | Variable | Meaning |

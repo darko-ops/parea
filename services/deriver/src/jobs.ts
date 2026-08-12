@@ -15,7 +15,7 @@
  * people's photos should not exist until someone decides it should run.
  */
 
-import { codeWordPairs, schema } from '@parea/core';
+import { codeWordPairs, recordModeration, REASON, schema } from '@parea/core';
 import { sendAll, toMessage } from '@parea/push';
 import { allDerivativeKeysFor } from '@parea/urls';
 import {
@@ -76,7 +76,20 @@ export async function autoHide(database: ReturnType<typeof db>): Promise<number>
       .update(schema.photos)
       .set({ hiddenAt: new Date() })
       .where(and(eq(schema.photos.id, report.photoId), isNull(schema.photos.hiddenAt)))
-      .returning({ id: schema.photos.id });
+      .returning({ id: schema.photos.id, eventId: schema.photos.eventId });
+
+    for (const photo of updated) {
+      // A null actor with a named rule: nobody decided this, a deadline
+      // passed. Without the row the only evidence is a `hidden_at` timestamp
+      // and an inference from a report that is still open.
+      await recordModeration(database, {
+        photoId: photo.id,
+        eventId: photo.eventId,
+        action: 'hidden',
+        actorId: null,
+        reason: REASON.autoHide48h,
+      });
+    }
     hidden += updated.length;
   }
   return hidden;
@@ -104,7 +117,11 @@ export async function purge(
 ): Promise<number> {
   const cutoff = new Date(Date.now() - PURGE_GRACE_DAYS * 24 * 3600_000);
   const rows = await database
-    .select({ id: schema.photos.id, storageKey: schema.photos.storageKey })
+    .select({
+      id: schema.photos.id,
+      eventId: schema.photos.eventId,
+      storageKey: schema.photos.storageKey,
+    })
     .from(schema.photos)
     .where(
       and(
@@ -138,6 +155,16 @@ export async function purge(
     for (const key of [row.storageKey, ...allDerivativeKeysFor(row.storageKey)]) {
       await objects.delete(key).catch(() => {});
     }
+    // Written before the row goes, and it survives afterwards: this table has
+    // no foreign key to `photo` precisely so the record of a deletion is not
+    // deleted along with it.
+    await recordModeration(database, {
+      photoId: row.id,
+      eventId: row.eventId,
+      action: 'purged',
+      actorId: null,
+      reason: REASON.purgeGrace,
+    });
     await database.delete(schema.photos).where(eq(schema.photos.id, row.id));
     purged++;
   }

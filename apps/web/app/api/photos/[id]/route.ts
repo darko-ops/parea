@@ -11,7 +11,7 @@
  * still has something to look at.
  */
 
-import { schema } from '@parea/core';
+import { recordModeration, REASON, schema } from '@parea/core';
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -29,6 +29,12 @@ export async function DELETE(
   if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const db = getDb();
+  const [existing] = await db
+    .select({ eventId: schema.photos.eventId })
+    .from(schema.photos)
+    .where(and(eq(schema.photos.id, id), eq(schema.photos.uploaderId, actorId)))
+    .limit(1);
+
   const updated = await db
     .update(schema.photos)
     .set({ status: 'removed', deletedAt: new Date() })
@@ -42,6 +48,16 @@ export async function DELETE(
       ),
     )
     .returning({ id: schema.photos.id });
+
+  if (updated.length > 0 && existing) {
+    await recordModeration(db, {
+      photoId: id,
+      eventId: existing.eventId,
+      action: 'removed',
+      actorId,
+      reason: REASON.uploaderRemoved,
+    });
+  }
 
   // Same answer whether the photo does not exist or is not yours.
   if (updated.length === 0) {

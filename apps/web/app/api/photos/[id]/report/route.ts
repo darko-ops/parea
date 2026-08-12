@@ -18,7 +18,7 @@
  * No SLA is promised in the response, because none can currently be kept.
  */
 
-import { alertResponder, schema } from '@parea/core';
+import { alertResponder, recordModeration, REASON, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -58,15 +58,16 @@ export async function POST(
   }
 
   const note = typeof body.note === 'string' ? body.note.slice(0, 2000) : null;
+  const reporter = await currentActorId();
   await db.insert(schema.reports).values({
     photoId: id,
-    reporterActorId: await currentActorId(),
+    reporterActorId: reporter,
     kind: kind as 'abuse' | 'other' | 'child_safety',
     note,
   });
 
   if (QUARANTINES_ON_RECEIPT.has(kind)) {
-    await quarantineOnReport(db, found.photo, found.event.id);
+    await quarantineOnReport(db, found.photo, found.event.id, reporter);
   }
 
   // The same answer either way. A reporter learning that this particular kind
@@ -89,6 +90,7 @@ async function quarantineOnReport(
   db: ReturnType<typeof getDb>,
   photo: typeof schema.photos.$inferSelect,
   eventId: string,
+  reporterActorId: string | null,
 ): Promise<void> {
   await db
     .update(schema.photos)
@@ -113,6 +115,15 @@ async function quarantineOnReport(
       preservationEndsAt: null,
     })
     .returning();
+
+  await recordModeration(db, {
+    photoId: photo.id,
+    eventId,
+    action: 'quarantined',
+    // The reporter, not the uploader: this row answers who caused the change.
+    actorId: reporterActorId,
+    reason: REASON.reportedChildSafety,
+  });
 
   await alertResponder({
     incidentId: incident!.id,

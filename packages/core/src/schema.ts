@@ -482,6 +482,58 @@ export const safetyIncidents = pgTable(
 );
 
 /**
+ * Every time a photo's visibility changed, and who changed it.
+ *
+ * The trail existed before this table but only in pieces: a host's decision
+ * lived on `report`, a scanner match on `safety_incident`, an uploader's own
+ * deletion nowhere at all, and answering "why is this photo hidden" meant
+ * checking three tables and inferring from timestamps. This is the one place
+ * that answers it.
+ *
+ * Append-only. Nothing updates or deletes a row here, which is what separates
+ * an audit log from a status column.
+ *
+ * **No foreign key to `photo`, deliberately.** The purge job hard-deletes photo
+ * rows thirty days after they are tombstoned, and a cascade would take the
+ * record of the removal with the thing removed — an audit log that disappears
+ * along with its subject is not one. The ids are stored plainly and may point
+ * at rows that no longer exist, which is the correct behaviour for a log.
+ */
+export const moderationActions = pgTable(
+  'moderation_action',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Plain uuid, not a reference. See the note above. */
+    photoId: uuid('photo_id').notNull(),
+    eventId: uuid('event_id').notNull(),
+    action: text('action', {
+      enum: ['hidden', 'unhidden', 'quarantined', 'removed', 'purged'],
+    }).notNull(),
+    /**
+     * Null when the system acted on a rule rather than a person deciding —
+     * the 48-hour auto-hide, dedup, the purge job. `reason` names the rule in
+     * those cases, so a null actor is never unexplained.
+     *
+     * No foreign key, for the same reason `photo_id` has none and
+     * `safety_incident.uploader_actor_id` has none: this is evidence. An
+     * `on delete set null` would erase who acted the moment that person
+     * deleted their account, which is exactly when the record matters most,
+     * and following an actor merge would rewrite who did something after the
+     * fact. The id is frozen as it was; `actor.merged_into_id` still resolves
+     * it to a person if anyone needs to.
+     */
+    actorId: uuid('actor_id'),
+    /** Why, in a form a person reads: `auto_hide_48h`, `host_removed`, `csam_scanner`. */
+    reason: text('reason').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('moderation_action_photo_idx').on(t.photoId, t.createdAt),
+    index('moderation_action_event_idx').on(t.eventId, t.createdAt),
+  ],
+);
+
+/**
  * What an automated content classifier thought about a photo.
  *
  * A separate table from `safety_incident`, and the separation is the point.
