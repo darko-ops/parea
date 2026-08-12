@@ -32,7 +32,7 @@ import {
   mailerFromEnv,
   redact,
   signInEmail,
-} from '../src/email';
+} from '@parea/core';
 
 const MESSAGE = { to: 'sam@example.com', subject: '123456 is your Parea code', text: 'Your code is 123456.' };
 

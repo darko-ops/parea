@@ -36,8 +36,10 @@ ordinary 30-day cleanup would destroy preserved material *and report success*.
 A hold with no end date is open-ended, not expired — the clock starts when a
 report is filed, not when detection happened.
 
-**Alerts a responder.** Identifiers only, over `SAFETY_ALERT_WEBHOOK`. No
-image, no thumbnail, no link that renders one.
+**Alerts a responder.** Identifiers only, by webhook or email — set either, or
+both. No image, no thumbnail, no link that renders one, because whatever
+receives it is likely a client that would render anything renderable. A
+deployment with neither refuses to start in production.
 
 ## What the code deliberately does not do
 
@@ -140,7 +142,8 @@ None of these are code, and all of them gate shipping:
 | `MODERATOR_THRESHOLD` | Score at or above which a photo is flagged. Default 80. |
 | `PAREA_MODERATION` | `automated` or `manual`. Required — a watcher refuses to start without it. |
 | `CSAM_SCANNER_SEND_BYTES` | Almost certainly `true` — read [What the hash-only path cannot do](#what-the-hash-only-path-cannot-do) before setting it to `false`. |
-| `SAFETY_ALERT_WEBHOOK` | Where alerts go. |
+| `SAFETY_ALERT_WEBHOOK` | Where alerts go, for a team with a chat client. |
+| `SAFETY_ALERT_EMAIL` | Where alerts go, for one person. Either is enough; both is fine. |
 
 `CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED` are gone. They existed to
 make running without scanning a deliberate, greppable act, which was right —

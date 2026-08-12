@@ -120,15 +120,22 @@ async function probe(
   // all — and a quarantine nobody is told about is the runbook's own
   // definition of no scanning at all. Fatal in production only, because the
   // image build runs this probe with no deployment environment.
-  const alertsGoSomewhere = Boolean(process.env.SAFETY_ALERT_WEBHOOK);
+  const alertsGoSomewhere = Boolean(
+    process.env.SAFETY_ALERT_WEBHOOK || process.env.SAFETY_ALERT_EMAIL,
+  );
   const alertsRequired = process.env.NODE_ENV === 'production';
   results.push([
     'safety-alerts',
     alertsGoSomewhere || !alertsRequired,
     alertsGoSomewhere
-      ? 'SAFETY_ALERT_WEBHOOK configured'
+      ? [
+          process.env.SAFETY_ALERT_WEBHOOK && 'webhook',
+          process.env.SAFETY_ALERT_EMAIL && 'email',
+        ]
+          .filter(Boolean)
+          .join(' + ')
       : alertsRequired
-        ? 'FAILED — nothing receives a quarantine alert; set SAFETY_ALERT_WEBHOOK'
+        ? 'FAILED — nothing receives a quarantine alert; set SAFETY_ALERT_EMAIL or SAFETY_ALERT_WEBHOOK'
         : 'unset (not required outside production)',
   ]);
 

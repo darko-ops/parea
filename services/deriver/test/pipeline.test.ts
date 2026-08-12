@@ -587,6 +587,7 @@ describe('somewhere for an alert to go', () => {
       'utf8',
     );
     expect(source).toMatch(/SAFETY_ALERT_WEBHOOK/);
+    expect(source).toMatch(/SAFETY_ALERT_EMAIL/);
     expect(source).toMatch(/alertsRequired && !alertsGoSomewhere/);
   });
 });

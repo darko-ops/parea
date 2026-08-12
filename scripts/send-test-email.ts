@@ -23,7 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 
-import { MailUnavailable, mailerFromEnv, signInEmail } from '../apps/web/src/email';
+import { MailUnavailable, mailerFromEnv, signInEmail } from '@parea/core';
 
 /** `.env.local` is where the setup script puts these; not a dependency. */
 function loadEnvFile(path: string): void {

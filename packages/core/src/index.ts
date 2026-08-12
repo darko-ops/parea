@@ -33,4 +33,20 @@ export {
 } from './visibility';
 export { PRESERVATION_DAYS, preservationHold } from './preservation';
 export { groupSlug, type GroupDoor } from './groups';
+export {
+  ConsoleMailer,
+  DEFAULT_PROVIDER,
+  HttpMailer,
+  isKnownProvider,
+  MailUnavailable,
+  mailerFromEnv,
+  PROVIDERS,
+  redact,
+  SEND_TIMEOUT_MS,
+  signInEmail,
+  UnconfiguredMailer,
+  type Mailer,
+  type Message,
+  type ProviderId,
+} from './email';
 export { alertResponder, type QuarantineAlert } from './alerts';

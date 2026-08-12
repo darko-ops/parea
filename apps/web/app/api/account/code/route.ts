@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 
 import { storeCode } from '@/accounts';
 import { getDb } from '@/db';
-import { MailUnavailable, mailerFromEnv, redact, signInEmail } from '@/email';
+import { MailUnavailable, mailerFromEnv, redact, signInEmail } from '@parea/core';
 import { SIGN_IN_ADDRESS_LIMIT, SIGN_IN_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 
 export const runtime = 'nodejs';

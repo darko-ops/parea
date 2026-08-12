@@ -9,7 +9,7 @@
  * time.
  */
 
-import { DEFAULT_PROVIDER, PROVIDERS, isKnownProvider } from './email';
+import { DEFAULT_PROVIDER, PROVIDERS, isKnownProvider } from '@parea/core';
 
 export type ConfigItem = {
   name: string;
