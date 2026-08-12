@@ -23,7 +23,14 @@ primary_region = "lhr"
 
 [[vm]]
   # libvips and libheif want headroom on a 4000x3000 HEIC; 512MB is not enough.
-  memory = "1gb"
+  #
+  # 2GB rather than 1GB because MAX_INPUT_PIXELS in derivatives.ts allows 400MP.
+  # A real upload arrived at 17000x17000 — 289MP, 1.7MB compressed, and about
+  # 1.16GB as raw RGBA. At 1GB the limit and the machine disagreed: raising one
+  # without the other converts a photo that fails cleanly into an OOM kill, and
+  # an OOM takes ingest down for every photo rather than for the one that
+  # caused it. These two numbers are a pair; move them together.
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
 

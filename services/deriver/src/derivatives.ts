@@ -53,6 +53,27 @@ const AVIF_QUALITY_OFFSET = 12;
  */
 const AVIF_EFFORT = 2;
 
+/**
+ * How large an image may be before it is refused as a decompression bomb.
+ *
+ * sharp defaults to 268,402,689 pixels, and a real upload hit it: a 17000×17000
+ * PNG, 1.7MB on the wire and 289 megapixels once decoded, which failed with
+ * `Input image exceeds pixel limit` and stayed failed. That file is not an
+ * attack — a highly compressible image at absurd dimensions is what a poster
+ * export or a stitched panorama looks like — but the ratio is exactly what an
+ * attack looks like too, which is why the limit exists and why it stays.
+ *
+ * 400MP rather than `false`: a ceiling that can be reasoned about beats none.
+ * The number is bounded by memory, not by taste — see the machine size in
+ * fly.toml, which had to grow alongside it. libvips streams and works in
+ * tiles, so a resize does not hold the full raster, but the decoders do not
+ * all stream and the headroom has to exist.
+ *
+ * Raising this without raising the machine turns a clean per-photo failure
+ * into an OOM kill, which takes ingest down for every photo rather than one.
+ */
+const MAX_INPUT_PIXELS = 400_000_000;
+
 export type Derivative = {
   kind: DerivativeKind;
   format: 'jpeg' | 'avif';
@@ -81,7 +102,7 @@ async function encodeAll(input: Buffer): Promise<Derivative[]> {
 
   for (const spec of DERIVATIVES) {
     for (const format of formatsFor(spec.kind)) {
-      const resized = sharp(input, { failOn: 'error' })
+      const resized = sharp(input, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
         // Bakes in EXIF orientation, so viewers do not have to honour it, and
         // strips metadata from the derivative entirely — a thumbnail has no
         // business carrying the original's tags.
@@ -141,7 +162,7 @@ export async function readDimensions(
   input: Buffer,
 ): Promise<{ width: number | null; height: number | null }> {
   try {
-    const meta = await sharp(input).metadata();
+    const meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
     // Post-rotation dimensions: a portrait photo tagged as rotated should not
     // report itself as landscape to the grid.
     const swap = (meta.orientation ?? 1) >= 5;
@@ -184,7 +205,7 @@ export async function decodeCapabilities(): Promise<Record<string, boolean>> {
  */
 export async function canDecode(input: Buffer): Promise<boolean> {
   try {
-    await sharp(input).jpeg().toBuffer();
+    await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).jpeg().toBuffer();
     return true;
   } catch {
     return false;
@@ -218,7 +239,7 @@ export async function canEncodeAvif(): Promise<boolean> {
 export async function canDecodeViaHeifConvert(input: Buffer): Promise<boolean> {
   try {
     const raster = await heifConvert(input);
-    await sharp(raster).metadata();
+    await sharp(raster, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
     return true;
   } catch {
     return false;
