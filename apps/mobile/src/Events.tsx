@@ -450,13 +450,15 @@ export function SearchTab({
         <Text style={[styles.label, { color: t.fg }]}>People</Text>
         {/*
           Honest rather than absent. Finding someone means there is someone to
-          find, and this product has no accounts on purpose (§3): identity is a
-          credential on a device, and there is nobody to look up. Building it
-          is a decision about what the product is, not a screen.
+          look up, and an account here is an email address and nothing else —
+          no profile, no name anyone else can search, nothing to browse. That
+          accounts now exist for contributing does not make people findable,
+          and building that is a decision about what the product is rather
+          than a screen.
         */}
         <Text style={[styles.body, { color: t.dim }]}>
-          There is nobody to find yet. Nothing here uses accounts — you are
-          whoever holds this phone — so there are no profiles to search.
+          There is nobody to find. An account here is an email address and
+          nothing else — there are no profiles to search.
         </Text>
       </View>
     </ScrollView>
@@ -476,16 +478,31 @@ export function SearchTab({
  * from the one signing in — and setting up a new phone is exactly when that
  * happens.
  */
-function AccountCard({
+/**
+ * Signing in, and the account once you have.
+ *
+ * Exported because three places now refuse without an account — creating an
+ * event, adding photos, and a spoken code — and each wants the form in front
+ * of the person rather than a sentence pointing at another tab. Those callers
+ * pass `gate`, which drops the signed-in half: an upload prompt is no place
+ * for a delete-account button.
+ */
+export function AccountCard({
   api,
   t,
   Button,
   onSignedIn,
+  why,
+  gate = false,
 }: {
   api: Api;
   t: TabTheme;
   Button: ButtonComponent;
   onSignedIn: () => void;
+  /** What the person was trying to do, in their words rather than the policy's. */
+  why?: string;
+  /** Render nothing once signed in, for callers standing in front of an action. */
+  gate?: boolean;
 }) {
   const [account, setAccount] = useState<{ email: string } | null | undefined>();
   const [email, setEmail] = useState('');
@@ -576,6 +593,7 @@ function AccountCard({
   if (account === undefined) return null;
 
   if (account) {
+    if (gate) return null;
     return (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
@@ -591,10 +609,13 @@ function AccountCard({
 
   return (
     <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-      <Text style={[styles.label, { color: t.fg }]}>Keep these on a new phone</Text>
+      <Text style={[styles.label, { color: t.fg }]}>
+        {why ?? 'Keep these on a new phone'}
+      </Text>
       <Text style={[styles.small, { color: t.dim }]}>
-        Optional. Add an email and your events and groups follow you to another
-        device. No password — a code goes to your inbox.
+        {why
+          ? 'No password — a code goes to your inbox, and your events follow you to another device.'
+          : 'Optional. Add an email and your events and groups follow you to another device. No password — a code goes to your inbox.'}
       </Text>
 
       <TextInput
@@ -690,8 +711,8 @@ export function ProfileTab({
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
         <Text style={[styles.small, { color: t.dim }]}>
-          Optional, and the whole of your identity here. No account, no email,
-          nothing to log in to — this phone is who you are.
+          Optional, and it is what people see beside your photos rather than
+          who you are to us — that is the account below.
         </Text>
       </View>
 

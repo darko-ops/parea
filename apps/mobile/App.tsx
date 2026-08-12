@@ -38,8 +38,15 @@ import {
 
 import { resolveWindow, type Window } from '@parea/autoselect';
 
-import { Api, tokenFromInput, type EventListing, type Feed, type FeedPhoto } from './src/api';
-import { HomeTab, ProfileTab, SearchTab } from './src/Events';
+import {
+  Api,
+  ApiError,
+  tokenFromInput,
+  type EventListing,
+  type Feed,
+  type FeedPhoto,
+} from './src/api';
+import { AccountCard, HomeTab, ProfileTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { arrivalFromUrl } from './src/links';
@@ -179,8 +186,14 @@ export default function App() {
           endsAt: summary.endsAt,
         });
         return true;
-      } catch {
-        setJoinError("Couldn't find that. Check the link or the code and try again.");
+      } catch (err) {
+        // A code needs an account, and saying "couldn't find that" would send
+        // someone off to check a code that was correct.
+        setJoinError(
+          err instanceof ApiError && err.code === 'sign_in_required'
+            ? 'That worked, but you need an account first. Open You and sign in, then try again.'
+            : "Couldn't find that. Check the link or the code and try again.",
+        );
         return false;
       } finally {
         setArriving(false);
@@ -195,6 +208,18 @@ export default function App() {
    * the listener can fire for it as well. Handling it twice means two joins and
    * two writes to the recent-events list, so each URL is answered once.
    */
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const refreshAccount = useCallback(async () => {
+    // `null` until the answer arrives. Gates render nothing meanwhile: a
+    // sign-in prompt that flashes for someone already signed in is worse than
+    // one that appears a moment late.
+    setSignedIn(await api.account().then((a) => a !== null).catch(() => false));
+  }, [api]);
+
+  useEffect(() => {
+    void refreshAccount();
+  }, [refreshAccount]);
+
   const handled = useRef<string | null>(null);
   const arrive = useCallback(
     async (url: string | null) => {
@@ -277,6 +302,9 @@ export default function App() {
           api={api}
           event={route.event}
           t={t}
+          signedIn={signedIn}
+          onSignedIn={refreshAccount}
+          Button={Button}
           onBack={() => {
             void refreshEvents();
             setRoute({ screen: 'tabs' });
@@ -286,7 +314,23 @@ export default function App() {
         />
       )}
 
-      {route.screen === 'create' && (
+      {route.screen === 'create' && signedIn === false && (
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <AccountCard
+            api={api}
+            t={t}
+            Button={Button}
+            gate
+            why="Making an event needs an account, so the people you invite know whose event it is."
+            onSignedIn={() => {
+              void refreshAccount();
+              void refreshEvents();
+            }}
+          />
+        </ScrollView>
+      )}
+
+      {route.screen === 'create' && signedIn === true && (
         <CreateEvent
           api={api}
           // Distinct places from this person's own events, newest first. Three
@@ -617,6 +661,9 @@ function EventScreen({
   api,
   event,
   t,
+  signedIn,
+  onSignedIn,
+  Button: ButtonEl,
   onBack,
   onOpenGroup,
   onGroupsChanged,
@@ -624,6 +671,10 @@ function EventScreen({
   api: Api;
   event: SavedEvent;
   t: Theme;
+  /** null until the answer arrives; the gate renders nothing meanwhile. */
+  signedIn: boolean | null;
+  onSignedIn: () => void;
+  Button: typeof Button;
   onBack: () => void;
   onOpenGroup: (groupId: string) => void;
   onGroupsChanged: () => void;
@@ -991,8 +1042,18 @@ function EventScreen({
               </Pressable>
             )}
 
-            {feed?.event.uploadsOpen !== false && (
+            {feed?.event.uploadsOpen !== false && signedIn === true && (
               <Button label="Add photos" onPress={addPhotos} t={t} primary />
+            )}
+            {feed?.event.uploadsOpen !== false && signedIn === false && (
+              <AccountCard
+                api={api}
+                t={t}
+                Button={ButtonEl}
+                gate
+                why="Adding photos needs an account. Looking does not — carry on browsing without one."
+                onSignedIn={onSignedIn}
+              />
             )}
             {queueStatus && (
               <Text style={[styles.body, { color: t.dim }]}>

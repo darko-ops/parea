@@ -128,6 +128,8 @@ export function CreateEvent({
   /** Both commit controls ask the same question, so it is asked once. */
   const ready = Boolean(name.trim()) && (picked !== null || when !== null);
   const chosenOption = WHEN_OPTIONS.find((option) => option.id === when);
+  /** Public unless the creator says otherwise — a forwarded link still works. */
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const create = useCallback(async () => {
     const trimmed = name.trim();
@@ -154,6 +156,7 @@ export function CreateEvent({
         eventDate,
         startsAt: span?.startsAt ?? null,
         endsAt: span?.endsAt ?? null,
+        accessPolicy: isPrivate ? 'account_required' : 'link_open',
       });
       setMade({
         event: {
@@ -217,7 +220,8 @@ export function CreateEvent({
               Send it to everyone who was there
             </Text>
             <Text style={[styles.body, { color: t.dim }]}>
-              Anyone with the link adds their photos. No account, no app.
+              Anyone with the link sees the photos, with no app to install.
+              Adding needs an account.
             </Text>
           </View>
 
@@ -440,6 +444,54 @@ export function CreateEvent({
             It is what lets everyone&rsquo;s own photos from the right hours be
             found for them later, instead of asking them to scroll.
             &ldquo;Not sure yet&rdquo; is a real answer.
+          </Text>
+
+          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+            WHO CAN SEE IT
+          </Text>
+          <View style={styles.pills}>
+            {(
+              [
+                [false, 'Anyone with the link'],
+                [true, 'Only people signed in'],
+              ] as [boolean, string][]
+            ).map(([value, label]) => {
+              const on = isPrivate === value;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setIsPrivate(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  style={[
+                    styles.pill,
+                    on
+                      ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
+                      : { borderColor: t.line, backgroundColor: t.card },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pillText,
+                      on && styles.pillTextOn,
+                      { color: on ? t.accent : t.fg },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {/*
+            Said as what it costs rather than as the name of a policy. Nobody
+            picking between two pills at a party is going to reason about
+            "account_required".
+          */}
+          <Text style={[styles.small, { color: t.dim }]}>
+            {isPrivate
+              ? 'The link still has to reach them, and they sign in before they see anything. For when the link may travel further than the guest list.'
+              : 'Whoever holds the link sees the photos, no account needed. Adding photos always needs one.'}
           </Text>
         </View>
       )}

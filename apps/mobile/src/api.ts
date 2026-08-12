@@ -190,6 +190,8 @@ export class Api {
     startsAt?: string | null;
     endsAt?: string | null;
     createdByName?: string;
+    /** 'link_open' (public) or 'account_required' (private). Omitted means public. */
+    accessPolicy?: 'link_open' | 'account_required';
   }): Promise<{ id: string; name: string; linkToken: string; url: string; code: string | null }> {
     return this.call('/api/events', {
       method: 'POST',
