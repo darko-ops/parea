@@ -26,7 +26,7 @@ import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/deriva
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
-import { postureFromEnv } from '../src/moderation';
+import { MODERATORS, postureFromEnv } from '../src/moderation';
 import { processPhoto } from '../src/pipeline';
 import {
   ScanUnavailable,
@@ -608,3 +608,65 @@ describe('a photo with no scanner configured', () => {
   });
 });
 
+
+
+/**
+ * Reading a classifier's answer.
+ *
+ * Parsing is tested against recorded response shapes rather than a live
+ * endpoint, because what breaks here is a provider changing its JSON, and a
+ * mock of our own invention would agree with whatever we wrote.
+ */
+describe('what a classifier verdict means', () => {
+  const sightengine = MODERATORS.sightengine!;
+
+  it('flags explicit content above the threshold', () => {
+    const verdict = sightengine.parse(
+      { nudity: { sexual_activity: 0.94, suggestive: 0.02, none: 0.01 } },
+      80,
+    );
+    expect(verdict.flagged).toBe(true);
+    expect(verdict.labels).toEqual(['sexual_activity']);
+    expect(verdict.score).toBe(94);
+  });
+
+  it('does not flag a swimming pool', () => {
+    // `suggestive` is bikinis, cleavage and bare male chests. At an event
+    // photo product that is a beach holiday, and flagging it would bury the
+    // queue in the photos people are here to share.
+    const verdict = sightengine.parse(
+      { nudity: { suggestive: 0.97, sexual_activity: 0.01, none: 0.02 } },
+      80,
+    );
+    expect(verdict.flagged).toBe(false);
+    expect(verdict.labels).toEqual([]);
+  });
+
+  it('does not flag an explicit class below the threshold', () => {
+    const verdict = sightengine.parse({ nudity: { erotica: 0.4, none: 0.6 } }, 80);
+    expect(verdict.flagged).toBe(false);
+  });
+
+  it('reads an ordinary photo as clean', () => {
+    const verdict = sightengine.parse(
+      { nudity: { none: 0.99, sexual_activity: 0.001, suggestive: 0.004 } },
+      80,
+    );
+    expect(verdict.flagged).toBe(false);
+    expect(verdict.score).toBeUndefined();
+  });
+
+  it('treats a response it cannot read as clean rather than throwing', () => {
+    // A parse error must not fail the photo: the classifier hides nothing, so
+    // its worst outcome should be an unflagged photo, which is the same
+    // position as having no classifier at all.
+    expect(sightengine.parse({}, 80).flagged).toBe(false);
+    expect(sightengine.parse({ nudity: null }, 80).flagged).toBe(false);
+  });
+
+  it('never counts `none` as a reason to flag', () => {
+    // `none: 0.99` is the confidence that the photo is clean, and reading it
+    // as a label would flag every ordinary photo at full confidence.
+    expect(sightengine.parse({ nudity: { none: 0.99 } }, 80).labels).toEqual([]);
+  });
+});

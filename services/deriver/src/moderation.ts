@@ -49,6 +49,100 @@ export interface ContentModerator {
 export class ModerationUnavailable extends Error {}
 
 /**
+ * The provider table.
+ *
+ * Same shape as the mail providers in @parea/core: each entry says how to ask
+ * and how to read the answer, so choosing one is configuration and adding one
+ * is an entry rather than a class. Nothing about this pipeline is specific to
+ * a vendor, and the vendor most likely to change is this one — the market is
+ * young and the product is not built on any of them.
+ */
+export type ModeratorProvider = {
+  endpoint: string;
+  /** `key` is whatever that provider's credential looks like. */
+  request(input: ModerationInput, key: string): RequestInit;
+  parse(body: unknown, threshold: number): ModerationVerdict;
+};
+
+export const MODERATORS: Record<string, ModeratorProvider> = {
+  /**
+   * The shape this seam was written against: JSON in, labels and a score out.
+   * Kept because it is what a self-hosted classifier or a small wrapper would
+   * naturally speak, and it is what the tests exercise.
+   */
+  generic: {
+    endpoint: '',
+    request: (input, key) => ({
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        image: input.bytes.toString('base64'),
+        mime: input.mime,
+      }),
+    }),
+    parse: (body, threshold) => {
+      const b = body as { labels?: unknown; score?: unknown };
+      const labels = Array.isArray(b.labels)
+        ? b.labels.filter((l): l is string => typeof l === 'string')
+        : [];
+      const score = typeof b.score === 'number' ? b.score : undefined;
+      return {
+        flagged: labels.length > 0 || (score !== undefined && score >= threshold),
+        labels,
+        score,
+      };
+    },
+  },
+
+  /**
+   * Sightengine's nudity-2.1 model.
+   *
+   * Multipart rather than JSON, and the credential is `user:secret` because
+   * that is what they issue. Confidences come back 0-1 per class and are
+   * scaled to the 0-100 the column stores.
+   *
+   * Only the explicit classes count toward flagging. `suggestive` covers
+   * bikinis, cleavage and bare male chests, which at an event photo product is
+   * a beach holiday and a swimming pool — flagging those would bury the queue
+   * in exactly the photos people are here to share. They are still recorded as
+   * labels, so the decision can be revisited from real data rather than from
+   * a guess.
+   */
+  sightengine: {
+    endpoint: 'https://api.sightengine.com/1.0/check.json',
+    request: (input, key) => {
+      const [user, secret] = key.split(':');
+      const form = new FormData();
+      form.append('media', new Blob([new Uint8Array(input.bytes)], { type: input.mime }), 'photo');
+      form.append('models', 'nudity-2.1');
+      form.append('api_user', user ?? '');
+      form.append('api_secret', secret ?? '');
+      // No content-type header: fetch sets the multipart boundary itself, and
+      // setting it by hand produces a body the other end cannot parse.
+      return { method: 'POST', body: form };
+    },
+    parse: (body, threshold) => {
+      const nudity = (body as { nudity?: Record<string, unknown> }).nudity ?? {};
+      const EXPLICIT = ['sexual_activity', 'sexual_display', 'erotica', 'sextoy'];
+      const labels: string[] = [];
+      let top = 0;
+      for (const [name, value] of Object.entries(nudity)) {
+        if (typeof value !== 'number' || name === 'none') continue;
+        const score = Math.round(value * 100);
+        if (score >= threshold && EXPLICIT.includes(name)) {
+          labels.push(name);
+          top = Math.max(top, score);
+        }
+      }
+      return { flagged: labels.length > 0, labels, score: top || undefined };
+    },
+  },
+};
+
+/**
  * A classifier over HTTP.
  *
  * Bytes, not hashes — the opposite of the CSAM path, and for a reason rather
@@ -61,14 +155,22 @@ export class HttpContentModerator implements ContentModerator {
   private readonly timeoutMs: number;
   private readonly threshold: number;
 
+  private readonly provider: ModeratorProvider;
+
   constructor(
     private readonly endpoint: string,
     private readonly apiKey: string,
-    options: { name?: string; timeoutMs?: number; threshold?: number } = {},
+    options: {
+      name?: string;
+      timeoutMs?: number;
+      threshold?: number;
+      provider?: string;
+    } = {},
   ) {
     this.name = options.name ?? 'http-moderator';
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.threshold = options.threshold ?? 80;
+    this.provider = MODERATORS[options.provider ?? 'generic'] ?? MODERATORS.generic!;
   }
 
   async review(input: ModerationInput): Promise<ModerationVerdict> {
@@ -77,39 +179,15 @@ export class HttpContentModerator implements ContentModerator {
 
     try {
       const response = await fetch(this.endpoint, {
-        method: 'POST',
+        ...this.provider.request(input, this.apiKey),
         signal: controller.signal,
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          image: input.bytes.toString('base64'),
-          mime: input.mime,
-        }),
       });
 
       if (!response.ok) {
         throw new ModerationUnavailable(`moderator returned ${response.status}`);
       }
 
-      const body = (await response.json()) as {
-        labels?: unknown;
-        score?: unknown;
-      };
-
-      const labels = Array.isArray(body.labels)
-        ? body.labels.filter((l): l is string => typeof l === 'string')
-        : [];
-      const score = typeof body.score === 'number' ? body.score : undefined;
-
-      // Flagged on either signal: a provider that returns labels without a
-      // score, or a score without labels, must not read as clean.
-      return {
-        flagged: labels.length > 0 || (score !== undefined && score >= this.threshold),
-        labels,
-        score,
-      };
+      return this.provider.parse(await response.json(), this.threshold);
     } catch (err) {
       if (err instanceof ModerationUnavailable) throw err;
       throw new ModerationUnavailable(
@@ -125,13 +203,19 @@ export class HttpContentModerator implements ContentModerator {
 export function contentModeratorFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ContentModerator | null {
-  const endpoint = env.MODERATOR_URL;
+  // A named provider carries its own endpoint, so MODERATOR_URL is only
+  // required for `generic` — and overrides the built-in one when set, which is
+  // what a staging endpoint or a regional host needs.
+  const named = MODERATORS[env.MODERATOR_PROVIDER ?? ''];
+  const endpoint = env.MODERATOR_URL || named?.endpoint;
   const apiKey = env.MODERATOR_KEY;
   if (!endpoint || !apiKey) return null;
 
   const threshold = Number(env.MODERATOR_THRESHOLD);
+  const provider = env.MODERATOR_PROVIDER ?? 'generic';
   return new HttpContentModerator(endpoint, apiKey, {
-    name: env.MODERATOR_NAME ?? 'http-moderator',
+    name: env.MODERATOR_NAME ?? provider,
+    provider,
     threshold: Number.isFinite(threshold) ? threshold : undefined,
   });
 }

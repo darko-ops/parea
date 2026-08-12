@@ -157,7 +157,8 @@ would be an unexplained disappearance, and a test refuses one.
 | `CSAM_SCANNER_URL` | Provider endpoint. |
 | `CSAM_SCANNER_KEY` | Bearer credential. |
 | `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them. |
-| `MODERATOR_URL` | Content classifier endpoint. Optional, and not a CSAM scanner. |
+| `MODERATOR_PROVIDER` | `sightengine` or `generic`. A named one brings its own endpoint. |
+| `MODERATOR_URL` | Classifier endpoint. Required for `generic`; overrides a named one. |
 | `MODERATOR_KEY` | Bearer credential for it. |
 | `MODERATOR_NAME` | Recorded on flags. |
 | `MODERATOR_THRESHOLD` | Score at or above which a photo is flagged. Default 80. |
@@ -184,6 +185,21 @@ have one for weeks. **Optional.**
 explicit content, self-serve and cheap. A flag writes a `moderation_flag` and
 **hides nothing** — it orders a human queue. Acting on a probability would take
 down swimwear at a rate no small team can review. **Optional.**
+
+Providers are a table, the same shape as the mail providers: choosing one is
+configuration, adding one is an entry. `sightengine` is implemented against
+their nudity-2.1 model; `generic` is JSON in, labels and a score out, which is
+what a self-hosted classifier or a small wrapper would speak.
+
+Only the explicit classes count toward a flag. `suggestive` — bikinis,
+cleavage, bare male chests — is recorded as a label and does not flag, because
+at an event photo product that is a beach holiday and a swimming pool, and a
+queue full of them is a queue nobody opens. That threshold is a product
+decision and should be revisited from real flag data rather than from a guess.
+
+**Cloudflare Workers AI cannot do this job**, in case it looks like it should:
+the catalog has ImageNet classification, a text-only safety model and a
+vision-language model, and none of them is an explicit-content classifier.
 
 A nudity model does not detect CSAM. A photo can be flagrant to one and
 invisible to the other, in both directions, and putting classifier hits in
