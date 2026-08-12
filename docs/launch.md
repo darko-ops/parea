@@ -112,6 +112,16 @@ thumbnail 404s, or every download does.
 - [ ] `LEGAL_ENTITY` and `LEGAL_JURISDICTION` — required in production. Without
       them `/terms` and `/privacy` render a visible placeholder where the
       operator's name should be.
+
+      `LEGAL_ENTITY` is **DAED LLC**, recorded here so it is not decided twice
+      — but check the certificate of formation before it is set. Many read
+      `DAED, LLC` with a comma, and this string is printed verbatim as the
+      party making the promise on both pages.
+
+      `LEGAL_JURISDICTION` is still open. It is counsel's answer: the state of
+      formation is the usual choice and not automatically the right one, and
+      getting it wrong means a published, dated document naming the wrong
+      courts.
 - [ ] `/api/health` returns 200 and reports nothing missing.
 
 ## 5. Mail
