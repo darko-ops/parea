@@ -61,9 +61,29 @@ async function main(): Promise<void> {
   console.log(`from:     ${process.env.MAIL_FROM ?? '(unset)'}`);
   console.log(`to:       ${to}`);
 
+  // The real body, so this exercises the template production sends — but
+  // never the real subject. Both messages arrive from the same address with
+  // the same shape, and an inbox holding one of each is exactly how `123456`
+  // got typed into a sign-in form the first time this was used for real.
   const code = '123456';
+  const real = signInEmail(code);
+  const message = {
+    subject: 'Parea test message — NOT a sign-in code',
+    text: [
+      'This is a test from scripts/send-test-email.ts.',
+      '',
+      'It proves the mailer is configured and that this address can be',
+      `reached. The ${code} below is fixed, is not a real code, and will not`,
+      'sign anyone in. A real one arrives with the digits in the subject.',
+      '',
+      '--- what a real sign-in message says ---',
+      '',
+      real.text,
+    ].join('\n'),
+  };
+
   try {
-    await mailer.send({ to, ...signInEmail(code) });
+    await mailer.send({ to, ...message });
   } catch (err) {
     console.error(`\nfailed: ${err instanceof Error ? err.message : String(err)}`);
     // Only when a provider actually answered. Printing deliverability advice
@@ -81,7 +101,8 @@ async function main(): Promise<void> {
   console.log(
     `\nAccepted by ${mailer.name}. That is not delivery — check the inbox, and\n` +
       'check spam, because the first message from a new domain often lands there.\n' +
-      `The code in it is ${code}; it is not a real code and will not sign anyone in.`,
+      `Look for "${message.subject}". It carries no real code, and a real\n` +
+      'sign-in message is the one with six digits in its subject line.',
   );
 }
 
