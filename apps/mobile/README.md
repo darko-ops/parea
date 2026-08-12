@@ -251,11 +251,25 @@ eas submit --profile production --platform ios
 
 Three profiles. `development` builds a dev client against `localhost` —
 everything native here (background upload, granular photo permissions, the
-camera) is unavailable in Expo Go. `preview` is a release build against
-staging, installable without a store, and is the app-side half of the private
-soak in [`../../docs/deploy.md`](../../docs/deploy.md). `production` is the
-store build; EAS owns the build number, because a duplicate one is rejected at
+camera) is unavailable in Expo Go. `preview` is a release build installable
+without a store, and is the app-side half of the private soak in
+[`../../docs/deploy.md`](../../docs/deploy.md). `production` is the store
+build; EAS owns the build number, because a duplicate one is rejected at
 upload after you have already paid for and waited on the build.
+
+`preview` and `production` talk to the same deployment, because there is only
+one. It used to name `staging.parea.photos`, which has never existed — a build
+against it would have failed at its first request, on a tester's phone, after
+a build had been paid for and waited on. Universal links would not have worked
+either: the entitlement lists `parea.photos` and nothing else, so a tapped
+link on a staging build opens the browser.
+
+That is correct during the soak, where the deployment *is* the thing being
+soaked. It stops being correct the day real people are on it, because an
+internal build then reaches live data with no separation but the release
+channel. Standing up a second environment is a second database, bucket and
+pair of Workers; when there is one, `preview`'s URL and the allow-list in
+`test/config.test.ts` change together.
 
 Submit credentials are referenced, never written down:
 
@@ -270,8 +284,11 @@ Android submits to the `internal` track, not straight to production.
 
 ### Still missing before a build is submittable
 
-- **An icon.** There is no `assets/` directory, so Expo's default is what ships.
-  App Store Connect wants 1024×1024 and will not take a placeholder twice.
+- **A look at it on a device.** No screen in this client has ever been
+  rendered. Everything typechecks and none of it has been seen, so the icon
+  under a launcher mask, the layout on a small phone and every permission
+  prompt in sequence are all still unobserved. This is the item that needs a
+  day, not a command.
 - **`APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` on the web deployment.**
   Both `.well-known` files are served by the web app now, and both 404 until
   those are set — absent rather than wrong, because Apple caches the AASA hard

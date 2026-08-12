@@ -77,7 +77,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Choose the photos you want to add. Nothing is read until you pick it."
+          "photosPermission": "Choose the photos you want to add. Nothing is read until you pick it.",
+          "microphonePermission": false
         }
       ],
       [
@@ -90,10 +91,14 @@
       ],
       [
         "expo-camera",
-        { "cameraPermission": "Scan the QR code someone is holding up." }
+        {
+          "cameraPermission": "Scan the QR code someone is holding up.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ],
       "expo-notifications",
-      "expo-secure-store"
+      ["expo-secure-store", { "faceIDPermission": false }]
     ]
   }
 }

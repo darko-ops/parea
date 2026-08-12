@@ -1,7 +1,7 @@
 /**
  * Render every store asset from `assets/icon.svg`.
  *
- *   npm run icons --workspace parea-mobile
+ *   npm run icons --workspace @parea/mobile
  *
  * Run it after changing the SVG. The PNGs are committed — EAS builds do not
  * run this, and an icon that only exists on the machine of whoever last

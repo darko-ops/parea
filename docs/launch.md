@@ -178,8 +178,14 @@ At this point the **web product is launchable**. Everything below is the app.
       **before any build goes out**. Both `.well-known` files 404 until they are
       set, and Apple caches the AASA hard — absent is recoverable, wrong is not.
       Android needs both certificates: the upload key and the Play signing key.
-- [ ] `staging.parea.photos` — the `preview` EAS profile points at a host that
-      does not exist. Create it or repoint the profile.
+- [x] `staging.parea.photos` — the `preview` EAS profile pointed at a host
+      nobody stood up. Repointed at the deployment, which is what the private
+      soak actually runs on; a second environment is a second database, bucket
+      and pair of Workers, and none of that is planned. `test/config.test.ts`
+      now allows only hosts we operate, so the next invented one fails there
+      rather than on a tester's phone. Revisit when real people are on it:
+      `preview` then reaches live data with nothing between them but the
+      release channel.
 - [ ] Age rating. A UGC app does not get to claim 4+.
 - [ ] **Nutrition labels**, and the one question in them that is not a
       programmer's to answer: precise location is currently not declared, on the

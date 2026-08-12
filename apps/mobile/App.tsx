@@ -814,7 +814,12 @@ function EventScreen({
     // access. The upgrade that unlocks auto-selection is offered after a
     // contribution, never in front of the first one — design §7.4.
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      // Photos only. Nothing downstream can handle a video — the deriver makes
+      // AVIF, WebP and JPEG renditions with sharp — so offering one here means
+      // it uploads, never becomes `ready`, and simply never appears. Failing
+      // in the picker, where it cannot be chosen, beats failing silently
+      // twenty minutes later.
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 1,
       exif: false,

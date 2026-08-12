@@ -146,12 +146,29 @@ describe('build profiles', () => {
     expect(eas.build.production.autoIncrement).toBe(true);
   });
 
-  it('points each profile at a different API', () => {
-    const urls = ['development', 'preview', 'production'].map(
-      (p) => eas.build[p].env.EXPO_PUBLIC_API_URL,
-    );
-    expect(new Set(urls).size, 'a profile pointing at the wrong API is silent').toBe(3);
+  it('points every profile at somewhere that exists', () => {
+    /*
+     * This used to require three distinct URLs, which sounds stricter and was
+     * not: it was satisfied by `staging.parea.photos`, a host nobody ever
+     * stood up, and it enforced that fiction for as long as it passed. A
+     * build against a hostname that does not resolve fails at the first
+     * request, on a tester's phone, having already cost a build.
+     *
+     * Two environments exist — a laptop and the deployment — so that is what
+     * this allows. Adding a third is a real change: a second database, bucket
+     * and pair of Workers. When one exists, add it here and the profile that
+     * uses it in the same commit.
+     */
+    const OPERATED = new Set(['http://localhost:3000', `https://${DOMAIN}`]);
+
+    for (const profile of ['development', 'preview', 'production']) {
+      expect(OPERATED, `${profile} points at a host nobody operates`).toContain(
+        eas.build[profile].env.EXPO_PUBLIC_API_URL,
+      );
+    }
+
     expect(eas.build.production.env.EXPO_PUBLIC_API_URL).toBe(`https://${DOMAIN}`);
+    expect(eas.build.development.env.EXPO_PUBLIC_API_URL).toMatch(/^http:\/\/localhost/);
   });
 
   it('ships a store bundle from production and something installable from preview', () => {
