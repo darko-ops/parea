@@ -39,10 +39,15 @@
   <g clip-path="url(#mint)"><circle cx="396" cy="599" r="184" fill="#6fb6c4"/></g>
 
   <!-- Everyone was there. Drawn last because the three lenses above each
-       cover this region on their way past. -->
+       cover this region on their way past.
+
+       Warm, not cool. This was #8c93c6 — a blue-grey that came from treating
+       the region as the third lens in a sequence rather than as the subject.
+       It is the subject: the curved triangle is the whole point of the mark,
+       and it now matches the artwork the brand was drawn from. -->
   <g clip-path="url(#blue)">
     <g clip-path="url(#mint)">
-      <circle cx="512" cy="398" r="184" fill="#8c93c6"/>
+      <circle cx="512" cy="398" r="184" fill="#b084c5"/>
     </g>
   </g>
 </svg>

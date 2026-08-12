@@ -65,7 +65,7 @@ export function Mark({ size = 22 }: { size?: number }) {
           cover this region on their way past. */}
       <g clipPath="url(#mark-blue)">
         <g clipPath="url(#mark-mint)">
-          <circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill="#8c93c6" />
+          <circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill="#b084c5" />
         </g>
       </g>
     </svg>

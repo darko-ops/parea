@@ -50,8 +50,16 @@ describe('the mark, drawn twice', () => {
     expect(offset / MARK_R).toBeCloseTo(0.73, 2);
   });
 
-  it('carries the same six fills', () => {
-    for (const fill of ['#ffb3b8', '#9db2f0', '#a5dcc6', '#c79ad9', '#f3b584', '#6fb6c4']) {
+  it('carries the same seven fills', () => {
+    // The seventh is the centre, and it was the one missing from this list —
+    // which is why the two drawings could have disagreed about it without a
+    // failure. Three circles, three lenses, and the region where all three
+    // meet: seven regions, seven fills, no exceptions.
+    for (const fill of [
+      '#ffb3b8', '#9db2f0', '#a5dcc6',
+      '#c79ad9', '#f3b584', '#6fb6c4',
+      '#b084c5',
+    ]) {
       expect(icon, `${fill} missing from the app icon`).toContain(fill);
       expect(web, `${fill} missing from the web mark`).toContain(fill);
     }
