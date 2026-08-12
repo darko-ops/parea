@@ -30,7 +30,10 @@ export function Rail({ current }: { current: RailPage }) {
     <nav className="rail" aria-label="Sections">
       <div className="rail-mark">
         <Mark />
-        <span className="wordmark">Parea</span>
+        {/* Lowercase as a logotype. The name is still "Parea" in a sentence —
+            terms, privacy, the sign-in mail — and this is the only place it is
+            set as a mark rather than written as a word. */}
+        <span className="wordmark">parea</span>
       </div>
 
       {ROWS.map((row) => (

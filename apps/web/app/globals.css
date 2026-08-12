@@ -1,10 +1,21 @@
 /* ---------------------------------------------------------------------------
    Garet, for the wordmark only.
 
-   One weight, Book, which is what was supplied. Declared as 400 and *used* at
-   400 rather than asked for at 700: a browser given a bold it does not have
-   will synthesise one by smearing the outlines, and on four large letters that
-   is visible. The wordmark gets its weight from size and spacing instead.
+   One weight, and it is a light one: the file calls itself Book but its
+   OS/2 usWeightClass is 300, which is what "too thin" was. Declared at 300
+   because that is what it is — telling the browser it is 400 makes every
+   weight decision downstream slightly wrong, and it is the sort of thing that
+   only bites once something else is added.
+
+   Thickened with a stroke rather than by asking for a bold that does not
+   exist. Synthetic bold smears the outlines horizontally and fills the
+   counters of a geometric face — on a lowercase `a` and `e` at this size that
+   is the first thing you see. A stroke grows the whole outline evenly, which
+   is much closer to what a heavier cut actually is.
+
+   It is still a substitute. The real fix is one more file — Garet Medium or
+   Bold — at which point the stroke comes off and the weight is declared
+   honestly. See public/fonts/README.md.
 
    `swap` rather than `block`: the wordmark is four letters in a corner, and a
    blank space where the brand goes is worse than the brand in a fallback face
@@ -13,7 +24,7 @@
 @font-face {
   font-family: 'Garet';
   src: url('/fonts/garet-book.woff2') format('woff2');
-  font-weight: 400;
+  font-weight: 300;
   font-display: swap;
 }
 
@@ -162,12 +173,23 @@ button.secondary {
   padding: 0 10px 14px;
 }
 /* Garet on the name and nowhere else. A display face set at 15px through a
-   whole interface is a legibility problem; on four letters it is the brand.
-   Weight 400 because that is the weight that exists — see the @font-face
-   above. Presence comes from size and a little tracking. */
+   whole interface is a legibility problem; on four letters it is the brand. */
 .wordmark {
   font-family: 'Garet', 'Futura', 'Avenir Next', 'Century Gothic', system-ui, sans-serif;
-  font-size: 19px; font-weight: 400; letter-spacing: .02em;
+  font-size: 20px; font-weight: 300; letter-spacing: -.02em;
+  /* The weight the file does not have. In `em` so it stays proportional if
+     the size ever moves — an absolute stroke that looks right at 20px is a
+     blob at 13px and invisible at 40. Compared against 0, 0.5, 0.7 and 1.1
+     rendered side by side at this exact size: below this it is not a
+     different weight, above it the counters of `a` and `e` begin to close,
+     which is the same failure as synthetic bold arriving by another road. */
+  -webkit-text-stroke: 0.055em currentColor;
+  /* Fallback faces have their own bold and do not need the stroke doing this
+     job badly on top of it. */
+  paint-order: stroke fill;
+}
+@supports not (-webkit-text-stroke: 1px black) {
+  .wordmark { font-weight: 600; }
 }
 .rail a.rail-row {
   padding: 9px 10px; border-radius: 8px; font-size: 15px;
