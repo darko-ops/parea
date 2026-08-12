@@ -100,13 +100,45 @@ None of these are code, and all of them gate shipping:
 | `CSAM_SCANNER_URL` | Provider endpoint. |
 | `CSAM_SCANNER_KEY` | Bearer credential. |
 | `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them. |
-| `CSAM_SCANNER_SEND_BYTES` | `true` only if the provider cannot match on a hash. Prefer hash-only: nearly everything passing through is somebody's birthday party. |
+| `CSAM_SCANNER_SEND_BYTES` | Almost certainly `true` — read [What the hash-only path cannot do](#what-the-hash-only-path-cannot-do) before setting it to `false`. |
 | `CSAM_SCANNER=disabled` | Development only. Refuses to load in production. |
 | `SAFETY_ALERT_WEBHOOK` | Where alerts go. |
 
 `CSAM_SCANNER=disabled` exists so that running without scanning is a
 deliberate, greppable act rather than something achieved by forgetting a
 variable.
+
+## What the hash-only path cannot do
+
+`CSAM_SCANNER_SEND_BYTES=false` sends the provider a SHA-256 of the stripped
+file and nothing else. **That will not match a known-CSAM list**, and the
+reason is worth understanding before anyone configures it that way.
+
+Known-material matching works one of two ways. Either a **cryptographic hash
+of the original file** — the lists are mostly MD5 and SHA-1 — or a
+**perceptual hash** computed from the pixels, which is what survives a resize,
+a re-encode or a crop. A SHA-256 is neither of those, and it is taken *after*
+`exiftool` has rewritten the file, so it does not describe any original that
+could be on a list. Stripping metadata deliberately changes the bytes; that is
+its whole job.
+
+The failure mode is the bad one. The scanner is reachable, answers
+`{"match": false}` for every photo, and the deployment looks healthy. Every
+other part of this system fails closed; this path fails open and silent, which
+is precisely what §13 is meant to prevent.
+
+Two ways out, and the provider decides which:
+
+- **Send the bytes.** `CSAM_SCANNER_SEND_BYTES=true`, and the provider hashes
+  them. Simple, and the photos leave the system.
+- **Compute the provider's perceptual hash locally** and send that instead.
+  Keeps the pixels in, and needs `HttpHashScanner` taught to produce whatever
+  the provider's client library produces — a code change, not configuration.
+  A perceptual hash is computed from pixels, so metadata stripping does not
+  disturb it and the current ordering is fine.
+
+The second is better and is what the "prefer hash-only" instinct was reaching
+for. It is not what the code does today.
 
 ## A note on the minors question
 
