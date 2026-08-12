@@ -241,8 +241,8 @@ export default function CreatePage() {
             <div>
               <h2>Then send it</h2>
               <p className="field-help" style={{ margin: 0 }}>
-                The link is the whole invitation. No account at the other end,
-                no app to install.
+                The link is the whole invitation — no app to install, and
+                nothing to sign up for to look. Adding photos needs an account.
               </p>
             </div>
 

@@ -59,8 +59,8 @@ export default async function EventsPage() {
           <a href="/" className="card-new">
             <strong>Start an event</strong>
             <span>
-              Name it, say when it was, send the link. No account needed at the
-              other end.
+              Name it, say when it was, send the link. Nothing to sign up for
+              at the other end to look.
             </span>
           </a>
         </div>
