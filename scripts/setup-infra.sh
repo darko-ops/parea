@@ -57,11 +57,50 @@ echo "  neon        ok"
 
 bold "Neon project '$NEON_PROJECT'"
 
+# neonctl asks "What organization would you like to use?" when the account
+# belongs to one, and every call below captures stdout — so the question is
+# written into the variable instead of to the terminal, and the script waits
+# forever on a prompt nobody can see. Worse when it does not wait: the captured
+# prompt text is a non-empty string, so the guard below passes and the failure
+# arrives later as a JSON parse error pointing at the wrong line.
+#
+# So resolve it once, up front, and pass it explicitly from then on. Set
+# NEON_ORG to override; an account with no organization needs no flag at all.
+if [ -z "${NEON_ORG:-}" ]; then
+  orgs_json="$(npx --yes neonctl@latest orgs list --output json 2>/dev/null || true)"
+  NEON_ORG="$(printf '%s' "$orgs_json" \
+    | python3 -c "
+import json,sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print(''); raise SystemExit
+orgs = data.get('organizations', data) if isinstance(data, dict) else data
+if not isinstance(orgs, list) or len(orgs) != 1:
+    print(''); raise SystemExit
+print(orgs[0].get('id', ''))
+")"
+
+  # More than one, or none found and one is needed: say so here rather than
+  # letting it become an invisible prompt three commands later.
+  if [ -z "$NEON_ORG" ] && printf '%s' "$orgs_json" | grep -q '"id"'; then
+    warn "  Your Neon account has more than one organization, so which to use"
+    warn "  cannot be guessed. List them and re-run with the one you want:"
+    warn "    npx neonctl orgs list"
+    die "    NEON_ORG=org-… ./scripts/setup-infra.sh"
+  fi
+fi
+[ -n "${NEON_ORG:-}" ] && echo "  org $NEON_ORG"
+
+# Unquoted on purpose: an empty NEON_ORG has to vanish rather than become an
+# empty argument, and organization ids contain no spaces.
+neon() { npx --yes neonctl@latest "$@" ${NEON_ORG:+--org-id "$NEON_ORG"}; }
+
 # Captured before parsing, and `|| true` on purpose. Piping neonctl straight
 # into python looks tidier and is a trap: under `set -o pipefail` a neonctl
 # failure fails the whole substitution, `set -e` exits, and the graceful
 # fallback below never runs — the script just stops, printing nothing at all.
-projects_json="$(npx --yes neonctl@latest projects list --output json 2>/dev/null || true)"
+projects_json="$(neon projects list --output json 2>/dev/null || true)"
 [ -n "$projects_json" ] || die "Could not list Neon projects. Check: npx neonctl projects list"
 
 existing_project="$(printf '%s' "$projects_json" \
@@ -80,8 +119,17 @@ if [ -n "$existing_project" ]; then
   echo "  reusing $existing_project"
   project_id="$existing_project"
 else
-  project_id="$(npx --yes neonctl@latest projects create --name "$NEON_PROJECT" --output json \
-    | python3 -c "import json,sys; print(json.load(sys.stdin)['project']['id'])")"
+  create_json="$(neon projects create --name "$NEON_PROJECT" --output json 2>/dev/null || true)"
+  project_id="$(printf '%s' "$create_json" \
+    | python3 -c "
+import json,sys
+try:
+    print(json.load(sys.stdin)['project']['id'])
+except Exception:
+    print('')
+")"
+  [ -n "$project_id" ] || die "Could not create the Neon project. Run it by hand to see why:
+  npx neonctl projects create --name $NEON_PROJECT${NEON_ORG:+ --org-id $NEON_ORG}"
   echo "  created $project_id"
 fi
 
