@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
 
 import { Rail } from './components/Rail';
+import { SignIn, useSession } from './components/SignIn';
 
 /**
  * Create — design §3 screen 1, and the design handoff's 3a-3.
@@ -39,6 +40,9 @@ export default function CreatePage() {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Public unless the creator says otherwise — the forwarded link still works. */
+  const [isPrivate, setIsPrivate] = useState(false);
+  const session = useSession();
 
   const create = useCallback(
     async (e: React.FormEvent) => {
@@ -61,6 +65,7 @@ export default function CreatePage() {
             // against an open interval, which is every photo on a device.
             startsAt: window?.startsAt ?? null,
             endsAt: window?.endsAt ?? null,
+            accessPolicy: isPrivate ? 'account_required' : 'link_open',
           }),
         });
         if (!res.ok) throw new Error(await explain(res));
@@ -73,7 +78,7 @@ export default function CreatePage() {
         setBusy(false);
       }
     },
-    [name, place, when],
+    [name, place, when, isPrivate],
   );
 
   const copy = useCallback(async () => {
@@ -103,7 +108,14 @@ export default function CreatePage() {
               </p>
             </div>
 
-            {!link && (
+            {!link && session.known && !session.account && (
+              <SignIn
+                why="Making an event needs an account, so the people you invite know whose event it is."
+                onSignedIn={session.refresh}
+              />
+            )}
+
+            {!link && session.known && session.account && (
               <>
                 <div className="field">
                   <label className="field-label" htmlFor="name">
@@ -176,6 +188,33 @@ export default function CreatePage() {
                     It is what lets everyone&rsquo;s own photos from the right
                     hours be found for them later, instead of asking them to
                     scroll. &ldquo;Not sure yet&rdquo; is a real answer.
+                  </p>
+                </fieldset>
+
+                <fieldset className="field">
+                  <legend className="field-label">WHO CAN SEE IT</legend>
+                  <div className="pills">
+                    <button
+                      type="button"
+                      className="pill"
+                      aria-pressed={!isPrivate}
+                      onClick={() => setIsPrivate(false)}
+                    >
+                      Anyone with the link
+                    </button>
+                    <button
+                      type="button"
+                      className="pill"
+                      aria-pressed={isPrivate}
+                      onClick={() => setIsPrivate(true)}
+                    >
+                      Only people signed in
+                    </button>
+                  </div>
+                  <p className="field-help">
+                    {isPrivate
+                      ? 'The link still has to reach them, and they sign in before they see anything. Use this when the link may travel further than the guest list.'
+                      : 'Whoever holds the link sees the photos, no account needed. Adding photos always needs one.'}
                   </p>
                 </fieldset>
 
@@ -275,6 +314,10 @@ async function explain(res: Response): Promise<string> {
       return 'Too many events made from here just now. Try again in a while.';
     case 'not_a_member':
       return 'You are not in that group.';
+    case 'sign_in_required':
+      return 'Making an event needs an account. Sign in and try again.';
+    case 'invalid_access_policy':
+      return 'That is not a setting for who can see the event.';
     case 'not_configured':
       return 'This deployment is not finished — it has no database yet. Check /api/health.';
   }

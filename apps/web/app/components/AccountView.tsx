@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { SignIn } from './SignIn';
+
 type EventListing = {
   id: string;
   name: string;
@@ -27,16 +29,14 @@ type EventListing = {
   photoCount: number;
 };
 
-type Stage = 'loading' | 'email' | 'code' | 'in';
+/** Only 'loading' still matters here; the sign-in form owns its own steps. */
+type Stage = 'loading' | 'email' | 'in';
 
 export function AccountView() {
   const [stage, setStage] = useState<Stage>('loading');
   const [account, setAccount] = useState<{ email: string } | null>(null);
   const [events, setEvents] = useState<EventListing[]>([]);
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -53,50 +53,17 @@ export function AccountView() {
     void load();
   }, [load]);
 
-  const request = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/account/code', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (res.status === 400) throw new Error('That does not look like an email address.');
-      if (!res.ok) throw new Error('Could not ask for a code. Try again in a moment.');
-      setStage('code');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
+  const afterSignIn = useCallback(async () => {
+    const next = new URLSearchParams(globalThis.location.search).get('next');
+    // Same-origin paths only. `next` arrives in a URL anyone can hand over, and
+    // an open redirect on the sign-in page is how a link that looks like ours
+    // ends up delivering someone somewhere else.
+    if (next?.startsWith('/') && !next.startsWith('//')) {
+      globalThis.location.href = next;
+      return;
     }
-  }, [email]);
-
-  const verify = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/account/session', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-      if (!res.ok) throw new Error('That code did not work. Codes expire after ten minutes.');
-      const result = (await res.json()) as { merged: boolean };
-      if (result.merged) {
-        // Said rather than done quietly: everything added in this browser has
-        // just become part of another identity. That is the point of signing
-        // in, and it should not be a surprise.
-        setNote('This browser has joined your account. Everything you added here is part of it now.');
-      }
-      setCode('');
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [code, email, load]);
+    await load();
+  }, [load]);
 
   const remove = useCallback(
     async (alsoPhotos: boolean) => {
@@ -109,7 +76,6 @@ export function AccountView() {
       try {
         await fetch(`/api/account${alsoPhotos ? '?photos=1' : ''}`, { method: 'DELETE' });
         setNote(null);
-        setEmail('');
         await load();
       } finally {
         setBusy(false);
@@ -127,62 +93,7 @@ export function AccountView() {
       {note && <p className="muted">{note}</p>}
 
       {stage !== 'in' ? (
-        <section className="panel">
-          <p className="muted">
-            Optional, and it does one thing: your events and groups follow you
-            to another browser or a new phone. No password — a code goes to
-            your inbox.
-          </p>
-
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            disabled={stage === 'code'}
-          />
-
-          {stage === 'code' && (
-            <>
-              <label htmlFor="code" style={{ marginTop: 16 }}>
-                The 6-digit code
-              </label>
-              <input
-                id="code"
-                inputMode="numeric"
-                // Lets a browser fill it straight from an SMS or mail hand-off.
-                autoComplete="one-time-code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="123456"
-                autoFocus
-              />
-              <p className="muted">
-                Sent, if that address is one we can reach. It works once and
-                expires in ten minutes — check spam if it is not there.
-              </p>
-            </>
-          )}
-
-          <div className="row" style={{ marginTop: 16 }}>
-            <button
-              onClick={stage === 'code' ? verify : request}
-              disabled={busy || (stage === 'code' ? code.length < 6 : !email.includes('@'))}
-            >
-              {busy ? 'Working…' : stage === 'code' ? 'Sign in' : 'Send me a code'}
-            </button>
-            {stage === 'code' && (
-              <button className="secondary" onClick={() => setStage('email')} disabled={busy}>
-                Use a different address
-              </button>
-            )}
-          </div>
-
-          {error && <p className="muted">{error}</p>}
-        </section>
+        <SignIn why="Signing in keeps your events with you." onSignedIn={afterSignIn} />
       ) : (
         <section className="panel">
           <p>

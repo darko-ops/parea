@@ -21,6 +21,7 @@
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { SignIn, useSession } from './SignIn';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PhotoTile } from './PhotoTile';
 import { useUploads } from './useUploads';
@@ -59,6 +60,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   /** How many of the last selection were not photos. */
   const [skipped, setSkipped] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const session = useSession();
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/photos`);
@@ -147,7 +149,17 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         </p>
       </header>
 
-      {feed.event.uploadsOpen && (
+      {feed.event.uploadsOpen && session.known && !session.account && (
+        // Adding names who added. Shown here rather than behind a link to
+        // /account, because being sent away mid-task loses the picker they
+        // were about to use — and on a phone, the photos they had chosen.
+        <SignIn
+          why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
+          onSignedIn={session.refresh}
+        />
+      )}
+
+      {feed.event.uploadsOpen && session.known && session.account && (
         <section className="panel">
           <input
             ref={inputRef}

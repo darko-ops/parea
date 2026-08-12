@@ -154,3 +154,55 @@ describe('the route', () => {
     expect(source).not.toMatch(/startsAt: asDate\(body/);
   });
 });
+
+/**
+ * Who may create one, and who may see it afterwards.
+ *
+ * Both are new in the release that put an account on the contribution path.
+ * Source-scanned for the same reason the window guard above is: there is no
+ * rendering test, and the property worth pinning is that the route refuses
+ * before it writes rather than after.
+ */
+describe('creating requires an account', () => {
+  it('refuses a signed-out caller with a reason the client can act on', () => {
+    expect(source).toContain("error: 'sign_in_required'");
+    expect(source).toMatch(/status: 403/);
+  });
+
+  it('does not mint an actor before deciding', () => {
+    // `ensureActor` creates a row. Calling it first would leave one behind for
+    // every refused attempt — an unbounded write on an unauthenticated path.
+    const gate = source.indexOf("error: 'sign_in_required'");
+    const mint = source.indexOf('await ensureActor(');
+    expect(gate).toBeGreaterThan(-1);
+    expect(mint).toBeGreaterThan(gate);
+  });
+
+  it('reads the account from the database rather than trusting the request', () => {
+    // A body field saying "I am signed in" would be exactly as good as no
+    // check at all.
+    expect(source).toMatch(/isSignedIn\(db, actorId\)/);
+    expect(source).not.toMatch(/body\.(signedIn|hasAccount|accountId)/);
+  });
+});
+
+describe('the access policy a creator chooses', () => {
+  it('defaults to the open one when the client says nothing', () => {
+    // Older clients send no such field, and the answer for them is the
+    // behaviour they already had.
+    expect(source).toMatch(/body\.accessPolicy === undefined \? LINK_OPEN/);
+  });
+
+  it('refuses anything that is not one of the two', () => {
+    expect(source).toContain("error: 'invalid_access_policy'");
+    expect(source).toMatch(/requested !== LINK_OPEN && requested !== ACCOUNT_REQUIRED/);
+  });
+
+  it('persists the validated value, not the raw body', () => {
+    // The same bug shape as the window above: validate one thing, insert
+    // another. Here it would write a policy `authorize` does not recognise,
+    // which fails closed and locks the creator out of their own event.
+    expect(source).toMatch(/^\s*accessPolicy,$/m);
+    expect(source).not.toMatch(/accessPolicy: body\.accessPolicy/);
+  });
+});
