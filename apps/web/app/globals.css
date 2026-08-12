@@ -1,5 +1,35 @@
+/* ---------------------------------------------------------------------------
+   Garet, for the wordmark only.
+   
+   Licensed files are not in this repository and must not be: redistributing
+   font binaries is the one thing nearly every foundry licence forbids,
+   including the ones that are otherwise free. Drop the two weights into
+   `apps/web/public/fonts/` and this picks them up; until then the stack below
+   falls through to whatever geometric sans the machine has, which is the
+   closest thing available without shipping someone else's file.
+
+   `swap` rather than `block`: the wordmark is four letters in a corner, and a
+   blank space where the brand goes is worse than the brand in the wrong font
+   for 200ms.
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Garet';
+  src: url('/fonts/Garet-Book.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Garet';
+  src: url('/fonts/Garet-Heavy.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
-  --bg: #f7f8fa; --card: #fff; --line: #e3e6ea;
+  /* White, not off-white. The page is the background the photos sit on, and
+     anything tinted competes with them — every colour in a grid of holiday
+     pictures is one the page is not entitled to have an opinion about. */
+  --bg: #fff; --card: #fff; --line: #e3e6ea;
   --fg: #14171c; --dim: #5b6472; --accent: #1a5fd0;
   /* Selected pill fill, and the active nav row in the rail. */
   --accent-soft: #e8eefb;
@@ -8,18 +38,14 @@
   /* Lifts the card text off the blurred photo bleeding up behind it. */
   --scrim: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .88));
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0f12; --card: #171a1f; --line: #272b33;
-    --fg: #f2f4f7; --dim: #9aa3af; --accent: #6ea8fe;
-    --accent-soft: #17273f;
-    --line-dashed: #3a404a;
-    /* Darkens rather than lightens — the job is contrast against the text
-       above it, and the text is light here. The design is specified in light
-       mode only; this is the same idea pointed the other way. */
-    --scrim: linear-gradient(180deg, rgba(13, 15, 18, .62), rgba(13, 15, 18, .88));
-  }
-}
+/* No dark scheme. The product is a white page with photographs on it, and a
+   dark one was inverting the surface those photographs are judged against —
+   the same picture reads warmer on white and colder on near-black, which is a
+   difference the person who took it did not choose. `color-scheme` is
+   declared so form controls and scrollbars come from the light set too,
+   rather than the browser drawing dark widgets onto a white page. */
+:root { color-scheme: light; }
+
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
@@ -29,6 +55,9 @@ body {
 h1 { font-size: 28px; margin: 0 0 4px; }
 .muted { color: var(--dim); }
 .empty { padding: 48px 0; text-align: center; }
+/* The border is now the only thing separating a panel from the page, since
+   both are white. It was carrying half this job before and can carry the
+   rest. */
 .panel {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 14px; padding: 16px; margin: 20px 0;
@@ -136,7 +165,16 @@ button.secondary {
   border-right: 1px solid var(--line); background: var(--bg);
   display: flex; flex-direction: column; gap: 4px;
 }
-.rail-mark { font-size: 15px; font-weight: 700; letter-spacing: -.01em; padding: 0 10px 14px; }
+.rail-mark {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 10px 14px;
+}
+/* Garet on the name and nowhere else. A display face set at 15px through a
+   whole interface is a legibility problem; on four letters it is the brand. */
+.wordmark {
+  font-family: 'Garet', 'Futura', 'Avenir Next', 'Century Gothic', system-ui, sans-serif;
+  font-size: 17px; font-weight: 700; letter-spacing: .01em;
+}
 .rail a.rail-row {
   padding: 9px 10px; border-radius: 8px; font-size: 15px;
   color: var(--dim); text-decoration: none;

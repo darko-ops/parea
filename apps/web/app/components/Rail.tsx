@@ -15,6 +15,8 @@
  * needs to run on the client.
  */
 
+import { Mark } from './Mark';
+
 export type RailPage = 'events' | 'find' | 'you' | null;
 
 const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
@@ -26,7 +28,10 @@ const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
 export function Rail({ current }: { current: RailPage }) {
   return (
     <nav className="rail" aria-label="Sections">
-      <div className="rail-mark">Parea</div>
+      <div className="rail-mark">
+        <Mark />
+        <span className="wordmark">Parea</span>
+      </div>
 
       {ROWS.map((row) => (
         <a

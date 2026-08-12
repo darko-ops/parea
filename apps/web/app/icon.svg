@@ -1,0 +1,48 @@
+<!--
+  The app icon: three photo sets from three people, overlapping into one.
+
+  Kept as vector because it is drawn from six numbers, and because every raster
+  the stores want is a different size. `npm run icons` re-renders them all from
+  this file; nothing under assets/ should be edited by hand.
+
+  The overlaps are painted explicitly rather than produced by transparency. A
+  blend mode would decide those four colours for us, and multiply in particular
+  turns the pink-over-mint lens into a muddy neutral — the one region where the
+  design wants warmth. Each region is its own fill, so each is a choice.
+
+  Geometry: three circles of radius 184, centres 134 from a point at 120°
+  apart, first one straight up. That is the whole design.
+
+  The ratio of those two numbers is the only thing here worth being careful
+  about. At 0.73 the three circles meet in a curved triangle big enough to be
+  a shape in its own right — which is the subject, everyone who was there.
+  Spread them and it collapses to a sliver; the icon still reads as three
+  circles and stops meaning anything.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="pink"><circle cx="512" cy="398" r="184"/></clipPath>
+    <clipPath id="blue"><circle cx="396" cy="599" r="184"/></clipPath>
+    <clipPath id="mint"><circle cx="628" cy="599" r="184"/></clipPath>
+  </defs>
+
+  <!-- Full bleed and fully opaque: iOS rounds the corners itself, and App
+       Store Connect rejects an icon with an alpha channel. -->
+  <rect width="1024" height="1024" fill="#ffffff"/>
+
+  <circle cx="512" cy="398" r="184" fill="#ffb3b8"/>
+  <circle cx="396" cy="599" r="184" fill="#9db2f0"/>
+  <circle cx="628" cy="599" r="184" fill="#a5dcc6"/>
+
+  <g clip-path="url(#blue)"><circle cx="512" cy="398" r="184" fill="#c79ad9"/></g>
+  <g clip-path="url(#mint)"><circle cx="512" cy="398" r="184" fill="#f3b584"/></g>
+  <g clip-path="url(#mint)"><circle cx="396" cy="599" r="184" fill="#6fb6c4"/></g>
+
+  <!-- Everyone was there. Drawn last because the three lenses above each
+       cover this region on their way past. -->
+  <g clip-path="url(#blue)">
+    <g clip-path="url(#mint)">
+      <circle cx="512" cy="398" r="184" fill="#8c93c6"/>
+    </g>
+  </g>
+</svg>
