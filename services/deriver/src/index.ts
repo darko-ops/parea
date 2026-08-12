@@ -115,6 +115,23 @@ async function probe(
   const posture = postureFromEnv();
   results.push(['moderation', posture.ok, posture.detail]);
 
+  // Checked here rather than discovered at the incident. Something can always
+  // quarantine — a child-safety report does it with no scanner configured at
+  // all — and a quarantine nobody is told about is the runbook's own
+  // definition of no scanning at all. Fatal in production only, because the
+  // image build runs this probe with no deployment environment.
+  const alertsGoSomewhere = Boolean(process.env.SAFETY_ALERT_WEBHOOK);
+  const alertsRequired = process.env.NODE_ENV === 'production';
+  results.push([
+    'safety-alerts',
+    alertsGoSomewhere || !alertsRequired,
+    alertsGoSomewhere
+      ? 'SAFETY_ALERT_WEBHOOK configured'
+      : alertsRequired
+        ? 'FAILED — nothing receives a quarantine alert; set SAFETY_ALERT_WEBHOOK'
+        : 'unset (not required outside production)',
+  ]);
+
   const heicOk = viaSharp || viaLibheif;
   const width = Math.max(...results.map(([n]) => n.length));
   for (const [name, ok, note] of results) {
@@ -124,7 +141,12 @@ async function probe(
   // A missing scanner is no longer fatal; an undeclared posture is. The
   // difference is between a deployment that has decided how content is
   // reviewed and one that has not thought about it.
-  const fatal = !heicOk || !avifOk || !exiftoolVersion || !posture.ok;
+  const fatal =
+    !heicOk ||
+    !avifOk ||
+    !exiftoolVersion ||
+    !posture.ok ||
+    (alertsRequired && !alertsGoSomewhere);
   console.log(
     fatal
       ? '\nThis container cannot ingest photos. See services/deriver/README.md.'

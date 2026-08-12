@@ -15,6 +15,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
@@ -561,6 +562,32 @@ describe('the declared posture', () => {
         CSAM_SCANNER_KEY: 'k',
       }).ok,
     ).toBe(false);
+  });
+});
+
+describe('somewhere for an alert to go', () => {
+  /**
+   * The check exists because something can always quarantine. A child-safety
+   * report does it with no scanner configured at all, so "we have no scanner"
+   * is not a reason for nobody to be listening — and an alert destination that
+   * is missing is only discovered at the incident, which is the worst possible
+   * moment to discover it.
+   */
+  it('is not required outside production, where the image build runs', () => {
+    // The Dockerfile probes at build time with no deployment environment.
+    expect(process.env.NODE_ENV).not.toBe('production');
+  });
+
+  it('is what the runbook means by an alert nobody sees', () => {
+    // Stated as a test so deleting the check is a visible act rather than a
+    // quiet one: docs/csam-runbook.md calls an unseen quarantine the same as
+    // no scanning at all.
+    const source = readFileSync(
+      fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(source).toMatch(/SAFETY_ALERT_WEBHOOK/);
+    expect(source).toMatch(/alertsRequired && !alertsGoSomewhere/);
   });
 });
 

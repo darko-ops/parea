@@ -55,6 +55,40 @@ the incident.
 
 **It does not ban anyone automatically.** A human decides.
 
+## The review SLA
+
+`PAREA_MODERATION=manual` is a promise that a person looks. This is the
+promise, and it is stated here because the deriver announces on every boot that
+it lives at this path — an undocumented commitment is the same as none.
+
+These are ceilings for a one-person operation, not targets. If they stop being
+achievable, change them here rather than quietly missing them: a written SLA
+that is routinely broken is worse evidence than an honest one that is longer.
+
+| What arrives | Automatic effect | A human looks within |
+|---|---|---|
+| Report of suspected child sexual abuse material | **Quarantined on receipt**, incident opened, responder alerted | **24 hours** |
+| Report of other abuse | None — recorded to the queue | 72 hours |
+| Removal request ("that is a photo of me") | Auto-hidden if the host has not answered in 48 hours | Host first; we only act if unanswered |
+| Classifier flag, once one is configured | None — queued | 7 days |
+
+The first row is the one that matters and the reason the others can be slower.
+Nothing is exposed while it waits: the quarantine has already happened, is
+automatic, and needs no human to be timely. What the 24 hours buys is the
+decision — whether to file, and whether to release a false positive — and that
+decision has a clock attached that the operator does not control.
+
+The last row is deliberately long. A classifier flag hides nothing and is a
+probabilistic opinion about ordinary adult content; treating it as urgent would
+mean treating swimwear as urgent, and a queue that cries wolf is a queue nobody
+opens.
+
+**A single reviewer is a single point of failure.** One person unreachable for
+a week means the 24 hours is fiction. Until there is a rota, the honest
+statement is that this SLA holds while the operator is contactable, and the
+mitigating fact is that the automatic effects — quarantine, incident,
+preservation — do not wait for anyone.
+
 ## If you get an alert
 
 1. **Do not open the image.** Viewing or downloading suspected material is
