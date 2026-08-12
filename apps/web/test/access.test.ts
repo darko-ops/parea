@@ -51,6 +51,20 @@ async function makeActor() {
   return actor!.id;
 }
 
+/**
+ * An actor that has claimed an account, which is what `contribute` and every
+ * code now require. Signing in is the only thing that sets `accountId`, so the
+ * fixture sets it directly rather than driving the whole code exchange.
+ */
+async function makeSignedInActor(email = `${crypto.randomUUID()}@example.test`) {
+  const [account] = await db.insert(schema.accounts).values({ email }).returning();
+  const [actor] = await db
+    .insert(schema.actors)
+    .values({ kind: 'guest', accountId: account!.id })
+    .returning();
+  return actor!.id;
+}
+
 async function makeEvent(overrides: Partial<typeof schema.events.$inferInsert> = {}) {
   const createdBy = overrides.createdBy ?? (await makeActor());
   const [event] = await db
@@ -129,14 +143,25 @@ describe('resolving credentials from the database', () => {
 
   it('matches a spoken code against the one the event actually holds', async () => {
     const event = await makeEvent();
+    const guest = await makeSignedInActor();
     await db
       .insert(schema.codes)
       .values({ words: 'amber-fox', eventId: event.id, claimedAt: new Date() });
 
-    expect(await decide(db, event, 'contribute', { actorId: null, code: 'amber-fox' }))
+    expect(await decide(db, event, 'contribute', { actorId: guest, code: 'amber-fox' }))
       .toEqual({ allow: true });
-    expect(await decide(db, event, 'contribute', { actorId: null, code: 'silver-otter' }))
+    expect(await decide(db, event, 'contribute', { actorId: guest, code: 'silver-otter' }))
       .toEqual({ allow: false, reason: 'no_credential' });
+  });
+
+  it('will not take a correct code from someone signed out', async () => {
+    const event = await makeEvent();
+    await db
+      .insert(schema.codes)
+      .values({ words: 'amber-fox', eventId: event.id, claimedAt: new Date() });
+
+    expect(await decide(db, event, 'view', { actorId: await makeActor(), code: 'amber-fox' }))
+      .toEqual({ allow: false, reason: 'sign_in_required' });
   });
 
   it('a code claimed by another event does not open this one', async () => {
@@ -207,7 +232,7 @@ describe('guard', () => {
     const event = await makeEvent({ uploadsOpen: false });
     try {
       await guard(db, event, 'contribute', {
-        actorId: null,
+        actorId: await makeSignedInActor(),
         linkToken: event.linkToken,
       });
       expect.unreachable();

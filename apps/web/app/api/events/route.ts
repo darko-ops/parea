@@ -6,10 +6,11 @@
  * creator needs to be able to administer it afterwards.
  */
 
-import { newLinkToken, schema } from '@parea/core';
+import { ACCOUNT_REQUIRED, LINK_OPEN, newLinkToken, schema } from '@parea/core';
 import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { imageSrc } from '@/images';
@@ -29,6 +30,8 @@ type Body = {
   startsAt?: unknown;
   endsAt?: unknown;
   createdByName?: unknown;
+  /** 'link_open' (public) or 'account_required' (private). Defaults to public. */
+  accessPolicy?: unknown;
 };
 
 /**
@@ -108,10 +111,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
 
-  const actorId = await ensureActor(
+  // Creating requires an account, so this resolves an existing actor rather
+  // than minting one: `ensureActor` would hand a signed-out visitor a fresh
+  // anonymous identity and the check below would then reject it, which is a
+  // row in the actor table for every refused attempt.
+  const actorId = await currentActorId();
+  if (!actorId || !(await isSignedIn(db, actorId))) {
+    return NextResponse.json({ error: 'sign_in_required' }, { status: 403 });
+  }
+  await ensureActor(
     db,
     typeof body.createdByName === 'string' ? body.createdByName.trim() : undefined,
   );
+
+  // Public or private, decided here and nowhere else. Unrecognised values are
+  // refused rather than defaulted: `authorize` fails closed on a policy it does
+  // not know, so a typo that reached the column would lock the creator out of
+  // the event they had just made.
+  const requested = body.accessPolicy === undefined ? LINK_OPEN : body.accessPolicy;
+  if (requested !== LINK_OPEN && requested !== ACCOUNT_REQUIRED) {
+    return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
+  }
+  const accessPolicy: typeof LINK_OPEN | typeof ACCOUNT_REQUIRED = requested;
 
   // Creating inside a group is the whole point of having one: its members get
   // access without anyone re-solving "how do I reach everyone" (design §3).
@@ -130,6 +151,7 @@ export async function POST(request: Request) {
       groupId,
       linkToken: newLinkToken(),
       createdBy: actorId,
+      accessPolicy,
       eventDate: asDateString(body.eventDate),
       // Typed by the host, never derived from the photos — there is no
       // location in them to derive from, by design (§7.6).

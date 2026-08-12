@@ -41,6 +41,8 @@ function event(overrides: Partial<PolicyEvent> = {}): PolicyEvent {
 type Case = {
   name: string;
   actor: string | null;
+  /** Whether that actor has claimed an account. Absent means signed out. */
+  signedIn?: boolean;
   capability: Capability;
   event?: Partial<PolicyEvent>;
   presented?: Presented;
@@ -51,8 +53,10 @@ const CASES: Case[] = [
   // --- the ordinary path -----------------------------------------------------
   { name: 'stranger with the link can view', actor: null, capability: 'view',
     presented: { linkToken: LINK }, expect: true },
-  { name: 'stranger with the link can contribute', actor: GUEST, capability: 'contribute',
-    presented: { linkToken: LINK }, expect: true },
+  { name: 'the link plus an account can contribute', actor: GUEST, signedIn: true,
+    capability: 'contribute', presented: { linkToken: LINK }, expect: true },
+  { name: 'the link alone can no longer contribute', actor: GUEST, capability: 'contribute',
+    presented: { linkToken: LINK }, expect: 'sign_in_required' },
   { name: 'stranger with the link can download', actor: GUEST, capability: 'download',
     presented: { linkToken: LINK }, expect: true },
   { name: 'no credential at all is refused', actor: GUEST, capability: 'view',
@@ -61,8 +65,14 @@ const CASES: Case[] = [
     presented: { linkToken: WRONG_LINK }, expect: 'no_credential' },
 
   // --- codes -----------------------------------------------------------------
-  { name: 'the event code grants access', actor: GUEST, capability: 'contribute',
+  { name: 'the event code grants access to someone signed in', actor: GUEST,
+    signedIn: true, capability: 'contribute',
     presented: { code: CODE, eventCode: CODE }, expect: true },
+  { name: 'the right code signed out asks for sign-in, not a better code', actor: GUEST,
+    capability: 'view', presented: { code: CODE, eventCode: CODE },
+    expect: 'sign_in_required' },
+  { name: 'a wrong code signed out is still just wrong', actor: GUEST, capability: 'view',
+    presented: { code: 'silver-otter', eventCode: CODE }, expect: 'no_credential' },
   { name: 'a code for another event does not', actor: GUEST, capability: 'view',
     presented: { code: 'silver-otter', eventCode: CODE }, expect: 'no_credential' },
   { name: 'a code against an event holding none does not', actor: GUEST, capability: 'view',
@@ -91,14 +101,15 @@ const CASES: Case[] = [
     event: { joinsOpen: false }, expect: true },
 
   // --- switch: uploads -------------------------------------------------------
-  { name: 'uploads closed blocks contribution', actor: GUEST, capability: 'contribute',
-    event: { uploadsOpen: false }, presented: { linkToken: LINK }, expect: 'uploads_closed' },
+  { name: 'uploads closed blocks contribution', actor: GUEST, signedIn: true,
+    capability: 'contribute', event: { uploadsOpen: false },
+    presented: { linkToken: LINK }, expect: 'uploads_closed' },
   { name: 'uploads closed leaves viewing alone', actor: GUEST, capability: 'view',
     event: { uploadsOpen: false }, presented: { linkToken: LINK }, expect: true },
   { name: 'uploads closed leaves downloading alone', actor: GUEST, capability: 'download',
     event: { uploadsOpen: false }, presented: { linkToken: LINK }, expect: true },
-  { name: 'uploads closed applies to the creator too', actor: CREATOR, capability: 'contribute',
-    event: { uploadsOpen: false }, expect: 'uploads_closed' },
+  { name: 'uploads closed applies to the creator too', actor: CREATOR, signedIn: true,
+    capability: 'contribute', event: { uploadsOpen: false }, expect: 'uploads_closed' },
 
   // --- administration --------------------------------------------------------
   { name: 'the creator administers', actor: CREATOR, capability: 'administer', expect: true },
@@ -110,6 +121,25 @@ const CASES: Case[] = [
     capability: 'administer', presented: { linkToken: LINK }, expect: 'not_administrator' },
   { name: 'an anonymous visitor does not administer', actor: null, capability: 'administer',
     presented: { linkToken: LINK }, expect: 'not_administrator' },
+
+  // --- private events --------------------------------------------------------
+  { name: 'a private event admits the link holder who is signed in', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'account_required' },
+    presented: { linkToken: LINK }, expect: true },
+  { name: 'a private event refuses the same link signed out', actor: GUEST,
+    capability: 'view', event: { accessPolicy: 'account_required' },
+    presented: { linkToken: LINK }, expect: 'sign_in_required' },
+  { name: 'a private event without the link is still just gone', actor: GUEST,
+    capability: 'view', event: { accessPolicy: 'account_required' },
+    expect: 'no_credential' },
+  { name: 'a private event refuses download signed out', actor: GUEST,
+    capability: 'download', event: { accessPolicy: 'account_required' },
+    presented: { linkToken: LINK }, expect: 'sign_in_required' },
+  { name: 'a private event does not trap a signed-out participant either',
+    actor: GUEST, capability: 'view', event: { accessPolicy: 'account_required' },
+    presented: { isParticipant: true, capEpoch: 1 }, expect: 'sign_in_required' },
+  { name: 'a public event still admits an anonymous link holder', actor: null,
+    capability: 'view', presented: { linkToken: LINK }, expect: true },
 
   // --- deletion and unknown policies -----------------------------------------
   { name: 'a deleted event is gone for the creator too', actor: CREATOR, capability: 'view',
@@ -126,7 +156,7 @@ describe('authorize', () => {
   for (const c of CASES) {
     it(c.name, () => {
       const decision = authorize(
-        c.actor ? { id: c.actor } : null,
+        c.actor ? { id: c.actor, hasAccount: c.signedIn === true } : null,
         c.capability,
         { event: event(c.event) },
         c.presented,
@@ -153,6 +183,7 @@ describe('denyStatus', () => {
     expect(denyStatus('uploads_closed')).toBe(403);
     expect(denyStatus('not_administrator')).toBe(403);
     expect(denyStatus('stale_capability')).toBe(403);
+    expect(denyStatus('sign_in_required')).toBe(403);
   });
 });
 
@@ -161,7 +192,11 @@ describe('invariants', () => {
 
   it('never allows anything on a deleted event', () => {
     for (const capability of capabilities) {
-      for (const actor of [null, { id: CREATOR }, { id: GUEST }]) {
+      for (const actor of [
+        null,
+        { id: CREATOR, hasAccount: true },
+        { id: GUEST, hasAccount: true },
+      ]) {
         const decision = authorize(actor, capability, {
           event: event({ deletedAt: new Date() }),
         }, { linkToken: LINK, isGroupAdmin: true, isParticipant: true, capEpoch: 1 });
@@ -172,7 +207,7 @@ describe('invariants', () => {
 
   it('never allows anything under an unrecognised policy', () => {
     for (const capability of capabilities) {
-      const decision = authorize({ id: CREATOR }, capability, {
+      const decision = authorize({ id: CREATOR, hasAccount: true }, capability, {
         event: event({ accessPolicy: 'something_new' }),
       }, { linkToken: LINK, isGroupAdmin: true });
       expect(decision.allow, `${capability}`).toBe(false);
@@ -181,7 +216,12 @@ describe('invariants', () => {
 
   it('grants nothing without some credential', () => {
     for (const capability of capabilities) {
-      const decision = authorize({ id: GUEST }, capability, { event: event() }, {});
+      const decision = authorize(
+        { id: GUEST, hasAccount: true },
+        capability,
+        { event: event() },
+        {},
+      );
       expect(decision.allow, `${capability}`).toBe(false);
     }
   });

@@ -80,9 +80,23 @@ That's the whole product.
 
 ### Non-negotiables
 
-**No account on the upload path.** Not "sign up after you've seen the value." No
-account at all to contribute. Optional name field. Every signup wall costs
-contributors, and contributors are the entire product.
+**No account to look.** Someone handed a link to a public event sees the photos
+and can take them home, with nothing to sign up for and no app to install.
+That half is unchanged and is what makes a link worth forwarding.
+
+**An account to add.** Contributing names who contributed, on every event.
+This reverses the original position — "no account at all to contribute" — and
+the reversal has a cost that was correctly identified then and has not gone
+away: every signup wall costs contributors, and contributors are the entire
+product. It is paid for one reason. An upload puts a stranger's bytes in front
+of other people, and when something arrives that should not have, "who sent
+this" needs an answer better than a device cookie. See
+[`csam-runbook.md`](csam-runbook.md).
+
+Events are public or private, chosen by whoever creates one. A private event
+needs an account to *view* as well; the link gets you to the door and no
+further. Spoken codes always need one — a short phrase said across a room is
+the weakest secret here, and it names who used it or it opens nothing.
 
 **The link is transport-agnostic, and joining happens while everyone is
 together.** There is no single channel that reliably reaches a group — sometimes

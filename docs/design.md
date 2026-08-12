@@ -19,9 +19,13 @@ browser path stays for people who won't install.** Two clients, one protocol.
 Six constraints drive nearly every choice below. The first five come from the
 concept; the sixth is a consequence of going native.
 
-1. **No account on the upload path.** Identity has to exist (you can delete your
-   own uploads) without authentication existing. Structurally the most unusual
-   requirement in the product.
+1. **No account to view a public event; an account to contribute anywhere.**
+   Identity still has to exist without authentication existing — an anonymous
+   viewer can hold a capability, and a contributor's account is checked on top
+   of one rather than instead of it. Both halves are live at once, which is
+   more unusual than either. §6 is where the two meet: `authorize` takes
+   `hasAccount` as a required field on the actor, so no call site can forget
+   to say which kind of visitor it is holding.
 2. **Egress kills photo products.** A 250-photo event is ~1GB; twenty people
    pulling the full set is 20GB. Bulk download is the *core action*, not a rare
    one. Bytes must never traverse a metered egress path.

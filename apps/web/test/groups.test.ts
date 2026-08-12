@@ -53,6 +53,19 @@ async function actor() {
   return row!.id;
 }
 
+/** Membership is not a substitute for signing in — `contribute` needs both. */
+async function signedInActor() {
+  const [account] = await db
+    .insert(schema.accounts)
+    .values({ email: `${crypto.randomUUID()}@example.test` })
+    .returning();
+  const [row] = await db
+    .insert(schema.actors)
+    .values({ kind: 'guest', accountId: account!.id })
+    .returning();
+  return row!.id;
+}
+
 async function group(name: string, findable = false) {
   const [row] = await db
     .insert(schema.groups)
@@ -197,7 +210,7 @@ describe('what membership buys', () => {
     // group, holding no link and having done nothing.
     const house = await group('The Flat');
     const host = await actor();
-    const member = await actor();
+    const member = await signedInActor();
     await addMember(db, house.id, host, 'admin');
     await addMember(db, house.id, member);
 
@@ -400,7 +413,7 @@ describe('authorize, on group facts alone', () => {
     // Pure check that the policy honours membership, independent of the
     // database plumbing above.
     const decision = authorize(
-      { id: 'a' },
+      { id: 'a', hasAccount: true },
       'view',
       {
         event: {

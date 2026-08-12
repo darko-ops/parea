@@ -50,6 +50,24 @@ export async function findEventById(
   return row ?? null;
 }
 
+/**
+ * Whether this actor has claimed an account.
+ *
+ * Read here rather than carried on the Requester, because the Requester is
+ * assembled from things the caller presented and this is not one of them: an
+ * actor cannot tell us it is signed in. `accountId` is set by the sign-in
+ * merge and by nothing else.
+ */
+export async function isSignedIn(db: Db, actorId: string | null): Promise<boolean> {
+  if (!actorId) return false;
+  const [row] = await db
+    .select({ accountId: schema.actors.accountId })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId))
+    .limit(1);
+  return row?.accountId != null;
+}
+
 async function resolveFacts(db: Db, event: EventRow, requester: Requester) {
   const [participant, membership, code] = await Promise.all([
     requester.actorId
@@ -101,9 +119,12 @@ export async function decide(
   capability: Capability,
   requester: Requester,
 ): Promise<Decision> {
-  const facts = await resolveFacts(db, event, requester);
+  const [facts, signedIn] = await Promise.all([
+    resolveFacts(db, event, requester),
+    isSignedIn(db, requester.actorId),
+  ]);
   return authorize(
-    requester.actorId ? { id: requester.actorId } : null,
+    requester.actorId ? { id: requester.actorId, hasAccount: signedIn } : null,
     capability,
     { event: event as PolicyEvent },
     {

@@ -1,5 +1,6 @@
 export * as schema from './schema';
 export {
+  ACCOUNT_REQUIRED,
   authorize,
   denyStatus,
   LINK_OPEN,

@@ -14,7 +14,14 @@ import { timingSafeEqual } from 'node:crypto';
 
 export type Capability = 'view' | 'contribute' | 'download' | 'administer';
 
-export type PolicyActor = { id: string } | null;
+/**
+ * `hasAccount` is required rather than optional on purpose. Every call site has
+ * to say whether this actor has claimed an account, and forgetting is a
+ * compile error rather than a silent `false` — which would read as "signed
+ * out" and deny, or as "signed in" and admit, depending on which way the
+ * default fell. Neither is a thing to leave to a default.
+ */
+export type PolicyActor = { id: string; hasAccount: boolean } | null;
 
 export type PolicyEvent = {
   id: string;
@@ -49,15 +56,28 @@ export type DenyReason =
   | 'stale_capability'
   | 'joins_closed'
   | 'uploads_closed'
-  | 'not_administrator';
+  | 'not_administrator'
+  | 'sign_in_required';
 
 export type Decision = { allow: true } | { allow: false; reason: DenyReason };
 
 const ALLOW: Decision = { allow: true };
 const deny = (reason: DenyReason): Decision => ({ allow: false, reason });
 
-/** The only policy in v1. `event.access_policy` exists so there can be others. */
+/** Possession of the link is the access model. Anyone holding it may view. */
 export const LINK_OPEN = 'link_open';
+
+/**
+ * The link gets you to the door; an account gets you in.
+ *
+ * Chosen per event by whoever created it. The link token is still required and
+ * still not sufficient: a private event handed to someone signed out denies
+ * with `sign_in_required` rather than 404, because they hold a real credential
+ * and the fix is an action they can take.
+ */
+export const ACCOUNT_REQUIRED = 'account_required';
+
+const KNOWN_POLICIES: readonly string[] = [LINK_OPEN, ACCOUNT_REQUIRED];
 
 export function authorize(
   actor: PolicyActor,
@@ -70,9 +90,15 @@ export function authorize(
   if (event.deletedAt) return deny('event_deleted');
 
   // Fail closed on an unrecognised policy. When `paid_gallery` arrives it
-  // branches here; until then an unexpected value must never fall through to
-  // the permissive path.
-  if (event.accessPolicy !== LINK_OPEN) return deny('unknown_policy');
+  // branches here; an unexpected value must never fall through to the
+  // permissive path.
+  if (!KNOWN_POLICIES.includes(event.accessPolicy)) return deny('unknown_policy');
+
+  // An actor is signed in when it has claimed an account. Device identity is
+  // not enough: an actor exists for anyone who has ever loaded a page, which
+  // is what makes "you can delete your own uploads" work without a login, and
+  // exactly why it cannot stand in for one.
+  const signedIn = actor?.hasAccount === true;
 
   const isCreator = actor != null && actor.id === event.createdBy;
   const isGroupAdmin = Boolean(presented.isGroupAdmin);
@@ -86,9 +112,15 @@ export function authorize(
   }
 
   const viaLink = secretMatches(presented.linkToken, event.linkToken);
-  const viaCode = secretMatches(presented.code, presented.eventCode);
+  const codeMatches = secretMatches(presented.code, presented.eventCode);
   const capFresh =
     presented.capEpoch !== undefined && presented.capEpoch === event.capEpoch;
+
+  // A spoken code only counts as a credential in the hands of someone signed
+  // in. It is the weakest secret in the system — short, said out loud across a
+  // room, and recycled back into a shared pool once an event goes dormant — so
+  // it names who is using it or it opens nothing.
+  const viaCode = codeMatches && signedIn;
 
   const hasCredential =
     viaLink ||
@@ -98,6 +130,10 @@ export function authorize(
     (isParticipant && capFresh);
 
   if (!hasCredential) {
+    // The code was right and the person is not signed in. Worth its own answer
+    // rather than a 404: they typed it correctly, and telling them the code is
+    // wrong sends them to find a code that does not exist.
+    if (codeMatches) return deny('sign_in_required');
     // A participant whose stored capability predates a link rotation gets a
     // distinguishable answer, because the client can act on it: re-present the
     // new link rather than treat the event as gone.
@@ -107,11 +143,27 @@ export function authorize(
     return deny('no_credential');
   }
 
+  // Past this point the caller has proved they may know the event exists, so
+  // denials can say why without becoming an oracle.
+
+  // Private events. The link is necessary and not sufficient.
+  if (event.accessPolicy === ACCOUNT_REQUIRED && !signedIn) {
+    return deny('sign_in_required');
+  }
+
   // "New people can no longer join; everyone already in keeps access." Without
   // a record of who is already in, this switch cannot be enforced — which is
   // why `event_participant` exists.
   const alreadyIn = isParticipant || isGroupMember || isCreator;
   if (!event.joinsOpen && !alreadyIn) return deny('joins_closed');
+
+  // Adding photos names who added them, on every event and whatever its access
+  // policy. Viewing a link-open event stays anonymous; contributing does not,
+  // because an upload is the one action here that puts someone else's bytes in
+  // front of strangers and has to be attributable afterwards.
+  if (capability === 'contribute' && !signedIn) {
+    return deny('sign_in_required');
+  }
 
   if (capability === 'contribute' && !event.uploadsOpen) {
     return deny('uploads_closed');
@@ -138,6 +190,11 @@ export function denyStatus(reason: DenyReason): 404 | 403 {
     case 'joins_closed':
     case 'uploads_closed':
     case 'not_administrator':
+    // 403, not 404: every path that reaches this has already presented a real
+    // credential, so the event's existence is not being disclosed by saying
+    // so — and the client needs to tell these apart from "gone" to know it
+    // should offer a sign-in rather than an apology.
+    case 'sign_in_required':
       return 403;
   }
 }

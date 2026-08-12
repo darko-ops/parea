@@ -209,8 +209,15 @@ export const events = pgTable(
     createdBy: uuid('created_by')
       .notNull()
       .references(() => actors.id),
-    /** One value today. The point is that adding another is a branch, not a rewrite. */
-    accessPolicy: text('access_policy', { enum: ['link_open'] })
+    /**
+     * Chosen by whoever creates the event. `link_open` is the original model —
+     * possession of the link is the access. `account_required` keeps the link
+     * necessary and makes it insufficient. Plain text with no CHECK: the
+     * constraint that matters is in `authorize`, which denies any value it does
+     * not recognise, so an unknown string here closes the event rather than
+     * opening it.
+     */
+    accessPolicy: text('access_policy', { enum: ['link_open', 'account_required'] })
       .notNull()
       .default('link_open'),
     joinsOpen: boolean('joins_open').notNull().default(true),
