@@ -4,10 +4,21 @@
 # cannot decode HEVC), and the heif-convert CLI the fallback shells out to.
 FROM node:22-bookworm-slim
 
+# No libheif-plugin-libde265 here, and that is not the same package list as
+# CI's. libheif only moved its decoders out into separate plugin packages in
+# 1.17; bookworm ships 1.15, where libde265 is a dependency of libheif1 and
+# linked straight in. So the plugin package does not exist on this base at all
+# — `apt-get install` fails with "Unable to locate package" and takes the whole
+# build with it. CI runs a newer Ubuntu where the split has happened and the
+# name is correct, which is where it was copied from.
+#
+# What matters is that HEVC actually decodes, not which package supplied it,
+# and the probe below is what establishes that. If this base ever moves to
+# trixie or later, the plugin goes back in — by then libheif1 alone decodes
+# nothing.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libimage-exiftool-perl \
       libheif1 \
-      libheif-plugin-libde265 \
       libheif-examples \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
