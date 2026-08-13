@@ -288,6 +288,51 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------------
+   Tabs — two links, not two buttons.
+
+   The underline sits on the row's own bottom border so the inactive tab is
+   the same height as the active one; drawing it only on the active tab moves
+   the text by a pixel as you switch, which is the sort of thing you feel
+   without being able to name.
+   --------------------------------------------------------------------------- */
+.tabs {
+  display: flex; gap: 22px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 22px;
+}
+.tabs a {
+  padding: 0 0 10px; margin-bottom: -1px;
+  font-size: 15px; color: var(--dim); text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.tabs a:hover { color: var(--fg); }
+/* `aria-current` rather than a class, for the same reason the rail uses it:
+   it is what a screen reader announces, and one attribute cannot go out of
+   step with itself the way a class and an attribute can. */
+.tabs a[aria-current='page'] {
+  color: var(--fg); font-weight: 600; border-bottom-color: var(--accent);
+}
+
+/* Events you have asked about and not been let into. No photographs, because
+   that is the whole point — this is the list of things you cannot see yet. */
+.asked { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.asked li {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; padding: 14px 16px;
+}
+.asked strong { display: block; font-size: 16px; }
+.asked p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; }
+.pip {
+  flex: none; padding: 5px 11px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.pip-open { background: var(--accent-soft); color: var(--accent); }
+/* Grey rather than red. A host who said no has not done something wrong, and
+   an alarm colour beside their event's name reads as one. */
+.pip-declined { background: #eef0f3; color: var(--dim); }
+
+/* ---------------------------------------------------------------------------
    Event cards — photo-led, because a name is a worse way to recognise a night
    out than the photos from it.
    --------------------------------------------------------------------------- */

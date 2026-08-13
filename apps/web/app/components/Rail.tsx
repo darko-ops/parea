@@ -7,8 +7,9 @@
  * client grew three tabs for this and the web never got the equivalent, which
  * made "two clients, one protocol" true of the API and false of the product.
  *
- * Same three destinations, same order, same words as the app's tab bar:
- * Events, Find, You. Below tablet it becomes a bar across the top, because a
+ * The app's tab bar is Events, Find, You; the web has a fourth, Invites,
+ * because it is the client where somebody arrives from a link somebody else
+ * sent and needs to know what came of it. Below tablet it becomes a bar across the top, because a
  * 212px column on a phone-width browser is most of the screen.
  *
  * No directive either way, so it renders wherever it is used: on the server
@@ -23,10 +24,14 @@
 
 import { Mark } from './Mark';
 
-export type RailPage = 'events' | 'find' | 'you' | null;
+export type RailPage = 'events' | 'invites' | 'find' | 'you' | null;
 
 const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   { href: '/events', label: 'Events', page: 'events' },
+  // Between Events and Find because it is the same kind of thing as Events —
+  // events you are in — separated only by whose they are. Find is the odd one
+  // out: it is the only row that goes looking for something you are not in.
+  { href: '/invites', label: 'Invites', page: 'invites' },
   { href: '/find', label: 'Find', page: 'find' },
   { href: '/account', label: 'You', page: 'you' },
 ];

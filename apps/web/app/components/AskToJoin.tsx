@@ -59,8 +59,14 @@ export function AskToJoin({
               Asked. Whoever made this event decides who comes in, and you will
               be able to open this link once they have.
             </p>
+            {/*
+              Somewhere to go, rather than "come back to the link" — which was
+              the only answer before Invites existed and asked someone to keep
+              a URL and their own patience in the same place.
+            */}
             <p className="field-help">
-              Nothing arrives by email — come back to the link.
+              Nothing arrives by email. It sits under{' '}
+              <a href="/invites?tab=asked">Invites</a> until they answer.
             </p>
           </>
         )}
