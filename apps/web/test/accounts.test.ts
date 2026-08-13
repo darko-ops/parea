@@ -444,3 +444,53 @@ describe('deleting an account', () => {
     expect(await deleteAccount(db, await actor())).toBe(false);
   });
 });
+
+/**
+ * Staying signed in.
+ *
+ * The cookie was already long-lived, so the failure this guards is subtler
+ * than "it expires": the clock started when the browser first touched the
+ * product rather than when someone last proved who they were, and the value
+ * named the actor from before the merge rather than the one the account
+ * resolves to.
+ */
+describe('the session outlives the visit', () => {
+  const cookies = readFileSync(
+    fileURLToPath(new URL('../src/auth/cookies.ts', import.meta.url)),
+    'utf8',
+  );
+  const session = readFileSync(
+    fileURLToPath(new URL('../src/session.ts', import.meta.url)),
+    'utf8',
+  );
+  const route = readFileSync(
+    fileURLToPath(new URL('../app/api/account/session/route.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('is not a session cookie', () => {
+    // Without `maxAge` the browser drops it when the window closes, which is
+    // the difference between an account and a visit.
+    expect(session).toMatch(/maxAge: ACTOR_COOKIE_MAX_AGE/);
+    expect(cookies).toMatch(/ACTOR_COOKIE_MAX_AGE\s*=\s*400 \* 24 \* 60 \* 60/);
+  });
+
+  it('stays out of reach of a script', () => {
+    // It names a person now rather than a throwaway guest, and it survives
+    // clearing site data on the native side.
+    expect(cookies).toMatch(/httpOnly: true/);
+    expect(cookies).toMatch(/secure: process\.env\.NODE_ENV === 'production'/);
+  });
+
+  it('is re-issued when someone signs in', () => {
+    expect(route).toMatch(/issueActorCookie\(result\.actorId\)/);
+  });
+
+  it('re-issues the actor the account resolves to, not the one that arrived', () => {
+    // `signIn` can fold this browser's actor into the account's canonical one.
+    // Writing back the id we came in with leaves the cookie naming a merged
+    // actor forever, resolved on every request by a pointer that only has to
+    // be tidied once.
+    expect(route).not.toMatch(/issueActorCookie\(actorId\)/);
+  });
+});

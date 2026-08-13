@@ -12,7 +12,13 @@ import { NextResponse } from 'next/server';
 import { accountFor, consumeCode, signIn } from '@/accounts';
 import { getDb } from '@/db';
 import { SIGN_IN_LIMIT, withinLimit } from '@/ratelimit';
-import { actorToken, currentActorId, ensureActor, fromBrowser } from '@/session';
+import {
+  actorToken,
+  currentActorId,
+  ensureActor,
+  fromBrowser,
+  issueActorCookie,
+} from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +65,11 @@ export async function POST(request: Request) {
   // something durable to attach.
   const actorId = await ensureActor(db);
   const result = await signIn(db, email, actorId);
+
+  // Re-issued with the actor the account actually resolves to, and with the
+  // clock restarted. Browsers only: native carries the same value as a bearer
+  // token and has no cookie jar worth writing to.
+  if (browser) await issueActorCookie(result.actorId);
 
   return NextResponse.json({
     // Withheld from a browser, which already holds the same value in an

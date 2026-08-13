@@ -96,6 +96,27 @@ export async function fromBrowser(): Promise<boolean> {
   return (await headers()).get('sec-fetch-mode') !== null;
 }
 
+/**
+ * Issues the actor cookie, or re-issues it.
+ *
+ * Called when an actor is first minted and again at sign-in. The second one
+ * matters for two reasons. The clock restarts, so the 400 days runs from the
+ * last time someone proved who they were rather than from whenever this
+ * browser first touched the product — otherwise a person who uses it for a
+ * year is signed out mid-use by a timer that started before they had an
+ * account. And the value is updated: signing in can fold this browser's actor
+ * into the account's canonical one, and without this the cookie keeps naming
+ * the old one forever, resolved on every request by following a merge pointer
+ * that only has to be tidied once to take the session with it.
+ */
+export async function issueActorCookie(actorId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(ACTOR_COOKIE, sign(actorId), {
+    ...COOKIE_OPTIONS,
+    maxAge: ACTOR_COOKIE_MAX_AGE,
+  });
+}
+
 /** Creates a guest actor and sets the cookie. Call only when contributing. */
 export async function ensureActor(db: Db, displayName?: string): Promise<string> {
   const existing = await currentActorId();
@@ -114,11 +135,7 @@ export async function ensureActor(db: Db, displayName?: string): Promise<string>
     .values({ kind: 'guest', displayName: displayName ?? null })
     .returning();
 
-  const jar = await cookies();
-  jar.set(ACTOR_COOKIE, sign(actor!.id), {
-    ...COOKIE_OPTIONS,
-    maxAge: ACTOR_COOKIE_MAX_AGE,
-  });
+  await issueActorCookie(actor!.id);
   return actor!.id;
 }
 
