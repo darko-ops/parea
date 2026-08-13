@@ -269,3 +269,38 @@ describe('what the camera roll gets', () => {
     expect(platform).toContain("case 'image/heic'");
   });
 });
+
+describe('a success with no body', () => {
+  /**
+   * Asking for a sign-in code answers 204 on purpose: it answers the same
+   * however it went, so it cannot be used to ask whether an address has an
+   * account. The client parsed every success as JSON, so that 204 threw and
+   * surfaced as "Could not ask for a code" — on the app's only route to an
+   * account, for a request that had worked. Tapping again sent a second code
+   * and invalidated the first, so the loop never ended.
+   */
+  const res = (status: number, body?: unknown) =>
+    ({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: new Headers(),
+      json: async () => {
+        if (body === undefined) throw new SyntaxError('Unexpected end of JSON input');
+        return body;
+      },
+    }) as unknown as Response;
+
+  it('does not throw on 204', async () => {
+    const api = new Api('http://x', null);
+    (globalThis as { fetch: unknown }).fetch = async () => res(204);
+    await expect(api.requestSignIn('sam@example.com')).resolves.toBeUndefined();
+  });
+
+  it('still fails on a 200 whose body is not JSON', async () => {
+    // The check is on the status, not on catching the parse error, so a
+    // genuinely broken response is not quietly swallowed with it.
+    const api = new Api('http://x', null);
+    (globalThis as { fetch: unknown }).fetch = async () => res(200);
+    await expect(api.join({ code: 'amber-quiet-lantern' })).rejects.toThrow();
+  });
+});

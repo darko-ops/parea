@@ -159,6 +159,23 @@ export class Api {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       throw new ApiError(res.status, body.error ?? 'unknown');
     }
+
+    /*
+     * A success with no body is still a success.
+     *
+     * Asking for a sign-in code answers 204 on purpose — it answers the same
+     * however it went, so that it cannot be used to ask "does this address
+     * have an account?". Parsing that as JSON throws, and the throw came back
+     * to the person as "Could not ask for a code. Try again in a moment." on
+     * the app's only route to an account: the code had been sent, the error
+     * was wrong, and tapping again sent a second one and invalidated the
+     * first. Nothing in the request or the response was at fault, which is why
+     * no test saw it — found by driving the screen against a real server.
+     *
+     * Checked on the status rather than by catching a parse error, so a
+     * genuinely malformed body from a 200 still fails loudly.
+     */
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
 
