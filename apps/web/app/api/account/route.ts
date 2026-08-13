@@ -15,6 +15,8 @@
  * The UI puts both in front of someone rather than choosing for them.
  */
 
+import { schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { deleteAccount, deleteEverything } from '@/accounts';
@@ -22,6 +24,36 @@ import { getDb } from '@/db';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
+
+/**
+ * Set the name shown beside your photos.
+ *
+ * The native client does this through `/api/session`, which answers 404 to a
+ * browser on purpose — that route hands back a bearer token, and a browser
+ * carrying both a token and a cookie for the same actor is two credentials to
+ * reason about. So the web needs its own way in, and this is it: same column,
+ * no token, cookie only.
+ *
+ * Blank is a real answer and clears the name. The field is optional and always
+ * has been; a rename that cannot be undone is not a rename.
+ */
+export async function PATCH(request: Request) {
+  const actorId = await currentActorId();
+  if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
+
+  const body = (await request.json().catch(() => ({}))) as { displayName?: unknown };
+  if (typeof body.displayName !== 'string') {
+    return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
+  }
+
+  const displayName = body.displayName.trim().slice(0, 80) || null;
+  await getDb()
+    .update(schema.actors)
+    .set({ displayName })
+    .where(eq(schema.actors.id, actorId));
+
+  return NextResponse.json({ displayName });
+}
 
 export async function DELETE(request: Request) {
   const actorId = await currentActorId();

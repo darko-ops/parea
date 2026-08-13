@@ -187,7 +187,13 @@ describe('claiming an account', () => {
     const result = await signIn(db, 'sam@example.com', me);
 
     expect(result).toMatchObject({ actorId: me, merged: false });
-    expect(await accountFor(db, me)).toEqual({ email: 'sam@example.com' });
+    // The name rides along because the page that asks for the address asks
+    // for both. Null here is the point of this test: claiming an account sets
+    // `account_id` and moves nothing else, and a name is something else.
+    expect(await accountFor(db, me)).toEqual({
+      email: 'sam@example.com',
+      displayName: null,
+    });
     const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, me));
     expect(row!.kind).toBe('user');
   });

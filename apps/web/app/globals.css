@@ -476,3 +476,35 @@ button.secondary {
   color: var(--dim); text-decoration: none;
 }
 .auth-search:hover { background: var(--accent-soft); color: var(--accent); }
+
+
+/* ---------------------------------------------------------------------------
+   You — the page you land on after signing in.
+   --------------------------------------------------------------------------- */
+.you { max-width: 640px; }
+.you-head {
+  display: flex; align-items: center; gap: 16px;
+  padding-bottom: 24px; margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+/* A letter, until there is a picture. Sized to the two lines beside it so the
+   header has one height rather than three. */
+.you-face {
+  flex: none; width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 26px; font-weight: 600; user-select: none;
+}
+.you-id { min-width: 0; flex: 1; }
+/* An input that does not look like one until it is being used. The name is
+   the heading of this page and is also editable, and a heading inside a box
+   reads as a form asking a question that has already been answered. */
+.you-name {
+  font-size: 24px; font-weight: 600; letter-spacing: -.01em;
+  padding: 4px 8px; margin: 0 0 2px -8px;
+  border-color: transparent; background: none; border-radius: 8px;
+}
+.you-name:hover { border-color: var(--line); }
+.you-email { margin: 0; font-size: 14px; }
+.you-events { margin: 28px 0; }
+.you-events h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }

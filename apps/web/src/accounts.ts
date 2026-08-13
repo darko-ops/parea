@@ -160,9 +160,15 @@ export async function signIn(
 export async function accountFor(
   db: Db,
   actorId: string,
-): Promise<{ email: string } | null> {
+): Promise<{ email: string; displayName: string | null } | null> {
+  // The name comes back with the address because the page that asks for one
+  // asks for the other in the same breath, and two round trips to render one
+  // header is two chances for it to arrive half-drawn.
   const [row] = await db
-    .select({ email: schema.accounts.email })
+    .select({
+      email: schema.accounts.email,
+      displayName: schema.actors.displayName,
+    })
     .from(schema.actors)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
     .where(eq(schema.actors.id, actorId))

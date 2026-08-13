@@ -35,7 +35,10 @@ type Stage = 'loading' | 'email' | 'in';
 
 export function AccountView() {
   const [stage, setStage] = useState<Stage>('loading');
-  const [account, setAccount] = useState<{ email: string } | null>(null);
+  const [account, setAccount] = useState<
+    { email: string; displayName: string | null } | null
+  >(null);
+  const [name, setName] = useState('');
   const [events, setEvents] = useState<EventListing[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export function AccountView() {
       fetch('/api/events').then((r) => r.json()).catch(() => ({ events: [] })),
     ]);
     setAccount(session.account ?? null);
+    setName(session.account?.displayName ?? '');
     setEvents(mine.events ?? []);
     setStage(session.account ? 'in' : 'email');
   }, []);
@@ -65,6 +69,25 @@ export function AccountView() {
     }
     await load();
   }, [load]);
+
+  /**
+   * Saved on blur rather than behind a button.
+   *
+   * One optional field with no validation and nothing depending on it: a Save
+   * button would be a second thing to press for a change that cannot fail, and
+   * the failure it guards against — leaving without saving — is the one it
+   * causes.
+   */
+  const saveName = useCallback(async () => {
+    const next = name.trim();
+    if (next === (account?.displayName ?? '')) return;
+    await fetch('/api/account', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: next }),
+    }).catch(() => {});
+    setAccount((a) => (a ? { ...a, displayName: next || null } : a));
+  }, [account, name]);
 
   const remove = useCallback(
     async (alsoPhotos: boolean) => {
@@ -99,25 +122,42 @@ export function AccountView() {
     );
   }
 
+  const initial = (name.trim() || account?.email || '?').slice(0, 1).toUpperCase();
+
   return (
-    <main className="wrap">
-      <h1>Your account</h1>
+    <main className="wrap you">
+      <header className="you-head">
+        {/*
+          A letter until there is a picture. Not a silhouette: a generic avatar
+          is a photograph of nobody, and this at least belongs to the person
+          looking at it.
+        */}
+        <div className="you-face" aria-hidden="true">{initial}</div>
+
+        <div className="you-id">
+          <input
+            className="you-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={saveName}
+            placeholder="Your name"
+            maxLength={80}
+            aria-label="The name shown beside your photos"
+          />
+          <p className="muted you-email">{account?.email}</p>
+        </div>
+      </header>
 
       {note && <p className="muted">{note}</p>}
 
-      <section className="panel">
-        <p>
-          Signed in as <strong>{account?.email}</strong>
-        </p>
-        <p className="muted">
-          Your events and groups follow you to another browser or a new phone.
-          That is all an account does here.
-        </p>
-      </section>
-
-      {events.length > 0 && (
-        <section className="panel">
-          <h2>What you are in</h2>
+      <section className="you-events">
+        <h2>Your events</h2>
+        {events.length === 0 ? (
+          <p className="muted">
+            Nothing yet. <a href="/">Start an event</a>, or open a link somebody
+            sent you.
+          </p>
+        ) : (
           <ul className="plain">
             {events.map((event) => (
               <li key={event.id}>
@@ -132,8 +172,8 @@ export function AccountView() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       <section className="panel">
         <h2>Delete your account</h2>
@@ -143,9 +183,9 @@ export function AccountView() {
           people's copies of an evening they were also at.
         */}
         <p className="muted">
-          Removing your account removes your email address and the link
-          between it and your devices. The photos you added stay in their
-          events and stay yours to remove.
+          Removing your account removes your email address and the link between
+          it and your devices. The photos you added stay in their events and
+          stay yours to remove.
         </p>
         <div className="row">
           <button className="secondary" onClick={() => remove(false)} disabled={busy}>
