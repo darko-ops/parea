@@ -310,6 +310,74 @@ describe('signed cookies', () => {
   });
 });
 
+describe('a door that does not write anything down evicts people later', () => {
+  /**
+   * The native failure, which is not the web one.
+   *
+   * Native keeps the link token and presents it on every call, so `viaLink`
+   * carries it and viewing works — the capability cookie the web depends on is
+   * never involved. So the missing participant record cost nothing visible,
+   * right up until a host closed joins: `joins_open` off means "new people can
+   * no longer join; everyone already in keeps access", and the second half of
+   * that is enforced entirely by `event_participant`.
+   */
+  it('keeps someone in who joined before the host closed joins', async () => {
+    const event = await makeEvent({ joinsOpen: false });
+    const joined = await makeSignedInActor();
+
+    // Carrying the link and nothing else: refused, though they were here
+    // before the switch was thrown.
+    expect(await decide(db, event, 'view', { actorId: joined, linkToken: event.linkToken }))
+      .toEqual({ allow: false, reason: 'joins_closed' });
+
+    // Written down at the door, which is what the join route now does.
+    await recordParticipant(db, event.id, joined);
+
+    expect(await decide(db, event, 'view', { actorId: joined, linkToken: event.linkToken }))
+      .toEqual({ allow: true });
+  });
+
+  it('still refuses someone arriving after it closed', async () => {
+    // The switch has to keep meaning something. This is the case recording at
+    // the door would break if it happened above the refusal.
+    const event = await makeEvent({ joinsOpen: false });
+    expect(await decide(db, event, 'view', {
+      actorId: await makeSignedInActor(),
+      linkToken: event.linkToken,
+    })).toEqual({ allow: false, reason: 'joins_closed' });
+  });
+});
+
+describe('the native join route', () => {
+  const route = readFileSync(
+    fileURLToPath(new URL('../app/api/join/route.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('records the join it is named after', () => {
+    expect(route).toMatch(/recordParticipant\(db, event\.id, actorId\)/);
+  });
+
+  it('records below the refusal, like the web door', () => {
+    const denial = route.indexOf('if (!decision.allow)');
+    const record = route.indexOf('recordParticipant(db,');
+    expect(denial).toBeGreaterThan(-1);
+    expect(record).toBeGreaterThan(-1);
+    expect(denial, 'participation must be recorded below the refusal').toBeLessThan(record);
+  });
+
+  it('does not mint an actor to record', () => {
+    // `/api/session` is explicit that native must not hold a cookie and a
+    // keychain token for the same actor, and `ensureActor` sets a cookie. A
+    // row naming an actor this client cannot prove it is records nobody.
+    // A call, not a mention — the comment above it in the route says the word
+    // while explaining why it is not used, and a test that cannot tell those
+    // apart fails on its own documentation.
+    expect(route).not.toMatch(/ensureActor\s*\(/);
+    expect(route).toMatch(/if \(actorId\) await recordParticipant/);
+  });
+});
+
 describe('the link exchange', () => {
   const route = readFileSync(
     fileURLToPath(new URL('../app/e/[token]/route.ts', import.meta.url)),

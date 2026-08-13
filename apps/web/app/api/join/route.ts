@@ -13,7 +13,7 @@ import { isWellFormedLinkToken, normaliseCode, schema } from '@parea/core';
 import { and, eq, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { decide, findEventByLinkToken } from '@/access';
+import { decide, findEventByLinkToken, recordParticipant } from '@/access';
 import { getDb } from '@/db';
 import { clientOf, observe } from '@/observe';
 import { currentActorId } from '@/session';
@@ -64,6 +64,29 @@ export async function POST(request: Request) {
   if (!decision.allow) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+
+  /*
+   * The same thing `/e/<token>` records, for the door native comes through.
+   *
+   * Native does not need this to see the event — it keeps the link token and
+   * presents it on every call, so `viaLink` carries it — which is why the
+   * missing record here failed differently from the web's and not at all
+   * until a host reached for a switch. `joins_open` off means "new people can
+   * no longer join; everyone already in keeps access", and the second half of
+   * that sentence is enforced entirely by this table. Someone who joined on
+   * their phone, looked, and did not upload was never written down as being
+   * in, so closing joins evicted them from an event they were already at.
+   *
+   * Below the decision for the same reason as `/e/`: `joins_closed` is refused
+   * above, so this cannot become the way in for the people that switch was
+   * thrown against.
+   *
+   * Only for an actor that already exists. `ensureActor` would mint one and
+   * set a cookie, and `/api/session` is explicit that native must not carry a
+   * cookie and a keychain token for the same actor — and a row naming an actor
+   * this client cannot prove it is would record nobody.
+   */
+  if (actorId) await recordParticipant(db, event.id, actorId);
 
   // §18's install-conversion question: which client people actually arrive on,
   // and therefore whether the install wall is costing contribution. Recorded
