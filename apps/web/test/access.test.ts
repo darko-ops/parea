@@ -12,6 +12,7 @@ import { newLinkToken, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -108,6 +109,40 @@ describe('resolving credentials from the database', () => {
 
     // Already in: unaffected by the switch.
     expect(await decide(db, event, 'view', { actorId, capEpoch: event.capEpoch }))
+      .toEqual({ allow: true });
+  });
+
+  /**
+   * The bug this was written for: every share link 404ed.
+   *
+   * `/e/<token>` granted the capability cookie and redirected, and the event
+   * page then answered 404 — for everyone except the creator, a group member,
+   * and anyone who had already uploaded, which is every person a link is ever
+   * sent to. Verified against production before the fix: the exchange returned
+   * 307 and set `pa_cap_…`, and both following requests to `/event/<id>` were
+   * 404.
+   *
+   * Nothing failed. The exchange is one request and the render is the next, so
+   * each half worked in isolation and no test joined them up.
+   */
+  it('leaves a capability that is worth nothing on its own', async () => {
+    const event = await makeEvent();
+    const stranger = await makeActor();
+
+    // Exactly what the event page asks on the request after the redirect: an
+    // actor, a fresh capability, and no link token — the token is spent, which
+    // is the entire point of exchanging it.
+    expect(await decide(db, event, 'view', { actorId: stranger, capEpoch: event.capEpoch }))
+      .toEqual({ allow: false, reason: 'no_credential' });
+  });
+
+  it('and works the moment the exchange records who came in', async () => {
+    const event = await makeEvent();
+    const stranger = await makeActor();
+
+    await recordParticipant(db, event.id, stranger);
+
+    expect(await decide(db, event, 'view', { actorId: stranger, capEpoch: event.capEpoch }))
       .toEqual({ allow: true });
   });
 
@@ -272,5 +307,37 @@ describe('signed cookies', () => {
   it('will not accept a capability with a forged epoch', () => {
     const encoded = encodeCapability({ eventId: 'evt', capEpoch: 1 });
     expect(decodeCapability(encoded.replace('evt:1', 'evt:2'))).toBeNull();
+  });
+});
+
+describe('the link exchange', () => {
+  const route = readFileSync(
+    fileURLToPath(new URL('../app/e/[token]/route.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('records who came in, not just what their browser now holds', () => {
+    // The half that was missing. `recordParticipant` lived in the upload route
+    // and nowhere else, so the only way to become a participant was to already
+    // be one — you had to upload to an event you could not open.
+    expect(route).toMatch(/recordParticipant\(db, event\.id, actorId\)/);
+  });
+
+  it('gives a first-time visitor an actor to be', () => {
+    // A stranger arriving from a group chat has no cookie at all, and
+    // `currentActorId()` would be null — there would be nobody to record.
+    expect(route).toMatch(/ensureActor\(db\)/);
+  });
+
+  it('records only after the decision, so a closed event stays closed', () => {
+    // The ordering is the whole safety property. `joins_closed` is refused by
+    // `decide`; recording above that line would make this route the way in for
+    // exactly the people the switch was thrown against, and it would look like
+    // a tidier version of the same code.
+    const denial = route.indexOf('if (!decision.allow)');
+    const record = route.indexOf('recordParticipant(db,');
+    expect(denial).toBeGreaterThan(-1);
+    expect(record).toBeGreaterThan(-1);
+    expect(denial, 'participation must be recorded below the refusal').toBeLessThan(record);
   });
 });
