@@ -13,6 +13,7 @@
  * ability to decline is theoretical.
  */
 
+import { REQUEST_ACCESS } from '@parea/core';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useImageFailure } from './useImageFailure';
@@ -25,6 +26,13 @@ type PendingReport = {
   photo: { id: string; src: string };
 };
 
+type AccessRequest = {
+  id: string;
+  createdAt: string;
+  displayName: string | null;
+  handle: string | null;
+};
+
 export function ManageView({
   eventId,
   initial,
@@ -34,6 +42,7 @@ export function ManageView({
     name: string;
     joinsOpen: boolean;
     uploadsOpen: boolean;
+    accessPolicy: string;
     code: string | null;
     url: string;
     groupId: string | null;
@@ -50,15 +59,49 @@ export function ManageView({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [findable, setFindable] = useState(false);
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
 
   const loadReports = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/reports`);
     if (res.ok) setReports((await res.json()).reports);
   }, [eventId]);
 
+  /**
+   * Only fetched for the policy that produces them.
+   *
+   * The route answers 404 to anyone who is not the host, so calling it on a
+   * public event would work and return an empty list — and then the section
+   * below would render "Nothing waiting" under a heading about a feature that
+   * event does not have.
+   */
+  const loadRequests = useCallback(async () => {
+    if (initial.accessPolicy !== REQUEST_ACCESS) return;
+    const res = await fetch(`/api/events/${eventId}/access-requests`);
+    if (res.ok) setRequests((await res.json()).requests);
+  }, [eventId, initial.accessPolicy]);
+
   useEffect(() => {
     void loadReports();
-  }, [loadReports]);
+    void loadRequests();
+  }, [loadReports, loadRequests]);
+
+  async function answer(requestId: string, action: 'approve' | 'decline') {
+    setBusy(requestId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/access-requests`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ requestId, action }),
+      });
+      if (!res.ok) throw new Error('Could not save that.');
+      await loadRequests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function resolve(reportId: string, action: 'remove' | 'decline') {
     setBusy(reportId);
@@ -133,6 +176,50 @@ export function ManageView({
           <a href={`/event/${eventId}`}>Back to the photos</a>
         </p>
       </header>
+
+      {initial.accessPolicy === REQUEST_ACCESS && (
+        <section className="panel">
+          <h2>Asking to come in{requests.length > 0 && ` (${requests.length})`}</h2>
+          {requests.length === 0 ? (
+            <p className="muted">Nobody waiting.</p>
+          ) : (
+            requests.map((request) => (
+              <div key={request.id} className="pending pending-person">
+                <div>
+                  <p>
+                    {request.displayName ?? 'Someone'}
+                    {request.handle && <span className="muted"> @{request.handle}</span>}
+                  </p>
+                  {/*
+                    Said plainly: approving is not "they can look", it is "they
+                    are in", and in this product being in an event means being
+                    able to add to it. Somebody clicking through a queue should
+                    not have to remember that.
+                  */}
+                  <p className="muted">
+                    Approving lets them see the photos and add their own.
+                  </p>
+                  <div className="row">
+                    <button
+                      onClick={() => answer(request.id, 'approve')}
+                      disabled={busy === request.id}
+                    >
+                      Let them in
+                    </button>
+                    <button
+                      className="secondary"
+                      onClick={() => answer(request.id, 'decline')}
+                      disabled={busy === request.id}
+                    >
+                      Not this time
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+      )}
 
       <section className="panel">
         <h2>

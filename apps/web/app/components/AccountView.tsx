@@ -214,7 +214,7 @@ export function AccountView() {
         <h2>Your events</h2>
         {events.length === 0 ? (
           <p className="muted">
-            Nothing yet. <a href="/">Start an event</a>, or open a link somebody
+            Nothing yet. <a href="/">Create an event</a>, or open a link somebody
             sent you.
           </p>
         ) : (

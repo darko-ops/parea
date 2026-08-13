@@ -597,7 +597,7 @@ function JoinScreen({
         a link; the host making one is the rarer case, and putting creation
         first would make the app look like a thing you have to set up.
       */}
-      <Button label="Start an event" onPress={onCreateEvent} t={t} />
+      <Button label="Create Event" onPress={onCreateEvent} t={t} />
 
       {/*
         Groups first, and above the recent events, because they are the thing

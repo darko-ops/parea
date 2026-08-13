@@ -108,16 +108,30 @@ describe('the clients that send one', () => {
    * next best thing — that every submit control is guarded, and that the guard
    * takes the window state into account.
    *
-   * It has already been too literal once. Pinned to `!when`, it failed the
+   * It has already been too literal twice. Pinned to `!when`, it failed the
    * moment native moved the same rule into a named `ready`, which was a
-   * refactor rather than a regression.
+   * refactor rather than a regression. Applied to every `disabled` on the
+   * page, it failed again when the web form grew a second step and a "back to
+   * the photos" button — a control that moves between parts of the form, which
+   * this rule was never about and which must not be gated on an answer the
+   * person is going back to change.
+   *
+   * So it reads the control that submits. Where the file marks one, those are
+   * the guards that matter; where it does not, every guard is a candidate and
+   * the rule stays as strict as it was.
    */
   it.each([
     ['the web create form', '../app/page.tsx'],
     ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s guards every submit control', (_label, path) => {
+  ])('%s guards the control that creates the event', (_label, path) => {
     const client = read(path);
-    const guards = [...client.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]!);
+    const submits = client
+      .split('<button')
+      .filter((block) => /type="submit"/.test(block.slice(0, block.indexOf('>'))));
+
+    const guards = (submits.length > 0 ? submits : [client]).flatMap((block) =>
+      [...block.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]!),
+    );
 
     expect(guards.length).toBeGreaterThan(0);
     for (const guard of guards) {
@@ -193,9 +207,14 @@ describe('the access policy a creator chooses', () => {
     expect(source).toMatch(/body\.accessPolicy === undefined \? LINK_OPEN/);
   });
 
-  it('refuses anything that is not one of the two', () => {
+  it('refuses anything that is not one it offers', () => {
+    // Checked against a named list rather than a chain of `!==`, which is what
+    // this was: adding the third policy meant remembering to widen a boolean
+    // that reads correctly either way, and a missed clause there rejects a
+    // policy the UI offers.
     expect(source).toContain("error: 'invalid_access_policy'");
-    expect(source).toMatch(/requested !== LINK_OPEN && requested !== ACCOUNT_REQUIRED/);
+    expect(source).toMatch(/const OFFERED = \[LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS\]/);
+    expect(source).toMatch(/!OFFERED\.includes\(/);
   });
 
   it('persists the validated value, not the raw body', () => {

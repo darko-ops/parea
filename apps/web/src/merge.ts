@@ -66,6 +66,11 @@ const OWNED: {
   { table: 'group_member', column: 'actor_id', uniqueWith: ['group_id'] },
   { table: 'group_join_request', column: 'actor_id', uniqueWith: ['group_id'] },
   { table: 'group_join_request', column: 'resolved_by' },
+  // Someone asks to join on a laptop, then signs in on their phone. Without
+  // this the request the host is looking at names an actor that no longer
+  // exists to approve, and approving it admits nobody.
+  { table: 'event_access_request', column: 'actor_id', uniqueWith: ['event_id'] },
+  { table: 'event_access_request', column: 'resolved_by' },
   { table: 'report', column: 'reporter_actor_id' },
   { table: 'report', column: 'resolved_by' },
   { table: 'moderation_flag', column: 'resolved_by' },

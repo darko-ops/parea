@@ -348,6 +348,112 @@ describe('a door that does not write anything down evicts people later', () => {
   });
 });
 
+describe('a private event where the host decides', () => {
+  const privateEvent = () => makeEvent({ accessPolicy: 'request_access' });
+
+  it('stops a signed-in link holder at the door', async () => {
+    const event = await privateEvent();
+    expect(await decide(db, event, 'view', {
+      actorId: await makeSignedInActor(),
+      linkToken: event.linkToken,
+    })).toEqual({ allow: false, reason: 'approval_required' });
+  });
+
+  it('asks for sign-in before it asks for approval', async () => {
+    // Order matters for what the person is told to do next. "Wait to be let
+    // in" to somebody who has not said who they are sends them to wait for a
+    // decision nobody can make.
+    const event = await privateEvent();
+    expect(await decide(db, event, 'view', {
+      actorId: await makeActor(),
+      linkToken: event.linkToken,
+    })).toEqual({ allow: false, reason: 'sign_in_required' });
+  });
+
+  it('opens once the host records them as in', async () => {
+    // Approval is an `event_participant` row and nothing else — the request
+    // table is the conversation, not the grant.
+    const event = await privateEvent();
+    const guest = await makeSignedInActor();
+    await recordParticipant(db, event.id, guest);
+
+    expect(await decide(db, event, 'view', { actorId: guest, capEpoch: event.capEpoch }))
+      .toEqual({ allow: true });
+  });
+
+  it('does not let the spoken phrase go round the host', async () => {
+    // The code is the weakest secret in the system — short, said out loud,
+    // recycled. It must not be the way past the one policy whose point is
+    // that a person decides.
+    const event = await privateEvent();
+    const guest = await makeSignedInActor();
+    await db
+      .insert(schema.codes)
+      .values({ words: 'amber-quiet-lantern', eventId: event.id, claimedAt: new Date() });
+
+    expect(await decide(db, event, 'view', { actorId: guest, code: 'amber-quiet-lantern' }))
+      .toEqual({ allow: false, reason: 'approval_required' });
+  });
+
+  it('still says nothing at all to someone without the link', async () => {
+    // 404, not "ask the host": `approval_required` would confirm the event
+    // exists to anyone who guessed an id.
+    const event = await privateEvent();
+    expect(await decide(db, event, 'view', { actorId: await makeSignedInActor() }))
+      .toEqual({ allow: false, reason: 'no_credential' });
+  });
+
+  it('never makes the creator ask themselves', async () => {
+    const creator = await makeSignedInActor();
+    const event = await makeEvent({ accessPolicy: 'request_access', createdBy: creator });
+    expect(await decide(db, event, 'view', { actorId: creator })).toEqual({ allow: true });
+  });
+});
+
+describe('the request route', () => {
+  const route = readFileSync(
+    fileURLToPath(new URL('../app/api/events/[id]/access-requests/route.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('grants by recording a participant, not by writing to its own table', () => {
+    // The whole reason the grant lives elsewhere: a bug in this file can lose
+    // a request, which is visible and fixable by asking again, and cannot open
+    // an event, which would be neither.
+    expect(route).toMatch(/recordParticipant\(db, id, row\.actorId\)/);
+  });
+
+  it('records the participant before marking the request answered', () => {
+    // Crash between the two writes and the host clicks approve again, which is
+    // harmless. The other order leaves someone marked approved who can see
+    // nothing and has no way to say so.
+    // Anchored on the value written rather than on the shape of the call, so
+    // reformatting the update does not quietly turn this into a test that
+    // matches nothing and passes.
+    const grant = route.indexOf('recordParticipant(db, id, row.actorId)');
+    const mark = route.indexOf("status: action === 'approve'");
+    expect(grant).toBeGreaterThan(-1);
+    expect(mark).toBeGreaterThan(-1);
+    expect(grant).toBeLessThan(mark);
+  });
+
+  it('checks the link before it will carry a name to the host', () => {
+    // Without this, anyone who guessed an event id could put themselves in
+    // front of its host.
+    expect(route).toMatch(/requester\.capEpoch !== event\.capEpoch/);
+  });
+
+  it('will not reopen a request the host declined', () => {
+    expect(route).toMatch(/if \(existing\) return NextResponse\.json\(\{ status: existing\.status \}\)/);
+  });
+
+  it('scopes a resolution to its own event', () => {
+    // A request id from another event must not be answerable by the admin of
+    // this one.
+    expect(route).toMatch(/eq\(schema\.eventAccessRequests\.eventId, id\)/);
+  });
+});
+
 describe('the native join route', () => {
   const route = readFileSync(
     fileURLToPath(new URL('../app/api/join/route.ts', import.meta.url)),

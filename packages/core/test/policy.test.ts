@@ -141,6 +141,41 @@ const CASES: Case[] = [
   { name: 'a public event still admits an anonymous link holder', actor: null,
     capability: 'view', presented: { linkToken: LINK }, expect: true },
 
+  // --- request_access: the host has the last word -----------------------------
+  // The distinguishing property, and the whole reason this policy exists: for
+  // the other two, holding the link is the last step.
+  { name: 'request_access refuses a signed-in link holder until approved', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+    presented: { linkToken: LINK }, expect: 'approval_required' },
+  { name: 'request_access asks for sign-in before it asks for approval', actor: GUEST,
+    capability: 'view', event: { accessPolicy: 'request_access' },
+    presented: { linkToken: LINK }, expect: 'sign_in_required' },
+  { name: 'approval is a participant row, and it lets them in', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+    presented: { linkToken: LINK, isParticipant: true, capEpoch: 1 }, expect: true },
+  { name: 'an approved person needs no link on the next visit', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+    presented: { isParticipant: true, capEpoch: 1 }, expect: true },
+  { name: 'request_access without the link is still just gone', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+    expect: 'no_credential' },
+  { name: 'the creator never has to ask themselves', actor: CREATOR, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'request_access' }, expect: true },
+  { name: 'a group member is already in', actor: GUEST, signedIn: true, capability: 'view',
+    event: { accessPolicy: 'request_access', groupId: 'g1' },
+    presented: { isGroupMember: true }, expect: true },
+  // The code is the weakest secret in the system; it must not be a way around
+  // the one policy whose point is that the host decides.
+  { name: 'the spoken code does not skip approval', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'request_access' },
+    presented: { code: CODE, eventCode: CODE }, expect: 'approval_required' },
+  { name: 'nor does download', actor: GUEST, signedIn: true, capability: 'download',
+    event: { accessPolicy: 'request_access' }, presented: { linkToken: LINK },
+    expect: 'approval_required' },
+  { name: 'nor does contribute', actor: GUEST, signedIn: true, capability: 'contribute',
+    event: { accessPolicy: 'request_access' }, presented: { linkToken: LINK },
+    expect: 'approval_required' },
+
   // --- deletion and unknown policies -----------------------------------------
   { name: 'a deleted event is gone for the creator too', actor: CREATOR, capability: 'view',
     event: { deletedAt: new Date() }, expect: 'event_deleted' },

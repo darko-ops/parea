@@ -58,6 +58,11 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
   );
 
   useEffect(() => {
+    // The create page mounts this before its event exists, so that photos can
+    // be chosen first and sent the moment there is somewhere to send them.
+    // There is nothing to resume for an event that does not exist yet, and
+    // restoring against an empty id would open a queue belonging to nobody.
+    if (!eventId) return;
     if (started.current) return;
     started.current = true;
 

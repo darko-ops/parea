@@ -4,7 +4,9 @@ import {
   ADJECTIVES,
   NOUNS,
   codePoolSize,
+  CODE_POOL_TARGET,
   codeWordPairs,
+  codeWordTriples,
   isWellFormedLinkToken,
   LINK_TOKEN_LENGTH,
   newLinkToken,
@@ -90,6 +92,58 @@ describe('code words', () => {
   });
 });
 
+describe('the three-word pool', () => {
+  const pool = [...codeWordTriples()];
+
+  it('seeds the number it advertises, with no repeats', () => {
+    expect(pool.length).toBe(CODE_POOL_TARGET);
+    expect(new Set(pool).size).toBe(pool.length);
+  });
+
+  it('walks the space instead of the front of it', () => {
+    /*
+     * The property the stride exists for. Nested-loop order would produce a
+     * hundred thousand codes whose first word is one of the first six
+     * adjectives — a pool that is technically 100k and effectively tiny to
+     * anyone guessing, and which looks completely fine in a sample of ten.
+     */
+    const firsts = new Set(pool.map((code) => code.split('-')[0]));
+    const seconds = new Set(pool.map((code) => code.split('-')[1]));
+    const nouns = new Set(pool.map((code) => code.split('-')[2]));
+    expect(firsts.size).toBe(ADJECTIVES.length);
+    expect(seconds.size).toBe(ADJECTIVES.length);
+    expect(nouns.size).toBe(NOUNS.length);
+  });
+
+  it('has a stride that is still co-prime to the space', () => {
+    /*
+     * The one that breaks silently. Adding a word to either list changes the
+     * total, and if it ever shares a factor with the stride the walk closes
+     * into a short cycle — the generator then runs out of distinct codes and
+     * yields a pool a fraction of the size, with no error anywhere.
+     */
+    const total = ADJECTIVES.length * ADJECTIVES.length * NOUNS.length;
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    expect(gcd(104_729, total)).toBe(1);
+    expect(total).toBeGreaterThan(CODE_POOL_TARGET);
+  });
+
+  it('never repeats a word inside one code', () => {
+    for (const code of pool) {
+      const words = code.split('-');
+      expect(new Set(words).size, code).toBe(3);
+    }
+  });
+
+  it('round-trips through normaliseCode', () => {
+    for (const code of pool) expect(normaliseCode(code)).toBe(code);
+  });
+
+  it('is reproducible, so re-seeding inserts nothing new', () => {
+    expect([...codeWordTriples(50)]).toEqual(pool.slice(0, 50));
+  });
+});
+
 describe('normaliseCode', () => {
   it('forgives how people actually type a code they half-heard', () => {
     for (const input of ['amber-fox', 'Amber Fox', '  AMBER   fox ', 'amber_fox', 'amber--fox']) {
@@ -97,8 +151,16 @@ describe('normaliseCode', () => {
     }
   });
 
-  it('rejects anything that is not two words', () => {
-    for (const input of ['', 'amber', 'amber fox otter', '   ', '-']) {
+  it('takes three words as well as two', () => {
+    // New codes are three words; the ones claimed before that change are two
+    // and are written on somebody's hand. Refusing either would report a real
+    // code as not a code.
+    expect(normaliseCode('Amber Quiet Lantern')).toBe('amber-quiet-lantern');
+    expect(normaliseCode('amber_quiet-lantern')).toBe('amber-quiet-lantern');
+  });
+
+  it('rejects anything that is not two or three words', () => {
+    for (const input of ['', 'amber', 'amber fox otter badger', '   ', '-']) {
       expect(normaliseCode(input), JSON.stringify(input)).toBeNull();
     }
   });

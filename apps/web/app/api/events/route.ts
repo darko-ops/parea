@@ -6,7 +6,13 @@
  * creator needs to be able to administer it afterwards.
  */
 
-import { ACCOUNT_REQUIRED, LINK_OPEN, newLinkToken, schema } from '@parea/core';
+import {
+  ACCOUNT_REQUIRED,
+  LINK_OPEN,
+  REQUEST_ACCESS,
+  newLinkToken,
+  schema,
+} from '@parea/core';
 import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -30,7 +36,10 @@ type Body = {
   startsAt?: unknown;
   endsAt?: unknown;
   createdByName?: unknown;
-  /** 'link_open' (public) or 'account_required' (private). Defaults to public. */
+  /**
+   * 'link_open' (public), 'account_required' (private, sign in to look) or
+   * 'request_access' (private, the host lets each person in). Public default.
+   */
   accessPolicy?: unknown;
 };
 
@@ -129,10 +138,11 @@ export async function POST(request: Request) {
   // not know, so a typo that reached the column would lock the creator out of
   // the event they had just made.
   const requested = body.accessPolicy === undefined ? LINK_OPEN : body.accessPolicy;
-  if (requested !== LINK_OPEN && requested !== ACCOUNT_REQUIRED) {
+  const OFFERED = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS] as const;
+  if (!OFFERED.includes(requested as (typeof OFFERED)[number])) {
     return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
   }
-  const accessPolicy: typeof LINK_OPEN | typeof ACCOUNT_REQUIRED = requested;
+  const accessPolicy = requested as (typeof OFFERED)[number];
 
   // Creating inside a group is the whole point of having one: its members get
   // access without anyone re-solving "how do I reach everyone" (design §3).

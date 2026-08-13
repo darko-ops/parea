@@ -15,7 +15,7 @@
  * people's photos should not exist until someone decides it should run.
  */
 
-import { codeWordPairs, recordModeration, REASON, schema } from '@parea/core';
+import { codeWordTriples, recordModeration, REASON, schema } from '@parea/core';
 import { sendAll, toMessage } from '@parea/push';
 import { allDerivativeKeysFor } from '@parea/urls';
 import {
@@ -272,7 +272,7 @@ export async function recycleCodes(
 export async function seedCodes(
   database: ReturnType<typeof db>,
 ): Promise<number> {
-  const pairs = [...codeWordPairs()].map((words) => ({ words }));
+  const pairs = [...codeWordTriples()].map((words) => ({ words }));
   let inserted = 0;
   // Chunked: a single insert of ~18k rows is a needlessly large statement.
   for (let at = 0; at < pairs.length; at += 1000) {

@@ -170,6 +170,13 @@ button.secondary {
 .danger { background: #b3261e; }
 .pending { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; }
 .pending img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; }
+/* The same row without the photograph. A takedown request is about a picture
+   and leads with it; a request to come in is about a person, and there is
+   nothing to show — so the 88px column is not empty here, it is absent.
+   Left as a grid it kept the column anyway and squeezed the name, the
+   sentence and both buttons into what was left. */
+.pending-person { grid-template-columns: 1fr; }
+.pending-person p { margin: 0 0 8px; }
 /* An inline action inside a sentence — a button because it does something,
    shaped like a link because it sits in running text. */
 .link {
@@ -388,6 +395,46 @@ button.secondary {
 
 .create-next { display: grid; gap: 12px; justify-items: start; }
 .create-next .button-like { padding: 14px 22px; font-size: 16px; border-radius: 12px; }
+
+/* Step one. The button is the whole step, so it is the filled one and the
+   sentence beside it is the caption rather than the instruction. */
+.picker { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.picker .button-like { padding: 14px 22px; font-size: 16px; border-radius: 12px; }
+.picker .field-help { flex: 1; min-width: 200px; }
+
+/* What was chosen, small enough that forty of them are still one screen and
+   large enough to recognise an evening from. */
+.picked {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+.picked li { position: relative; aspect-ratio: 1; }
+.picked img {
+  width: 100%; height: 100%; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--line); display: block;
+}
+/* Always visible rather than on hover: there is no hover on the phones this
+   is mostly used from, and a control you can only find with a mouse is not a
+   control. */
+.picked li button {
+  position: absolute; top: 4px; right: 4px;
+  width: 24px; height: 24px; padding: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; font-weight: 400;
+  background: rgb(0 0 0 / 0.55); color: #fff; border: 0; cursor: pointer;
+}
+.picked li button:hover { background: rgb(0 0 0 / 0.75); }
+/* The name, when the picture will not draw. A broken-image glyph describes
+   nothing, and the next thing this person does is decide whether they still
+   want that one in. */
+.picked-dead {
+  width: 100%; height: 100%; border-radius: 10px;
+  border: 1px dashed var(--line); background: var(--card);
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px; font-size: 11px; line-height: 1.3; color: var(--dim);
+  overflow: hidden; word-break: break-all; text-align: center;
+}
 
 .aside {
   width: 330px; flex: none; background: var(--bg);

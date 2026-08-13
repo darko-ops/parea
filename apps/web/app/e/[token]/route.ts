@@ -53,6 +53,25 @@ export async function GET(
     redirect(`/account?next=${encodeURIComponent(`/e/${token}`)}`);
   }
 
+  /*
+   * A private event whose host has not let them in yet.
+   *
+   * The capability is granted anyway, and it grants nothing: `authorize`
+   * counts it only alongside participation, so on its own it is a record that
+   * this browser held the link. That is precisely what the request page needs
+   * to check before showing an event's name to somebody, and it becomes their
+   * credential the moment approval writes the participant row — without it
+   * they would have to be sent the link a second time.
+   *
+   * A redirect rather than the 403 below, for the same reason the sign-in case
+   * is one: this is a step, and returning JSON ends the journey in a browser
+   * tab looking at a word.
+   */
+  if (!decision.allow && decision.reason === 'approval_required') {
+    await grantCapability(event.id, event.capEpoch);
+    redirect(`/event/${event.id}/request`);
+  }
+
   if (!decision.allow) {
     // 'view' rather than 'contribute': arriving at a link with uploads closed
     // should still show you the photos.

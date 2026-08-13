@@ -238,12 +238,16 @@ export const events = pgTable(
     /**
      * Chosen by whoever creates the event. `link_open` is the original model —
      * possession of the link is the access. `account_required` keeps the link
-     * necessary and makes it insufficient. Plain text with no CHECK: the
-     * constraint that matters is in `authorize`, which denies any value it does
-     * not recognise, so an unknown string here closes the event rather than
-     * opening it.
+     * necessary and makes it insufficient. `request_access` goes one further
+     * and hands the last step to the host, who approves each person; approval
+     * is an `event_participant` row, because that is already what "in" means
+     * here. Plain text with no CHECK: the constraint that matters is in
+     * `authorize`, which denies any value it does not recognise, so an unknown
+     * string here closes the event rather than opening it.
      */
-    accessPolicy: text('access_policy', { enum: ['link_open', 'account_required'] })
+    accessPolicy: text('access_policy', {
+      enum: ['link_open', 'account_required', 'request_access'],
+    })
       .notNull()
       .default('link_open'),
     joinsOpen: boolean('joins_open').notNull().default(true),
@@ -279,6 +283,45 @@ export const eventParticipants = pgTable(
       .defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.eventId, t.actorId] })],
+);
+
+/**
+ * Someone holding the link to a `request_access` event, asking to be let in.
+ *
+ * Deliberately not the thing that grants access — approving writes an
+ * `event_participant` row, and that row is what `authorize` reads. This table
+ * is the conversation: who asked, when, and what the host said. Keeping the
+ * grant in one place means a bug here can lose a request but cannot open an
+ * event, and `joins_open` keeps reading the column it always did.
+ *
+ * A declined row is kept rather than deleted, so asking again is a decision
+ * the host made once rather than a loop the same person can run.
+ */
+export const eventAccessRequests = pgTable(
+  'event_access_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'approved', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    // One row per person per event, so asking twice updates rather than
+    // stacking — a host looking at a list wants people, not attempts.
+    uniqueIndex('event_access_request_actor_idx').on(t.eventId, t.actorId),
+    index('event_access_request_open_idx').on(t.eventId, t.status),
+  ],
 );
 
 /**

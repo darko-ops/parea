@@ -281,7 +281,7 @@ export function HomeTab({
           <Text style={[styles.body, { color: t.fg }]}>
             Nothing here yet. Events you are sent, or make, show up here.
           </Text>
-          <Button label="Start an event" onPress={onCreate} t={t} primary />
+          <Button label="Create Event" onPress={onCreate} t={t} primary />
         </View>
       )}
 

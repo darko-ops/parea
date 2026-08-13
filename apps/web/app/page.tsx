@@ -1,22 +1,46 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
+import { REQUEST_ACCESS, LINK_OPEN } from '@parea/core';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
 
 import { Shell } from './components/Shell';
 import { SignIn, useSession } from './components/SignIn';
+import { useImageFailure } from './components/useImageFailure';
+import { useUploads } from './components/useUploads';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 
 /**
  * Create — design §3 screen 1, and the design handoff's 3a-3.
  *
- * Two columns: the form, and beside it what happens next. The share step used
- * to be a page you were sent to after creating, which put the most important
- * moment in the product behind a state transition — the event is worth nothing
- * until the link reaches the group chat, and the second after making it is
- * when someone is most likely to send it. Now it is visible the whole time and
- * simply fills in.
+ * ## Photos first
+ *
+ * The old order was: name it, place it, date it, get a link, and then a
+ * sentence suggesting you open the event and add some photos. Which meant the
+ * one thing that makes an event worth sending was the last thing anyone was
+ * asked for, on a different page, after the part that felt like the task was
+ * over. An empty event is not half an event — it is nothing at all, and the
+ * person best placed to fix that is the one who was just there.
+ *
+ * So the photos come first and the questions come second. The questions are
+ * easier to answer that way too: "what was it?" is a different question when
+ * forty pictures of it are on the screen.
+ *
+ * The two steps are one page and not two routes on purpose. A `File` is lent
+ * to the tab that picked it and a navigation ends the loan — routing between
+ * the steps would mean either re-picking or writing the bytes to IndexedDB
+ * before there is an event to attach them to. Steps in state cost nothing and
+ * the files stay live.
+ *
+ * ## Why the share panel is beside the form rather than after it
+ *
+ * The share step used to be a page you were sent to after creating, which put
+ * the most important moment in the product behind a state transition — the
+ * event is worth nothing until the link reaches the group chat, and the second
+ * after making it is when someone is most likely to send it. It is visible
+ * from the moment there are questions on screen, and simply fills in.
  *
  * This is also the public landing page and the only indexable one, so the
  * subheading is the pitch rather than an instruction.
@@ -33,17 +57,44 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
  * skipping the question.
  */
 export default function CreatePage() {
+  const [step, setStep] = useState<'photos' | 'details'>('photos');
+  const [picked, setPicked] = useState<File[]>([]);
+  const [skipped, setSkipped] = useState(0);
   const [name, setName] = useState('');
   const [place, setPlace] = useState('');
   const [when, setWhen] = useState<WindowId | ''>('');
+  const [access, setAccess] = useState<typeof LINK_OPEN | typeof REQUEST_ACCESS>(LINK_OPEN);
+  const [eventId, setEventId] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Public unless the creator says otherwise — the forwarded link still works. */
-  const [isPrivate, setIsPrivate] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const session = useSession();
+
+  // Mounted before there is an event, and handed the id the moment there is
+  // one. `useUploads` sits out the empty case rather than opening a queue for
+  // an event that does not exist.
+  const uploads = useUploads(eventId ?? '');
+
+  const pick = useCallback((files: File[]) => {
+    // Same filter as the event page: `accept` is advice that a drop or "All
+    // Files" gets past, and the presign endpoint refuses the whole batch if one
+    // file is unacceptable. An empty type is not a rejection — browsers
+    // routinely fail to type a HEIC.
+    const usable = files.filter((f) => f.type === '' || acceptedMime(f.type) !== null);
+    setSkipped(files.length - usable.length);
+    setPicked((current) => {
+      // Picking twice adds rather than replaces, and picking the same photo
+      // twice does not add it twice. The OS dialog does not remember what was
+      // chosen last time, so re-opening it to add three more would otherwise
+      // silently drop the first forty.
+      const seen = new Set(current.map(signature));
+      return [...current, ...usable.filter((f) => !seen.has(signature(f)))];
+    });
+    if (fileRef.current) fileRef.current.value = '';
+  }, []);
 
   const create = useCallback(
     async (e: React.FormEvent) => {
@@ -66,21 +117,44 @@ export default function CreatePage() {
             // against an open interval, which is every photo on a device.
             startsAt: window?.startsAt ?? null,
             endsAt: window?.endsAt ?? null,
-            accessPolicy: isPrivate ? 'account_required' : 'link_open',
+            accessPolicy: access,
           }),
         });
         if (!res.ok) throw new Error(await explain(res));
-        const created = (await res.json()) as { url: string; code: string | null };
+        const created = (await res.json()) as {
+          id: string;
+          url: string;
+          code: string | null;
+        };
+        setEventId(created.id);
         setLink(new URL(created.url, globalThis.location.origin).toString());
         setCode(created.code);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
-      } finally {
         setBusy(false);
       }
     },
-    [name, place, when, isPrivate],
+    [name, place, when, access],
   );
+
+  /**
+   * Sending starts when there is somewhere to send to.
+   *
+   * In an effect rather than at the end of `create`, because `uploads.add`
+   * closes over the event id and the copy inside that callback is the one from
+   * the render that ran before `setEventId`. Reading it from state after the
+   * re-render is the only version of this that uploads to the right event.
+   */
+  const sent = useRef(false);
+  useEffect(() => {
+    if (!eventId || sent.current) return;
+    sent.current = true;
+    if (picked.length === 0) {
+      setBusy(false);
+      return;
+    }
+    void uploads.add(picked).finally(() => setBusy(false));
+  }, [eventId, picked, uploads]);
 
   const copy = useCallback(async () => {
     if (!link) return;
@@ -92,30 +166,102 @@ export default function CreatePage() {
   }, [link]);
 
   const chosen = WHEN_OPTIONS.find((option) => option.id === when);
+  const created = link !== null;
 
-  return (
-    <Shell>
-
-      <main className="main" style={{ padding: '36px 40px' }}>
-        <div className="create">
-          <form className="create-form" onSubmit={create}>
-            <div>
-              <h1>{link ? name : 'Start an event'}</h1>
-              <p className="muted" style={{ margin: 0 }}>
-                {link
-                  ? 'Made. Send the link — an empty event stays empty.'
-                  : 'Everyone who was there puts their photos in one place, and everyone gets the full set.'}
-              </p>
-            </div>
-
-            {!link && session.known && !session.account && (
+  if (session.known && !session.account) {
+    return (
+      <Shell>
+        <main className="main" style={{ padding: '36px 40px' }}>
+          <div className="create">
+            <form className="create-form" onSubmit={(e) => e.preventDefault()}>
+              <div>
+                <h1>Create Event</h1>
+                <p className="muted" style={{ margin: 0 }}>
+                  Everyone who was there puts their photos in one place, and
+                  everyone gets the full set.
+                </p>
+              </div>
               <SignIn
                 why="Making an event needs an account, so the people you invite know whose event it is."
                 onSignedIn={session.refresh}
               />
+            </form>
+          </div>
+          <SiteFooter />
+        </main>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <main className="main" style={{ padding: '36px 40px' }}>
+        <div className="create">
+          <form className="create-form" onSubmit={create}>
+            <div>
+              <h1>{created ? name : 'Create Event'}</h1>
+              <p className="muted" style={{ margin: 0 }}>
+                {created
+                  ? 'Made. Send the link — an empty event stays empty.'
+                  : step === 'photos'
+                    ? 'Start with the photos. The questions are easier to answer with them on the screen.'
+                    : 'Everyone who was there puts their photos in one place, and everyone gets the full set.'}
+              </p>
+            </div>
+
+            {/* ---- step one: the photos ---------------------------------- */}
+            {!created && step === 'photos' && (
+              <>
+                <input
+                  id="create-photos"
+                  className="visually-hidden"
+                  ref={fileRef}
+                  type="file"
+                  multiple
+                  // Spelled out rather than an image wildcard, and written
+                  // without the literal wildcard token: it contains a
+                  // block-comment opener, and a source-scanning test that
+                  // strips comments swallows the attribute with it. See
+                  // test/accepted-types.test.ts.
+                  accept={ACCEPT_ATTRIBUTE}
+                  onChange={(e) => pick(Array.from(e.target.files ?? []))}
+                />
+
+                <div className="picker">
+                  <label className="button-like primary" htmlFor="create-photos">
+                    {picked.length === 0 ? 'Select photos' : 'Add more'}
+                  </label>
+                  <p className="field-help" style={{ margin: 0 }}>
+                    {picked.length === 0
+                      ? 'Everything you took. They go up at full quality once the event has a name.'
+                      : `${picked.length} ${picked.length === 1 ? 'photo' : 'photos'} ready.`}
+                  </p>
+                </div>
+
+                {skipped > 0 && (
+                  <p className="muted">
+                    {skipped === 1 ? '1 file was' : `${skipped} files were`} left out
+                    — Parea takes photos, not video or other files.
+                  </p>
+                )}
+
+                <Thumbs files={picked} onRemove={(f) => setPicked((c) => c.filter((x) => x !== f))} />
+
+                <div className="row">
+                  <button type="button" onClick={() => setStep('details')}>
+                    Done
+                  </button>
+                  {picked.length === 0 && (
+                    <span className="field-help">
+                      You can add them afterwards, but an empty event stays empty.
+                    </span>
+                  )}
+                </div>
+              </>
             )}
 
-            {!link && session.known && session.account && (
+            {/* ---- step two: what it was --------------------------------- */}
+            {!created && step === 'details' && (
               <>
                 <div className="field">
                   <label className="field-label" htmlFor="name">
@@ -145,7 +291,7 @@ export default function CreatePage() {
                     type="text"
                     value={place}
                     onChange={(e) => setPlace(e.target.value)}
-                    placeholder="Add a place"
+                    placeholder="Add a location"
                     maxLength={80}
                   />
                   {/*
@@ -197,142 +343,234 @@ export default function CreatePage() {
                     <button
                       type="button"
                       className="pill"
-                      aria-pressed={!isPrivate}
-                      onClick={() => setIsPrivate(false)}
+                      aria-pressed={access === LINK_OPEN}
+                      onClick={() => setAccess(LINK_OPEN)}
                     >
                       Anyone with the link
                     </button>
                     <button
                       type="button"
                       className="pill"
-                      aria-pressed={isPrivate}
-                      onClick={() => setIsPrivate(true)}
+                      aria-pressed={access === REQUEST_ACCESS}
+                      onClick={() => setAccess(REQUEST_ACCESS)}
                     >
-                      Only people signed in
+                      Private — you let people in
                     </button>
                   </div>
                   <p className="field-help">
-                    {isPrivate
-                      ? 'The link still has to reach them, and they sign in before they see anything. Use this when the link may travel further than the guest list.'
-                      : 'Whoever holds the link sees the photos, no account needed. Adding photos always needs one.'}
+                    {access === REQUEST_ACCESS
+                      ? 'Holding the link only gets them as far as asking. You approve each person, on the event’s manage screen. Use this when the link may travel further than the guest list.'
+                      : 'Whoever holds the link sees the photos, and so does anyone who is told the phrase. No account needed to look; adding photos always needs one.'}
                   </p>
                 </fieldset>
 
-                <button
-                  type="submit"
-                  className="create-go"
-                  disabled={busy || !name.trim() || !when}
-                >
-                  {busy ? 'Creating…' : 'Get a link'}
-                </button>
+                <div className="row">
+                  <button
+                    type="submit"
+                    className="create-go"
+                    disabled={busy || !name.trim() || !when}
+                  >
+                    {busy ? 'Creating…' : 'Create Event'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setStep('photos')}
+                    disabled={busy}
+                  >
+                    Back to the photos
+                  </button>
+                </div>
                 {error && <p className="muted">{error}</p>}
               </>
             )}
 
-            {/*
-              The next thing to do, as a thing to press.
-
-              This was a sentence with a link in it, under an otherwise empty
-              column — so the flow was: name it, place it, date it, get a link,
-              and then nothing. The one action that makes the event worth
-              sending is adding your own photos to it, and it was the quietest
-              element on the page.
-
-              Not an automatic redirect: the share panel beside this is why the
-              form does not navigate away on success, and sending someone
-              straight to the event would take the link off the screen in the
-              second they are most likely to send it.
-            */}
-            {link && (
+            {/* ---- after: what is happening to the photos ----------------- */}
+            {created && (
               <div className="create-next">
-                <a className="button-like primary" href={link}>
-                  Add your photos
+                {uploads.running && (
+                  <p className="muted">
+                    Adding your photos — {uploads.remaining} of{' '}
+                    {uploads.items.length} to go. Keep this tab open until it
+                    finishes; uploads do not continue in the background.
+                  </p>
+                )}
+
+                {/*
+                  Said whatever happened, not only when it went well.
+
+                  Three outcomes and they need different sentences, which is the
+                  whole reason this is not one count. The first version reported
+                  a number when `done > 0` and was silent otherwise, so a batch
+                  where nothing arrived looked exactly like a batch nobody
+                  chose. The second version covered failure and was still silent
+                  in the case that actually happens: the queue treats a lost
+                  connection as a *pause*, deliberately — it leaves items
+                  `pending` so a retry costs no attempt — so `done`, `failed`
+                  and `stale` are all zero and the paragraph rendered empty.
+                  Found by watching the real queue rather than the screen:
+                  status `pending`, error "Failed to fetch".
+                */}
+                {!uploads.running && uploads.items.length > 0 && (
+                  <p className="muted">
+                    {uploads.done > 0 && `Added ${uploads.done} of ${uploads.items.length}. `}
+                    {uploads.remaining > 0 &&
+                      `${uploads.remaining} still to go — the connection dropped. Open the event and they will carry on from here. `}
+                    {uploads.failed > 0 &&
+                      `${uploads.failed} did not upload — open the event and add ${
+                        uploads.failed === 1 ? 'it' : 'them'
+                      } again. `}
+                    {uploads.stale.length > 0 &&
+                      `${uploads.stale.length} could not be read after the reload.`}
+                  </p>
+                )}
+
+                <a className="button-like primary" href={`/event/${eventId}`}>
+                  {uploads.done > 0 ? 'Open the event' : 'Add your photos'}
                 </a>
-                <p className="field-help" style={{ margin: 0 }}>
-                  An empty event stays empty — yours are what tell everyone else
-                  there is something to add to.
-                </p>
+                {picked.length === 0 && (
+                  <p className="field-help" style={{ margin: 0 }}>
+                    An empty event stays empty — yours are what tell everyone else
+                    there is something to add to.
+                  </p>
+                )}
               </div>
             )}
           </form>
 
-          <aside className="aside">
-            <div>
-              <h2>Then send it</h2>
-              <p className="field-help" style={{ margin: 0 }}>
-                The link is the whole invitation — no app to install, and
-                nothing to sign up for to look. Adding photos needs an account.
-              </p>
-            </div>
-
-            <div className="aside-row">
-              {/*
-                Before there is a link this says so rather than showing a
-                plausible-looking one. A greyed example someone might try to
-                copy is worse than an empty state.
-              */}
-              <span className="aside-link">
-                {link ?? 'Your link appears here'}
-              </span>
-              {link && (
-                <button type="button" className="as-text" onClick={copy}>
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-              )}
-            </div>
-
-            {code && (
+          {/*
+            Hidden during the photo step. There is no link yet and nothing to
+            do with one, and a panel about sending sitting beside "choose your
+            photos" is an instruction for later competing with the one on
+            screen now.
+          */}
+          {(step === 'details' || created) && (
+            <aside className="aside">
               <div>
-                <p className="field-label" style={{ marginBottom: 8 }}>
-                  OR SAY IT OUT LOUD
-                </p>
-                <div className="aside-code">{code}</div>
-                <p className="field-help" style={{ marginTop: 8 }}>
-                  For the person across the room whose phone you are not
-                  holding.
+                <h2>Then send it</h2>
+                <p className="field-help" style={{ margin: 0 }}>
+                  The link is the whole invitation — no app to install, and
+                  nothing to sign up for to look. Adding photos needs an account.
                 </p>
               </div>
-            )}
 
-            <p className="aside-foot">
-              On a phone you can pick people straight from your contacts. In a
-              browser, paste it into the group chat — that is where everyone
-              already is.
-            </p>
-          </aside>
+              <div className="aside-row">
+                {/*
+                  Before there is a link this says so rather than showing a
+                  plausible-looking one. A greyed example someone might try to
+                  copy is worse than an empty state.
+                */}
+                <span className="aside-link">{link ?? 'Your link appears here'}</span>
+                {link && (
+                  <button type="button" className="as-text" onClick={copy}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                )}
+              </div>
+
+              {code && (
+                <div>
+                  <p className="field-label" style={{ marginBottom: 8 }}>
+                    OR SAY IT OUT LOUD
+                  </p>
+                  <div className="aside-code">{code}</div>
+                  <p className="field-help" style={{ marginTop: 8 }}>
+                    For the person across the room whose phone you are not
+                    holding.
+                  </p>
+                </div>
+              )}
+
+              <p className="aside-foot">
+                On a phone you can pick people straight from your contacts. In a
+                browser, paste it into the group chat — that is where everyone
+                already is.
+              </p>
+            </aside>
+          )}
         </div>
 
-      <SiteFooter />
+        <SiteFooter />
       </main>
     </Shell>
   );
 }
 
 /**
- * What actually went wrong, rather than "could not create the event".
+ * What was chosen, at a size you can recognise a night out from.
  *
- * That message was all this page said for every failure, and it threw away
- * the server's answer to produce it. The commonest cause by far is a
- * deployment with no database — which looks, to whoever is typing, exactly
- * like their event name being unacceptable. A message that sends someone to
- * inspect their own input for a server problem is worse than no message.
+ * Object URLs rather than data URLs: a hundred photographs base64'd into the
+ * DOM is a hundred copies of them in memory. They are revoked when the set
+ * changes, which is the whole reason this is a component with an effect rather
+ * than a `src` computed inline — inline, every render would leak one URL per
+ * photo and nothing would ever release them.
  */
+function Thumbs({ files, onRemove }: { files: File[]; onRemove: (file: File) => void }) {
+  const [urls, setUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    const made = files.map((file) => URL.createObjectURL(file));
+    setUrls(made);
+    return () => made.forEach((url) => URL.revokeObjectURL(url));
+  }, [files]);
+
+  if (files.length === 0) return null;
+
+  return (
+    <ul className="picked">
+      {files.map((file, i) => (
+        <li key={signature(file)}>
+          <Thumb src={urls[i] ?? ''} name={file.name} />
+          <button
+            type="button"
+            aria-label={`Leave out ${file.name}`}
+            onClick={() => onRemove(file)}
+          >
+            ×
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * One of them, with somewhere to go when it will not draw.
+ *
+ * An object URL for a file the browser just handed over looks like it cannot
+ * fail, and it can: the browser lends a `File` to the tab that picked it and
+ * the loan can end — a HEIC it will not decode fails the same way. Both come
+ * back as a broken-image glyph, which describes nothing. The name is a better
+ * answer, because the next thing this person does is decide whether they still
+ * want that photo in.
+ */
+function Thumb({ src, name }: { src: string; name: string }) {
+  const { ref, failed, onError } = useImageFailure(src);
+
+  if (!src || failed) {
+    return (
+      <span className="picked-dead" title={name}>
+        {name}
+      </span>
+    );
+  }
+
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img ref={ref} onError={onError} src={src} alt="" />;
+}
+
+/** Enough to recognise the same file picked twice. Matches the queue's dedupe. */
+function signature(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
 async function explain(res: Response): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as { error?: string };
-
   switch (body.error) {
     case 'name_required':
-      return 'That name is empty or too long.';
-    case 'invalid_window':
-      return 'That time window did not make sense. Pick when it was again.';
-    case 'too_many_requests':
-      return 'Too many events made from here just now. Try again in a while.';
-    case 'not_a_member':
-      return 'You are not in that group.';
-    case 'sign_in_required':
-      return 'Making an event needs an account. Sign in and try again.';
-    case 'invalid_access_policy':
-      return 'That is not a setting for who can see the event.';
+      return 'Give it a name.';
+    case 'no_actor':
+      return 'This browser has no identity yet. Reload and try again.';
     case 'not_configured':
       return 'This deployment is not finished — it has no database yet. Check /api/health.';
   }

@@ -58,7 +58,7 @@ export function Rail({ current }: { current: RailPage }) {
 
       <div className="rail-foot">
         <a href="/">
-          <button type="button">Start an event</button>
+          <button type="button">Create Event</button>
         </a>
         <p className="rail-note">
           Events you are sent show up here once you open them.

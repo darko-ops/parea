@@ -51,6 +51,7 @@ export default async function ManagePage({
           name: event.name,
           joinsOpen: event.joinsOpen,
           uploadsOpen: event.uploadsOpen,
+          accessPolicy: event.accessPolicy,
           code: code?.words ?? null,
           url: `/e/${event.linkToken}`,
           groupId: event.groupId,

@@ -57,7 +57,8 @@ export type DenyReason =
   | 'joins_closed'
   | 'uploads_closed'
   | 'not_administrator'
-  | 'sign_in_required';
+  | 'sign_in_required'
+  | 'approval_required';
 
 export type Decision = { allow: true } | { allow: false; reason: DenyReason };
 
@@ -77,7 +78,28 @@ export const LINK_OPEN = 'link_open';
  */
 export const ACCOUNT_REQUIRED = 'account_required';
 
-const KNOWN_POLICIES: readonly string[] = [LINK_OPEN, ACCOUNT_REQUIRED];
+/**
+ * The link gets you to the door; the host lets you in.
+ *
+ * The strongest of the three, and the only one where holding the link is not
+ * the last step. `link_open` and `account_required` both answer "who may
+ * look?" with a property of the visitor — anyone, or anyone signed in — and
+ * neither asks the host anything. This one does, which is the point: an event
+ * whose link has travelled further than the guest list can still be closed to
+ * the people it reached.
+ *
+ * Approval is participation. There is no separate "approved" column, because
+ * `event_participant` already means "in" and is already what `joins_open`
+ * reads — a second table saying the same thing is two answers to one question,
+ * and the day they disagree the wrong one wins silently.
+ *
+ * Signing in is required before the request rather than after: a request from
+ * someone with no account names nobody, and the host is being asked to make a
+ * decision about a person.
+ */
+export const REQUEST_ACCESS = 'request_access';
+
+const KNOWN_POLICIES: readonly string[] = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS];
 
 export function authorize(
   actor: PolicyActor,
@@ -151,6 +173,20 @@ export function authorize(
     return deny('sign_in_required');
   }
 
+  if (event.accessPolicy === REQUEST_ACCESS) {
+    // Asked first, because "sign in" is the step in front of "ask", and
+    // telling someone to wait for approval when they have not yet said who
+    // they are sends them to wait for a decision nobody can make.
+    if (!signedIn) return deny('sign_in_required');
+
+    // The link proved they may know it exists. Being in is a separate fact and
+    // the host owns it. `isParticipant` is what approval writes, so this reads
+    // the same column `joins_open` does rather than inventing a second one.
+    if (!(isCreator || isGroupMember || isParticipant)) {
+      return deny('approval_required');
+    }
+  }
+
   // "New people can no longer join; everyone already in keeps access." Without
   // a record of who is already in, this switch cannot be enforced — which is
   // why `event_participant` exists.
@@ -195,6 +231,11 @@ export function denyStatus(reason: DenyReason): 404 | 403 {
     // so — and the client needs to tell these apart from "gone" to know it
     // should offer a sign-in rather than an apology.
     case 'sign_in_required':
+    // Also 403 and for the same reason: they hold the link, so the event's
+    // existence is not news to them, and the client has to tell "ask the host"
+    // apart from "gone" to know it should offer the button rather than an
+    // apology.
+    case 'approval_required':
       return 403;
   }
 }
