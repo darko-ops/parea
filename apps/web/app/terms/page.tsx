@@ -19,6 +19,7 @@
  */
 
 import { LEGAL_ENTITY, LEGAL_JURISDICTION, LEGAL_UPDATED, SAFETY_CONTACT } from '@/legal';
+import { SiteFooter } from '@/../app/components/SiteFooter';
 
 export const metadata = {
   title: 'Terms',
@@ -211,10 +212,7 @@ export default function TermsPage() {
         </p>
       </section>
 
-      <p className="muted footer">
-        <a href="/privacy">Privacy</a> · <a href="/safety">Safety and reporting</a> ·{' '}
-        <a href="/account">Your account</a>
-      </p>
+      <SiteFooter />
     </main>
   );
 }

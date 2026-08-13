@@ -22,6 +22,7 @@ import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
 import { LoginScreen } from './LoginScreen';
 import { SignIn } from './SignIn';
+import { SiteFooter } from './SiteFooter';
 
 type EventListing = {
   id: string;
@@ -248,9 +249,7 @@ export function AccountView() {
         )}
       </section>
 
-      <p className="muted footer">
-        <a href="/safety">Safety, reporting and contact</a>
-      </p>
+      <SiteFooter />
     </main>
   );
 }

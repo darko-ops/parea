@@ -32,6 +32,7 @@ const read = (path: string) =>
 
 const PRIVACY = read('../app/privacy/page.tsx');
 const TERMS = read('../app/terms/page.tsx');
+const FOOTER = read('../app/components/SiteFooter.tsx');
 
 describe('the retention periods are the real ones', () => {
   it('states the preservation period from the statute constant', () => {
@@ -139,9 +140,31 @@ describe('the pages are reachable', () => {
   });
 
   it('links each to the other and to safety', () => {
-    expect(PRIVACY).toContain('/terms');
-    expect(TERMS).toContain('/privacy');
-    for (const page of [PRIVACY, TERMS]) expect(page).toContain('/safety');
+    // The links moved into the shared footer, so the property is now two
+    // halves: each page renders the footer, and the footer carries the links.
+    // Checked as two halves rather than relaxed to one, because "the page
+    // mentions SiteFooter" on its own would pass a footer that had quietly
+    // lost the reporting link.
+    for (const page of [PRIVACY, TERMS]) expect(page).toContain('<SiteFooter />');
+    for (const path of ['/safety', '/privacy', '/terms']) {
+      expect(FOOTER).toContain(path);
+    }
+  });
+
+  it('puts the footer on every page a person can reach', () => {
+    // Guideline 1.2 wants contact details published, and the only version of
+    // that which works is "on whichever page they are on when they need it".
+    for (const path of [
+      '../app/page.tsx',
+      '../app/privacy/page.tsx',
+      '../app/terms/page.tsx',
+      '../app/components/EventView.tsx',
+      '../app/components/GroupView.tsx',
+      '../app/components/AccountView.tsx',
+      '../app/components/LoginScreen.tsx',
+    ]) {
+      expect(read(path), `${path} has no footer`).toContain('<SiteFooter />');
+    }
   });
 });
 

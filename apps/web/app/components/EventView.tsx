@@ -25,6 +25,7 @@ import { SignIn, useSession } from './SignIn';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PhotoTile } from './PhotoTile';
 import { useUploads } from './useUploads';
+import { SiteFooter } from './SiteFooter';
 
 type Photo = {
   id: string;
@@ -292,11 +293,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         </div>
       )}
 
-      <p className="muted footer">
-        <a href="/events">Your events</a> · <a href="/account">Your account</a> ·{' '}
-        <a href="/safety">Safety, reporting and contact</a> ·{' '}
-        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
-      </p>
+      <SiteFooter />
 
       {openPhoto && (
         <PhotoLightbox

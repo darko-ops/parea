@@ -6,6 +6,7 @@ import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/aut
 
 import { Rail } from './components/Rail';
 import { SignIn, useSession } from './components/SignIn';
+import { SiteFooter } from '@/../app/components/SiteFooter';
 
 /**
  * Create — design §3 screen 1, and the design handoff's 3a-3.
@@ -283,11 +284,7 @@ export default function CreatePage() {
           </aside>
         </div>
 
-        <p className="muted footer">
-          <a href="/events">Your events</a> · <a href="/account">Your account</a> ·{' '}
-          <a href="/safety">Safety, reporting and contact</a> ·{' '}
-          <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
-        </p>
+      <SiteFooter />
       </main>
     </div>
   );

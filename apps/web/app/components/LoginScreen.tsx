@@ -16,6 +16,7 @@
 import type { ReactNode } from 'react';
 
 import { Mark } from './Mark';
+import { SiteFooter } from './SiteFooter';
 
 export function LoginScreen({ children }: { children: ReactNode }) {
   return (
@@ -36,6 +37,8 @@ export function LoginScreen({ children }: { children: ReactNode }) {
         </div>
         {children}
       </div>
+
+      <SiteFooter />
     </main>
   );
 }

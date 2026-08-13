@@ -16,6 +16,7 @@
  */
 
 import { LEGAL_ENTITY, LEGAL_UPDATED, SAFETY_CONTACT } from '@/legal';
+import { SiteFooter } from '@/../app/components/SiteFooter';
 
 export const metadata = {
   title: 'Privacy',
@@ -279,10 +280,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <p className="muted footer">
-        <a href="/terms">Terms</a> · <a href="/safety">Safety and reporting</a> ·{' '}
-        <a href="/account">Your account</a>
-      </p>
+      <SiteFooter />
     </main>
   );
 }

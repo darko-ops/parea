@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useState } from 'react';
+import { SiteFooter } from './SiteFooter';
 
 type GroupData = {
   id: string;
@@ -153,11 +154,7 @@ export function GroupView({ group }: { group: GroupData }) {
         </button>
       </p>
 
-      <p className="muted footer">
-        <a href="/events">Your events</a> · <a href="/account">Your account</a> ·{' '}
-        <a href="/safety">Safety, reporting and contact</a> ·{' '}
-        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
-      </p>
+      <SiteFooter />
     </main>
   );
 }

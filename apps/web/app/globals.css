@@ -552,3 +552,27 @@ button.link {
   color: var(--accent); text-decoration: underline; cursor: pointer;
   font-weight: inherit;
 }
+
+/* ---------------------------------------------------------------------------
+   The site footer.
+
+   Pushed to the bottom and set quiet, because none of it is what anyone came
+   for — but present on every page, because the moment somebody needs the
+   reporting link is not a moment to go hunting for it. App Store Guideline 1.2
+   wants published contact details for an app carrying user content, and "on
+   the page you happen to be on" is the only version of that which works.
+   --------------------------------------------------------------------------- */
+.site-footer {
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  margin-top: 56px; padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.site-footer a { color: var(--dim); text-decoration: none; }
+.site-footer a:hover { color: var(--accent); text-decoration: underline; }
+/* On the sign-in page there is no page to sit under, so it sits at the bottom
+   of the viewport rather than under a 380px card. */
+.auth .site-footer {
+  position: absolute; bottom: 20px; left: 0; right: 0;
+  justify-content: center; margin: 0; border: 0;
+}
