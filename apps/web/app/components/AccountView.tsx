@@ -91,7 +91,8 @@ export function AccountView() {
     return (
       <LoginScreen>
         <SignIn
-          why="Sign in to make an event, or to add your photos to one."
+          title="Sign in"
+          why="Create an event, or add your photos to one."
           onSignedIn={afterSignIn}
         />
       </LoginScreen>

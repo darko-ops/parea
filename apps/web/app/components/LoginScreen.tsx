@@ -31,7 +31,7 @@ export function LoginScreen({ children }: { children: ReactNode }) {
 
       <div className="auth-card">
         <div className="auth-brand">
-          <Mark size={52} />
+          <Mark size={72} />
           <span className="wordmark auth-wordmark">Parea</span>
         </div>
         {children}

@@ -50,9 +50,16 @@ export function useSession(): {
 }
 
 export function SignIn({
+  title,
   why,
   onSignedIn,
 }: {
+  /**
+   * A heading, on the page where signing in is the errand. Omitted where this
+   * stands in front of something else — an upload gate with its own heading
+   * would be two titles arguing about what the screen is.
+   */
+  title?: string;
   /** What the person was trying to do. Shown above the form. */
   why: string;
   onSignedIn: () => void | Promise<void>;
@@ -108,6 +115,7 @@ export function SignIn({
 
   return (
     <section className="panel">
+      {title && <h1 className="auth-title">{title}</h1>}
       <p>{why}</p>
       <p className="muted">
         No password — a code goes to your inbox. Your events follow you to

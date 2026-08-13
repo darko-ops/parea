@@ -429,6 +429,15 @@ button.secondary {
   background: none; border: 0; border-radius: 0;
   padding: 0; margin: 0;
 }
+/* Brand, then action. The wordmark says whose this is and the heading says
+   what this screen is for, so they are different jobs at different sizes
+   rather than one thing said twice. */
+.auth-title {
+  font-size: 23px; font-weight: 600; letter-spacing: -.01em;
+  margin: 0 0 6px;
+}
+.auth-card .panel > p { margin-top: 0; }
+
 /* Two paragraphs at the same size read as two equal claims. The first says
    what signing in is for and the second is reassurance about how it works —
    secondary text, set as secondary text. Tighter leading with it, or a small
