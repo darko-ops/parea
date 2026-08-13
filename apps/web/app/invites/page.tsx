@@ -13,7 +13,7 @@ import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { askedToJoin, invitedEvents } from '@/invites';
+import { askedToJoin, invitedEvents, markInvitesSeen } from '@/invites';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +51,17 @@ export default async function InvitesPage({
     invitedEvents(db, actorId),
     askedToJoin(db, actorId),
   ]);
+
+  /*
+   * Looking is what clears the badge.
+   *
+   * A write during a render, which is normally the wrong shape — but "mark as
+   * read" is precisely a side effect of having read, and the alternative is a
+   * client effect that POSTs on mount, i.e. a second round trip to record that
+   * the first one happened. After the reads above, so a request that fails
+   * halfway leaves the count intact rather than cleared without being shown.
+   */
+  await markInvitesSeen(db, actorId);
   const cards = await toCards(invited);
   const now = new Date();
 

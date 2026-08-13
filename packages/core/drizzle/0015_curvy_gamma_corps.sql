@@ -1,0 +1,1 @@
+ALTER TABLE "actor" ADD COLUMN "invites_seen_at" timestamp with time zone;

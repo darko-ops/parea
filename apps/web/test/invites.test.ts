@@ -10,13 +10,14 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
-import { askedToJoin, invitedEvents } from '@/invites';
+import { askedToJoin, invitedEvents, invitesWaiting, markInvitesSeen } from '@/invites';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -142,5 +143,96 @@ describe('events you asked to join', () => {
     await ask(wanted.id, other);
 
     expect(await askedToJoin(db, me)).toEqual([]);
+  });
+});
+
+describe('the number beside Invites', () => {
+  const seen = (actorId: string, at: Date | null) =>
+    db.update(schema.actors).set({ invitesSeenAt: at }).where(eq(schema.actors.id, actorId));
+
+  it('counts an event you were let into since you last looked', async () => {
+    const me = await actor();
+    const host = await actor();
+    await seen(me, new Date(Date.now() - 60_000));
+
+    const theirs = await event(host);
+    await join(theirs.id, me);
+
+    expect(await invitesWaiting(db, me)).toBe(1);
+  });
+
+  it('does not count your own events', async () => {
+    // Otherwise making an event badges the page that exists to show you other
+    // people's, which is the opposite of what the number claims.
+    const me = await actor();
+    await seen(me, new Date(Date.now() - 60_000));
+    const mine = await event(me);
+    await join(mine.id, me);
+
+    expect(await invitesWaiting(db, me)).toBe(0);
+  });
+
+  it('counts a request that was turned down', async () => {
+    const me = await actor();
+    const host = await actor();
+    await seen(me, new Date(Date.now() - 60_000));
+    const refused = await event(host, { accessPolicy: 'request_access' });
+    await db.insert(schema.eventAccessRequests).values({
+      eventId: refused.id,
+      actorId: me,
+      status: 'declined',
+      resolvedAt: new Date(),
+    } as never);
+
+    expect(await invitesWaiting(db, me)).toBe(1);
+  });
+
+  it('counts an approval once, not twice', async () => {
+    /*
+     * Approving writes the participant row, so an approved request is already
+     * the first kind. Counting the resolved request as well would show 2 for
+     * one thing happening — which is the bug this arrangement exists to avoid,
+     * and the reason only *declined* requests are counted separately.
+     */
+    const me = await actor();
+    const host = await actor();
+    await seen(me, new Date(Date.now() - 60_000));
+    const opened = await event(host, { accessPolicy: 'request_access' });
+    await join(opened.id, me);
+    await db.insert(schema.eventAccessRequests).values({
+      eventId: opened.id,
+      actorId: me,
+      status: 'approved',
+      resolvedAt: new Date(),
+    } as never);
+
+    expect(await invitesWaiting(db, me)).toBe(1);
+  });
+
+  it('counts everything for somebody who has never looked', async () => {
+    // `> null` is null in SQL, so a naive comparison counts nothing — which
+    // would hide an invitation that arrived before this column existed.
+    const me = await actor();
+    const host = await actor();
+    await seen(me, null);
+    const theirs = await event(host);
+    await join(theirs.id, me);
+
+    expect(await invitesWaiting(db, me)).toBe(1);
+  });
+
+  it('goes to nothing once they look', async () => {
+    const me = await actor();
+    const host = await actor();
+    const theirs = await event(host);
+    await join(theirs.id, me);
+    expect(await invitesWaiting(db, me)).toBe(1);
+
+    await markInvitesSeen(db, me);
+    expect(await invitesWaiting(db, me)).toBe(0);
+  });
+
+  it('is zero for a browser that has never been anywhere', async () => {
+    expect(await invitesWaiting(db, null)).toBe(0);
   });
 });

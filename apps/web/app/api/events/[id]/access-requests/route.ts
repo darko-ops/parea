@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 
 import { decide, findEventById, isSignedIn, recordParticipant } from '@/access';
 import { getDb } from '@/db';
+import { notifyAccessRequested } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -116,6 +117,34 @@ export async function POST(
     .insert(schema.eventAccessRequests)
     .values({ eventId: id, actorId })
     .onConflictDoNothing();
+
+  /*
+   * Tell the host, because otherwise nobody does.
+   *
+   * Fire-and-forget, like every notification: a push outage must not turn a
+   * request that was written into a request the asker believes failed and
+   * sends again.
+   *
+   * The name is the display name or the handle — never the email address,
+   * which the host has no business learning from somebody knocking. A handle
+   * is issued at sign-in, so there is always something to say.
+   */
+  const [asker] = await db
+    .select({
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+    })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId))
+    .limit(1);
+
+  await notifyAccessRequested(db, {
+    eventId: id,
+    eventName: event.name,
+    createdBy: event.createdBy,
+    groupId: event.groupId,
+    who: asker?.displayName ?? (asker?.handle ? `@${asker.handle}` : 'Someone'),
+  });
 
   return NextResponse.json({ status: 'open' }, { status: 201 });
 }

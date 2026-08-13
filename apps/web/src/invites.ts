@@ -14,7 +14,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { eventsFor, type EventListing } from './events';
@@ -103,4 +103,76 @@ export async function askedToJoin(
     status: row.status as AskedToJoin['status'],
     askedAt: row.askedAt.toISOString(),
   }));
+}
+
+/**
+ * How many things have arrived since this person last opened Invites.
+ *
+ * Two sources, and they are the two ways something can happen *to* you here:
+ * you were let into an event you did not make, or a request you sent was
+ * answered with a no. An approved request is not counted twice — approval
+ * writes the participant row, so it is already the first kind.
+ *
+ * Deliberately not "everything in the tabs". A badge is a claim that there is
+ * something new, and a number that only goes down when you look is a number
+ * that stops meaning anything. `invites_seen_at` is what makes it a claim
+ * about news rather than about volume.
+ *
+ * The known imprecision: opening somebody's link makes you a participant right
+ * then, so it lands here as one new thing even though you just did it
+ * yourself. Nothing distinguishes that row from the one approval writes, and
+ * inventing a column to tell them apart would cost more than the wrong badge
+ * does — it clears the moment they look, which they are already doing.
+ */
+export async function invitesWaiting(db: Db, actorId: string | null): Promise<number> {
+  if (!actorId) return 0;
+
+  const [me] = await db
+    .select({ seenAt: schema.actors.invitesSeenAt })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId))
+    .limit(1);
+  if (!me) return 0;
+
+  // Null means never looked. `> null` is null in SQL and would count nothing,
+  // which is the opposite of what never-looked should mean.
+  const since = me.seenAt ?? new Date(0);
+
+  const [letIn] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.eventParticipants)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventParticipants.eventId))
+    .where(
+      and(
+        eq(schema.eventParticipants.actorId, actorId),
+        ne(schema.events.createdBy, actorId),
+        isNull(schema.events.deletedAt),
+        gt(schema.eventParticipants.firstSeenAt, since),
+      ),
+    );
+
+  const [refused] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.eventAccessRequests)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventAccessRequests.eventId))
+    .where(
+      and(
+        eq(schema.eventAccessRequests.actorId, actorId),
+        eq(schema.eventAccessRequests.status, 'declined'),
+        isNull(schema.events.deletedAt),
+        isNotNull(schema.eventAccessRequests.resolvedAt),
+        gt(schema.eventAccessRequests.resolvedAt, since),
+      ),
+    );
+
+  return (letIn?.n ?? 0) + (refused?.n ?? 0);
+}
+
+/** Looking is what clears it. Called when the Invites page renders. */
+export async function markInvitesSeen(db: Db, actorId: string | null): Promise<void> {
+  if (!actorId) return;
+  await db
+    .update(schema.actors)
+    .set({ invitesSeenAt: new Date() })
+    .where(eq(schema.actors.id, actorId));
 }

@@ -1,13 +1,18 @@
 /**
  * Push delivery — docs/design.md §12.
  *
- * The notable thing about this module is how little it can send. There are
- * exactly three kinds of notification in the product and they are enumerated
- * below as a closed union, so adding a fourth is an edit to a type rather than
- * a call site somebody slipped in. The concept is explicit: one well-timed
- * reminder, not notification spam, and the feature test applies to
+ * The notable thing about this module is how little it can send. Every kind of
+ * notification in the product is enumerated below as a closed union, so adding
+ * one is an edit to a type rather than a call site somebody slipped in — and
+ * `NOTIFICATION_KINDS` makes the set countable, which is what keeps the
+ * privacy policy's claim about them honest. The concept is explicit: one
+ * well-timed reminder, not notification spam, and the feature test applies to
  * notifications as much as anything else — does this help people contribute,
  * find, or retrieve shared photos?
+ *
+ * Three of the four are about photographs. The fourth is about a person
+ * standing outside a private event, and it earns its place because nothing
+ * else tells the host: the request simply waits until they happen to look.
  *
  * No "someone added 3 photos". No digests. No re-engagement. Those are the
  * notifications that make people turn all of them off, and the one that
@@ -28,7 +33,14 @@ export type Notification =
   /** The thing a group is actually for. */
   | { kind: 'group_event'; groupId: string; eventId: string; eventName: string; groupName: string }
   /** Transactional: you asked for a photo to come down and someone decided. */
-  | { kind: 'removal_answered'; eventId: string; removed: boolean };
+  | { kind: 'removal_answered'; eventId: string; removed: boolean }
+  /**
+   * Somebody is at the door of a private event and cannot get in until the
+   * host says so. The only notification that reports a person waiting on a
+   * decision rather than an outcome, which is why it is worth interrupting
+   * for: nothing else will tell them, and the request sits until it is seen.
+   */
+  | { kind: 'access_requested'; eventId: string; eventName: string; who: string };
 
 /**
  * The set, enumerable at runtime.
@@ -44,6 +56,7 @@ const KINDS: Record<Notification['kind'], true> = {
   nudge: true,
   group_event: true,
   removal_answered: true,
+  access_requested: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -85,6 +98,13 @@ export function render(notification: Notification): { title: string; body: strin
         body: notification.removed
           ? 'The photo you asked about has been removed.'
           : 'The host decided to keep the photo you asked about.',
+      };
+    case 'access_requested':
+      return {
+        title: notification.eventName,
+        // Named, because the decision is about a person and the host is being
+        // asked to make it. "Someone wants in" is a worse question to answer.
+        body: `${notification.who} is asking to come in.`,
       };
   }
 }

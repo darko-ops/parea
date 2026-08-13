@@ -83,11 +83,12 @@ export default function PrivacyPage() {
 
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
-            Only in the app, only after you allow it, and only used for the three
+            Only in the app, only after you allow it, and only used for the four
             notifications this product sends: one reminder about an event you
             joined and have not added anything to, a new event in a group you
-            are in, and the host&rsquo;s answer when you have asked for a photo
-            of you to be taken down.
+            are in, the host&rsquo;s answer when you have asked for a photo of
+            you to be taken down, and — if you made a private event — that
+            somebody is asking to come in.
           </p>
 
           <h3>Five facts about how the product is used</h3>

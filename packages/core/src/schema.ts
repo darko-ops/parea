@@ -104,6 +104,18 @@ export const actors = pgTable(
    * stored credential with an expiry.
    */
   avatarKey: text('avatar_key'),
+  /**
+   * When this actor last opened Invites.
+   *
+   * The whole of "unread" for that screen. A per-row `seen` flag on every
+   * invitation and every answer would be more state to write, more to migrate
+   * and one more thing to get out of step; a single timestamp says the same
+   * thing and cannot disagree with itself.
+   *
+   * Null means never, which counts everything — right for someone who has an
+   * event waiting from before this column existed.
+   */
+  invitesSeenAt: timestamp('invites_seen_at', { withTimezone: true }),
   accountId: uuid('account_id').references(() => accounts.id, {
     onDelete: 'set null',
   }),

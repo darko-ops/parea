@@ -15,13 +15,16 @@
  * No directive either way, so it renders wherever it is used: on the server
  * for the pages that are server components, and in the client bundle for the
  * account view, which has to decide between this and the sign-in screen from
- * state only it has. Nothing in here is a hook or an effect, so both are the
- * same render.
+ * state only it has. The rail itself is links and an active state, and renders
+ * the same either way; the one thing that has to run on the client — the
+ * count beside Invites — is its own component and carries its own directive,
+ * so it works identically whichever side the rail was drawn on.
  *
  * Reached through `Shell` rather than used directly — a rail without the flex
  * parent it expects renders as a full-width band above the content.
  */
 
+import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
 
 export type RailPage = 'events' | 'invites' | 'find' | 'you' | null;
@@ -58,6 +61,13 @@ export function Rail({ current }: { current: RailPage }) {
           aria-current={current === row.page ? 'page' : undefined}
         >
           {row.label}
+          {/*
+            Only on the row it belongs to, and only when the page is not the
+            one you are looking at: arriving on Invites is what clears it, so a
+            number still sitting there while you read the list is a number
+            describing a moment that has passed.
+          */}
+          {row.page === 'invites' && current !== 'invites' && <InvitesBadge />}
         </a>
       ))}
 

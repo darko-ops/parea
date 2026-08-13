@@ -246,6 +246,22 @@ button.secondary {
 .rail a.rail-row {
   padding: 9px 10px; border-radius: 8px; font-size: 15px;
   color: var(--dim); text-decoration: none;
+  /* So the count sits at the end of the row rather than after the word. The
+     rail is a column of destinations and the number belongs to the row, not
+     to the label. */
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+/* The count. Filled rather than outlined, because it is the one thing in the
+   rail making a claim that something needs attention — an outline reads as
+   another label. Sized off the text so it stays a circle at one digit and a
+   rounded slab at three, rather than a fixed square the number outgrows. */
+.badge {
+  flex: none; min-width: 20px; padding: 0 6px;
+  height: 20px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .rail a.rail-row[aria-current='page'] {
   background: var(--accent-soft); color: var(--accent); font-weight: 600;

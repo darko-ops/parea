@@ -107,3 +107,55 @@ export async function notifyRemovalAnswered(
     /* see the module header */
   }
 }
+
+/**
+ * Somebody is waiting at the door of a private event.
+ *
+ * To the creator and to any admins of the group it belongs to — the same set
+ * `authorize` lets administer it, because approving is an administrative act
+ * and telling anyone else would be telling them who is asking about an event
+ * they cannot answer for.
+ *
+ * The one notification that reports a person rather than a photograph, and it
+ * earns that because nothing else reports it at all: a request sits in the
+ * manage screen until a host happens to look, and "happens to look" is not a
+ * mechanism.
+ */
+export async function notifyAccessRequested(
+  db: Db,
+  input: {
+    eventId: string;
+    eventName: string;
+    createdBy: string;
+    groupId: string | null;
+    /** What to call the person asking. Never their email address. */
+    who: string;
+  },
+): Promise<void> {
+  try {
+    const admins = input.groupId
+      ? await db
+          .select({ actorId: schema.groupMembers.actorId })
+          .from(schema.groupMembers)
+          .where(
+            and(
+              eq(schema.groupMembers.groupId, input.groupId),
+              eq(schema.groupMembers.role, 'admin'),
+            ),
+          )
+      : [];
+
+    // Deduplicated: the creator is usually also a group admin, and `deliver`
+    // would otherwise send them two of the same notification.
+    const targets = [...new Set([input.createdBy, ...admins.map((a) => a.actorId)])];
+
+    await deliver(db, targets, {
+      kind: 'access_requested',
+      eventId: input.eventId,
+      eventName: input.eventName,
+      who: input.who,
+    });
+  } catch {
+    /* see the module header */
+  }
+}

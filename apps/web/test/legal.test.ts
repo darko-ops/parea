@@ -99,13 +99,15 @@ describe('the closed list of what is collected', () => {
      * Counted against the union rather than the word "three", so a fourth kind
      * fails here instead of quietly making the sentence wrong again.
      */
-    expect(NOTIFICATION_KINDS).toHaveLength(3);
-    expect(PRIVACY).toMatch(/three\s+notifications/);
+    expect(NOTIFICATION_KINDS).toHaveLength(4);
+    expect(PRIVACY).toMatch(/four\s+notifications/);
 
-    // One phrase per kind, each distinguishing it from the other two.
+    // One phrase per kind, each distinguishing it from the others. The fourth
+    // arrived after this test did, and the test is what made the page follow.
     expect(PRIVACY, 'nudge').toMatch(/have not added anything to/);
     expect(PRIVACY, 'group_event').toMatch(/new event in a group/);
     expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
+    expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come in/);
   });
 
   it('names every third party that handles data', () => {
