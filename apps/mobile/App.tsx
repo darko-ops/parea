@@ -564,7 +564,7 @@ function JoinScreen({
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder="amber-fox"
+          placeholder="amber-quiet-lantern"
           placeholderTextColor={t.dim}
           autoCapitalize="none"
           autoCorrect={false}

@@ -193,3 +193,29 @@ describe('submit credentials', () => {
     expect(eas.submit.production.android.track).toBe('internal');
   });
 });
+
+describe('the example phrase people are shown', () => {
+  it('has as many words as a real one', async () => {
+    /*
+     * The join screen's placeholder read `amber-fox` — the two-word shape
+     * phrases had before the pool was reseeded with three. Nobody types a
+     * placeholder, so nothing broke; it just quietly taught the wrong thing to
+     * the one person who most needed the right one, standing in a room being
+     * told a code.
+     *
+     * Counted against a phrase the generator actually produces rather than
+     * against the number three, so this follows the pool if it ever changes
+     * again.
+     */
+    const { codeWordTriples, CODE_SEPARATOR } = await import('@parea/core');
+    const real = [...codeWordTriples(1)][0]!;
+    const words = real.split(CODE_SEPARATOR).length;
+
+    const app = await import('node:fs/promises').then((fs) =>
+      fs.readFile(new URL('../App.tsx', import.meta.url).pathname, 'utf8'),
+    );
+    const placeholder = app.match(/placeholder="([a-z-]+)"/)?.[1];
+    expect(placeholder, 'no phrase placeholder found').toBeTruthy();
+    expect(placeholder!.split(CODE_SEPARATOR).length, placeholder!).toBe(words);
+  });
+});
