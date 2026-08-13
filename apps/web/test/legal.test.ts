@@ -341,3 +341,40 @@ describe('who is making the promise', () => {
     }
   });
 });
+
+describe('what showing a name beside a photograph discloses', () => {
+  /*
+   * The contributor filter is the first thing in the product that puts names
+   * next to photographs for everybody holding an event's link. Before it, the
+   * event page said "214 photos from 6 people" and named none of them, and the
+   * privacy page's account of where a name is shown was a single audience: a
+   * host deciding whether to let somebody into a private event.
+   *
+   * That sentence did not become false on its own. It became false because a
+   * feature was built, which is exactly how the notification list and the
+   * account-contents list went wrong twice before — the page was accurate when
+   * it was written and nothing tied it to the thing it described.
+   *
+   * So this ties the two together in the only direction that matters: while
+   * the client draws contributors, the page must say that it does.
+   */
+  const EVENT_VIEW = read(
+    fileURLToPath(new URL('../app/components/EventView.tsx', import.meta.url)),
+  );
+
+  it('says so, for as long as the event page names contributors', () => {
+    const namesThem = /people\.map\(|feed\.people/.test(EVENT_VIEW);
+    expect(namesThem, 'the event page no longer names contributors').toBe(true);
+
+    expect(PROSE, 'the page does not say who can see your name').toMatch(
+      /everyone who can see that event can see that they are yours/,
+    );
+  });
+
+  it('keeps the distinction between looking and adding', () => {
+    // Looking at an event must not put somebody in the list, and the page has
+    // to keep saying which of the two does — "who was there" and "who added
+    // photographs" are different sets, and only one of them is published.
+    expect(PROSE).toMatch(/Looking at an event does not put you in that list/);
+  });
+});

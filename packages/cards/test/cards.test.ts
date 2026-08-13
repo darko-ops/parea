@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ago, metaFor } from '../src';
+import { ago, metaFor, mosaicLayout } from '../src';
 
 const NOW = new Date('2026-08-11T21:00:00Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
@@ -75,5 +75,46 @@ describe('metaFor', () => {
     expect(metaFor({ ...base, memberCount: 1 }, { newest: false, now: NOW })).toMatch(
       /^1 person /,
     );
+  });
+});
+
+describe('the mosaic shape', () => {
+  it('is a hero and a stacked pair once there are three', () => {
+    // Both three and four draw this. A card that grows a third column the
+    // moment a fourth photo lands would change shape while somebody watches.
+    for (const count of [3, 4]) {
+      expect(mosaicLayout(count)).toEqual([
+        { weight: 2, photos: [0] },
+        { weight: 1, photos: [1, 2] },
+      ]);
+    }
+  });
+
+  it('falls back rather than stretching, below three', () => {
+    // Two photos is a deliberate two-tile layout, not a four-tile layout with
+    // holes in it.
+    expect(mosaicLayout(0)).toEqual([]);
+    expect(mosaicLayout(1)).toEqual([{ weight: 1, photos: [0] }]);
+    expect(mosaicLayout(2)).toEqual([
+      { weight: 1, photos: [0] },
+      { weight: 1, photos: [1] },
+    ]);
+  });
+
+  it('never asks for a photo that was not fetched', () => {
+    // The clients index straight into their own arrays with these, so an
+    // index past the end is a crash on somebody's home screen.
+    for (let count = 0; count <= 8; count++) {
+      const indices = mosaicLayout(count).flatMap((column) => column.photos);
+      expect(Math.max(-1, ...indices), `at ${count}`).toBeLessThan(Math.max(count, 1));
+      expect(new Set(indices).size, `duplicate tile at ${count}`).toBe(indices.length);
+    }
+  });
+
+  it('survives a count no card should have', () => {
+    // `mosaic` comes back from a query with a limit on it, but nothing in the
+    // type system says so, and a negative or absurd length must not throw.
+    expect(mosaicLayout(-1)).toEqual([]);
+    expect(mosaicLayout(400)).toHaveLength(2);
   });
 });

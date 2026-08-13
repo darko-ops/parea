@@ -1,9 +1,10 @@
 import { schema, visiblePhotos } from '@parea/core';
-import { asc, sql } from 'drizzle-orm';
+import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
+import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSrc } from '@/images';
@@ -64,10 +65,26 @@ export default async function EventPage({
       id: photo.id,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
       mine: viewerId != null && photo.uploaderId === viewerId,
+      by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
       full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
     })),
   );
+
+  const people = await contributorsOf(db, event.id, rows, viewerId);
+
+  // Uploaded and not through the deriver yet. Not in `rows` by definition —
+  // `visiblePhotos` returns what can be looked at, and these cannot be yet.
+  const [pending] = await db
+    .select({ n: countDistinct(schema.photos.id) })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.eventId, event.id),
+        eq(schema.photos.status, 'pending'),
+        isNull(schema.photos.deletedAt),
+      ),
+    );
 
   return (
     <Shell>
@@ -83,8 +100,11 @@ export default async function EventPage({
             groupName: event.groupId
               ? ((await findGroup(db, event.groupId))?.name ?? null)
               : null,
+            startsAt: event.startsAt?.toISOString() ?? null,
           },
-          contributors: new Set(rows.map((p) => p.uploaderId)).size,
+          contributors: people.length,
+          people,
+          arriving: pending?.n ?? 0,
           count: photos.length,
           photos,
         }}

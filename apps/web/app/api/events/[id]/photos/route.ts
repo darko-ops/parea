@@ -11,10 +11,11 @@
  */
 
 import { schema, visiblePhotos } from '@parea/core';
-import { asc, sql } from 'drizzle-orm';
+import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
+import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
@@ -67,6 +68,9 @@ export async function GET(
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
+      // Which contributor chip this photo belongs to. A per-event digest, not
+      // an actor id — see `contributors.ts`.
+      by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
       // A 320px thumbnail rather than a multi-megabyte original: a 200-photo
       // grid of originals is ~800MB of pointless transfer.
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
@@ -86,7 +90,31 @@ export async function GET(
 
   // The contribution count is a recruiting device, not a statistic: "6 people,
   // 88 photos" is what gets the seventh person to add theirs (design §2).
-  const contributors = new Set(rows.map((p) => p.uploaderId)).size;
+  // Kept as a number as well as a list: the native client reads this field and
+  // has no use for the filter the list is for.
+  const people = await contributorsOf(db, event.id, rows, viewerId);
+  const contributors = people.length;
+
+  /*
+   * Uploaded and not through the deriver yet — everybody's, not this tab's.
+   *
+   * Counted rather than taken from `rows`, because a photo mid-ingest is not
+   * in `rows`: `visiblePhotos` returns what can be looked at, and this is the
+   * number for the thing that cannot be looked at yet. Deliberately not
+   * filtered by uploader — "12 arriving" is about the event filling up, and
+   * whose they are is not knowable until they land anyway.
+   */
+  const [pending] = await db
+    .select({ n: countDistinct(schema.photos.id) })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.eventId, event.id),
+        eq(schema.photos.status, 'pending'),
+        isNull(schema.photos.deletedAt),
+      ),
+    );
+  const arriving = pending?.n ?? 0;
 
   return NextResponse.json({
     event: {
@@ -96,8 +124,11 @@ export async function GET(
       canAdminister: (await decide(db, event, 'administer', requester)).allow,
       groupId: event.groupId,
       groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
+      startsAt: event.startsAt?.toISOString() ?? null,
     },
     contributors,
+    people,
+    arriving,
     count: photos.length,
     photos,
   });

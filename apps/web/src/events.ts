@@ -58,10 +58,39 @@ export type EventListing = {
   /** People who have been in it, which is what "members" means on a card. */
   memberCount: number;
   photoCount: number;
+  /**
+   * People who actually put something in, which is a different number.
+   *
+   * The card draws one lens per contributor, and drawing one per *member*
+   * would put a circle on the card for everybody who opened the link and
+   * looked — "who was there" turning into "who has the link", which is the
+   * one thing this product is careful not to conflate.
+   */
+  contributorCount: number;
+  /**
+   * Uploaded and not through the deriver yet.
+   *
+   * The difference between an event that is being added to right now and one
+   * that was added to twenty minutes ago, which `lastActiveAt` cannot tell
+   * apart on its own.
+   */
+  arrivingCount: number;
   lastActiveAt: string;
 };
 
-export async function eventsFor(db: Db, actorId: string | null): Promise<EventListing[]> {
+/**
+ * How the list is ordered.
+ *
+ * `recent` is what a home screen is for. `place` is for the other question —
+ * "the Greece one" — where the name has gone and the location has not.
+ */
+export type EventSort = 'recent' | 'place';
+
+export async function eventsFor(
+  db: Db,
+  actorId: string | null,
+  sort: EventSort = 'recent',
+): Promise<EventListing[]> {
   if (!actorId) return [];
 
   const rows = await db
@@ -111,6 +140,19 @@ export async function eventsFor(db: Db, actorId: string | null): Promise<EventLi
         where p.event_id = ${schema.events.id}
           and p.status = 'ready' and p.deleted_at is null
       )`,
+      contributorCount: sql<number>`(
+        select count(distinct p.uploader_id)::int from "photo" p
+        where p.event_id = ${schema.events.id}
+          and p.status = 'ready' and p.deleted_at is null
+      )`,
+      // 'pending' is the state between the bytes landing and the deriver
+      // finishing. Anything else — failed, removed, quarantined — is not
+      // arriving, it has arrived and been dealt with.
+      arrivingCount: sql<number>`(
+        select count(*)::int from "photo" p
+        where p.event_id = ${schema.events.id}
+          and p.status = 'pending' and p.deleted_at is null
+      )`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
@@ -131,7 +173,16 @@ export async function eventsFor(db: Db, actorId: string | null): Promise<EventLi
     )
     // Most recently active first: a timeline is about what is happening, and
     // the event people are still adding to is the one worth being near the top.
-    .orderBy(desc(schema.events.lastActiveAt));
+    //
+    // By place, an event with no place goes last rather than first. Postgres
+    // sorts nulls last on ASC by default, but saying so is cheaper than
+    // relying on it — and the tie-break stays recency, so within one pub the
+    // list still reads as a timeline.
+    .orderBy(
+      ...(sort === 'place'
+        ? [sql`${schema.events.place} asc nulls last`, desc(schema.events.lastActiveAt)]
+        : [desc(schema.events.lastActiveAt)]),
+    );
 
   return rows.map((row) => ({
     ...row,

@@ -23,3 +23,6 @@ plant.mts
 seed.mts
 reseed.mts
 cleanup.mts
+
+# Unpacked from the design bundle beside it; the zip is the artefact.
+design/unpacked/

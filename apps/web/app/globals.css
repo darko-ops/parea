@@ -38,8 +38,27 @@
   --accent-soft: #e8eefb;
   /* Dashed affordances: the empty grid cell, the add-contact circle. */
   --line-dashed: #d3d8de;
-  /* Lifts the card text off the blurred photo bleeding up behind it. */
-  --scrim: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .88));
+  /* Lifts the card text off the blurred photo bleeding up behind it. Two of
+     them, because the card and the hero want different amounts of it: the
+     card is 20px of name over a blurred strip and can afford to let the
+     album's colour through, the hero has four lines and a button over the
+     same effect at a larger size and cannot. */
+  --scrim: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .78));
+  --scrim-deep: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .9));
+  /* A rule *inside* a bordered container. Lighter than `--line`, which is an
+     edge: the same colour for both makes a list of rows read as a stack of
+     separate boxes rather than one list. */
+  --hairline: #eef1f4;
+  /* The trough of the segmented control, and of every progress bar. */
+  --track: #f4f6f8;
+  /* The second stripe of the moving upload bar. Near enough to the accent
+     that the bar reads as one colour in motion rather than as a barber pole. */
+  --accent-2: #3d7ade;
+  /* Pressed into the surface rather than sitting on it: a light above and a
+     shade below, and ink too pale to compete with the name beside it. Never
+     the only carrier of a number — see the count in `EventCard`. */
+  --deboss-ink: rgba(20, 23, 28, .22);
+  --deboss-shadow: 0 1px 0 rgba(255, 255, 255, .8), 0 -1px 1px rgba(20, 23, 28, .14);
 }
 /* No dark scheme. The product is a white page with photographs on it, and a
    dark one was inverting the surface those photographs are judged against —
@@ -365,10 +384,13 @@ button.secondary {
   display: grid; gap: 18px;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
 }
+/* 20px, up from 14. The card is the one object in the product that is mostly
+   photograph, and a softer corner is what separates it from the panels and
+   inputs that share its border colour. */
 .card {
   display: block; text-decoration: none; color: inherit;
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
+  border-radius: 20px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
 }
 .card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -379,49 +401,267 @@ button.secondary {
    invalidates every URL on the card at once — collapses to a single even
    panel instead of an empty grid with hairlines ruled across it. Between
    photos that do load, the same colour reads as an ordinary gutter. */
-.mosaic { display: grid; gap: 2px; height: 150px; background: var(--bg); }
+.mosaic { display: grid; gap: 3px; height: 168px; background: var(--bg); }
 .mosaic > * { background: var(--bg); overflow: hidden; }
 .mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* A split column: two tiles stacked in one grid track. */
-.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--bg); }
+.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; background: var(--bg); }
 
 /* The detail strip. No dividing line above it — instead the album's own
    colours bleed up underneath the text, which is what ties the two halves
    together. Same images again, mirrored and blurred, under a scrim. */
 .card-body { position: relative; overflow: hidden; }
 .card-bleed {
-  position: absolute; inset: -24px; display: flex;
-  transform: scaleY(-1); filter: blur(18px) saturate(1.15);
+  position: absolute; inset: -26px; display: flex;
+  /* More saturation with the lighter scrim: the wash takes colour out, and
+     what is left has to survive being blurred at 20px as well. */
+  transform: scaleY(-1); filter: blur(20px) saturate(1.35);
   /* Decorative: the real copy is in the layer above. */
   pointer-events: none;
 }
 /* Widths come from the column weights inline — see EventCard's `layout`. */
 .card-bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .card-scrim { position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
+/* Baseline-aligned at the bottom rather than centred: the name is 20px and the
+   count is 24px, and centring two things of different sizes leaves neither
+   sitting on a line the eye can find. */
 .card-text {
-  position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px 13px;
+  position: relative; display: flex; align-items: flex-end; gap: 14px;
+  padding: 14px 16px 16px;
 }
 .card-name {
-  font-size: 18px; font-weight: 700; letter-spacing: -.01em;
+  font-size: 20px; font-weight: 700; letter-spacing: -.015em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .card-meta { font-size: 13.5px; color: var(--dim); }
-.card-count {
-  flex: none; font-size: 18px; font-weight: 600; color: var(--dim);
-  font-variant-numeric: tabular-nums;
+/* Lenses then place. Set in the text colour rather than `--dim`: it is a short
+   fact about the event, and the row it replaced was grey because it was a
+   sentence. */
+.card-who {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  min-width: 0;
 }
+.card-where {
+  font-size: 13.5px; font-weight: 500; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* One circle per contributor, in the mark's colours, overlapped the way the
+   mark's own lenses overlap. */
+.lenses { display: inline-flex; flex: none; }
+.lenses > * { border-radius: 50%; display: block; }
+.lenses > * + * { margin-left: -5px; }
+/* Not Garet: the wordmark keeps that face to itself, and a display cut used on
+   a second thing stops being the thing that means "Parea". The deboss is what
+   carries the treatment — pressed into the blurred strip, present without
+   competing with the name. */
+.card-count {
+  flex: none; font-size: 24px; font-weight: 600; line-height: 1;
+  letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  color: var(--deboss-ink); text-shadow: var(--deboss-shadow);
+}
+
 /* An event with no photos gets no mosaic and no bleed — blurring nothing
-   produces a grey smear that looks like a loading state that never finishes. */
-.card-bare .card-text { padding: 16px 14px; }
+   produces a grey smear that looks like a loading state that never finishes.
+   So it is a different card: a name, a sentence, and the argument. */
+.card-empty {
+  min-height: 238px; padding: 18px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+}
+.card-empty .card-name { white-space: normal; }
+.card-empty .card-meta { margin-top: 4px; }
+/* Two lenses filled and one dashed and empty. The empty one is you, which is
+   the entire content of this card said without a sentence. */
+.card-empty-lenses {
+  display: flex; align-items: center; justify-content: center; padding: 18px 0;
+}
+.card-empty-lenses > * {
+  width: 52px; height: 52px; border-radius: 50%; display: block;
+}
+.card-empty-lenses > :first-child { background: #ffb3b8; opacity: .5; }
+.card-empty-lenses > :nth-child(2) { background: #9db2f0; opacity: .5; margin-left: -18px; }
+.card-empty-slot {
+  border: 1px dashed var(--line-dashed); margin-left: -18px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 20px;
+}
+.card-empty-go {
+  display: block; text-align: center; padding: 12px 0; border-radius: 12px;
+  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+}
 
 .card-new {
-  border: 1px dashed var(--line-dashed); border-radius: 14px; min-height: 150px;
-  display: flex; flex-direction: column; justify-content: center; gap: 6px;
-  padding: 20px; text-decoration: none; color: inherit; background: none;
+  border: 1px dashed var(--line-dashed); border-radius: 20px; min-height: 238px;
+  display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  padding: 18px; text-decoration: none; color: inherit; background: none;
 }
 .card-new strong { font-size: 17px; font-weight: 600; }
 .card-new span { font-size: 14px; color: var(--dim); }
+/* Wider overlap at this size — the -5px that reads as "just touching" on a
+   14px circle is barely a notch on an 18px one. */
+.card-new .lenses > * + * { margin-left: -6px; }
+
+/* ---------------------------------------------------------------------------
+   Home — one hero and a list, rather than a grid of equal cards.
+
+   The grid said eleven events are eleven equally interesting things, and fitted
+   four of them on a screen. One of them is usually being added to right now
+   and the rest are a list you scan for a name.
+   --------------------------------------------------------------------------- */
+
+/* Two links wearing a control. The pill that moves is the white one, and it is
+   the only thing on this page with a shadow — a raised surface is how a
+   segmented control says which half you are on without a border doing it. */
+.segmented {
+  display: flex; gap: 4px; padding: 3px;
+  background: var(--track); border-radius: 999px;
+}
+.segmented a {
+  padding: 6px 13px; border-radius: 999px;
+  font-size: 13px; color: var(--dim); text-decoration: none;
+}
+.segmented a[aria-current='page'] {
+  background: var(--bg); color: var(--fg); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(20, 23, 28, .08);
+}
+.segmented a:hover { color: var(--fg); }
+
+.hero {
+  position: relative;
+  border: 1px solid var(--line); border-radius: 16px;
+  overflow: hidden; margin-bottom: 20px;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.hero:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
+/* Taller than a card's 168: this one is meant to be looked at rather than
+   recognised, and it is the only mosaic on the page at this width. */
+.hero-mosaic { height: 214px; }
+/* Denser than the card's, because there are four lines and a button over it
+   rather than two. */
+.hero-scrim { background: var(--scrim-deep); }
+.hero-text {
+  position: relative; display: flex; align-items: center; gap: 18px;
+  padding: 16px 18px 17px;
+}
+/* The label is the reason this card is at the top, so it is above the name. */
+.hero-live {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  font-size: 12.5px; font-weight: 600; color: var(--accent); letter-spacing: .02em;
+}
+.hero-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--accent); animation: pulse 1.8s ease-in-out infinite;
+}
+.hero-name {
+  font-size: 26px; font-weight: 700; letter-spacing: -.02em;
+  margin: 3px 0 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hero-name a { color: inherit; text-decoration: none; }
+/* The stretched link: the anchor is on the name, and this grows it over the
+   whole card. One link with a sensible accessible name, one click target, and
+   no file input nested inside an `<a>` — which is what wrapping the card in an
+   anchor would have required, and is invalid markup. */
+.hero-name a::after { content: ''; position: absolute; inset: 0; }
+.hero-name a:focus-visible { outline: none; }
+.hero:has(.hero-name a:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hero-meta { margin: 0; font-size: 14px; color: var(--dim); }
+/* Above the stretched link, or it cannot be pressed. */
+.add-yours {
+  position: relative; flex: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.hero-go {
+  margin: 0; padding: 11px 17px; border-radius: 10px;
+  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.hero-go[aria-disabled='true'] { opacity: .7; cursor: default; }
+.add-yours:has(input:focus-visible) .hero-go {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.hero-note { font-size: 12px; color: var(--dim); }
+.hero-count {
+  position: relative; flex: none;
+  font-size: 22px; font-weight: 600; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One container, interior rules. A stack of separately bordered rows reads as
+   many objects; this is one list. */
+.rows {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+.row {
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+  text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--hairline);
+  transition: background 120ms;
+}
+.row:hover { background: var(--track); }
+.row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+/* Fixed, and the same box whether or not there are photographs in it — a
+   thumbnail column that collapses on the empty rows makes the names jag. */
+.row-thumb, .row-thumb-empty, .row-thumb-slot {
+  flex: none; width: 112px; height: 58px; border-radius: 8px;
+}
+.row-thumb { display: flex; gap: 2px; overflow: hidden; }
+.row-thumb > * { overflow: hidden; }
+.row-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.row-thumb-empty {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--line-dashed);
+  font-size: 11px; color: var(--dim);
+}
+.row-text { flex: 1; min-width: 0; }
+.row-name {
+  display: block; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-meta {
+  display: block; font-size: 13px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-count {
+  flex: none; font-size: 17px; font-weight: 600; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+/* A prompt shaped like a button, on a row that is already a link. Secondary,
+   because the row it sits on is not the one the page is about. */
+.row-go {
+  flex: none; padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--line); font-size: 13px; font-weight: 600;
+}
+/* The last row, and the whole empty state. No border under it: it is the end
+   of the list, and a rule there would be drawing the container's edge twice. */
+.row-new {
+  display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+  color: var(--dim); font-size: 14px; text-decoration: none;
+}
+.row-new:hover { background: var(--track); color: var(--fg); }
+.row-thumb-slot {
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+
+/* Two things are saying "something is happening" — the hero's dot and the
+   arriving pill on an event. Neither is load-bearing: the words beside them
+   carry the meaning, so switching the motion off costs nothing. */
+@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+@keyframes slide { from { background-position: 0 0 } to { background-position: 44px 0 } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-dot, .arriving-dot { animation: none; opacity: 1; }
+  .bar-fill { animation: none; }
+}
+
+/* Below the breakpoint the hero keeps the label, the name, the meta and the
+   count, and the picker drops onto its own line — at 560px the button and a
+   26px name in one row leave the name three words wide. */
+@media (max-width: 560px) {
+  .hero-text { flex-wrap: wrap; }
+  .add-yours { order: 3; }
+  .hero-count { order: 2; margin-left: auto; }
+  .hero-mosaic { height: 168px; }
+}
 
 /* ---------------------------------------------------------------------------
    The create screen — a form column and, beside it, what happens next.
@@ -542,6 +782,181 @@ button.secondary {
   font-size: 14px; font-weight: 600; color: var(--accent); cursor: pointer;
 }
 
+
+/* ---------------------------------------------------------------------------
+   The event, while it is happening.
+
+   Two hundred photos is several screens, and everything you reach for — the
+   count, the download, the picker — used to be above all of them. The head is
+   sticky now, the upload detail is folded away at the foot where a progress
+   report belongs, and the grid in between is grouped and filterable, because
+   "whose is this one?" is the question a wall of photographs raises.
+   --------------------------------------------------------------------------- */
+/* A flex child of `.shell`, like `.main` and `.wrap`. `min-width: 0` because a
+   flex item's floor is its content, and a grid of photographs raises that
+   past the column. */
+.event { flex: 1; min-width: 0; }
+.event-head {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  /* Translucent, so the photographs going under it stay visible as
+     photographs. The solid fallback matters: without `backdrop-filter` this
+     is text over a moving grid, which is unreadable rather than merely less
+     pretty. */
+  background: var(--bg);
+}
+@supports (backdrop-filter: blur(8px)) {
+  .event-head { background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); }
+}
+.event-head-text { flex: 1; min-width: 0; }
+.event-head h1 {
+  font-size: 20px; font-weight: 700; letter-spacing: -.015em; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.event-head p { margin: 0; font-size: 13px; }
+.event-head .button-like { padding: 10px 15px; font-size: 14px; white-space: nowrap; }
+.event-body {
+  padding: 20px 24px 28px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+/* The one thing on this page that is about the future. */
+.arriving {
+  flex: none; display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.arriving-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* A disclosure rather than a popover: no script, no focus trap to get wrong,
+   and it closes the way every other `<details>` in the product closes. */
+.menu { position: relative; flex: none; }
+.menu > summary { list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-body {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 3;
+  width: 300px; display: grid; gap: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(20, 23, 28, .04), 0 8px 24px rgba(20, 23, 28, .08);
+}
+.menu-body button { width: 100%; padding: 11px 14px; font-size: 14px; }
+.menu-body p { margin: 0; font-size: 13px; line-height: 1.45; }
+
+/* One chip per contributor. Identical to `.pill` when selected, because it is
+   the same idea — a thing you have picked out of a set — and two shapes for
+   one idea is how an interface starts to feel assembled. */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: inherit;
+  font-size: 14px; font-weight: 400; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.chip[aria-pressed='true'] {
+  border: 1.5px solid var(--accent); background: var(--accent-soft);
+  color: var(--accent); font-weight: 600;
+}
+.chip-face {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 11px; font-weight: 600;
+}
+.chip[aria-pressed='true'] .chip-face { background: var(--bg); }
+
+.section-head {
+  display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px;
+  font-size: 13px; color: var(--dim);
+}
+.section-head strong { letter-spacing: .02em; font-weight: 600; }
+/* The grid inside a section has already been given its gap by the flex column
+   above it, so it does not need the standalone grid's top margin. */
+.event-body .grid { margin-top: 0; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+/* A photo that arrived while you were looking. A ring rather than a badge:
+   whatever marks it has to not cover any of it. */
+.tile-new { box-shadow: 0 0 0 2px var(--accent); }
+
+/* The upload block: folded away at the foot of the page. */
+.uploads { border: 1px solid var(--line); border-radius: 14px; }
+.uploads > summary {
+  list-style: none; cursor: pointer;
+  padding: 13px 16px; display: flex; align-items: center; gap: 14px;
+}
+.uploads > summary::-webkit-details-marker { display: none; }
+.uploads-mark { flex: none; font-size: 12px; color: var(--dim); transition: transform 120ms; }
+.uploads[open] .uploads-mark { transform: rotate(180deg); }
+.uploads-title { flex: 1; min-width: 0; display: block; }
+.uploads-title strong { display: block; font-size: 15px; }
+.uploads-title .muted { display: block; font-size: 13px; }
+.uploads-left {
+  flex: none; font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums;
+}
+.uploads-list {
+  border-top: 1px solid var(--hairline);
+  padding: 14px 16px 16px; display: grid; gap: 8px;
+}
+.uploads-list > p { margin: 0; font-size: 13px; }
+
+/* The overall bar. Its *width* is the progress; the movement only says the
+   thing is alive, which is why reduced-motion stops the slide and keeps the
+   width. */
+.bar {
+  flex: none; width: 180px; height: 6px; border-radius: 999px;
+  background: var(--track); overflow: hidden;
+}
+.bar-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--accent); transition: width 200ms ease;
+}
+.bar-moving {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 14px, var(--accent-2) 14px 22px);
+  animation: slide 1.1s linear infinite;
+}
+
+.upload { display: flex; align-items: center; gap: 12px; }
+.upload-thumb, .upload-dead {
+  flex: none; width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.upload-thumb { background: var(--track); }
+.upload-dead {
+  border: 1px dashed var(--line-dashed); color: var(--dim); font-size: 15px;
+}
+.upload-text { flex: 1; min-width: 0; }
+/* Monospace, like every other filename and code in the product. */
+.upload-name {
+  display: block; font: 13px ui-monospace, Menlo, monospace; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.upload-text .muted { display: block; font-size: 12.5px; margin-top: 2px; }
+.upload-bar {
+  display: block; height: 3px; border-radius: 999px;
+  background: var(--track); margin-top: 5px; overflow: hidden;
+}
+.upload-bar-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--accent); transition: width 200ms ease;
+}
+.upload-state {
+  flex: none; font-size: 12.5px; color: var(--dim); white-space: nowrap;
+}
+button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
+
+/* On a phone the head keeps the name and the picker; the download drops into
+   the body, where there is room for a 300px panel to open under it. */
+@media (max-width: 620px) {
+  .event-head { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
+  .event-head-text { flex-basis: 100%; }
+  .menu-body { right: auto; left: 0; width: min(300px, calc(100vw - 32px)); }
+  .event-body { padding: 16px 16px 24px; }
+}
 
 /* ---------------------------------------------------------------------------
    The sign-in page.

@@ -86,15 +86,27 @@ export default function PrivacyPage() {
           </p>
 
           <h3>A display name, if you give one</h3>
-          <p className="muted">Optional, and free text. Nothing verifies it.</p>
+          <p className="muted">
+            Optional, and free text. Nothing verifies it. Where it is shown is
+            described under the handle below, because the two are shown in the
+            same places and the name is used wherever you have set one.
+          </p>
 
           <h3>A handle</h3>
           <p className="muted">
             Issued when you sign in rather than asked for &mdash; three words,
-            like <em>amber-quiet-lantern</em> &mdash; and yours to change. It is
-            how somebody deciding whether to let you into their private event
-            knows who is asking, so it is shown to them. Your email address
-            never is.
+            like <em>amber-quiet-lantern</em> &mdash; and yours to change. Your
+            email address is never shown with either of them.
+          </p>
+          <p className="muted">
+            Two places show your name or handle to other people. Somebody
+            deciding whether to let you into their private event sees it,
+            because that is the decision they are being asked to make. And once
+            you add photos to an event, everyone who can see that event can see
+            that they are yours &mdash; the photographs are grouped by who took
+            them, so that a set of two hundred from six people can be read at
+            all. Looking at an event does not put you in that list; adding to
+            it does.
           </p>
 
           <h3>A profile picture, if you add one</h3>

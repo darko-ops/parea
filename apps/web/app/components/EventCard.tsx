@@ -11,116 +11,147 @@
  * fetched, so the browser serves them from cache and the effect costs one
  * blur filter rather than a second round of image loads.
  *
+ * The scrim is lighter than it was — `.34` at the top where it used to be
+ * `.62` — because the point of the bleed is the album's own colour and the old
+ * wash was most of the way to white before the text even arrived. The name is
+ * `#14171c` on at least a `.34` white wash over a blurred photograph; if a
+ * genuinely dark album ever fails contrast here the fix is to raise that stop,
+ * not to darken the text, which would make every other card worse.
+ *
  * An event with no photos gets neither mosaic nor bleed. Blurring nothing
- * produces a grey smear that reads as a loading state which never finishes.
+ * produces a grey smear that reads as a loading state which never finishes, so
+ * it becomes a different card entirely — see `card-empty` below.
  */
+
+import { mosaicLayout } from '@parea/cards';
 
 import type { CardEvent } from '@/cards';
 
+import { Lenses } from './Lenses';
 import { MosaicTile } from './MosaicTile';
-
-/**
- * Tile arrangement, by how many photos there are.
- *
- * One hero plus supporting tiles, which is the pattern the design specifies.
- * Chosen by count rather than by position, so a card with two photos is a
- * deliberate two-tile layout and not a four-tile layout with two holes in it —
- * the design is explicit that missing tiles fall back rather than stretch.
- *
- * Returns the columns already grouped, so the caller renders what it is given
- * instead of re-deriving which column holds two.
- */
-function layout(
-  photos: string[],
-): { groups: string[][]; weights: number[] } {
-  const [a, b, c, d] = photos;
-  switch (photos.length) {
-    case 1:
-      return { groups: [[a!]], weights: [1] };
-    case 2:
-      return { groups: [[a!], [b!]], weights: [1, 1] };
-    case 3:
-      return { groups: [[a!], [b!], [c!]], weights: [1, 1, 2] };
-    default:
-      // Hero left, a stacked pair centre, one tall tile right. Four photos in
-      // the shape the design draws with five, rather than fetching a fifth
-      // for every card of every home screen to fill one corner.
-      return { groups: [[a!], [b!, d!], [c!]], weights: [2, 1, 1] };
-  }
-}
 
 export function EventCard({ event }: { event: CardEvent }) {
   const photos = event.mosaic;
-  const { groups, weights } = layout(photos);
-  const columns = weights.map((w) => `${w}fr`).join(' ');
+  const columns = mosaicLayout(photos.length);
+  const tracks = columns.map((column) => `${column.weight}fr`).join(' ');
+
+  const label = `${event.name}, ${event.photoCount} ${
+    event.photoCount === 1 ? 'photo' : 'photos'
+  }`;
+
+  /*
+   * No photographs is a different card, not this card with the pictures
+   * missing. What it has to do is get somebody to add the first one, so it is
+   * mostly a button — and the lens cluster in the middle is the argument for
+   * pressing it: two people's circles filled in and the third one dashed and
+   * empty, the empty one being you.
+   */
+  if (photos.length === 0) {
+    return (
+      <a
+        href={event.href ?? `/event/${event.id}`}
+        className="card card-empty"
+        aria-label={label}
+      >
+        <div>
+          <div className="card-name">{event.name}</div>
+          <div className="card-meta">{emptyLine(event.memberCount)}</div>
+        </div>
+
+        <div className="card-empty-lenses" aria-hidden="true">
+          <span />
+          <span />
+          <span className="card-empty-slot">＋</span>
+        </div>
+
+        <span className="card-empty-go">Add yours first</span>
+      </a>
+    );
+  }
 
   return (
     <a
       href={event.href ?? `/event/${event.id}`}
-      className={`card${photos.length === 0 ? ' card-bare' : ''}`}
-      aria-label={`${event.name}, ${event.photoCount} ${
-        event.photoCount === 1 ? 'photo' : 'photos'
-      }`}
+      className="card"
+      aria-label={label}
     >
-      {photos.length > 0 && (
-        <div className="mosaic" style={{ gridTemplateColumns: columns }}>
-          {groups.map((column, i) =>
-            column.length > 1 ? (
-              <div className="mosaic-split" key={i}>
-                {column.map((src) => (
-                  <div key={src}>
-                    <MosaicTile src={src} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div key={i}>
-                <MosaicTile src={column[0]!} />
-              </div>
-            ),
-          )}
-        </div>
-      )}
-
-      <div className="card-body">
-        {photos.length > 0 && (
-          <>
-            {/*
-              Decorative, and hidden from assistive tech: it is the same
-              images again, and announcing them twice is noise. `-24px` inset
-              so the blur has bleed and no soft edge shows at the corners.
-            */}
-            {/*
-              One band per *column*, at the column's own width — not one per
-              photo at equal widths. The point of the effect is that the colour
-              under a piece of text is the colour of the photo directly above
-              it, and equal bands slide the hero's colour off to the left of
-              where it belongs.
-            */}
-            <div className="card-bleed" aria-hidden="true">
-              {groups.map((column, i) => (
-                <div key={i} style={{ flex: weights[i] }}>
-                  <MosaicTile src={column[0]!} hidden />
+      <div className="mosaic" style={{ gridTemplateColumns: tracks }}>
+        {columns.map((column, i) =>
+          column.photos.length > 1 ? (
+            <div className="mosaic-split" key={i}>
+              {column.photos.map((index) => (
+                <div key={index}>
+                  <MosaicTile src={photos[index]!} />
                 </div>
               ))}
             </div>
-            <div className="card-scrim" aria-hidden="true" />
-          </>
+          ) : (
+            <div key={i}>
+              <MosaicTile src={photos[column.photos[0]!]!} />
+            </div>
+          ),
         )}
+      </div>
+
+      <div className="card-body">
+        {/*
+          Decorative, and hidden from assistive tech: it is the same images
+          again, and announcing them twice is noise. `-26px` inset so the blur
+          has bleed and no soft edge shows at the corners.
+
+          One band per *column*, at the column's own width — not one per photo
+          at equal widths. The point of the effect is that the colour under a
+          piece of text is the colour of the photo directly above it, and equal
+          bands slide the hero's colour off to the left of where it belongs.
+        */}
+        <div className="card-bleed" aria-hidden="true">
+          {columns.map((column, i) => (
+            <div key={i} style={{ flex: column.weight }}>
+              <MosaicTile src={photos[column.photos[0]!]!} hidden />
+            </div>
+          ))}
+        </div>
+        <div className="card-scrim" aria-hidden="true" />
 
         <div className="card-text">
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="card-name">{event.name}</div>
-            <div className="card-meta">{event.meta}</div>
+            {/*
+              Lenses and place, where a sentence used to be. `event.meta` is
+              still the fallback: an event with no place has nothing to put
+              beside the circles, and "6 people ·" with nothing after it is
+              worse than the sentence it replaced.
+            */}
+            <div className="card-who">
+              <Lenses count={event.contributorCount} />
+              <span className="card-where">{event.place ?? event.meta}</span>
+            </div>
           </div>
           {/*
-            A bare number. "88 photos" in a pill with an icon is three pieces
-            of furniture around one fact, and the column of numbers down the
-            right of the grid is easier to read than any of them.
+            A bare number, pressed into the blurred strip rather than sitting
+            on top of it. Deliberately quiet — it is the least important thing
+            in the card and the old treatment gave it the same weight as the
+            name. Its contrast is below AA on purpose, which is why it is never
+            the only place the count appears: the card's `aria-label` says it
+            in words.
           */}
           <div className="card-count">{event.photoCount}</div>
         </div>
       </div>
     </a>
   );
+}
+
+/**
+ * Who is in an event nobody has added to.
+ *
+ * Counted from the other side — "you and one other" rather than "2 people" —
+ * because this card is asking the person reading it to do something, and the
+ * sentence that asks is the one they are in.
+ */
+function emptyLine(memberCount: number): string {
+  const others = Math.max(0, memberCount - 1);
+  if (others === 0) return 'Just you so far. Nothing in it yet.';
+  if (others === 1) return 'You and one other. Nothing in it yet.';
+  return `You and ${others} others. Nothing in it yet.`;
 }

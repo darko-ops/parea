@@ -13,7 +13,7 @@
  * a year ago does not belong on a home screen.
  */
 
-import { metaFor } from '@parea/cards';
+import { metaFor, mosaicLayout } from '@parea/cards';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -64,39 +64,19 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 /**
- * The tile arrangement for a card's mosaic.
+ * The tile arrangement for a card's mosaic, as `flex` values.
  *
- * One hero plus supporting tiles. Keyed on how many photos there are, so two
- * photos is a deliberate two-tile layout rather than a four-tile layout with
- * holes — the design is explicit that missing tiles fall back rather than
- * stretch. Mirrors `layout()` in the web card; the shapes are the product
- * decision and the two clients should draw the same one.
+ * The shape itself comes from `@parea/cards`, shared with the web card. It
+ * used to be a hand-maintained copy here with a comment saying the web one had
+ * to agree with it — which is not a mechanism, it is a hope. All that is left
+ * on this side is turning column weights into the layout primitive React
+ * Native has, and indices into the URLs this client happens to hold.
  */
 function layout(photos: string[]): { flex: number; column: string[] }[] {
-  const [a, b, c, d] = photos;
-  switch (photos.length) {
-    case 0:
-      return [];
-    case 1:
-      return [{ flex: 1, column: [a!] }];
-    case 2:
-      return [
-        { flex: 1, column: [a!] },
-        { flex: 1, column: [b!] },
-      ];
-    case 3:
-      return [
-        { flex: 1, column: [a!] },
-        { flex: 1, column: [b!] },
-        { flex: 2, column: [c!] },
-      ];
-    default:
-      return [
-        { flex: 2, column: [a!] },
-        { flex: 1, column: [b!, d!] },
-        { flex: 1, column: [c!] },
-      ];
-  }
+  return mosaicLayout(photos.length).map((col) => ({
+    flex: col.weight,
+    column: col.photos.map((i) => photos[i]!),
+  }));
 }
 
 /**

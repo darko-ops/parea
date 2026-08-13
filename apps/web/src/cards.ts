@@ -25,6 +25,16 @@ export type CardEvent = {
   mosaic: string[];
   /** The one line under the name. */
   meta: string;
+  /** Where it was. Sits beside the lenses on the card; null renders neither. */
+  place: string | null;
+  /** How many lenses to draw. Capped at four when it is drawn, not here. */
+  contributorCount: number;
+  /** People in it at all, contributors or not. The empty card counts these. */
+  memberCount: number;
+  /** Uploaded and still being processed. Drives the "still coming in" label. */
+  arrivingCount: number;
+  /** ISO. Used to decide whether an event is live enough to lead the page. */
+  lastActiveAt: string;
   /**
    * Where the card goes. Defaults to the event, which works for anybody whose
    * browser already holds a capability for it — everybody who arrived by
@@ -57,6 +67,11 @@ export async function toCards(
         ),
       ),
       meta: metaFor(listing, { newest: index === 0, now }),
+      place: listing.place,
+      contributorCount: listing.contributorCount,
+      memberCount: listing.memberCount,
+      arrivingCount: listing.arrivingCount,
+      lastActiveAt: listing.lastActiveAt,
       linkToken: listing.linkToken,
     })),
   );

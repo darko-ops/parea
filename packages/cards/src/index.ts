@@ -45,6 +45,57 @@ export function ago(from: Date, now: Date): string {
   return `${months} ${months === 1 ? 'month' : 'months'} ago`;
 }
 
+/**
+ * One column of a card's mosaic: how wide, and which photos are stacked in it.
+ *
+ * Indices rather than photos, because the two clients hold different things —
+ * signed URLs on the web, the same strings behind a React Native `Image` on
+ * the phone — and this function has no business knowing which.
+ */
+export type MosaicColumn = { weight: number; photos: number[] };
+
+/**
+ * The tile arrangement, by how many photos there are.
+ *
+ * One hero plus a stacked pair, and nothing else. Earlier this was a
+ * three-column shape at four photos; the brand-forward card simplifies it to
+ * two, which reads as one photograph with company rather than a contact sheet.
+ * Keyed on the count so two photos is a deliberate two-tile layout and not a
+ * four-tile layout with holes in it — missing tiles fall back rather than
+ * stretch.
+ *
+ * It lives here because it lived in two places before: `EventCard.tsx` and
+ * `apps/mobile/src/Events.tsx` each had a hand-maintained copy with a comment
+ * on each saying the other one had to agree with it. Two copies and a comment
+ * is not a mechanism. Both clients now map this to their own layout primitive
+ * — grid track weights on the web, `flex` on the phone — and there is one
+ * decision about what a card looks like rather than two that must be kept in
+ * step by hand.
+ */
+export function mosaicLayout(count: number): MosaicColumn[] {
+  switch (Math.max(0, Math.min(4, count))) {
+    case 0:
+      return [];
+    case 1:
+      return [{ weight: 1, photos: [0] }];
+    case 2:
+      return [
+        { weight: 1, photos: [0] },
+        { weight: 1, photos: [1] },
+      ];
+    // Three and four draw the same shape: a hero and a stacked pair. The
+    // fourth photo is not shown — it is fetched because `MOSAIC_TILES` is the
+    // budget for every layout this has had, and a card that changes shape
+    // depending on whether a fourth photo happens to exist is worse than one
+    // spare thumbnail in a query that was already running.
+    default:
+      return [
+        { weight: 2, photos: [0] },
+        { weight: 1, photos: [1, 2] },
+      ];
+  }
+}
+
 export type CardMeta = {
   memberCount: number;
   place: string | null;

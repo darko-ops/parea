@@ -22,17 +22,20 @@ import { useImageFailure } from './useImageFailure';
 export function PhotoTile({
   src,
   sources,
+  className,
   onOpen,
 }: {
   src: string;
   sources?: { type: string; src: string }[];
+  /** Extra treatment for the tile itself — the ring on a just-arrived photo. */
+  className?: string;
   onOpen: () => void;
 }) {
   const { ref, failed, onError } = useImageFailure(src);
 
   return (
     <button
-      className="tile"
+      className={className ? `tile ${className}` : 'tile'}
       onClick={onOpen}
       aria-label={failed ? 'Photo could not be loaded — open for options' : 'Open photo'}
     >

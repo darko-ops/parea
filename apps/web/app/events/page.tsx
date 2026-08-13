@@ -7,19 +7,22 @@
  * someone sent you. The app grew three tabs for this; the web got nothing, so
  * "two clients, one protocol" was true of the API and false of the product.
  *
- * Ordered most recently added-to first, because a home screen is about what is
- * happening and the event people are still putting photos into is the one
- * worth being near the top.
+ * A hero and a list, rather than a grid of equal cards. Equal cards said that
+ * eleven events are eleven equally interesting things, and four of them fitted
+ * on a screen. One of them is usually the one being added to right now, and
+ * that is the only one worth a large picture and a picker — everything else is
+ * a row you are scanning for a name.
  *
  * Not indexable: this lists what one person is in. `/` stays the public
  * landing page, and a crawler has no actor, so it never sees this.
  */
 
-import { EventCard } from '@/../app/components/EventCard';
+import { EventHero, isLive } from '@/../app/components/EventHero';
+import { EventRows } from '@/../app/components/EventRows';
 import { Shell } from '@/../app/components/Shell';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { eventsFor } from '@/events';
+import { eventsFor, type EventSort } from '@/events';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -29,40 +32,66 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function EventsPage() {
-  const listings = await eventsFor(getDb(), await currentActorId());
-  const cards = await toCards(listings);
+const SORTS: { by: EventSort; label: string; href: string }[] = [
+  { by: 'recent', label: 'Recent', href: '/events' },
+  { by: 'place', label: 'By place', href: '/events?by=place' },
+];
+
+export default async function EventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ by?: string }>;
+}) {
+  const { by } = await searchParams;
+  // Anything that is not the one alternative is the default, rather than an
+  // error page: `?by=` is a thing people edit and share, and a 400 for a typo
+  // in a sort order helps nobody.
+  const sort: EventSort = by === 'place' ? 'place' : 'recent';
+
+  const listings = await eventsFor(getDb(), await currentActorId(), sort);
+  const now = new Date();
+  const cards = await toCards(listings, now);
+
+  /*
+   * The hero is the live event, and only when sorted by recency.
+   *
+   * Under "by place" the order is alphabetical, so the first card is not the
+   * most recent one and lifting it out of the list would put a random event at
+   * the top under a label claiming it is the active one. The list is the
+   * answer to the question that sort asks.
+   */
+  const hero = sort === 'recent' && cards[0] && isLive(cards[0], now) ? cards[0] : null;
+  const rows = hero ? cards.slice(1) : cards;
 
   return (
     <Shell current="events">
-
       <main className="main">
         <div className="main-head">
           <h1>Home</h1>
+          {/*
+            Two links, not two buttons. The sort survives a reload, can be
+            sent to somebody, and is marked with `aria-current` the same way
+            the rail and the tabs are — one attribute doing the announcing and
+            the styling, rather than a class that can fall out of step with it.
+          */}
           {cards.length > 1 && (
-            <span className="muted">Most recently added to first</span>
+            <nav className="segmented" aria-label="How to order these">
+              {SORTS.map((option) => (
+                <a
+                  key={option.by}
+                  href={option.href}
+                  aria-current={sort === option.by ? 'page' : undefined}
+                >
+                  {option.label}
+                </a>
+              ))}
+            </nav>
           )}
         </div>
 
-        <div className="cards">
-          {cards.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+        {hero && <EventHero event={hero} />}
 
-          {/*
-            The last cell is an affordance rather than an event, so the grid
-            never reads as finished. It is also the entire empty state: with
-            no events this is the only cell, and it says what the product does
-            rather than apologising for having nothing to show.
-          */}
-          <a href="/" className="card-new">
-            <strong>Create Event</strong>
-            <span>
-              Name it, say when it was, send the link. Nothing to sign up for
-              at the other end to look.
-            </span>
-          </a>
-        </div>
+        <EventRows events={rows} />
       </main>
     </Shell>
   );

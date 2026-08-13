@@ -13,13 +13,22 @@
  *   - the UI says the tab has to stay open, because on iOS that is true and
  *     pretending otherwise loses people's photos.
  *
- * The mechanism is in `useUploads`; what is left here is the part someone
- * looks at. Still missing: auto-selection, which is native-only and gated on
- * the geotag measurement.
+ * What changed here is the shape of the page around all that. It used to be a
+ * static header, then a panel of upload prose, then a download panel, then the
+ * grid — so on an event with two hundred photos the count, the download and
+ * the picker were all above a screen and a half of pictures, and the answer to
+ * "whose is this one?" was nowhere. Now the head is sticky and holds the three
+ * things you reach for, the contributors are a filter, and the upload detail
+ * is a collapsed block at the foot of the page where a progress report belongs
+ * — near the end, not in front of the photographs.
+ *
+ * The mechanism is still in `useUploads`; what is here is the part someone
+ * looks at.
  */
 
+import { ago } from '@parea/cards';
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
 import { PhotoLightbox } from './PhotoLightbox';
@@ -37,6 +46,15 @@ type Photo = {
   full: string;
   takenAt: string;
   mine: boolean;
+  /** Which contributor chip this belongs to. Opaque — see `contributors.ts`. */
+  by: string | null;
+};
+
+type Person = {
+  key: string;
+  name: string;
+  photoCount: number;
+  mine: boolean;
 };
 
 type Feed = {
@@ -47,11 +65,24 @@ type Feed = {
     canAdminister: boolean;
     groupId: string | null;
     groupName: string | null;
+    /** ISO, when the host said when it was. Captions the earlier section. */
+    startsAt: string | null;
   };
   contributors: number;
+  people: Person[];
+  /** Uploaded and not yet through the deriver — anybody's, not just this tab's. */
+  arriving: number;
   count: number;
   photos: Photo[];
 };
+
+/**
+ * How many 4-second polls to spend waiting on ingest after the last upload.
+ *
+ * Two minutes. Long enough for a big batch to come through the deriver, short
+ * enough that a tab left open on a broken one is not still asking at midnight.
+ */
+const INGEST_POLLS = 30;
 
 export function EventView({ eventId, initial }: { eventId: string; initial: Feed }) {
   const [feed, setFeed] = useState<Feed>(initial);
@@ -60,8 +91,21 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
   /** How many of the last selection were not photos. */
   const [skipped, setSkipped] = useState(0);
+  /** Which contributor's photos to show. Null is everyone. Client-only. */
+  const [only, setOnly] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
+
+  /*
+   * What was already here when this page opened.
+   *
+   * "Just added" means *since you have been looking*, which is the only
+   * definition that makes the section worth having — a photo uploaded an hour
+   * before you arrived is not news to you, however recent its timestamp. A ref
+   * rather than state because it must never change: recomputing it on a
+   * refresh would empty the section a moment after filling it.
+   */
+  const atArrival = useRef(new Set(initial.photos.map((photo) => photo.id)));
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/photos`);
@@ -70,12 +114,36 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
 
   const uploads = useUploads(eventId, refresh);
 
-  // Photos appear as ingest finishes, which is seconds behind the upload.
+  /*
+   * Photos appear as ingest finishes, which is seconds behind the upload.
+   *
+   * Keyed on anything being in flight, not on this tab being the one sending
+   * it. Polling only while `uploads.running` was enough when the page said
+   * nothing about photos it could not yet show; it stopped being enough the
+   * moment the head grew "12 arriving", because the last upload finishes
+   * *before* the last photo is ready — so the pill would sit there claiming
+   * something was coming, and nothing would ever come until a reload. It also
+   * never picked up somebody else's upload, which is most of them.
+   *
+   * Bounded, because "arriving" is a claim about work somewhere else and that
+   * work can fail: a photo whose deriver died stays pending forever, and an
+   * unbounded poll would be a tab quietly asking a server for news for as long
+   * as it is left open. After this many tries it stops and a reload is the
+   * remedy — which is the honest position, since by then something is wrong.
+   */
   useEffect(() => {
-    if (!uploads.running) return;
-    const timer = setInterval(refresh, 4000);
+    if (!uploads.running && feed.arriving === 0) return;
+
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (!uploads.running && ++tries > INGEST_POLLS) {
+        clearInterval(timer);
+        return;
+      }
+      void refresh();
+    }, 4000);
     return () => clearInterval(timer);
-  }, [uploads.running, refresh]);
+  }, [uploads.running, feed.arriving, refresh]);
 
   const pick = useCallback(
     async (picked: File[]) => {
@@ -128,61 +196,116 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     [eventId],
   );
 
+  /*
+   * Filtering is subtractive, always. It narrows what is drawn out of what the
+   * server already decided this person may see — it never asks for more, and
+   * an unknown key shows nothing rather than everything.
+   */
+  const visible = useMemo(
+    () => (only === null ? feed.photos : feed.photos.filter((p) => p.by === only)),
+    [feed.photos, only],
+  );
+
+  const fresh = visible.filter((photo) => !atArrival.current.has(photo.id));
+  const earlier = visible.filter((photo) => atArrival.current.has(photo.id));
+
+  const mine = feed.people.find((person) => person.mine) ?? null;
+  const others = feed.people.filter((person) => !person.mine);
+
   return (
-    <main className="wrap">
-      <header>
-        <h1>{feed.event.name}</h1>
-        <p className="muted">
-          {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from {feed.contributors}{' '}
-          {feed.contributors === 1 ? 'person' : 'people'}
-          {feed.event.groupId && (
-            <>
-              {' · '}
-              <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
-            </>
-          )}
-          {feed.event.canAdminister && (
-            <>
-              {' · '}
-              <a href={`/event/${eventId}/manage`}>Manage</a>
-            </>
-          )}
-        </p>
-      </header>
+    /*
+      One element, because `Shell` drops its children straight into the flex
+      row beside the rail. A fragment here made the head and the body two flex
+      items *next to each other* — the rail, then a column of headings, then a
+      narrow column of photographs, side by side. It looked like a stylesheet
+      failure and was a markup one.
+    */
+    <main className="event">
+      {/*
+        Sticky, and the reason is the grid underneath it. Two hundred photos is
+        several screens, and the count, the download and the picker were all
+        above them — which is to say, gone. Translucent with a blur behind it
+        so the photographs scrolling under it are still visibly photographs.
+      */}
+      <header className="event-head">
+        <div className="event-head-text">
+          <h1>{feed.event.name}</h1>
+          <p className="muted">
+            {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from{' '}
+            {feed.contributors} {feed.contributors === 1 ? 'person' : 'people'}
+            {feed.event.groupId && (
+              <>
+                {' · '}
+                <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
+              </>
+            )}
+            {feed.event.canAdminister && (
+              <>
+                {' · '}
+                <a href={`/event/${eventId}/manage`}>Manage</a>
+              </>
+            )}
+          </p>
+        </div>
 
-      {feed.event.uploadsOpen && session.known && !session.account && (
-        // Adding names who added. Shown here rather than behind a link to
-        // /account, because being sent away mid-task loses the picker they
-        // were about to use — and on a phone, the photos they had chosen.
-        <SignIn
-          why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
-          onSignedIn={session.refresh}
-        />
-      )}
+        {/*
+          Everybody's uploads, not this tab's. The number that matters to
+          somebody looking at a half-full grid is how much more is coming, and
+          most of it is usually not theirs.
+        */}
+        {feed.arriving > 0 && (
+          <span className="arriving">
+            <span className="arriving-dot" aria-hidden="true" />
+            {feed.arriving} arriving
+          </span>
+        )}
 
-      {feed.event.uploadsOpen && session.known && session.account && (
-        <section className="panel add-photos">
-          {/*
-            The input is hidden and a label does its job.
+        {feed.photos.length > 0 && (
+          /*
+            Still two options, not one button that silently picks — design
+            §7.7. Originals are the promise the product makes and converting
+            behind someone's back would break it; but a folder of iPhone HEICs
+            is unopenable on plenty of Android phones and Windows machines, and
+            finding that out after the download is worse than being asked. What
+            has changed is only that the question is folded away until asked,
+            because it was a permanent panel above the photographs.
+          */
+          <details className="menu">
+            <summary className="button-like">Download all</summary>
+            <div className="menu-body">
+              <button onClick={() => download('original')} disabled={downloading}>
+                {downloading ? 'Preparing…' : `All ${feed.count} at full quality`}
+              </button>
+              <button
+                className="secondary"
+                onClick={() => download('jpeg')}
+                disabled={downloading}
+              >
+                Download as JPEG
+              </button>
+              <p className="muted">
+                Originals are exactly what the cameras produced. JPEG is smaller
+                and opens anywhere — worth choosing if any of these came from an
+                iPhone and you are not on one.
+              </p>
+              {downloadError && <p className="muted">{downloadError}</p>}
+            </div>
+          </details>
+        )}
 
-            Left to itself the browser renders "Choose Files / No file chosen",
-            which was the entire add-photos affordance on this page: no
-            heading, no label, no colour, a grey OS control that reads as a
-            piece of form plumbing rather than as the one thing this page is
-            for. The same swap was made for the avatar picker and never
-            reached here.
-
-            A label rather than a button calling `.click()`: a label *is* the
-            control for the input it names — keyboard, screen reader and
-            pointer all work with nothing scripted, and there is no state where
-            the button exists but the handler has not been attached.
-          */}
-          <div className="add-photos-head">
+        {feed.event.uploadsOpen && session.account && (
+          <>
             {/*
+              The input is hidden and a label does its job. Left to itself the
+              browser renders "Choose Files / No file chosen", which reads as
+              form plumbing rather than as the one thing this page is for. A
+              label rather than a button calling `.click()`: a label *is* the
+              control for the input it names, so keyboard, pointer and screen
+              reader all work with nothing scripted.
+
               `aria-disabled` and not `disabled`, which a label does not have.
-              The input underneath carries the real one, so a click while a
-              batch is running already does nothing; this is so it does not
-              look like it should.
+              The input underneath carries the real one, so a press mid-batch
+              already does nothing; this is so it does not look like it should.
             */}
             <label
               className="button-like primary"
@@ -191,145 +314,139 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             >
               {uploads.running ? 'Adding…' : 'Add photos'}
             </label>
-            <p className="field-help" style={{ margin: 0 }}>
-              Everything you took, at full quality. They stay yours — you can
-              remove any of them later.
-            </p>
-          </div>
-          <input
-            id="add-photos"
-            className="visually-hidden"
-            ref={inputRef}
-            type="file"
-            multiple
-            // The same list the presign endpoint enforces, spelled out rather
-            // than an image wildcard. The wildcard is a superset — it offers
-            // TIFF, BMP and SVG, which the server then refuses, and one
-            // refusal fails the whole batch rather than the one file.
-            // Offering only what will be accepted is the difference between a
-            // greyed-out file and a failed upload.
-            //
-            // Written without the literal wildcard token on purpose: it
-            // contains a block-comment opener, and a source-scanning test that
-            // strips comments will swallow this attribute along with it. That
-            // is not hypothetical — see test/accepted-types.test.ts.
-            accept={ACCEPT_ATTRIBUTE}
-            disabled={uploads.running}
-            onChange={(e) => pick(Array.from(e.target.files ?? []))}
-          />
-
-          {/*
-            Said out loud, because the alternative is a count that silently
-            does not match what was chosen. Photos only is a real limitation
-            and worth naming as one rather than letting someone conclude the
-            upload dropped their video.
-          */}
-          {skipped > 0 && (
-            <p className="muted">
-              {skipped === 1 ? '1 file was' : `${skipped} files were`} not added —
-              Parea takes photos, not video or other files.
-            </p>
-          )}
-
-          {uploads.resumed && uploads.items.length > 0 && (
-            <p className="muted">
-              Picking up where the last tab left off.{' '}
-              <button className="link" onClick={() => uploads.discard()}>
-                Start over instead
-              </button>
-            </p>
-          )}
-
-          {uploads.running && (
-            <p className="muted">
-              {uploads.remaining} of {uploads.items.length} to go — keep this tab
-              open until it finishes. Uploads do not continue in the background,
-              but if this tab reloads it will carry on from here.
-            </p>
-          )}
-
-          {!uploads.running && uploads.done > 0 && (
-            <p className="muted">
-              Added {uploads.done} of {uploads.items.length}
-              {uploads.failed > 0 && ` · ${uploads.failed} failed`}
-            </p>
-          )}
-
-          {/*
-            Not an error message, a request. These photos were queued by a tab
-            that is gone, and the browser will not hand over their contents any
-            more — nothing retries into existence, so the only thing that helps
-            is choosing them again. Saying "failed" here would send someone to
-            a button that cannot work.
-          */}
-          {uploads.stale.length > 0 && (
-            <p className="muted">
-              {uploads.stale.length}{' '}
-              {uploads.stale.length === 1 ? 'photo' : 'photos'} could not be read
-              after the reload — your browser only lends a file to the tab that
-              picked it. Choose{' '}
-              {uploads.stale.length === 1 ? 'it' : 'them'} again to finish:{' '}
-              {uploads.stale.map((item) => item.name).join(', ')}
-            </p>
-          )}
-        </section>
-      )}
-
-      {feed.photos.length > 0 && (
-        <section className="panel">
-          {/*
-            Both offered, side by side, rather than one button that silently
-            picks — design §7.7. Originals are the promise the product makes,
-            and converting behind someone's back would break it; but a folder
-            of iPhone HEICs is unopenable on plenty of Android phones and
-            Windows machines, and finding that out after the download is worse
-            than being asked.
-          */}
-          <div className="row">
-            <button onClick={() => download('original')} disabled={downloading}>
-              {downloading ? 'Preparing…' : `Download all ${feed.count} at full quality`}
-            </button>
-            <button
-              className="secondary"
-              onClick={() => download('jpeg')}
-              disabled={downloading}
-            >
-              Download as JPEG
-            </button>
-          </div>
-          <p className="muted">
-            Originals are exactly what the cameras produced. JPEG is smaller and
-            opens anywhere — worth choosing if any of these came from an iPhone
-            and you are not on one.
-          </p>
-          {downloadError && <p className="muted">{downloadError}</p>}
-        </section>
-      )}
-
-      {feed.photos.length === 0 ? (
-        <p className="muted empty">
-          Nothing here yet. Add yours and everyone else will see there is
-          something to add to.
-        </p>
-      ) : (
-        <div className="grid">
-          {/*
-            Every photo is a way in to the safety actions, which is why the
-            tile stays a button even when its thumbnail will not load —
-            guideline 1.2 wants reporting reachable, not merely implemented.
-          */}
-          {feed.photos.map((photo) => (
-            <PhotoTile
-              key={photo.id}
-              src={photo.src}
-              sources={photo.sources}
-              onOpen={() => setOpenPhoto(photo)}
+            <input
+              id="add-photos"
+              className="visually-hidden"
+              ref={inputRef}
+              type="file"
+              multiple
+              // The same list the presign endpoint enforces, spelled out rather
+              // than an image wildcard. The wildcard is a superset — it offers
+              // TIFF, BMP and SVG, which the server then refuses, and one
+              // refusal fails the whole batch rather than the one file.
+              // Offering only what will be accepted is the difference between a
+              // greyed-out file and a failed upload.
+              //
+              // Written without the literal wildcard token on purpose: it
+              // contains a block-comment opener, and a source-scanning test that
+              // strips comments will swallow this attribute along with it. That
+              // is not hypothetical — see test/accepted-types.test.ts.
+              accept={ACCEPT_ATTRIBUTE}
+              disabled={uploads.running}
+              onChange={(e) => pick(Array.from(e.target.files ?? []))}
             />
-          ))}
-        </div>
-      )}
+          </>
+        )}
+      </header>
 
-      <SiteFooter />
+      <div className="event-body">
+        {feed.event.uploadsOpen && session.known && !session.account && (
+          // Adding names who added. Shown here rather than behind a link to
+          // /account, because being sent away mid-task loses the picker they
+          // were about to use — and on a phone, the photos they had chosen.
+          <SignIn
+            why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
+            onSignedIn={session.refresh}
+          />
+        )}
+
+        {/*
+          Said out loud, because the alternative is a count that silently does
+          not match what was chosen. Photos only is a real limitation and worth
+          naming as one rather than letting someone conclude the upload dropped
+          their video.
+        */}
+        {skipped > 0 && (
+          <p className="muted">
+            {skipped === 1 ? '1 file was' : `${skipped} files were`} not added —
+            Parea takes photos, not video or other files.
+          </p>
+        )}
+
+        {/*
+          One chip per contributor. Only over photographs this person can
+          already see: the feed was filtered before it left the server, so
+          somebody blocked has no chip and no total — they are not hidden from
+          the list, they were never in it.
+        */}
+        {feed.people.length > 1 && (
+          <div className="chips" role="group" aria-label="Whose photos to show">
+            <Chip
+              label="Everyone"
+              count={feed.count}
+              on={only === null}
+              onPick={() => setOnly(null)}
+            />
+            {others.map((person) => (
+              <Chip
+                key={person.key}
+                label={person.name}
+                count={person.photoCount}
+                face={person.name}
+                on={only === person.key}
+                onPick={() => setOnly(person.key)}
+              />
+            ))}
+            {mine && (
+              // Last, and called "Mine" rather than by name: on your own
+              // screen you are not one of the six people, you are the one
+              // looking at them.
+              <Chip
+                label="Mine"
+                count={mine.photoCount}
+                on={only === mine.key}
+                onPick={() => setOnly(mine.key)}
+              />
+            )}
+          </div>
+        )}
+
+        {visible.length === 0 ? (
+          <p className="muted empty">
+            {feed.photos.length === 0
+              ? 'Nothing here yet. Add yours and everyone else will see there is something to add to.'
+              : 'None of theirs are here.'}
+          </p>
+        ) : (
+          <>
+            {/*
+              Only when there is something in it. A section head reading "JUST
+              ADDED" over an empty grid, or an "EARLIER" label on a page where
+              nothing is recent, is furniture describing a state that is not
+              happening — so when nothing has arrived since you got here, this
+              is one plain grid, as it always was.
+            */}
+            {fresh.length > 0 && (
+              <Section
+                label="JUST ADDED"
+                caption={freshCaption(fresh, feed.people)}
+                photos={fresh}
+                highlight
+                onOpen={setOpenPhoto}
+              />
+            )}
+            {earlier.length > 0 &&
+              (fresh.length > 0 ? (
+                <Section
+                  label="EARLIER"
+                  caption={earlierCaption(feed.event.startsAt, earlier)}
+                  photos={earlier}
+                  onOpen={setOpenPhoto}
+                />
+              ) : (
+                <Grid photos={earlier} onOpen={setOpenPhoto} />
+              ))}
+          </>
+        )}
+
+        {/*
+          At the foot, and folded away. It is a progress report: worth being
+          able to open, never worth sitting between somebody and the pictures.
+        */}
+        <Uploads uploads={uploads} onPick={() => inputRef.current?.click()} />
+
+        <SiteFooter />
+      </div>
 
       {openPhoto && (
         <PhotoLightbox
@@ -340,6 +457,272 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       )}
     </main>
   );
+}
+
+/** One contributor filter. A button, because it changes what is on screen. */
+function Chip({
+  label,
+  count,
+  face,
+  on,
+  onPick,
+}: {
+  label: string;
+  count: number;
+  face?: string;
+  on: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button className="chip" aria-pressed={on} onClick={onPick}>
+      {face && (
+        <span className="chip-face" aria-hidden="true">
+          {face.replace(/^@/, '').slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      {label} · {count}
+    </button>
+  );
+}
+
+function Section({
+  label,
+  caption,
+  photos,
+  highlight,
+  onOpen,
+}: {
+  label: string;
+  caption: string | null;
+  photos: Photo[];
+  highlight?: boolean;
+  onOpen: (photo: Photo) => void;
+}) {
+  return (
+    <section>
+      <div className="section-head">
+        <strong>{label}</strong>
+        {caption && <span>{caption}</span>}
+      </div>
+      <Grid photos={photos} highlight={highlight} onOpen={onOpen} />
+    </section>
+  );
+}
+
+function Grid({
+  photos,
+  highlight,
+  onOpen,
+}: {
+  photos: Photo[];
+  highlight?: boolean;
+  onOpen: (photo: Photo) => void;
+}) {
+  return (
+    <div className="grid">
+      {/*
+        Every photo is a way in to the safety actions, which is why the tile
+        stays a button even when its thumbnail will not load — guideline 1.2
+        wants reporting reachable, not merely implemented.
+      */}
+      {photos.map((photo) => (
+        <PhotoTile
+          key={photo.id}
+          src={photo.src}
+          sources={photo.sources}
+          className={highlight ? 'tile-new' : undefined}
+          onOpen={() => onOpen(photo)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The upload block: what is happening, per file, folded away.
+ *
+ * One honest omission. The design asks for a percentage against each file, and
+ * the queue does not have one — `Deps.upload` is a single `fetch` PUT with the
+ * `File` as its body, and `fetch` reports nothing about a request body as it
+ * goes. So each row shows the state the queue actually knows, and the bar that
+ * does move is the one across the whole batch, which is a real fraction of
+ * real files. Inventing per-file percentages would mean animating a number
+ * nothing measured.
+ */
+function Uploads({
+  uploads,
+  onPick,
+}: {
+  uploads: ReturnType<typeof useUploads>;
+  onPick: () => void;
+}) {
+  /*
+   * Open while it is working or while something needs a decision; closed once
+   * it is done and nothing is wrong. `null` means "nobody has said", so
+   * somebody who folds it away mid-batch keeps it folded away — the automatic
+   * rule is a starting position, not a hand on the lid.
+   */
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const needsAttention = uploads.stale.length > 0 || uploads.failed > 0;
+  const open = choice ?? (uploads.running || needsAttention);
+
+  if (uploads.items.length === 0) return null;
+
+  const total = uploads.items.length;
+  const done = uploads.done;
+
+  return (
+    <details
+      className="uploads"
+      open={open}
+      onToggle={(e) => setChoice((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary>
+        <span className="uploads-mark" aria-hidden="true">
+          ▾
+        </span>
+        <span className="uploads-title">
+          <strong>
+            {uploads.running
+              ? `Adding ${total} ${total === 1 ? 'photo' : 'photos'} · ${done} done`
+              : `Added ${done} of ${total}`}
+          </strong>
+          <span className="muted">
+            {uploads.running
+              ? 'Keep this tab open. A reload carries on from here.'
+              : needsAttention
+                ? 'Some of these need another look.'
+                : 'Finished.'}
+          </span>
+        </span>
+        <span className="bar" aria-hidden="true">
+          <span
+            className={`bar-fill${uploads.running ? ' bar-moving' : ''}`}
+            style={{ width: `${total === 0 ? 0 : Math.round((done / total) * 100)}%` }}
+          />
+        </span>
+        <span className="uploads-left">
+          {uploads.remaining > 0 ? `${uploads.remaining} to go` : 'done'}
+        </span>
+      </summary>
+
+      <div className="uploads-list">
+        {uploads.resumed && (
+          <p className="muted">
+            Picking up where the last tab left off.{' '}
+            <button className="link" onClick={() => uploads.discard()}>
+              Start over instead
+            </button>
+          </p>
+        )}
+
+        {uploads.items.map((item) => (
+          <div className="upload" key={item.id}>
+            <span
+              className={item.status === 'stale' ? 'upload-dead' : 'upload-thumb'}
+              aria-hidden="true"
+            >
+              {item.status === 'stale' ? '!' : ''}
+            </span>
+            <span className="upload-text">
+              <span className="upload-name">{item.name}</span>
+              {item.status === 'stale' ? (
+                /*
+                  Not an error, a request. These bytes were held by a tab that
+                  is gone and the browser will not hand them over again —
+                  nothing retries them into existence, so "failed" would send
+                  somebody to a button that cannot work.
+                */
+                <span className="muted">
+                  Could not be read after the reload — your browser only lends a
+                  file to the tab that picked it.
+                </span>
+              ) : (
+                <span className="upload-bar" aria-hidden="true">
+                  <span
+                    className="upload-bar-fill"
+                    style={{ width: `${fractionOf(item.status)}%` }}
+                  />
+                </span>
+              )}
+            </span>
+            {item.status === 'stale' ? (
+              <button className="secondary small" onClick={onPick}>
+                Pick again
+              </button>
+            ) : (
+              <span className="upload-state">{stateOf(item.status)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * How far along one file is, as far as anything actually knows.
+ *
+ * Three real steps, not a percentage: queued, sent, and confirmed by the
+ * server. The bar moves in thirds because that is the resolution the queue
+ * has — see the note on `Uploads`.
+ */
+function fractionOf(status: string): number {
+  switch (status) {
+    case 'pending':
+      return 0;
+    case 'presigned':
+      return 15;
+    case 'uploaded':
+      return 70;
+    case 'done':
+      return 100;
+    default:
+      return 0;
+  }
+}
+
+function stateOf(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'Waiting';
+    case 'presigned':
+    case 'uploaded':
+      return 'Sending';
+    case 'done':
+      return 'Added';
+    case 'failed':
+      return 'Failed';
+    default:
+      return '';
+  }
+}
+
+/** "Maya, a minute ago" — who added the newest of these, and when. */
+function freshCaption(photos: Photo[], people: Person[]): string | null {
+  const newest = photos[photos.length - 1];
+  if (!newest) return null;
+  const who = people.find((person) => person.key === newest.by);
+  const when = ago(new Date(newest.takenAt), new Date());
+  return who ? `${who.mine ? 'You' : who.name}, ${when}` : when;
+}
+
+/**
+ * When the earlier ones are from.
+ *
+ * The event's own window if the host set one, because that is the answer a
+ * person would give; the first photograph's timestamp otherwise, which is the
+ * best guess available and is sometimes wrong — six phones disagree about the
+ * time and iOS Safari strips EXIF on upload (design §8).
+ */
+function earlierCaption(startsAt: string | null, photos: Photo[]): string | null {
+  const from = startsAt ?? photos[0]?.takenAt ?? null;
+  if (!from) return null;
+  const date = new Date(from);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = date.toLocaleDateString(undefined, { weekday: 'long' });
+  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${day}, ${time} onwards`;
 }
 
 /**

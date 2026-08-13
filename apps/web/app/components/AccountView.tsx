@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
+import { CREATE_LENSES, Lenses } from './Lenses';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
 import { SignIn } from './SignIn';
@@ -39,6 +40,10 @@ type EventListing = {
   name: string;
   place: string | null;
   memberCount: number;
+  /** People who put something in, which is how many lenses the card draws. */
+  contributorCount: number;
+  /** Uploaded and not yet through the deriver. */
+  arrivingCount: number;
   photoCount: number;
   mosaic: string[];
   /** ISO. Feeds the relative "added to …" half of the meta line. */
@@ -260,6 +265,11 @@ export function AccountView() {
                 name: event.name,
                 photoCount: event.photoCount,
                 mosaic: event.mosaic,
+                place: event.place,
+                contributorCount: event.contributorCount,
+                memberCount: event.memberCount,
+                arrivingCount: event.arrivingCount,
+                lastActiveAt: event.lastActiveAt,
                 // `newest` only for the first, matching Events: the top card
                 // says when it was last added to, the rest say where they were.
                 meta: metaFor(event, { newest: index === 0, now: new Date() }),
@@ -273,6 +283,9 @@ export function AccountView() {
             instead of apologising for having nothing to show.
           */}
           <a href="/" className="card-new">
+            {/* Two lenses, not the whole mark: the empty slot in a grid of
+                events is not a place to sign the product's name. */}
+            <Lenses count={2} size={18} palette={CREATE_LENSES} />
             <strong>Create Event</strong>
             <span>
               Name it, say when it was, send the link. Nothing to sign up for

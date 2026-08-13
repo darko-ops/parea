@@ -100,17 +100,56 @@ describe('the sign-in screen keeps its white page', () => {
 
 describe('an event looks like an event wherever it is listed', () => {
   const read2 = (p: string) => read(fileURLToPath(new URL(p, import.meta.url)));
-  const EVENTS = read2('../app/events/page.tsx');
   const ACCOUNT = read2('../app/components/AccountView.tsx');
 
-  it('is the same card on both screens', () => {
+  it('is the card, wherever a grid of events is drawn', () => {
     // The You page drew its own list of names with a dot-separated tail while
     // Events drew the card. Two ways of showing one object is two things to
     // keep in step, and the list had already fallen behind — it never grew the
     // relative "added to" line the card has.
-    for (const [name, source] of [['events', EVENTS], ['account', ACCOUNT]] as const) {
+    //
+    // Home is deliberately not in this list any more: it is a hero and rows,
+    // which is a different treatment of the same object rather than a second
+    // drawing of the same treatment. What stops *those* from drifting is the
+    // test below, not this one.
+    for (const [name, source] of [
+      ['account', ACCOUNT],
+      ['invites', read2('../app/invites/page.tsx')],
+    ] as const) {
       expect(source, `${name} does not use EventCard`).toMatch(/<EventCard\b/);
       expect(source, `${name} does not use the cards grid`).toMatch(/className="cards"/);
+    }
+  });
+
+  it('gets its mosaic shape from the shared function, in every client', () => {
+    /*
+     * The tile arrangement existed twice — once in the web card, once in the
+     * native events tab — each with a comment on it saying the other one had
+     * to agree. Two copies and a comment is not a mechanism, and when the
+     * brand-forward card changed the four-photo shape it would have been two
+     * edits with nothing to catch the second being forgotten.
+     *
+     * So: nobody declares their own. Anything drawing a mosaic imports
+     * `mosaicLayout` from `@parea/cards` and maps it to whatever its layout
+     * primitive is — grid track weights on the web, `flex` on the phone.
+     */
+    const drawers = [
+      '../app/components/EventCard.tsx',
+      '../app/components/EventHero.tsx',
+      '../app/components/EventRows.tsx',
+      '../../../apps/mobile/src/Events.tsx',
+    ];
+    for (const path of drawers) {
+      const source = read2(path);
+      expect(source, `${path} does not use the shared layout`).toMatch(/mosaicLayout\(/);
+      // A locally declared one is the failure mode this is here to catch: it
+      // would compile, render, and silently disagree with the other clients.
+      expect(source, `${path} declares its own layout`).not.toMatch(
+        /function layout\([^)]*\)\s*:\s*\{\s*groups/,
+      );
+      expect(source, `${path} declares its own layout`).not.toMatch(
+        /switch \(photos\.length\)/,
+      );
     }
   });
 
