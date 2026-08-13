@@ -1,5 +1,5 @@
 /**
- * The web shell — the three places, as a rail.
+ * The web shell — the places you can be, as a rail.
  *
  * The web had no home. You landed on the create form, and the only route back
  * to anything was a link somebody had sent you; an event you contributed to
@@ -7,10 +7,13 @@
  * client grew three tabs for this and the web never got the equivalent, which
  * made "two clients, one protocol" true of the API and false of the product.
  *
- * The app's tab bar is Events, Find, You; the web has a fourth, Invites,
- * because it is the client where somebody arrives from a link somebody else
- * sent and needs to know what came of it. Below tablet it becomes a bar across the top, because a
- * 212px column on a phone-width browser is most of the screen.
+ * Five rows now, where the app's tab bar still has three. Invites and Friends
+ * are the difference, and both are here first because this is the client
+ * somebody arrives at from a link they were sent — the one where "what came of
+ * that?" is a question worth having a screen for.
+ *
+ * Below tablet it becomes a bar across the top, because a 212px column on a
+ * phone-width browser is most of the screen.
  *
  * No directive either way, so it renders wherever it is used: on the server
  * for the pages that are server components, and in the client bundle for the
@@ -30,10 +33,12 @@ import { Mark } from './Mark';
 export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | null;
 
 const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
-  { href: '/events', label: 'Events', page: 'events' },
-  // Between Events and Find because it is the same kind of thing as Events —
-  // events you are in — separated only by whose they are. Find is the odd one
-  // out: it is the only row that goes looking for something you are not in.
+  // The label is Home and the identifier stays `events`, because the route
+  // still is: the id names where the row goes, not what the row is called.
+  { href: '/events', label: 'Home', page: 'events' },
+  // Under Home because it is the same kind of thing — events you are in —
+  // separated only by whose they are. Find is the odd one out: the only row
+  // that goes looking for something you are not already part of.
   { href: '/invites', label: 'Invites', page: 'invites' },
   { href: '/friends', label: 'Friends', page: 'friends' },
   { href: '/find', label: 'Find', page: 'find' },
