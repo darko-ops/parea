@@ -25,7 +25,7 @@ import { currentActorId } from '@/session';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Your events',
+  title: 'Home',
   robots: { index: false, follow: false },
 };
 
@@ -38,7 +38,7 @@ export default async function EventsPage() {
 
       <main className="main">
         <div className="main-head">
-          <h1>Events</h1>
+          <h1>Home</h1>
           {cards.length > 1 && (
             <span className="muted">Most recently added to first</span>
           )}
