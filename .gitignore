@@ -12,3 +12,14 @@ next-env.d.ts
 .DS_Store
 .vercel
 .wrangler
+
+# Throwaway scripts run against a live database — seeding a branch, planting a
+# sign-in code to drive a flow by hand. They are written next to the workspace
+# they import from, which is how one of them got committed by a `git add -A`.
+# Named rather than tidied up by hand, because the tidying is the step that
+# gets skipped.
+probe.mts
+plant.mts
+seed.mts
+reseed.mts
+cleanup.mts
