@@ -499,12 +499,16 @@ button.secondary {
 /* An input that does not look like one until it is being used. The name is
    the heading of this page and is also editable, and a heading inside a box
    reads as a form asking a question that has already been answered. */
-.you-name {
+/* `input.you-name` rather than `.you-name`: the generic rule is
+   `input:not([type])`, which is an element plus an attribute selector and
+   therefore beats a bare class. The heading was rendering as a text box. */
+input.you-name {
   font-size: 24px; font-weight: 600; letter-spacing: -.01em;
-  padding: 4px 8px; margin: 0 0 2px -8px;
+  padding: 4px 8px; margin: 0 0 2px -8px; width: auto; min-width: 260px;
   border-color: transparent; background: none; border-radius: 8px;
 }
-.you-name:hover { border-color: var(--line); }
+input.you-name:hover { border-color: var(--line); }
+input.you-name:focus-visible { background: var(--card); }
 .you-email { margin: 0; font-size: 14px; }
 .you-events { margin: 28px 0; }
 .you-events h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
