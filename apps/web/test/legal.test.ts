@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { PRESERVATION_DAYS, REMOVAL_REQUEST_GRACE_HOURS, schema } from '@parea/core';
+import { NOTIFICATION_KINDS } from '@parea/push';
 
 import { CODE_TTL_MS } from '../src/accounts';
 import { describeConfig } from '../src/env';
@@ -79,6 +80,32 @@ describe('the closed list of what is collected', () => {
     const kinds = schema.observations.kind.enumValues;
     expect(kinds).toHaveLength(5);
     expect(PRIVACY).toMatch(/[Ff]ive facts/);
+  });
+
+  it('describes the notifications this product actually sends', () => {
+    /*
+     * All three descriptions were wrong, and had been since they were written.
+     * The page said "someone added photos to your event" (the reminder fires
+     * when nobody has), "someone asked to join your group" (there is no such
+     * notification; the one that exists is a new *event* in a group) and
+     * "someone asked for a photo of them to be removed" — which named the
+     * wrong recipient: what is sent is the host's *answer*, and it goes to the
+     * person who asked, not to the host.
+     *
+     * That last one is a statement in a published privacy policy about who
+     * gets told what, which is the sort of thing people read and believe.
+     * Found by going looking for the notification flow, not by any test.
+     *
+     * Counted against the union rather than the word "three", so a fourth kind
+     * fails here instead of quietly making the sentence wrong again.
+     */
+    expect(NOTIFICATION_KINDS).toHaveLength(3);
+    expect(PRIVACY).toMatch(/three\s+notifications/);
+
+    // One phrase per kind, each distinguishing it from the other two.
+    expect(PRIVACY, 'nudge').toMatch(/have not added anything to/);
+    expect(PRIVACY, 'group_event').toMatch(/new event in a group/);
+    expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
   });
 
   it('names every third party that handles data', () => {

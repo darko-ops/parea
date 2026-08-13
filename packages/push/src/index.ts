@@ -30,6 +30,24 @@ export type Notification =
   /** Transactional: you asked for a photo to come down and someone decided. */
   | { kind: 'removal_answered'; eventId: string; removed: boolean };
 
+/**
+ * The set, enumerable at runtime.
+ *
+ * A union's members cannot be counted by anything but a person reading them,
+ * and the privacy policy makes a claim about how many there are and what each
+ * one is for. Typed as a record over the union, so adding a fourth kind is a
+ * compile error here and the test that reads this list fails against the page
+ * that has not been updated — which is how the page and the product stay the
+ * same shape.
+ */
+const KINDS: Record<Notification['kind'], true> = {
+  nudge: true,
+  group_event: true,
+  removal_answered: true,
+};
+
+export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
+
 export type PushMessage = {
   to: string;
   title: string;
