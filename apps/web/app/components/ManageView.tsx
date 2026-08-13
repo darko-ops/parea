@@ -382,7 +382,14 @@ export function ManageView({
                           })
                         }
                       >
-                        {on ? 'Adding' : 'Add'}
+                        {/*
+                          "Selected", not "Adding": nothing has happened yet.
+                          A present participle on a button that has just been
+                          pressed reads as work in progress, and somebody who
+                          believes the add already went through has no reason
+                          to press the button underneath that actually does it.
+                        */}
+                        {on ? 'Selected' : 'Add'}
                       </button>
                     )}
                   </li>
