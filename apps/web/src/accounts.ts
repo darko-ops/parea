@@ -1,10 +1,16 @@
 /**
  * Accounts — design §3.
  *
- * "Optional, asked for only after value has been delivered." An account here
- * carries an email address and nothing else: it exists so that a person is
- * still themselves on a new phone, which is the one thing a device-bound
- * identity cannot do. It grants nothing an actor does not already have.
+ * "Optional, asked for only after value has been delivered." An account exists
+ * so that a person is still themselves on a new phone, which is the one thing
+ * a device-bound identity cannot do. It grants nothing an actor does not
+ * already have.
+ *
+ * It carries an email address, a handle issued at sign-in, and whatever
+ * display name and picture someone chooses to add. It used to be the address
+ * alone, and three places still said so long after it stopped being true —
+ * including the privacy policy. The list is here because this is the module
+ * that owns it.
  *
  * The whole surface is three verbs — ask for a code, present one, delete the
  * account — and the third is not optional: App Store Guideline 5.1.1(v)

@@ -41,7 +41,8 @@ export default function PrivacyPage() {
           <p className="muted">
             There is no advertising, no tracking, no analytics service, and
             nothing is sold or shared for anyone else&rsquo;s purposes. An account
-            is optional and holds an email address and nothing else.
+            is optional. It holds your email address, a handle, and whatever
+            name and picture you choose to add &mdash; and nothing more.
           </p>
         </section>
 
@@ -64,10 +65,16 @@ export default function PrivacyPage() {
 
           <h3>An identifier for your device</h3>
           <p className="muted">
-            Created the first time you <em>contribute</em> something, not when
-            you first visit. Browsing an event you were sent a link to creates no
-            record of you. It is a random identifier in a cookie, or in the
-            app&rsquo;s keychain; it is what makes your photos yours to delete.
+            A random identifier in a cookie, or in the app&rsquo;s keychain. It
+            is what makes your photos yours to delete.
+          </p>
+          <p className="muted">
+            It is created when you open a link somebody sent you, and a row
+            records that you are in that event. That row is what lets the person
+            who made it stop new people joining later without turning out
+            everyone already there &mdash; the switch cannot mean anything
+            without knowing who was already in. Visiting the site without
+            opening an event creates no record of you.
           </p>
 
           <h3>An email address, only if you ask for an account</h3>
@@ -80,6 +87,23 @@ export default function PrivacyPage() {
 
           <h3>A display name, if you give one</h3>
           <p className="muted">Optional, and free text. Nothing verifies it.</p>
+
+          <h3>A handle</h3>
+          <p className="muted">
+            Issued when you sign in rather than asked for &mdash; three words,
+            like <em>amber-quiet-lantern</em> &mdash; and yours to change. It is
+            how somebody deciding whether to let you into their private event
+            knows who is asking, so it is shown to them. Your email address
+            never is.
+          </p>
+
+          <h3>A profile picture, if you add one</h3>
+          <p className="muted">
+            Optional, and shown beside your name. It is re-encoded on the way
+            in, which removes everything that was not the picture itself: a
+            selfie taken at home carries the coordinates of your home, and those
+            do not survive. Removing it removes the file.
+          </p>
 
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">

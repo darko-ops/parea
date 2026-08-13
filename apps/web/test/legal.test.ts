@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PRESERVATION_DAYS, REMOVAL_REQUEST_GRACE_HOURS, schema } from '@parea/core';
 import { NOTIFICATION_KINDS } from '@parea/push';
+import { getTableColumns } from 'drizzle-orm';
 
 import { CODE_TTL_MS } from '../src/accounts';
 import { describeConfig } from '../src/env';
@@ -108,6 +109,62 @@ describe('the closed list of what is collected', () => {
     expect(PRIVACY, 'group_event').toMatch(/new event in a group/);
     expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
     expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come in/);
+  });
+
+  it('discloses everything an account row holds about a person', () => {
+    /*
+     * The page said an account "holds an email address and nothing else" long
+     * after it had grown a handle, a display name and a profile picture — a
+     * photograph of somebody's face, stored, and absent from the document that
+     * exists to list what is stored. Nobody noticed because the assertions
+     * above check the strings that were there, not the columns that were not.
+     *
+     * So this is checked the way the "five facts" claim is: against the schema.
+     * Every column on `actor` is either bookkeeping, and named here as such, or
+     * it is something about a person and the page has to say so. Adding a
+     * column fails this test until somebody decides which it is.
+     */
+    const BOOKKEEPING = new Set([
+      'id',
+      'kind',
+      'account_id',
+      'merged_into_id',
+      'created_at',
+      // When you last opened Invites. About your use of one screen, and it
+      // says nothing about you that the participant rows do not already.
+      'invites_seen_at',
+    ]);
+
+    const DISCLOSED: Record<string, RegExp> = {
+      display_name: /display name/i,
+      handle: /<h3>A handle<\/h3>/,
+      avatar_key: /<h3>A profile picture/,
+    };
+
+    // `getTableColumns` rather than `Object.values`, which also hands back
+    // drizzle's own helpers — `enableRLS` arrived as a "column" nobody could
+    // classify.
+    const columns = Object.values(getTableColumns(schema.actors)).map((c) => c.name);
+    expect(columns.length, 'read no columns off the schema').toBeGreaterThan(5);
+
+    for (const column of columns) {
+      if (BOOKKEEPING.has(column)) continue;
+      const pattern = DISCLOSED[column];
+      expect(pattern, `${column} is neither bookkeeping nor disclosed`).toBeTruthy();
+      expect(PRIVACY, `${column} is not described on the privacy page`).toMatch(pattern!);
+    }
+  });
+
+  it('does not claim that opening a link records nothing', () => {
+    // It did, and that stopped being true the day `/e/<token>` started
+    // recording who came in — which it has to, because `joins_open` cannot
+    // mean anything without knowing who was already there. The sentence was
+    // written for an earlier design and outlived it by one commit of mine.
+    // Pinned to the sentence that was wrong, not to the words in it: the page
+    // still says, truthfully, that visiting without opening an event records
+    // nothing, and a looser pattern failed on that.
+    expect(PRIVACY).not.toMatch(/Browsing an event[^.]*creates no record/);
+    expect(PRIVACY).toMatch(/records that you are in that event/);
   });
 
   it('names every third party that handles data', () => {
