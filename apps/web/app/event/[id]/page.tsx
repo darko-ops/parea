@@ -9,6 +9,7 @@ import { findGroup } from '@/groups';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentActorId, requesterFor } from '@/session';
+import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,23 +70,25 @@ export default async function EventPage({
   );
 
   return (
-    <EventView
-      eventId={event.id}
-      initial={{
-        event: {
-          id: event.id,
-          name: event.name,
-          uploadsOpen: event.uploadsOpen,
-          canAdminister: (await decide(db, event, 'administer', requester)).allow,
-          groupId: event.groupId,
-          groupName: event.groupId
-            ? ((await findGroup(db, event.groupId))?.name ?? null)
-            : null,
-        },
-        contributors: new Set(rows.map((p) => p.uploaderId)).size,
-        count: photos.length,
-        photos,
-      }}
-    />
+    <Shell>
+      <EventView
+        eventId={event.id}
+        initial={{
+          event: {
+            id: event.id,
+            name: event.name,
+            uploadsOpen: event.uploadsOpen,
+            canAdminister: (await decide(db, event, 'administer', requester)).allow,
+            groupId: event.groupId,
+            groupName: event.groupId
+              ? ((await findGroup(db, event.groupId))?.name ?? null)
+              : null,
+          },
+          contributors: new Set(rows.map((p) => p.uploaderId)).size,
+          count: photos.length,
+          photos,
+        }}
+      />
+    </Shell>
   );
 }

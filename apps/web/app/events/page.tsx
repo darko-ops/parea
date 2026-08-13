@@ -16,7 +16,7 @@
  */
 
 import { EventCard } from '@/../app/components/EventCard';
-import { Rail } from '@/../app/components/Rail';
+import { Shell } from '@/../app/components/Shell';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
@@ -34,8 +34,7 @@ export default async function EventsPage() {
   const cards = await toCards(listings);
 
   return (
-    <div className="shell">
-      <Rail current="events" />
+    <Shell current="events">
 
       <main className="main">
         <div className="main-head">
@@ -65,6 +64,6 @@ export default async function EventsPage() {
           </a>
         </div>
       </main>
-    </div>
+    </Shell>
   );
 }

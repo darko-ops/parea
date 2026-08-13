@@ -6,6 +6,7 @@ import { ManageView } from '@/../app/components/ManageView';
 import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
 import { requesterFor } from '@/session';
+import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,16 +44,18 @@ export default async function ManagePage({
     .limit(1);
 
   return (
-    <ManageView
-      eventId={event.id}
-      initial={{
-        name: event.name,
-        joinsOpen: event.joinsOpen,
-        uploadsOpen: event.uploadsOpen,
-        code: code?.words ?? null,
-        url: `/e/${event.linkToken}`,
-        groupId: event.groupId,
-      }}
-    />
+    <Shell>
+      <ManageView
+        eventId={event.id}
+        initial={{
+          name: event.name,
+          joinsOpen: event.joinsOpen,
+          uploadsOpen: event.uploadsOpen,
+          code: code?.words ?? null,
+          url: `/e/${event.linkToken}`,
+          groupId: event.groupId,
+        }}
+      />
+    </Shell>
   );
 }

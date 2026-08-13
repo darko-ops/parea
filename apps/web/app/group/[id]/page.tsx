@@ -4,6 +4,7 @@ import { GroupView } from '@/../app/components/GroupView';
 import { getDb } from '@/db';
 import { findGroup, groupEvents, memberCount, membershipOf, participatedInGroup } from '@/groups';
 import { currentActorId } from '@/session';
+import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,19 +37,21 @@ export default async function GroupPage({
   if (!membership && !group.findable) notFound();
 
   return (
-    <GroupView
-      group={{
-        id: group.id,
-        name: group.name,
-        memberCount: await memberCount(db, group.id),
-        member: membership !== null,
-        role: membership?.role ?? null,
-        canJoinDirectly:
-          membership === null && actorId
-            ? await participatedInGroup(db, group.id, actorId)
-            : false,
-        events: membership ? await groupEvents(db, group.id) : [],
-      }}
-    />
+    <Shell>
+      <GroupView
+        group={{
+          id: group.id,
+          name: group.name,
+          memberCount: await memberCount(db, group.id),
+          member: membership !== null,
+          role: membership?.role ?? null,
+          canJoinDirectly:
+            membership === null && actorId
+              ? await participatedInGroup(db, group.id, actorId)
+              : false,
+          events: membership ? await groupEvents(db, group.id) : [],
+        }}
+      />
+    </Shell>
   );
 }

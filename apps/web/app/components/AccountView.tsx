@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
 import { LoginScreen } from './LoginScreen';
+import { Shell } from './Shell';
 import { SignIn } from './SignIn';
 import { SiteFooter } from './SiteFooter';
 
@@ -113,21 +114,31 @@ export function AccountView() {
     .slice(0, 1)
     .toUpperCase();
 
+  /**
+   * Everything below here is signed in, so it gets the rail.
+   *
+   * Below rather than around: the sign-in screen returns above this, and it is
+   * a white page with one card in the middle and no way out that is not
+   * signing in. A navigation rail beside it offers three destinations that all
+   * lead back here. The loading state has none either — a rail that appears
+   * and then vanishes as the session resolves is worse than one that arrives
+   * late.
+   */
+  const page = (children: React.ReactNode) => (
+    <Shell current="you">
+      <main className="wrap you">{children}</main>
+    </Shell>
+  );
+
   if (view === 'profile' && account) {
-    return (
-      <main className="wrap you">
-        <EditProfile
-          profile={account}
-          onSaved={load}
-          onDone={() => setView('you')}
-        />
-      </main>
+    return page(
+      <EditProfile profile={account} onSaved={load} onDone={() => setView('you')} />,
     );
   }
 
   if (view === 'settings') {
-    return (
-      <main className="wrap you">
+    return page(
+      <>
         <section className="panel">
           <h2>Settings</h2>
           <p className="muted">Signed in as {account?.email}.</p>
@@ -158,12 +169,12 @@ export function AccountView() {
         <div className="row">
           <button onClick={() => setView('you')}>Done</button>
         </div>
-      </main>
+      </>,
     );
   }
 
-  return (
-    <main className="wrap you">
+  return page(
+    <>
       <header className="you-head">
         {/*
           A letter until there is a picture, and again if one will not load.
@@ -225,6 +236,6 @@ export function AccountView() {
       </section>
 
       <SiteFooter />
-    </main>
+    </>,
   );
 }

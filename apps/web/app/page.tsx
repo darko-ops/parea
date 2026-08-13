@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 
 import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
 
-import { Rail } from './components/Rail';
+import { Shell } from './components/Shell';
 import { SignIn, useSession } from './components/SignIn';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 
@@ -94,8 +94,7 @@ export default function CreatePage() {
   const chosen = WHEN_OPTIONS.find((option) => option.id === when);
 
   return (
-    <div className="shell">
-      <Rail current={null} />
+    <Shell>
 
       <main className="main" style={{ padding: '36px 40px' }}>
         <div className="create">
@@ -286,7 +285,7 @@ export default function CreatePage() {
 
       <SiteFooter />
       </main>
-    </div>
+    </Shell>
   );
 }
 

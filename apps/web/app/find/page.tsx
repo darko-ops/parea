@@ -13,7 +13,7 @@
  * they remember what.
  */
 
-import { Rail } from '@/../app/components/Rail';
+import { Shell } from '@/../app/components/Shell';
 import { FindView } from '@/../app/components/FindView';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
@@ -42,8 +42,7 @@ export default async function FindPage() {
   }
 
   return (
-    <div className="shell">
-      <Rail current="find" />
+    <Shell current="find">
       <main className="main">
         <div className="main-head">
           <h1>Find</h1>
@@ -53,6 +52,6 @@ export default async function FindPage() {
           unplaced={listings.filter((l) => !l.place).length}
         />
       </main>
-    </div>
+    </Shell>
   );
 }

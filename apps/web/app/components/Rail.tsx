@@ -11,8 +11,14 @@
  * Events, Find, You. Below tablet it becomes a bar across the top, because a
  * 212px column on a phone-width browser is most of the screen.
  *
- * A server component: it renders links and an active state, and nothing here
- * needs to run on the client.
+ * No directive either way, so it renders wherever it is used: on the server
+ * for the pages that are server components, and in the client bundle for the
+ * account view, which has to decide between this and the sign-in screen from
+ * state only it has. Nothing in here is a hook or an effect, so both are the
+ * same render.
+ *
+ * Reached through `Shell` rather than used directly — a rail without the flex
+ * parent it expects renders as a full-width band above the content.
  */
 
 import { Mark } from './Mark';

@@ -200,6 +200,15 @@ button.secondary {
   width: 212px; flex: none; padding: 22px 16px;
   border-right: 1px solid var(--line); background: var(--bg);
   display: flex; flex-direction: column; gap: 4px;
+  /* Stays put. This did not matter while the rail was on three pages that
+     were all about a screenful; the privacy policy is nine, and a rail that
+     scrolls away is navigation you have to scroll back up to reach.
+     `align-self` because a flex item stretches by default and a stretched
+     item is exactly as tall as the page, which is another way of saying it
+     never gets to stick. `overflow-y` for the viewport short enough that the
+     rail's own contents do not fit. */
+  position: sticky; top: 0; align-self: flex-start;
+  height: 100vh; height: 100dvh; overflow-y: auto;
 }
 /* Mark and word as one lockup. 4px rather than 8: the mark is a circle
    cluster with visual air already built into its bounding box, so a gap that
@@ -238,6 +247,13 @@ button.secondary {
 .rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
 .rail-note { font-size: 12px; line-height: 1.45; color: var(--dim); }
 .main { flex: 1; min-width: 0; padding: 28px 30px; }
+/* `.wrap` is the other kind of page — a 900px column of prose rather than a
+   grid running to the edges — and until the rail reached every page it was
+   always the top-level element, so it had never been a flex item. Without
+   this it shrinks to its longest unbreakable line and the centring measures
+   from the wrong box; `min-width: 0` because a flex item's floor is its
+   content, which a wide table or a long URL raises past the column. */
+.shell > .wrap { flex: 1; min-width: 0; }
 .main-head {
   display: flex; align-items: baseline; justify-content: space-between;
   margin-bottom: 20px; gap: 16px; flex-wrap: wrap;
@@ -253,6 +269,10 @@ button.secondary {
     width: auto; flex-direction: row; align-items: center; gap: 2px;
     border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 12px;
     overflow-x: auto;
+    /* Undo the desktop stickiness rather than inherit it sideways: a bar
+       pinned to the top costs 50px of a phone screen on every page, and
+       `height: 100dvh` on a horizontal bar is the whole screen. */
+    position: static; height: auto; overflow-y: visible;
   }
   .rail-mark { padding: 0 8px 0 4px; }
   .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; }
