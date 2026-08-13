@@ -409,10 +409,21 @@ button.secondary {
   display: flex; align-items: center; justify-content: center;
   padding: 24px; position: relative; background: var(--bg);
 }
+/* Two shadows rather than one. A single large soft shadow reads as fog and a
+   single tight one reads as a sticker; the close one seats the card against
+   the page and the far one gives it the height. Tinted with the text colour
+   at low alpha instead of black — black over white goes grey and flat, and
+   this keeps the shade the same temperature as everything else on the page.
+   The hairline border stays underneath: on a white card on a white page the
+   shadow alone leaves the top edge, where there is least of it, undefined. */
 .auth-card {
   width: 100%; max-width: 380px;
   background: var(--card); border: 1px solid var(--line);
   border-radius: 20px; padding: 32px 28px;
+  box-shadow:
+    0 1px 2px rgba(20, 23, 28, .04),
+    0 6px 16px rgba(20, 23, 28, .05),
+    0 20px 40px rgba(20, 23, 28, .05);
 }
 /* Mark and word stacked, not in a row. In the rail they are a lockup at the
    scale of a nav item; here they are the subject of the page and have room to

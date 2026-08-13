@@ -8,9 +8,9 @@
  * whole errand, so there is no rail, no navigation and nothing else to do.
  * What is on screen is the mark, the name, and the one field.
  *
- * The card is the only shape on the page. It carries a border rather than a
- * shadow: the page is white and the card is white, and a shadow to separate
- * them would be inventing depth the rest of the product does not have.
+ * The card is the only shape on the page, and it is lifted off it — a white
+ * card on a white page with a hairline border alone reads as a drawn
+ * rectangle rather than as an object. The shadow is what makes it one.
  */
 
 import type { ReactNode } from 'react';
