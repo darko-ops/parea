@@ -85,7 +85,12 @@ describe('against the payload the server actually sends', () => {
       ),
     );
     const kinds = [...push.matchAll(/\{ kind: '(\w+)'/g)].map((m) => m[1]);
-    expect(kinds.length).toBe(3);
+    // Not a fixed number. Pinned to 3, this failed when a fourth kind was
+    // added — correctly, but for the wrong reason: it reported a count that
+    // had changed rather than a kind the client could not route, and the fix
+    // it invited was editing the number. The loop below is the real property,
+    // and this only guards the regex having matched anything at all.
+    expect(kinds.length).toBeGreaterThan(0);
 
     const client = await import('node:fs/promises').then((fs) =>
       fs.readFile(new URL('../src/notifications.ts', import.meta.url).pathname, 'utf8'),

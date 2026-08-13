@@ -57,6 +57,20 @@ export function notificationTarget(
     case 'nudge':
     case 'removal_answered':
       return eventId ? { screen: 'event', eventId } : null;
+    case 'access_requested':
+      /*
+       * The host, told somebody is at the door.
+       *
+       * Opens the event, which is as far as this client goes: approving is a
+       * host action and the only screen that has one is on the web. Landing on
+       * the event is a worse answer than landing on the queue and a much
+       * better one than the app opening to the tab bar, which is what
+       * returning null would do — the notification names an event, so the
+       * event is the least surprising place to arrive.
+       *
+       * When a host screen exists here, this is the line that changes.
+       */
+      return eventId ? { screen: 'event', eventId } : null;
     default:
       return null;
   }
