@@ -183,8 +183,9 @@ cookie store, so the app sends back cookies the server set, and a native client
 denied its own token cannot stay signed in.
 
 **A one-time code, not a password and not a link.** No password, because an
-account here holds an address and nothing else — a password would be the most
-sensitive thing in the system, protecting the least, and it would bring a reset
+account here holds an address, a handle, and whatever name and picture
+someone adds — a password would be the most sensitive thing in the system,
+protecting the least, and it would bring a reset
 flow that is its own weakest link. A code rather than a magic link because mail
 often opens on a different device from the one signing in, which is precisely
 the case accounts exist for. Codes are stored as an HMAC, are single-use, expire
