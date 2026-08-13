@@ -361,3 +361,46 @@ button.secondary {
   background: none; border: 0; padding: 0; width: auto;
   font-size: 14px; font-weight: 600; color: var(--accent); cursor: pointer;
 }
+
+
+/* ---------------------------------------------------------------------------
+   The sign-in page.
+
+   Centred rather than top-aligned, and the only page in the product that is.
+   Everywhere else the content is a list that grows downward and belongs at the
+   top of the viewport; here there is exactly one thing and no reason for it to
+   sit anywhere but the middle.
+   --------------------------------------------------------------------------- */
+.auth {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; position: relative; background: var(--bg);
+}
+.auth-card {
+  width: 100%; max-width: 380px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 20px; padding: 32px 28px;
+}
+/* Mark and word stacked, not in a row. In the rail they are a lockup at the
+   scale of a nav item; here they are the subject of the page and have room to
+   be one. */
+.auth-brand {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 10px; margin-bottom: 28px;
+}
+.auth-wordmark { font-size: 30px; }
+
+/* The card owns the page, so the panel inside it should not draw a second box
+   around the same content. */
+.auth-card .panel {
+  background: none; border: 0; border-radius: 0;
+  padding: 0; margin: 0;
+}
+
+.auth-search {
+  position: absolute; top: 20px; right: 24px;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px;
+  color: var(--dim); text-decoration: none;
+}
+.auth-search:hover { background: var(--accent-soft); color: var(--accent); }

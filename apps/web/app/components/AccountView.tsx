@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { LoginScreen } from './LoginScreen';
 import { SignIn } from './SignIn';
 
 type EventListing = {
@@ -86,25 +87,32 @@ export function AccountView() {
 
   if (stage === 'loading') return <main className="wrap" />;
 
+  if (stage !== 'in') {
+    return (
+      <LoginScreen>
+        <SignIn
+          why="Sign in to make an event, or to add your photos to one."
+          onSignedIn={afterSignIn}
+        />
+      </LoginScreen>
+    );
+  }
+
   return (
     <main className="wrap">
       <h1>Your account</h1>
 
       {note && <p className="muted">{note}</p>}
 
-      {stage !== 'in' ? (
-        <SignIn why="Signing in keeps your events with you." onSignedIn={afterSignIn} />
-      ) : (
-        <section className="panel">
-          <p>
-            Signed in as <strong>{account?.email}</strong>
-          </p>
-          <p className="muted">
-            Your events and groups follow you to another browser or a new
-            phone. That is all an account does here.
-          </p>
-        </section>
-      )}
+      <section className="panel">
+        <p>
+          Signed in as <strong>{account?.email}</strong>
+        </p>
+        <p className="muted">
+          Your events and groups follow you to another browser or a new phone.
+          That is all an account does here.
+        </p>
+      </section>
 
       {events.length > 0 && (
         <section className="panel">
@@ -126,29 +134,27 @@ export function AccountView() {
         </section>
       )}
 
-      {stage === 'in' && (
-        <section className="panel">
-          <h2>Delete your account</h2>
-          {/*
-            Two separate things, in front of someone rather than chosen for
-            them. Folding the second into the first would take away other
-            people's copies of an evening they were also at.
-          */}
-          <p className="muted">
-            Removing your account removes your email address and the link
-            between it and your devices. The photos you added stay in their
-            events and stay yours to remove.
-          </p>
-          <div className="row">
-            <button className="secondary" onClick={() => remove(false)} disabled={busy}>
-              Delete account
-            </button>
-            <button className="danger" onClick={() => remove(true)} disabled={busy}>
-              Delete account and all my photos
-            </button>
-          </div>
-        </section>
-      )}
+      <section className="panel">
+        <h2>Delete your account</h2>
+        {/*
+          Two separate things, in front of someone rather than chosen for
+          them. Folding the second into the first would take away other
+          people's copies of an evening they were also at.
+        */}
+        <p className="muted">
+          Removing your account removes your email address and the link
+          between it and your devices. The photos you added stay in their
+          events and stay yours to remove.
+        </p>
+        <div className="row">
+          <button className="secondary" onClick={() => remove(false)} disabled={busy}>
+            Delete account
+          </button>
+          <button className="danger" onClick={() => remove(true)} disabled={busy}>
+            Delete account and all my photos
+          </button>
+        </div>
+      </section>
 
       <p className="muted footer">
         <a href="/safety">Safety, reporting and contact</a>
