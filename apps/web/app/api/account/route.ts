@@ -15,8 +15,8 @@
  * The UI puts both in front of someone rather than choosing for them.
  */
 
-import { handleProblem, normaliseHandle, schema } from '@parea/core';
-import { and, eq, ne } from 'drizzle-orm';
+import { handleKey, handleProblem, schema } from '@parea/core';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { deleteAccount, deleteEverything } from '@/accounts';
@@ -54,7 +54,10 @@ export async function PATCH(request: Request) {
   }
 
   if (typeof body.handle === 'string') {
-    const handle = normaliseHandle(body.handle);
+    // Stored as written, compared folded — see the note in `handles.ts`. Only
+    // the surrounding whitespace goes, because that is a typing accident
+    // rather than a decision about capitals.
+    const handle = body.handle.trim();
     if (handle === '') {
       // Clearing it is allowed. A handle is not something anyone is required
       // to have, and one you cannot give up is a name you are stuck with.
@@ -68,10 +71,20 @@ export async function PATCH(request: Request) {
       // index underneath: two people claiming the same handle in the same
       // second both pass this and one loses at the write, which is the only
       // place that can actually be decided.
+      //
+      // Compared through `lower()` on both sides so it asks the question the
+      // index will ask. An `=` against the column would report `SamJones` free
+      // while `samjones` exists, and the 409 would arrive from the catch below
+      // with no idea why.
       const [taken] = await db
         .select({ id: schema.actors.id })
         .from(schema.actors)
-        .where(and(eq(schema.actors.handle, handle), ne(schema.actors.id, actorId)))
+        .where(
+          and(
+            sql`lower(${schema.actors.handle}) = ${handleKey(handle)}`,
+            ne(schema.actors.id, actorId),
+          ),
+        )
         .limit(1);
       if (taken) {
         return NextResponse.json(

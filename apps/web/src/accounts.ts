@@ -11,7 +11,7 @@
  * requires an app that creates accounts to delete them in-app.
  */
 
-import { normaliseEmail, recordModeration, REASON, schema } from '@parea/core';
+import { generateHandle, normaliseEmail, recordModeration, REASON, schema } from '@parea/core';
 
 import { getStorage } from './storage';
 import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
@@ -104,6 +104,45 @@ export async function consumeCode(
 
 export type SignInResult = { actorId: string; email: string; merged: boolean };
 
+/** How many names to try before admitting the lists are not the problem. */
+const HANDLE_TRIES = 8;
+
+/**
+ * Give this actor a handle if it has none.
+ *
+ * Called on the way in rather than offered on a form. An empty field labelled
+ * "Handle" is homework at the door, and the accounts that skip it are the ones
+ * left with nothing to show beside a name — so everyone leaves sign-in with a
+ * real one, and Edit profile is where it becomes theirs.
+ *
+ * The write is conditional on the handle still being null, which is what makes
+ * this safe to call on every sign-in: two tabs signing in at once cannot
+ * produce two names, and it can never overwrite one somebody chose.
+ *
+ * Failure is quiet and returns null. A person who cannot sign in because the
+ * generator lost eight coin flips is a worse outcome than a person with no
+ * handle, and the next sign-in tries again.
+ */
+export async function ensureHandle(db: Db, actorId: string): Promise<string | null> {
+  for (let attempt = 0; attempt < HANDLE_TRIES; attempt++) {
+    const handle = generateHandle();
+    try {
+      const updated = await db
+        .update(schema.actors)
+        .set({ handle })
+        .where(and(eq(schema.actors.id, actorId), isNull(schema.actors.handle)))
+        .returning({ handle: schema.actors.handle });
+      // Empty means the row already had one — nothing to do, and not a loss
+      // worth retrying, because retrying would find the same row.
+      return updated.length > 0 ? handle : null;
+    } catch {
+      // The unique index on `lower(handle)`. Another name, same as anyone
+      // typing one that is taken.
+    }
+  }
+  return null;
+}
+
 /**
  * Binds this device's actor to the account for `email`, creating it if needed.
  *
@@ -115,8 +154,23 @@ export type SignInResult = { actorId: string; email: string; merged: boolean };
  *   - the account belongs to another actor — the same person on another
  *     device. Fold this one into it, so forty photos taken on a phone stop
  *     belonging to a stranger the moment they sign in on a laptop.
+ *
+ * Whichever shape it took, the actor that comes out of it leaves with a
+ * handle. `ensureHandle` is outside the three branches rather than repeated in
+ * them: it is the same thing in all three, and the branch it would be easiest
+ * to forget is the merge, where the handle belongs to the actor that won.
  */
 export async function signIn(
+  db: Db,
+  email: string,
+  actorId: string,
+): Promise<SignInResult> {
+  const result = await bindAccount(db, email, actorId);
+  await ensureHandle(db, result.actorId);
+  return result;
+}
+
+async function bindAccount(
   db: Db,
   email: string,
   actorId: string,

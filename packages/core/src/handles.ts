@@ -3,8 +3,18 @@
  *
  * `display_name` is what people see beside your photos and is deliberately not
  * unique: two people called Sam at the same party are two people called Sam. A
- * handle is the other thing — one per person, typed rather than chosen from a
- * list, and stable enough to be worth remembering.
+ * handle is the other thing — one per person, and stable enough to be worth
+ * remembering.
+ *
+ * Stored as written and compared folded. Those are two different questions and
+ * conflating them costs one of the two answers: fold at the point of storage
+ * and `BlueChunkyMonkey` comes back as `bluechunkymonkey`, which is where the
+ * capitals were doing the work of the spaces — `hairytalllarry` has three `l`s
+ * in a row and is not a name anyone can read. Compare unfolded and `Sam` and
+ * `sam` become two accounts, which is a way to be impersonated rather than a
+ * way to be distinct. So the column keeps the case and the unique index is on
+ * `lower(handle)`; `handleKey` is what that index sees, and every lookup and
+ * every taken-check goes through it.
  *
  * Pure and shared, because both clients validate before sending and the server
  * validates again before writing, and three implementations of "what is a legal
@@ -34,14 +44,13 @@ export const RESERVED_HANDLES: readonly string[] = [
 ];
 
 /**
- * What we store, given what someone typed.
+ * The form a handle is unique under, and the form to look one up by.
  *
- * Case-folded here rather than compared case-insensitively at every call site.
- * Nobody remembers whether they capitalised their own handle, and `Sam` and
- * `sam` resolving to two accounts is a way to be impersonated rather than a
- * way to be distinct.
+ * Not the form it is stored in — see the note at the top. Anything comparing
+ * two handles, or asking whether one is taken, compares these; anything
+ * showing a handle to a person shows the column.
  */
-export function normaliseHandle(input: string): string {
+export function handleKey(input: string): string {
   return input.trim().toLowerCase();
 }
 
@@ -53,7 +62,7 @@ export function normaliseHandle(input: string): string {
  * mapping codes to the same sentences, kept in step by hand.
  */
 export function handleProblem(input: string): string | null {
-  const handle = normaliseHandle(input);
+  const handle = handleKey(input);
 
   if (handle.length < HANDLE_MIN) {
     return `Handles are at least ${HANDLE_MIN} characters.`;
@@ -78,4 +87,72 @@ export function handleProblem(input: string): string | null {
     return 'That one is reserved.';
   }
   return null;
+}
+
+/* ---------------------------------------------------------------------------
+   Handing someone a handle rather than asking for one.
+
+   An empty field labelled "Handle" is a small piece of homework on the way in,
+   and the accounts that skip it are the ones with nothing to show beside a
+   name. So everyone gets one at sign-up and can change it afterwards — the
+   generated one is a real handle, not a placeholder, and nothing downstream
+   can tell the difference.
+
+   Three words, because two collide too often and four stops being a name.
+   Colour, manner, animal: the order reads as a description of a creature,
+   which is what makes an arbitrary string memorable at all.
+
+   The lists are short words on purpose — three of eight characters is 24, and
+   `HANDLE_MAX` is 30, so no combination can be generated that a person would
+   then be forbidden from typing. Animals rather than first names: a handle
+   that reads as somebody's actual name is a small impersonation handed out by
+   the system, and there is no version of that list which is not also a list
+   of whose names count.
+   --------------------------------------------------------------------------- */
+
+const COLOURS: readonly string[] = [
+  'Amber', 'Ash', 'Azure', 'Blue', 'Brass', 'Bronze', 'Cobalt', 'Copper',
+  'Coral', 'Cream', 'Crimson', 'Dusty', 'Emerald', 'Ginger', 'Golden', 'Green',
+  'Grey', 'Hazel', 'Indigo', 'Ivory', 'Jade', 'Lilac', 'Maroon', 'Mint',
+  'Olive', 'Onyx', 'Opal', 'Peach', 'Pearl', 'Plum', 'Rosy', 'Ruby',
+  'Russet', 'Rust', 'Sable', 'Saffron', 'Sage', 'Sandy', 'Scarlet', 'Silver',
+  'Slate', 'Snowy', 'Teal', 'Umber', 'Violet', 'Wheaten', 'White', 'Yellow',
+];
+
+const MANNERS: readonly string[] = [
+  'Ambling', 'Beaming', 'Blithe', 'Bouncy', 'Brave', 'Breezy', 'Bright', 'Bubbly',
+  'Calm', 'Chatty', 'Cheery', 'Chunky', 'Clever', 'Cosy', 'Crafty', 'Curly',
+  'Dapper', 'Daring', 'Deft', 'Doughty', 'Eager', 'Fabled', 'Fleet', 'Fluffy',
+  'Gallant', 'Gentle', 'Glossy', 'Hairy', 'Happy', 'Hardy', 'Jaunty', 'Jolly',
+  'Keen', 'Kindly', 'Lanky', 'Lively', 'Lofty', 'Lucky', 'Merry', 'Mighty',
+  'Nimble', 'Noble', 'Placid', 'Plucky', 'Quiet', 'Rapid', 'Round', 'Rugged',
+  'Shaggy', 'Sleepy', 'Snappy', 'Speedy', 'Spry', 'Stately', 'Sturdy', 'Sunny',
+  'Swift', 'Tall', 'Tidy', 'Trusty', 'Valiant', 'Whiskery', 'Witty', 'Zesty',
+];
+
+const ANIMALS: readonly string[] = [
+  'Badger', 'Bison', 'Bittern', 'Bream', 'Camel', 'Caribou', 'Chamois', 'Cobra',
+  'Condor', 'Coyote', 'Curlew', 'Dingo', 'Donkey', 'Dormouse', 'Dragon', 'Falcon',
+  'Ferret', 'Finch', 'Gannet', 'Gecko', 'Gibbon', 'Godwit', 'Heron', 'Hoopoe',
+  'Ibex', 'Ibis', 'Jackal', 'Kestrel', 'Koala', 'Lemur', 'Llama', 'Lynx',
+  'Magpie', 'Marmot', 'Meerkat', 'Mongoose', 'Monkey', 'Moose', 'Ocelot', 'Osprey',
+  'Otter', 'Panda', 'Pangolin', 'Parrot', 'Puffin', 'Quail', 'Rabbit', 'Raven',
+  'Redwing', 'Robin', 'Salmon', 'Serval', 'Shrew', 'Siskin', 'Sloth', 'Stoat',
+  'Tapir', 'Toucan', 'Turtle', 'Vole', 'Walrus', 'Weasel', 'Wombat', 'Zebra',
+];
+
+/** How many distinct handles the lists can make, before any suffix. */
+export const HANDLE_SPACE = COLOURS.length * MANNERS.length * ANIMALS.length;
+
+/**
+ * A handle nobody typed.
+ *
+ * `random` is injected rather than reached for so a test can pin the output;
+ * the default is the one every caller uses. Uniqueness is not this function's
+ * job and cannot be — only the unique index knows what is taken, so the caller
+ * generates, tries to write, and comes back here when it loses.
+ */
+export function generateHandle(random: () => number = Math.random): string {
+  const pick = (list: readonly string[]) => list[Math.floor(random() * list.length)]!;
+  return `${pick(COLOURS)}${pick(MANNERS)}${pick(ANIMALS)}`;
 }

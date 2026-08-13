@@ -92,9 +92,10 @@ export const actors = pgTable(
    * A name that is unique, unlike `display_name` which is not and should not
    * be — two people called Sam at the same party are two people called Sam.
    *
-   * Null for everyone until they pick one. Stored already lowercased: case is
-   * not a distinction anyone will remember making, and `Sam` and `sam` being
-   * two accounts is a phishing surface rather than a feature.
+   * Stored with its capitals and unique without them; see the note in
+   * `handles.ts` for why those are two different questions. Everyone gets one
+   * on signing in, so this is null only for guests and for accounts that
+   * cleared theirs.
    */
   handle: text('handle'),
   /**
@@ -111,8 +112,11 @@ export const actors = pgTable(
   createdAt: createdAt(),
   },
   (t) => [
-    // Case is folded before it gets here, so a plain unique index is enough.
-    uniqueIndex('actor_handle_idx').on(t.handle),
+    // On `lower(handle)` rather than on the column: the column keeps the case
+    // someone typed, and `Sam` and `sam` still have to be one account. This is
+    // the only thing that actually decides a race for a handle — the check in
+    // the route ahead of it is there to produce a sentence, not a guarantee.
+    uniqueIndex('actor_handle_idx').on(sql`lower(${t.handle})`),
   ],
 );
 
