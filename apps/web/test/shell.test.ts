@@ -97,3 +97,28 @@ describe('the sign-in screen keeps its white page', () => {
     expect(account).toMatch(/stage === 'loading'\) return <main className="wrap" \/>/);
   });
 });
+
+describe('an event looks like an event wherever it is listed', () => {
+  const read2 = (p: string) => read(fileURLToPath(new URL(p, import.meta.url)));
+  const EVENTS = read2('../app/events/page.tsx');
+  const ACCOUNT = read2('../app/components/AccountView.tsx');
+
+  it('is the same card on both screens', () => {
+    // The You page drew its own list of names with a dot-separated tail while
+    // Events drew the card. Two ways of showing one object is two things to
+    // keep in step, and the list had already fallen behind — it never grew the
+    // relative "added to" line the card has.
+    for (const [name, source] of [['events', EVENTS], ['account', ACCOUNT]] as const) {
+      expect(source, `${name} does not use EventCard`).toMatch(/<EventCard\b/);
+      expect(source, `${name} does not use the cards grid`).toMatch(/className="cards"/);
+    }
+  });
+
+  it('builds the meta line from the shared function, not by hand', () => {
+    // `metaFor` is shared with the native client precisely so "2 days ago"
+    // rounds the same way everywhere. A locally assembled string would drift
+    // without anything failing.
+    expect(ACCOUNT).toMatch(/metaFor\(/);
+    expect(ACCOUNT).not.toMatch(/person' : 'people'/);
+  });
+});

@@ -16,22 +16,33 @@
  * no persistent place to put it, and this is that place.
  */
 
+import { metaFor } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
+import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
 import { SignIn } from './SignIn';
 import { SiteFooter } from './SiteFooter';
 
+/**
+ * What `/api/events` hands back, narrowed to what a card needs.
+ *
+ * `mosaic` arrives already signed — the URLs are signed against the event's
+ * `cap_epoch`, so rotating a link stops its thumbnails resolving, and nothing
+ * on this side could sign one anyway.
+ */
 type EventListing = {
   id: string;
   name: string;
   place: string | null;
-  groupName: string | null;
   memberCount: number;
   photoCount: number;
+  mosaic: string[];
+  /** ISO. Feeds the relative "added to …" half of the meta line. */
+  lastActiveAt: string;
 };
 
 /** Only 'loading' still matters here; the sign-in form owns its own steps. */
@@ -210,29 +221,52 @@ export function AccountView() {
 
       {note && <p className="muted">{note}</p>}
 
+      {/*
+        The same cards as Events, from the same data.
+
+        This was a bulleted list of names with a dot-separated tail, which is
+        the thing the card design exists to replace: a name is a poor way to
+        recognise a night out and the photographs are a good one. Two ways of
+        drawing one object is also two things to keep in step, and the list was
+        already a version behind — it never grew the relative "added to" line.
+
+        Built here rather than fetched differently: `/api/events` already
+        returns signed mosaic URLs, because the native client cannot sign
+        anything and needs them too. `metaFor` is pure and shared with native,
+        so the sentence under the name is the same sentence on all three
+        surfaces rather than a third rounding of "2 days ago".
+      */}
       <section className="you-events">
         <h2>Your events</h2>
-        {events.length === 0 ? (
-          <p className="muted">
-            Nothing yet. <a href="/">Create an event</a>, or open a link somebody
-            sent you.
-          </p>
-        ) : (
-          <ul className="plain">
-            {events.map((event) => (
-              <li key={event.id}>
-                <a href={`/event/${event.id}`}>{event.name}</a>
-                <span className="muted">
-                  {' · '}
-                  {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}
-                  {' · '}
-                  {event.photoCount} {event.photoCount === 1 ? 'photo' : 'photos'}
-                  {event.groupName && ` · ${event.groupName}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="cards">
+          {events.map((event, index) => (
+            <EventCard
+              key={event.id}
+              event={{
+                id: event.id,
+                name: event.name,
+                photoCount: event.photoCount,
+                mosaic: event.mosaic,
+                // `newest` only for the first, matching Events: the top card
+                // says when it was last added to, the rest say where they were.
+                meta: metaFor(event, { newest: index === 0, now: new Date() }),
+              }}
+            />
+          ))}
+
+          {/*
+            The affordance is the empty state, exactly as on Events. With no
+            events this is the only cell and it says what the product does
+            instead of apologising for having nothing to show.
+          */}
+          <a href="/" className="card-new">
+            <strong>Create Event</strong>
+            <span>
+              Name it, say when it was, send the link. Nothing to sign up for
+              at the other end to look.
+            </span>
+          </a>
+        </div>
       </section>
 
       <SiteFooter />
