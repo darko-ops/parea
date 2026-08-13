@@ -161,8 +161,44 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       )}
 
       {feed.event.uploadsOpen && session.known && session.account && (
-        <section className="panel">
+        <section className="panel add-photos">
+          {/*
+            The input is hidden and a label does its job.
+
+            Left to itself the browser renders "Choose Files / No file chosen",
+            which was the entire add-photos affordance on this page: no
+            heading, no label, no colour, a grey OS control that reads as a
+            piece of form plumbing rather than as the one thing this page is
+            for. The same swap was made for the avatar picker and never
+            reached here.
+
+            A label rather than a button calling `.click()`: a label *is* the
+            control for the input it names — keyboard, screen reader and
+            pointer all work with nothing scripted, and there is no state where
+            the button exists but the handler has not been attached.
+          */}
+          <div className="add-photos-head">
+            {/*
+              `aria-disabled` and not `disabled`, which a label does not have.
+              The input underneath carries the real one, so a click while a
+              batch is running already does nothing; this is so it does not
+              look like it should.
+            */}
+            <label
+              className="button-like primary"
+              htmlFor="add-photos"
+              aria-disabled={uploads.running || undefined}
+            >
+              {uploads.running ? 'Adding…' : 'Add photos'}
+            </label>
+            <p className="field-help" style={{ margin: 0 }}>
+              Everything you took, at full quality. They stay yours — you can
+              remove any of them later.
+            </p>
+          </div>
           <input
+            id="add-photos"
+            className="visually-hidden"
             ref={inputRef}
             type="file"
             multiple

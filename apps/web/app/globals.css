@@ -386,11 +386,21 @@ button.secondary {
 
 .create-go { justify-self: start; padding: 15px 22px; border-radius: 12px; }
 
+.create-next { display: grid; gap: 12px; justify-items: start; }
+.create-next .button-like { padding: 14px 22px; font-size: 16px; border-radius: 12px; }
+
 .aside {
   width: 330px; flex: none; background: var(--bg);
   border: 1px solid var(--line); border-radius: 16px; padding: 20px;
   display: grid; gap: 16px; align-content: start;
 }
+/* Grid items floor at `min-width: auto`, which is their min-content — and the
+   share row contains a URL, which has no break opportunities at all. So the
+   row measured 433px inside a 328px box, the card's text spilled past its own
+   border, and `document.body.scrollWidth` exceeded the window: the page
+   scrolled sideways. `.aside-link` already truncates; it never got the chance,
+   because the item above it was the one refusing to shrink. */
+.aside > * { min-width: 0; }
 .aside h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 4px; }
 .aside-row {
   background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -546,8 +556,31 @@ img.you-face { object-fit: cover; }
   border: 1px solid var(--line); border-radius: 10px;
   background: var(--card); color: var(--fg); cursor: pointer;
   margin: 0;
+  /* It is also used on an `<a>` now, which arrives underlined. A button with
+     an underline through it reads as a link someone styled by accident. */
+  text-decoration: none;
 }
 .button-like:hover { border-color: var(--accent); color: var(--accent); }
+/* The one on the event page is the point of the page, so it is the filled
+   button rather than the outlined one. */
+.button-like.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.button-like.primary:hover { filter: brightness(1.06); color: #fff; }
+.button-like[aria-disabled='true'] { opacity: .55; cursor: default; filter: none; }
+/* The input a `.button-like` names is visually hidden, so tabbing to it puts
+   focus on something with no pixels. The ring is moved to the label instead.
+   Scoped to the panel rather than written as a sibling selector, because the
+   input is not adjacent to its label in either place that does this — and a
+   sibling selector that silently matches nothing is how the ring goes missing
+   again. */
+.panel:has(input.visually-hidden:focus-visible) .button-like {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.add-photos-head {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.add-photos-head .field-help { flex: 1; min-width: 220px; }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;

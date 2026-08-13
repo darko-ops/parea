@@ -229,11 +229,30 @@ export default function CreatePage() {
               </>
             )}
 
+            {/*
+              The next thing to do, as a thing to press.
+
+              This was a sentence with a link in it, under an otherwise empty
+              column — so the flow was: name it, place it, date it, get a link,
+              and then nothing. The one action that makes the event worth
+              sending is adding your own photos to it, and it was the quietest
+              element on the page.
+
+              Not an automatic redirect: the share panel beside this is why the
+              form does not navigate away on success, and sending someone
+              straight to the event would take the link off the screen in the
+              second they are most likely to send it.
+            */}
             {link && (
-              <p className="muted">
-                <a href={link}>Open it and add yours first</a> — an empty event
-                stays empty.
-              </p>
+              <div className="create-next">
+                <a className="button-like primary" href={link}>
+                  Add your photos
+                </a>
+                <p className="field-help" style={{ margin: 0 }}>
+                  An empty event stays empty — yours are what tell everyone else
+                  there is something to add to.
+                </p>
+              </div>
             )}
           </form>
 
