@@ -7,18 +7,22 @@
  * someone sent you. The app grew three tabs for this; the web got nothing, so
  * "two clients, one protocol" was true of the API and false of the product.
  *
- * A hero and a list, rather than a grid of equal cards. Equal cards said that
- * eleven events are eleven equally interesting things, and four of them fitted
- * on a screen. One of them is usually the one being added to right now, and
- * that is the only one worth a large picture and a picker — everything else is
- * a row you are scanning for a name.
+ * A hero, then the cards. One event is usually the one being added to right
+ * now, and it is the only one worth a large picture and a picker; the rest are
+ * cards, because an event is recognised by its photographs and a 58px strip of
+ * them is not enough to do it with. Density was tried and lost to that — the
+ * rows fitted nine events on a screen and made all nine harder to tell apart.
+ *
+ * The same card as the You page and Invites, deliberately: one object, one
+ * drawing of it, and `shell.test.ts` asserts every grid of events uses it.
  *
  * Not indexable: this lists what one person is in. `/` stays the public
  * landing page, and a crawler has no actor, so it never sees this.
  */
 
+import { CreateCard } from '@/../app/components/CreateCard';
+import { EventCard } from '@/../app/components/EventCard';
 import { EventHero, isLive } from '@/../app/components/EventHero';
-import { EventRows } from '@/../app/components/EventRows';
 import { Shell } from '@/../app/components/Shell';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
@@ -61,7 +65,7 @@ export default async function EventsPage({
    * answer to the question that sort asks.
    */
   const hero = sort === 'recent' && cards[0] && isLive(cards[0], now) ? cards[0] : null;
-  const rows = hero ? cards.slice(1) : cards;
+  const rest = hero ? cards.slice(1) : cards;
 
   return (
     <Shell current="events">
@@ -91,7 +95,12 @@ export default async function EventsPage({
 
         {hero && <EventHero event={hero} />}
 
-        <EventRows events={rows} />
+        <div className="cards">
+          {rest.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+          <CreateCard />
+        </div>
       </main>
     </Shell>
   );

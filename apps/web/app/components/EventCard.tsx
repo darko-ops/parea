@@ -128,12 +128,11 @@ export function EventCard({ event }: { event: CardEvent }) {
             </div>
           </div>
           {/*
-            A bare number, pressed into the blurred strip rather than sitting
-            on top of it. Deliberately quiet — it is the least important thing
-            in the card and the old treatment gave it the same weight as the
-            name. Its contrast is below AA on purpose, which is why it is never
-            the only place the count appears: the card's `aria-label` says it
-            in words.
+            A bare number. "88 photos" in a pill with an icon is three pieces
+            of furniture around one fact, and the column of numbers down the
+            right of the grid is easier to read than any of them. Plainly set,
+            too: it was briefly larger and debossed into the blurred strip,
+            which made the quietest thing on the card the most worked-on.
           */}
           <div className="card-count">{event.photoCount}</div>
         </div>

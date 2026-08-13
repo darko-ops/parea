@@ -54,11 +54,6 @@
   /* The second stripe of the moving upload bar. Near enough to the accent
      that the bar reads as one colour in motion rather than as a barber pole. */
   --accent-2: #3d7ade;
-  /* Pressed into the surface rather than sitting on it: a light above and a
-     shade below, and ink too pale to compete with the name beside it. Never
-     the only carrier of a number — see the count in `EventCard`. */
-  --deboss-ink: rgba(20, 23, 28, .22);
-  --deboss-shadow: 0 1px 0 rgba(255, 255, 255, .8), 0 -1px 1px rgba(20, 23, 28, .14);
 }
 /* No dark scheme. The product is a white page with photographs on it, and a
    dark one was inverting the surface those photographs are judged against —
@@ -404,8 +399,19 @@ button.secondary {
 .mosaic { display: grid; gap: 3px; height: 168px; background: var(--bg); }
 .mosaic > * { background: var(--bg); overflow: hidden; }
 .mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* A split column: two tiles stacked in one grid track. */
-.mosaic-split { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; background: var(--bg); }
+/* A split column: two tiles stacked in one grid track.
+   `minmax(0, 1fr)` rather than `1fr`, which is `minmax(auto, 1fr)` and floors
+   each row at its content's min-content height — an image, whose min-content
+   height is its intrinsic one. So two 320px-tall thumbnails asked for 128 and
+   132 pixels inside a 168px column, overflowed it, and the clip on `.mosaic`
+   hid the evidence: the lower tile was a sliver with its top third showing.
+   Visible once the mosaic grew from 150px to 168 and the sliver got big enough
+   to read as a mistake rather than as a gutter. */
+.mosaic-split {
+  display: grid; grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 3px; background: var(--bg);
+}
+.mosaic-split > * { min-height: 0; overflow: hidden; }
 
 /* The detail strip. No dividing line above it — instead the album's own
    colours bleed up underneath the text, which is what ties the two halves
@@ -450,14 +456,13 @@ button.secondary {
 .lenses { display: inline-flex; flex: none; }
 .lenses > * { border-radius: 50%; display: block; }
 .lenses > * + * { margin-left: -5px; }
-/* Not Garet: the wordmark keeps that face to itself, and a display cut used on
-   a second thing stops being the thing that means "Parea". The deboss is what
-   carries the treatment — pressed into the blurred strip, present without
-   competing with the name. */
+/* A bare number, in the same face and weight as everything else. It was
+   briefly set larger and pressed into the blurred strip with a highlight and a
+   shade; the effect competed with the photographs it was sitting on, which is
+   the one thing a card is not allowed to do. */
 .card-count {
-  flex: none; font-size: 24px; font-weight: 600; line-height: 1;
-  letter-spacing: .02em; font-variant-numeric: tabular-nums;
-  color: var(--deboss-ink); text-shadow: var(--deboss-shadow);
+  flex: none; font-size: 18px; font-weight: 600; color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
 
 /* An event with no photos gets no mosaic and no bleed — blurring nothing
@@ -584,63 +589,6 @@ button.secondary {
   position: relative; flex: none;
   font-size: 22px; font-weight: 600; color: var(--dim);
   font-variant-numeric: tabular-nums;
-}
-
-/* One container, interior rules. A stack of separately bordered rows reads as
-   many objects; this is one list. */
-.rows {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
-}
-.row {
-  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
-  text-decoration: none; color: inherit;
-  border-bottom: 1px solid var(--hairline);
-  transition: background 120ms;
-}
-.row:hover { background: var(--track); }
-.row:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-/* Fixed, and the same box whether or not there are photographs in it — a
-   thumbnail column that collapses on the empty rows makes the names jag. */
-.row-thumb, .row-thumb-empty, .row-thumb-slot {
-  flex: none; width: 112px; height: 58px; border-radius: 8px;
-}
-.row-thumb { display: flex; gap: 2px; overflow: hidden; }
-.row-thumb > * { overflow: hidden; }
-.row-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.row-thumb-empty {
-  display: flex; align-items: center; justify-content: center;
-  border: 1px dashed var(--line-dashed);
-  font-size: 11px; color: var(--dim);
-}
-.row-text { flex: 1; min-width: 0; }
-.row-name {
-  display: block; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.row-meta {
-  display: block; font-size: 13px; color: var(--dim);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.row-count {
-  flex: none; font-size: 17px; font-weight: 600; color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
-/* A prompt shaped like a button, on a row that is already a link. Secondary,
-   because the row it sits on is not the one the page is about. */
-.row-go {
-  flex: none; padding: 7px 12px; border-radius: 8px;
-  border: 1px solid var(--line); font-size: 13px; font-weight: 600;
-}
-/* The last row, and the whole empty state. No border under it: it is the end
-   of the list, and a rule there would be drawing the container's edge twice. */
-.row-new {
-  display: flex; align-items: center; gap: 14px; padding: 12px 14px;
-  color: var(--dim); font-size: 14px; text-decoration: none;
-}
-.row-new:hover { background: var(--track); color: var(--fg); }
-.row-thumb-slot {
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
 }
 
 /* Two things are saying "something is happening" — the hero's dot and the

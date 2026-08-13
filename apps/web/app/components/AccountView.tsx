@@ -21,8 +21,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
+import { CreateCard } from './CreateCard';
 import { EventCard } from './EventCard';
-import { CREATE_LENSES, Lenses } from './Lenses';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
 import { SignIn } from './SignIn';
@@ -278,20 +278,11 @@ export function AccountView() {
           ))}
 
           {/*
-            The affordance is the empty state, exactly as on Events. With no
-            events this is the only cell and it says what the product does
-            instead of apologising for having nothing to show.
+            The affordance is the empty state, exactly as on Events — and the
+            same component, because it was the same eight lines twice and the
+            copy here had already fallen a version behind once.
           */}
-          <a href="/" className="card-new">
-            {/* Two lenses, not the whole mark: the empty slot in a grid of
-                events is not a place to sign the product's name. */}
-            <Lenses count={2} size={18} palette={CREATE_LENSES} />
-            <strong>Create Event</strong>
-            <span>
-              Name it, say when it was, send the link. Nothing to sign up for
-              at the other end to look.
-            </span>
-          </a>
+          <CreateCard />
         </div>
       </section>
 

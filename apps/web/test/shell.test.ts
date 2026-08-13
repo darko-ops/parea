@@ -108,11 +108,12 @@ describe('an event looks like an event wherever it is listed', () => {
     // keep in step, and the list had already fallen behind — it never grew the
     // relative "added to" line the card has.
     //
-    // Home is deliberately not in this list any more: it is a hero and rows,
-    // which is a different treatment of the same object rather than a second
-    // drawing of the same treatment. What stops *those* from drifting is the
-    // test below, not this one.
+    // Home is back in this list. It briefly drew its own dense rows, which was
+    // a second drawing of the same object and lost to exactly the argument
+    // above — a 58px strip of an evening is not enough to recognise it by. The
+    // hero above the grid is a different thing and stays its own component.
     for (const [name, source] of [
+      ['events', read2('../app/events/page.tsx')],
       ['account', ACCOUNT],
       ['invites', read2('../app/invites/page.tsx')],
     ] as const) {
@@ -136,7 +137,6 @@ describe('an event looks like an event wherever it is listed', () => {
     const drawers = [
       '../app/components/EventCard.tsx',
       '../app/components/EventHero.tsx',
-      '../app/components/EventRows.tsx',
       '../../../apps/mobile/src/Events.tsx',
     ];
     for (const path of drawers) {
