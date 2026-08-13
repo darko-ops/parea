@@ -755,3 +755,12 @@ button.link {
 }
 .people strong { display: block; font-size: 15px; }
 .people p { margin: 2px 0 0; font-size: 13px; }
+
+/* The friend count under the handle. A link, and it looks like one on hover
+   rather than always: the line above it is plain text and a permanently blue
+   number beside a name reads as a notification. */
+.you-friends {
+  display: inline-block; margin-top: 4px;
+  font-size: 14px; color: var(--dim); text-decoration: none;
+}
+.you-friends:hover { color: var(--accent); text-decoration: underline; }

@@ -59,16 +59,19 @@ export function AccountView() {
   /** Which of the three faces of this page is showing. */
   const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');
   const [events, setEvents] = useState<EventListing[]>([]);
+  const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [session, mine] = await Promise.all([
+    const [session, mine, mates] = await Promise.all([
       fetch('/api/account/session').then((r) => r.json()).catch(() => ({ account: null })),
       fetch('/api/events').then((r) => r.json()).catch(() => ({ events: [] })),
+      fetch('/api/friends').then((r) => r.json()).catch(() => ({ friends: [] })),
     ]);
     setAccount(session.account ?? null);
     setEvents(mine.events ?? []);
+    setFriends(mates.friends?.length ?? 0);
     setStage(session.account ? 'in' : 'email');
   }, []);
 
@@ -207,6 +210,16 @@ export function AccountView() {
               profile" does not already say, and a prompt in this spot would be
               the third place to change one. */}
           {account?.handle && <p className="muted you-handle">@{account.handle}</p>}
+          {/*
+            A count that goes somewhere. Null until the answer arrives rather
+            than 0, because "0 friends" flashing on the profile of somebody
+            with eleven of them is a worse first frame than nothing at all.
+          */}
+          {friends !== null && (
+            <a className="you-friends" href="/friends">
+              {friends} {friends === 1 ? 'friend' : 'friends'}
+            </a>
+          )}
         </div>
       </header>
 
