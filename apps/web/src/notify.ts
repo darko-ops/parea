@@ -159,3 +159,38 @@ export async function notifyAccessRequested(
     /* see the module header */
   }
 }
+
+/** Somebody asked to be your friend. Nothing else would tell you. */
+export async function notifyFriendRequest(
+  db: Db,
+  input: { toActorId: string; who: string },
+): Promise<void> {
+  try {
+    await deliver(db, [input.toActorId], { kind: 'friend_requested', who: input.who });
+  } catch {
+    /* see the module header */
+  }
+}
+
+/**
+ * A friend put you in an event.
+ *
+ * The one notification about an event you have never seen, which is why it
+ * names the person rather than leading with the event: an unfamiliar event
+ * name arriving unprompted is a puzzle, and "Sam added you" is an answer.
+ */
+export async function notifyEventInvite(
+  db: Db,
+  input: { actorIds: string[]; eventId: string; eventName: string; who: string },
+): Promise<void> {
+  try {
+    await deliver(db, input.actorIds, {
+      kind: 'event_invited',
+      eventId: input.eventId,
+      eventName: input.eventName,
+      who: input.who,
+    });
+  } catch {
+    /* see the module header */
+  }
+}

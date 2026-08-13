@@ -77,6 +77,10 @@ const OWNED: {
   { table: 'block', column: 'blocker_actor_id', uniqueWith: ['blocked_actor_id'] },
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },
   { table: 'observation', column: 'actor_id' },
+  { table: 'friend_request', column: 'from_actor_id', uniqueWith: ['to_actor_id'] },
+  { table: 'friend_request', column: 'to_actor_id', uniqueWith: ['from_actor_id'] },
+  { table: 'friendship', column: 'actor_id', uniqueWith: ['friend_actor_id'] },
+  { table: 'friendship', column: 'friend_actor_id', uniqueWith: ['actor_id'] },
 ];
 
 export const MERGED_TABLES = OWNED;
@@ -120,12 +124,24 @@ export async function mergeActor(
       );
     }
 
-    // A blocked B, and A and B turn out to be the same person. The row now
-    // says someone blocked themselves, which nothing else in the product can
-    // produce and the visibility predicate would honour.
+    /*
+     * A blocked B, and A and B turn out to be the same person. The row now
+     * says someone blocked themselves, which nothing else in the product can
+     * produce and the visibility predicate would honour.
+     *
+     * Friendship has the same shape and the same problem: two devices that
+     * asked each other, merged, leave a person friends with themselves — which
+     * would put them in their own friends list with a Remove button.
+     */
     await tx
       .delete(schema.blocks)
       .where(eq(schema.blocks.blockerActorId, schema.blocks.blockedActorId));
+    await tx
+      .delete(schema.friendships)
+      .where(eq(schema.friendships.actorId, schema.friendships.friendActorId));
+    await tx
+      .delete(schema.friendRequests)
+      .where(eq(schema.friendRequests.fromActorId, schema.friendRequests.toActorId));
 
     // Tombstoned rather than deleted: the phone that owned this actor still
     // has its token in the keychain, and `currentActorId` follows the pointer

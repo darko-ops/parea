@@ -40,7 +40,11 @@ export type Notification =
    * decision rather than an outcome, which is why it is worth interrupting
    * for: nothing else will tell them, and the request sits until it is seen.
    */
-  | { kind: 'access_requested'; eventId: string; eventName: string; who: string };
+  | { kind: 'access_requested'; eventId: string; eventName: string; who: string }
+  /** Somebody asked to be your friend. Nothing else tells you. */
+  | { kind: 'friend_requested'; who: string }
+  /** A friend put you in an event, rather than sending you a link. */
+  | { kind: 'event_invited'; eventId: string; eventName: string; who: string };
 
 /**
  * The set, enumerable at runtime.
@@ -57,6 +61,8 @@ const KINDS: Record<Notification['kind'], true> = {
   group_event: true,
   removal_answered: true,
   access_requested: true,
+  friend_requested: true,
+  event_invited: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -105,6 +111,18 @@ export function render(notification: Notification): { title: string; body: strin
         // Named, because the decision is about a person and the host is being
         // asked to make it. "Someone wants in" is a worse question to answer.
         body: `${notification.who} is asking to come in.`,
+      };
+    case 'friend_requested':
+      return {
+        title: 'Parea',
+        body: `${notification.who} wants to be friends.`,
+      };
+    case 'event_invited':
+      return {
+        title: notification.eventName,
+        // The person, not the event, is the reason to open this: an event name
+        // out of nowhere is a puzzle, and "Sam added you" is an explanation.
+        body: `${notification.who} added you. Add your photos.`,
       };
   }
 }

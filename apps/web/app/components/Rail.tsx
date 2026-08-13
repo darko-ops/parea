@@ -27,7 +27,7 @@
 import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
 
-export type RailPage = 'events' | 'invites' | 'find' | 'you' | null;
+export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | null;
 
 const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   { href: '/events', label: 'Events', page: 'events' },
@@ -35,6 +35,7 @@ const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   // events you are in — separated only by whose they are. Find is the odd one
   // out: it is the only row that goes looking for something you are not in.
   { href: '/invites', label: 'Invites', page: 'invites' },
+  { href: '/friends', label: 'Friends', page: 'friends' },
   { href: '/find', label: 'Find', page: 'find' },
   { href: '/account', label: 'You', page: 'you' },
 ];

@@ -735,3 +735,14 @@ button.link {
   position: absolute; bottom: 20px; left: 0; right: 0;
   justify-content: center; margin: 0; border: 0;
 }
+
+/* A list of people: a name, sometimes a handle under it, and one thing to do
+   about them. The same row on all three lists on the friends screen, because
+   they are the same object in three states. */
+.people { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.people li {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+}
+.people strong { display: block; font-size: 15px; }
+.people p { margin: 2px 0 0; font-size: 13px; }

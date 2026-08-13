@@ -449,18 +449,15 @@ export function SearchTab({
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>People</Text>
         {/*
-          Honest rather than absent, and it had stopped being honest. This said
-          an account was "an email address and nothing else — there are no
-          profiles to search", which was true when it was written and was not
-          once accounts grew a handle, a name and a picture. People are still
-          not findable, but the reason is a decision rather than an absence,
-          and saying it the old way told someone their account holds less than
-          it does.
+          Rewritten twice, and this is the second time the product moved under
+          it. It said an account was "an email address and nothing else", then
+          that there was nobody to find at all. Handles are searchable now, so
+          the honest version says what a search does and what it stops at.
         */}
         <Text style={[styles.body, { color: t.dim }]}>
-          There is nobody to find. Accounts are not listed and cannot be
-          searched — a handle is how the host of a private event knows who is
-          asking, not a profile for strangers to look up.
+          Search a handle to find somebody and ask to be friends. That is all a
+          search returns — a handle and a name. Never their events, their
+          photos, or who else they know.
         </Text>
       </View>
     </ScrollView>

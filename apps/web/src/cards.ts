@@ -17,12 +17,20 @@ import type { EventListing } from './events';
 
 export type CardEvent = {
   id: string;
+  /** Only used to build an `/e/<token>` href; never rendered. */
+  linkToken?: string;
   name: string;
   photoCount: number;
   /** Signed thumbnail URLs, most recent first. Empty renders no mosaic. */
   mosaic: string[];
   /** The one line under the name. */
   meta: string;
+  /**
+   * Where the card goes. Defaults to the event, which works for anybody whose
+   * browser already holds a capability for it — everybody who arrived by
+   * following a link, which until invitations was everybody.
+   */
+  href?: string;
 };
 
 /** Signs every mosaic thumbnail and builds the meta line. */
@@ -49,6 +57,7 @@ export async function toCards(
         ),
       ),
       meta: metaFor(listing, { newest: index === 0, now }),
+      linkToken: listing.linkToken,
     })),
   );
 }

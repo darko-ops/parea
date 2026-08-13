@@ -57,6 +57,16 @@ export function notificationTarget(
     case 'nudge':
     case 'removal_answered':
       return eventId ? { screen: 'event', eventId } : null;
+    case 'event_invited':
+      // A friend put them in it. The event is the point and they have never
+      // seen it, so this is the one notification where opening the event is
+      // the whole of what was being offered.
+      return eventId ? { screen: 'event', eventId } : null;
+    case 'friend_requested':
+      // Nowhere to send them: this client has no friends screen yet, and the
+      // web one is not somewhere a tap should leave the app for. Opening to
+      // the tab bar is the honest outcome until there is a screen.
+      return null;
     case 'access_requested':
       /*
        * The host, told somebody is at the door.

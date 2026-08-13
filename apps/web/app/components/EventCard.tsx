@@ -56,7 +56,7 @@ export function EventCard({ event }: { event: CardEvent }) {
 
   return (
     <a
-      href={`/event/${event.id}`}
+      href={event.href ?? `/event/${event.id}`}
       className={`card${photos.length === 0 ? ' card-bare' : ''}`}
       aria-label={`${event.name}, ${event.photoCount} ${
         event.photoCount === 1 ? 'photo' : 'photos'

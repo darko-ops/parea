@@ -13,6 +13,7 @@ import { newLinkToken, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -234,5 +235,37 @@ describe('the number beside Invites', () => {
 
   it('is zero for a browser that has never been anywhere', async () => {
     expect(await invitesWaiting(db, null)).toBe(0);
+  });
+});
+
+describe('an event a friend put you in', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../app/invites/page.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  it('is opened through the link, not straight at the event', () => {
+    /*
+     * Being invited makes you a participant, and participation is deliberately
+     * not a credential — that is exactly what makes rotating a link revoke
+     * access. So an invited friend was listed on this page and got a 404 when
+     * they tapped the card, which is the worst of both: the product told them
+     * they were in and then said the event did not exist.
+     *
+     * Going through `/e/<token>` hands them the capability the same way it
+     * hands it to anybody who was sent the link — which is what the host did,
+     * from their side of it.
+     */
+    expect(source).toMatch(/href: event\.linkToken \? `\/e\/\$\{event\.linkToken\}`/);
+  });
+
+  it('carries the token to build that link', () => {
+    // The card cannot make the href without it, and `toCards` is the only
+    // place it can come from.
+    const cards = readFileSync(
+      fileURLToPath(new URL('../src/cards.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(cards).toMatch(/linkToken: listing\.linkToken/);
   });
 });

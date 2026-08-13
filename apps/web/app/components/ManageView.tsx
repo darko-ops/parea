@@ -26,6 +26,8 @@ type PendingReport = {
   photo: { id: string; src: string };
 };
 
+type Friend = { actorId: string; handle: string | null; displayName: string | null };
+
 type AccessRequest = {
   id: string;
   createdAt: string;
@@ -60,6 +62,10 @@ export function ManageView({
   const [groupName, setGroupName] = useState('');
   const [findable, setFindable] = useState(false);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [already, setAlready] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [invited, setInvited] = useState<number | null>(null);
 
   const loadReports = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/reports`);
@@ -80,10 +86,48 @@ export function ManageView({
     if (res.ok) setRequests((await res.json()).requests);
   }, [eventId, initial.accessPolicy]);
 
+  /**
+   * Who you could add, and who is already here.
+   *
+   * Both, because a picker that offers somebody who is already in the event is
+   * offering to do nothing, and the person tapping it has no way to know that
+   * until afterwards.
+   */
+  const loadFriends = useCallback(async () => {
+    const [f, a] = await Promise.all([
+      fetch('/api/friends').then((r) => (r.ok ? r.json() : { friends: [] })),
+      fetch(`/api/events/${eventId}/invites`).then((r) => (r.ok ? r.json() : { already: [] })),
+    ]);
+    setFriends(f.friends ?? []);
+    setAlready(new Set<string>(a.already ?? []));
+  }, [eventId]);
+
   useEffect(() => {
     void loadReports();
     void loadRequests();
-  }, [loadReports, loadRequests]);
+    void loadFriends();
+  }, [loadReports, loadRequests, loadFriends]);
+
+  async function invite() {
+    setBusy('invite');
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/invites`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorIds: [...picked] }),
+      });
+      if (!res.ok) throw new Error('Could not add them.');
+      const body = (await res.json()) as { invited: number };
+      setInvited(body.invited);
+      setPicked(new Set());
+      await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function answer(requestId: string, action: 'approve' | 'decline') {
     setBusy(requestId);
@@ -294,6 +338,73 @@ export function ManageView({
             {uploadsOpen ? 'On' : 'Off'}
           </button>
         </div>
+      </section>
+
+      {/*
+        The second way into an event, and the narrower one. The link works for
+        whoever holds it; this works only for people who already agreed to be
+        your friend, and it puts them straight in rather than asking them.
+      */}
+      <section className="panel">
+        <h2>Add a friend to this</h2>
+        {friends.length === 0 ? (
+          <p className="muted">
+            You have no friends here yet. <a href="/friends">Add somebody</a> by
+            their handle, and you can put them into an event without sending a
+            link.
+          </p>
+        ) : (
+          <>
+            <ul className="people">
+              {friends.map((friend) => {
+                const inIt = already.has(friend.actorId);
+                const on = picked.has(friend.actorId);
+                return (
+                  <li key={friend.actorId}>
+                    <div>
+                      <strong>{friend.displayName || `@${friend.handle}`}</strong>
+                      {friend.displayName && friend.handle && (
+                        <p className="muted">@{friend.handle}</p>
+                      )}
+                    </div>
+                    {inIt ? (
+                      <span className="pip pip-declined">Already here</span>
+                    ) : (
+                      <button
+                        className={on ? undefined : 'secondary'}
+                        aria-pressed={on}
+                        onClick={() =>
+                          setPicked((p) => {
+                            const next = new Set(p);
+                            if (next.has(friend.actorId)) next.delete(friend.actorId);
+                            else next.add(friend.actorId);
+                            return next;
+                          })
+                        }
+                      >
+                        {on ? 'Adding' : 'Add'}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="row" style={{ marginTop: 14 }}>
+              <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
+                {picked.size === 0
+                  ? 'Add to this event'
+                  : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
+              </button>
+              {invited !== null && (
+                <span className="muted">
+                  {invited === 0
+                    ? 'Nobody was added.'
+                    : `Added ${invited}. It is under their Invites now.`}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       <section className="panel">

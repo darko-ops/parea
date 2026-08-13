@@ -238,3 +238,19 @@ export function expiredBefore(now: Date, longestWindowSeconds = 3600): Date {
 export function staleRateLimits(cutoff: Date) {
   return lt(schema.rateLimits.windowStart, cutoff);
 }
+
+/**
+ * Searching for a person, per source.
+ *
+ * The only read in this product that walks the account table, which makes it
+ * the only one that can be used to learn who has an account rather than to
+ * find somebody you already know. Sixty an hour is more than anyone adding
+ * friends will ever spend and far short of what enumerating handles would
+ * need — the space is three words out of a hundred thousand, so a bounded
+ * trickle gets nowhere.
+ */
+export const PEOPLE_SEARCH_LIMIT: Limit = {
+  name: 'people-search',
+  max: 60,
+  windowSeconds: 3600,
+};

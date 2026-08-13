@@ -95,7 +95,24 @@ export default async function InvitesPage({
           ) : (
             <div className="cards">
               {cards.map((event) => (
-                <EventCard key={event.id} event={event} />
+                /*
+                 * Through the link rather than straight to the event.
+                 *
+                 * A person invited by a friend is a participant, and
+                 * participation is deliberately not a credential — that is what
+                 * makes rotating a link actually revoke. So they were listed
+                 * here and got a 404 on opening. Going via `/e/<token>` hands
+                 * them the capability the way it hands it to anybody else, and
+                 * from their side it is indistinguishable from being sent the
+                 * link, which is what the host did.
+                 */
+                <EventCard
+                  key={event.id}
+                  event={{
+                    ...event,
+                    href: event.linkToken ? `/e/${event.linkToken}` : undefined,
+                  }}
+                />
               ))}
             </div>
           ))}

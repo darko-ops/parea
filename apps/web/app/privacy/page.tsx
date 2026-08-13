@@ -107,12 +107,13 @@ export default function PrivacyPage() {
 
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
-            Only in the app, only after you allow it, and only used for the four
+            Only in the app, only after you allow it, and only used for the six
             notifications this product sends: one reminder about an event you
             joined and have not added anything to, a new event in a group you
             are in, the host&rsquo;s answer when you have asked for a photo of
-            you to be taken down, and — if you made a private event — that
-            somebody is asking to come in.
+            you to be taken down, that somebody is asking to come into a private
+            event you made, that somebody wants to be friends, and that a friend
+            has added you to an event.
           </p>
 
           <h3>Five facts about how the product is used</h3>
@@ -124,6 +125,23 @@ export default function PrivacyPage() {
             &mdash; does anyone other than the person who made the event actually
             add photos &mdash; and nothing else is collected &ldquo;in case it is
             useful later&rdquo;.
+          </p>
+
+          <h3>Who you are friends with</h3>
+          <p className="muted">
+            That you asked somebody to be your friend, what they said, and who
+            is on your list. Friends exist so that somebody can put you into an
+            event directly instead of sending you a link, and that is the whole
+            of what being one does.
+          </p>
+          <p className="muted">
+            Your handle can be searched for &mdash; by the whole of it or the
+            start of it, by anybody signed in. That is a change from how this
+            worked before, when nobody could be found at all. What a search
+            returns is a handle and whatever name you chose to show: never your
+            email address, never your events, never your photos, and never who
+            else you know. Nobody is listed, there are no suggestions, and
+            somebody has to be told your handle before they can look you up.
           </p>
 
           <h3>What you did here</h3>

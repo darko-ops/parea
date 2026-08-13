@@ -685,6 +685,61 @@ export const blocks = pgTable(
   (t) => [primaryKey({ columns: [t.blockerActorId, t.blockedActorId] })],
 );
 
+/**
+ * Somebody asking to be somebody else's friend.
+ *
+ * The same shape as the two other requests in this product — group and event —
+ * and for the same reason: the asking and the answer are a conversation, and
+ * the thing it grants lives somewhere else. A declined row stays, so "no" is
+ * something the person answering says once.
+ */
+export const friendRequests = pgTable(
+  'friend_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromActorId: uuid('from_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    toActorId: uuid('to_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'accepted', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    // One standing request per direction. Asking twice is the same ask, and a
+    // list of people to answer should be a list of people.
+    uniqueIndex('friend_request_pair_idx').on(t.fromActorId, t.toActorId),
+    index('friend_request_inbox_idx').on(t.toActorId, t.status),
+  ],
+);
+
+/**
+ * Being friends, which is symmetric, stored as two rows.
+ *
+ * A single canonical row with the smaller id first would halve the storage and
+ * double the cost of every read: "who are my friends" becomes an OR across two
+ * columns and a CASE to work out which end is the other person. Two rows makes
+ * that a plain lookup on `actor_id`, and the pair is written and removed
+ * together in one transaction so they cannot disagree.
+ */
+export const friendships = pgTable(
+  'friendship',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    friendActorId: uuid('friend_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.friendActorId] })],
+);
+
 // --- relations -------------------------------------------------------------
 
 /**
