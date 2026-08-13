@@ -126,6 +126,22 @@ export default function PrivacyPage() {
             useful later&rdquo;.
           </p>
 
+          <h3>What you did here</h3>
+          <p className="muted">
+            The product keeps a record of the things you do that involve other
+            people, because most of them cannot work without one. Which events
+            and groups you are in. That you made an event. That you asked to
+            join a private event or a group, what was decided, and by whom. That
+            you asked for a photo of you to be taken down, along with whatever
+            you wrote in the note. That you blocked somebody &mdash; kept so it
+            keeps working, and never shown to them.
+          </p>
+          <p className="muted">
+            None of it is a feed and none of it is shown to anyone it is not
+            about: a host sees who is asking to come into their own event, and
+            that is the whole of who can see what.
+          </p>
+
           <h3>Your IP address, briefly</h3>
           <p className="muted">
             Used to limit how fast requests can arrive, so that one script cannot

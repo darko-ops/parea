@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PRESERVATION_DAYS, REMOVAL_REQUEST_GRACE_HOURS, schema } from '@parea/core';
 import { NOTIFICATION_KINDS } from '@parea/push';
-import { getTableColumns } from 'drizzle-orm';
+import { getTableColumns, getTableName, isTable } from 'drizzle-orm';
 
 import { CODE_TTL_MS } from '../src/accounts';
 import { describeConfig } from '../src/env';
@@ -35,6 +35,15 @@ const read = (path: string) =>
 const PRIVACY = read('../app/privacy/page.tsx');
 const TERMS = read('../app/terms/page.tsx');
 const FOOTER = read('../app/components/SiteFooter.tsx');
+
+/**
+ * The privacy page as prose, with JSX's line wrapping collapsed.
+ *
+ * Matching sentences against the raw file makes every assertion depend on
+ * where the formatter happened to break a line, which is a property of nobody's
+ * intent. Tag-shaped patterns still use the raw source.
+ */
+const PROSE = PRIVACY.replace(/\s+/g, ' ');
 
 describe('the retention periods are the real ones', () => {
   it('states the preservation period from the statute constant', () => {
@@ -152,6 +161,63 @@ describe('the closed list of what is collected', () => {
       const pattern = DISCLOSED[column];
       expect(pattern, `${column} is neither bookkeeping nor disclosed`).toBeTruthy();
       expect(PRIVACY, `${column} is not described on the privacy page`).toMatch(pattern!);
+    }
+  });
+
+  it('accounts for every table that holds something about a person', () => {
+    /*
+     * The column check above was the right idea one table too narrow. The same
+     * drift was sitting in `event_access_request` — a row naming who asked to
+     * get into whose event, added by me, never mentioned — and in `block`,
+     * `group_member` and `report`, which predate all of it.
+     *
+     * Classified per table rather than per column, because "does this hold
+     * something about a person" is a question about the table and asking it 90
+     * times gives 90 chances to answer carelessly. A table missing from this
+     * map fails, so the next one added has to be thought about; the schema is
+     * the source of the list, so it cannot be quietly kept short.
+     */
+    const INTERNAL = new Set([
+      'code', // spoken phrases, allocated from a pool. About events, not people.
+      'rate_limit', // a keyed hash and a counter, deleted within the hour.
+      'derivative', // resized copies of a photo already accounted for.
+      'groups', // a name and a slug; who is in it is `group_member`.
+      'moderation_flag', // a classifier's opinion of a photo.
+    ]);
+
+    const DISCLOSED: Record<string, RegExp> = {
+      account: /email address, only if you ask for an account/,
+      sign_in_code: /[Tt]en minutes/,
+      actor: /identifier for your device/i,
+      device: /notification token/i,
+      photo: /Photos and videos you upload/,
+      observation: /[Ff]ive facts/,
+      event: /That you made an event/,
+      event_participant: /records that you are in that event/,
+      event_access_request: /asked to join a private event/,
+      group_member: /events and groups you are in/i,
+      group_join_request: /asked to join a private event or a group/,
+      report: /asked for a photo of you to be taken down/,
+      block: /blocked somebody/,
+      // Kept because the law requires it, and described at length in its own
+      // section rather than in the list of ordinary collection.
+      safety_incident: /Child safety scanning/,
+      moderation_action: /Child safety scanning/,
+    };
+
+    // `isTable` rather than duck-typing on a property: the first attempt
+    // guessed at `enableRLS` and matched nothing, which passed the loop and
+    // would have reported on an empty list had the count below not caught it.
+    const tables = Object.values(schema)
+      .filter((v) => isTable(v as never))
+      .map((v) => getTableName(v as never));
+    expect(tables.length, 'read no tables off the schema').toBeGreaterThan(15);
+
+    for (const table of tables) {
+      if (INTERNAL.has(table)) continue;
+      const pattern = DISCLOSED[table];
+      expect(pattern, `${table} is neither internal nor disclosed`).toBeTruthy();
+      expect(PROSE, `${table} is not described on the privacy page`).toMatch(pattern!);
     }
   });
 
