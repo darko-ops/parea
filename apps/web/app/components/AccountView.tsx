@@ -44,7 +44,6 @@ export function AccountView() {
     handle: string | null;
     avatarUrl: string | null;
   } | null>(null);
-  const [name, setName] = useState('');
   /** Which of the three faces of this page is showing. */
   const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');
   const [events, setEvents] = useState<EventListing[]>([]);
@@ -57,7 +56,6 @@ export function AccountView() {
       fetch('/api/events').then((r) => r.json()).catch(() => ({ events: [] })),
     ]);
     setAccount(session.account ?? null);
-    setName(session.account?.displayName ?? '');
     setEvents(mine.events ?? []);
     setStage(session.account ? 'in' : 'email');
   }, []);
@@ -77,25 +75,6 @@ export function AccountView() {
     }
     await load();
   }, [load]);
-
-  /**
-   * Saved on blur rather than behind a button.
-   *
-   * One optional field with no validation and nothing depending on it: a Save
-   * button would be a second thing to press for a change that cannot fail, and
-   * the failure it guards against — leaving without saving — is the one it
-   * causes.
-   */
-  const saveName = useCallback(async () => {
-    const next = name.trim();
-    if (next === (account?.displayName ?? '')) return;
-    await fetch('/api/account', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ displayName: next }),
-    }).catch(() => {});
-    setAccount((a) => (a ? { ...a, displayName: next || null } : a));
-  }, [account, name]);
 
   const remove = useCallback(
     async (alsoPhotos: boolean) => {
@@ -130,7 +109,9 @@ export function AccountView() {
     );
   }
 
-  const initial = (name.trim() || account?.email || '?').slice(0, 1).toUpperCase();
+  const initial = (account?.displayName?.trim() || account?.email || '?')
+    .slice(0, 1)
+    .toUpperCase();
 
   if (view === 'profile' && account) {
     return (
@@ -191,25 +172,19 @@ export function AccountView() {
         */}
         <Avatar url={account?.avatarUrl ?? null} initial={initial} />
 
+        {/*
+          Read, not write. Both of these are edited one button away, and a
+          field that saves on blur sitting next to a button labelled "Edit
+          profile" is two answers to the same question — the one that looks
+          like a heading wins by accident, and the other stops being where
+          changes are made.
+        */}
         <div className="you-id">
-          <input
-            className="you-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={saveName}
-            placeholder="Your name"
-            maxLength={80}
-            aria-label="The name shown beside your photos"
-          />
-          {account?.handle ? (
-            <p className="muted you-handle">@{account.handle}</p>
-          ) : (
-            <p className="muted you-handle">
-              <button className="link" onClick={() => setView('profile')}>
-                Pick a handle
-              </button>
-            </p>
-          )}
+          <h1 className="you-name">{account?.displayName || account?.email}</h1>
+          {/* No handle, no line. There is nothing to say here that "Edit
+              profile" does not already say, and a prompt in this spot would be
+              the third place to change one. */}
+          {account?.handle && <p className="muted you-handle">@{account.handle}</p>}
         </div>
       </header>
 

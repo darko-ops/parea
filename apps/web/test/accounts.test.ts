@@ -494,3 +494,31 @@ describe('the session outlives the visit', () => {
     expect(route).not.toMatch(/issueActorCookie\(actorId\)/);
   });
 });
+
+describe('one place to change a profile', () => {
+  const you = readFileSync(
+    fileURLToPath(new URL('../app/components/AccountView.tsx', import.meta.url)),
+    'utf8',
+  );
+  const edit = readFileSync(
+    fileURLToPath(new URL('../app/components/EditProfile.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  it('shows the profile without offering to change it', () => {
+    // The name was an input here *and* an input inside Edit profile, and the
+    // handle was a "Pick a handle" link that went to the same screen the
+    // button beside it goes to. Both are read-only now: the page a person
+    // lands on says who they are, and one button says where that is changed.
+    expect(you).not.toMatch(/<input/);
+    expect(you).toMatch(/setView\('profile'\)/);
+  });
+
+  it('does not write to the account from the page that displays it', () => {
+    // A second writer is how the two drift: this one saved on blur and only
+    // patched its own copy of the account, so the value shown after an edit
+    // depended on which screen last touched it.
+    expect(you).not.toMatch(/method: 'PATCH'/);
+    expect(edit).toMatch(/method: 'PATCH'/);
+  });
+});
