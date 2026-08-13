@@ -17,7 +17,7 @@
    Bold — at which point the stroke comes off and the weight is declared
    honestly. See public/fonts/README.md.
 
-   `swap` rather than `block`: the wordmark is four letters in a corner, and a
+   `swap` rather than `block`: the wordmark is five letters in a corner, and a
    blank space where the brand goes is worse than the brand in a fallback face
    for 200ms.
    --------------------------------------------------------------------------- */
@@ -228,13 +228,22 @@ button.secondary {
    whole interface is a legibility problem; on four letters it is the brand. */
 .wordmark {
   font-family: 'Garet', 'Futura', 'Avenir Next', 'Century Gothic', system-ui, sans-serif;
-  font-size: 20px; font-weight: 300; letter-spacing: -.02em;
+  font-size: 20px; font-weight: 300;
+  /* Set in CSS rather than typed as PAREA, so the accessible name stays the
+     word "Parea". All-caps in the markup is read as an initialism by some
+     screen readers — P, A, R, E, A — and this is a name, not an acronym. */
+  text-transform: uppercase;
+  /* Positive, where the lowercase wordmark wanted -.02em. Caps are wider and
+     have no ascenders or descenders to break the line up, so the tracking that
+     made `parea` cohere makes `PAREA` a single dark block. */
+  letter-spacing: .04em;
   /* The weight the file does not have. In `em` so it stays proportional if
      the size ever moves — an absolute stroke that looks right at 20px is a
      blob at 13px and invisible at 40. Compared against 0, 0.5, 0.7 and 1.1
      rendered side by side at this exact size: below this it is not a
-     different weight, above it the counters of `a` and `e` begin to close,
-     which is the same failure as synthetic bold arriving by another road. */
+     different weight, above it the counters begin to close — judged on the
+     lowercase `a` and `e` when the wordmark was `Parea`, and on the `A`, `R`
+     and `E` now that it is set in caps, which is the more forgiving case. */
   -webkit-text-stroke: 0.045em currentColor;
   /* Fallback faces have their own bold and do not need the stroke doing this
      job badly on top of it. */
