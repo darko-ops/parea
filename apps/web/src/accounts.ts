@@ -12,6 +12,8 @@
  */
 
 import { normaliseEmail, recordModeration, REASON, schema } from '@parea/core';
+
+import { getStorage } from './storage';
 import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -157,10 +159,18 @@ export async function signIn(
   return { actorId: canonical.id, email, merged: true };
 }
 
+export type AccountProfile = {
+  email: string;
+  displayName: string | null;
+  handle: string | null;
+  /** Presigned and short-lived. The bucket is private; see `avatarUrl`. */
+  avatarUrl: string | null;
+};
+
 export async function accountFor(
   db: Db,
   actorId: string,
-): Promise<{ email: string; displayName: string | null } | null> {
+): Promise<AccountProfile | null> {
   // The name comes back with the address because the page that asks for one
   // asks for the other in the same breath, and two round trips to render one
   // header is two chances for it to arrive half-drawn.
@@ -168,12 +178,35 @@ export async function accountFor(
     .select({
       email: schema.accounts.email,
       displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.actors)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
     .where(eq(schema.actors.id, actorId))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+
+  const { avatarKey, ...rest } = row;
+  return { ...rest, avatarUrl: await avatarUrl(avatarKey) };
+}
+
+/**
+ * A URL a browser can load the picture from.
+ *
+ * Presigned against R2 rather than proxied: `deploy.md` is explicit that the
+ * app tier serves HTML and JSON and never photo bytes, and a profile picture
+ * is photo bytes. The browser fetches it from storage directly and the app
+ * only ever hands over the address.
+ *
+ * Short-lived on purpose. The URL is a capability, and the page holding it is
+ * re-rendered often enough that an hour is generous.
+ */
+export async function avatarUrl(key: string | null): Promise<string | null> {
+  if (!key) return null;
+  return getStorage()
+    .presignGet(key, 3600)
+    .catch(() => null);
 }
 
 /**

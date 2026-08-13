@@ -15,8 +15,8 @@
  * The UI puts both in front of someone rather than choosing for them.
  */
 
-import { schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { handleProblem, normaliseHandle, schema } from '@parea/core';
+import { and, eq, ne } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { deleteAccount, deleteEverything } from '@/accounts';
@@ -41,18 +41,63 @@ export async function PATCH(request: Request) {
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
-  const body = (await request.json().catch(() => ({}))) as { displayName?: unknown };
-  if (typeof body.displayName !== 'string') {
-    return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as {
+    displayName?: unknown;
+    handle?: unknown;
+  };
+
+  const db = getDb();
+  const patch: { displayName?: string | null; handle?: string | null } = {};
+
+  if (typeof body.displayName === 'string') {
+    patch.displayName = body.displayName.trim().slice(0, 80) || null;
   }
 
-  const displayName = body.displayName.trim().slice(0, 80) || null;
-  await getDb()
-    .update(schema.actors)
-    .set({ displayName })
-    .where(eq(schema.actors.id, actorId));
+  if (typeof body.handle === 'string') {
+    const handle = normaliseHandle(body.handle);
+    if (handle === '') {
+      // Clearing it is allowed. A handle is not something anyone is required
+      // to have, and one you cannot give up is a name you are stuck with.
+      patch.handle = null;
+    } else {
+      const problem = handleProblem(handle);
+      if (problem) {
+        return NextResponse.json({ error: 'invalid_handle', message: problem }, { status: 400 });
+      }
+      // Checked here for a readable answer, and still enforced by a unique
+      // index underneath: two people claiming the same handle in the same
+      // second both pass this and one loses at the write, which is the only
+      // place that can actually be decided.
+      const [taken] = await db
+        .select({ id: schema.actors.id })
+        .from(schema.actors)
+        .where(and(eq(schema.actors.handle, handle), ne(schema.actors.id, actorId)))
+        .limit(1);
+      if (taken) {
+        return NextResponse.json(
+          { error: 'handle_taken', message: 'That handle is already someone else’s.' },
+          { status: 409 },
+        );
+      }
+      patch.handle = handle;
+    }
+  }
 
-  return NextResponse.json({ displayName });
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'nothing_to_change' }, { status: 400 });
+  }
+
+  try {
+    await db.update(schema.actors).set(patch).where(eq(schema.actors.id, actorId));
+  } catch {
+    // The unique index, arriving after the check above lost a race.
+    return NextResponse.json(
+      { error: 'handle_taken', message: 'That handle is already someone else’s.' },
+      { status: 409 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request: Request) {

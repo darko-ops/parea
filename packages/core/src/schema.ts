@@ -82,17 +82,39 @@ export const signInCodes = pgTable(
  * no credentials — just a signed cookie or a keychain token. Claiming an
  * account sets `accountId`; nothing else moves. See design §3.
  */
-export const actors = pgTable('actor', {
+export const actors = pgTable(
+  'actor',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   kind: text('kind', { enum: ['guest', 'user'] }).notNull(),
   displayName: text('display_name'),
+  /**
+   * A name that is unique, unlike `display_name` which is not and should not
+   * be — two people called Sam at the same party are two people called Sam.
+   *
+   * Null for everyone until they pick one. Stored already lowercased: case is
+   * not a distinction anyone will remember making, and `Sam` and `sam` being
+   * two accounts is a phishing surface rather than a feature.
+   */
+  handle: text('handle'),
+  /**
+   * Object key for the profile picture, or null. Not a URL: the bucket is
+   * private and reads are presigned per request, so a stored URL would be a
+   * stored credential with an expiry.
+   */
+  avatarKey: text('avatar_key'),
   accountId: uuid('account_id').references(() => accounts.id, {
     onDelete: 'set null',
   }),
   /** Set when a guest actor is merged into an account's canonical actor. */
   mergedIntoId: uuid('merged_into_id'),
   createdAt: createdAt(),
-});
+  },
+  (t) => [
+    // Case is folded before it gets here, so a plain unique index is enough.
+    uniqueIndex('actor_handle_idx').on(t.handle),
+  ],
+);
 
 export const devices = pgTable('device', {
   id: uuid('id').primaryKey().defaultRandom(),

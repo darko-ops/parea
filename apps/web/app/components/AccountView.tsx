@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { Avatar } from './Avatar';
+import { EditProfile } from './EditProfile';
 import { LoginScreen } from './LoginScreen';
 import { SignIn } from './SignIn';
 
@@ -35,10 +37,15 @@ type Stage = 'loading' | 'email' | 'in';
 
 export function AccountView() {
   const [stage, setStage] = useState<Stage>('loading');
-  const [account, setAccount] = useState<
-    { email: string; displayName: string | null } | null
-  >(null);
+  const [account, setAccount] = useState<{
+    email: string;
+    displayName: string | null;
+    handle: string | null;
+    avatarUrl: string | null;
+  } | null>(null);
   const [name, setName] = useState('');
+  /** Which of the three faces of this page is showing. */
+  const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');
   const [events, setEvents] = useState<EventListing[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -124,15 +131,64 @@ export function AccountView() {
 
   const initial = (name.trim() || account?.email || '?').slice(0, 1).toUpperCase();
 
+  if (view === 'profile' && account) {
+    return (
+      <main className="wrap you">
+        <EditProfile
+          profile={account}
+          onSaved={load}
+          onDone={() => setView('you')}
+        />
+      </main>
+    );
+  }
+
+  if (view === 'settings') {
+    return (
+      <main className="wrap you">
+        <section className="panel">
+          <h2>Settings</h2>
+          <p className="muted">Signed in as {account?.email}.</p>
+        </section>
+
+        <section className="panel">
+          <h2>Delete your account</h2>
+          {/*
+            Two separate things, in front of someone rather than chosen for
+            them. Folding the second into the first would take away other
+            people's copies of an evening they were also at.
+          */}
+          <p className="muted">
+            Removing your account removes your email address and the link
+            between it and your devices. The photos you added stay in their
+            events and stay yours to remove.
+          </p>
+          <div className="row">
+            <button className="secondary" onClick={() => remove(false)} disabled={busy}>
+              Delete account
+            </button>
+            <button className="danger" onClick={() => remove(true)} disabled={busy}>
+              Delete account and all my photos
+            </button>
+          </div>
+        </section>
+
+        <div className="row">
+          <button onClick={() => setView('you')}>Done</button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="wrap you">
       <header className="you-head">
         {/*
-          A letter until there is a picture. Not a silhouette: a generic avatar
-          is a photograph of nobody, and this at least belongs to the person
-          looking at it.
+          A letter until there is a picture, and again if one will not load.
+          Not a silhouette: a generic avatar is a photograph of nobody, and
+          this at least belongs to the person looking at it.
         */}
-        <div className="you-face" aria-hidden="true">{initial}</div>
+        <Avatar url={account?.avatarUrl ?? null} initial={initial} />
 
         <div className="you-id">
           <input
@@ -144,9 +200,26 @@ export function AccountView() {
             maxLength={80}
             aria-label="The name shown beside your photos"
           />
-          <p className="muted you-email">{account?.email}</p>
+          {account?.handle ? (
+            <p className="muted you-handle">@{account.handle}</p>
+          ) : (
+            <p className="muted you-handle">
+              <button className="link" onClick={() => setView('profile')}>
+                Pick a handle
+              </button>
+            </p>
+          )}
         </div>
       </header>
+
+      <div className="row you-actions">
+        <button className="secondary" onClick={() => setView('profile')}>
+          Edit profile
+        </button>
+        <button className="secondary" onClick={() => setView('settings')}>
+          Settings
+        </button>
+      </div>
 
       {note && <p className="muted">{note}</p>}
 
@@ -173,28 +246,6 @@ export function AccountView() {
             ))}
           </ul>
         )}
-      </section>
-
-      <section className="panel">
-        <h2>Delete your account</h2>
-        {/*
-          Two separate things, in front of someone rather than chosen for
-          them. Folding the second into the first would take away other
-          people's copies of an evening they were also at.
-        */}
-        <p className="muted">
-          Removing your account removes your email address and the link between
-          it and your devices. The photos you added stay in their events and
-          stay yours to remove.
-        </p>
-        <div className="row">
-          <button className="secondary" onClick={() => remove(false)} disabled={busy}>
-            Delete account
-          </button>
-          <button className="danger" onClick={() => remove(true)} disabled={busy}>
-            Delete account and all my photos
-          </button>
-        </div>
       </section>
 
       <p className="muted footer">

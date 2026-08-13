@@ -34,6 +34,13 @@ export {
 export { PRESERVATION_DAYS, preservationHold } from './preservation';
 export { groupSlug, type GroupDoor } from './groups';
 export {
+  handleProblem,
+  normaliseHandle,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  RESERVED_HANDLES,
+} from './handles';
+export {
   ConsoleMailer,
   DEFAULT_PROVIDER,
   HttpMailer,

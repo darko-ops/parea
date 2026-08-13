@@ -190,9 +190,14 @@ describe('claiming an account', () => {
     // The name rides along because the page that asks for the address asks
     // for both. Null here is the point of this test: claiming an account sets
     // `account_id` and moves nothing else, and a name is something else.
+    // Everything but the address is null, which is this test's point:
+    // claiming an account sets `account_id` and moves nothing else. A name, a
+    // handle and a picture are all something else.
     expect(await accountFor(db, me)).toEqual({
       email: 'sam@example.com',
       displayName: null,
+      handle: null,
+      avatarUrl: null,
     });
     const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, me));
     expect(row!.kind).toBe('user');
