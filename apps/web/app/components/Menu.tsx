@@ -22,6 +22,7 @@ export function Menu({
   label,
   glyph = '···',
   tone,
+  badge = 0,
   align = 'right',
   children,
 }: {
@@ -31,6 +32,8 @@ export function Menu({
   glyph?: string;
   /** `primary` fills it, for the one menu that is the page's main action. */
   tone?: 'primary';
+  /** A count on the button, for something waiting behind it. Zero draws none. */
+  badge?: number;
   /** Which edge the panel hangs from. `left` for a control near the page edge. */
   align?: 'left' | 'right';
   /** Rendered inside the panel, and given `close` so an item can dismiss it. */
@@ -72,6 +75,7 @@ export function Menu({
         onClick={() => setOpen(!open)}
       >
         {glyph}
+        {badge > 0 && <span className="dots-badge">{badge}</span>}
       </button>
       {open && (
         <div className={`menu-body dots-body${align === 'left' ? ' dots-left' : ''}`} role="menu">

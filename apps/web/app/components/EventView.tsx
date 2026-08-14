@@ -69,8 +69,12 @@ type Feed = {
     canAdminister: boolean;
     groupId: string | null;
     groupName: string | null;
+    /** The host's line under the name, if they wrote one. */
+    caption: string | null;
     /** ISO, when the host said when it was. Captions the earlier section. */
     startsAt: string | null;
+    /** People asking to come in, for a host. Zero for everybody else. */
+    waiting: number;
     /** For the share panel. Everybody who can see the event can pass it on. */
     linkToken: string;
     /** The spoken code, when one is assigned. Null once it is released. */
@@ -328,6 +332,14 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       <header className="event-head">
         <div className="event-head-text">
           <h1>{feed.event.name}</h1>
+          {/*
+            The host's own line, above the counts rather than below them: it
+            says what the evening was, and the counts say how much of it there
+            is. One line, ellipsised — the head is a bar, not a paragraph.
+          */}
+          {feed.event.caption && (
+            <p className="event-caption">{feed.event.caption}</p>
+          )}
           <p className="muted">
             {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from{' '}
             {feed.contributors} {feed.contributors === 1 ? 'person' : 'people'}
@@ -418,7 +430,20 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           </Menu>
         )}
 
-        <Menu label="This event" glyph="···">
+        {/*
+          A count on the menu itself, because what is behind it is the only
+          place these can be answered — and somebody waiting to be let into an
+          evening is waiting on a host who has no other reason to open Manage.
+        */}
+        <Menu
+          label={
+            feed.event.waiting > 0
+              ? `This event — ${feed.event.waiting} waiting`
+              : 'This event'
+          }
+          glyph="···"
+          badge={feed.event.waiting}
+        >
           {(close) => (
             <>
               {/*
@@ -426,7 +451,12 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
                 share panel instead — see `Share`.
               */}
               {feed.event.canAdminister && (
-                <a href={`/event/${eventId}/manage`}>Manage event</a>
+                <a href={`/event/${eventId}/manage`}>
+                  Manage event
+                  {feed.event.waiting > 0 && (
+                    <span className="badge">{feed.event.waiting}</span>
+                  )}
+                </a>
               )}
               {feed.photos.length > 0 && (
                 <>

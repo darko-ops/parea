@@ -31,6 +31,7 @@ export const runtime = 'nodejs';
 type Body = {
   groupId?: unknown;
   name?: unknown;
+  caption?: unknown;
   place?: unknown;
   eventDate?: unknown;
   startsAt?: unknown;
@@ -165,6 +166,12 @@ export async function POST(request: Request) {
       eventDate: asDateString(body.eventDate),
       // Typed by the host, never derived from the photos — there is no
       // location in them to derive from, by design (§7.6).
+      // One line under the name, and bounded here as well as in the column —
+      // 200 characters is a sentence, which is what this is for.
+      caption:
+        typeof body.caption === 'string' && body.caption.trim()
+          ? body.caption.trim().slice(0, 200)
+          : null,
       place:
         typeof body.place === 'string' && body.place.trim()
           ? body.place.trim().slice(0, 80)

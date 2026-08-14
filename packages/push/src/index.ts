@@ -121,8 +121,12 @@ export function render(notification: Notification): { title: string; body: strin
       return {
         title: notification.eventName,
         // The person, not the event, is the reason to open this: an event name
-        // out of nowhere is a puzzle, and "Sam added you" is an explanation.
-        body: `${notification.who} added you. Add your photos.`,
+        // out of nowhere is a puzzle, and a name is an explanation.
+        //
+        // "Asked you" rather than "added you", because that is now what
+        // happened — an invitation waits for an answer, and telling somebody
+        // they were added would be describing access they do not yet have.
+        body: `${notification.who} asked you into this.`,
       };
   }
 }

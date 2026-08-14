@@ -142,14 +142,36 @@ export async function GET(
     .from(schema.codes)
     .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt)));
 
+  /*
+   * People waiting on this host, for the badge on the settings menu.
+   *
+   * Only computed for somebody who can actually answer them — for everybody
+   * else it is zero, not because the number is secret but because a count of
+   * decisions you cannot make is a notification about somebody else's job.
+   */
+  const canAdminister = (await decide(db, event, 'administer', requester)).allow;
+  const [waitingRow] = canAdminister
+    ? await db
+        .select({ n: countDistinct(schema.eventAccessRequests.id) })
+        .from(schema.eventAccessRequests)
+        .where(
+          and(
+            eq(schema.eventAccessRequests.eventId, event.id),
+            eq(schema.eventAccessRequests.status, 'open'),
+          ),
+        )
+    : [{ n: 0 }];
+
   return NextResponse.json({
     event: {
       id: event.id,
       name: event.name,
       uploadsOpen: event.uploadsOpen,
-      canAdminister: (await decide(db, event, 'administer', requester)).allow,
+      canAdminister,
+      waiting: waitingRow?.n ?? 0,
       groupId: event.groupId,
       groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
+      caption: event.caption,
       startsAt: event.startsAt?.toISOString() ?? null,
       linkToken: event.linkToken,
       code: spoken?.words ?? null,

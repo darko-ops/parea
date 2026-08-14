@@ -13,7 +13,8 @@ import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { askedToJoin, invitedEvents, markInvitesSeen } from '@/invites';
+import { PendingInvites } from '@/../app/components/PendingInvites';
+import { askedToJoin, invitedEvents, markInvitesSeen, pendingInvites } from '@/invites';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -47,9 +48,10 @@ export default async function InvitesPage({
 
   const db = getDb();
   const actorId = await currentActorId();
-  const [invited, asked] = await Promise.all([
+  const [invited, asked, pending] = await Promise.all([
     invitedEvents(db, actorId),
     askedToJoin(db, actorId),
+    pendingInvites(db, actorId),
   ]);
 
   /*
@@ -86,12 +88,21 @@ export default async function InvitesPage({
           </a>
         </nav>
 
+        {/*
+          Above the events themselves, because it is the only thing on this
+          screen anybody is waiting on. The list below is what has already been
+          settled.
+        */}
+        {!waiting && <PendingInvites invites={pending} />}
+
         {!waiting &&
           (cards.length === 0 ? (
+            pending.length > 0 ? null : (
             <p className="empty muted">
               Nothing yet. An event somebody else made shows up here once you
               open the link they sent you.
             </p>
+            )
           ) : (
             <div className="cards">
               {cards.map((event) => (

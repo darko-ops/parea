@@ -151,6 +151,26 @@ export async function invitesWaiting(db: Db, actorId: string | null): Promise<nu
       ),
     );
 
+  /*
+   * An invitation waiting on an answer counts regardless of when it was seen.
+   *
+   * Everything else on this badge is news — you were let in, a host answered —
+   * and news stops being news once looked at. An unanswered question does not:
+   * it is still unanswered after you have read it, and a badge that cleared
+   * would be the product forgetting something it asked you.
+   */
+  const [offered] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.eventInvites)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventInvites.eventId))
+    .where(
+      and(
+        eq(schema.eventInvites.actorId, actorId),
+        eq(schema.eventInvites.status, 'open'),
+        isNull(schema.events.deletedAt),
+      ),
+    );
+
   const [refused] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.eventAccessRequests)
@@ -165,7 +185,7 @@ export async function invitesWaiting(db: Db, actorId: string | null): Promise<nu
       ),
     );
 
-  return (letIn?.n ?? 0) + (refused?.n ?? 0);
+  return (letIn?.n ?? 0) + (refused?.n ?? 0) + (offered?.n ?? 0);
 }
 
 /** Looking is what clears it. Called when the Invites page renders. */
@@ -175,4 +195,66 @@ export async function markInvitesSeen(db: Db, actorId: string | null): Promise<v
     .update(schema.actors)
     .set({ invitesSeenAt: new Date() })
     .where(eq(schema.actors.id, actorId));
+}
+
+export type PendingInvite = {
+  id: string;
+  eventId: string;
+  eventName: string;
+  /** The host's line under the name, if they wrote one. */
+  caption: string | null;
+  /** Who asked. A name, because deciding needs to know from whom. */
+  from: string;
+  createdAt: string;
+};
+
+/**
+ * Invitations waiting on an answer from this person.
+ *
+ * Only `open` ones. A declined invitation stays in the table so the same host
+ * cannot ask again by accident and so the record survives, but it is not a
+ * thing anybody is waiting on, and a list of decisions already made is not a
+ * list somebody wants.
+ */
+export async function pendingInvites(
+  db: Db,
+  actorId: string | null,
+): Promise<PendingInvite[]> {
+  if (!actorId) return [];
+
+  const rows = await db
+    .select({
+      id: schema.eventInvites.id,
+      eventId: schema.events.id,
+      eventName: schema.events.name,
+      caption: schema.events.caption,
+      createdAt: schema.eventInvites.createdAt,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+    })
+    .from(schema.eventInvites)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventInvites.eventId))
+    .innerJoin(
+      schema.actors,
+      eq(schema.actors.id, schema.eventInvites.invitedByActorId),
+    )
+    .where(
+      and(
+        eq(schema.eventInvites.actorId, actorId),
+        eq(schema.eventInvites.status, 'open'),
+        // An invitation to an event that has since been deleted is not an
+        // invitation; it is a row pointing at nothing.
+        isNull(schema.events.deletedAt),
+      ),
+    )
+    .orderBy(desc(schema.eventInvites.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    eventId: row.eventId,
+    eventName: row.eventName,
+    caption: row.caption,
+    from: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+    createdAt: row.createdAt.toISOString(),
+  }));
 }

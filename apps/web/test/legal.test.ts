@@ -119,7 +119,7 @@ describe('the closed list of what is collected', () => {
     expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
     expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come into a private/);
     expect(PROSE, 'friend_requested').toMatch(/somebody wants to be friends/);
-    expect(PROSE, 'event_invited').toMatch(/a friend has added you to an event/);
+    expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an event/);
   });
 
   it('discloses everything an account row holds about a person', () => {
@@ -207,6 +207,7 @@ describe('the closed list of what is collected', () => {
       moderation_action: /Child safety scanning/,
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
+      event_invite: /somebody invited you into an event/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
     };

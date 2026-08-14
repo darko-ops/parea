@@ -33,6 +33,8 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as {
+    name?: unknown;
+    caption?: unknown;
     joinsOpen?: unknown;
     uploadsOpen?: unknown;
   };
@@ -48,7 +50,36 @@ export async function PATCH(
     return toResponse(err);
   }
 
-  const patch: { joinsOpen?: boolean; uploadsOpen?: boolean } = {};
+  const patch: {
+    name?: string;
+    caption?: string | null;
+    joinsOpen?: boolean;
+    uploadsOpen?: boolean;
+  } = {};
+
+  /*
+   * The name is the one field here that cannot be emptied. It is what an event
+   * is called on a card, in a notification and in the thread, and "" in all of
+   * those is a blank space nobody can point at.
+   */
+  if (typeof body.name === 'string') {
+    const name = body.name.trim();
+    if (!name || name.length > 120) {
+      return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
+    }
+    patch.name = name;
+  }
+
+  // The caption can be cleared, and clearing it is `null` rather than `''` —
+  // an empty string would render as a line of nothing under the name.
+  if (typeof body.caption === 'string') {
+    const caption = body.caption.trim();
+    if (caption.length > 200) {
+      return NextResponse.json({ error: 'invalid_caption' }, { status: 400 });
+    }
+    patch.caption = caption || null;
+  }
+
   if (typeof body.joinsOpen === 'boolean') patch.joinsOpen = body.joinsOpen;
   if (typeof body.uploadsOpen === 'boolean') patch.uploadsOpen = body.uploadsOpen;
   if (Object.keys(patch).length === 0) {
@@ -62,6 +93,8 @@ export async function PATCH(
     .returning();
 
   return NextResponse.json({
+    name: updated!.name,
+    caption: updated!.caption,
     joinsOpen: updated!.joinsOpen,
     uploadsOpen: updated!.uploadsOpen,
   });

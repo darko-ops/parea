@@ -78,6 +78,7 @@ export default function CreatePage() {
   const [picked, setPicked] = useState<File[]>([]);
   const [skipped, setSkipped] = useState(0);
   const [name, setName] = useState('');
+  const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
   const [when, setWhen] = useState<WindowId | ''>('');
   const [access, setAccess] = useState<typeof LINK_OPEN | typeof REQUEST_ACCESS>(LINK_OPEN);
@@ -127,6 +128,7 @@ export default function CreatePage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             name: name.trim(),
+            caption: caption.trim() || undefined,
             place: place.trim() || undefined,
             eventDate: eventDateFor(when, now),
             // The pair the question exists to collect. Sent together or not at
@@ -295,6 +297,22 @@ export default function CreatePage() {
                     placeholder="Sarah's birthday"
                     maxLength={120}
                     required
+                  />
+                  {/*
+                    Directly under the name and unlabelled, because it is the
+                    same thought continued — a field with its own heading would
+                    make it a second question, and it is optional. One line: the
+                    name says which evening, this says what it was, and anything
+                    longer is what the photographs are for.
+                  */}
+                  <input
+                    id="caption"
+                    type="text"
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Add a line about it (optional)"
+                    maxLength={200}
+                    aria-label="A line about the event"
                   />
                 </div>
 

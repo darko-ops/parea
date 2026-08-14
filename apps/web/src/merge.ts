@@ -88,6 +88,11 @@ const OWNED: {
   // Both actors having reacted with the same emoji to the same message is one
   // reaction, not two, so the loser's row goes rather than moving — which is
   // also what the primary key requires.
+  // Somebody invited on a laptop and then signing in on their phone would
+  // otherwise find the invitation addressed to an actor nothing points at —
+  // unanswerable, and invisible on the screen that lists it.
+  { table: 'event_invite', column: 'actor_id', uniqueWith: ['event_id'] },
+  { table: 'event_invite', column: 'invited_by_actor_id' },
   {
     table: 'message_reaction',
     column: 'actor_id',

@@ -48,6 +48,7 @@ export function ManageView({
     joinsOpen: boolean;
     uploadsOpen: boolean;
     accessPolicy: string;
+    caption: string | null;
     code: string | null;
     url: string;
     groupId: string | null;
@@ -74,6 +75,10 @@ export function ManageView({
   const [found, setFound] = useState<Friend[]>([]);
   const [searching, setSearching] = useState(false);
   /** The host this is being read on, for building a copyable link. */
+  const [name, setName] = useState(initial.name);
+  const [caption, setCaption] = useState(initial.caption ?? '');
+  /** What was last saved, so the button knows whether there is anything to do. */
+  const [saved, setSaved] = useState({ name: initial.name, caption: initial.caption ?? '' });
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
 
@@ -202,6 +207,27 @@ export function ManageView({
       });
       if (!res.ok) throw new Error('Could not save that.');
       await loadReports();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function rename() {
+    setBusy('rename');
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), caption: caption.trim() }),
+      });
+      if (!res.ok) throw new Error('Could not save that.');
+      const next = await res.json();
+      setSaved({ name: next.name, caption: next.caption ?? '' });
+      setName(next.name);
+      setCaption(next.caption ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -439,6 +465,57 @@ export function ManageView({
               </div>
             ))
           )}
+        </section>
+      )}
+
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>What it is called</h2>
+          <p className="panel-note">
+            The name is what people see on a card and in the thread. The line
+            under it is optional.
+          </p>
+          <div className="field">
+            <input
+              id="event-name"
+              className="big"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={120}
+              aria-label="What the event is called"
+            />
+            <input
+              id="event-caption"
+              type="text"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Add a line about it (optional)"
+              maxLength={200}
+              aria-label="A line about the event"
+            />
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button
+              onClick={rename}
+              disabled={
+                busy === 'rename' ||
+                name.trim() === '' ||
+                (name.trim() === saved.name && caption.trim() === saved.caption)
+              }
+            >
+              {busy === 'rename' ? 'Saving…' : 'Save'}
+            </button>
+            {/* Only after something was saved, and only until it changes
+                again — a permanent "Saved" is a label, not a confirmation. */}
+            {name.trim() === saved.name &&
+              caption.trim() === saved.caption &&
+              (saved.name !== initial.name || saved.caption !== (initial.caption ?? '')) && (
+                <span className="panel-note" style={{ margin: 0 }}>
+                  Saved.
+                </span>
+              )}
+          </div>
         </section>
       )}
 

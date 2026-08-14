@@ -18,19 +18,22 @@
  * The gate that remains is `administer`. This is a host's guest list, not a
  * way for anybody in an event to pull people into it.
  *
- * Being invited *is* being a participant. There is no pending state, because
- * there is nothing left to decide: they said yes to you when they accepted the
- * friend request, and a second acceptance for each event would be a queue
- * nobody asked for. It lands under their Invites and counts on the badge, and
- * for a private event it is the same row the host would have written by
- * approving them.
+ * Being invited is an offer, not a fact. It used to write the participant row
+ * outright — defensible while only friends could be added, since they had
+ * already agreed to something — and indefensible the moment a host could add
+ * anybody by handle, because then one person's guest list writes itself into
+ * another person's account.
+ *
+ * So this creates an `open` invitation and nothing else. Accepting is what
+ * grants access; until then the person has been asked and has not answered,
+ * which is a state the product can show honestly.
  */
 
 import { schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { decide, findEventById, recordParticipant } from '@/access';
+import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
 import { notifyEventInvite } from '@/notify';
@@ -78,8 +81,19 @@ export async function POST(
   for (const target of asked) {
     if (target === actorId) continue;
     if (!(await invitable(db, actorId, target))) continue;
-    await recordParticipant(db, id, target);
-    invited.push(target);
+
+    /*
+     * One row per event and person, and asking again does not overwrite an
+     * answer. `onConflictDoNothing` rather than an upsert: re-inviting
+     * somebody who declined would turn "no" back into "waiting", which is a
+     * host overruling a decision that was not theirs to make.
+     */
+    const [row] = await db
+      .insert(schema.eventInvites)
+      .values({ eventId: id, actorId: target, invitedByActorId: actorId })
+      .onConflictDoNothing()
+      .returning({ id: schema.eventInvites.id });
+    if (row) invited.push(target);
   }
 
   if (invited.length > 0) {

@@ -241,6 +241,15 @@ export const events = pgTable(
      * mapping happens client-side, from the string.
      */
     place: text('place'),
+    /**
+     * A line under the name — what it was, in the host's words.
+     *
+     * Not a description field with a thousand characters and a scrollbar: one
+     * sentence, on a card and at the top of the event. The name answers "which
+     * one" and this answers "what was it", and an event that wants more than
+     * that has photographs for the purpose.
+     */
+    caption: text('caption'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),
@@ -738,6 +747,51 @@ export const friendships = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.actorId, t.friendActorId] })],
+);
+
+/**
+ * A host offering somebody a place in an event.
+ *
+ * Being invited used to *be* being a participant: the row went straight into
+ * `event_participant` and there was nothing to accept. That was defensible
+ * while only friends could be added — they had already agreed to something —
+ * and stopped being defensible the moment a host could add anybody by handle,
+ * because then one person's guest list writes itself into another person's
+ * account.
+ *
+ * So an invitation is now an offer with an answer. Accepting is what creates
+ * the participant row; declining leaves a row saying so, which is what stops
+ * the same host asking again and again and what lets the invite disappear from
+ * a list without vanishing from the record.
+ *
+ * One row per event and person. Being asked twice is the same ask.
+ */
+export const eventInvites = pgTable(
+  'event_invite',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /** Who did the asking. Shown to the person deciding. */
+    invitedByActorId: uuid('invited_by_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'accepted', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('event_invite_pair_idx').on(t.eventId, t.actorId),
+    // "What am I being asked?" — the only read this table has from the side of
+    // the person deciding.
+    index('event_invite_inbox_idx').on(t.actorId, t.status),
+  ],
 );
 
 /**

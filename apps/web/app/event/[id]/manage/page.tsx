@@ -55,6 +55,7 @@ export default async function ManagePage({
         tab={(await searchParams).tab === 'members' ? 'members' : 'manage'}
         initial={{
           name: event.name,
+          caption: event.caption,
           joinsOpen: event.joinsOpen,
           uploadsOpen: event.uploadsOpen,
           accessPolicy: event.accessPolicy,

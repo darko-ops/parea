@@ -863,6 +863,12 @@ button.secondary {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .event-head p { margin: 0; font-size: 13px; }
+/* The host's line. Set in the text colour rather than `--dim`: it is something
+   somebody wrote, not a count the page derived. */
+.event-caption {
+  color: var(--fg); font-size: 13.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .event-head .button-like { padding: 10px 15px; font-size: 14px; white-space: nowrap; }
 .event-body {
   padding: 20px 24px 28px;
@@ -1171,6 +1177,20 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .event-head .dots-go:hover { background: var(--track); border-color: var(--line-dashed); }
 .event-head .dots-primary { border-color: var(--accent); }
+/* Something waiting behind the menu. On the corner of a 36px button, so the
+   glyph stays centred — the same arrangement the folded thread's chevron
+   uses. */
+.dots-go { position: relative; }
+.dots-badge {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* Inside a menu item, the count sits at the end of the row instead. */
+.dots-body .badge { margin-left: 8px; }
 /* The `+`, which is the page's main action and so the filled one. Sized to
    match the buttons it replaced rather than to the glyph, or it becomes a
    small blue square beside a 36px control. */
