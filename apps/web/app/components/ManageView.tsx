@@ -37,9 +37,12 @@ type AccessRequest = {
 
 export function ManageView({
   eventId,
+  tab,
   initial,
 }: {
   eventId: string;
+  /** Which half of the screen this is. From the URL, so it survives a reload. */
+  tab: 'manage' | 'members';
   initial: {
     name: string;
     joinsOpen: boolean;
@@ -66,6 +69,21 @@ export function ManageView({
   const [already, setAlready] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [invited, setInvited] = useState<number | null>(null);
+  /** What the search box holds, and what it found. Friends need no search. */
+  const [term, setTerm] = useState('');
+  const [found, setFound] = useState<Friend[]>([]);
+  const [searching, setSearching] = useState(false);
+  /** The host this is being read on, for building a copyable link. */
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
+
+  /**
+   * Who the list is showing: search results once there is a query, friends
+   * before that. One variable rather than a ternary at each of the four places
+   * that ask, which is how the empty state and the list come to disagree about
+   * which of them should be on screen.
+   */
+  const searchable = term.trim().length >= 2 ? found : friends;
 
   const loadReports = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/reports`);
@@ -107,6 +125,32 @@ export function ManageView({
     void loadRequests();
     void loadFriends();
   }, [loadReports, loadRequests, loadFriends]);
+
+  /*
+   * Anybody, by handle — not only friends.
+   *
+   * The same endpoint the Friends screen searches: prefix-only, accounts only,
+   * and it hides each of two people from the other after a block. Debounced,
+   * because this fires per keystroke and what is behind it walks the account
+   * table.
+   */
+  useEffect(() => {
+    const q = term.trim();
+    if (q.length < 2) {
+      setFound([]);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/people?q=${encodeURIComponent(q)}`);
+        setFound(res.ok ? ((await res.json()).people ?? []) : []);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [term]);
 
   async function invite() {
     setBusy('invite');
@@ -221,7 +265,29 @@ export function ManageView({
         </p>
       </header>
 
-      {initial.accessPolicy === REQUEST_ACCESS && (
+      {/*
+        Two tabs, because this was nine panels in one column and the two things
+        somebody comes here to do — change how the event works, and deal with
+        who is in it — were interleaved. Links rather than state, matching
+        Invites: the tab survives a reload and can be sent to somebody.
+      */}
+      <nav className="tabs" aria-label="What to manage">
+        <a
+          href={`/event/${eventId}/manage`}
+          aria-current={tab === 'manage' ? 'page' : undefined}
+        >
+          Manage
+        </a>
+        <a
+          href={`/event/${eventId}/manage?tab=members`}
+          aria-current={tab === 'members' ? 'page' : undefined}
+        >
+          Members
+          {requests.length > 0 && <span className="badge">{requests.length}</span>}
+        </a>
+      </nav>
+
+      {tab === 'members' && initial.accessPolicy === REQUEST_ACCESS && (
         <section className="panel">
           <h2>Asking to come in{requests.length > 0 && ` (${requests.length})`}</h2>
           {requests.length === 0 ? (
@@ -265,184 +331,228 @@ export function ManageView({
         </section>
       )}
 
-      <section className="panel">
-        <h2>
-          Requests to take a photo down
-          {reports.length > 0 && ` (${reports.length})`}
-        </h2>
-        {reports.length === 0 ? (
-          <p className="muted">Nothing waiting.</p>
-        ) : (
-          reports.map((report) => (
-            <div key={report.id} className="pending">
-              <PendingThumb src={report.photo.src} />
-              <div>
-                <p className="muted">
-                  {report.alreadyHidden
-                    ? 'Hidden automatically because this went unanswered. Declining puts it back.'
-                    : report.autoHideAt
-                      ? `Hidden automatically ${relative(report.autoHideAt)} unless you answer.`
-                      : 'Awaiting your decision.'}
-                </p>
-                {report.note && <p className="muted">&ldquo;{report.note}&rdquo;</p>}
-                <div className="row">
-                  <button
-                    onClick={() => resolve(report.id, 'remove')}
-                    disabled={busy === report.id}
-                  >
-                    Take it down
-                  </button>
-                  <button
-                    className="secondary"
-                    onClick={() => resolve(report.id, 'decline')}
-                    disabled={busy === report.id}
-                  >
-                    Keep it
-                  </button>
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>
+            Requests to take a photo down
+            {reports.length > 0 && ` (${reports.length})`}
+          </h2>
+          {reports.length === 0 ? (
+            <p className="muted">Nothing waiting.</p>
+          ) : (
+            reports.map((report) => (
+              <div key={report.id} className="pending">
+                <PendingThumb src={report.photo.src} />
+                <div>
+                  <p className="muted">
+                    {report.alreadyHidden
+                      ? 'Hidden automatically because this went unanswered. Declining puts it back.'
+                      : report.autoHideAt
+                        ? `Hidden automatically ${relative(report.autoHideAt)} unless you answer.`
+                        : 'Awaiting your decision.'}
+                  </p>
+                  {report.note && <p className="muted">&ldquo;{report.note}&rdquo;</p>}
+                  <div className="row">
+                    <button
+                      onClick={() => resolve(report.id, 'remove')}
+                      disabled={busy === report.id}
+                    >
+                      Take it down
+                    </button>
+                    <button
+                      className="secondary"
+                      onClick={() => resolve(report.id, 'decline')}
+                      disabled={busy === report.id}
+                    >
+                      Keep it
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </section>
+            ))
+          )}
+        </section>
+      )}
 
-      <section className="panel">
-        <h2>Who can do what</h2>
-        <div className="switch">
-          <span>
-            New people can join
-            <br />
-            <span className="muted">
-              Turning this off does not remove anyone already here.
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>Who can do what</h2>
+          <div className="switch">
+            <span>
+              New people can join
+              <br />
+              <span className="muted">
+                Turning this off does not remove anyone already here.
+              </span>
             </span>
-          </span>
-          <button
-            className="secondary"
-            disabled={busy === 'switch'}
-            onClick={() => setSwitch({ joinsOpen: !joinsOpen })}
-          >
-            {joinsOpen ? 'On' : 'Off'}
-          </button>
-        </div>
-        <div className="switch">
-          <span>
-            People can still add photos
-            <br />
-            <span className="muted">Late photos are usually the point.</span>
-          </span>
-          <button
-            className="secondary"
-            disabled={busy === 'switch'}
-            onClick={() => setSwitch({ uploadsOpen: !uploadsOpen })}
-          >
-            {uploadsOpen ? 'On' : 'Off'}
-          </button>
-        </div>
-      </section>
+            <button
+              className="secondary"
+              disabled={busy === 'switch'}
+              onClick={() => setSwitch({ joinsOpen: !joinsOpen })}
+            >
+              {joinsOpen ? 'On' : 'Off'}
+            </button>
+          </div>
+          <div className="switch">
+            <span>
+              People can still add photos
+              <br />
+              <span className="muted">Late photos are usually the point.</span>
+            </span>
+            <button
+              className="secondary"
+              disabled={busy === 'switch'}
+              onClick={() => setSwitch({ uploadsOpen: !uploadsOpen })}
+            >
+              {uploadsOpen ? 'On' : 'Off'}
+            </button>
+          </div>
+        </section>
+      )}
 
       {/*
         The second way into an event, and the narrower one. The link works for
         whoever holds it; this works only for people who already agreed to be
         your friend, and it puts them straight in rather than asking them.
       */}
-      <section className="panel">
-        <h2>Add a friend to this</h2>
-        {friends.length === 0 ? (
-          <p className="muted">
-            You have no friends here yet. <a href="/friends">Add somebody</a> by
-            their handle, and you can put them into an event without sending a
-            link.
-          </p>
-        ) : (
-          <>
-            <ul className="people">
-              {friends.map((friend) => {
-                const inIt = already.has(friend.actorId);
-                const on = picked.has(friend.actorId);
-                return (
-                  <li key={friend.actorId}>
-                    <div>
-                      <strong>{friend.displayName || `@${friend.handle}`}</strong>
-                      {friend.displayName && friend.handle && (
-                        <p className="muted">@{friend.handle}</p>
-                      )}
-                    </div>
-                    {inIt ? (
-                      <span className="pip pip-declined">Already here</span>
-                    ) : (
-                      <button
-                        className={on ? undefined : 'secondary'}
-                        aria-pressed={on}
-                        onClick={() =>
-                          setPicked((p) => {
-                            const next = new Set(p);
-                            if (next.has(friend.actorId)) next.delete(friend.actorId);
-                            else next.add(friend.actorId);
-                            return next;
-                          })
-                        }
-                      >
-                        {/*
-                          "Selected", not "Adding": nothing has happened yet.
-                          A present participle on a button that has just been
-                          pressed reads as work in progress, and somebody who
-                          believes the add already went through has no reason
-                          to press the button underneath that actually does it.
-                        */}
-                        {on ? 'Selected' : 'Add'}
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="row" style={{ marginTop: 14 }}>
-              <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
-                {picked.size === 0
-                  ? 'Add to this event'
-                  : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
-              </button>
-              {invited !== null && (
-                <span className="muted">
-                  {invited === 0
-                    ? 'Nobody was added.'
-                    : `Added ${invited}. It is under their Invites now.`}
-                </span>
-              )}
-            </div>
-          </>
-        )}
-      </section>
+      {tab === 'members' && (
+        <section className="panel">
+          <h2>Add people</h2>
 
-      <section className="panel">
-        <h2>The link</h2>
-        <code>{typeof window === 'undefined' ? link : new URL(link, window.location.origin).toString()}</code>
-        {code && <p className="muted">Or say: {code}</p>}
-        {confirmRotate ? (
-          <>
+          {/*
+            One list, two sources. Your friends are in it without being asked
+            for, because they are who a host usually means; anybody else is a
+            search away, because the alternative was telling a host to go and
+            befriend somebody before they could put them into an evening they
+            had both been at.
+
+            What the search offers is what the server will accept — see
+            `invitable`. A result somebody taps and the server then refuses is
+            a bug that reads as a permissions message.
+          */}
+          <label htmlFor="who" className="field-label">
+            Search by name or handle
+          </label>
+          <input
+            id="who"
+            type="search"
+            value={term}
+            placeholder="AmberQuietLantern"
+            onChange={(e) => setTerm(e.target.value)}
+          />
+
+          {searchable.length === 0 ? (
             <p className="muted">
-              This replaces the link and the spoken code. Everyone loses access
-              until you send them the new one — including people who have
-              already added photos. Use it if the link reached someone it
-              should not have.
+              {term.trim().length >= 2
+                ? searching
+                  ? 'Looking…'
+                  : `Nobody here is called “${term.trim()}”.`
+                : 'Type a name or a handle. Anybody with an account can be added — it puts them straight in, and they find it under their Invites.'}
             </p>
-            <div className="row">
-              <button className="danger" onClick={rotate} disabled={busy === 'rotate'}>
-                {busy === 'rotate' ? 'Replacing…' : 'Replace the link'}
-              </button>
-              <button className="secondary" onClick={() => setConfirmRotate(false)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        ) : (
-          <button className="secondary" onClick={() => setConfirmRotate(true)}>
-            Replace the link
-          </button>
-        )}
-      </section>
+          ) : (
+            <>
+              <ul className="people">
+                {searchable.map((friend) => {
+                  const inIt = already.has(friend.actorId);
+                  const on = picked.has(friend.actorId);
+                  return (
+                    <li key={friend.actorId}>
+                      <div>
+                        <strong>{friend.displayName || `@${friend.handle}`}</strong>
+                        {friend.displayName && friend.handle && (
+                          <p className="muted">@{friend.handle}</p>
+                        )}
+                      </div>
+                      {inIt ? (
+                        <span className="pip pip-declined">Already here</span>
+                      ) : (
+                        <button
+                          className={on ? undefined : 'secondary'}
+                          aria-pressed={on}
+                          onClick={() =>
+                            setPicked((p) => {
+                              const next = new Set(p);
+                              if (next.has(friend.actorId)) next.delete(friend.actorId);
+                              else next.add(friend.actorId);
+                              return next;
+                            })
+                          }
+                        >
+                          {/*
+                            "Selected", not "Adding": nothing has happened yet.
+                            A present participle on a button that has just been
+                            pressed reads as work in progress, and somebody who
+                            believes the add already went through has no reason
+                            to press the button underneath that actually does it.
+                          */}
+                          {on ? 'Selected' : 'Add'}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="row" style={{ marginTop: 14 }}>
+                <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
+                  {picked.size === 0
+                    ? 'Add to this event'
+                    : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
+                </button>
+                {invited !== null && (
+                  <span className="muted">
+                    {invited === 0
+                      ? 'Nobody was added.'
+                      : `Added ${invited}. It is under their Invites now.`}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
-      {!initial.groupId && (
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>The link</h2>
+          {/*
+            The absolute URL only once there is a window to ask.
+
+            This was `typeof window === 'undefined' ? link : absolute`, which is
+            the first thing React's hydration-mismatch message lists: the server
+            rendered the path and the client rendered the whole URL, they
+            disagreed, and the page threw its tree away and rebuilt it on every
+            visit. Nothing looked wrong — the link was right by the time anybody
+            read it. State starts empty, so the server and the first client
+            render agree, and the origin arrives a frame later.
+          */}
+          <code>{origin ? new URL(link, origin).toString() : link}</code>
+          {code && <p className="muted">Or say: {code}</p>}
+          {confirmRotate ? (
+            <>
+              <p className="muted">
+                This replaces the link and the spoken code. Everyone loses access
+                until you send them the new one — including people who have
+                already added photos. Use it if the link reached someone it
+                should not have.
+              </p>
+              <div className="row">
+                <button className="danger" onClick={rotate} disabled={busy === 'rotate'}>
+                  {busy === 'rotate' ? 'Replacing…' : 'Replace the link'}
+                </button>
+                <button className="secondary" onClick={() => setConfirmRotate(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <button className="secondary" onClick={() => setConfirmRotate(true)}>
+              Replace the link
+            </button>
+          )}
+        </section>
+      )}
+
+      {tab === 'manage' && !initial.groupId && (
         <section className="panel">
           <h2>Keep doing this?</h2>
           <p className="muted">
@@ -506,29 +616,31 @@ export function ManageView({
         </section>
       )}
 
-      <section className="panel">
-        <h2>Delete</h2>
-        {confirmDelete ? (
-          <>
-            <p className="muted">
-              Deletes the event and every photo in it, for everyone. Anyone who
-              has not downloaded them yet will not get another chance.
-            </p>
-            <div className="row">
-              <button className="danger" onClick={destroy} disabled={busy === 'delete'}>
-                {busy === 'delete' ? 'Deleting…' : 'Delete this event'}
-              </button>
-              <button className="secondary" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        ) : (
-          <button className="secondary" onClick={() => setConfirmDelete(true)}>
-            Delete this event
-          </button>
-        )}
-      </section>
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>Delete</h2>
+          {confirmDelete ? (
+            <>
+              <p className="muted">
+                Deletes the event and every photo in it, for everyone. Anyone who
+                has not downloaded them yet will not get another chance.
+              </p>
+              <div className="row">
+                <button className="danger" onClick={destroy} disabled={busy === 'delete'}>
+                  {busy === 'delete' ? 'Deleting…' : 'Delete this event'}
+                </button>
+                <button className="secondary" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <button className="secondary" onClick={() => setConfirmDelete(true)}>
+              Delete this event
+            </button>
+          )}
+        </section>
+      )}
 
       {error && <p className="muted">{error}</p>}
     </main>

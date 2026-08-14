@@ -26,8 +26,10 @@ export const metadata = { robots: { index: false, follow: false } };
  */
 export default async function ManagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
   const db = getDb();
@@ -47,6 +49,10 @@ export default async function ManagePage({
     <Shell>
       <ManageView
         eventId={event.id}
+        // Anything that is not the one alternative is the default rather than
+        // an error: `?tab=` is a thing people edit, and a 400 for a typo in a
+        // tab name helps nobody.
+        tab={(await searchParams).tab === 'members' ? 'members' : 'manage'}
         initial={{
           name: event.name,
           joinsOpen: event.joinsOpen,

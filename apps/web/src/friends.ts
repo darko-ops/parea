@@ -15,7 +15,7 @@
  */
 
 import { handleKey, schema } from '@parea/core';
-import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -165,4 +165,47 @@ export async function unfriend(db: Db, a: string, b: string): Promise<void> {
         and(eq(schema.friendships.actorId, b), eq(schema.friendships.friendActorId, a)),
       ),
     );
+}
+
+/**
+ * Whether one person may put another into an event they host.
+ *
+ * Not friendship — the Members screen searches every handle, and a host who
+ * can find somebody has to be able to add them. What is left is the two things
+ * that were doing the real work inside the friendship check: the target is an
+ * account rather than a passing device, and neither party has blocked the
+ * other.
+ *
+ * Deliberately the same predicate `findPeople` applies, so what a host can see
+ * and what a host can act on are the same set. A search that offers somebody
+ * the server will then refuse is a bug that looks like a permissions message.
+ */
+export async function invitable(
+  db: Db,
+  hostId: string,
+  targetId: string,
+): Promise<boolean> {
+  if (hostId === targetId) return false;
+
+  const [row] = await db
+    .select({ id: schema.actors.id })
+    .from(schema.actors)
+    .where(
+      and(
+        eq(schema.actors.id, targetId),
+        // An account, not a guest device — being added has to mean something
+        // that survives the browser it happened in.
+        isNotNull(schema.actors.accountId),
+        isNull(schema.actors.mergedIntoId),
+        not(
+          sql`exists (
+            select 1 from "block" b
+            where (b.blocker_actor_id = ${hostId} and b.blocked_actor_id = ${targetId})
+               or (b.blocked_actor_id = ${hostId} and b.blocker_actor_id = ${targetId})
+          )`,
+        ),
+      ),
+    );
+
+  return row != null;
 }

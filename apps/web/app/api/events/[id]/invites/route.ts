@@ -1,10 +1,22 @@
 /**
- * Putting a friend into an event, instead of sending them a link.
+ * Putting somebody into an event, instead of sending them a link.
  *
  * The product's one invitation has always been the link: whoever holds it is
- * in. This is the second, and it is deliberately the narrower of the two — you
- * can only do it to people who have already agreed to be your friend, and only
- * to an event you administer.
+ * in. This is the second, and it is still narrower — only an event you
+ * administer, only fifty at a time, and only people the search would show you.
+ *
+ * It began as friends-only. That is no longer the rule, because the Members
+ * screen searches by handle and a host who can find somebody has to be able to
+ * add them; the honest way to see it is that a host who wanted this could
+ * always send the link, and this is the same act with the recipient's name on
+ * it. What the friendship rule really bought was a consent gate, and what
+ * replaces it is smaller: blocks. `findPeople` hides each of two people from
+ * the other after a block, so nobody can be added by somebody they blocked —
+ * and being added lands in Invites, which somebody can ignore, rather than
+ * anywhere they have to look.
+ *
+ * The gate that remains is `administer`. This is a host's guest list, not a
+ * way for anybody in an event to pull people into it.
  *
  * Being invited *is* being a participant. There is no pending state, because
  * there is nothing left to decide: they said yes to you when they accepted the
@@ -20,7 +32,7 @@ import { NextResponse } from 'next/server';
 
 import { decide, findEventById, recordParticipant } from '@/access';
 import { getDb } from '@/db';
-import { areFriends } from '@/friends';
+import { invitable } from '@/friends';
 import { notifyEventInvite } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -53,13 +65,19 @@ export async function POST(
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
 
-  // Friendship is checked per person rather than trusted from the list the
-  // client sent. The list is the client's idea of who your friends are, and
-  // this is the only place that decides whether adding somebody is allowed.
+  /*
+   * Checked per person rather than trusted from the list the client sent.
+   *
+   * Two things are verified here and nowhere else: that the target is a real
+   * account, and that neither of you has blocked the other. The second is the
+   * whole of what protects somebody from being added by a person they have
+   * cut off — the search already hides them from each other, but a search
+   * result is a suggestion and this is the decision.
+   */
   const invited: string[] = [];
   for (const target of asked) {
     if (target === actorId) continue;
-    if (!(await areFriends(db, actorId, target))) continue;
+    if (!(await invitable(db, actorId, target))) continue;
     await recordParticipant(db, id, target);
     invited.push(target);
   }
