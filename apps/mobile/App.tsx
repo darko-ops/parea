@@ -220,6 +220,26 @@ export default function App() {
     void refreshAccount();
   }, [refreshAccount]);
 
+  /**
+   * What is left on screen after signing out.
+   *
+   * The keychain is cleared by the card that asked; this is the other half —
+   * every list this component is holding was fetched *as* the person who has
+   * just left, and React has no reason to drop any of it. Photos on the home
+   * tab, their groups, the name beside their uploads: all still rendered,
+   * correct for nobody. The route goes back to the tabs as well, because
+   * signing out from inside an album would leave that album open.
+   */
+  const signOut = useCallback(() => {
+    setRemembered([]);
+    setGroups([]);
+    setEvents([]);
+    setDisplayName(null);
+    setSignedIn(false);
+    setRoute({ screen: 'tabs' });
+    setTab('home');
+  }, []);
+
   const handled = useRef<string | null>(null);
   const arrive = useCallback(
     async (url: string | null) => {
@@ -443,6 +463,7 @@ export default function App() {
                 void refreshEvents();
                 void refreshGroups();
               }}
+              onSignedOut={signOut}
               Button={Button}
             />
           )}

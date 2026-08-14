@@ -49,6 +49,30 @@ export async function forgetActor(): Promise<void> {
   await SecureStore.deleteItemAsync(ACTOR_KEY);
 }
 
+/**
+ * Signing out: hand back everything this phone is holding.
+ *
+ * Three stores, and only the first is identity. The second is the reason this
+ * is not one line: every remembered event carries its `linkToken`, and a link
+ * token *is* the credential — it is what the join endpoint exchanges for
+ * access. Clearing the keychain and leaving the list behind would sign
+ * somebody out and leave the next person holding the app able to walk into
+ * every album this one had opened. It is the same rule the web follows for
+ * capability cookies, and it bites harder here because the token is the secret
+ * itself rather than a claim about one.
+ *
+ * The queue goes too, and that one costs something: photos waiting to upload
+ * are dropped. Keeping them is worse — they were queued by somebody who has
+ * left, and the next identity on this phone would finish sending them. The
+ * screen says how many before asking, and the photographs are still in the
+ * camera roll.
+ */
+export async function signOutDevice(): Promise<void> {
+  await SecureStore.deleteItemAsync(ACTOR_KEY);
+  await SecureStore.deleteItemAsync(EVENTS_KEY);
+  await saveQueue({ items: [] });
+}
+
 // --- events you have joined --------------------------------------------------
 
 export async function loadEvents(): Promise<SavedEvent[]> {

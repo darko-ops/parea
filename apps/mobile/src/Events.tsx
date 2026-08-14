@@ -31,6 +31,7 @@ import {
 
 import type { Api, EventListing } from './api';
 import type { GroupTheme } from './Groups';
+import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
 
 export type TabTheme = GroupTheme;
@@ -491,6 +492,7 @@ export function AccountCard({
   t,
   Button,
   onSignedIn,
+  onSignedOut,
   why,
   gate = false,
 }: {
@@ -498,6 +500,12 @@ export function AccountCard({
   t: TabTheme;
   Button: ButtonComponent;
   onSignedIn: () => void;
+  /**
+   * Give the device back. Only the profile tab passes it — the gated callers
+   * are standing in front of an upload, and a sign-out button there is a way
+   * to lose what you came to do.
+   */
+  onSignedOut?: () => void;
   /** What the person was trying to do, in their words rather than the policy's. */
   why?: string;
   /** Render nothing once signed in, for callers standing in front of an action. */
@@ -557,6 +565,42 @@ export function AccountCard({
     }
   }, [api, code, email, onSignedIn]);
 
+  /**
+   * Signing out, with the cost said out loud first.
+   *
+   * The count of waiting uploads is in the question rather than in a sentence
+   * under the button, because it is the only part of this that cannot be
+   * undone by signing back in — the events come back with the account, and
+   * those photographs do not. They are still in the camera roll, which is why
+   * this is a warning and not a refusal.
+   */
+  const signOut = useCallback(async () => {
+    const waiting = (await loadQueue().catch(() => ({ items: [] }))).items.length;
+    Alert.alert(
+      'Sign out?',
+      waiting > 0
+        ? `This phone forgets you and the albums it is holding links to. ${waiting} ${
+            waiting === 1 ? 'photo' : 'photos'
+          } waiting to upload will be dropped — they stay in your camera roll. Nothing else is deleted.`
+        : 'This phone forgets you and the albums it is holding links to. Nothing is deleted, and the same address signs back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOutDevice();
+            // The client keeps the token in memory as well as the keychain,
+            // and the next request would carry it happily.
+            api.setToken(null);
+            setAccount(null);
+            onSignedOut?.();
+          },
+        },
+      ],
+    );
+  }, [api, onSignedOut]);
+
   const remove = useCallback(() => {
     // Two separate things, and conflating them would take other people's
     // copies of an evening they were also at. Guideline 5.1.1(v) requires the
@@ -601,6 +645,10 @@ export function AccountCard({
           Your events and groups follow you to a new phone. That is all an
           account does here.
         </Text>
+        {/* Sign out above delete, and only one of them is permanent. Both are
+            plain buttons — a filled one here would be the loudest thing on a
+            tab whose point is the albums. */}
+        {onSignedOut && <Button label="Sign out" onPress={signOut} t={t} />}
         <Button label="Delete account" onPress={remove} t={t} />
       </View>
     );
@@ -675,6 +723,7 @@ export function ProfileTab({
   onOpenGroup,
   onRename,
   onSignedIn,
+  onSignedOut,
   Button,
 }: {
   api: Api;
@@ -686,6 +735,7 @@ export function ProfileTab({
   onOpenGroup: (groupId: string) => void;
   onRename: (name: string) => void;
   onSignedIn: () => void;
+  onSignedOut: () => void;
   Button: ButtonComponent;
 }) {
   const [name, setName] = useState(displayName ?? '');
@@ -765,7 +815,13 @@ export function ProfileTab({
         )}
       </View>
 
-      <AccountCard api={api} t={t} Button={Button} onSignedIn={onSignedIn} />
+      <AccountCard
+        api={api}
+        t={t}
+        Button={Button}
+        onSignedIn={onSignedIn}
+        onSignedOut={onSignedOut}
+      />
 
       <Button
         label="Safety, reporting and contact"

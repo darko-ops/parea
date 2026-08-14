@@ -19,6 +19,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   AccessError,
   decide,
+  findEventById,
   findEventByLinkToken,
   guard,
   recordParticipant,
@@ -26,6 +27,7 @@ import {
 } from '@/access';
 import { sign, unsign, encodeCapability, decodeCapability } from '@/auth/cookies';
 import type { Db } from '@/db';
+import { stripComments } from './support/source';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -407,6 +409,78 @@ describe('a private event where the host decides', () => {
     const creator = await makeSignedInActor();
     const event = await makeEvent({ accessPolicy: 'request_access', createdBy: creator });
     expect(await decide(db, event, 'view', { actorId: creator })).toEqual({ allow: true });
+  });
+});
+
+/**
+ * Changing it afterwards.
+ *
+ * It was write-once, which looks like a safety property and is not one: the
+ * choice is made in the first thirty seconds of an album's life, before
+ * anybody has been sent anything, and the difference between the three only
+ * becomes visible once somebody has been. Five albums here were permanently
+ * making invited people queue at the door with no way back.
+ *
+ * The interesting half is what tightening does *not* do.
+ */
+describe('who can see it, changed after the fact', () => {
+  const setPolicy = async (eventId: string, accessPolicy: string) =>
+    db
+      .update(schema.events)
+      .set({ accessPolicy } as never)
+      .where(eq(schema.events.id, eventId));
+
+  it('takes effect on the next request, in both directions', async () => {
+    // Nothing is cached and nothing is re-issued: `authorize` reads the column
+    // every time, which is what makes this safe to change at all.
+    const event = await makeEvent({ accessPolicy: 'request_access' });
+    const guest = await makeSignedInActor();
+    const holdsLink = { actorId: guest, linkToken: event.linkToken };
+
+    expect((await decide(db, event, 'view', holdsLink)).allow).toBe(false);
+
+    await setPolicy(event.id, 'account_required');
+    const loosened = (await findEventById(db, event.id))!;
+    expect(await decide(db, loosened, 'view', holdsLink)).toEqual({ allow: true });
+
+    await setPolicy(event.id, 'request_access');
+    const tightened = (await findEventById(db, event.id))!;
+    expect((await decide(db, tightened, 'view', holdsLink)).allow).toBe(false);
+  });
+
+  it('does not evict the people already in when it is tightened', async () => {
+    // The screen says so, and this is why it can: participation is read before
+    // the policy, so approval mode stops new people rather than removing
+    // everyone who arrived while the album was open.
+    const event = await makeEvent({ accessPolicy: 'link_open' });
+    const guest = await makeSignedInActor();
+    await recordParticipant(db, event.id, guest);
+
+    await setPolicy(event.id, 'request_access');
+    const tightened = (await findEventById(db, event.id))!;
+    expect(
+      await decide(db, tightened, 'view', { actorId: guest, capEpoch: event.capEpoch }),
+    ).toEqual({ allow: true });
+  });
+
+  it('is refused any value that is not one of the three', async () => {
+    // `authorize` denies an unknown policy, so a typo stored here would lock
+    // out the host as well — and the only way back is the endpoint that just
+    // accepted it.
+    const route = stripComments(
+      readFileSync(
+        fileURLToPath(new URL('../app/api/events/[id]/route.ts', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(route).toMatch(/known\.find\(/);
+    expect(route).toMatch(/invalid_access_policy/);
+    // And it is behind the same door as the rest of that handler. Anchored on
+    // the assignment rather than the word: the body is read at the top of the
+    // handler, which is before the guard and has to be.
+    expect(route.indexOf("guard(db, event, 'administer'")).toBeLessThan(
+      route.indexOf('patch.accessPolicy ='),
+    );
   });
 });
 

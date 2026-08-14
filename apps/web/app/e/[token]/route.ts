@@ -23,12 +23,13 @@ import {
   toResponse,
 } from '@/access';
 import { getDb } from '@/db';
+import { isLinkUnfurler, previewHtml } from '@/preview';
 import { ensureActor, grantCapability, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
@@ -41,6 +42,34 @@ export async function GET(
   const db = getDb();
   const event = await findEventByLinkToken(db, token);
   if (!event) return Response.json({ error: 'not_found' }, { status: 404 });
+
+  /*
+   * The card in the chat window, and no side effects.
+   *
+   * Ahead of everything below because everything below is a side effect: the
+   * capability cookie, the actor, the participant row. A link pasted into a
+   * group chat was minting an actor for the preview fetcher and writing it
+   * into the album as somebody who was there — and on a private album the
+   * fetcher was redirected to the sign-in page instead, which is where the
+   * card's "Profile" came from.
+   *
+   * No credential is checked, and that is the point rather than an oversight:
+   * this answers the same for any well-formed token, so it cannot be used to
+   * ask whether a token is real. What it says — an album's name — is the least
+   * that makes a card worth showing, and it goes only to the fetchers on the
+   * list in `preview.ts`.
+   */
+  if (isLinkUnfurler(request.headers.get('user-agent'))) {
+    return new Response(previewHtml({ name: event.name, url: request.url }), {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        // Same answer for everyone, and it is not about this browser — but it
+        // must not be stored anywhere a person's request could pick it up.
+        'cache-control': 'public, max-age=300',
+        'x-robots-tag': 'noindex, nofollow',
+      },
+    });
+  }
 
   const requester = await requesterFor(event.id, { linkToken: token });
   const decision = await decide(db, event, 'view', requester);

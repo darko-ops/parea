@@ -1,11 +1,12 @@
 'use client';
 
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
-import { REQUEST_ACCESS, LINK_OPEN } from '@parea/core';
+import { LINK_OPEN } from '@parea/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
 
+import { AccessChoice, type AccessPolicy } from './components/AccessChoice';
 import { Shell } from './components/Shell';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
@@ -81,7 +82,7 @@ export default function CreatePage() {
   const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
   const [when, setWhen] = useState<WindowId | ''>('');
-  const [access, setAccess] = useState<typeof LINK_OPEN | typeof REQUEST_ACCESS>(LINK_OPEN);
+  const [access, setAccess] = useState<AccessPolicy>(LINK_OPEN);
   const [eventId, setEventId] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -376,29 +377,10 @@ export default function CreatePage() {
 
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>
-                  <div className="pills">
-                    <button
-                      type="button"
-                      className="pill"
-                      aria-pressed={access === LINK_OPEN}
-                      onClick={() => setAccess(LINK_OPEN)}
-                    >
-                      Anyone with the link
-                    </button>
-                    <button
-                      type="button"
-                      className="pill"
-                      aria-pressed={access === REQUEST_ACCESS}
-                      onClick={() => setAccess(REQUEST_ACCESS)}
-                    >
-                      Private — you let people in
-                    </button>
-                  </div>
-                  <p className="field-help">
-                    {access === REQUEST_ACCESS
-                      ? 'Holding the link only gets them as far as asking. You approve each person, on the event’s manage screen. Use this when the link may travel further than the guest list.'
-                      : 'Whoever holds the link sees the photos, and so does anyone who is told the phrase. No account needed to look; adding photos always needs one.'}
-                  </p>
+                  {/* The three, and their copy, live in one file — this was
+                      two options here and a different two on the phone, for
+                      one column. */}
+                  <AccessChoice value={access} onChange={setAccess} />
                 </fieldset>
 
                 <div className="row">

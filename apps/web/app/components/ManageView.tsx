@@ -13,9 +13,10 @@
  * ability to decline is theoretical.
  */
 
-import { REQUEST_ACCESS } from '@parea/core';
+import { LINK_OPEN, REQUEST_ACCESS } from '@parea/core';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ACCESS_OPTIONS, AccessChoice, type AccessPolicy } from './AccessChoice';
 import { useImageFailure } from './useImageFailure';
 
 type PendingReport = {
@@ -55,6 +56,9 @@ export function ManageView({
   };
 }) {
   const [joinsOpen, setJoinsOpen] = useState(initial.joinsOpen);
+  const [access, setAccess] = useState<AccessPolicy>(
+    (ACCESS_OPTIONS.find((o) => o.value === initial.accessPolicy)?.value ?? LINK_OPEN),
+  );
   const [uploadsOpen, setUploadsOpen] = useState(initial.uploadsOpen);
   const [reports, setReports] = useState<PendingReport[]>([]);
   const [link, setLink] = useState(initial.url);
@@ -104,10 +108,13 @@ export function ManageView({
    * event does not have.
    */
   const loadRequests = useCallback(async () => {
-    if (initial.accessPolicy !== REQUEST_ACCESS) return;
+    // The live value, not the one the page was rendered with: the policy is
+    // changeable on this screen now, and reading the prop would leave somebody
+    // who has just turned approval on looking at a section that never fills.
+    if (access !== REQUEST_ACCESS) return;
     const res = await fetch(`/api/events/${eventId}/access-requests`);
     if (res.ok) setRequests((await res.json()).requests);
-  }, [eventId, initial.accessPolicy]);
+  }, [access, eventId]);
 
   /**
    * Who you could add, and who is already here.
@@ -235,7 +242,11 @@ export function ManageView({
     }
   }
 
-  async function setSwitch(patch: { joinsOpen?: boolean; uploadsOpen?: boolean }) {
+  async function setSwitch(patch: {
+    joinsOpen?: boolean;
+    uploadsOpen?: boolean;
+    accessPolicy?: AccessPolicy;
+  }) {
     setBusy('switch');
     try {
       const res = await fetch(`/api/events/${eventId}`, {
@@ -247,6 +258,9 @@ export function ManageView({
       const next = await res.json();
       setJoinsOpen(next.joinsOpen);
       setUploadsOpen(next.uploadsOpen);
+      // Read back rather than assumed: the server is the one that decides
+      // whether a policy is a policy, and it answers with what it stored.
+      setAccess(next.accessPolicy);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -421,7 +435,7 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'members' && initial.accessPolicy === REQUEST_ACCESS && (
+      {tab === 'members' && access === REQUEST_ACCESS && (
         <section className="panel">
           <h2>Requests</h2>
           <p className="panel-note">
@@ -559,6 +573,26 @@ export function ManageView({
               </div>
             ))
           )}
+        </section>
+      )}
+
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>Who can see it</h2>
+          {/*
+            Changeable now. It was set in the first thirty seconds of an
+            album's life and fixed forever after, which is the wrong way round:
+            nobody has been sent anything yet at that moment, and what you want
+            is obvious only once they have.
+          */}
+          <AccessChoice
+            value={access}
+            disabled={busy === 'switch'}
+            onChange={(next) => {
+              if (next !== access) void setSwitch({ accessPolicy: next });
+            }}
+            note="Tightening this stops new people. Everyone already here stays."
+          />
         </section>
       )}
 

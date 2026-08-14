@@ -10,7 +10,7 @@
  * creator, so no listing path needs a special case.
  */
 
-import { schema } from '@parea/core';
+import { ACCOUNT_REQUIRED, LINK_OPEN, REQUEST_ACCESS, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -37,6 +37,7 @@ export async function PATCH(
     caption?: unknown;
     joinsOpen?: unknown;
     uploadsOpen?: unknown;
+    accessPolicy?: unknown;
   };
 
   const db = getDb();
@@ -55,6 +56,7 @@ export async function PATCH(
     caption?: string | null;
     joinsOpen?: boolean;
     uploadsOpen?: boolean;
+    accessPolicy?: typeof LINK_OPEN | typeof ACCOUNT_REQUIRED | typeof REQUEST_ACCESS;
   } = {};
 
   /*
@@ -82,6 +84,35 @@ export async function PATCH(
 
   if (typeof body.joinsOpen === 'boolean') patch.joinsOpen = body.joinsOpen;
   if (typeof body.uploadsOpen === 'boolean') patch.uploadsOpen = body.uploadsOpen;
+
+  /*
+   * Who can see it, changed after the fact.
+   *
+   * It was write-once until now, which reads as a safety property and is not
+   * one: the choice is made in the first thirty seconds of an album's life,
+   * before anybody has been sent anything, and being unable to loosen it left
+   * five albums here permanently making people ask to get in. Nothing about
+   * the model needs it fixed — `authorize` reads the column on every request,
+   * so a change takes effect at once in both directions.
+   *
+   * The list is checked against the three known values rather than passed
+   * through: `authorize` denies any policy it does not recognise, so a typo
+   * written here would lock everybody out of an album including its host, with
+   * no way back because the only way back is this endpoint.
+   *
+   * Tightening does not evict anyone. Whoever is already a participant stays
+   * one — `authorize` reads participation before the policy — so switching to
+   * approval stops new people rather than removing the people already in. The
+   * screen says so, because "private" sounds like it should mean the opposite.
+   */
+  if (typeof body.accessPolicy === 'string') {
+    const known = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS] as const;
+    const chosen = known.find((policy) => policy === body.accessPolicy);
+    if (!chosen) {
+      return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
+    }
+    patch.accessPolicy = chosen;
+  }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'nothing_to_change' }, { status: 400 });
   }
@@ -97,6 +128,7 @@ export async function PATCH(
     caption: updated!.caption,
     joinsOpen: updated!.joinsOpen,
     uploadsOpen: updated!.uploadsOpen,
+    accessPolicy: updated!.accessPolicy,
   });
 }
 
