@@ -68,7 +68,10 @@ export function PhotoComments({
   return (
     <div className="photo-thread">
       {here.map((message) => (
-        <div className="message" key={message.id}>
+        <div
+          className={`message${message.author.mine ? ' message-mine' : ''}`}
+          key={message.id}
+        >
           <span className="message-face" aria-hidden="true">
             {message.author.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
           </span>

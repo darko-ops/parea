@@ -973,6 +973,25 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .thread-empty { font-size: 13.5px; line-height: 1.5; margin: 0; }
 
 .message { display: flex; gap: 10px; }
+/* Yours on the right, everybody else's on the left — the arrangement every
+   message list has, and the reason it is worth having is that you can tell
+   whose a message is before reading a word of it.
+
+   Mirrored rather than restyled: the same row, reversed, so there is one set of
+   rules for a message and the side is the only difference. The avatar goes with
+   it, which is what makes a short message on a wide column still obviously
+   yours — alignment alone is a weak signal when the text is three words. */
+.message-mine { flex-direction: row-reverse; }
+.message-mine .message-body { text-align: right; }
+/* The meta line and the reactions have to turn round too, or the name, the
+   time and the menu stay pinned to an edge the message is no longer on. */
+.message-mine .message-meta { flex-direction: row-reverse; }
+.message-mine .message-meta .dots { margin-left: 0; margin-right: auto; }
+.message-mine .reactions { justify-content: flex-end; }
+/* The edit box is a form, not prose: right-aligned text in a textarea you are
+   typing into is somebody else's idea of helpful. */
+.message-mine .message-edit { text-align: left; }
+.message-mine .message-edit .row { justify-content: flex-end; }
 /* The same construction as `.chip-face` at 20 and `.you-face` at 64: a letter
    until there is a picture, and there is never a picture here — a column of
    28px avatars beside 14.5px text is a column of thumbnails of faces, which is
@@ -1002,25 +1021,38 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    One glyph rather than two links. "Edit" and "Delete" sat on every message you
    had written — a standing invitation to delete, competing with the name and
    the time for a 360px line. */
-.msg-menu { position: relative; margin-left: auto; }
-.msg-menu-go {
-  padding: 0 4px; background: none; border: 0; cursor: pointer;
+ /* Three dots and the panel they open. Two of these — the options on your own
+    message, and the event's settings in the head — so one set of rules. */
+.dots { position: relative; flex: none; }
+/* In a message's meta line it goes to the end of the row; in the event head it
+   is one control among several and sits where it is put. */
+.message-meta .dots { margin-left: auto; }
+.dots-go {
+  padding: 0 6px; background: none; border: 0; cursor: pointer;
   font-size: 13px; font-weight: 400; letter-spacing: .08em; color: var(--dim);
   line-height: 1;
 }
-.msg-menu-go:hover { color: var(--fg); }
-/* The download menu's popover, reused. A second one with its own look is how
-   an interface starts to feel assembled rather than designed. */
-.msg-menu .menu-body { width: 150px; padding: 6px; gap: 2px; }
-.msg-menu .menu-body button {
-  width: 100%; text-align: left;
+.dots-go:hover { color: var(--fg); }
+/* In the head the control sits among 36px buttons and needs the height to be
+   pressable, rather than being six pixels of glyph. */
+.event-head .dots-go {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px; font-size: 15px;
+}
+.event-head .dots-go:hover { background: var(--track); }
+/* The download menu's popover, reused. */
+.dots-body { width: 170px; padding: 6px; gap: 2px; }
+.dots-left { right: auto; left: 0; }
+.dots-body button, .dots-body a {
+  display: block; width: 100%; text-align: left;
   padding: 8px 10px; border-radius: 8px;
   background: none; color: var(--fg); font-size: 14px; font-weight: 500;
+  text-decoration: none; border: 0; cursor: pointer;
 }
-.msg-menu .menu-body button:hover { background: var(--track); }
+.dots-body button:hover, .dots-body a:hover { background: var(--track); }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
-.msg-menu .menu-body .menu-danger { color: #b3261e; }
+.dots-body .menu-danger { color: #b3261e; }
 
 /* The reaction picker opens in place, and closes the same way — the `+`
    becomes a `×`, and a click anywhere else or Escape also shuts it. A picker

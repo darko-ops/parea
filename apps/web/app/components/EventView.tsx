@@ -32,6 +32,7 @@ import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
+import { Menu } from './Menu';
 import { Thread, ThreadSheet } from './Thread';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PhotoTile } from './PhotoTile';
@@ -283,12 +284,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
                 <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
               </>
             )}
-            {feed.event.canAdminister && (
-              <>
-                {' · '}
-                <a href={`/event/${eventId}/manage`}>Manage</a>
-              </>
-            )}
+
           </p>
         </div>
 
@@ -335,6 +331,31 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
               {downloadError && <p className="muted">{downloadError}</p>}
             </div>
           </details>
+        )}
+
+        {/*
+          The event's own settings, where a "Manage" link used to sit in the
+          sub-line under the name.
+
+          It was a hyperlink in a sentence of counts — the one control on the
+          page you could only find by reading a line that is otherwise a
+          description — and it is the same kind of thing as the options on a
+          message, so it is the same control. Only for somebody who can
+          administer the event; for everybody else there is nothing behind it
+          and no button.
+        */}
+        {feed.event.canAdminister && (
+          <Menu label="Event settings">
+            {() => (
+              // One item, and deliberately: every setting an event has already
+              // lives on one page, and copying two of them up here would be two
+              // places to change the same switch. The menu is where event-level
+              // things will accumulate — it is not a list that needed padding.
+              <a role="menuitem" href={`/event/${eventId}/manage`}>
+                Manage event
+              </a>
+            )}
+          </Menu>
         )}
 
         {/*

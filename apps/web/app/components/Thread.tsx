@@ -27,6 +27,7 @@ import { createPortal } from 'react-dom';
 
 import { REACTIONS, type Message } from '@/messages';
 
+import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
 
 type Person = { key: string; name: string; photoCount: number; mine: boolean };
@@ -161,19 +162,13 @@ export function ThreadSheet({
 }
 
 /**
- * Closes a thing when you click away from it or press Escape.
+ * Closes the reaction picker on a click away or Escape.
  *
- * Written once because there are two of these on every message — the actions
- * menu and the reaction picker — and a popover that can only be closed by
- * pressing the exact control that opened it is a popover people leave open.
- * Both of the alternatives were considered and are worse: a `<details>` gets
- * the toggle for free but ignores clicks elsewhere on the page, and closing on
- * blur fires when focus moves *inside* the panel, which shuts the menu on the
- * way to the button you were reaching for.
- *
- * `mousedown` rather than `click`: a click that starts inside the panel and
- * ends outside it is not a click away, and listening for the later event
- * closes the panel between a button being pressed and its handler running.
+ * The same three rules `Menu` applies to its panel, and for the same reason —
+ * a picker whose only exit is choosing something is a picker that makes you
+ * react to get rid of it. Not shared with `Menu` itself because the picker is
+ * not a popover: its buttons sit in the row of reactions rather than in a
+ * panel over them, so there is nothing to hand a `children` function.
  */
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -472,7 +467,7 @@ function Row({
   }
 
   return (
-    <div className="message">
+    <div className={`message${message.author.mine ? ' message-mine' : ''}`}>
       <span className="message-face" aria-hidden="true">
         {message.author.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
       </span>
@@ -559,56 +554,30 @@ function Row({
  *
  * Two links reading "Edit" and "Delete" sat on every message you had written,
  * which put a permanent invitation to delete beside every one of them — and on
- * a narrow column they competed with the name and the time for the same line.
- * A menu says the same thing in one glyph and only shows the dangerous half
- * when asked.
- *
- * The panel is the popover the download menu already uses. Same shadow, same
- * radius, same edge — a second popover with its own look is how an interface
- * starts to feel assembled rather than designed.
+ * a 360px column they competed with the name and the time for the same line.
+ * One glyph says the same thing and only shows the dangerous half when asked.
  */
 function MessageMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useDismiss(open, useCallback(() => setOpen(false), []));
-
   return (
-    <div className="msg-menu" ref={ref}>
-      <button
-        className="msg-menu-go"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Options for your message"
-        onClick={() => setOpen(!open)}
-      >
-        {'\u00b7\u00b7\u00b7'}
-      </button>
-      {open && (
-        <div className="menu-body" role="menu">
-          <button
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onEdit();
-            }}
-          >
+    <Menu label="Options for your message">
+      {(close) => (
+        <>
+          <button role="menuitem" onClick={() => { close(); onEdit(); }}>
             Edit
           </button>
-          {/* Set in the danger colour rather than given the filled `.danger`
-              treatment: a red slab inside a two-item menu shouts, and this is
-              still only a message. */}
+          {/* The danger colour on the text, not the filled `.danger` treatment:
+              a red slab in a two-item menu shouts, and this is still only a
+              message. */}
           <button
             role="menuitem"
             className="menu-danger"
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
+            onClick={() => { close(); onDelete(); }}
           >
             Delete
           </button>
-        </div>
+        </>
       )}
-    </div>
+    </Menu>
   );
 }
 
