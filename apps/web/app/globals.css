@@ -869,6 +869,30 @@ button.secondary {
 /* A photo that arrived while you were looking. A ring rather than a badge:
    whatever marks it has to not cover any of it. */
 .tile-new { box-shadow: 0 0 0 2px var(--accent); }
+/* A picked one, while selecting. The same ring, plus a wash — a ring alone is
+   what "just arrived" already means, and on a grid where both can be true at
+   once they have to be distinguishable. */
+.tile-picked { box-shadow: 0 0 0 3px var(--accent); }
+.tile-picked picture { opacity: .72; }
+/* Unpicked tiles stay fully legible: dimming everything except the selection
+   would make choosing harder, which is the one thing this mode is for. */
+
+/* The bar for a selection. In the flow at the foot of the body rather than
+   floating over the grid — a floating bar covers the bottom row of exactly the
+   thing being chosen from. */
+.picking {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--accent); background: var(--accent-soft);
+  border-radius: 14px; padding: 12px 14px;
+}
+.picking-count { flex: 1; font-size: 14px; font-weight: 600; color: var(--accent); }
+.picking button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
+.picking .secondary { background: var(--card); }
+
+/* The share panel: the same rows the create screen's aside uses, because it is
+   the same object — a link and a spoken code, to be passed on. */
+.share h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 12px; }
+.share p { font-size: 13px; line-height: 1.5; margin: 10px 0 0; }
 
 /* The upload block: folded away at the foot of the page. */
 .uploads { border: 1px solid var(--line); border-radius: 14px; }
@@ -1040,16 +1064,27 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   width: 36px; height: 36px; border-radius: 8px; font-size: 15px;
 }
 .event-head .dots-go:hover { background: var(--track); }
+/* The `+`, which is the page's main action and so the filled one. Sized to
+   match the buttons it replaced rather than to the glyph, or it becomes a
+   small blue square beside a 36px control. */
+.event-head .dots-primary {
+  background: var(--accent); color: #fff; font-size: 20px; font-weight: 400;
+}
+.event-head .dots-primary:hover { background: var(--accent); filter: brightness(1.06); }
 /* The download menu's popover, reused. */
-.dots-body { width: 170px; padding: 6px; gap: 2px; }
+.dots-body { width: 210px; padding: 6px; gap: 2px; }
 .dots-left { right: auto; left: 0; }
-.dots-body button, .dots-body a {
+.dots-body button, .dots-body a, .dots-body label {
   display: block; width: 100%; text-align: left;
   padding: 8px 10px; border-radius: 8px;
   background: none; color: var(--fg); font-size: 14px; font-weight: 500;
   text-decoration: none; border: 0; cursor: pointer;
 }
-.dots-body button:hover, .dots-body a:hover { background: var(--track); }
+.dots-body button:hover, .dots-body a:hover, .dots-body label:hover { background: var(--track); }
+.dots-body button:disabled { opacity: .5; }
+/* `label` is `display:block; margin-bottom:12px; font-weight:600` globally,
+   which inside a menu is a heading with a gap under it rather than an item. */
+.dots-body label { margin: 0; cursor: pointer; }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
 .dots-body .menu-danger { color: #b3261e; }

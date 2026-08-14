@@ -20,11 +20,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function Menu({
   label,
+  glyph = '···',
+  tone,
   align = 'right',
   children,
 }: {
   /** What a screen reader announces. The glyph itself says nothing. */
   label: string;
+  /** What is drawn on the button. */
+  glyph?: string;
+  /** `primary` fills it, for the one menu that is the page's main action. */
+  tone?: 'primary';
   /** Which edge the panel hangs from. `left` for a control near the page edge. */
   align?: 'left' | 'right';
   /** Rendered inside the panel, and given `close` so an item can dismiss it. */
@@ -59,13 +65,13 @@ export function Menu({
   return (
     <div className="dots" ref={ref}>
       <button
-        className="dots-go"
+        className={`dots-go${tone === 'primary' ? ' dots-primary' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
         onClick={() => setOpen(!open)}
       >
-        {'···'}
+        {glyph}
       </button>
       {open && (
         <div className={`menu-body dots-body${align === 'left' ? ' dots-left' : ''}`} role="menu">

@@ -57,6 +57,23 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
  * skipping the question.
  */
 export default function CreatePage() {
+  /*
+   * The group this event belongs to, if it was started from one.
+   *
+   * Read off the URL rather than held in state anywhere, because the journey
+   * that sets it is a link from another page — "New event in Sunday Crew" in
+   * an event's `+` menu. The API has always taken a `groupId` and checked
+   * membership before honouring it; nothing on the web ever sent one.
+   *
+   * `window.location` rather than `useSearchParams`, which would put this
+   * page's whole subtree behind a Suspense boundary for one string.
+   */
+  const [groupId, setGroupId] = useState<string | null>(null);
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get('group');
+    setGroupId(value && /^[0-9a-f-]{36}$/i.test(value) ? value : null);
+  }, []);
+
   const [step, setStep] = useState<'photos' | 'details'>('photos');
   const [picked, setPicked] = useState<File[]>([]);
   const [skipped, setSkipped] = useState(0);
@@ -118,6 +135,8 @@ export default function CreatePage() {
             startsAt: window?.startsAt ?? null,
             endsAt: window?.endsAt ?? null,
             accessPolicy: access,
+            // Ignored by the server unless this person is in that group.
+            groupId: groupId ?? undefined,
           }),
         });
         if (!res.ok) throw new Error(await explain(res));

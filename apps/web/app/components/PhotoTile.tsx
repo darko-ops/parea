@@ -23,12 +23,20 @@ export function PhotoTile({
   src,
   sources,
   className,
+  selected,
   onOpen,
 }: {
   src: string;
   sources?: { type: string; src: string }[];
   /** Extra treatment for the tile itself — the ring on a just-arrived photo. */
   className?: string;
+  /**
+   * Whether this tile is picked, while the grid is in selection mode.
+   * `undefined` means the grid is not selecting, and the tile is a way in to
+   * the photo rather than a checkbox — which is what `aria-pressed` would
+   * otherwise claim it always was.
+   */
+  selected?: boolean;
   onOpen: () => void;
 }) {
   const { ref, failed, onError } = useImageFailure(src);
@@ -37,7 +45,16 @@ export function PhotoTile({
     <button
       className={className ? `tile ${className}` : 'tile'}
       onClick={onOpen}
-      aria-label={failed ? 'Photo could not be loaded — open for options' : 'Open photo'}
+      aria-pressed={selected}
+      aria-label={
+        selected !== undefined
+          ? selected
+            ? 'Selected — press to unselect'
+            : 'Select this photo'
+          : failed
+            ? 'Photo could not be loaded — open for options'
+            : 'Open photo'
+      }
     >
       {failed ? (
         // Dashed, because dashed already means "nothing here" everywhere else

@@ -70,6 +70,10 @@ type Feed = {
     groupName: string | null;
     /** ISO, when the host said when it was. Captions the earlier section. */
     startsAt: string | null;
+    /** For the share panel. Everybody who can see the event can pass it on. */
+    linkToken: string;
+    /** The spoken code, when one is assigned. Null once it is released. */
+    code: string | null;
   };
   contributors: number;
   people: Person[];
@@ -100,6 +104,29 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [skipped, setSkipped] = useState(0);
   /** Which contributor's photos to show. Null is everyone. Client-only. */
   const [only, setOnly] = useState<string | null>(null);
+  /**
+   * Picking photos, and which ones.
+   *
+   * Null is not picking at all, which is a different state from picking none —
+   * the grid only grows checkboxes in the first case, and the bar at the foot
+   * only appears in the second. The endpoint has taken a `photoIds` selection
+   * since it was written ("a selection can be hundreds of ids"); this is the
+   * screen that finally sends one.
+   */
+  const [picked, setPicked] = useState<Set<string> | null>(null);
+  /** The share panel, which is what somebody who cannot manage gets instead. */
+  const [sharing, setSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  /**
+   * The site's own origin, read after mount.
+   *
+   * Not `process.env.APP_URL`: the link somebody copies has to be the host they
+   * are actually on, or a preview deployment hands out production URLs. Empty
+   * during the server render, which is why the panel is opened by a click and
+   * never on first paint.
+   */
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
 
@@ -215,14 +242,14 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   );
 
   const download = useCallback(
-    async (format: 'original' | 'jpeg') => {
+    async (format: 'original' | 'jpeg', photoIds?: string[]) => {
       setDownloading(true);
       setDownloadError(null);
       try {
         const res = await fetch(`/api/events/${eventId}/download`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ format }),
+          body: JSON.stringify({ format, photoIds }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -253,6 +280,16 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
 
   const fresh = visible.filter((photo) => !atArrival.current.has(photo.id));
   const earlier = visible.filter((photo) => atArrival.current.has(photo.id));
+
+  const togglePick = useCallback((id: string) => {
+    setPicked((current) => {
+      if (!current) return current;
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const mine = feed.people.find((person) => person.mine) ?? null;
   const others = feed.people.filter((person) => !person.mine);
@@ -300,123 +337,116 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           </span>
         )}
 
-        {feed.photos.length > 0 && (
-          /*
-            Still two options, not one button that silently picks — design
-            §7.7. Originals are the promise the product makes and converting
-            behind someone's back would break it; but a folder of iPhone HEICs
-            is unopenable on plenty of Android phones and Windows machines, and
-            finding that out after the download is worse than being asked. What
-            has changed is only that the question is folded away until asked,
-            because it was a permanent panel above the photographs.
-          */
-          <details className="menu">
-            <summary className="button-like">Download all</summary>
-            <div className="menu-body">
-              <button onClick={() => download('original')} disabled={downloading}>
-                {downloading ? 'Preparing…' : `All ${feed.count} at full quality`}
-              </button>
-              <button
-                className="secondary"
-                onClick={() => download('jpeg')}
-                disabled={downloading}
-              >
-                Download as JPEG
-              </button>
-              <p className="muted">
-                Originals are exactly what the cameras produced. JPEG is smaller
-                and opens anywhere — worth choosing if any of these came from an
-                iPhone and you are not on one.
-              </p>
-              {downloadError && <p className="muted">{downloadError}</p>}
-            </div>
-          </details>
-        )}
-
         {/*
-          The event's own settings, where a "Manage" link used to sit in the
-          sub-line under the name.
+          Two menus and nothing else.
 
-          It was a hyperlink in a sentence of counts — the one control on the
-          page you could only find by reading a line that is otherwise a
-          description — and it is the same kind of thing as the options on a
-          message, so it is the same control. Only for somebody who can
-          administer the event; for everybody else there is nothing behind it
-          and no button.
+          The head used to be a pill, a Download button and a filled Add photos
+          button, which is three things competing at the top of a page whose
+          subject is underneath them. Now it is a `+` for putting things in and
+          a `···` for everything else — the same pair, in the same order, that
+          the rest of the product uses.
         */}
-        {feed.event.canAdminister && (
-          <Menu label="Event settings">
-            {() => (
-              // One item, and deliberately: every setting an event has already
-              // lives on one page, and copying two of them up here would be two
-              // places to change the same switch. The menu is where event-level
-              // things will accumulate — it is not a list that needed padding.
-              <a role="menuitem" href={`/event/${eventId}/manage`}>
-                Manage event
-              </a>
+        {feed.event.uploadsOpen && session.account && (
+          <Menu label="Add to this event" glyph="+" tone="primary">
+            {(close) => (
+              <>
+                {/*
+                  A label, not a button that calls `.click()`. A label *is* the
+                  control for the input it names, so keyboard, pointer and
+                  screen reader all work with nothing scripted — and the input
+                  itself lives outside the menu, because a menu that unmounts
+                  on choose would take the file dialog's own input with it.
+                */}
+                {/*
+                  `aria-disabled`, never `disabled` — a label has no such
+                  attribute and setting one is inert. The real disabling is on
+                  the input; this is so the item does not look pressable while a
+                  batch is running, which it would otherwise do while quietly
+                  doing nothing.
+                */}
+                <label
+                  htmlFor="add-photos"
+                  aria-disabled={uploads.running || undefined}
+                  onClick={close}
+                >
+                  {uploads.running ? 'Adding…' : 'Add photos'}
+                </label>
+                {feed.event.groupId && (
+                  <a href={`/?group=${feed.event.groupId}`}>
+                    New event in {feed.event.groupName}
+                  </a>
+                )}
+              </>
             )}
           </Menu>
         )}
 
-        {/*
-          The thread, on a phone. The column beside the grid is hidden below
-          the breakpoint, so this is how the same conversation is reached —
-          and it carries the count, which the column does not need because the
-          column is already on screen.
-        */}
-        <ThreadSheet
-          eventId={eventId}
-          messages={feed.messages}
-          canPost={feed.canPost}
-          people={feed.people}
-          onChanged={refresh}
-          unread={unread}
-          onOpened={markSeen}
-        />
-
+        <Menu label="This event" glyph="···">
+          {(close) => (
+            <>
+              {/*
+                Settings, for the people who have any. Everybody else gets the
+                share panel instead — see `Share`.
+              */}
+              {feed.event.canAdminister && (
+                <a href={`/event/${eventId}/manage`}>Manage event</a>
+              )}
+              {feed.photos.length > 0 && (
+                <>
+                  <button
+                    onClick={() => {
+                      close();
+                      setPicked(new Set());
+                    }}
+                  >
+                    Select images
+                  </button>
+                  <button
+                    disabled={downloading}
+                    onClick={() => {
+                      close();
+                      void download('original');
+                    }}
+                  >
+                    {downloading ? 'Preparing…' : 'Download all'}
+                  </button>
+                  <button
+                    disabled={downloading}
+                    onClick={() => {
+                      close();
+                      void download('jpeg');
+                    }}
+                  >
+                    Download all as JPEG
+                  </button>
+                </>
+              )}
+              <button onClick={() => { close(); setSharing(true); }}>
+                Share this event
+              </button>
+            </>
+          )}
+        </Menu>
         {feed.event.uploadsOpen && session.account && (
-          <>
-            {/*
-              The input is hidden and a label does its job. Left to itself the
-              browser renders "Choose Files / No file chosen", which reads as
-              form plumbing rather than as the one thing this page is for. A
-              label rather than a button calling `.click()`: a label *is* the
-              control for the input it names, so keyboard, pointer and screen
-              reader all work with nothing scripted.
-
-              `aria-disabled` and not `disabled`, which a label does not have.
-              The input underneath carries the real one, so a press mid-batch
-              already does nothing; this is so it does not look like it should.
-            */}
-            <label
-              className="button-like primary"
-              htmlFor="add-photos"
-              aria-disabled={uploads.running || undefined}
-            >
-              {uploads.running ? 'Adding…' : 'Add photos'}
-            </label>
-            <input
-              id="add-photos"
-              className="visually-hidden"
-              ref={inputRef}
-              type="file"
-              multiple
-              // The same list the presign endpoint enforces, spelled out rather
-              // than an image wildcard. The wildcard is a superset — it offers
-              // TIFF, BMP and SVG, which the server then refuses, and one
-              // refusal fails the whole batch rather than the one file.
-              // Offering only what will be accepted is the difference between a
-              // greyed-out file and a failed upload.
-              //
-              // Written without the literal wildcard token on purpose: it
-              // contains a block-comment opener, and a source-scanning test that
-              // strips comments will swallow this attribute along with it. That
-              // is not hypothetical — see test/accepted-types.test.ts.
-              accept={ACCEPT_ATTRIBUTE}
-              disabled={uploads.running}
-              onChange={(e) => pick(Array.from(e.target.files ?? []))}
-            />
-          </>
+          <input
+            id="add-photos"
+            className="visually-hidden"
+            ref={inputRef}
+            type="file"
+            multiple
+            // The same list the presign endpoint enforces, spelled out rather
+            // than an image wildcard. The wildcard is a superset — it offers
+            // TIFF, BMP and SVG, which the server then refuses, and one refusal
+            // fails the whole batch rather than the one file.
+            //
+            // Written without the literal wildcard token on purpose: it
+            // contains a block-comment opener, and a source-scanning test that
+            // strips comments will swallow this attribute along with it. That
+            // is not hypothetical — see test/accepted-types.test.ts.
+            accept={ACCEPT_ATTRIBUTE}
+            disabled={uploads.running}
+            onChange={(e) => pick(Array.from(e.target.files ?? []))}
+          />
         )}
       </header>
 
@@ -504,6 +534,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
                 caption={freshCaption(fresh, feed.people)}
                 photos={fresh}
                 highlight
+                picked={picked}
+                onPick={togglePick}
                 onOpen={setOpenPhoto}
               />
             )}
@@ -513,12 +545,90 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
                   label="EARLIER"
                   caption={earlierCaption(feed.event.startsAt, earlier)}
                   photos={earlier}
+                  picked={picked}
+                  onPick={togglePick}
                   onOpen={setOpenPhoto}
                 />
               ) : (
-                <Grid photos={earlier} onOpen={setOpenPhoto} />
+                <Grid
+                  photos={earlier}
+                  picked={picked}
+                  onPick={togglePick}
+                  onOpen={setOpenPhoto}
+                />
               ))}
           </>
+        )}
+
+        {/*
+          The bar for a selection, at the foot of the body rather than floating
+          over the grid: it appears when the mode starts and it says how to
+          leave, because while it is up a tile picks instead of opening — and
+          the lightbox is where the reporting actions are.
+        */}
+        {picked && (
+          <div className="picking">
+            <span className="picking-count">
+              {picked.size === 0
+                ? 'Pick the ones you want'
+                : `${picked.size} selected`}
+            </span>
+            <button
+              disabled={picked.size === 0 || downloading}
+              onClick={() => download('original', [...picked])}
+            >
+              {downloading ? 'Preparing…' : 'Download these'}
+            </button>
+            <button
+              className="secondary"
+              disabled={picked.size === 0 || downloading}
+              onClick={() => download('jpeg', [...picked])}
+            >
+              As JPEG
+            </button>
+            <button className="secondary" onClick={() => setPicked(null)}>
+              Done
+            </button>
+          </div>
+        )}
+
+        {downloadError && <p className="muted">{downloadError}</p>}
+
+        {/*
+          What somebody who cannot manage the event gets instead of settings:
+          the link, and the spoken code if it has one. See the note where these
+          are put on the feed — handing the link to every viewer means anybody
+          who can see the event can pass it on.
+        */}
+        {sharing && (
+          <section className="panel share">
+            <h2>Share this event</h2>
+            <div className="aside-row">
+              <span className="aside-link">{`${origin}/e/${feed.event.linkToken}`}</span>
+              <button
+                className="as-text"
+                onClick={() =>
+                  navigator.clipboard
+                    ?.writeText(`${origin}/e/${feed.event.linkToken}`)
+                    .then(() => setCopied(true))
+                    .catch(() => {})
+                }
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            {feed.event.code && (
+              <p className="muted">Or say: {feed.event.code}</p>
+            )}
+            <p className="muted">
+              Anybody with this can open the event and add their photos.
+            </p>
+            <div className="row">
+              <button className="secondary" onClick={() => setSharing(false)}>
+                Done
+              </button>
+            </div>
+          </section>
         )}
 
         {/*
@@ -590,12 +700,16 @@ function Section({
   caption,
   photos,
   highlight,
+  picked,
+  onPick,
   onOpen,
 }: {
   label: string;
   caption: string | null;
   photos: Photo[];
   highlight?: boolean;
+  picked: Set<string> | null;
+  onPick: (id: string) => void;
   onOpen: (photo: Photo) => void;
 }) {
   return (
@@ -604,7 +718,13 @@ function Section({
         <strong>{label}</strong>
         {caption && <span>{caption}</span>}
       </div>
-      <Grid photos={photos} highlight={highlight} onOpen={onOpen} />
+      <Grid
+        photos={photos}
+        highlight={highlight}
+        picked={picked}
+        onPick={onPick}
+        onOpen={onOpen}
+      />
     </section>
   );
 }
@@ -612,10 +732,15 @@ function Section({
 function Grid({
   photos,
   highlight,
+  picked,
+  onPick,
   onOpen,
 }: {
   photos: Photo[];
   highlight?: boolean;
+  /** Null when not selecting. A tile opens the lightbox; otherwise it picks. */
+  picked: Set<string> | null;
+  onPick: (id: string) => void;
   onOpen: (photo: Photo) => void;
 }) {
   return (
@@ -630,8 +755,18 @@ function Grid({
           key={photo.id}
           src={photo.src}
           sources={photo.sources}
-          className={highlight ? 'tile-new' : undefined}
-          onOpen={() => onOpen(photo)}
+          className={[
+            highlight ? 'tile-new' : '',
+            picked?.has(photo.id) ? 'tile-picked' : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined}
+          // While selecting, a tile picks rather than opens. The lightbox is
+          // where the safety actions live, so this is the one mode in which
+          // they are a mode away — which is why the bar at the foot says how
+          // to leave it.
+          selected={picked ? picked.has(photo.id) : undefined}
+          onOpen={() => (picked ? onPick(photo.id) : onOpen(photo))}
         />
       ))}
     </div>

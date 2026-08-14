@@ -125,6 +125,23 @@ export async function GET(
     contributorKey(event.id, actorId),
   );
 
+
+  /*
+   * The share details, for everybody who can already see the event.
+   *
+   * A widening, and worth being explicit about: until now the link lived on
+   * the manage page, so only the creator and a group admin could pass it on.
+   * Participation deliberately is not a credential — somebody who opened a
+   * link once and lost it could not let anybody else in — and handing the link
+   * to every viewer means anybody who can see the event can now invite. That is
+   * what "everybody else sees the share info" asks for, and `joins_open` is
+   * still the switch that decides whether a link admits anyone at all.
+   */
+  const [spoken] = await db
+    .select({ words: schema.codes.words })
+    .from(schema.codes)
+    .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt)));
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -134,6 +151,8 @@ export async function GET(
       groupId: event.groupId,
       groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
       startsAt: event.startsAt?.toISOString() ?? null,
+      linkToken: event.linkToken,
+      code: spoken?.words ?? null,
     },
     contributors,
     people,

@@ -25,9 +25,16 @@ const CREATE = read('../app/page.tsx');
 const CSS = read('../app/globals.css');
 
 describe('adding photos to an event', () => {
-  it('is a button, not the browser default control', () => {
-    expect(EVENT).toMatch(/<label[\s\S]{0,200}className="button-like primary"/);
+  it('is a control somebody can find, not the browser default', () => {
+    // The shape moved — the filled button became an item inside the `+` menu
+    // in the head — but the property being defended did not: a `<label>` for
+    // the input rather than the input itself, which the browser renders as
+    // "Choose Files / No file chosen".
+    expect(EVENT).toMatch(/<label\b/);
     expect(EVENT).toMatch(/Add photos/);
+    // That the input itself is hidden is the next test's job — asserting it
+    // here as a negative match needs the attributes in a fixed order, which
+    // they are not: the class sits three lines above the type.
   });
 
   it('hides the input the label drives', () => {
@@ -44,6 +51,13 @@ describe('adding photos to an event', () => {
     // it — and without this rule that stop is on nothing a sighted keyboard
     // user can see.
     expect(CSS).toMatch(/input\.visually-hidden:focus-visible\) \.button-like/);
+  });
+
+  it('is behind the head\u2019s + menu, which stays the primary action', () => {
+    // The head is two menus now. If the `+` ever stops being the filled one,
+    // the page's main action is a grey glyph among grey glyphs.
+    expect(EVENT).toMatch(/glyph="\+" tone="primary"/);
+    expect(CSS).toMatch(/\.dots-primary\s*\{[^}]*background: var\(--accent\)/);
   });
 
   it('does not disable a label, which cannot be disabled', () => {
