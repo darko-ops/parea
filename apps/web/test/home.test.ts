@@ -17,6 +17,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CardEvent } from '@/cards';
 import type { Db } from '@/db';
 import { eventsFor } from '@/events';
+import { matches, searchable } from '@/search';
 import { isLive, LIVE_WINDOW_MS } from '@/../app/components/EventHero';
 
 const MIGRATIONS = fileURLToPath(
@@ -99,17 +100,16 @@ describe('the order the list comes back in', () => {
     expect(names).toEqual(['newer', 'older']);
   });
 
-  it('is alphabetical by place when asked, with the placeless last', async () => {
-    // Last, not first. An event with no place is the one this sort has
-    // nothing to say about, and putting it at the top makes the first screen
-    // the least useful one.
+  it('puts an event with no place in the list like any other', async () => {
+    // There was briefly a second ordering, alphabetical by place, which had to
+    // decide where a placeless event went. There is one order now — activity —
+    // and a missing place is not a fact about when something happened.
     const me = await person();
     await event('nowhere', null, NOW, me);
-    await event('zed', 'Zanzibar', NOW, me);
-    await event('abe', 'Aberdeen', NOW, me);
+    await event('somewhere', 'Zanzibar', new Date(NOW.getTime() - 60_000), me);
 
-    const names = (await eventsFor(db, me, 'place')).map((e) => e.name);
-    expect(names).toEqual(['abe', 'zed', 'nowhere']);
+    const names = (await eventsFor(db, me)).map((e) => e.name);
+    expect(names).toEqual(['nowhere', 'somewhere']);
   });
 
   it('counts contributors and arrivals apart from members', async () => {
@@ -135,5 +135,57 @@ describe('the order the list comes back in', () => {
     expect(listing!.contributorCount, 'contributors').toBe(1);
     expect(listing!.photoCount, 'photos').toBe(2);
     expect(listing!.arrivingCount, 'arriving').toBe(1);
+  });
+});
+
+describe('searching your own events', () => {
+  const of = (name: string, place: string | null = null) => searchable({ name, place });
+
+  it('matches anywhere in the name, not just the start', () => {
+    /*
+     * Deliberately unlike the handle search in `friends.ts`, which is
+     * prefix-only because a substring match there sweeps the account table
+     * with two common letters. This runs over a list the server already
+     * decided this person may see — their own events, already on the page —
+     * so there is nothing here that a match could disclose.
+     */
+    expect(matches(of('Sarah’s birthday'), 'birth')).toBe(true);
+    expect(matches(of('Sarah’s birthday'), 'sarah')).toBe(true);
+  });
+
+  it('ignores case, because nobody capitalises a search', () => {
+    expect(matches(of('Kefalonia, June'), 'KEFALONIA')).toBe(true);
+  });
+
+  it('searches the place as well as the name', () => {
+    // This is what let "By place" go: a whole-list re-ordering existed to
+    // answer "the Greece one", and typing it answers that without moving
+    // anything.
+    expect(matches(of('Sunday roast', 'The Anchor'), 'anchor')).toBe(true);
+  });
+
+  it('takes terms in any order, and not necessarily adjacent', () => {
+    // The two words somebody remembers are rarely next to each other, and
+    // rarely in the order they were written.
+    expect(matches(of('Sunday roast', 'The Anchor'), 'anchor roast')).toBe(true);
+    expect(matches(of('Sunday roast', 'The Anchor'), 'roast anchor')).toBe(true);
+  });
+
+  it('needs every term, not any of them', () => {
+    // `some` here would make a second word widen the search instead of
+    // narrowing it, which is the opposite of what typing more means.
+    expect(matches(of('Sunday roast', 'The Anchor'), 'roast kefalonia')).toBe(false);
+  });
+
+  it('matches everything when there is nothing to match', () => {
+    // What lets the caller filter unconditionally rather than branch on
+    // whether a search is running.
+    expect(matches(of('Anything'), '')).toBe(true);
+    expect(matches(of('Anything'), '   ')).toBe(true);
+  });
+
+  it('does not fall over an event with no place', () => {
+    expect(matches(of('Just a name', null), 'name')).toBe(true);
+    expect(matches(of('Just a name', null), 'null')).toBe(false);
   });
 });

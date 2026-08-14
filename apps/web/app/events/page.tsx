@@ -16,6 +16,12 @@
  * The same card as the You page and Invites, deliberately: one object, one
  * drawing of it, and `shell.test.ts` asserts every grid of events uses it.
  *
+ * One order, newest activity first. There was briefly a second — alphabetical
+ * by place — offered as a segmented control beside the heading. It was a
+ * whole-list re-ordering to answer one question ("the Greece one"), and search
+ * answers that question better and without moving anything: the list stays a
+ * timeline, which is the thing a home screen is for.
+ *
  * Not indexable: this lists what one person is in. `/` stays the public
  * landing page, and a crawler has no actor, so it never sees this.
  */
@@ -23,10 +29,12 @@
 import { CreateCard } from '@/../app/components/CreateCard';
 import { EventCard } from '@/../app/components/EventCard';
 import { EventHero, isLive } from '@/../app/components/EventHero';
+import { SearchEvents } from '@/../app/components/SearchEvents';
 import { Shell } from '@/../app/components/Shell';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { eventsFor, type EventSort } from '@/events';
+import { eventsFor } from '@/events';
+import { searchable } from '@/search';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -36,71 +44,47 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-const SORTS: { by: EventSort; label: string; href: string }[] = [
-  { by: 'recent', label: 'Recent', href: '/events' },
-  { by: 'place', label: 'By place', href: '/events?by=place' },
-];
-
-export default async function EventsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ by?: string }>;
-}) {
-  const { by } = await searchParams;
-  // Anything that is not the one alternative is the default, rather than an
-  // error page: `?by=` is a thing people edit and share, and a 400 for a typo
-  // in a sort order helps nobody.
-  const sort: EventSort = by === 'place' ? 'place' : 'recent';
-
-  const listings = await eventsFor(getDb(), await currentActorId(), sort);
+export default async function EventsPage() {
+  const listings = await eventsFor(getDb(), await currentActorId());
   const now = new Date();
   const cards = await toCards(listings, now);
 
+  // The hero is the live event, and only if it is the one at the top — which
+  // it is, since the list is ordered by activity. Anything else would be a
+  // large card labelled "still coming in" above fresher things than itself.
+  const hero = cards[0] && isLive(cards[0], now) ? cards[0] : null;
+
   /*
-   * The hero is the live event, and only when sorted by recency.
-   *
-   * Under "by place" the order is alphabetical, so the first card is not the
-   * most recent one and lifting it out of the list would put a random event at
-   * the top under a label claiming it is the active one. The list is the
-   * answer to the question that sort asks.
+   * Built here, not in the browser: the text a query is matched against is the
+   * same text the card draws, and deriving it twice is how the two come to
+   * disagree about whether the place counts.
    */
-  const hero = sort === 'recent' && cards[0] && isLive(cards[0], now) ? cards[0] : null;
-  const rest = hero ? cards.slice(1) : cards;
+  const haystacks = Object.fromEntries(cards.map((event) => [event.id, searchable(event)]));
 
   return (
     <Shell current="events">
       <main className="main">
-        <div className="main-head">
-          <h1>Home</h1>
+        <SearchEvents
+          haystacks={haystacks}
+          heading={<h1>Home</h1>}
+          hero={hero && <EventHero event={hero} />}
+          heroId={hero?.id}
+          footer={<CreateCard />}
+        >
           {/*
-            Two links, not two buttons. The sort survives a reload, can be
-            sent to somebody, and is marked with `aria-current` the same way
-            the rail and the tabs are — one attribute doing the announcing and
-            the styling, rather than a class that can fall out of step with it.
+            Every event, including the one the hero is drawing — a search has
+            to be able to find that one too. Its card is dropped from the grid
+            while the hero is up; see `heroId`.
+
+            The id sits on a wrapper so `EventCard` stays a server component
+            with no idea it is inside a search.
           */}
-          {cards.length > 1 && (
-            <nav className="segmented" aria-label="How to order these">
-              {SORTS.map((option) => (
-                <a
-                  key={option.by}
-                  href={option.href}
-                  aria-current={sort === option.by ? 'page' : undefined}
-                >
-                  {option.label}
-                </a>
-              ))}
-            </nav>
-          )}
-        </div>
-
-        {hero && <EventHero event={hero} />}
-
-        <div className="cards">
-          {rest.map((event) => (
-            <EventCard key={event.id} event={event} />
+          {cards.map((event) => (
+            <div key={event.id} data-event={event.id}>
+              <EventCard event={event} />
+            </div>
           ))}
-          <CreateCard />
-        </div>
+        </SearchEvents>
       </main>
     </Shell>
   );

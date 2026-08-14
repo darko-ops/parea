@@ -16,6 +16,7 @@
 import type { ReactNode } from 'react';
 
 import { Mark } from './Mark';
+import { SearchIcon } from './SearchIcon';
 import { SiteFooter } from './SiteFooter';
 
 export function LoginScreen({ children }: { children: ReactNode }) {
@@ -40,28 +41,5 @@ export function LoginScreen({ children }: { children: ReactNode }) {
 
       <SiteFooter />
     </main>
-  );
-}
-
-/**
- * Drawn rather than imported. It is nine lines of SVG against a dependency,
- * an icon set and a build step, and this is the only icon in the web client.
- */
-function SearchIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="16.5" y1="16.5" x2="21" y2="21" />
-    </svg>
   );
 }

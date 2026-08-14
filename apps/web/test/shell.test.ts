@@ -112,13 +112,24 @@ describe('an event looks like an event wherever it is listed', () => {
     // a second drawing of the same object and lost to exactly the argument
     // above — a 58px strip of an evening is not enough to recognise it by. The
     // hero above the grid is a different thing and stays its own component.
-    for (const [name, source] of [
-      ['events', read2('../app/events/page.tsx')],
-      ['account', ACCOUNT],
-      ['invites', read2('../app/invites/page.tsx')],
-    ] as const) {
-      expect(source, `${name} does not use EventCard`).toMatch(/<EventCard\b/);
-      expect(source, `${name} does not use the cards grid`).toMatch(/className="cards"/);
+    //
+    // Two files per screen, because Home hands its grid to `SearchEvents` —
+    // the cards are still `EventCard` and the container is still `.cards`,
+    // they are just declared one component apart. Asserting both against the
+    // page would only prove the grid had not moved, which is not the property
+    // worth holding.
+    const screens = [
+      { name: 'events', cards: '../app/events/page.tsx', grid: '../app/components/SearchEvents.tsx' },
+      { name: 'account', cards: '../app/components/AccountView.tsx', grid: '../app/components/AccountView.tsx' },
+      { name: 'invites', cards: '../app/invites/page.tsx', grid: '../app/invites/page.tsx' },
+    ];
+    for (const screen of screens) {
+      expect(read2(screen.cards), `${screen.name} does not use EventCard`).toMatch(
+        /<EventCard\b/,
+      );
+      expect(read2(screen.grid), `${screen.name} does not use the cards grid`).toMatch(
+        /className="cards"/,
+      );
     }
   });
 

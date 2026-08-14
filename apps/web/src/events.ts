@@ -78,18 +78,9 @@ export type EventListing = {
   lastActiveAt: string;
 };
 
-/**
- * How the list is ordered.
- *
- * `recent` is what a home screen is for. `place` is for the other question —
- * "the Greece one" — where the name has gone and the location has not.
- */
-export type EventSort = 'recent' | 'place';
-
 export async function eventsFor(
   db: Db,
   actorId: string | null,
-  sort: EventSort = 'recent',
 ): Promise<EventListing[]> {
   if (!actorId) return [];
 
@@ -171,18 +162,13 @@ export async function eventsFor(
         ),
       ),
     )
-    // Most recently active first: a timeline is about what is happening, and
-    // the event people are still adding to is the one worth being near the top.
-    //
-    // By place, an event with no place goes last rather than first. Postgres
-    // sorts nulls last on ASC by default, but saying so is cheaper than
-    // relying on it — and the tie-break stays recency, so within one pub the
-    // list still reads as a timeline.
-    .orderBy(
-      ...(sort === 'place'
-        ? [sql`${schema.events.place} asc nulls last`, desc(schema.events.lastActiveAt)]
-        : [desc(schema.events.lastActiveAt)]),
-    );
+    // Most recently active first, and only that. A timeline is about what is
+    // happening, and the event people are still adding to is the one worth
+    // being near the top. There was briefly a second ordering — alphabetical
+    // by place — which existed to answer "the Greece one"; search answers that
+    // without re-ordering anything, and one list in one order is a home screen
+    // somebody can build a memory of.
+    .orderBy(desc(schema.events.lastActiveAt));
 
   return rows.map((row) => ({
     ...row,

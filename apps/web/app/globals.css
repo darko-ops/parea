@@ -49,7 +49,7 @@
      edge: the same colour for both makes a list of rows read as a stack of
      separate boxes rather than one list. */
   --hairline: #eef1f4;
-  /* The trough of the segmented control, and of every progress bar. */
+  /* The trough of every progress bar, and the hover fill on a list row. */
   --track: #f4f6f8;
   /* The second stripe of the moving upload bar. Near enough to the accent
      that the bar reads as one colour in motion rather than as a barber pole. */
@@ -513,22 +513,54 @@ button.secondary {
    and the rest are a list you scan for a name.
    --------------------------------------------------------------------------- */
 
-/* Two links wearing a control. The pill that moves is the white one, and it is
-   the only thing on this page with a shadow — a raised surface is how a
-   segmented control says which half you are on without a border doing it. */
-.segmented {
-  display: flex; gap: 4px; padding: 3px;
-  background: var(--track); border-radius: 999px;
+/* A field that is an icon until it is asked for.
+
+   Width, not `display`: the input has to stay in the DOM so it can be focused
+   the moment the button is pressed, and it has to animate to read as the same
+   object growing rather than as two controls swapping places. `tabIndex` takes
+   it out of the tab order while it is a sliver — a focus stop at something
+   with no width is a keyboard user tabbing into nothing. */
+.search {
+  display: flex; align-items: center; gap: 4px;
+  border: 1px solid transparent; border-radius: 999px;
+  padding: 2px; transition: border-color 140ms, background 140ms;
 }
-.segmented a {
-  padding: 6px 13px; border-radius: 999px;
-  font-size: 13px; color: var(--dim); text-decoration: none;
+.search-open { border-color: var(--line); background: var(--bg); }
+.search-go {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0; border-radius: 999px;
+  background: none; border: 0; color: var(--dim); cursor: pointer;
 }
-.segmented a[aria-current='page'] {
-  background: var(--bg); color: var(--fg); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(20, 23, 28, .08);
+.search-go:hover { background: var(--accent-soft); color: var(--accent); }
+.search-open .search-go { background: none; color: var(--dim); }
+/* Overriding the global input rules, which give every field a border, a
+   background and 13px of padding — this one is inside a container already
+   drawing all three. */
+.search-field.search-field {
+  width: 0; padding: 0; border: 0; background: none;
+  font-size: 15px; border-radius: 0;
+  transition: width 140ms ease, padding 140ms ease;
 }
-.segmented a:hover { color: var(--fg); }
+.search-open .search-field.search-field { width: 220px; padding: 0 10px 0 2px; }
+/* The ring goes on the container, not the field.
+
+   Doubled class because the global `input[type="search"]:focus-visible` is
+   (0,2,1) and a single class plus a pseudo-class is (0,2,0) — so the first
+   attempt at this lost, and the field drew the standard bordered-input ring
+   *inside* the pill it already sits in. Two rectangles, one control. */
+.search-field.search-field:focus-visible {
+  outline: none; border: 0; box-shadow: none;
+}
+.search:has(.search-field:focus-visible) {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* Safari draws its own clear button inside a `type="search"`, which lands on
+   top of the rounded container's edge. Escape already clears. */
+.search-field::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+@media (max-width: 560px) {
+  .search-open .search-field.search-field { width: min(220px, 42vw); }
+}
 
 .hero {
   position: relative;

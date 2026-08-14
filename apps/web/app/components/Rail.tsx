@@ -7,10 +7,10 @@
  * client grew three tabs for this and the web never got the equivalent, which
  * made "two clients, one protocol" true of the API and false of the product.
  *
- * Five rows now, where the app's tab bar still has three. Invites and Friends
- * are the difference, and both are here first because this is the client
- * somebody arrives at from a link they were sent — the one where "what came of
- * that?" is a question worth having a screen for.
+ * Four rows, where the app's tab bar still has three. Invites is the
+ * difference, and it is here first because this is the client somebody arrives
+ * at from a link they were sent — the one where "what came of that?" is a
+ * question worth having a screen for.
  *
  * Below tablet it becomes a bar across the top, because a 212px column on a
  * phone-width browser is most of the screen.
@@ -40,7 +40,10 @@ const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   // separated only by whose they are. Find is the odd one out: the only row
   // that goes looking for something you are not already part of.
   { href: '/invites', label: 'Invites', page: 'invites' },
-  { href: '/friends', label: 'Friends', page: 'friends' },
+  // No Friends row. The page is still there and still gets its `aria-current`
+  // when you are on it — it is reached from the friend count under your name
+  // on You, which is where somebody looks for their friends anyway. A rail is
+  // the four places the product is, and friends is a thing about you.
   { href: '/find', label: 'Find', page: 'find' },
   { href: '/account', label: 'You', page: 'you' },
 ];
