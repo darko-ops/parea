@@ -740,6 +740,92 @@ export const friendships = pgTable(
   (t) => [primaryKey({ columns: [t.actorId, t.friendActorId] })],
 );
 
+/**
+ * Talking about the photographs, where the photographs are.
+ *
+ * The conversation about an evening already happens — in the group chat the
+ * link was pasted into, where it is unreachable to anybody who joined later
+ * and gone entirely by next year. This is the same conversation kept beside
+ * the thing it is about.
+ *
+ * Scoped to one event and nothing else. Not a group thread, not an inbox, not
+ * a direct message: those are three more products, each with its own answer to
+ * "who can see this", and the whole reason this one is tractable is that the
+ * answer is already written down — `authorize(view)` reads, `contribute`
+ * writes. A message is visible to exactly the people the photographs are.
+ *
+ * `photoId` is what makes a comment on a single photograph the same record as
+ * a message in the thread. Two tables would mean two access rules, two
+ * moderation paths and two places to look when somebody reports something; one
+ * table with a nullable anchor means a photo comment appears in the thread
+ * with its thumbnail, which is what the design asks for and also the honest
+ * data model.
+ *
+ * Deleted rather than removed. A thread reads as a sequence, and a message
+ * vanishing out of the middle of one rearranges what the messages around it
+ * appear to be replying to — so the row stays, the body goes, and the gap says
+ * so. Same argument as the tombstoned photo, for the same reason.
+ */
+export const eventMessages = pgTable(
+  'event_message',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /**
+     * Never null. Anonymous messages are a different product: posting needs
+     * `contribute`, which needs an account, so there is always somebody.
+     */
+    authorActorId: uuid('author_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /** Null for a message to the whole thread; set for a comment on one photo. */
+    photoId: uuid('photo_id').references(() => photos.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    /** Set on every edit. Its presence is what puts "edited" beside the time. */
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    /** Tombstone. The row stays so the thread keeps its shape. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    // The thread, in order. Every read of this table is "one event, oldest
+    // first", including the one that renders a photo's comments.
+    index('event_message_thread_idx').on(t.eventId, t.createdAt),
+    index('event_message_photo_idx').on(t.photoId),
+  ],
+);
+
+/**
+ * One person's reaction to one message.
+ *
+ * A row rather than a count, because the question the pill answers is "did
+ * *you* react", and a counter cannot be un-clicked by the person who clicked
+ * it. The primary key is the whole tuple, so reacting twice with the same
+ * emoji is the same reaction rather than two.
+ *
+ * The emoji is stored as text rather than as an enum. An enum would be the
+ * usual instinct here and it is wrong: the set is a design decision that will
+ * change, and a migration per emoji is a migration nobody will want to write,
+ * so the *client* offers a closed set and the column stores what was chosen.
+ * Bounded by a length check rather than by a list — see the migration.
+ */
+export const messageReactions = pgTable(
+  'message_reaction',
+  {
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => eventMessages.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.actorId, t.emoji] })],
+);
+
 // --- relations -------------------------------------------------------------
 
 /**

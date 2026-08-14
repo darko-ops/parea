@@ -54,6 +54,13 @@
   /* The second stripe of the moving upload bar. Near enough to the accent
      that the bar reads as one colour in motion rather than as a barber pole. */
   --accent-2: #3d7ade;
+  /* The event page's sticky head, as a number rather than as whatever it
+     happens to measure. The thread column sticks *under* it and is exactly the
+     rest of the viewport tall, and both of those need the same figure — so the
+     head is given this height rather than the two being kept in step by hand.
+     The name inside it is `white-space: nowrap`, so nothing in there wraps and
+     makes the real head taller than the number. */
+  --head-h: 78px;
 }
 /* No dark scheme. The product is a white page with photographs on it, and a
    dark one was inverting the surface those photographs are judged against —
@@ -777,7 +784,7 @@ button.secondary {
    past the column. */
 .event { flex: 1; min-width: 0; }
 .event-head {
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: 0; z-index: 2; min-height: var(--head-h);
   display: flex; align-items: center; gap: 16px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--line);
@@ -928,6 +935,180 @@ button.secondary {
   flex: none; font-size: 12.5px; color: var(--dim); white-space: nowrap;
 }
 button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
+
+/* ---------------------------------------------------------------------------
+   The thread — the conversation about an event, beside the photographs.
+
+   It already happens, in the group chat somebody pasted the link into, where
+   it is invisible to anyone who joined later and gone by next year. This is
+   the same conversation kept where the photographs are.
+
+   One column on a wide screen, one sheet on a phone, and the stylesheet is
+   what decides which — not a resize listener, which would flash the wrong
+   shape on first paint and then need keeping in step with these numbers.
+   --------------------------------------------------------------------------- */
+.event-split { display: flex; align-items: stretch; flex: 1; min-height: 0; }
+.event-split > .event-body { flex: 1; min-width: 0; }
+
+.thread {
+  width: 360px; flex: none;
+  border-left: 1px solid var(--line); background: var(--card);
+  display: flex; flex-direction: column;
+  /* Its own scroll container, under the sticky head. `100dvh` because on iOS
+     the address bar makes `vh` a promise the browser does not keep, and a
+     composer pinned below the fold is a composer nobody can reach. */
+  position: sticky; top: var(--head-h);
+  height: calc(100dvh - var(--head-h));
+}
+.thread-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+.thread-head strong { flex: 1; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.thread-count { font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.thread-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 16px;
+}
+.thread-empty { font-size: 13.5px; line-height: 1.5; margin: 0; }
+
+.message { display: flex; gap: 10px; }
+/* The same construction as `.chip-face` at 20 and `.you-face` at 64: a letter
+   until there is a picture, and there is never a picture here — a column of
+   28px avatars beside 14.5px text is a column of thumbnails of faces, which is
+   not what a thread is for. */
+.message-face {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 12px; font-weight: 600; user-select: none;
+}
+.message-body { flex: 1; min-width: 0; }
+.message-meta {
+  margin: 0 0 2px; font-size: 13px;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.message-meta strong { font-weight: 600; }
+.message-meta > span { color: var(--dim); font-size: 12.5px; }
+/* Pushed to the end of the meta line rather than floated over the message:
+   the actions belong to the row, and a control that appears on hover is a
+   control that does not exist on a phone. */
+.message-own { margin-left: auto; display: flex; gap: 10px; }
+.message-own button { font-size: 12.5px; }
+.message-text {
+  margin: 0; font-size: 14.5px; line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.message-edit { display: grid; gap: 8px; }
+/* A message that was taken back. The row stays so the conversation keeps its
+   shape — the messages either side of a hole appear to be answering each
+   other. */
+.thread-gone { margin: 0; font-size: 13px; font-style: italic; }
+
+/* What somebody typed, marked as a mention. Not a link and not looked up: it
+   says what was written, it does not assert that the person exists. */
+.mention {
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 4px; padding: 0 3px; font-weight: 600;
+}
+
+.reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+/* The same pressed state as `.chip` and `.pill`, because it is the same idea:
+   something you have picked out of a set. */
+.reaction {
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg);
+  font-size: 13px; font-weight: 400; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.reaction[aria-pressed='true'] {
+  border: 1.5px solid var(--accent); background: var(--accent-soft);
+  color: var(--accent); font-weight: 600;
+}
+.reaction:disabled { cursor: default; opacity: 1; }
+/* Dashed, which already means "nothing here yet" everywhere else in this
+   design — the empty grid cell, the empty-event card's third lens. */
+.reaction-add {
+  width: 26px; height: 24px; padding: 0;
+  border: 1px dashed var(--line-dashed); color: var(--dim);
+}
+
+.thread-composer {
+  border-top: 1px solid var(--line);
+  padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 9px;
+}
+/* Styled as the global input rather than inheriting it: a textarea does not
+   match `input[type="text"]`, and the one control in the product that did not
+   look like the others is a mistake this stylesheet has made before. */
+.thread-field {
+  width: 100%; resize: none; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 13px; font: inherit; font-size: 15px;
+  background: var(--card); color: var(--fg);
+  -webkit-appearance: none; appearance: none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.thread-field:focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.thread-actions { display: flex; align-items: center; gap: 8px; }
+.thread-note { flex: 1; font-size: 12px; line-height: 1.4; color: var(--dim); margin: 0; }
+.thread-actions button { padding: 8px 15px; font-size: 14px; border-radius: 10px; }
+/* The composer's sign-in card has a page's worth of padding by default. */
+.thread-composer .panel { margin: 0; padding: 0; border: 0; }
+
+/* Only ever this event's contributors — a picker that reaches further is a way
+   to find out who exists by typing letters at it. */
+.mention-list {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.mention-list button {
+  padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--line); background: var(--card); color: var(--fg);
+}
+.mention-list button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* The sheet, on a phone. Hidden above the breakpoint along with its button. */
+.thread-open { display: none; }
+.sheet-scrim {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(20, 23, 28, .28);
+  display: flex; align-items: flex-end;
+}
+.sheet {
+  width: 100%; height: min(82vh, 620px);
+  background: var(--card); border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 24px rgba(20, 23, 28, .12);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sheet:focus-visible { outline: none; }
+.sheet-grip {
+  flex: none; width: 36px; height: 4px; border-radius: 999px;
+  background: var(--line-dashed); margin: 8px auto 4px;
+}
+/* Bigger type and bigger targets in the hand, and room under the composer for
+   the home indicator. */
+.sheet .message-text { font-size: 15px; }
+.sheet .thread-composer { padding-bottom: 20px; }
+.sheet .thread-actions button { padding: 11px 18px; }
+
+@media (max-width: 900px) {
+  /* The column goes before the grid does. At this width 360px of thread is
+     most of the page, and the photographs are what the page is for. */
+  .thread { display: none; }
+  .thread-open { display: inline-flex; align-items: center; gap: 7px; }
+}
+
+/* Comments on one photograph, inside the lightbox. The same rows as the
+   thread, because they are the same records — a photo comment carries a
+   `photoId` and appears in both places. */
+.photo-thread {
+  display: grid; gap: 12px;
+  border-top: 1px solid var(--line); padding-top: 14px;
+}
+.photo-thread .message-text { font-size: 14px; }
+.photo-thread-note { margin: 0; font-size: 12.5px; color: var(--dim); }
 
 /* On a phone the head keeps the name and the picker; the download drops into
    the body, where there is room for a 300px panel to open under it. */

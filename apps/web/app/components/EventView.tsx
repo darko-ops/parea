@@ -27,10 +27,12 @@
  */
 
 import { ago } from '@parea/cards';
+import type { Message } from '@/messages';
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
+import { Thread, ThreadSheet } from './Thread';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PhotoTile } from './PhotoTile';
 import { useUploads } from './useUploads';
@@ -70,6 +72,10 @@ type Feed = {
   };
   contributors: number;
   people: Person[];
+  /** The event's thread, seeded server-side like the photos. */
+  messages: Message[];
+  /** Whether this viewer may post — `contribute`, and signed in. */
+  canPost: boolean;
   /** Uploaded and not yet through the deriver — anybody's, not just this tab's. */
   arriving: number;
   count: number;
@@ -106,6 +112,44 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
    * refresh would empty the section a moment after filling it.
    */
   const atArrival = useRef(new Set(initial.photos.map((photo) => photo.id)));
+
+  /*
+   * When this person last read the thread, per event.
+   *
+   * In `localStorage` rather than on the server, and that is a deliberate
+   * limit rather than a shortcut: a read receipt on the server is a record of
+   * when somebody looked at something, which is a fact about a person this
+   * product has no other reason to keep. The cost is that the count is
+   * per-browser — a laptop and a phone each get their own idea of unread —
+   * which is the right side of that trade for a badge on a message list.
+   *
+   * Read once into state so the first render matches the server's, then moved
+   * forward when the thread is actually seen. Reading it during render would
+   * make the server and client HTML disagree and hydrate to a mismatch.
+   */
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
+  const seenKey = `pa_thread_seen_${eventId}`;
+  useEffect(() => {
+    try {
+      setLastSeen(localStorage.getItem(seenKey));
+    } catch {
+      // Private browsing, or storage turned off. Everything reads as unread,
+      // which is wrong in the harmless direction.
+    }
+  }, [seenKey]);
+
+  const markSeen = useCallback(() => {
+    const now = new Date().toISOString();
+    setLastSeen(now);
+    try {
+      localStorage.setItem(seenKey, now);
+    } catch {}
+  }, [seenKey]);
+
+  /** Somebody else's, since you last looked. Your own are never unread. */
+  const unread = feed.messages.filter(
+    (m) => !m.author.mine && !m.deleted && (!lastSeen || m.createdAt > lastSeen),
+  ).length;
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/events/${eventId}/photos`);
@@ -293,6 +337,22 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           </details>
         )}
 
+        {/*
+          The thread, on a phone. The column beside the grid is hidden below
+          the breakpoint, so this is how the same conversation is reached —
+          and it carries the count, which the column does not need because the
+          column is already on screen.
+        */}
+        <ThreadSheet
+          eventId={eventId}
+          messages={feed.messages}
+          canPost={feed.canPost}
+          people={feed.people}
+          onChanged={refresh}
+          unread={unread}
+          onOpened={markSeen}
+        />
+
         {feed.event.uploadsOpen && session.account && (
           <>
             {/*
@@ -339,7 +399,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         )}
       </header>
 
-      <div className="event-body">
+      <div className="event-split">
+        <div className="event-body">
         {feed.event.uploadsOpen && session.known && !session.account && (
           // Adding names who added. Shown here rather than behind a link to
           // /account, because being sent away mid-task loses the picker they
@@ -445,12 +506,30 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         */}
         <Uploads uploads={uploads} onPick={() => inputRef.current?.click()} />
 
-        <SiteFooter />
+          <SiteFooter />
+        </div>
+
+        {/*
+          The column, beside the grid. Below the breakpoint the stylesheet
+          hides it and the head's `ThreadSheet` takes over — one thread, two
+          shapes, no resize listener deciding which.
+        */}
+        <Thread
+          eventId={eventId}
+          messages={feed.messages}
+          canPost={feed.canPost}
+          people={feed.people}
+          onChanged={refresh}
+          onSeen={markSeen}
+        />
       </div>
 
       {openPhoto && (
         <PhotoLightbox
           photo={openPhoto}
+          eventId={eventId}
+          messages={feed.messages}
+          canPost={feed.canPost}
           onClose={() => setOpenPhoto(null)}
           onChanged={refresh}
         />

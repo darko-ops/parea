@@ -15,8 +15,11 @@
  * it should not exist, or block the person so you stop seeing their uploads.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
+import type { Message } from '@/messages';
+
+import { PhotoComments } from './PhotoComments';
 import { useImageFailure } from './useImageFailure';
 
 export type LightboxPhoto = {
@@ -37,10 +40,17 @@ const DONE: Record<Action, string> = {
 
 export function PhotoLightbox({
   photo,
+  eventId,
+  messages,
+  canPost,
   onClose,
   onChanged,
 }: {
   photo: LightboxPhoto;
+  eventId: string;
+  /** The whole thread. The comments on this photo are the ones anchored to it. */
+  messages: Message[];
+  canPost: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -96,6 +106,21 @@ export function PhotoLightbox({
     >
       <div className="lightbox-inner">
         <LightboxImage src={photo.full} />
+
+        {/*
+          Between the photograph and the safety actions, which is the order
+          these things matter in: the picture, then what people said about it,
+          then what to do if it should not be here. Below the actions it would
+          push reporting off the bottom of a long thread, and guideline 1.2
+          wants that reachable rather than merely present.
+        */}
+        <PhotoComments
+          eventId={eventId}
+          photoId={photo.id}
+          messages={messages}
+          canPost={canPost}
+          onChanged={onChanged}
+        />
 
         <div className="lightbox-actions">
           {done ? (

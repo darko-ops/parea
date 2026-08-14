@@ -172,6 +172,23 @@ export default function PrivacyPage() {
             that is the whole of who can see what.
           </p>
 
+          <h3>What you write in an event&rsquo;s thread</h3>
+          <p className="muted">
+            Every event has a thread, and anything you post in it &mdash;
+            including a comment on one photograph &mdash; is kept with that
+            event and shown, under your name, to everybody who can see it. So
+            are the reactions you leave on other people&rsquo;s messages. It is
+            not private, it is not a direct message, and there is no version of
+            it that only one person sees.
+          </p>
+          <p className="muted">
+            You can edit or delete anything you wrote. Deleting removes the
+            text; the place it was stays in the thread marked as deleted, so
+            that the messages either side of it do not appear to be answering
+            each other. Somebody you have blocked does not appear in the thread
+            you see, exactly as their photographs do not.
+          </p>
+
           <h3>Your IP address, briefly</h3>
           <p className="muted">
             Used to limit how fast requests can arrive, so that one script cannot

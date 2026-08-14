@@ -81,6 +81,18 @@ const OWNED: {
   { table: 'friend_request', column: 'to_actor_id', uniqueWith: ['from_actor_id'] },
   { table: 'friendship', column: 'actor_id', uniqueWith: ['friend_actor_id'] },
   { table: 'friendship', column: 'friend_actor_id', uniqueWith: ['actor_id'] },
+  // Somebody talks in an event's thread from a laptop and then signs in on
+  // their phone. Without this their own messages stop being theirs — no edit,
+  // no delete, and the name on them belongs to an actor nothing points at.
+  { table: 'event_message', column: 'author_actor_id' },
+  // Both actors having reacted with the same emoji to the same message is one
+  // reaction, not two, so the loser's row goes rather than moving — which is
+  // also what the primary key requires.
+  {
+    table: 'message_reaction',
+    column: 'actor_id',
+    uniqueWith: ['message_id', 'emoji'],
+  },
 ];
 
 export const MERGED_TABLES = OWNED;

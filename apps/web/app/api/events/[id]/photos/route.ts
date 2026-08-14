@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
+import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
@@ -116,6 +117,14 @@ export async function GET(
     );
   const arriving = pending?.n ?? 0;
 
+  // Folded into the feed rather than given its own timer. The event page
+  // already polls this endpoint while anything is in flight; a second poller
+  // for the thread would be a second schedule to reason about and twice the
+  // requests from a tab somebody left open.
+  const messages = await messagesFor(db, event.id, viewerId, (actorId) =>
+    contributorKey(event.id, actorId),
+  );
+
   return NextResponse.json({
     event: {
       id: event.id,
@@ -128,6 +137,8 @@ export async function GET(
     },
     contributors,
     people,
+    messages,
+    canPost: (await decide(db, event, 'contribute', requester)).allow && viewerId != null,
     arriving,
     count: photos.length,
     photos,

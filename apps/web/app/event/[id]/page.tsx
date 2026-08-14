@@ -6,6 +6,7 @@ import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
+import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
@@ -73,6 +74,13 @@ export default async function EventPage({
 
   const people = await contributorsOf(db, event.id, rows, viewerId);
 
+  // Seeded server-side for the same reason the grid is: the thread is part of
+  // arriving at an event, and making it wait on a client fetch puts a spinner
+  // where a conversation goes.
+  const messages = await messagesFor(db, event.id, viewerId, (id) =>
+    contributorKey(event.id, id),
+  );
+
   // Uploaded and not through the deriver yet. Not in `rows` by definition —
   // `visiblePhotos` returns what can be looked at, and these cannot be yet.
   const [pending] = await db
@@ -104,6 +112,8 @@ export default async function EventPage({
           },
           contributors: people.length,
           people,
+          messages,
+          canPost: (await decide(db, event, 'contribute', requester)).allow && viewerId != null,
           arriving: pending?.n ?? 0,
           count: photos.length,
           photos,

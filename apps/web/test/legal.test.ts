@@ -207,6 +207,8 @@ describe('the closed list of what is collected', () => {
       moderation_action: /Child safety scanning/,
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
+      event_message: /anything you post in it/,
+      message_reaction: /reactions you leave on other people/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt
