@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { policyFor } from '../app/components/AccessChoice';
+import { promise } from '../app/components/ShareEvent';
 import { stripComments } from './support/source';
 
 const read = (path: string) =>
@@ -107,5 +108,41 @@ describe('the questions it asks, and the one it stopped asking', () => {
     // afterwards, on the Members tab.
     const invite = CREATE.slice(CREATE.indexOf('/invites`'));
     expect(invite.slice(0, 320)).toMatch(/\.catch\(\(\) => \{\}\)/);
+  });
+});
+
+describe('what the share panel promises the person receiving the link', () => {
+  /*
+   * The sentence under a link somebody is about to paste into a group chat.
+   * It said "anybody with this can open the event and add their photos" on
+   * every album, which is true of exactly one of the three policies — and the
+   * person reading it is deciding, on the strength of it, who to send it to.
+   */
+  it('is the plain truth for a public album', () => {
+    expect(promise(LINK_OPEN, true)).toMatch(/Anybody with this can open the album/);
+  });
+
+  it('says what private actually costs the recipient', () => {
+    expect(promise(ACCOUNT_REQUIRED, true)).toMatch(/signs in and is straight in/);
+  });
+
+  it('does not promise entry when entry has to be granted', () => {
+    const said = promise(REQUEST_ACCESS, true);
+    expect(said).toMatch(/can ask to come in/);
+    expect(said).not.toMatch(/straight in|Anybody with this/);
+  });
+
+  it('lets the link switch override all three, because it does', () => {
+    // Joins closed means nobody new gets in however the album is set, so this
+    // is checked before the policy rather than after.
+    for (const policy of [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS]) {
+      expect(promise(policy, false), policy).toMatch(/The link is off for this album/);
+    }
+  });
+
+  it('falls back to the public wording when the field is missing', () => {
+    // An older cached payload, or a caller not yet updated. `undefined` means
+    // the field was not sent, which only happens on a public-by-default path.
+    expect(promise(undefined, true)).toMatch(/Anybody with this/);
   });
 });

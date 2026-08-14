@@ -18,15 +18,48 @@
  * the next Tab start again from the top of the page.
  */
 
+import { ACCOUNT_REQUIRED, REQUEST_ACCESS } from '@parea/core';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+/**
+ * What happens to the person who receives this.
+ *
+ * Said in terms of them rather than of the setting, and said accurately: the
+ * panel used to promise that anybody holding the link could open the album and
+ * add photos, which is true of exactly one of the three policies. On a private
+ * album it oversells, and on an approval one it promises something the host
+ * has to grant by hand — to somebody about to paste the link into a group chat
+ * on the strength of that sentence.
+ *
+ * `joinsOpen` is checked first because it overrides all three: with the link
+ * switched off nobody new gets in however the album is set.
+ */
+export function promise(accessPolicy: string | undefined, joinsOpen: boolean): string {
+  if (!joinsOpen) {
+    return 'The link is off for this album — only the people you add can get in.';
+  }
+  if (accessPolicy === REQUEST_ACCESS) {
+    return 'Whoever you send this to can ask to come in. You let them in, under Members.';
+  }
+  if (accessPolicy === ACCOUNT_REQUIRED) {
+    return 'Whoever you send this to signs in and is straight in. Adding photos needs an account too.';
+  }
+  return 'Anybody with this can open the album and add their photos.';
+}
 
 export function ShareEvent({
   linkToken,
   code,
+  accessPolicy,
+  joinsOpen = true,
   onClose,
 }: {
   linkToken: string;
+  /** What the link does when it arrives. Decides the line under it. */
+  accessPolicy?: string;
+  /** False means the link admits nobody new, whatever the policy says. */
+  joinsOpen?: boolean;
   /** The spoken code, when one is assigned. Null once it is released. */
   code: string | null;
   onClose: () => void;
@@ -116,7 +149,7 @@ export function ShareEvent({
         {code && <p className="muted">Or say: {code}</p>}
 
         <p className="muted">
-          Anybody with this can open the event and add their photos.
+          {promise(accessPolicy, joinsOpen)}
         </p>
 
         <div className="row">

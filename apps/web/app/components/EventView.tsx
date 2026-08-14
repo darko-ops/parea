@@ -79,6 +79,9 @@ type Feed = {
     linkToken: string;
     /** The spoken code, when one is assigned. Null once it is released. */
     code: string | null;
+    /** What the link does on arrival, so the share panel can say so. */
+    accessPolicy: string;
+    joinsOpen: boolean;
   };
   contributors: number;
   people: Person[];
@@ -387,14 +390,47 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         />
 
         {/*
-          Two menus and nothing else.
+          Share, add, everything else.
 
           The head used to be a pill, a Download button and a filled Add photos
           button, which is three things competing at the top of a page whose
-          subject is underneath them. Now it is a `+` for putting things in and
-          a `···` for everything else — the same pair, in the same order, that
-          the rest of the product uses.
+          subject is underneath them. It became a `+` and a `···`, and this is
+          the one thing worth lifting back out of the menu: sending the link is
+          what an album is *for*, and it was two presses behind a glyph that
+          means "other". It draws for everybody, because everybody who can see
+          an event can pass it on — the same rule the menu item had.
         */}
+        <button
+          type="button"
+          className="head-action"
+          aria-label="Share this event"
+          onClick={() => setSharing(true)}
+        >
+          {/*
+            A box with something leaving it. The three-dots-and-two-lines
+            share glyph is Android's and reads as a diagram; this one is what
+            the phone in most people's hand draws.
+          */}
+          <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden="true">
+            <path
+              d="M10 13V3.5M10 3.5 6.75 6.75M10 3.5l3.25 3.25"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M5 9.5H4.25a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 .75.75h11.5a.75.75 0 0 0 .75-.75v-5.5a.75.75 0 0 0-.75-.75H15"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+
         {feed.event.uploadsOpen && session.account && (
           <Menu label="Add to this event" glyph="+" tone="primary">
             {(close) => (
@@ -447,8 +483,9 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           {(close) => (
             <>
               {/*
-                Settings, for the people who have any. Everybody else gets the
-                share panel instead — see `Share`.
+                Settings, for the people who have any. Sharing used to live at
+                the bottom of this menu and is now its own button in the head,
+                so this list is only the things that are not sharing.
               */}
               {feed.event.canAdminister && (
                 <a href={`/event/${eventId}/manage`}>
@@ -488,9 +525,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
                   </button>
                 </>
               )}
-              <button onClick={() => { close(); setSharing(true); }}>
-                Share this event
-              </button>
             </>
           )}
         </Menu>
@@ -717,6 +751,8 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         <ShareEvent
           linkToken={feed.event.linkToken}
           code={feed.event.code}
+          accessPolicy={feed.event.accessPolicy}
+          joinsOpen={feed.event.joinsOpen}
           onClose={() => setSharing(false)}
         />
       )}

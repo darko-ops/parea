@@ -175,6 +175,13 @@ export async function GET(
       startsAt: event.startsAt?.toISOString() ?? null,
       linkToken: event.linkToken,
       code: spoken?.words ?? null,
+      // What the link actually does, so the share panel can say. It used to
+      // claim "anybody with this can open the event and add their photos" on
+      // every album, which is false on two of the three policies and false
+      // again once joins are closed — and it is the sentence somebody reads
+      // immediately before sending the link to six people.
+      accessPolicy: event.accessPolicy,
+      joinsOpen: event.joinsOpen,
     },
     contributors,
     people,

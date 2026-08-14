@@ -1267,15 +1267,23 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .dots-go:hover { color: var(--fg); }
 /* In the head the control sits among 36px buttons and needs the height to be
    pressable, rather than being six pixels of glyph — and the weight to be
-   seen, which is why it is darker and heavier here than on a message. */
-.event-head .dots-go {
+   seen, which is why it is darker and heavier here than on a message.
+
+   Shared with `.head-action`, the share button beside it: three controls in a
+   row have to be the same object at three different jobs, and the way that
+   stops being true is two rules that drift by a pixel. */
+.event-head .dots-go,
+.event-head .head-action {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 8px;
-  border: 1px solid var(--line);
+  flex: none;
+  width: 36px; height: 36px; padding: 0; border-radius: 8px;
+  background: none; border: 1px solid var(--line);
   font-size: 19px; font-weight: 700; letter-spacing: .02em;
   color: var(--fg);
 }
-.event-head .dots-go:hover { background: var(--track); border-color: var(--line-dashed); }
+.event-head .dots-go:hover,
+.event-head .head-action:hover { background: var(--track); border-color: var(--line-dashed); }
+.event-head .head-action:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .event-head .dots-primary { border-color: var(--accent); }
 /* Something waiting behind the menu. On the corner of a 36px button, so the
    glyph stays centred — the same arrangement the folded thread's chevron

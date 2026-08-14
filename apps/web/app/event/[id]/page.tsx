@@ -150,6 +150,12 @@ export default async function EventPage({
       startsAt: event.startsAt?.toISOString() ?? null,
             linkToken: event.linkToken,
             code: spoken?.words ?? null,
+            // Both here and in `/api/events/[id]/photos`, because this page
+            // renders the first frame and that route replaces it — a field
+            // present in one and not the other is a panel that changes what it
+            // claims a second after it opens.
+            accessPolicy: event.accessPolicy,
+            joinsOpen: event.joinsOpen,
           },
           contributors: people.length,
           people,
