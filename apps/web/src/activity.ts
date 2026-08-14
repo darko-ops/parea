@@ -9,10 +9,14 @@
  * deleted is a row nothing will ever correct.
  *
  * Every one of these facts is already a row with a timestamp on it: a
- * reaction, a message containing your handle, a friend request, a participant
- * row, an answered access request. Reading them is a handful of bounded
- * queries and the answer cannot be stale, because there is nothing to keep in
- * step. It is the same approach `invitesWaiting` already takes for the badge.
+ * reaction, a message containing your handle, a participant row, an answered
+ * access request. Reading them is a handful of bounded queries and the answer
+ * cannot be stale, because there is nothing to keep in step. It is the same
+ * approach `invitesWaiting` already takes for the badge.
+ *
+ * This file is only half the page. What is still being asked — invitations,
+ * friend requests, people wanting into an album you run — is `requests.ts`,
+ * and the two are kept apart on purpose: one is read, the other is answered.
  *
  * The cost is real and worth naming: there is no per-item read state, and no
  * cheap way to add one. `actor.invites_seen_at` is what marks the boundary —
@@ -25,12 +29,16 @@ import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
-export type ActivityKind =
-  | 'reaction'
-  | 'mention'
-  | 'friend_request'
-  | 'let_in'
-  | 'request_answered';
+/*
+ * No `friend_request` here any more.
+ *
+ * An open request is not something that has happened, it is something being
+ * asked, and it now lives in the bubble at the top of the page where it can be
+ * answered. Leaving it in both places put the same request on the screen twice
+ * — answered in one of them and still sitting in the other, which reads as the
+ * answer not having taken.
+ */
+export type ActivityKind = 'reaction' | 'mention' | 'let_in' | 'request_answered';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -66,7 +74,7 @@ export async function activityFor(
     .from(schema.actors)
     .where(eq(schema.actors.id, actorId));
 
-  const [reactions, mentions, friends, letIn, answered] = await Promise.all([
+  const [reactions, mentions, letIn, answered] = await Promise.all([
     /*
      * Somebody reacted to something you wrote.
      *
@@ -135,24 +143,6 @@ export async function activityFor(
           .limit(LIMIT)
       : Promise.resolve([]),
 
-    // Somebody asked to be your friend and has not been answered.
-    db
-      .select({
-        id: schema.friendRequests.id,
-        at: schema.friendRequests.createdAt,
-        who: NAME,
-      })
-      .from(schema.friendRequests)
-      .innerJoin(schema.actors, eq(schema.actors.id, schema.friendRequests.fromActorId))
-      .where(
-        and(
-          eq(schema.friendRequests.toActorId, actorId),
-          eq(schema.friendRequests.status, 'open'),
-        ),
-      )
-      .orderBy(desc(schema.friendRequests.createdAt))
-      .limit(LIMIT),
-
     // You were let into somebody else's album.
     db
       .select({
@@ -216,14 +206,6 @@ export async function activityFor(
       // notification that can only be answered by opening it.
       what: `mentioned you: “${m.body.slice(0, 90)}${m.body.length > 90 ? '…' : ''}”`,
       href: `/event/${m.eventId}`,
-    })),
-    ...friends.map((f) => ({
-      id: `friend:${f.id}`,
-      kind: 'friend_request' as const,
-      at: f.at.toISOString(),
-      who: f.who,
-      what: 'wants to be friends',
-      href: '/friends',
     })),
     ...letIn.map((l) => ({
       id: `letin:${l.id}`,

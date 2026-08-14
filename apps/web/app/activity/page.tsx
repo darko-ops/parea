@@ -1,19 +1,21 @@
 /**
- * Invites — other people's events, in the two states they can be in.
+ * Activity — everything that has happened to you, and everything waiting on you.
  *
- * The tabs are links and the page is server-rendered, so which one you are on
- * survives a reload and can be sent to somebody. A pair of buttons swapping
- * client state would look identical and lose both.
+ * Two halves, in that order of urgency rather than of time. The bubble at the
+ * top is the second half collapsed to a number: how many people are waiting on
+ * an answer. Below it is the first half, which is a list to read and not a list
+ * to work through.
  *
  * Not indexable: it lists what one person is in and what they have asked for.
  */
 
-import { PendingInvites } from '@/../app/components/PendingInvites';
+import { RequestBubble } from '@/../app/components/RequestBubble';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { activityFor } from '@/activity';
 import { getDb } from '@/db';
-import { askedToJoin, markInvitesSeen, pendingInvites } from '@/invites';
+import { askedToJoin, markInvitesSeen } from '@/invites';
+import { pendingRequestsFor } from '@/requests';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +42,10 @@ function ago(iso: string, now: Date): string {
 export default async function ActivityPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [items, asked, pending] = await Promise.all([
+  const [items, asked, requests] = await Promise.all([
     activityFor(db, actorId),
     askedToJoin(db, actorId),
-    pendingInvites(db, actorId),
+    pendingRequestsFor(db, actorId),
   ]);
 
   /*
@@ -69,7 +71,7 @@ export default async function ActivityPage() {
           Requests first, because they are the only things here anybody has to
           do something about. Everything below has already happened.
         */}
-        <PendingInvites invites={pending} />
+        <RequestBubble requests={requests} />
 
         {asked.length > 0 && (
           <section className="panel">
@@ -103,7 +105,7 @@ export default async function ActivityPage() {
         <section className="panel">
           {/* Only when something sits above it. "Everything else" with nothing
               before it is a heading answering a question nobody asked. */}
-          {(pending.length > 0 || asked.length > 0) && <h2>Everything else</h2>}
+          {(requests.length > 0 || asked.length > 0) && <h2>Everything else</h2>}
           {items.length === 0 ? (
             <p className="panel-note">
               Nothing yet. Reactions to what you write, people mentioning you in

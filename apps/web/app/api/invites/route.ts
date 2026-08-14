@@ -16,11 +16,19 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { invitesWaiting } from '@/invites';
+import { otherRequestsWaiting } from '@/requests';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const waiting = await invitesWaiting(getDb(), await currentActorId());
-  return NextResponse.json({ waiting });
+  const db = getDb();
+  const actorId = await currentActorId();
+  // Two sources, because the badge is a claim about the Activity page and that
+  // page has two halves — what is new, and what is waiting on an answer.
+  const [news, unanswered] = await Promise.all([
+    invitesWaiting(db, actorId),
+    otherRequestsWaiting(db, actorId),
+  ]);
+  return NextResponse.json({ waiting: news + unanswered });
 }
