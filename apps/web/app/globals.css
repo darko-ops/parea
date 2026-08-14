@@ -75,7 +75,17 @@ body {
   margin: 0; background: var(--bg); color: var(--fg);
   font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-.wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 80px; }
+ /* A column, so the footer inside it can be pushed to the bottom — see
+    `.site-footer`. Flex rather than block has one consequence worth undoing:
+    adjacent margins stop collapsing, so two panels that shared a 20px gap in
+    block flow would suddenly have 40. The rule underneath restores it rather
+    than leaving the prose pages quietly looser. */
+.wrap {
+  max-width: 900px; margin: 0 auto; padding: 40px 20px 80px;
+  display: flex; flex-direction: column;
+  min-height: 100dvh;
+}
+.wrap > .panel + .panel { margin-top: 0; }
 h1 { font-size: 28px; margin: 0 0 4px; }
 .muted { color: var(--dim); }
 .empty { padding: 48px 0; text-align: center; }
@@ -299,7 +309,7 @@ button.secondary {
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
 .rail-note { font-size: 12px; line-height: 1.45; color: var(--dim); }
-.main { flex: 1; min-width: 0; padding: 28px 30px; }
+.main { flex: 1; min-width: 0; padding: 28px 30px; display: flex; flex-direction: column; }
 /* `.wrap` is the other kind of page — a 900px column of prose rather than a
    grid running to the edges — and until the rail reached every page it was
    always the top-level element, so it had never been a flex item. Without
@@ -781,8 +791,13 @@ button.secondary {
    --------------------------------------------------------------------------- */
 /* A flex child of `.shell`, like `.main` and `.wrap`. `min-width: 0` because a
    flex item's floor is its content, and a grid of photographs raises that
-   past the column. */
-.event { flex: 1; min-width: 0; }
+   past the column.
+
+   A flex column itself, so `.event-split` can be told to fill what is left
+   under the head — without it, `flex: 1` on the split was inert and the body
+   was only ever as tall as its contents, which is what left the footer
+   floating in the middle of a short event. */
+.event { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .event-head {
   position: sticky; top: 0; z-index: 2; min-height: var(--head-h);
   display: flex; align-items: center; gap: 16px;
@@ -1433,14 +1448,19 @@ button.link {
    --------------------------------------------------------------------------- */
 .site-footer {
   display: flex; flex-wrap: wrap; gap: 4px 18px;
-  margin-top: 56px; padding-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
   font-size: 13px;
 }
+ /* The gap above the footer is `.footer-push`, not this margin — it has to be
+    a minimum *and* a greedy one, which one margin cannot be. See SiteFooter. */
+.footer-push { flex: 1; min-height: 56px; }
 .site-footer a { color: var(--dim); text-decoration: none; }
 .site-footer a:hover { color: var(--accent); text-decoration: underline; }
 /* On the sign-in page there is no page to sit under, so it sits at the bottom
-   of the viewport rather than under a 380px card. */
+   of the viewport rather than under a 380px card — and the spacer that pushes
+   it elsewhere would only push the card off centre. */
+.auth .footer-push { display: none; }
 .auth .site-footer {
   position: absolute; bottom: 20px; left: 0; right: 0;
   justify-content: center; margin: 0; border: 0;

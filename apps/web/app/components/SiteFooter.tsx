@@ -19,10 +19,27 @@
  */
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
-      <a href="/safety">Safety and reporting</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
-    </footer>
+    <>
+      {/*
+        The gap above the footer, as an element rather than a margin.
+
+        It has to be two things at once: at least 56px of air after the content,
+        and *all* the space left over when there is any — so that on a short
+        page the links sit at the bottom of the screen instead of halfway up it
+        with white space underneath, which reads as the page having ended early.
+        `margin-top: auto` alone does the second and loses the first, because it
+        resolves to zero as soon as the content fills the column. A spacer with
+        `flex: 1; min-height: 56px` is both, said plainly.
+
+        Outside a flex column it is simply 56px of blank space, which is what
+        the margin was.
+      */}
+      <div className="footer-push" aria-hidden="true" />
+      <footer className="site-footer">
+        <a href="/safety">Safety and reporting</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </footer>
+    </>
   );
 }
