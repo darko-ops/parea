@@ -22,6 +22,21 @@ const config: NextConfig = {
     process.env.NODE_ENV === 'production'
       ? ['ts', 'tsx']
       : ['dev.ts', 'ts', 'tsx'],
+  /*
+   * `/events` moved to `/albums`.
+   *
+   * A permanent redirect rather than a page that renders one, because links to
+   * the old path are in browser histories and bookmarks and there is nothing
+   * to render for them — and 308 lets a browser stop asking.
+   *
+   * The route is the only thing that moved. Every table, type and identifier
+   * still says `event`, which is what the thing is called in the model; this
+   * is the interface's word for it.
+   */
+  async redirects() {
+    return [{ source: '/events', destination: '/albums', permanent: true }];
+  },
+
   async headers() {
     return [
       {
@@ -62,7 +77,7 @@ const config: NextConfig = {
        * also names their email address — which is exactly the thing the link
        * model exists to keep out of an index.
        */
-      ...['account', 'events', 'find'].map((root) => ({
+      ...['account', 'albums', 'find'].map((root) => ({
         source: `/${root}/:path*`,
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       })),

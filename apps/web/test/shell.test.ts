@@ -119,7 +119,7 @@ describe('an event looks like an event wherever it is listed', () => {
     // page would only prove the grid had not moved, which is not the property
     // worth holding.
     const screens = [
-      { name: 'events', cards: '../app/events/page.tsx', grid: '../app/components/SearchEvents.tsx' },
+      { name: 'events', cards: '../app/albums/page.tsx', grid: '../app/components/SearchEvents.tsx' },
       { name: 'account', cards: '../app/components/AccountView.tsx', grid: '../app/components/AccountView.tsx' },
       { name: 'invites', cards: '../app/invites/page.tsx', grid: '../app/invites/page.tsx' },
     ];

@@ -253,19 +253,17 @@ export function AccountView() {
             )}
           </p>
         </div>
-      </header>
 
-      {/*
-        One button. Settings moved to the rail, under Create Album — it holds
-        the account itself and the way to delete it, which is a different job
-        from changing how you appear, and the two sat on one row looking like
-        a pair.
-      */}
-      <div className="row you-actions">
-        <button className="secondary" onClick={() => setView('profile')}>
-          Edit profile
+        {/*
+          Inside the header and above the rule, rather than a bordered button
+          on its own row below it — it belongs to the name and picture it
+          changes, and a slab under the divider read as the page's main action
+          when the page's main action is the albums underneath.
+        */}
+        <button className="you-edit" onClick={() => setView('profile')}>
+          Edit
         </button>
-      </div>
+      </header>
 
       {note && <p className="muted">{note}</p>}
 

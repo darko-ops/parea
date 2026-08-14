@@ -27,7 +27,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/e/', '/event/', '/group/', '/account', '/events', '/find', '/api/'],
+        disallow: ['/e/', '/event/', '/group/', '/account', '/albums', '/find', '/api/'],
       },
     ],
   };

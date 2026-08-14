@@ -29,17 +29,24 @@
 
 import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
+import { RailIcon, type RailGlyph } from './RailIcon';
 
 export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | 'settings' | null;
 
-const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
-  // The label is Home and the identifier stays `events`, because the route
-  // still is: the id names where the row goes, not what the row is called.
-  { href: '/events', label: 'Home', page: 'events' },
+const ROWS: {
+  href: string;
+  label: string;
+  page: Exclude<RailPage, null>;
+  glyph: RailGlyph;
+}[] = [
+  // The label is Home, the route is `/albums`, and the id stays `events`: the
+  // id names the row for the code, and every table underneath still says
+  // `event`.
+  { href: '/albums', label: 'Home', page: 'events', glyph: 'home' },
   // Under Home because it is the same kind of thing — events you are in —
   // separated only by whose they are. Search is the odd one out: the only row
   // that goes looking for something you are not already part of.
-  { href: '/invites', label: 'Invites', page: 'invites' },
+  { href: '/invites', label: 'Invites', page: 'invites', glyph: 'invites' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
   // on Profile, which is where somebody looks for their friends anyway. A rail
@@ -48,8 +55,8 @@ const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   // The labels say what the rows do; the ids still say where they go. `find`
   // and `you` name the routes, which have not moved — renaming those would
   // break every link anybody has already sent, and every bookmark.
-  { href: '/find', label: 'Search', page: 'find' },
-  { href: '/account', label: 'Profile', page: 'you' },
+  { href: '/find', label: 'Search', page: 'find', glyph: 'search' },
+  { href: '/account', label: 'Profile', page: 'you', glyph: 'profile' },
 ];
 
 export function Rail({ current }: { current: RailPage }) {
@@ -73,7 +80,10 @@ export function Rail({ current }: { current: RailPage }) {
           // instead of the two going out of step.
           aria-current={current === row.page ? 'page' : undefined}
         >
-          {row.label}
+          {/* The glyph, then the word. Both, because a rail of five icons is a
+              puzzle and a rail of five words is a list you have to read. */}
+          <RailIcon glyph={row.glyph} />
+          <span className="rail-label">{row.label}</span>
           {/*
             Only on the row it belongs to, and only when the page is not the
             one you are looking at: arriving on Invites is what clears it, so a
@@ -101,7 +111,8 @@ export function Rail({ current }: { current: RailPage }) {
           className="rail-row rail-settings"
           aria-current={current === 'settings' ? 'page' : undefined}
         >
-          Settings
+          <RailIcon glyph="settings" />
+          <span className="rail-label">Settings</span>
         </a>
       </div>
     </nav>
