@@ -160,6 +160,43 @@ export function ThreadSheet({
   );
 }
 
+/**
+ * Closes a thing when you click away from it or press Escape.
+ *
+ * Written once because there are two of these on every message — the actions
+ * menu and the reaction picker — and a popover that can only be closed by
+ * pressing the exact control that opened it is a popover people leave open.
+ * Both of the alternatives were considered and are worse: a `<details>` gets
+ * the toggle for free but ignores clicks elsewhere on the page, and closing on
+ * blur fires when focus moves *inside* the panel, which shuts the menu on the
+ * way to the button you were reaching for.
+ *
+ * `mousedown` rather than `click`: a click that starts inside the panel and
+ * ends outside it is not a click away, and listening for the later event
+ * closes the panel between a button being pressed and its handler running.
+ */
+function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open, close]);
+
+  return ref;
+}
+
 function ThreadBody({ eventId, messages, canPost, people, onChanged, onSeen }: ThreadProps) {
   const session = useSession();
   const [draft, setDraft] = useState('');
@@ -425,6 +462,7 @@ function Row({
 }) {
   const [body, setBody] = useState(message.body);
   const [picking, setPicking] = useState(false);
+  const pickerRef = useDismiss(picking, useCallback(() => setPicking(false), []));
 
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
@@ -440,23 +478,16 @@ function Row({
       </span>
 
       <div className="message-body">
-        <p className="message-meta">
+        <div className="message-meta">
           <strong>{message.author.mine ? 'You' : message.author.name}</strong>{' '}
           <span>
             {ago(new Date(message.createdAt), new Date())}
             {message.edited && ' · edited'}
           </span>
           {message.author.mine && !editing && (
-            <span className="message-own">
-              <button className="link" onClick={onEdit}>
-                Edit
-              </button>
-              <button className="link" onClick={onDelete}>
-                Delete
-              </button>
-            </span>
+            <MessageMenu onEdit={onEdit} onDelete={onDelete} />
           )}
-        </p>
+        </div>
 
         {editing ? (
           <div className="message-edit">
@@ -491,32 +522,92 @@ function Row({
                 {reaction.emoji} {reaction.count}
               </button>
             ))}
-            {canPost &&
-              (picking ? (
-                REACTIONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    className="reaction"
-                    onClick={() => {
-                      setPicking(false);
-                      onReact(emoji);
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))
-              ) : (
+            {canPost && (
+              <div className="picker" ref={pickerRef}>
                 <button
                   className="reaction reaction-add"
-                  aria-label="Add a reaction"
-                  onClick={() => setPicking(true)}
+                  aria-label={picking ? 'Close the reactions' : 'Add a reaction'}
+                  aria-expanded={picking}
+                  onClick={() => setPicking(!picking)}
                 >
-                  +
+                  {picking ? '\u00d7' : '+'}
                 </button>
-              ))}
+                {picking &&
+                  REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      className="reaction"
+                      onClick={() => {
+                        setPicking(false);
+                        onReact(emoji);
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The three dots at the end of your own message.
+ *
+ * Two links reading "Edit" and "Delete" sat on every message you had written,
+ * which put a permanent invitation to delete beside every one of them — and on
+ * a narrow column they competed with the name and the time for the same line.
+ * A menu says the same thing in one glyph and only shows the dangerous half
+ * when asked.
+ *
+ * The panel is the popover the download menu already uses. Same shadow, same
+ * radius, same edge — a second popover with its own look is how an interface
+ * starts to feel assembled rather than designed.
+ */
+function MessageMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, useCallback(() => setOpen(false), []));
+
+  return (
+    <div className="msg-menu" ref={ref}>
+      <button
+        className="msg-menu-go"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Options for your message"
+        onClick={() => setOpen(!open)}
+      >
+        {'\u00b7\u00b7\u00b7'}
+      </button>
+      {open && (
+        <div className="menu-body" role="menu">
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+          >
+            Edit
+          </button>
+          {/* Set in the danger colour rather than given the filled `.danger`
+              treatment: a red slab inside a two-item menu shouts, and this is
+              still only a message. */}
+          <button
+            role="menuitem"
+            className="menu-danger"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }

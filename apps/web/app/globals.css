@@ -984,17 +984,49 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   font-size: 12px; font-weight: 600; user-select: none;
 }
 .message-body { flex: 1; min-width: 0; }
+ /* A `<div>`, not a `<p>`. It holds the options menu, and a `<div>` inside a
+    `<p>` is invalid nesting — which the browser silently repairs by closing
+    the paragraph early, so the server's HTML and the client's disagree and
+    React throws the whole tree away and rebuilds it. Nothing looks wrong; the
+    page just quietly stops being server-rendered. */
 .message-meta {
   margin: 0 0 2px; font-size: 13px;
   display: flex; align-items: baseline; gap: 6px;
 }
 .message-meta strong { font-weight: 600; }
 .message-meta > span { color: var(--dim); font-size: 12.5px; }
-/* Pushed to the end of the meta line rather than floated over the message:
-   the actions belong to the row, and a control that appears on hover is a
-   control that does not exist on a phone. */
-.message-own { margin-left: auto; display: flex; gap: 10px; }
-.message-own button { font-size: 12.5px; }
+/* Pushed to the end of the meta line rather than floated over the message: the
+   actions belong to the row, and a control that appears on hover is a control
+   that does not exist on a phone.
+
+   One glyph rather than two links. "Edit" and "Delete" sat on every message you
+   had written — a standing invitation to delete, competing with the name and
+   the time for a 360px line. */
+.msg-menu { position: relative; margin-left: auto; }
+.msg-menu-go {
+  padding: 0 4px; background: none; border: 0; cursor: pointer;
+  font-size: 13px; font-weight: 400; letter-spacing: .08em; color: var(--dim);
+  line-height: 1;
+}
+.msg-menu-go:hover { color: var(--fg); }
+/* The download menu's popover, reused. A second one with its own look is how
+   an interface starts to feel assembled rather than designed. */
+.msg-menu .menu-body { width: 150px; padding: 6px; gap: 2px; }
+.msg-menu .menu-body button {
+  width: 100%; text-align: left;
+  padding: 8px 10px; border-radius: 8px;
+  background: none; color: var(--fg); font-size: 14px; font-weight: 500;
+}
+.msg-menu .menu-body button:hover { background: var(--track); }
+/* The danger colour on the text, not a filled red slab: this is one item in a
+   two-item menu, and it is still only a message. */
+.msg-menu .menu-body .menu-danger { color: #b3261e; }
+
+/* The reaction picker opens in place, and closes the same way — the `+`
+   becomes a `×`, and a click anywhere else or Escape also shuts it. A picker
+   that can only be dismissed by choosing something is a picker that makes you
+   react to get rid of it. */
+.picker { display: contents; }
 .message-text {
   margin: 0; font-size: 14.5px; line-height: 1.5;
   overflow-wrap: anywhere;

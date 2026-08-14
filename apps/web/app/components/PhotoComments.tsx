@@ -73,13 +73,13 @@ export function PhotoComments({
             {message.author.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
           </span>
           <div className="message-body">
-            <p className="message-meta">
+            <div className="message-meta">
               <strong>{message.author.mine ? 'You' : message.author.name}</strong>{' '}
               <span>
                 {ago(new Date(message.createdAt), new Date())}
                 {message.edited && ' · edited'}
               </span>
-            </p>
+            </div>
             <p className="message-text">{message.body}</p>
           </div>
         </div>
