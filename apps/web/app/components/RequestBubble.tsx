@@ -18,6 +18,13 @@
  * and a panel that opens itself has decided on somebody's behalf that they were
  * going to read it.
  *
+ * Shown at zero as well, which is not the usual rule for a badge. A count that
+ * only appears when it is non-zero teaches people to scan for its absence, and
+ * absence is also what a broken query looks like — "nothing is waiting on you"
+ * said plainly is a different statement from silence. At zero it goes quiet
+ * rather than accent-tinted, and stops being a button, because there is
+ * nothing behind it to open.
+ *
  * Optimistic in one direction only, the same rule as everywhere else here: the
  * row goes as soon as the answer is sent, because whichever way it was answered
  * the question is dealt with. A failure puts it back and says so, rather than
@@ -91,11 +98,25 @@ export function RequestBubble({ requests }: { requests: PendingRequest[] }) {
     [open],
   );
 
-  // Nothing waiting is not a state worth drawing. An empty bubble saying zero
-  // is a permanent reminder of an absence.
-  if (open.length === 0) return null;
-
   const n = open.length;
+
+  /*
+   * At zero it is a statement, not a control.
+   *
+   * A `<div>` rather than a disabled button: a button that cannot be pressed
+   * is still in the tab order in some browsers and still announces itself as
+   * something to do. There is nothing to do.
+   */
+  if (n === 0) {
+    return (
+      <section className="requests requests-none">
+        <div className="requests-bubble">
+          <span className="requests-count">0</span>
+          <span className="requests-label">requests waiting on you</span>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={`requests${expanded ? ' requests-open' : ''}`}>

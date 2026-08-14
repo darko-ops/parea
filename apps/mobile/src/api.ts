@@ -114,6 +114,25 @@ export type JoinRequest = {
   displayName: string | null;
 };
 
+/**
+ * One thing waiting on an answer from you — the same shape the web page draws.
+ *
+ * Three kinds, and the client's only job is knowing where each one is
+ * answered. Deliberately not flattened into a single "answer this" call on the
+ * server: each kind is answered by the route that already decides who may, and
+ * one endpoint that answers all three would be a second place for that
+ * decision to live.
+ */
+export type PendingRequest = {
+  key: string;
+  kind: 'invite' | 'friend' | 'join';
+  id: string;
+  eventId: string | null;
+  title: string;
+  detail: string;
+  at: string;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -283,6 +302,54 @@ export class Api {
   async myEvents(): Promise<EventListing[]> {
     const { events } = await this.call<{ events: EventListing[] }>('/api/events');
     return events;
+  }
+
+  // --- things waiting on you ---------------------------------------------
+
+  /**
+   * Invitations, friend requests, and people asking into an album you run.
+   *
+   * Empty for a device that has never signed in, which is the common case on
+   * first launch and not an error — the endpoint answers a list rather than a
+   * 403 for exactly that reason.
+   */
+  async requests(): Promise<PendingRequest[]> {
+    const { requests } = await this.call<{ requests: PendingRequest[] }>('/api/requests');
+    return requests;
+  }
+
+  /**
+   * Answer one, wherever it is answered.
+   *
+   * The three routes disagree about the word for yes — a host *approves*
+   * somebody into an album, where an invitation is *accepted* — and that
+   * difference belongs here rather than in the screen, which should only know
+   * that somebody pressed the left button or the right one.
+   */
+  answerRequest(request: PendingRequest, yes: boolean): Promise<unknown> {
+    switch (request.kind) {
+      case 'invite':
+        return this.call(`/api/invites/${request.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: yes ? 'accept' : 'decline' }),
+        });
+      case 'friend':
+        return this.call('/api/friends', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            requestId: request.id,
+            action: yes ? 'accept' : 'decline',
+          }),
+        });
+      case 'join':
+        return this.call(`/api/events/${request.eventId}/access-requests`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            requestId: request.id,
+            action: yes ? 'approve' : 'decline',
+          }),
+        });
+    }
   }
 
   /** The name shown beside your uploads. The whole of a profile here. */

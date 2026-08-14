@@ -110,6 +110,24 @@ export function AccountView() {
     await load();
   }, [load]);
 
+  /*
+   * Signing out is a full page load, not a re-render.
+   *
+   * Everything server-rendered on this site is rendered *for* the actor in the
+   * cookie — the rail's badge, the albums, the thread. Clearing the cookie and
+   * calling `load()` would leave every one of those still on screen, correct
+   * for somebody who is no longer here. Sending the browser to the front page
+   * is the only way to be sure nothing of theirs is still drawn.
+   */
+  const signOut = useCallback(async () => {
+    setBusy(true);
+    try {
+      await fetch('/api/account/session', { method: 'DELETE' });
+    } finally {
+      window.location.href = '/';
+    }
+  }, []);
+
   const remove = useCallback(
     async (alsoPhotos: boolean) => {
       const message = alsoPhotos
@@ -172,9 +190,24 @@ export function AccountView() {
   if (view === 'settings') {
     return page(
       <>
+        {/*
+          Sign out sits with the address it signs out of, rather than in the
+          panel about deleting the account. They are next to each other and one
+          of them is permanent; the sentence under the button is what keeps
+          somebody from reading them as two strengths of the same thing.
+        */}
         <section className="panel">
           <h2>Settings</h2>
           <p className="muted">Signed in as {account?.email}.</p>
+          <div className="row settings-out">
+            <button className="secondary" onClick={signOut} disabled={busy}>
+              Sign out
+            </button>
+            <p className="muted">
+              This browser forgets you and the albums you opened by link.
+              Nothing is deleted, and the same address signs back in.
+            </p>
+          </div>
         </section>
 
         <section className="panel">

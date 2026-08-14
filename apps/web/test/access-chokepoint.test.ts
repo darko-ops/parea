@@ -222,6 +222,15 @@ describe('the routes that do not authorize, and why', () => {
     expect(readsEventData(source)).toBe(false);
   });
 
+  it('the request list is scoped to the caller by the query it runs', async () => {
+    // Same arrangement as the listing below: no table is touched here, and the
+    // one function called takes the actor. If it ever stops being passed, this
+    // becomes a list of everybody's invitations.
+    const source = await readCode(join(API, 'requests/route.ts'));
+    expect(readsEventData(source)).toBe(false);
+    expect(source).toMatch(/pendingRequestsFor\([^;]*?[aA]ctorId/);
+  });
+
   it('creating an event only ever inserts, and listing is scoped to the caller', async () => {
     const source = await readCode(join(API, 'events/route.ts'));
     expect(readsEventData(source), 'this route now reads events and must authorize').toBe(

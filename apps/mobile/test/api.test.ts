@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Offline } from '@parea/upload';
 
-import { Api, ApiError, tokenFromInput } from '../src/api';
+import { Api, ApiError, type PendingRequest, tokenFromInput } from '../src/api';
 
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUv'; // 22 chars, as minted by @parea/core
 
@@ -185,6 +185,78 @@ describe('groups on the wire', () => {
     const err = await new Api('https://api.test').group('g1').catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(404);
+  });
+});
+
+describe('the things waiting on you, on the wire', () => {
+  function respond(body: unknown, status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status });
+    });
+    return calls;
+  }
+
+  const request = (over: Partial<PendingRequest> = {}): PendingRequest => ({
+    key: 'invite:r1',
+    kind: 'invite',
+    id: 'r1',
+    eventId: 'ev1',
+    title: 'Lisbon, in April',
+    detail: 'Ines asked you',
+    at: '2026-08-14T12:00:00.000Z',
+    ...over,
+  });
+
+  it('unwraps the list, so the screen never sees the envelope', async () => {
+    respond({ requests: [request()] });
+    const list = await new Api('https://api.test').requests();
+    expect(list).toEqual([request()]);
+  });
+
+  /*
+   * Each kind goes to the route that already decides who may answer it, and
+   * they disagree about the word for yes. Getting this wrong is silent in the
+   * worst way: `approve` sent to the friends route is a 400 the person reads
+   * as "it did not work", and `accept` sent to an album's access requests is
+   * the same. There is no shared constant to lean on — the words are the
+   * routes' own — so the mapping is pinned here.
+   */
+  it('answers an invitation where invitations are answered', async () => {
+    const calls = respond({ ok: true });
+    await new Api('https://api.test').answerRequest(request(), true);
+    expect(calls[0]!.url).toBe('https://api.test/api/invites/r1');
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({ action: 'accept' });
+  });
+
+  it('answers a friend request by naming it, since the route takes no id', async () => {
+    const calls = respond({ ok: true });
+    await new Api('https://api.test').answerRequest(
+      request({ kind: 'friend', key: 'friend:f1', id: 'f1', eventId: null }),
+      false,
+    );
+    expect(calls[0]!.url).toBe('https://api.test/api/friends');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      requestId: 'f1',
+      action: 'decline',
+    });
+  });
+
+  it('approves somebody into the album they asked about, not into any other', async () => {
+    // The event id in the path is what scopes it. A host administering two
+    // albums has a request id that is only answerable through one of them.
+    const calls = respond({ ok: true });
+    await new Api('https://api.test').answerRequest(
+      request({ kind: 'join', key: 'join:j1', id: 'j1', eventId: 'ev9' }),
+      true,
+    );
+    expect(calls[0]!.url).toBe('https://api.test/api/events/ev9/access-requests');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      requestId: 'j1',
+      action: 'approve',
+    });
   });
 });
 

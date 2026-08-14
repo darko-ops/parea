@@ -27,6 +27,7 @@ import {
   signIn,
   storeCode,
 } from '../src/accounts';
+import { cookiesToClear } from '../src/auth/cookies';
 import type { Db } from '../src/db';
 import { MERGED_TABLES, mergeActor, resolveActor } from '../src/merge';
 
@@ -595,6 +596,55 @@ describe('the session outlives the visit', () => {
     // actor forever, resolved on every request by a pointer that only has to
     // be tidied once.
     expect(route).not.toMatch(/issueActorCookie\(actorId\)/);
+  });
+});
+
+/**
+ * Signing out, and the half of it that is easy to forget.
+ *
+ * Identity is one cookie; access to the photographs is a different set of
+ * them, one per event this browser has ever opened a link to. Clearing only
+ * the first looks completely correct — the name goes, the albums list empties,
+ * the page says signed out — and leaves every album this person opened still
+ * openable by whoever sits down next. On a shared computer that is the exact
+ * situation the button was pressed to avoid.
+ */
+describe('signing out gives back everything, not just the name', () => {
+  it('takes identity and every capability with it', () => {
+    expect(
+      cookiesToClear([
+        'pa_actor',
+        'pa_cap_11111111-1111-1111-1111-111111111111',
+        'pa_cap_22222222-2222-2222-2222-222222222222',
+      ]),
+    ).toEqual([
+      'pa_actor',
+      'pa_cap_11111111-1111-1111-1111-111111111111',
+      'pa_cap_22222222-2222-2222-2222-222222222222',
+    ]);
+  });
+
+  it('leaves alone what is not ours to take', () => {
+    // A button labelled "Sign out" that also cleared, say, a theme choice is
+    // doing something nobody asked it to.
+    expect(cookiesToClear(['pa_actor', 'theme', '_vercel_jwt'])).toEqual(['pa_actor']);
+  });
+
+  it('is nothing to do for a browser that was never anybody', () => {
+    expect(cookiesToClear([])).toEqual([]);
+    expect(cookiesToClear(['theme'])).toEqual([]);
+  });
+
+  it('names the capability prefix once, where the cookie is named', () => {
+    // The names are the only record of which events this browser holds — there
+    // is no list of them server-side — so a second literal of `pa_cap_` is a
+    // rename away from a sign-out that quietly keeps them.
+    const session = readFileSync(
+      fileURLToPath(new URL('../src/session.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(session).not.toMatch(/'pa_cap_/);
+    expect(session).toMatch(/cookiesToClear\(/);
   });
 });
 

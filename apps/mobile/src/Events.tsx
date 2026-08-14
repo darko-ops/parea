@@ -31,6 +31,7 @@ import {
 
 import type { Api, EventListing } from './api';
 import type { GroupTheme } from './Groups';
+import { RequestBubble } from './Requests';
 
 export type TabTheme = GroupTheme;
 
@@ -207,6 +208,7 @@ function useNow(): Date {
 
 /** Page 1 — what is happening, most recently active first. */
 export function HomeTab({
+  api,
   events,
   loading,
   t,
@@ -215,6 +217,7 @@ export function HomeTab({
   onCreate,
   Button,
 }: {
+  api: Api;
   events: EventListing[];
   loading: boolean;
   t: TabTheme;
@@ -224,6 +227,9 @@ export function HomeTab({
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
+  // One gesture refreshes both: pulling the list down and finding the count
+  // above it stale would make the count the thing nobody trusts.
+  const [pulled, setPulled] = useState(0);
   const now = useNow();
 
   return (
@@ -235,6 +241,7 @@ export function HomeTab({
           tintColor={t.dim}
           onRefresh={async () => {
             setRefreshing(true);
+            setPulled((n) => n + 1);
             await onRefresh();
             setRefreshing(false);
           }}
@@ -253,6 +260,19 @@ export function HomeTab({
           <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
         </Pressable>
       </View>
+
+      {/*
+        Above the list, because it is the one thing here somebody has to do
+        something about — everything below is theirs already.
+      */}
+      <RequestBubble
+        api={api}
+        t={t}
+        refreshKey={pulled}
+        // Accepting an invitation adds an event, and the list under it is
+        // holding the old answer until something says so.
+        onAnswered={() => void onRefresh()}
+      />
 
       {loading && events.length === 0 && <ActivityIndicator color={t.accent} />}
 

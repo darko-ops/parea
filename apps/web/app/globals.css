@@ -450,6 +450,12 @@ button.secondary {
   border: 1px solid transparent;
 }
 .requests-bubble:hover { border-color: rgba(26, 95, 208, .28); }
+/* Nothing waiting. Still there, still the same shape, but grey and inert —
+   the accent is reserved for something being asked of somebody, and a blue
+   pill that cannot be opened is a control that does not work. */
+.requests-none .requests-bubble { background: var(--track); color: var(--dim); }
+.requests-none .requests-count { background: #d5dae1; color: var(--card); }
+.requests-none .requests-bubble:hover { border-color: transparent; }
 .requests-bubble:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* The number, in a filled disc. A count set in the same line as the words
    beside it is read as part of the sentence; in a disc it is read first, which
@@ -1557,6 +1563,13 @@ img.you-face { object-fit: cover; }
   transition: border-color 120ms, color 120ms;
 }
 .you-edit:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Sign out, with its sentence beside it rather than under it — on a wide
+   panel a line of explanation on its own row reads as belonging to whatever
+   comes next, which here is deleting the account. `.row` already wraps, so on
+   a narrow screen the sentence drops below the button by itself. */
+.settings-out { align-items: center; gap: 14px; margin-top: 12px; }
+.settings-out p { margin: 0; flex: 1; min-width: 220px; font-size: 13px; line-height: 1.5; }
 
 /* A label doing a button's job, because the file input it belongs to is
    hidden — the default control reads "Choose File / no file selected", which

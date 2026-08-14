@@ -18,6 +18,7 @@ import {
   ensureActor,
   fromBrowser,
   issueActorCookie,
+  signOutBrowser,
 } from '@/session';
 
 export const runtime = 'nodejs';
@@ -26,6 +27,24 @@ export async function GET() {
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ account: null });
   return NextResponse.json({ account: await accountFor(getDb(), actorId) });
+}
+
+/**
+ * Sign out — give the session back, keep the account.
+ *
+ * On this route rather than its own, because it is the exact opposite of the
+ * POST above: that one takes a code and hands back a session, this one hands
+ * the session back. `DELETE /api/account` is a different thing entirely — it
+ * removes the account — and the two would be one letter apart in a fetch call
+ * if this lived there.
+ *
+ * Nothing is read and nothing is checked. Signing out an actor who is not
+ * signed in is what a stale tab does, and it should answer the same as any
+ * other sign-out: you are not signed in now.
+ */
+export async function DELETE() {
+  await signOutBrowser();
+  return new NextResponse(null, { status: 204 });
 }
 
 export async function POST(request: Request) {

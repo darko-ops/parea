@@ -18,6 +18,7 @@ import {
   ACTOR_COOKIE_MAX_AGE,
   COOKIE_OPTIONS,
   capabilityCookieName,
+  cookiesToClear,
   decodeCapability,
   encodeCapability,
   sign,
@@ -146,6 +147,29 @@ export async function issueActorCookie(actorId: string): Promise<void> {
     ...COOKIE_OPTIONS,
     maxAge: ACTOR_COOKIE_MAX_AGE,
   });
+}
+
+/**
+ * Signing out: forget this browser entirely.
+ *
+ * Both kinds of cookie go, and the capability ones are the reason this is not
+ * a one-liner. `pa_actor` says who you are; every `pa_cap_<id>` says that this
+ * browser holds an event's credential, and they are what actually open the
+ * photographs — clearing identity while leaving them behind would sign
+ * somebody out of their account and leave the next person at the same computer
+ * looking at the albums they had opened. On a shared machine that is the whole
+ * point of the button.
+ *
+ * Nothing is revoked server-side, because there is nothing to revoke: an actor
+ * is not a session and the cookie is not a session id. Which is also why this
+ * is honest about its limits — a copy of the cookie taken elsewhere is not
+ * affected, and only rotating an event's link ends that.
+ */
+export async function signOutBrowser(): Promise<void> {
+  const jar = await cookies();
+  for (const name of cookiesToClear(jar.getAll().map((c) => c.name))) {
+    jar.delete(name);
+  }
 }
 
 /** Creates a guest actor and sets the cookie. Call only when contributing. */

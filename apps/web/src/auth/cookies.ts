@@ -21,8 +21,34 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export const ACTOR_COOKIE = 'pa_actor';
 export const ACTOR_COOKIE_MAX_AGE = 400 * 24 * 60 * 60; // browser cap
 
+/**
+ * The prefix on its own, because signing out has to find them all.
+ *
+ * One capability cookie exists per event this browser has opened a link to,
+ * and there is no list of them anywhere else — the names *are* the record. A
+ * second literal `pa_cap_` somewhere else is a rename away from a sign-out
+ * that silently leaves them behind.
+ */
+export const CAPABILITY_PREFIX = 'pa_cap_';
+
 export function capabilityCookieName(eventId: string): string {
-  return `pa_cap_${eventId}`;
+  return `${CAPABILITY_PREFIX}${eventId}`;
+}
+
+/**
+ * Everything signing out has to remove, given what the browser is carrying.
+ *
+ * Pure, and separate from the route that does it, because the interesting part
+ * is not the deleting — it is deciding *what*. Identity alone is the wrong
+ * answer: a capability cookie is what actually opens an event, and one left
+ * behind on a shared computer hands the next person the photographs. Anything
+ * else the site sets stays, so a preference does not get taken away by a
+ * button that said it was about signing out.
+ */
+export function cookiesToClear(present: string[]): string[] {
+  return present.filter(
+    (name) => name === ACTOR_COOKIE || name.startsWith(CAPABILITY_PREFIX),
+  );
 }
 
 function secret(): string {

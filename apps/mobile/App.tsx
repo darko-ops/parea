@@ -405,6 +405,7 @@ export default function App() {
         <>
           {tab === 'home' && (
             <HomeTab
+              api={api}
               events={events}
               loading={loadingEvents}
               t={t}
