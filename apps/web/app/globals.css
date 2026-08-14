@@ -1265,8 +1265,30 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .sheet .thread-composer { padding-bottom: 20px; }
 .sheet .thread-actions button { padding: 11px 18px; }
 
-/* Only meaningful on a screen wide enough to have had the column. */
-.thread-unfold { display: inline-flex; align-items: center; gap: 7px; }
+ /* The way back, in the spot the fold button left.
+
+    Same 28px box, the same 18px from the right edge of the page and the same
+    14px below the head — because the thread head's padding is `14px 18px` and
+    this sits where its button did. The two are one switch in one place; a
+    control that moves when you press it makes you look for it again. */
+.thread-unfold {
+  flex: none; align-self: flex-start; position: relative;
+  width: 28px; height: 28px; padding: 0; margin: 14px 18px 0 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: 8px;
+  color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer;
+}
+.thread-unfold:hover { background: var(--track); color: var(--fg); }
+/* The count, on a 28px button. Absolute so the glyph stays centred — a badge
+   in the flow would shove the chevron off its own axis. */
+.thread-unread {
+  position: absolute; top: -4px; right: -6px;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-width: 900px) {
   /* The column goes before the grid does. At this width 360px of thread is

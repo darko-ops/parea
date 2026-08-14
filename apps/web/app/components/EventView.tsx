@@ -375,18 +375,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         />
 
         {/*
-          The way back to a folded column. Desktop only — below the breakpoint
-          the column is hidden regardless and the control above opens the
-          sheet, so both would appear side by side saying the same word.
-        */}
-        {!threadOpen && (
-          <button className="chip thread-unfold" onClick={() => foldThread(true)}>
-            Thread
-            {unread > 0 && <span className="badge">{unread}</span>}
-          </button>
-        )}
-
-        {/*
           Two menus and nothing else.
 
           The head used to be a pill, a Download button and a filled Add photos
@@ -657,6 +645,26 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           hides it and the head's `ThreadSheet` takes over — one thread, two
           shapes, no resize listener deciding which.
         */}
+        {/*
+          The way back, in the place it left from.
+
+          It was a chip in the head, three controls away — so folding the
+          column and unfolding it were two different gestures in two different
+          corners. Here it lands under the same finger: same distance from the
+          right edge, same distance below the head, so the pair reads as one
+          switch rather than two buttons that happen to be opposites.
+        */}
+        {!threadOpen && (
+          <button
+            className="thread-unfold"
+            aria-label="Show the thread"
+            onClick={() => foldThread(true)}
+          >
+            {'\u2039'}
+            {unread > 0 && <span className="thread-unread">{unread}</span>}
+          </button>
+        )}
+
         {threadOpen && (
           <Thread
             eventId={eventId}
