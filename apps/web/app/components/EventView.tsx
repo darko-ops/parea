@@ -35,6 +35,7 @@ import { SignIn, useSession } from './SignIn';
 import { Menu } from './Menu';
 import { Thread, ThreadSheet } from './Thread';
 import { PhotoLightbox } from './PhotoLightbox';
+import { ShareEvent } from './ShareEvent';
 import { PhotoTile } from './PhotoTile';
 import { useUploads } from './useUploads';
 import { SiteFooter } from './SiteFooter';
@@ -116,17 +117,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [picked, setPicked] = useState<Set<string> | null>(null);
   /** The share panel, which is what somebody who cannot manage gets instead. */
   const [sharing, setSharing] = useState(false);
-  const [copied, setCopied] = useState(false);
-  /**
-   * The site's own origin, read after mount.
-   *
-   * Not `process.env.APP_URL`: the link somebody copies has to be the host they
-   * are actually on, or a preview deployment hands out production URLs. Empty
-   * during the server render, which is why the panel is opened by a click and
-   * never on first paint.
-   */
-  const [origin, setOrigin] = useState('');
-  useEffect(() => setOrigin(window.location.origin), []);
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
 
@@ -595,43 +585,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         {downloadError && <p className="muted">{downloadError}</p>}
 
         {/*
-          What somebody who cannot manage the event gets instead of settings:
-          the link, and the spoken code if it has one. See the note where these
-          are put on the feed — handing the link to every viewer means anybody
-          who can see the event can pass it on.
-        */}
-        {sharing && (
-          <section className="panel share">
-            <h2>Share this event</h2>
-            <div className="aside-row">
-              <span className="aside-link">{`${origin}/e/${feed.event.linkToken}`}</span>
-              <button
-                className="as-text"
-                onClick={() =>
-                  navigator.clipboard
-                    ?.writeText(`${origin}/e/${feed.event.linkToken}`)
-                    .then(() => setCopied(true))
-                    .catch(() => {})
-                }
-              >
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-            {feed.event.code && (
-              <p className="muted">Or say: {feed.event.code}</p>
-            )}
-            <p className="muted">
-              Anybody with this can open the event and add their photos.
-            </p>
-            <div className="row">
-              <button className="secondary" onClick={() => setSharing(false)}>
-                Done
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/*
           At the foot, and folded away. It is a progress report: worth being
           able to open, never worth sitting between somebody and the pictures.
         */}
@@ -654,6 +607,19 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           onSeen={markSeen}
         />
       </div>
+
+      {/*
+        In front of everything, not in the flow. It was a panel at the foot of
+        the body, which put it under the whole grid — so choosing it from a
+        menu in the sticky head looked like nothing had happened.
+      */}
+      {sharing && (
+        <ShareEvent
+          linkToken={feed.event.linkToken}
+          code={feed.event.code}
+          onClose={() => setSharing(false)}
+        />
+      )}
 
       {openPhoto && (
         <PhotoLightbox
