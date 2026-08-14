@@ -441,13 +441,13 @@ button.secondary {
   display: grid; gap: 18px;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
 }
-/* 20px, up from 14. The card is the one object in the product that is mostly
-   photograph, and a softer corner is what separates it from the panels and
-   inputs that share its border colour. */
+/* 14px. It went to 20 with the brand-forward card, which on a 290px cell took
+   a visible bite out of the corner photograph — the mosaic runs to the edge, so
+   the radius is cropping the picture rather than rounding a box. */
 .card {
   display: block; text-decoration: none; color: inherit;
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 20px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
+  border-radius: 14px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
 }
 .card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -458,7 +458,10 @@ button.secondary {
    invalidates every URL on the card at once — collapses to a single even
    panel instead of an empty grid with hairlines ruled across it. Between
    photos that do load, the same colour reads as an ordinary gutter. */
-.mosaic { display: grid; gap: 3px; height: 168px; background: var(--bg); }
+ /* No gutters. The gap was the page showing through between the tiles, which
+    turned four photographs into four framed photographs — the collage reads as
+    one image when the pictures touch. */
+.mosaic { display: grid; gap: 0; height: 168px; background: var(--bg); }
 .mosaic > * { background: var(--bg); overflow: hidden; }
 .mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* A split column: two tiles stacked in one grid track.
@@ -471,7 +474,7 @@ button.secondary {
    to read as a mistake rather than as a gutter. */
 .mosaic-split {
   display: grid; grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 3px; background: var(--bg);
+  gap: 0; background: var(--bg);
 }
 .mosaic-split > * { min-height: 0; overflow: hidden; }
 
@@ -494,23 +497,32 @@ button.secondary {
    count is 24px, and centring two things of different sizes leaves neither
    sitting on a line the eye can find. */
 .card-text {
-  position: relative; display: flex; align-items: flex-end; gap: 14px;
-  padding: 14px 16px 16px;
+  position: relative; display: flex; align-items: flex-end; gap: 12px;
+  padding: 11px 13px 12px;
 }
+ /* Smaller than the brand-forward card made them. At 20px the name was
+    competing with the photographs above it for the same glance, and the whole
+    argument for a photo-led card is that the picture wins. */
 .card-name {
-  font-size: 20px; font-weight: 700; letter-spacing: -.015em;
+  font-size: 16px; font-weight: 700; letter-spacing: -.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.card-meta { font-size: 13.5px; color: var(--dim); }
+/* The host's own line. Set in the text colour rather than `--dim` — it is
+   something a person wrote, not a fact the page worked out. */
+.card-caption {
+  font-size: 12.5px; line-height: 1.4; color: var(--fg); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-meta { font-size: 12.5px; color: var(--dim); }
 /* Lenses then place. Set in the text colour rather than `--dim`: it is a short
    fact about the event, and the row it replaced was grey because it was a
    sentence. */
 .card-who {
-  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  display: flex; align-items: center; gap: 7px; margin-top: 4px;
   min-width: 0;
 }
 .card-where {
-  font-size: 13.5px; font-weight: 500; color: var(--fg);
+  font-size: 12px; font-weight: 500; color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* One circle per contributor, in the mark's colours, overlapped the way the
@@ -523,7 +535,7 @@ button.secondary {
    shade; the effect competed with the photographs it was sitting on, which is
    the one thing a card is not allowed to do. */
 .card-count {
-  flex: none; font-size: 18px; font-weight: 600; color: var(--dim);
+  flex: none; font-size: 15px; font-weight: 600; color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
 
@@ -531,7 +543,7 @@ button.secondary {
    produces a grey smear that looks like a loading state that never finishes.
    So it is a different card: a name, a sentence, and the argument. */
 .card-empty {
-  min-height: 238px; padding: 18px;
+  min-height: 210px; padding: 16px;
   display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
 }
 .card-empty .card-name { white-space: normal; }
@@ -557,7 +569,7 @@ button.secondary {
 }
 
 .card-new {
-  border: 1px dashed var(--line-dashed); border-radius: 20px; min-height: 238px;
+  border: 1px dashed var(--line-dashed); border-radius: 14px; min-height: 210px;
   display: flex; flex-direction: column; justify-content: center; gap: 8px;
   padding: 18px; text-decoration: none; color: inherit; background: none;
 }

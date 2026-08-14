@@ -30,7 +30,7 @@ const NOW = new Date('2026-08-13T21:00:00Z');
 function card(over: Partial<CardEvent> = {}): CardEvent {
   return {
     id: 'e', name: 'An evening', photoCount: 0, mosaic: [], meta: '',
-    place: null, contributorCount: 0, memberCount: 1, arrivingCount: 0,
+    place: null, caption: null, contributorCount: 0, memberCount: 1, arrivingCount: 0,
     lastActiveAt: NOW.toISOString(),
     ...over,
   };

@@ -50,6 +50,8 @@ export type EventListing = {
   /** Most recent first. Empty for an event nobody has added to yet. */
   mosaic: MosaicPhoto[];
   place: string | null;
+  /** The host's line under the name. Drawn on the card, under the title. */
+  caption: string | null;
   eventDate: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -90,6 +92,7 @@ export async function eventsFor(
       name: schema.events.name,
       linkToken: schema.events.linkToken,
       place: schema.events.place,
+      caption: schema.events.caption,
       eventDate: schema.events.eventDate,
       startsAt: schema.events.startsAt,
       endsAt: schema.events.endsAt,

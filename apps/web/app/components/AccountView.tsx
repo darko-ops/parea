@@ -39,6 +39,7 @@ type EventListing = {
   id: string;
   name: string;
   place: string | null;
+  caption: string | null;
   memberCount: number;
   /** People who put something in, which is how many lenses the card draws. */
   contributorCount: number;
@@ -266,6 +267,7 @@ export function AccountView() {
                 photoCount: event.photoCount,
                 mosaic: event.mosaic,
                 place: event.place,
+                caption: event.caption,
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,
                 arrivingCount: event.arrivingCount,

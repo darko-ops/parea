@@ -55,6 +55,7 @@ export function EventCard({ event }: { event: CardEvent }) {
       >
         <div>
           <div className="card-name">{event.name}</div>
+          {event.caption && <div className="card-caption">{event.caption}</div>}
           <div className="card-meta">{emptyLine(event.memberCount)}</div>
         </div>
 
@@ -117,13 +118,20 @@ export function EventCard({ event }: { event: CardEvent }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="card-name">{event.name}</div>
             {/*
+              The host's own line, under the title and above the facts the
+              page derived. One line, ellipsised: a card is a thing you scan,
+              and a caption that wraps to three lines is a paragraph on a
+              photograph.
+            */}
+            {event.caption && <div className="card-caption">{event.caption}</div>}
+            {/*
               Lenses and place, where a sentence used to be. `event.meta` is
               still the fallback: an event with no place has nothing to put
               beside the circles, and "6 people ·" with nothing after it is
               worse than the sentence it replaced.
             */}
             <div className="card-who">
-              <Lenses count={event.contributorCount} />
+              <Lenses count={event.contributorCount} size={12} />
               <span className="card-where">{event.place ?? event.meta}</span>
             </div>
           </div>

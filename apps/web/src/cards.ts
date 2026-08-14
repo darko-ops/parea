@@ -27,6 +27,8 @@ export type CardEvent = {
   meta: string;
   /** Where it was. Sits beside the lenses on the card; null renders neither. */
   place: string | null;
+  /** The host's own line, under the title. Null draws nothing. */
+  caption: string | null;
   /** How many lenses to draw. Capped at four when it is drawn, not here. */
   contributorCount: number;
   /** People in it at all, contributors or not. The empty card counts these. */
@@ -68,6 +70,7 @@ export async function toCards(
       ),
       meta: metaFor(listing, { newest: index === 0, now }),
       place: listing.place,
+      caption: listing.caption,
       contributorCount: listing.contributorCount,
       memberCount: listing.memberCount,
       arrivingCount: listing.arrivingCount,
