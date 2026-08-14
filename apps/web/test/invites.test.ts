@@ -238,25 +238,33 @@ describe('the number beside Invites', () => {
   });
 });
 
-describe('an event a friend put you in', () => {
-  const source = readFileSync(
-    fileURLToPath(new URL('../app/invites/page.tsx', import.meta.url)),
+describe('an event somebody put you in', () => {
+  const accept = readFileSync(
+    fileURLToPath(new URL('../app/api/invites/[id]/route.ts', import.meta.url)),
     'utf8',
   );
 
-  it('is opened through the link, not straight at the event', () => {
+  it('hands over the capability at the moment it is accepted', () => {
     /*
-     * Being invited makes you a participant, and participation is deliberately
-     * not a credential — that is exactly what makes rotating a link revoke
-     * access. So an invited friend was listed on this page and got a 404 when
-     * they tapped the card, which is the worst of both: the product told them
-     * they were in and then said the event did not exist.
+     * Participation is deliberately not a credential — that is exactly what
+     * makes rotating a link revoke access. So an invited person had the
+     * participant row and got a 404 on opening the event: the product told
+     * them they were in and then said it did not exist.
      *
-     * Going through `/e/<token>` hands them the capability the same way it
-     * hands it to anybody who was sent the link — which is what the host did,
-     * from their side of it.
+     * This used to be defended on the Invites page, which routed the card
+     * through `/e/<token>` so the link handed over the capability. There are
+     * no cards there now — an invitation is an offer with an answer, and
+     * accepting is the moment the capability is earned, so the guard moved to
+     * the route that writes the participant row.
      */
-    expect(source).toMatch(/href: event\.linkToken \? `\/e\/\$\{event\.linkToken\}`/);
+    expect(accept).toMatch(/recordParticipant\(/);
+    expect(accept).toMatch(/grantCapability\(/);
+    // In that order, and both inside the accepted branch: granting a
+    // capability to somebody who declined would be worse than the 404.
+    expect(accept.indexOf('recordParticipant(')).toBeLessThan(
+      accept.indexOf('grantCapability('),
+    );
+    expect(accept).toMatch(/status === 'accepted'/);
   });
 
   it('carries the token to build that link', () => {

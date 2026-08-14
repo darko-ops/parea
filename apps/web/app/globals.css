@@ -425,6 +425,23 @@ button.secondary {
   color: var(--fg); font-weight: 600; border-bottom-color: var(--accent);
 }
 
+ /* The activity list. One line each, and a whole row is the link — a name in
+    blue with the rest of the sentence in black would make the person the
+    thing you press, when the thing you want is where it happened. */
+.activity { list-style: none; margin: 0; padding: 0; display: grid; }
+.activity li + li { border-top: 1px solid var(--hairline); }
+.activity a, .activity span {
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  padding: 11px 2px; font-size: 14px; line-height: 1.45;
+  color: var(--fg); text-decoration: none;
+}
+.activity a { border-radius: 8px; }
+.activity a:hover { background: var(--track); padding-left: 8px; padding-right: 8px; }
+.activity-who { font-weight: 600; }
+/* Pushed to the end rather than sitting after the sentence: a column of times
+   down the right is readable at a glance, and inline they wander. */
+.activity-when { margin-left: auto; font-size: 12.5px; color: var(--dim); }
+
 /* Events you have asked about and not been let into. No photographs, because
    that is the whole point — this is the list of things you cannot see yet. */
 .asked { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

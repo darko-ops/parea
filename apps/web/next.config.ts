@@ -34,7 +34,10 @@ const config: NextConfig = {
    * is the interface's word for it.
    */
   async redirects() {
-    return [{ source: '/events', destination: '/albums', permanent: true }];
+    return [
+      { source: '/events', destination: '/albums', permanent: true },
+      { source: '/invites', destination: '/activity', permanent: true },
+    ];
   },
 
   async headers() {
@@ -77,7 +80,7 @@ const config: NextConfig = {
        * also names their email address — which is exactly the thing the link
        * model exists to keep out of an index.
        */
-      ...['account', 'albums', 'find'].map((root) => ({
+      ...['account', 'albums', 'find', 'activity'].map((root) => ({
         source: `/${root}/:path*`,
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       })),

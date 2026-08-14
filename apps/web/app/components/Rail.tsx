@@ -46,7 +46,9 @@ const ROWS: {
   // Under Home because it is the same kind of thing — events you are in —
   // separated only by whose they are. Search is the odd one out: the only row
   // that goes looking for something you are not already part of.
-  { href: '/invites', label: 'Invites', page: 'invites', glyph: 'invites' },
+  // Still `invites` as an id and still the envelope: what lands here is
+  // mostly somebody asking you to something, and the rest is what came of it.
+  { href: '/activity', label: 'Activity', page: 'invites', glyph: 'invites' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
   // on Profile, which is where somebody looks for their friends anyway. A rail
@@ -86,8 +88,8 @@ export function Rail({ current }: { current: RailPage }) {
           <span className="rail-label">{row.label}</span>
           {/*
             Only on the row it belongs to, and only when the page is not the
-            one you are looking at: arriving on Invites is what clears it, so a
-            number still sitting there while you read the list is a number
+            one you are looking at: arriving on Activity is what clears it, so
+            a number still sitting there while you read the list is a number
             describing a moment that has passed.
           */}
           {row.page === 'invites' && current !== 'invites' && <InvitesBadge />}

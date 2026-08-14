@@ -113,6 +113,10 @@ describe('an event looks like an event wherever it is listed', () => {
     // above — a 58px strip of an evening is not enough to recognise it by. The
     // hero above the grid is a different thing and stays its own component.
     //
+    // Activity is not in this list: it stopped being a grid of events when it
+    // became a list of things that happened, and the one place it still shows
+    // an event is a row in a sentence.
+    //
     // Two files per screen, because Home hands its grid to `SearchEvents` —
     // the cards are still `EventCard` and the container is still `.cards`,
     // they are just declared one component apart. Asserting both against the
@@ -121,7 +125,6 @@ describe('an event looks like an event wherever it is listed', () => {
     const screens = [
       { name: 'events', cards: '../app/albums/page.tsx', grid: '../app/components/SearchEvents.tsx' },
       { name: 'account', cards: '../app/components/AccountView.tsx', grid: '../app/components/AccountView.tsx' },
-      { name: 'invites', cards: '../app/invites/page.tsx', grid: '../app/invites/page.tsx' },
     ];
     for (const screen of screens) {
       expect(read2(screen.cards), `${screen.name} does not use EventCard`).toMatch(
