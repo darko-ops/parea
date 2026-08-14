@@ -117,6 +117,32 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const [picked, setPicked] = useState<Set<string> | null>(null);
   /** The share panel, which is what somebody who cannot manage gets instead. */
   const [sharing, setSharing] = useState(false);
+
+  /*
+   * Whether the thread column is showing, remembered per browser.
+   *
+   * Somebody who folds it away wants the photographs wider, and wanting that
+   * once is wanting it on the next event too — so the choice outlives the
+   * page. Default open, and read after mount rather than during render:
+   * touching `localStorage` while rendering makes the server's HTML and the
+   * client's disagree, which throws the whole tree away.
+   *
+   * Nothing to do with the sheet. Below the breakpoint the column is hidden by
+   * the stylesheet regardless, and the head's Thread button opens the sheet.
+   */
+  const [threadOpen, setThreadOpen] = useState(true);
+  useEffect(() => {
+    try {
+      setThreadOpen(localStorage.getItem('pa_thread_folded') !== '1');
+    } catch {}
+  }, []);
+
+  const foldThread = useCallback((open: boolean) => {
+    setThreadOpen(open);
+    try {
+      localStorage.setItem('pa_thread_folded', open ? '0' : '1');
+    } catch {}
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
 
@@ -325,6 +351,39 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             <span className="arriving-dot" aria-hidden="true" />
             {feed.arriving} arriving
           </span>
+        )}
+
+        {/*
+          The thread, on a phone. The column beside the grid is hidden below
+          the breakpoint, so this is how the same conversation is reached — and
+          it carries the unread count, which the column does not need because
+          the column is already on screen.
+
+          It went missing when the head was rebuilt as two menus, which left a
+          phone with no route to the thread at all. Nothing failed; the control
+          simply was not there, and the desktop layout it was tested on hides
+          it anyway.
+        */}
+        <ThreadSheet
+          eventId={eventId}
+          messages={feed.messages}
+          canPost={feed.canPost}
+          people={feed.people}
+          onChanged={refresh}
+          unread={unread}
+          onOpened={markSeen}
+        />
+
+        {/*
+          The way back to a folded column. Desktop only — below the breakpoint
+          the column is hidden regardless and the control above opens the
+          sheet, so both would appear side by side saying the same word.
+        */}
+        {!threadOpen && (
+          <button className="chip thread-unfold" onClick={() => foldThread(true)}>
+            Thread
+            {unread > 0 && <span className="badge">{unread}</span>}
+          </button>
         )}
 
         {/*
@@ -598,14 +657,17 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           hides it and the head's `ThreadSheet` takes over — one thread, two
           shapes, no resize listener deciding which.
         */}
-        <Thread
-          eventId={eventId}
-          messages={feed.messages}
-          canPost={feed.canPost}
-          people={feed.people}
-          onChanged={refresh}
-          onSeen={markSeen}
-        />
+        {threadOpen && (
+          <Thread
+            eventId={eventId}
+            messages={feed.messages}
+            canPost={feed.canPost}
+            people={feed.people}
+            onChanged={refresh}
+            onSeen={markSeen}
+            onCollapse={() => foldThread(false)}
+          />
+        )}
       </div>
 
       {/*

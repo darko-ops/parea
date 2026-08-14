@@ -61,6 +61,11 @@
      The name inside it is `white-space: nowrap`, so nothing in there wraps and
      makes the real head taller than the number. */
   --head-h: 78px;
+  /* The footer's own height: a 1px rule, 16px of padding and one 13px line.
+     Used to push it past the bottom of the screen — a column that is exactly
+     `100dvh` puts the footer *at* the fold, visible; a screenful plus the
+     footer's height puts it just under. */
+  --footer-h: 38px;
 }
 /* No dark scheme. The product is a white page with photographs on it, and a
    dark one was inverting the surface those photographs are judged against —
@@ -83,7 +88,9 @@ body {
 .wrap {
   max-width: 900px; margin: 0 auto; padding: 40px 20px 80px;
   display: flex; flex-direction: column;
-  min-height: 100dvh;
+  /* A screenful, the footer, and this element's own bottom padding — which
+     sits *below* the footer and would otherwise eat into the push. */
+  min-height: calc(100dvh + var(--footer-h) + 80px);
 }
 .wrap > .panel + .panel { margin-top: 0; }
 h1 { font-size: 28px; margin: 0 0 4px; }
@@ -309,7 +316,11 @@ button.secondary {
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
 .rail-note { font-size: 12px; line-height: 1.45; color: var(--dim); }
-.main { flex: 1; min-width: 0; padding: 28px 30px; display: flex; flex-direction: column; }
+.main {
+  flex: 1; min-width: 0; padding: 28px 30px;
+  display: flex; flex-direction: column;
+  min-height: calc(100dvh + var(--footer-h) + 28px);
+}
 /* `.wrap` is the other kind of page — a 900px column of prose rather than a
    grid running to the edges — and until the rail reached every page it was
    always the top-level element, so it had never been a flex item. Without
@@ -822,6 +833,9 @@ button.secondary {
 .event-body {
   padding: 20px 24px 28px;
   display: flex; flex-direction: column; gap: 18px;
+  /* Starts under the head, so the screenful it has to fill is what is left
+     below it — plus the footer and this element's own bottom padding. */
+  min-height: calc(100dvh - var(--head-h) + var(--footer-h) + 28px);
 }
 /* The one thing on this page that is about the future. */
 .arriving {
@@ -1030,7 +1044,16 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   padding: 14px 18px; border-bottom: 1px solid var(--line);
 }
 .thread-head strong { flex: 1; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-.thread-count { font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+/* Folds the column away, and the head grows a Thread button to bring it back.
+   A chevron pointing at the edge it leaves towards, rather than an ×: it is
+   put away, not dismissed, and the choice is remembered. */
+.thread-fold {
+  flex: none; width: 28px; height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: 8px;
+  color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer;
+}
+.thread-fold:hover { background: var(--track); color: var(--fg); }
 .thread-list {
   flex: 1; min-height: 0; overflow-y: auto;
   padding: 16px 18px; display: flex; flex-direction: column; gap: 16px;
@@ -1092,6 +1115,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* In a message's meta line it goes to the end of the row; in the event head it
    is one control among several and sits where it is put. */
 .message-meta .dots { margin-left: auto; }
+ /* Bolder than a message's own menu. Three light grey dots at 13px beside a
+    filled blue button read as a rendering artefact rather than a control — in
+    the head they carry the event's whole settings menu and have to look like
+    something you can press. */
 .dots-go {
   padding: 0 6px; background: none; border: 0; cursor: pointer;
   font-size: 13px; font-weight: 400; letter-spacing: .08em; color: var(--dim);
@@ -1099,12 +1126,17 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .dots-go:hover { color: var(--fg); }
 /* In the head the control sits among 36px buttons and needs the height to be
-   pressable, rather than being six pixels of glyph. */
+   pressable, rather than being six pixels of glyph — and the weight to be
+   seen, which is why it is darker and heavier here than on a message. */
 .event-head .dots-go {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 8px; font-size: 15px;
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 19px; font-weight: 700; letter-spacing: .02em;
+  color: var(--fg);
 }
-.event-head .dots-go:hover { background: var(--track); }
+.event-head .dots-go:hover { background: var(--track); border-color: var(--line-dashed); }
+.event-head .dots-primary { border-color: var(--accent); }
 /* The `+`, which is the page's main action and so the filled one. Sized to
    match the buttons it replaced rather than to the glyph, or it becomes a
    small blue square beside a 36px control. */
@@ -1233,11 +1265,17 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .sheet .thread-composer { padding-bottom: 20px; }
 .sheet .thread-actions button { padding: 11px 18px; }
 
+/* Only meaningful on a screen wide enough to have had the column. */
+.thread-unfold { display: inline-flex; align-items: center; gap: 7px; }
+
 @media (max-width: 900px) {
   /* The column goes before the grid does. At this width 360px of thread is
      most of the page, and the photographs are what the page is for. */
   .thread { display: none; }
   .thread-open { display: inline-flex; align-items: center; gap: 7px; }
+  /* Below here the sheet is the thread, so a second Thread button offering to
+     unfold a column that is not rendered would be two of the same word. */
+  .thread-unfold { display: none; }
 }
 
 /* Comments on one photograph, inside the lightbox. The same rows as the
@@ -1452,8 +1490,13 @@ button.link {
   border-top: 1px solid var(--line);
   font-size: 13px;
 }
- /* The gap above the footer is `.footer-push`, not this margin — it has to be
-    a minimum *and* a greedy one, which one margin cannot be. See SiteFooter. */
+ /* The gap above the footer is `.footer-push`, not a margin — it has to be a
+    minimum *and* a greedy one, which one margin cannot be. See SiteFooter.
+
+    Greedy is what puts the footer at the end of the column, and the column is
+    a screenful taller than the screen, so the end of it is just below the
+    fold: the links are never in the middle of a short page and never on screen
+    unless somebody scrolls for them. */
 .footer-push { flex: 1; min-height: 56px; }
 .site-footer a { color: var(--dim); text-decoration: none; }
 .site-footer a:hover { color: var(--accent); text-decoration: underline; }

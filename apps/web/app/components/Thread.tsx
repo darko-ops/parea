@@ -50,6 +50,8 @@ export type ThreadProps = {
    * is a number describing a moment that has passed.
    */
   onSeen?: () => void;
+  /** Folds the column away. Absent in the sheet, which closes differently. */
+  onCollapse?: () => void;
 };
 
 export function Thread(props: ThreadProps) {
@@ -192,7 +194,15 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-function ThreadBody({ eventId, messages, canPost, people, onChanged, onSeen }: ThreadProps) {
+function ThreadBody({
+  eventId,
+  messages,
+  canPost,
+  people,
+  onChanged,
+  onSeen,
+  onCollapse,
+}: ThreadProps) {
   const session = useSession();
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
@@ -282,9 +292,20 @@ function ThreadBody({ eventId, messages, canPost, people, onChanged, onSeen }: T
     <>
       <div className="thread-head">
         <strong>Thread</strong>
-        <span className="thread-count">
-          {live.length} {live.length === 1 ? 'message' : 'messages'}
-        </span>
+        {/*
+          Only on the column. The sheet has a scrim, a grab handle and Escape;
+          a fourth way to shut it would be a button that does what tapping
+          anywhere else already does.
+        */}
+        {onCollapse && (
+          <button
+            className="thread-fold"
+            aria-label="Hide the thread"
+            onClick={onCollapse}
+          >
+            {'\u203a'}
+          </button>
+        )}
       </div>
 
       <div
@@ -425,9 +446,13 @@ function Composer({
       />
 
       <div className="thread-actions">
-        <span className="thread-note">
-          {error ?? 'Everyone who can see this event can read it.'}
-        </span>
+        {/*
+          Empty unless something went wrong. It used to carry a standing line
+          about who can read the thread, which is a sentence people read once
+          and then have under every message they ever write. The span stays so
+          the button keeps its place at the end of the row.
+        */}
+        <span className="thread-note">{error}</span>
         <button onClick={onPost} disabled={posting || draft.trim() === ''}>
           {posting ? 'Posting…' : 'Post'}
         </button>
