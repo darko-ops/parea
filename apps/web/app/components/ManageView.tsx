@@ -258,11 +258,23 @@ export function ManageView({
 
   return (
     <main className="wrap">
-      <header>
+      {/*
+        A back control, not a sentence with a link in it.
+
+        "Back to the photos" was a line of prose under the title — the one way
+        out of this screen, set in the same size and colour as a caption. Going
+        back is the most likely thing somebody does here, and on a phone the
+        top-left corner is where a thumb already goes looking for it.
+      */}
+      <header className="manage-head">
+        <a
+          className="back"
+          href={`/event/${eventId}`}
+          aria-label="Back to the photos"
+        >
+          <span aria-hidden="true">{'\u2039'}</span>
+        </a>
         <h1>{initial.name}</h1>
-        <p className="muted">
-          <a href={`/event/${eventId}`}>Back to the photos</a>
-        </p>
       </header>
 
       {/*
@@ -287,9 +299,108 @@ export function ManageView({
         </a>
       </nav>
 
+      {tab === 'members' && (
+        <section className="panel">
+          <h2>Add members</h2>
+
+          {/*
+            One list, two sources. Your friends are in it without being asked
+            for, because they are who a host usually means; anybody else is a
+            search away, because the alternative was telling a host to go and
+            befriend somebody before they could put them into an evening they
+            had both been at.
+
+            What the search offers is what the server will accept — see
+            `invitable`. A result somebody taps and the server then refuses is
+            a bug that reads as a permissions message.
+          */}
+          <label htmlFor="who" className="field-label">
+            Search by name or handle
+          </label>
+          <input
+            id="who"
+            type="search"
+            value={term}
+            placeholder="AmberQuietLantern"
+            onChange={(e) => setTerm(e.target.value)}
+          />
+
+          {searchable.length === 0 ? (
+            <p className="panel-note" style={{ margin: '12px 0 0' }}>
+              {term.trim().length >= 2
+                ? searching
+                  ? 'Looking…'
+                  : `Nobody here is called “${term.trim()}”.`
+                : 'Type a name or a handle. Anybody with an account can be added — it puts them straight in, and they find it under their Invites.'}
+            </p>
+          ) : (
+            <>
+              <ul className="people">
+                {searchable.map((friend) => {
+                  const inIt = already.has(friend.actorId);
+                  const on = picked.has(friend.actorId);
+                  return (
+                    <li key={friend.actorId}>
+                      <div>
+                        <strong>{friend.displayName || `@${friend.handle}`}</strong>
+                        {friend.displayName && friend.handle && (
+                          <p className="muted">@{friend.handle}</p>
+                        )}
+                      </div>
+                      {inIt ? (
+                        <span className="pip pip-declined">Already here</span>
+                      ) : (
+                        <button
+                          className={on ? undefined : 'secondary'}
+                          aria-pressed={on}
+                          onClick={() =>
+                            setPicked((p) => {
+                              const next = new Set(p);
+                              if (next.has(friend.actorId)) next.delete(friend.actorId);
+                              else next.add(friend.actorId);
+                              return next;
+                            })
+                          }
+                        >
+                          {/*
+                            "Selected", not "Adding": nothing has happened yet.
+                            A present participle on a button that has just been
+                            pressed reads as work in progress, and somebody who
+                            believes the add already went through has no reason
+                            to press the button underneath that actually does it.
+                          */}
+                          {on ? 'Selected' : 'Add'}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="row" style={{ marginTop: 14 }}>
+                <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
+                  {picked.size === 0
+                    ? 'Add to this event'
+                    : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
+                </button>
+                {invited !== null && (
+                  <span className="muted">
+                    {invited === 0
+                      ? 'Nobody was added.'
+                      : `Added ${invited}. It is under their Invites now.`}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
       {tab === 'members' && initial.accessPolicy === REQUEST_ACCESS && (
         <section className="panel">
-          <h2>Asking to come in{requests.length > 0 && ` (${requests.length})`}</h2>
+          <h2>Requests</h2>
+          <p className="panel-note">
+            People who found this event and are waiting to be let in.
+          </p>
           {requests.length === 0 ? (
             <p className="muted">Nobody waiting.</p>
           ) : (
@@ -415,101 +526,6 @@ export function ManageView({
         whoever holds it; this works only for people who already agreed to be
         your friend, and it puts them straight in rather than asking them.
       */}
-      {tab === 'members' && (
-        <section className="panel">
-          <h2>Add people</h2>
-
-          {/*
-            One list, two sources. Your friends are in it without being asked
-            for, because they are who a host usually means; anybody else is a
-            search away, because the alternative was telling a host to go and
-            befriend somebody before they could put them into an evening they
-            had both been at.
-
-            What the search offers is what the server will accept — see
-            `invitable`. A result somebody taps and the server then refuses is
-            a bug that reads as a permissions message.
-          */}
-          <label htmlFor="who" className="field-label">
-            Search by name or handle
-          </label>
-          <input
-            id="who"
-            type="search"
-            value={term}
-            placeholder="AmberQuietLantern"
-            onChange={(e) => setTerm(e.target.value)}
-          />
-
-          {searchable.length === 0 ? (
-            <p className="muted">
-              {term.trim().length >= 2
-                ? searching
-                  ? 'Looking…'
-                  : `Nobody here is called “${term.trim()}”.`
-                : 'Type a name or a handle. Anybody with an account can be added — it puts them straight in, and they find it under their Invites.'}
-            </p>
-          ) : (
-            <>
-              <ul className="people">
-                {searchable.map((friend) => {
-                  const inIt = already.has(friend.actorId);
-                  const on = picked.has(friend.actorId);
-                  return (
-                    <li key={friend.actorId}>
-                      <div>
-                        <strong>{friend.displayName || `@${friend.handle}`}</strong>
-                        {friend.displayName && friend.handle && (
-                          <p className="muted">@{friend.handle}</p>
-                        )}
-                      </div>
-                      {inIt ? (
-                        <span className="pip pip-declined">Already here</span>
-                      ) : (
-                        <button
-                          className={on ? undefined : 'secondary'}
-                          aria-pressed={on}
-                          onClick={() =>
-                            setPicked((p) => {
-                              const next = new Set(p);
-                              if (next.has(friend.actorId)) next.delete(friend.actorId);
-                              else next.add(friend.actorId);
-                              return next;
-                            })
-                          }
-                        >
-                          {/*
-                            "Selected", not "Adding": nothing has happened yet.
-                            A present participle on a button that has just been
-                            pressed reads as work in progress, and somebody who
-                            believes the add already went through has no reason
-                            to press the button underneath that actually does it.
-                          */}
-                          {on ? 'Selected' : 'Add'}
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="row" style={{ marginTop: 14 }}>
-                <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
-                  {picked.size === 0
-                    ? 'Add to this event'
-                    : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
-                </button>
-                {invited !== null && (
-                  <span className="muted">
-                    {invited === 0
-                      ? 'Nobody was added.'
-                      : `Added ${invited}. It is under their Invites now.`}
-                  </span>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-      )}
 
       {tab === 'manage' && (
         <section className="panel">

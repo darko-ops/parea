@@ -98,10 +98,26 @@ h1 { font-size: 28px; margin: 0 0 4px; }
 .empty { padding: 48px 0; text-align: center; }
 /* The border is now the only thing separating a panel from the page, since
    both are white. It was carrying half this job before and can carry the
-   rest. */
+   rest — with one hairline of shadow under it, which is what stops a column of
+   white boxes on a white page reading as a wireframe. */
 .panel {
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; padding: 16px; margin: 20px 0;
+  border-radius: 16px; padding: 18px 20px; margin: 16px 0;
+  box-shadow: 0 1px 2px rgba(20, 23, 28, .03);
+}
+/* Panel headings were falling through to the browser default — 1.5em bold,
+   which at 16px base is 24px, heavier than the page's own `h1` feels and far
+   heavier than the sentence underneath deserves. Every panel in the product
+   has been drawing them that way; this is the first time one has been asked to
+   look composed. */
+.panel h2 {
+  font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+  margin: 0 0 10px;
+}
+/* A line of explanation directly under a heading, rather than a paragraph in
+   its own right: tighter to the title it belongs to. */
+.panel-note {
+  margin: -6px 0 12px; font-size: 13px; line-height: 1.5; color: var(--dim);
 }
 .grid {
   display: grid; gap: 8px; margin-top: 20px;
@@ -353,6 +369,24 @@ button.secondary {
   .rail-note { display: none; }
   .main { padding: 20px; }
 }
+
+ /* The host screen's header: a way out, then the name.
+
+    A 36px control rather than a line of prose. Going back is the most likely
+    thing anybody does on a settings screen, and the top-left corner is where a
+    thumb goes looking for it — "Back to the photos" was a caption doing that
+    job in 13px grey. */
+.manage-head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.manage-head h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.back {
+  flex: none; width: 36px; height: 36px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); background: var(--card); color: var(--fg);
+  text-decoration: none; font-size: 20px; line-height: 1;
+  transition: border-color 120ms, background 120ms;
+}
+.back:hover { background: var(--track); border-color: var(--line-dashed); }
+.back:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------------------
    Tabs — two links, not two buttons.
@@ -1538,7 +1572,9 @@ button.link {
 .people li {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
   border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  transition: border-color 120ms, background 120ms;
 }
+.people li:hover { border-color: var(--line-dashed); background: var(--track); }
 .people strong { display: block; font-size: 15px; }
 .people p { margin: 2px 0 0; font-size: 13px; }
 
