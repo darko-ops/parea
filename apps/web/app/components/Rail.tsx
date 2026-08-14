@@ -37,15 +37,19 @@ const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   // still is: the id names where the row goes, not what the row is called.
   { href: '/events', label: 'Home', page: 'events' },
   // Under Home because it is the same kind of thing — events you are in —
-  // separated only by whose they are. Find is the odd one out: the only row
+  // separated only by whose they are. Search is the odd one out: the only row
   // that goes looking for something you are not already part of.
   { href: '/invites', label: 'Invites', page: 'invites' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
-  // on You, which is where somebody looks for their friends anyway. A rail is
-  // the four places the product is, and friends is a thing about you.
-  { href: '/find', label: 'Find', page: 'find' },
-  { href: '/account', label: 'You', page: 'you' },
+  // on Profile, which is where somebody looks for their friends anyway. A rail
+  // is the four places the product is, and friends is a thing about you.
+  //
+  // The labels say what the rows do; the ids still say where they go. `find`
+  // and `you` name the routes, which have not moved — renaming those would
+  // break every link anybody has already sent, and every bookmark.
+  { href: '/find', label: 'Search', page: 'find' },
+  { href: '/account', label: 'Profile', page: 'you' },
 ];
 
 export function Rail({ current }: { current: RailPage }) {

@@ -256,7 +256,13 @@ export function AccountView() {
         surfaces rather than a third rounding of "2 days ago".
       */}
       <section className="you-events">
-        <h2>Your events</h2>
+        {/*
+          "Albums" here and "event" everywhere else, which is a second word for
+          one thing — the model note in `events.ts` records that the product
+          deliberately stopped doing that. Asked for, so it is here, but it is
+          the only place it says it.
+        */}
+        <h2>Your Albums</h2>
         <div className="cards">
           {events.map((event, index) => (
             <EventCard

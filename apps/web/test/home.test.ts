@@ -1,10 +1,10 @@
 /**
- * Home — who gets the top of the page, and what the list is ordered by.
+ * Home — what the list contains, in what order, and what a search matches.
  *
- * The hero is the only place in the product that makes a claim about the
- * present tense. "STILL COMING IN" over an event nobody has touched since
- * Tuesday is the kind of wrong that erodes every other thing the interface
- * says, so the rule that decides it is worth pinning.
+ * There was briefly a hero with a rule about which event was "live" enough to
+ * lead the page; the grid is uniform now and the rule went with it. What is
+ * left is the two things that are still decisions: the order, and the counts
+ * a card draws.
  */
 
 import { PGlite } from '@electric-sql/pglite';
@@ -14,52 +14,15 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import type { CardEvent } from '@/cards';
 import type { Db } from '@/db';
 import { eventsFor } from '@/events';
 import { matches, searchable } from '@/search';
-import { isLive, LIVE_WINDOW_MS } from '@/../app/components/EventHero';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
 );
 
 const NOW = new Date('2026-08-13T21:00:00Z');
-
-/** Only the fields the hero rule reads; the rest of a card is irrelevant. */
-function card(over: Partial<CardEvent> = {}): CardEvent {
-  return {
-    id: 'e', name: 'An evening', photoCount: 0, mosaic: [], meta: '',
-    place: null, caption: null, contributorCount: 0, memberCount: 1, arrivingCount: 0,
-    lastActiveAt: NOW.toISOString(),
-    ...over,
-  };
-}
-
-describe('which event leads the page', () => {
-  it('is live while photos are mid-flight, however old the last one was', () => {
-    // Somebody uploading right now is the strongest possible signal, and it
-    // arrives before `lastActiveAt` moves — the row is only touched once a
-    // photo is ready, so an upload of 200 photos would sit outside the window
-    // for as long as it takes to send the first one.
-    const stale = new Date(NOW.getTime() - 30 * 24 * 3600_000).toISOString();
-    expect(isLive(card({ arrivingCount: 12, lastActiveAt: stale }), NOW)).toBe(true);
-  });
-
-  it('is live for an hour after the last photo landed', () => {
-    const justInside = new Date(NOW.getTime() - LIVE_WINDOW_MS + 1000).toISOString();
-    const justOutside = new Date(NOW.getTime() - LIVE_WINDOW_MS - 1000).toISOString();
-    expect(isLive(card({ lastActiveAt: justInside }), NOW)).toBe(true);
-    expect(isLive(card({ lastActiveAt: justOutside }), NOW)).toBe(false);
-  });
-
-  it('is not live for an event whose clock is ahead of ours', () => {
-    // Server and browser clocks disagree, and a future timestamp must read as
-    // recent rather than as an error — it is inside the window either way.
-    const future = new Date(NOW.getTime() + 5 * 60_000).toISOString();
-    expect(isLive(card({ lastActiveAt: future }), NOW)).toBe(true);
-  });
-});
 
 describe('the order the list comes back in', () => {
   let db: Db;

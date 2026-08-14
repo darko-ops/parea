@@ -7,11 +7,11 @@
  * someone sent you. The app grew three tabs for this; the web got nothing, so
  * "two clients, one protocol" was true of the API and false of the product.
  *
- * A hero, then the cards. One event is usually the one being added to right
- * now, and it is the only one worth a large picture and a picker; the rest are
- * cards, because an event is recognised by its photographs and a 58px strip of
- * them is not enough to do it with. Density was tried and lost to that — the
- * rows fitted nine events on a screen and made all nine harder to tell apart.
+ * Cards, all the same size. There was briefly a hero — the event being added
+ * to right now, given a larger picture and a picker of its own — and it made
+ * the page two things: one event presented, and the rest listed. A grid where
+ * every cell is the same says what it means, which is that these are eleven
+ * evenings and you know which one you are looking for.
  *
  * The same card as the You page and Invites, deliberately: one object, one
  * drawing of it, and `shell.test.ts` asserts every grid of events uses it.
@@ -28,7 +28,6 @@
 
 import { CreateCard } from '@/../app/components/CreateCard';
 import { EventCard } from '@/../app/components/EventCard';
-import { EventHero, isLive } from '@/../app/components/EventHero';
 import { SearchEvents } from '@/../app/components/SearchEvents';
 import { Shell } from '@/../app/components/Shell';
 import { toCards } from '@/cards';
@@ -49,11 +48,6 @@ export default async function EventsPage() {
   const now = new Date();
   const cards = await toCards(listings, now);
 
-  // The hero is the live event, and only if it is the one at the top — which
-  // it is, since the list is ordered by activity. Anything else would be a
-  // large card labelled "still coming in" above fresher things than itself.
-  const hero = cards[0] && isLive(cards[0], now) ? cards[0] : null;
-
   /*
    * Built here, not in the browser: the text a query is matched against is the
    * same text the card draws, and deriving it twice is how the two come to
@@ -67,15 +61,9 @@ export default async function EventsPage() {
         <SearchEvents
           haystacks={haystacks}
           heading={<h1>Home</h1>}
-          hero={hero && <EventHero event={hero} />}
-          heroId={hero?.id}
           footer={<CreateCard />}
         >
           {/*
-            Every event, including the one the hero is drawing — a search has
-            to be able to find that one too. Its card is dropped from the grid
-            while the hero is up; see `heroId`.
-
             The id sits on a wrapper so `EventCard` stays a server component
             with no idea it is inside a search.
           */}

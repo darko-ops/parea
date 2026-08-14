@@ -147,7 +147,6 @@ describe('an event looks like an event wherever it is listed', () => {
      */
     const drawers = [
       '../app/components/EventCard.tsx',
-      '../app/components/EventHero.tsx',
       '../../../apps/mobile/src/Events.tsx',
     ];
     for (const path of drawers) {

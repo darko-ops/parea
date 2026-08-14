@@ -136,13 +136,11 @@ export function EventCard({ event }: { event: CardEvent }) {
             </div>
           </div>
           {/*
-            A bare number. "88 photos" in a pill with an icon is three pieces
-            of furniture around one fact, and the column of numbers down the
-            right of the grid is easier to read than any of them. Plainly set,
-            too: it was briefly larger and debossed into the blurred strip,
-            which made the quietest thing on the card the most worked-on.
+            No count. It is still in the card's `aria-label`, because "how many
+            photographs" is a fact somebody navigating by screen reader has no
+            other way to get — but on screen it was a number competing with the
+            photographs it was counting, and the answer is one tap away.
           */}
-          <div className="card-count">{event.photoCount}</div>
         </div>
       </div>
     </a>

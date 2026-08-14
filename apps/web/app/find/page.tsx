@@ -1,5 +1,5 @@
 /**
- * Find — groups by name, and your own events by place.
+ * Search — groups by name, and your own events by place.
  *
  * The narrow half of the product, deliberately. §3's rule is that **groups can
  * be findable and photos never are**, so this searches a group namespace and
@@ -22,7 +22,7 @@ import { currentActorId } from '@/session';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Find',
+  title: 'Search',
   robots: { index: false, follow: false },
 };
 
@@ -45,7 +45,7 @@ export default async function FindPage() {
     <Shell current="find">
       <main className="main">
         <div className="main-head">
-          <h1>Find</h1>
+          <h1>Search</h1>
         </div>
         <FindView
           places={[...byPlace].map(([place, events]) => ({ place, events }))}

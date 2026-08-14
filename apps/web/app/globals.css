@@ -445,10 +445,20 @@ button.secondary {
    a visible bite out of the corner photograph — the mosaic runs to the edge, so
    the radius is cropping the picture rather than rounding a box. */
 .card {
-  display: block; text-decoration: none; color: inherit;
+  display: flex; flex-direction: column; height: 100%;
+  text-decoration: none; color: inherit;
   background: var(--card); border: 1px solid var(--line);
   border-radius: 14px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
 }
+/* Every cell in a row the same height. Grid stretches its items, but the item
+   is the wrapper the search filter puts the id on — the card inside it was free
+   to be its own height, which is why one with a caption stood 20px taller than
+   the one beside it. */
+.cards > * { display: flex; }
+.cards > * > .card { flex: 1; }
+/* The strip takes whatever the mosaic leaves, so the text sits at the bottom of
+   a taller card rather than leaving a white band under it. */
+.card > .card-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
 .card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
@@ -534,10 +544,6 @@ button.secondary {
    briefly set larger and pressed into the blurred strip with a highlight and a
    shade; the effect competed with the photographs it was sitting on, which is
    the one thing a card is not allowed to do. */
-.card-count {
-  flex: none; font-size: 15px; font-weight: 600; color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
 
 /* An event with no photos gets no mosaic and no bleed — blurring nothing
    produces a grey smear that looks like a loading state that never finishes.
@@ -636,86 +642,16 @@ button.secondary {
   .search-open .search-field.search-field { width: min(220px, 42vw); }
 }
 
-.hero {
-  position: relative;
-  border: 1px solid var(--line); border-radius: 16px;
-  overflow: hidden; margin-bottom: 20px;
-  transition: border-color 120ms, box-shadow 120ms;
-}
-.hero:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
-/* Taller than a card's 168: this one is meant to be looked at rather than
-   recognised, and it is the only mosaic on the page at this width. */
-.hero-mosaic { height: 214px; }
-/* Denser than the card's, because there are four lines and a button over it
-   rather than two. */
-.hero-scrim { background: var(--scrim-deep); }
-.hero-text {
-  position: relative; display: flex; align-items: center; gap: 18px;
-  padding: 16px 18px 17px;
-}
-/* The label is the reason this card is at the top, so it is above the name. */
-.hero-live {
-  display: flex; align-items: center; gap: 8px; margin: 0;
-  font-size: 12.5px; font-weight: 600; color: var(--accent); letter-spacing: .02em;
-}
-.hero-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex: none;
-  background: var(--accent); animation: pulse 1.8s ease-in-out infinite;
-}
-.hero-name {
-  font-size: 26px; font-weight: 700; letter-spacing: -.02em;
-  margin: 3px 0 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.hero-name a { color: inherit; text-decoration: none; }
-/* The stretched link: the anchor is on the name, and this grows it over the
-   whole card. One link with a sensible accessible name, one click target, and
-   no file input nested inside an `<a>` — which is what wrapping the card in an
-   anchor would have required, and is invalid markup. */
-.hero-name a::after { content: ''; position: absolute; inset: 0; }
-.hero-name a:focus-visible { outline: none; }
-.hero:has(.hero-name a:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
-.hero-meta { margin: 0; font-size: 14px; color: var(--dim); }
-/* Above the stretched link, or it cannot be pressed. */
-.add-yours {
-  position: relative; flex: none;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-}
-.hero-go {
-  margin: 0; padding: 11px 17px; border-radius: 10px;
-  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
-  cursor: pointer; white-space: nowrap;
-}
-.hero-go[aria-disabled='true'] { opacity: .7; cursor: default; }
-.add-yours:has(input:focus-visible) .hero-go {
-  outline: 2px solid var(--accent); outline-offset: 2px;
-}
-.hero-note { font-size: 12px; color: var(--dim); }
-.hero-count {
-  position: relative; flex: none;
-  font-size: 22px; font-weight: 600; color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Two things are saying "something is happening" — the hero's dot and the
    arriving pill on an event. Neither is load-bearing: the words beside them
    carry the meaning, so switching the motion off costs nothing. */
 @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
 @keyframes slide { from { background-position: 0 0 } to { background-position: 44px 0 } }
 @media (prefers-reduced-motion: reduce) {
-  .hero-dot, .arriving-dot { animation: none; opacity: 1; }
+  .arriving-dot { animation: none; opacity: 1; }
   .bar-fill { animation: none; }
 }
 
-/* Below the breakpoint the hero keeps the label, the name, the meta and the
-   count, and the picker drops onto its own line — at 560px the button and a
-   26px name in one row leave the name three words wide. */
-@media (max-width: 560px) {
-  .hero-text { flex-wrap: wrap; }
-  .add-yours { order: 3; }
-  .hero-count { order: 2; margin-left: auto; }
-  .hero-mosaic { height: 168px; }
-}
 
 /* ---------------------------------------------------------------------------
    The create screen — a form column and, beside it, what happens next.

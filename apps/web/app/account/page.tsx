@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * lists what they were at has no business in an index.
  */
 export const metadata = {
-  title: 'Your account',
+  title: 'Profile',
   robots: { index: false, follow: false },
 };
 
