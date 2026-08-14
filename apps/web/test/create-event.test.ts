@@ -61,18 +61,36 @@ describe('the window a creator sends', () => {
 });
 
 describe('the clients that send one', () => {
-  // The gap this closes was invisible for the life of the project: the schema
-  // had the columns, the design said they were captured at creation, the
-  // create page's own comment said it asked for them — and nothing ever sent
-  // one. Nothing failed, because a null window is a legitimate answer. So the
-  // assertion is that the request body carries the pair, in both clients.
+  /*
+   * One client now, and it used to be two.
+   *
+   * The web form stopped asking. That is a product decision rather than a
+   * regression — the question bought auto-selection, which is a native feature
+   * (a browser cannot read a camera roll), so the web was collecting an answer
+   * to a question only the phone can use. The route still takes a window and
+   * still refuses a bad one; the phone still sends it.
+   *
+   * The gap the rest of this closes was invisible for the life of the project:
+   * the schema had the columns, the design said they were captured at
+   * creation, the create page's own comment said it asked for them — and
+   * nothing ever sent one. Nothing failed, because a null window is a
+   * legitimate answer.
+   */
   const read = (path: string) =>
     readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 
-  it.each([
-    ['the web create form', '../app/page.tsx'],
-    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s sends startsAt and endsAt', (_label, path) => {
+  it('the web form asks nothing about when, and sends nothing', () => {
+    // Both halves. A form that still imported the presets and quietly sent no
+    // window would be the same silent gap this file exists to close, from the
+    // other direction.
+    const web = read('../app/page.tsx');
+    expect(web).not.toContain('WHEN_OPTIONS');
+    expect(web).not.toMatch(/startsAt|endsAt/);
+  });
+
+  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
+    '%s sends startsAt and endsAt',
+    (_label, path) => {
     const client = read(path);
     // The identifier is not the point and pinning it was a false failure
     // waiting to happen — the native screen now resolves its window from a
@@ -85,17 +103,18 @@ describe('the clients that send one', () => {
     expect(client.match(/startsAt: (\w+)\?\./)?.[1]).toBe(
       client.match(/endsAt: (\w+)\?\./)?.[1],
     );
-  });
+    },
+  );
 
-  it.each([
-    ['the web create form', '../app/page.tsx'],
-    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s takes its phrasing from the shared module', (_label, path) => {
-    // Two copies of the preset list would drift on what "Tonight" means, and
-    // no test anywhere would notice.
-    expect(read(path)).toMatch(/from '@parea\/autoselect'/);
-    expect(read(path)).toContain('WHEN_OPTIONS');
-  });
+  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
+    '%s takes its phrasing from the shared module',
+    (_label, path) => {
+      // Two copies of the preset list would drift on what "Tonight" means, and
+      // no test anywhere would notice.
+      expect(read(path)).toMatch(/from '@parea\/autoselect'/);
+      expect(read(path)).toContain('WHEN_OPTIONS');
+    },
+  );
 
   /*
    * Nothing is pre-selected, so a submit control has to wait for an answer
@@ -120,10 +139,9 @@ describe('the clients that send one', () => {
    * the guards that matter; where it does not, every guard is a candidate and
    * the rule stays as strict as it was.
    */
-  it.each([
-    ['the web create form', '../app/page.tsx'],
-    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s guards the control that creates the event', (_label, path) => {
+  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
+    '%s guards the control that creates the event',
+    (_label, path) => {
     const client = read(path);
     const submits = client
       .split('<button')
@@ -133,25 +151,35 @@ describe('the clients that send one', () => {
       [...block.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]!),
     );
 
-    expect(guards.length).toBeGreaterThan(0);
-    for (const guard of guards) {
-      // Either the window state directly, or a named rule defined in terms of
-      // it — checked below.
-      expect(guard, guard).toMatch(/when|ready/);
-    }
-  });
+      expect(guards.length).toBeGreaterThan(0);
+      for (const guard of guards) {
+        // Either the window state directly, or a named rule defined in terms
+        // of it — checked below.
+        expect(guard, guard).toMatch(/when|ready/);
+      }
+    },
+  );
 
-  it.each([
-    ['the web create form', '../app/page.tsx'],
-    ['the native create screen', '../../mobile/src/CreateEvent.tsx'],
-  ])('%s ties that guard to an unanswered window', (_label, path) => {
-    const client = read(path);
-    const named = client.match(/const ready = ([^;]+);/)?.[1];
+  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
+    '%s ties that guard to an unanswered window',
+    (_label, path) => {
+      const client = read(path);
+      const named = client.match(/const ready = ([^;]+);/)?.[1];
 
-    // Whichever form the client uses, the window has to be in it. On native
-    // a detected run answers the question instead, so `picked` counts.
-    if (named) expect(named).toMatch(/when/);
-    else expect(client).toMatch(/disabled=\{[^}]*!when/);
+      // Whichever form the client uses, the window has to be in it. On native
+      // a detected run answers the question instead, so `picked` counts.
+      if (named) expect(named).toMatch(/when/);
+      else expect(client).toMatch(/disabled=\{[^}]*!when/);
+    },
+  );
+
+  it('the web form still refuses to submit without a name', () => {
+    // What the guard rule was really protecting: a submit control that cannot
+    // be pressed past an unanswered required question. On the web that is now
+    // the title, which is the only thing an album cannot be made without.
+    const web = read('../app/page.tsx');
+    const submit = web.slice(web.indexOf('type="submit"'));
+    expect(submit.slice(0, 200)).toMatch(/disabled=\{[^}]*!name\.trim\(\)/);
   });
 });
 

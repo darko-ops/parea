@@ -42,6 +42,14 @@ type Body = {
    * 'request_access' (private, the host lets each person in). Public default.
    */
   accessPolicy?: unknown;
+  /**
+   * Whether the link admits anybody who holds it. Off means only the people
+   * the host adds get in — the same switch as `joinsOpen` on the manage
+   * screen, asked at the moment somebody is deciding who this is for.
+   */
+  linkJoins?: unknown;
+  /** Whether to take a spoken phrase from the pool. */
+  passPhrase?: unknown;
 };
 
 /**
@@ -185,6 +193,11 @@ export async function POST(request: Request) {
       // for grouped events: a group's archive is the thing that accrues value,
       // and expiring it is what the group is bought to prevent.
       expiresAt: groupId ? null : new Date(Date.now() + 60 * 24 * 3600 * 1000),
+      // The link is the product's front door and it is open unless somebody
+      // says otherwise. Off is for an album whose members are all being added
+      // by name: the link then opens nothing for anyone new, which is the only
+      // way to say "not by link" that `authorize` can actually enforce.
+      joinsOpen: body.linkJoins === false ? false : true,
     })
     .returning();
 
@@ -207,7 +220,15 @@ export async function POST(request: Request) {
     }
   }
 
-  const code = await claimCode(db, event!.id);
+  /*
+   * The phrase is asked for now, rather than always minted.
+   *
+   * It used to be claimed for every event and shown in a panel beside the
+   * form. The panel is gone and the pool is finite — a phrase claimed for an
+   * album nobody says it out loud for is a phrase no other album can have —
+   * so it is taken only when somebody turns it on.
+   */
+  const code = body.passPhrase === true ? await claimCode(db, event!.id) : null;
   await grantCapability(event!.id, event!.capEpoch);
 
   return NextResponse.json(

@@ -52,6 +52,30 @@ export const ACCESS_OPTIONS: {
   },
 ];
 
+/**
+ * The same three, asked as switches rather than as a row of names.
+ *
+ * The create screen asks it this way because somebody making an album is
+ * deciding several things at once — who can see it, whether the link admits,
+ * whether there is a phrase — and a list of switches is how that reads. Manage
+ * asks it as three names because by then it is one settled fact being changed.
+ *
+ * Both end up in the same column, through this function and nowhere else. The
+ * mapping is the part worth keeping in one place: "private" and "I approve
+ * each person" are not two settings, they are two of the three values, and
+ * approval implies private because a policy cannot be both.
+ */
+export function policyFor({
+  isPrivate,
+  approve,
+}: {
+  isPrivate: boolean;
+  approve: boolean;
+}): AccessPolicy {
+  if (approve) return REQUEST_ACCESS;
+  return isPrivate ? ACCOUNT_REQUIRED : LINK_OPEN;
+}
+
 export function AccessChoice({
   value,
   onChange,

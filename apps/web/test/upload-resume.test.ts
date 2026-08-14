@@ -19,6 +19,8 @@
  */
 
 import { SourceGone, UploadQueue, type QueueState } from '@parea/upload';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { browserDeps, describe as describeFile, restore, sourceKey } from '../src/upload/browser';
@@ -340,6 +342,47 @@ describe('restoring after a reload', () => {
     await restored!.queue.run();
 
     expect(restored!.queue.doneCount, 'the finished one is not sent twice').toBe(2);
+  });
+});
+
+/**
+ * The hook that decides whether a resume happens at all.
+ *
+ * Asserted against the source, which is a proxy and worth naming as one: the
+ * repository has no React renderer, and what this protects is a two-line
+ * interaction between a `useRef` guard and an effect cleanup.
+ *
+ * It is worth pinning anyway, because the bug it replaces was invisible in the
+ * one place anybody would look for it. The guard exists because effects run
+ * twice in development and driving a queue twice is not harmless — but without
+ * releasing it in the cleanup the two development invocations cancelled each
+ * other out exactly: the first claimed the flag and was told to stop at its
+ * first `await`, the second returned because the flag was taken. So resuming
+ * never happened in `next dev`, and only in `next dev`.
+ */
+describe('resuming survives an effect that runs twice', () => {
+  const hook = readFileSync(
+    fileURLToPath(new URL('../app/components/useUploads.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('claims the guard before the first await', () => {
+    // Otherwise both invocations get past it and both drive the queue.
+    const effect = hook.slice(hook.indexOf('if (started.current) return;'));
+    expect(effect.indexOf('started.current = true')).toBeLessThan(
+      effect.indexOf('await UploadStore.open()'),
+    );
+  });
+
+  it('releases it when the effect is torn down', () => {
+    expect(hook).toMatch(/cancelled = true;\s*started\.current = false;/);
+  });
+
+  it('still refuses to act on a cancelled run', () => {
+    // The flag being released is only safe because the cancelled invocation
+    // checks before it touches anything.
+    expect(hook).toMatch(/if \(cancelled\) return;/);
+    expect(hook).toMatch(/if \(cancelled \|\| !restored\) return;/);
   });
 });
 

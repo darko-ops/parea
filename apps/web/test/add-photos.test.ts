@@ -69,17 +69,31 @@ describe('adding photos to an event', () => {
 });
 
 describe('after an event is created', () => {
-  it('offers adding photos as an action', () => {
-    // This was a sentence with a link in it, under an otherwise empty column.
-    expect(CREATE).toMatch(/className="button-like primary"[\s\S]{0,120}Add your photos/);
+  /*
+   * This pair used to say the opposite, and the reversal is deliberate.
+   *
+   * The old rule was that creating must *not* navigate: the page ended on a
+   * panel holding the link, on the reasoning that the second after making an
+   * album is when somebody sends it. What that actually produced was a screen
+   * between a person and the album they had just made — with a button on it
+   * saying "Add your photos", for photos that were already uploading.
+   *
+   * So the album is where it ends now, and the share panel lives inside it,
+   * one press from the same second. What still has to hold is that the photos
+   * are not abandoned at the door: they are written to the queue before the
+   * navigation, and the album page picks them up.
+   */
+  it('goes to the album it just made', () => {
+    expect(CREATE).toMatch(/location\.href = `\/event\/\$\{created\.id\}`/);
   });
 
-  it('still does not navigate away on its own', () => {
-    // The share panel is the reason this page does not redirect on success —
-    // the second after making an event is when someone is most likely to send
-    // the link, and a redirect takes it off the screen. So the new action is a
-    // link to press, not a `location.href =`.
-    expect(CREATE).not.toMatch(/location\.href\s*=\s*(link|created)/);
+  it('hands the photos over before it goes', () => {
+    // Order, not presence: navigating first leaves the queue unwritten and the
+    // photographs on the floor.
+    const stage = CREATE.indexOf('uploads.stage(');
+    const leave = CREATE.indexOf('location.href = `/event/');
+    expect(stage).toBeGreaterThan(-1);
+    expect(stage).toBeLessThan(leave);
   });
 });
 
@@ -90,6 +104,8 @@ describe('the share panel fits inside itself', () => {
     // measured 433px inside a 328px box: the card's text spilled past its own
     // border and the whole page scrolled sideways. `.aside-link` was already
     // set to truncate and never got the chance.
-    expect(CSS).toMatch(/\.aside > \*\s*\{[^}]*min-width:\s*0/);
+    // The row moved into the share panel when the create screen's aside was
+    // deleted; the rule that keeps it inside its box moved with it.
+    expect(CSS).toMatch(/\.share-card > \*\s*\{[^}]*min-width:\s*0/);
   });
 });

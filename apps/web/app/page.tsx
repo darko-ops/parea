@@ -1,13 +1,13 @@
 'use client';
 
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
-import { LINK_OPEN } from '@parea/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { WHEN_OPTIONS, eventDateFor, windowFor, type WindowId } from '@parea/autoselect';
-
-import { AccessChoice, type AccessPolicy } from './components/AccessChoice';
+import { policyFor } from './components/AccessChoice';
+import { MemberPicker, type Person } from './components/MemberPicker';
+import { PlaceField } from './components/PlaceField';
 import { Shell } from './components/Shell';
+import { Toggle } from './components/Toggle';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
 import { useUploads } from './components/useUploads';
@@ -81,12 +81,19 @@ export default function CreatePage() {
   const [name, setName] = useState('');
   const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
-  const [when, setWhen] = useState<WindowId | ''>('');
-  const [access, setAccess] = useState<AccessPolicy>(LINK_OPEN);
-  const [eventId, setEventId] = useState<string | null>(null);
-  const [link, setLink] = useState<string | null>(null);
-  const [code, setCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [members, setMembers] = useState<Person[]>([]);
+  /*
+   * Four switches, and only two of them are the access policy.
+   *
+   * `policyFor` turns "private" and "I approve each person" into the one
+   * column that decides them; the link and the phrase are separate facts about
+   * the event. They were a single choice between two named modes, which is how
+   * "private" came to mean "and everybody queues at the door".
+   */
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [linkJoins, setLinkJoins] = useState(true);
+  const [passPhrase, setPassPhrase] = useState(false);
+  const [approve, setApprove] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -95,7 +102,12 @@ export default function CreatePage() {
   // Mounted before there is an event, and handed the id the moment there is
   // one. `useUploads` sits out the empty case rather than opening a queue for
   // an event that does not exist.
-  const uploads = useUploads(eventId ?? '');
+  /*
+   * Mounted with no event on purpose. Nothing uploads from this page any more;
+   * the only thing wanted from the hook here is `stage` — somewhere to leave
+   * the photos for the album page to pick up and send.
+   */
+  const uploads = useUploads('');
 
   const pick = useCallback((files: File[]) => {
     // Same filter as the event page: `accept` is advice that a drop or "All
@@ -115,15 +127,29 @@ export default function CreatePage() {
     if (fileRef.current) fileRef.current.value = '';
   }, []);
 
+  /**
+   * Make it, ask the people, hand over the photos, and go there.
+   *
+   * The order is forced: invitations and photos both need an id, so neither
+   * can happen before the album exists, and the navigation has to be last
+   * because until the queue is written there is nothing for the album page to
+   * pick up.
+   *
+   * The photos are *staged*, not uploaded. Uploading here is what the old
+   * "your album is ready" screen was for — somewhere to stand while a hundred
+   * photographs went up. They go into IndexedDB under the new album's id
+   * instead, and the album page resumes them while you look at what arrives.
+   *
+   * A failed invitation does not fail the album: it is the easiest thing here
+   * to do again, and the link works whether or not anybody accepted.
+   */
   const create = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!when || !name.trim()) return;
+      if (!name.trim()) return;
       setBusy(true);
       setError(null);
       try {
-        const now = new Date();
-        const window = windowFor(when, now);
         const res = await fetch('/api/events', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -131,64 +157,48 @@ export default function CreatePage() {
             name: name.trim(),
             caption: caption.trim() || undefined,
             place: place.trim() || undefined,
-            eventDate: eventDateFor(when, now),
-            // The pair the question exists to collect. Sent together or not at
-            // all — the server refuses half a window, because half resolves
-            // against an open interval, which is every photo on a device.
-            startsAt: window?.startsAt ?? null,
-            endsAt: window?.endsAt ?? null,
-            accessPolicy: access,
+            accessPolicy: policyFor({ isPrivate, approve }),
+            linkJoins,
+            passPhrase,
             // Ignored by the server unless this person is in that group.
             groupId: groupId ?? undefined,
           }),
         });
         if (!res.ok) throw new Error(await explain(res));
-        const created = (await res.json()) as {
-          id: string;
-          url: string;
-          code: string | null;
-        };
-        setEventId(created.id);
-        setLink(new URL(created.url, globalThis.location.origin).toString());
-        setCode(created.code);
+        const created = (await res.json()) as { id: string };
+
+        if (members.length > 0) {
+          await fetch(`/api/events/${created.id}/invites`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ actorIds: members.map((m) => m.actorId) }),
+          }).catch(() => {});
+        }
+
+        await uploads.stage(picked, created.id);
+        // A full load rather than a client navigation: this response set the
+        // capability cookie, and the album page is what starts the uploads.
+        globalThis.location.href = `/event/${created.id}`;
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setBusy(false);
       }
     },
-    [name, place, when, access],
+    [
+      name,
+      caption,
+      place,
+      isPrivate,
+      approve,
+      linkJoins,
+      passPhrase,
+      groupId,
+      members,
+      picked,
+      uploads,
+    ],
   );
 
-  /**
-   * Sending starts when there is somewhere to send to.
-   *
-   * In an effect rather than at the end of `create`, because `uploads.add`
-   * closes over the event id and the copy inside that callback is the one from
-   * the render that ran before `setEventId`. Reading it from state after the
-   * re-render is the only version of this that uploads to the right event.
-   */
-  const sent = useRef(false);
-  useEffect(() => {
-    if (!eventId || sent.current) return;
-    sent.current = true;
-    if (picked.length === 0) {
-      setBusy(false);
-      return;
-    }
-    void uploads.add(picked).finally(() => setBusy(false));
-  }, [eventId, picked, uploads]);
-
-  const copy = useCallback(async () => {
-    if (!link) return;
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    // A label that changes back, rather than a toast. The feedback belongs on
-    // the thing that was pressed.
-    setTimeout(() => setCopied(false), 2000);
-  }, [link]);
-
-  const chosen = WHEN_OPTIONS.find((option) => option.id === when);
-  const created = link !== null;
 
   if (session.known && !session.account) {
     return (
@@ -221,18 +231,16 @@ export default function CreatePage() {
         <div className="create">
           <form className="create-form" onSubmit={create}>
             <div>
-              <h1>{created ? name : 'Create Album'}</h1>
+              <h1>Create Album</h1>
               <p className="muted" style={{ margin: 0 }}>
-                {created
-                  ? 'Made. Send the link — an empty event stays empty.'
-                  : step === 'photos'
-                    ? 'Start with the photos. The questions are easier to answer with them on the screen.'
-                    : 'Everyone who was there puts their photos in one place, and everyone gets the full set.'}
+                {step === 'photos'
+                  ? 'Start with the photos. The questions are easier to answer with them on the screen.'
+                  : 'Everyone who was there puts their photos in one place, and everyone gets the full set.'}
               </p>
             </div>
 
             {/* ---- step one: the photos ---------------------------------- */}
-            {!created && step === 'photos' && (
+            {step === 'photos' && (
               <>
                 <input
                   id="create-photos"
@@ -283,11 +291,11 @@ export default function CreatePage() {
             )}
 
             {/* ---- step two: what it was --------------------------------- */}
-            {!created && step === 'details' && (
+            {step === 'details' && (
               <>
                 <div className="field">
                   <label className="field-label" htmlFor="name">
-                    WHAT WAS IT?
+                    ALBUM TITLE
                   </label>
                   <input
                     id="name"
@@ -299,22 +307,23 @@ export default function CreatePage() {
                     maxLength={120}
                     required
                   />
-                  {/*
-                    Directly under the name and unlabelled, because it is the
-                    same thought continued — a field with its own heading would
-                    make it a second question, and it is optional. One line: the
-                    name says which evening, this says what it was, and anything
-                    longer is what the photographs are for.
-                  */}
+                </div>
+
+                <div className="field">
+                  <label className="field-label" htmlFor="caption">
+                    CAPTION
+                  </label>
                   <input
                     id="caption"
                     type="text"
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Add a line about it (optional)"
+                    placeholder="A line about it"
                     maxLength={200}
-                    aria-label="A line about the event"
                   />
+                  {/* One line. The name says which evening, this says what it
+                      was, and anything longer is what the photographs are for. */}
+                  <p className="field-help">Optional, and it shows on the card.</p>
                 </div>
 
                 <div className="field">
@@ -324,70 +333,100 @@ export default function CreatePage() {
                     </label>
                     <span className="field-note">Optional · shows up under Find, by place</span>
                   </div>
-                  <input
-                    id="place"
-                    type="text"
-                    value={place}
-                    onChange={(e) => setPlace(e.target.value)}
-                    placeholder="Add a location"
-                    maxLength={80}
-                  />
                   {/*
-                    As you would say it, not an address, and never derived from
-                    a photo: §7.6 strips GPS at ingest and ingest fails if any
-                    survives, so there is nothing to derive it from even if the
-                    product wanted to.
+                    Type it and pick, or just type it. The lookup is a spelling
+                    aid and nothing more: what is stored is the label, never a
+                    pin — §7.6 strips GPS from every photo at ingest, and an
+                    album that recorded coordinates would undo that for the
+                    sake of an autocomplete. See `api/places`.
                   */}
+                  <PlaceField value={place} onChange={setPlace} />
                   <p className="field-help">
-                    As you&rsquo;d say it, not an address. Only ever shown to
-                    people already in the event.
+                    Only ever shown to people already in the album.
                   </p>
                 </div>
 
-                <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-                  <legend className="field-label" style={{ padding: 0 }}>
-                    WHEN
-                  </legend>
-                  <div className="pills">
-                    {WHEN_OPTIONS.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className="pill"
-                        aria-pressed={when === option.id}
-                        onClick={() => setWhen(option.id)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                <div className="field">
+                  <div className="field-head">
+                    <label className="field-label">ADD MEMBERS</label>
+                    <span className="field-note">Optional</span>
                   </div>
                   {/*
-                    The selected option's own description, then why the question
-                    is being asked at all. A date question with no stated reason
-                    gets a careless answer, and a careless one here pre-selects
-                    the wrong photos on somebody else's phone.
+                    Chosen here, asked once the album exists. Nobody is put into
+                    an album by somebody else: this writes invitations, and they
+                    answer in Activity.
                   */}
-                  <p className="field-help">
-                    {chosen ? `${capitalise(chosen.hint)}. ` : ''}
-                    It is what lets everyone&rsquo;s own photos from the right
-                    hours be found for them later, instead of asking them to
-                    scroll. &ldquo;Not sure yet&rdquo; is a real answer.
-                  </p>
-                </fieldset>
+                  <MemberPicker picked={members} onChange={setMembers} />
+                </div>
 
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>
-                  {/* The three, and their copy, live in one file — this was
-                      two options here and a different two on the phone, for
-                      one column. */}
-                  <AccessChoice value={access} onChange={setAccess} />
+                  {/*
+                    A column of switches rather than a row of named modes. Each
+                    line is one decision somebody can predict the result of; the
+                    three-way policy underneath is assembled by `policyFor`,
+                    which is also what the manage screen writes.
+                  */}
+                  <div className="toggles">
+                    <Toggle
+                      label="Private"
+                      help={
+                        isPrivate
+                          ? 'Whoever you send the link to signs in and is in. A forwarded link is no use without an account.'
+                          : 'Anyone with the link can look, with no account. Adding photos always needs one.'
+                      }
+                      on={isPrivate}
+                      onChange={(next) => {
+                        setIsPrivate(next);
+                        // Approval only exists inside private. Leaving it on
+                        // while flipping to public would show a switch saying
+                        // one thing and a policy saying another.
+                        if (!next) setApprove(false);
+                      }}
+                    />
+                    <Toggle
+                      label="Share link"
+                      help={
+                        linkJoins
+                          ? 'The link lets new people in.'
+                          : 'The link opens nothing for anybody new — only the people you add are in.'
+                      }
+                      on={linkJoins}
+                      onChange={setLinkJoins}
+                    />
+                    <Toggle
+                      label="Pass phrase"
+                      help={
+                        passPhrase
+                          ? 'Three words to say out loud, for the person across the room whose phone you are not holding.'
+                          : 'No spoken phrase for this one.'
+                      }
+                      on={passPhrase}
+                      onChange={setPassPhrase}
+                    />
+                    <Toggle
+                      label="Manually approve members"
+                      help={
+                        approve
+                          ? 'Holding the link only gets them as far as asking. You answer, under Members.'
+                          : 'Nobody has to ask, and you do not have to approve anyone.'
+                      }
+                      on={approve}
+                      onChange={(next) => {
+                        setApprove(next);
+                        // Approving people is a kind of private, and the policy
+                        // column cannot hold both.
+                        if (next) setIsPrivate(true);
+                      }}
+                    />
+                  </div>
                 </fieldset>
 
                 <div className="row">
                   <button
                     type="submit"
                     className="create-go"
-                    disabled={busy || !name.trim() || !when}
+                    disabled={busy || !name.trim()}
                   >
                     {busy ? 'Creating…' : 'Create Album'}
                   </button>
@@ -404,109 +443,8 @@ export default function CreatePage() {
               </>
             )}
 
-            {/* ---- after: what is happening to the photos ----------------- */}
-            {created && (
-              <div className="create-next">
-                {uploads.running && (
-                  <p className="muted">
-                    Adding your photos — {uploads.remaining} of{' '}
-                    {uploads.items.length} to go. Keep this tab open until it
-                    finishes; uploads do not continue in the background.
-                  </p>
-                )}
-
-                {/*
-                  Said whatever happened, not only when it went well.
-
-                  Three outcomes and they need different sentences, which is the
-                  whole reason this is not one count. The first version reported
-                  a number when `done > 0` and was silent otherwise, so a batch
-                  where nothing arrived looked exactly like a batch nobody
-                  chose. The second version covered failure and was still silent
-                  in the case that actually happens: the queue treats a lost
-                  connection as a *pause*, deliberately — it leaves items
-                  `pending` so a retry costs no attempt — so `done`, `failed`
-                  and `stale` are all zero and the paragraph rendered empty.
-                  Found by watching the real queue rather than the screen:
-                  status `pending`, error "Failed to fetch".
-                */}
-                {!uploads.running && uploads.items.length > 0 && (
-                  <p className="muted">
-                    {uploads.done > 0 && `Added ${uploads.done} of ${uploads.items.length}. `}
-                    {uploads.remaining > 0 &&
-                      `${uploads.remaining} still to go — the connection dropped. Open the event and they will carry on from here. `}
-                    {uploads.failed > 0 &&
-                      `${uploads.failed} did not upload — open the event and add ${
-                        uploads.failed === 1 ? 'it' : 'them'
-                      } again. `}
-                    {uploads.stale.length > 0 &&
-                      `${uploads.stale.length} could not be read after the reload.`}
-                  </p>
-                )}
-
-                <a className="button-like primary" href={`/event/${eventId}`}>
-                  {uploads.done > 0 ? 'Open the event' : 'Add your photos'}
-                </a>
-                {picked.length === 0 && (
-                  <p className="field-help" style={{ margin: 0 }}>
-                    An empty event stays empty — yours are what tell everyone else
-                    there is something to add to.
-                  </p>
-                )}
-              </div>
-            )}
           </form>
 
-          {/*
-            Hidden during the photo step. There is no link yet and nothing to
-            do with one, and a panel about sending sitting beside "choose your
-            photos" is an instruction for later competing with the one on
-            screen now.
-          */}
-          {(step === 'details' || created) && (
-            <aside className="aside">
-              <div>
-                <h2>Then send it</h2>
-                <p className="field-help" style={{ margin: 0 }}>
-                  The link is the whole invitation — no app to install, and
-                  nothing to sign up for to look. Adding photos needs an account.
-                </p>
-              </div>
-
-              <div className="aside-row">
-                {/*
-                  Before there is a link this says so rather than showing a
-                  plausible-looking one. A greyed example someone might try to
-                  copy is worse than an empty state.
-                */}
-                <span className="aside-link">{link ?? 'Your link appears here'}</span>
-                {link && (
-                  <button type="button" className="as-text" onClick={copy}>
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
-                )}
-              </div>
-
-              {code && (
-                <div>
-                  <p className="field-label" style={{ marginBottom: 8 }}>
-                    OR SAY IT OUT LOUD
-                  </p>
-                  <div className="aside-code">{code}</div>
-                  <p className="field-help" style={{ marginTop: 8 }}>
-                    For the person across the room whose phone you are not
-                    holding.
-                  </p>
-                </div>
-              )}
-
-              <p className="aside-foot">
-                On a phone you can pick people straight from your contacts. In a
-                browser, paste it into the group chat — that is where everyone
-                already is.
-              </p>
-            </aside>
-          )}
         </div>
 
         <SiteFooter />
@@ -596,9 +534,4 @@ async function explain(res: Response): Promise<string> {
   return res.status >= 500
     ? `The server failed (${res.status}). Check /api/health for what is missing.`
     : `Could not create the event (${res.status}).`;
-}
-
-/** The hints read as sentence fragments; this one starts a sentence. */
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

@@ -26,6 +26,8 @@ export type UploadsView = {
   /** True when this tab picked up work a previous one left behind. */
   resumed: boolean;
   add(files: File[]): Promise<void>;
+  /** Persist a batch for another page to send. See below. */
+  stage(files: File[], eventId: string): Promise<void>;
   discard(): Promise<void>;
 };
 
@@ -39,8 +41,18 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
   const store = useRef<UploadStore | null>(null);
   const queue = useRef<UploadQueue | null>(null);
   const files = useRef(new Map<string, File>());
-  // Effects run twice in development. Opening the database twice is harmless;
-  // starting the resumed queue twice is not.
+  /*
+   * One resume per mount. Effects run twice in development — opening the
+   * database twice is harmless, starting the resumed queue twice is not.
+   *
+   * Released by the cleanup, and that is not a detail. Without it the pair of
+   * development invocations cancelled each other out perfectly: the first ran,
+   * was told to stop by the cleanup at its first `await`, and the second
+   * returned here because the first had already claimed the flag. So nothing
+   * ever resumed in `next dev` — which is exactly where anybody would go to
+   * check that resuming works. It was invisible because it only misbehaves
+   * where nobody ships from.
+   */
   const started = useRef(false);
 
   const drive = useCallback(
@@ -89,6 +101,7 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
 
     return () => {
       cancelled = true;
+      started.current = false;
     };
   }, [eventId, drive]);
 
@@ -103,6 +116,53 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [running]);
+
+  /**
+   * Hand the photos to the album and leave.
+   *
+   * The same enqueue as `add` and deliberately not the same finish: it writes
+   * the queue and the file handles into IndexedDB and returns, without
+   * uploading anything. The album page opens, finds the queue under its own
+   * id, and sends them — which is what makes "create it and you are looking at
+   * it" possible at all. `add` would upload here and then navigate away from
+   * the tab doing the work.
+   *
+   * The handles survive the navigation because they were never copies: a
+   * `File` structured-cloned into IndexedDB is a reference to something
+   * already on disk. See `upload/store.ts`.
+   */
+  const stage = useCallback(
+    async (picked: File[], forEventId: string) => {
+      if (picked.length === 0) return;
+
+      // Opened here rather than waited for. The store effect above is keyed on
+      // the event id, and at this moment the id is one render old — the album
+      // was created a line ago.
+      const opened = store.current ?? (await UploadStore.open().catch(() => null));
+      store.current = opened;
+      if (!opened) return;
+
+      const described = picked.map((file) => describe(forEventId, file));
+      const { UploadQueue: Ctor } = await import('@parea/upload');
+      const q = new Ctor(
+        browserDeps({ eventId: forEventId, store: opened, files: new Map() }),
+        { items: [] },
+      );
+      q.add(
+        forEventId,
+        described.map((d) => d.item),
+      );
+
+      await opened.saveState(forEventId, q.state).catch(() => {});
+      await opened
+        .putFiles(
+          forEventId,
+          described.map((d) => ({ id: d.item.id, file: d.file })),
+        )
+        .catch(() => {});
+    },
+    [],
+  );
 
   const add = useCallback(
     async (picked: File[]) => {
@@ -163,6 +223,7 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
     running,
     resumed,
     add,
+    stage,
     discard,
   };
 }
