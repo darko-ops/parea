@@ -59,11 +59,24 @@ export function AccountView() {
   const [account, setAccount] = useState<{
     email: string;
     displayName: string | null;
+    bio: string | null;
     handle: string | null;
     avatarUrl: string | null;
   } | null>(null);
   /** Which of the three faces of this page is showing. */
   const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');
+
+  /*
+   * Settings is reached from the rail now, so it arrives as `?view=settings`
+   * rather than as a button press. Read after mount for the usual reason —
+   * touching `location` during render makes the server's HTML and the
+   * client's disagree.
+   */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('view') === 'settings') {
+      setView('settings');
+    }
+  }, []);
   const [events, setEvents] = useState<EventListing[]>([]);
   const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,7 +158,7 @@ export function AccountView() {
    * late.
    */
   const page = (children: React.ReactNode) => (
-    <Shell current="you">
+    <Shell current={view === 'settings' ? 'settings' : 'you'}>
       <main className="wrap you">{children}</main>
     </Shell>
   );
@@ -216,25 +229,41 @@ export function AccountView() {
               profile" does not already say, and a prompt in this spot would be
               the third place to change one. */}
           {account?.handle && <p className="muted you-handle">@{account.handle}</p>}
+          {/* What somebody wrote about themselves, under the handle and above
+              the counts the page worked out. */}
+          {account?.bio && <p className="you-bio">{account.bio}</p>}
           {/*
             A count that goes somewhere. Null until the answer arrives rather
             than 0, because "0 friends" flashing on the profile of somebody
             with eleven of them is a worse first frame than nothing at all.
           */}
-          {friends !== null && (
-            <a className="you-friends" href="/friends">
-              {friends} {friends === 1 ? 'friend' : 'friends'}
-            </a>
-          )}
+          {/*
+            Two counts on one line: what you have made, and who you know. The
+            albums number is not a link — you are looking at the list of them,
+            three inches below.
+          */}
+          <p className="you-counts">
+            <span>
+              {events.length} {events.length === 1 ? 'album' : 'albums'}
+            </span>
+            {friends !== null && (
+              <a className="you-friends" href="/friends">
+                {friends} {friends === 1 ? 'friend' : 'friends'}
+              </a>
+            )}
+          </p>
         </div>
       </header>
 
+      {/*
+        One button. Settings moved to the rail, under Create Album — it holds
+        the account itself and the way to delete it, which is a different job
+        from changing how you appear, and the two sat on one row looking like
+        a pair.
+      */}
       <div className="row you-actions">
         <button className="secondary" onClick={() => setView('profile')}>
           Edit profile
-        </button>
-        <button className="secondary" onClick={() => setView('settings')}>
-          Settings
         </button>
       </div>
 

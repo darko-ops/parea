@@ -109,6 +109,14 @@ export default function PrivacyPage() {
             it does.
           </p>
 
+          <h3>A line about you, if you write one</h3>
+          <p className="muted">
+            Optional, free text, and shown on your profile to anybody who can
+            see it. Nothing verifies it and nothing is done with it &mdash; it
+            is there because a name and a handle tell somebody almost nothing
+            about who just added forty photographs to their evening.
+          </p>
+
           <h3>A profile picture, if you add one</h3>
           <p className="muted">
             Optional, and shown beside your name. It is re-encoded on the way

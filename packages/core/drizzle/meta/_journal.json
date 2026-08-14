@@ -134,6 +134,13 @@
       "when": 1786680312112,
       "tag": "0018_left_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786685051311,
+      "tag": "0019_rare_giant_girl",
+      "breakpoints": true
     }
   ]
 }

@@ -105,6 +105,14 @@ export const actors = pgTable(
    */
   avatarKey: text('avatar_key'),
   /**
+   * A line or two somebody writes about themselves, shown on their profile.
+   *
+   * Bounded short on purpose. This is a product about photographs of an
+   * evening, not a place to be somebody — a bio with room for paragraphs is a
+   * bio that becomes a page, and the page would need moderating like one.
+   */
+  bio: text('bio'),
+  /**
    * When this actor last opened Invites.
    *
    * The whole of "unread" for that screen. A per-row `seen` flag on every

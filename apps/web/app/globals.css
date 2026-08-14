@@ -331,7 +331,9 @@ button.secondary {
 }
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
-.rail-note { font-size: 12px; line-height: 1.45; color: var(--dim); }
+ /* Settings, under the create button rather than beside "Edit profile" on the
+    profile itself. Styled as a rail row, because that is what it is now. */
+.rail-settings { justify-content: flex-start; }
 .main {
   flex: 1; min-width: 0; padding: 28px 30px;
   display: flex; flex-direction: column;
@@ -366,7 +368,7 @@ button.secondary {
   }
   .rail-mark { padding: 0 8px 0 4px; }
   .rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; }
-  .rail-note { display: none; }
+  .rail-settings { display: none; }
   .main { padding: 20px; }
 }
 
@@ -1440,6 +1442,17 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    change height when one arrives. */
 img.you-face { object-fit: cover; }
 .you-handle { margin: 0; font-size: 14px; }
+/* What somebody wrote about themselves. Text colour, not `--dim`: it is the
+   one thing in this header that is not a fact the page derived. */
+.you-bio {
+  margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--fg);
+  overflow-wrap: anywhere;
+}
+/* Two counts on one line — what you have made, and who you know. */
+.you-counts {
+  margin: 6px 0 0; display: flex; gap: 14px;
+  font-size: 14px; color: var(--dim);
+}
 .you-actions { margin-bottom: 8px; }
 
 /* A label doing a button's job, because the file input it belongs to is
@@ -1549,8 +1562,5 @@ button.link {
 /* The friend count under the handle. A link, and it looks like one on hover
    rather than always: the line above it is plain text and a permanently blue
    number beside a name reads as a notification. */
-.you-friends {
-  display: inline-block; margin-top: 4px;
-  font-size: 14px; color: var(--dim); text-decoration: none;
-}
+.you-friends { color: var(--dim); text-decoration: none; }
 .you-friends:hover { color: var(--accent); text-decoration: underline; }

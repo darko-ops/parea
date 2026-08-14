@@ -17,6 +17,7 @@ import { Avatar } from './Avatar';
 type Profile = {
   displayName: string | null;
   handle: string | null;
+  bio: string | null;
   avatarUrl: string | null;
 };
 
@@ -30,6 +31,7 @@ export function EditProfile({
   onDone: () => void;
 }) {
   const [name, setName] = useState(profile.displayName ?? '');
+  const [bio, setBio] = useState(profile.bio ?? '');
   const [handle, setHandle] = useState(profile.handle ?? '');
   const [handleError, setHandleError] = useState<string | null>(null);
   const [picError, setPicError] = useState<string | null>(null);
@@ -101,6 +103,25 @@ export function EditProfile({
       setBusy(false);
     }
   }, [handle, onSaved, profile.handle]);
+
+  /*
+   * Saved on blur, like the name and the handle beside it.
+   *
+   * The whole screen works this way — there is no Save button, because every
+   * field here is one fact and leaving it is the moment somebody has finished
+   * saying it. A form that collects four facts and then asks you to confirm
+   * them is a form; this is a profile.
+   */
+  const saveBio = useCallback(async () => {
+    const next = bio.trim();
+    if (next === (profile.bio ?? '')) return;
+    await fetch('/api/account', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bio: next }),
+    }).catch(() => {});
+    await onSaved();
+  }, [bio, onSaved, profile.bio]);
 
   const saveName = useCallback(async () => {
     const next = name.trim();
@@ -182,6 +203,24 @@ export function EditProfile({
         maxLength={80}
       />
       <p className="muted">Shown beside your photos. It does not have to be unique.</p>
+
+      <label htmlFor="edit-bio" style={{ marginTop: 16 }}>
+        About you
+      </label>
+      <textarea
+        id="edit-bio"
+        className="thread-field"
+        rows={2}
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        onBlur={saveBio}
+        placeholder="A line about you"
+        maxLength={200}
+      />
+      <p className="muted">
+        Optional, and on your profile. Anybody who can see your profile can read
+        it.
+      </p>
 
       <div className="row" style={{ marginTop: 20 }}>
         <button onClick={onDone} disabled={busy}>

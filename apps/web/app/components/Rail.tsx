@@ -30,7 +30,7 @@
 import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
 
-export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | null;
+export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | 'settings' | null;
 
 const ROWS: { href: string; label: string; page: Exclude<RailPage, null> }[] = [
   // The label is Home and the identifier stays `events`, because the route
@@ -86,11 +86,23 @@ export function Rail({ current }: { current: RailPage }) {
 
       <div className="rail-foot">
         <a href="/">
-          <button type="button">Create Event</button>
+          <button type="button">Create Album</button>
         </a>
-        <p className="rail-note">
-          Events you are sent show up here once you open them.
-        </p>
+        {/*
+          Settings, under the thing people actually come here to press.
+
+          It was a button on the profile beside "Edit profile", which put two
+          different jobs on one row — one changes how you appear, the other
+          holds the account itself and the way to delete it. In the rail it is
+          where settings usually are, and the profile is left to be a profile.
+        */}
+        <a
+          href="/account?view=settings"
+          className="rail-row rail-settings"
+          aria-current={current === 'settings' ? 'page' : undefined}
+        >
+          Settings
+        </a>
       </div>
     </nav>
   );

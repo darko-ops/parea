@@ -196,7 +196,7 @@ export default function CreatePage() {
           <div className="create">
             <form className="create-form" onSubmit={(e) => e.preventDefault()}>
               <div>
-                <h1>Create Event</h1>
+                <h1>Create Album</h1>
                 <p className="muted" style={{ margin: 0 }}>
                   Everyone who was there puts their photos in one place, and
                   everyone gets the full set.
@@ -220,7 +220,7 @@ export default function CreatePage() {
         <div className="create">
           <form className="create-form" onSubmit={create}>
             <div>
-              <h1>{created ? name : 'Create Event'}</h1>
+              <h1>{created ? name : 'Create Album'}</h1>
               <p className="muted" style={{ margin: 0 }}>
                 {created
                   ? 'Made. Send the link — an empty event stays empty.'
@@ -407,7 +407,7 @@ export default function CreatePage() {
                     className="create-go"
                     disabled={busy || !name.trim() || !when}
                   >
-                    {busy ? 'Creating…' : 'Create Event'}
+                    {busy ? 'Creating…' : 'Create Album'}
                   </button>
                   <button
                     type="button"

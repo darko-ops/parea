@@ -222,6 +222,8 @@ async function bindAccount(
 export type AccountProfile = {
   email: string;
   displayName: string | null;
+  /** A line or two somebody wrote about themselves. Null draws nothing. */
+  bio: string | null;
   handle: string | null;
   /** Presigned and short-lived. The bucket is private; see `avatarUrl`. */
   avatarUrl: string | null;
@@ -238,6 +240,7 @@ export async function accountFor(
     .select({
       email: schema.accounts.email,
       displayName: schema.actors.displayName,
+      bio: schema.actors.bio,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
     })

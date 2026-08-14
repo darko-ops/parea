@@ -43,14 +43,24 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as {
     displayName?: unknown;
+    bio?: unknown;
     handle?: unknown;
   };
 
   const db = getDb();
-  const patch: { displayName?: string | null; handle?: string | null } = {};
+  const patch: {
+    displayName?: string | null;
+    bio?: string | null;
+    handle?: string | null;
+  } = {};
 
   if (typeof body.displayName === 'string') {
     patch.displayName = body.displayName.trim().slice(0, 80) || null;
+  }
+
+  // Bounded short, and empty means none rather than an empty line under a name.
+  if (typeof body.bio === 'string') {
+    patch.bio = body.bio.trim().slice(0, 200) || null;
   }
 
   if (typeof body.handle === 'string') {

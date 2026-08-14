@@ -148,6 +148,7 @@ describe('the closed list of what is collected', () => {
 
     const DISCLOSED: Record<string, RegExp> = {
       display_name: /display name/i,
+      bio: /<h3>A line about you/,
       handle: /<h3>A handle<\/h3>/,
       avatar_key: /<h3>A profile picture/,
     };
