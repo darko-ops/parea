@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { eventOfMessage, isReaction, toggleReaction } from '@/messages';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -41,7 +41,9 @@ export async function POST(
     return toResponse(err);
   }
 
-  const actorId = await currentActorId();
+  // Same rule as posting: a reaction is attributed, counted, and shown to
+  // everybody in the event. `currentActorId` would answer for a guest.
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };

@@ -11,6 +11,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -293,5 +294,59 @@ describe('finding the event a message belongs to', () => {
 
   it('answers null for one that does not exist', async () => {
     expect(await eventOfMessage(db, '00000000-0000-4000-8000-000000000000')).toBeNull();
+  });
+});
+
+describe('who is allowed to say anything at all', () => {
+  /*
+   * Posting requires an account, and that is not the same check as "is there
+   * somebody here".
+   *
+   * `contribute` is held by anybody holding the link, and an actor row exists
+   * for every browser that has ever opened one — that is what makes "your
+   * photos are yours to delete" work without a login. A route that checked
+   * `currentActorId` was therefore checking that a browser existed, and a
+   * link-holder could write in the thread under a name nobody had claimed.
+   *
+   * The routes are the enforcement and they cannot be exercised here without a
+   * request, so this pins the property the routes rely on: the helper they
+   * call answers null for a guest. If it ever stops doing that, four handlers
+   * silently open at once.
+   */
+  const read = (p: string) =>
+    readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+
+  it('every writing route asks for an account, not for an actor', () => {
+    const writers = [
+      '../app/api/events/[id]/messages/route.ts',
+      '../app/api/messages/[id]/route.ts',
+      '../app/api/messages/[id]/reactions/route.ts',
+    ];
+    for (const path of writers) {
+      const source = read(path);
+      expect(source, `${path} does not require an account`).toMatch(
+        /currentAccountActorId\(\)/,
+      );
+      // The weaker check must not be what the write is gated on. `messages`
+      // still imports `currentActorId` for the GET, which reads.
+      expect(
+        /const actorId = await currentActorId\(\)/.test(source),
+        `${path} gates a write on a guest-satisfiable check`,
+      ).toBe(false);
+    }
+  });
+
+  it('the composer is only offered where the server would accept it', () => {
+    // `canPost` decides whether the client draws a composer at all. Computed
+    // from `viewerId != null` it was true for guests, so the product offered a
+    // box that the POST behind it always refused.
+    for (const path of [
+      '../app/api/events/[id]/photos/route.ts',
+      '../app/event/[id]/page.tsx',
+    ]) {
+      expect(read(path), `${path} promises posting it cannot honour`).toMatch(
+        /canPost:[\s\S]{0,200}currentAccountActorId\(\)/,
+      );
+    }
   });
 });

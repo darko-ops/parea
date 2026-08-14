@@ -10,7 +10,7 @@ import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
@@ -154,7 +154,13 @@ export default async function EventPage({
           contributors: people.length,
           people,
           messages,
-          canPost: (await decide(db, event, 'contribute', requester)).allow && viewerId != null,
+          // `contribute` and an account, matching what the POST actually enforces.
+    // Computed from the same helper rather than from `viewerId != null`, which
+    // is true for a guest — the composer would have been drawn for somebody the
+    // server was always going to refuse.
+    canPost:
+      (await decide(db, event, 'contribute', requester)).allow &&
+      (await currentAccountActorId()) != null,
           arriving: pending?.n ?? 0,
           count: photos.length,
           photos,

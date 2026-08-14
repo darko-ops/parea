@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { deleteMessage, editMessage, eventOfMessage, MAX_BODY } from '@/messages';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -37,7 +37,8 @@ async function mine(messageId: string) {
     return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
   }
 
-  const actorId = await currentActorId();
+  // Only an account can have written one, so only an account can change one.
+  const actorId = await currentAccountActorId();
   if (!actorId || actorId !== message.authorActorId) {
     return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
   }

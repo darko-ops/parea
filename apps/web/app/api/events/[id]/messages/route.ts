@@ -14,7 +14,7 @@ import { findEventById, guard, toResponse } from '@/access';
 import { contributorKey } from '@/contributors';
 import { getDb } from '@/db';
 import { MAX_BODY, messagesFor, postMessage } from '@/messages';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -66,10 +66,16 @@ export async function POST(
     return toResponse(err);
   }
 
-  const actorId = await currentActorId();
-  // `contribute` can be held by a link-holder with no account, and a message
-  // has an author by definition — see the schema. Answered plainly rather than
-  // as a 403, because the remedy is signing in and the client shows that.
+  /*
+   * An account, not merely a browser.
+   *
+   * `contribute` is held by anybody with the link, and `currentActorId`
+   * answers for a guest — an actor exists for every browser that has opened
+   * one. Checking that pair let a link-holder post under a name nobody had
+   * claimed. Posting is the one thing here that addresses the room, so it is
+   * the one thing that requires having said who you are.
+   */
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as {

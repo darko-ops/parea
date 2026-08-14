@@ -56,6 +56,37 @@ export async function currentActorId(): Promise<string | null> {
 }
 
 /**
+ * The acting actor, but only if there is an account behind it.
+ *
+ * `currentActorId` answers for a guest as readily as for anybody else — an
+ * actor exists for every browser that has ever opened a link, and that is what
+ * makes "your photos are yours to delete" work without a login. It is exactly
+ * the wrong thing to check before letting somebody write in a thread, and a
+ * route that checks it is checking "is there a browser here".
+ *
+ * The distinction matters because posting is the one thing in this product
+ * that puts a name in front of other people. A photograph carries a name too,
+ * but a photograph is the thing an event is for; a message is somebody
+ * addressing the room, and a room where anyone holding the link can speak
+ * anonymously is a different product with a different moderation problem.
+ *
+ * Returns null for a guest, which callers answer as `sign_in_required` — a
+ * 401 rather than a 403, because the remedy is signing in and the client has a
+ * screen for exactly that.
+ */
+export async function currentAccountActorId(): Promise<string | null> {
+  const actorId = await currentActorId();
+  if (!actorId) return null;
+
+  const [actor] = await getDb()
+    .select({ accountId: schema.actors.accountId })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId));
+
+  return actor?.accountId ? actorId : null;
+}
+
+/**
  * The signed form of an actor id, for a native client to keep in the keychain.
  * Identical to the cookie value — there is one credential format.
  */
