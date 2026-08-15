@@ -614,28 +614,33 @@ button.secondary {
    pixel of photograph. */
 .card-text {
   position: relative; display: flex; align-items: center; gap: 10px;
-  padding: 7px 12px 8px;
+  /* Tight, because the strip's job is to stay out of the photographs' way.
+     The two rows and this padding are the whole of its height — 55px against
+     the 90 it started at. */
+  padding: 7px 12px 7px;
 }
-/* The album's name and the time, on one line. */
-.card-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+/* The picture, the album's name and the time, on one line. Centred rather than
+   on the baseline: a circle has no baseline, and aligning one to text sits it
+   a couple of pixels low every time. */
+.card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* A ring in the card's own background colour, so the circle stays a circle
    over whatever colour the blurred photographs put behind it. Large enough to
    be a face rather than a token — it is the only picture of a person on the
    card, and at 22px it read as a bullet point. */
 .card-face {
-  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   overflow: hidden; background: var(--card);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .7);
-  font-size: 14px; font-weight: 700; color: var(--dim);
+  font-size: 11px; font-weight: 700; color: var(--dim);
 }
 .card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
- /* Sized against the face beside it. It came down to 16px when the name sat
-    alone above the photographs and was competing with them for the same
-    glance; paired with a 30px circle it is one object with the person's
-    picture, and at 16px the circle was the louder half. */
+ /* Sized against the face beside it: 22px of circle wants 16px of name, and
+    the pair reads as one object. It went to 18 while the circle was 34 and
+    came back with it — a title set larger than the picture it sits next to
+    makes the picture look like a bullet point. */
 .card-name {
-  flex: 1; font-size: 18px; font-weight: 700; letter-spacing: -.015em;
+  flex: 1; font-size: 16px; font-weight: 700; letter-spacing: -.01em;
   /* Explicit, because the strip's height is now the sum of two line boxes and
      nothing else — left to the default, the two rows quietly set how tall the
      card's detail strip is. */
@@ -646,8 +651,11 @@ button.secondary {
    rather than `--dim` — it is something a person wrote, not a fact the page
    worked out. */
 .card-caption {
-  display: flex; align-items: baseline; gap: 6px;
-  font-size: 12.5px; line-height: 1.3; color: var(--fg); margin-top: 1px;
+  display: flex; align-items: baseline; gap: 5px;
+  /* Quieter than the title row above it. The name and the time are what a
+     card is scanned for; whose it is and what they said are what it is read
+     for, and those are two different sizes. */
+  font-size: 11.5px; line-height: 1.35; color: var(--fg); margin-top: 2px;
   min-width: 0;
 }
 /* Whose it is. Heavier and quieter than what they wrote, so the eye reads the

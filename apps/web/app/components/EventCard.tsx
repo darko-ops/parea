@@ -177,22 +177,6 @@ export function EventCard({ event }: { event: CardEvent }) {
         <div className="card-scrim" aria-hidden="true" />
 
         <div className="card-text">
-          {/*
-            The picture beside both lines rather than above them.
-
-            Stacked, the strip was as tall as the circle plus the caption plus
-            the gap between them — and the circle wanted to be bigger, which
-            made it taller again. Beside them it is as tall as the two lines,
-            so the face can grow while the strip shrinks.
-          */}
-          <Face
-            src={event.creatorAvatar}
-            size={34}
-            className="card-face"
-            fallback={
-              <span aria-hidden="true">{initial(event.creatorHandle, event.name)}</span>
-            }
-          />
           <div style={{ flex: 1, minWidth: 0 }}>
             {/*
               Whose album it is, beside its name.
@@ -203,6 +187,22 @@ export function EventCard({ event }: { event: CardEvent }) {
               never a silhouette: a generic avatar is a photograph of nobody.
             */}
             <div className="card-title">
+              {/*
+                On the title's line, which puts it directly above the handle it
+                belongs to — the picture and the name of the person who made
+                this, one under the other, rather than a circle floating beside
+                two lines about different things.
+              */}
+              <Face
+                src={event.creatorAvatar}
+                size={22}
+                className="card-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {initial(event.creatorHandle, event.name)}
+                  </span>
+                }
+              />
               <div className="card-name">{event.name}</div>
               {/*
                 At the end of the title row rather than on a line of its own.
