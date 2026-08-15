@@ -199,6 +199,16 @@ export default function PrivacyPage() {
             you see, exactly as their photographs do not.
           </p>
 
+          <h3>Notifications you have hidden</h3>
+          <p className="muted">
+            The Activity page is worked out when you open it, from things that
+            already happened &mdash; a reaction, a mention, an album you were
+            let into. Nothing is stored to make that list. When you hide a line
+            from it, what is kept is the identifier of that line and nothing
+            else, so it can be left out next time. It is not a record of what
+            you have read, and there is no list anywhere of what you dismissed.
+          </p>
+
           <h3>Your IP address, briefly</h3>
           <p className="muted">
             Used to limit how fast requests can arrive, so that one script cannot

@@ -9,6 +9,7 @@
  * Not indexable: it lists what one person is in and what they have asked for.
  */
 
+import { ActivityList } from '@/../app/components/ActivityList';
 import { RequestBubble } from '@/../app/components/RequestBubble';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
@@ -106,28 +107,21 @@ export default async function ActivityPage() {
           {/* Only when something sits above it. "Everything else" with nothing
               before it is a heading answering a question nobody asked. */}
           {(requests.length > 0 || asked.length > 0) && <h2>Everything else</h2>}
-          {items.length === 0 ? (
-            <p className="panel-note">
-              Nothing yet. Reactions to what you write, people mentioning you in
-              an album, and albums you are let into all turn up here.
-            </p>
-          ) : (
-            <ul className="activity">
-              {items.map((item) => {
-                const line = (
-                  <>
-                    <span className="activity-who">{item.who}</span> {item.what}
-                    <span className="activity-when">{ago(item.at, now)}</span>
-                  </>
-                );
-                return (
-                  <li key={item.id}>
-                    {item.href ? <a href={item.href}>{line}</a> : <span>{line}</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {/*
+            The rows are handed down already worded and already dated: the
+            relative time is rounded once, here, against the server's clock.
+            Rounding it in the browser would make the first render disagree
+            with the HTML it replaced, and React discards the tree when it does.
+          */}
+          <ActivityList
+            items={items.map((item) => ({
+              id: item.id,
+              who: item.who,
+              what: item.what,
+              when: ago(item.at, now),
+              href: item.href,
+            }))}
+          />
         </section>
 
         <SiteFooter />

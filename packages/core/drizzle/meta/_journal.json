@@ -141,6 +141,13 @@
       "when": 1786685051311,
       "tag": "0019_rare_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786771851362,
+      "tag": "0020_nervous_stature",
+      "breakpoints": true
     }
   ]
 }

@@ -98,6 +98,12 @@ const OWNED: {
     column: 'actor_id',
     uniqueWith: ['message_id', 'emoji'],
   },
+  // Lines somebody has dismissed on Activity. Moved rather than dropped: the
+  // feed is derived from rows that survive the merge, so a notification hidden
+  // on the laptop would otherwise come back the moment the phone signs in —
+  // the same line, unhidden, because the key was filed under an actor nothing
+  // points at.
+  { table: 'hidden_activity', column: 'actor_id', uniqueWith: ['item_key'] },
 ];
 
 export const MERGED_TABLES = OWNED;

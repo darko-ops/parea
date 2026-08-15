@@ -502,13 +502,28 @@ button.secondary {
     thing you press, when the thing you want is where it happened. */
 .activity { list-style: none; margin: 0; padding: 0; display: grid; }
 .activity li + li { border-top: 1px solid var(--hairline); }
+/* The row is a link and the menu is a button, and a button inside a link is
+   markup a browser refuses to nest. So they are siblings and the link is what
+   stretches — which also means the hover fill has to move to the row, or it
+   stops short of the menu it sits beside. */
+.activity-row { display: flex; align-items: center; gap: 4px; }
+.activity-row > a, .activity-row > span:first-child { flex: 1; min-width: 0; }
+.activity-row .dots-go { opacity: 0; transition: opacity 120ms; }
+/* Shown on hover, and always on a touch screen — where there is no hover, an
+   opacity-gated control is a control that does not exist. Focus-within so it
+   survives being reached by keyboard. */
+.activity-row:hover .dots-go,
+.activity-row:focus-within .dots-go { opacity: 1; }
+@media (hover: none) {
+  .activity-row .dots-go { opacity: 1; }
+}
 .activity a, .activity span {
   display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
   padding: 11px 2px; font-size: 14px; line-height: 1.45;
   color: var(--fg); text-decoration: none;
 }
 .activity a { border-radius: 8px; }
-.activity a:hover { background: var(--track); padding-left: 8px; padding-right: 8px; }
+.activity-row:hover > a { background: var(--track); }
 .activity-who { font-weight: 600; }
 /* Pushed to the end rather than sitting after the sentence: a column of times
    down the right is readable at a glance, and inline they wander. */

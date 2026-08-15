@@ -888,6 +888,43 @@ export const messageReactions = pgTable(
   (t) => [primaryKey({ columns: [t.messageId, t.actorId, t.emoji] })],
 );
 
+/**
+ * Notifications somebody has dismissed — the Activity page's `···` → Hide.
+ *
+ * A row per hidden line, keyed by the string the feed builds for it. That key
+ * is not a foreign key and cannot be one: the feed has no table of its own.
+ * Every line on Activity is derived at read time from a reaction, a mention, a
+ * participant row or an answered request, and the key is how one of those
+ * derived lines is named — `reaction:<message>:<emoji>:<when>`, and so on.
+ *
+ * Which means the honest description of this table is "strings this person
+ * does not want to see again". A hidden line whose source row is deleted takes
+ * its meaning with it, and the key here becomes a small piece of litter that
+ * matches nothing. That is the cost of a derived feed and it is a cheap one;
+ * the alternative is a notification table written at six call sites, which is
+ * the design `activity.ts` explains at length why the product does not have.
+ *
+ * No "unhide" anywhere. Somebody who hides a line has said they are finished
+ * with it, and a second screen listing what you have dismissed is a feature
+ * about the feature.
+ */
+export const hiddenActivity = pgTable(
+  'hidden_activity',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /**
+     * The feed's own id for the line. Bounded because it is composed from
+     * ids, an emoji and a timestamp, and nothing should be able to write a
+     * kilobyte of key here by asking the API to hide one.
+     */
+    itemKey: text('item_key').notNull(),
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.itemKey] })],
+);
+
 // --- relations -------------------------------------------------------------
 
 /**

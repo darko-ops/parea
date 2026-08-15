@@ -211,6 +211,7 @@ describe('the closed list of what is collected', () => {
       event_invite: /somebody invited you into an event/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
+      hidden_activity: /identifier of that line and nothing/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt

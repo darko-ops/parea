@@ -18,10 +18,15 @@
  * friend requests, people wanting into an album you run — is `requests.ts`,
  * and the two are kept apart on purpose: one is read, the other is answered.
  *
- * The cost is real and worth naming: there is no per-item read state, and no
- * cheap way to add one. `actor.invites_seen_at` is what marks the boundary —
- * everything after it is new — which is one timestamp for the whole list
- * rather than a flag per line.
+ * The cost is real and worth naming: there is no per-item read state.
+ * `actor.invites_seen_at` marks the boundary — everything after it is new —
+ * which is one timestamp for the whole list rather than a flag per line.
+ *
+ * Hiding is the exception, and it is deliberately not read state. A line
+ * somebody has dismissed is named in `hidden_activity` by the key this file
+ * composes for it, and filtered out below. That key is the only handle a
+ * derived feed can offer: there is no row to mark, because the line is not a
+ * row — it is four tables read at once.
  */
 
 import { schema } from '@parea/core';
@@ -74,7 +79,20 @@ export async function activityFor(
     .from(schema.actors)
     .where(eq(schema.actors.id, actorId));
 
-  const [reactions, mentions, letIn, answered] = await Promise.all([
+  /*
+   * What this person has dismissed, fetched alongside the rest.
+   *
+   * Filtered here rather than in each of the four queries: they select from
+   * four different tables and the key is composed after the fact, so there is
+   * nothing for SQL to join against. The set is small — one row per line
+   * somebody has hidden — and the alternative is four `not exists` clauses
+   * built from string concatenation in four places.
+   */
+  const [hidden, reactions, mentions, letIn, answered] = await Promise.all([
+    db
+      .select({ key: schema.hiddenActivity.itemKey })
+      .from(schema.hiddenActivity)
+      .where(eq(schema.hiddenActivity.actorId, actorId)),
     /*
      * Somebody reacted to something you wrote.
      *
@@ -225,7 +243,11 @@ export async function activityFor(
     })),
   ];
 
-  // Newest first, and bounded again after the merge — five queries of sixty is
-  // three hundred rows, and nobody scrolls that.
-  return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, LIMIT);
+  // Newest first, and bounded again after the merge — four queries of sixty is
+  // two hundred rows, and nobody scrolls that.
+  const dismissed = new Set(hidden.map((row) => row.key));
+  return items
+    .filter((item) => !dismissed.has(item.id))
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, LIMIT);
 }
