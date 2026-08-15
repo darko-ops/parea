@@ -140,6 +140,19 @@ describe('what the share panel promises the person receiving the link', () => {
     }
   });
 
+  it('does not put the spoken phrase beside the link', () => {
+    /*
+     * They are two different doors and were being shown as one act. A phrase
+     * is for somebody across a room whose phone you are not holding; printing
+     * it under a URL somebody is about to paste into a chat offers a second
+     * secret nobody asked for, on the album's weakest one. It lives on the
+     * manage screen, beside the switch that decides whether there is one.
+     */
+    const panel = read('../app/components/ShareEvent.tsx');
+    expect(panel).not.toMatch(/Or say/);
+    expect(panel).not.toMatch(/\bcode\b/);
+  });
+
   it('falls back to the public wording when the field is missing', () => {
     // An older cached payload, or a caller not yet updated. `undefined` means
     // the field was not sent, which only happens on a public-by-default path.

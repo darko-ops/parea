@@ -16,6 +16,14 @@
  * Dismissed three ways — the scrim, Escape, and the button — and focus goes
  * back where it came from, because a dialog that drops focus on `<body>` makes
  * the next Tab start again from the top of the page.
+ *
+ * The spoken phrase used to sit under the link here and does not any more.
+ * This panel is opened to send a link, and the phrase is for the other door
+ * entirely — somebody across a room whose phone you are not holding. Printing
+ * it beside a URL made it look like part of the same act, and it is not: a
+ * phrase is short, said out loud, and recycled once an album goes quiet. It
+ * lives on the manage screen, beside the switch that decides whether the album
+ * has one at all.
  */
 
 import { ACCOUNT_REQUIRED, REQUEST_ACCESS } from '@parea/core';
@@ -50,7 +58,6 @@ export function promise(accessPolicy: string | undefined, joinsOpen: boolean): s
 
 export function ShareEvent({
   linkToken,
-  code,
   accessPolicy,
   joinsOpen = true,
   onClose,
@@ -60,8 +67,6 @@ export function ShareEvent({
   accessPolicy?: string;
   /** False means the link admits nobody new, whatever the policy says. */
   joinsOpen?: boolean;
-  /** The spoken code, when one is assigned. Null once it is released. */
-  code: string | null;
   onClose: () => void;
 }) {
   const card = useRef<HTMLDivElement>(null);
@@ -146,7 +151,6 @@ export function ShareEvent({
           </button>
         </div>
 
-        {code && <p className="muted">Or say: {code}</p>}
 
         <p className="muted">
           {promise(accessPolicy, joinsOpen)}

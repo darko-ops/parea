@@ -750,7 +750,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
       {sharing && (
         <ShareEvent
           linkToken={feed.event.linkToken}
-          code={feed.event.code}
           accessPolicy={feed.event.accessPolicy}
           joinsOpen={feed.event.joinsOpen}
           onClose={() => setSharing(false)}

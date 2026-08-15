@@ -29,6 +29,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -321,6 +322,7 @@ export default function App() {
         <EventScreen
           api={api}
           event={route.event}
+          webBase={API_BASE}
           t={t}
           signedIn={signedIn}
           onSignedIn={refreshAccount}
@@ -682,6 +684,7 @@ function JoinScreen({
 function EventScreen({
   api,
   event,
+  webBase,
   t,
   signedIn,
   onSignedIn,
@@ -692,6 +695,8 @@ function EventScreen({
 }: {
   api: Api;
   event: SavedEvent;
+  /** Where links live, for the one this screen hands to the share sheet. */
+  webBase: string;
   t: Theme;
   /** null until the answer arrives; the gate renders nothing meanwhile. */
   signedIn: boolean | null;
@@ -1049,7 +1054,35 @@ function EventScreen({
             <Pressable onPress={onBack}>
               <Text style={[styles.body, { color: t.accent }]}>‹ All events</Text>
             </Pressable>
-            <Text style={[styles.h1, { color: t.fg }]}>{event.name}</Text>
+            {/*
+              The name, and the one thing an album is for.
+
+              Sharing was not reachable from this screen at all — the link
+              appeared once, on the screen that made the album, and after that
+              the only way to send it to somebody was to make another. It is
+              the system sheet rather than a panel of our own: it already knows
+              which group chat these people use, and picking somebody in it
+              tells this app nothing about who they are.
+            */}
+            <View style={styles.eventTitleRow}>
+              <Text style={[styles.h1, { color: t.fg, flex: 1 }]}>{event.name}</Text>
+              <Pressable
+                onPress={() => {
+                  // The link alone. The name arrives with it — a shared link
+                  // unfurls into a card carrying the album's title, so putting
+                  // it in the message body as well says it twice.
+                  void Share.share({ message: `${webBase}/e/${event.linkToken}` });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Share this album"
+                style={({ pressed }) => [
+                  styles.eventShare,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.eventShareText, { color: t.fg }]}>Share</Text>
+              </Pressable>
+            </View>
             <Text style={[styles.body, { color: t.dim }]}>
               {feed
                 ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'} from ${feed.contributors} ${feed.contributors === 1 ? 'person' : 'people'}`
@@ -1339,6 +1372,15 @@ function theme(dark: boolean) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  /* The album's name, and Share on the same line as it. A full-width button
+     under the title would be the third stacked slab on this screen and would
+     read as the thing to do, which is adding photos. */
+  eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  eventShare: {
+    flex: 0, borderWidth: 1, borderRadius: 999,
+    paddingVertical: 7, paddingHorizontal: 14,
+  },
+  eventShareText: { fontSize: 14, fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: {
     position: 'absolute',
