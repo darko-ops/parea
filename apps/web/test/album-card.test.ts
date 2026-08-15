@@ -39,9 +39,23 @@ describe('the four things a card says', () => {
 
   it('says where, and only when there is a where', () => {
     // No empty slot for a place nobody typed — an album with none should look
-    // like an album, not like one with a field missing.
+    // like an album, not like one with a field missing. It is absolutely
+    // positioned for the same reason: the card is the same height either way.
     expect(CARD).toMatch(/\{event\.place && \(/);
-    expect(CARD).toMatch(/className="card-place"/);
+    expect(CARD).toMatch(/className="card-tag"/);
+    expect(CSS).toMatch(/\.card-tag \{[^}]*position: absolute/s);
+  });
+
+  it('keeps the place legible over photographs it knows nothing about', () => {
+    /*
+     * Two hundred unknown colours behind a pill. Translucent-without-blur is
+     * the case that becomes unreadable rather than merely less pretty, so the
+     * solid fill is the default and the blur is the enhancement — not the
+     * other way round.
+     */
+    const tag = CSS.slice(CSS.indexOf('.card-tag {'));
+    expect(tag.slice(0, tag.indexOf('}'))).toMatch(/background: rgba\(255, 255, 255, \.92\)/);
+    expect(CSS).toMatch(/@supports \(backdrop-filter: blur\(6px\)\)/);
   });
 });
 

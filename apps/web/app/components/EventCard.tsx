@@ -94,6 +94,32 @@ export function EventCard({ event }: { event: CardEvent }) {
       className="card"
       aria-label={label}
     >
+      {/*
+        Where it was, over the corner of the photographs.
+
+        It has now been three places: the tail of the people sentence, a strip
+        under the card, and here. This is the one that matches what it is —
+        a fact about the evening, sitting on the evening, rather than a field
+        in the list of facts about the album underneath. Absolutely positioned
+        so it costs no height: an album with no place is the same card, not a
+        shorter one.
+      */}
+      {event.place && (
+        <span className="card-tag">
+          <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+            <path
+              d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+            <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
+          </svg>
+          <span>{event.place}</span>
+        </span>
+      )}
+
       <div className="mosaic" style={{ gridTemplateColumns: tracks }}>
         {columns.map((column, i) =>
           column.photos.length > 1 ? (
@@ -174,13 +200,13 @@ export function EventCard({ event }: { event: CardEvent }) {
             )}
 
             {/*
-              The bottom line: where and when on the left, who on the right.
+              The bottom line: who is in it, and when it last moved.
 
-              Facts about the evening and facts about the people, at opposite
-              ends of one row. The place had a strip of its own under the card
-              — a lip below the photographs that made every card taller for a
-              field most albums leave empty. It reads as part of the sentence
-              here, which is what it always was.
+              The people at the reading end, the time at the far one — a column
+              of times down the right of a grid is legible at a glance, and
+              inline after a variable number of faces it wanders. Where it was
+              has gone up to the photographs, which is the half of the card
+              that is about the evening rather than about the album.
 
               Members, not contributors: an album is the people in it, and
               somebody who has not added a photograph yet is exactly who the
@@ -190,25 +216,6 @@ export function EventCard({ event }: { event: CardEvent }) {
               answers it wrongly rather than vaguely.
             */}
             <div className="card-foot">
-              <span className="card-facts">
-                {event.place && (
-                  <span className="card-place">
-                    <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
-                      <path
-                        d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
-                    </svg>
-                    <span>{event.place}</span>
-                  </span>
-                )}
-                <span className="card-when">{event.added}</span>
-              </span>
-
               <span className="card-who">
                 <Faces avatars={event.memberAvatars} size={16} />
                 {others > event.memberAvatars.length && (
@@ -217,6 +224,7 @@ export function EventCard({ event }: { event: CardEvent }) {
                   </span>
                 )}
               </span>
+              <span className="card-when">{event.added}</span>
             </div>
           </div>
           {/*
