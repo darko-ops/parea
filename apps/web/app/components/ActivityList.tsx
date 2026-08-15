@@ -59,8 +59,8 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="panel-note">
-        Nothing here. Reactions to what you write, people mentioning you in an
-        album, and albums you are let into all turn up here.
+        Nothing yet. When somebody adds photos to an album you are in, says
+        something about yours, or opens one to you, it turns up here.
       </p>
     );
   }

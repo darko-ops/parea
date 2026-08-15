@@ -45,7 +45,12 @@ import { imageSrc } from './images';
  * — answered in one of them and still sitting in the other, which reads as the
  * answer not having taken.
  */
-export type ActivityKind = 'reaction' | 'mention' | 'let_in' | 'request_answered';
+export type ActivityKind =
+  | 'reaction'
+  | 'mention'
+  | 'let_in'
+  | 'photos_added'
+  | 'request_answered';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -134,7 +139,7 @@ export async function activityFor(
    * somebody has hidden — and the alternative is four `not exists` clauses
    * built from string concatenation in four places.
    */
-  const [hidden, reactions, mentions, letIn, answered] = await Promise.all([
+  const [hidden, reactions, mentions, letIn, added, answered] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
       .from(schema.hiddenActivity)
@@ -231,12 +236,77 @@ export async function activityFor(
       .orderBy(desc(schema.eventParticipants.firstSeenAt))
       .limit(LIMIT),
 
-    // A host answered something you asked for.
+    /*
+     * Somebody added photographs to an album you are in.
+     *
+     * The line people actually want from a page like this, and the one that
+     * was missing: an album is a thing that fills up after the evening, and
+     * nothing told you it had. Grouped by album, person and day, because
+     * fifteen photographs arriving together is one event — fifteen rows saying
+     * "Sarah added a photo" is a page nobody reads twice.
+     *
+     * Bounded to a month. Older than that and the album is finished; the
+     * bound also keeps this query from widening as somebody uses the product.
+     */
+    db
+      .select({
+        eventId: schema.events.id,
+        eventName: schema.events.name,
+        uploaderId: schema.actors.id,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        n: sql<number>`count(*)::int`,
+        at: sql<Date>`max(${schema.photos.uploadedAt})`,
+        day: sql<string>`to_char(max(${schema.photos.uploadedAt}), 'YYYY-MM-DD')`,
+      })
+      .from(schema.photos)
+      .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.photos.uploaderId))
+      .innerJoin(
+        schema.eventParticipants,
+        and(
+          eq(schema.eventParticipants.eventId, schema.photos.eventId),
+          eq(schema.eventParticipants.actorId, actorId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.photos.status, 'ready'),
+          isNull(schema.photos.deletedAt),
+          isNull(schema.events.deletedAt),
+          // Your own photographs are not news to you.
+          ne(schema.photos.uploaderId, actorId),
+          sql`${schema.photos.uploadedAt} > now() - interval '30 days'`,
+        ),
+      )
+      .groupBy(
+        schema.events.id,
+        schema.events.name,
+        schema.actors.id,
+        schema.actors.displayName,
+        schema.actors.handle,
+        schema.actors.avatarKey,
+        sql`to_char(${schema.photos.uploadedAt}, 'YYYY-MM-DD')`,
+      )
+      .orderBy(desc(sql`max(${schema.photos.uploadedAt})`))
+      .limit(LIMIT),
+
+    /*
+     * A host said yes to something you asked for.
+     *
+     * Only yes. A no is already on this page, in the panel above: `askedToJoin`
+     * keeps a declined request permanently and shows it as "Not this time",
+     * deliberately, because a request that vanished would read as one that was
+     * never sent. A line down here saying the same album is still private is
+     * the second copy of that fact, three inches lower.
+     *
+     * Which leaves the two halves of the page with one job each: the panel
+     * holds what has not opened, and this list holds what has.
+     */
     db
       .select({
         id: schema.eventAccessRequests.id,
         at: schema.eventAccessRequests.resolvedAt,
-        status: schema.eventAccessRequests.status,
         name: schema.events.name,
         eventId: schema.events.id,
         capEpoch: schema.events.capEpoch,
@@ -247,7 +317,7 @@ export async function activityFor(
       .where(
         and(
           eq(schema.eventAccessRequests.actorId, actorId),
-          ne(schema.eventAccessRequests.status, 'open'),
+          eq(schema.eventAccessRequests.status, 'approved'),
           isNotNull(schema.eventAccessRequests.resolvedAt),
           isNull(schema.events.deletedAt),
         ),
@@ -255,6 +325,14 @@ export async function activityFor(
       .orderBy(desc(schema.eventAccessRequests.resolvedAt))
       .limit(LIMIT),
   ]);
+
+  /*
+   * Albums an approved request already speaks for.
+   *
+   * Built before the lines are worded, because it decides whether one of them
+   * exists at all.
+   */
+  const approvedEvents = new Set(answered.map((a) => a.eventId));
 
   /*
    * The picture, resolved once per row.
@@ -305,22 +383,45 @@ export async function activityFor(
       href: `/event/${m.eventId}`,
       image: await avatarUrl(m.avatarKey),
     })),
-    ...letIn.map(async (l) => ({
-      id: `letin:${l.id}`,
-      kind: 'let_in' as const,
-      at: l.at.toISOString(),
-      who: l.name,
-      what: 'is yours to look at now',
-      href: `/event/${l.eventId}`,
-      image: await cover(l),
+    ...letIn
+      /*
+       * You were let into somebody's album.
+       *
+       * Skipped when an approved request already says so. Being approved
+       * writes the participant row, so one act produced two lines — "Ultra let
+       * you in" directly under "Ultra is yours to look at now" — which reads
+       * as the product telling you twice because it is not sure you heard.
+       */
+      .filter((l) => !approvedEvents.has(l.eventId))
+      .map(async (l) => ({
+        id: `letin:${l.id}`,
+        kind: 'let_in' as const,
+        at: l.at.toISOString(),
+        who: 'You',
+        what: `joined ${l.name}`,
+        href: `/event/${l.eventId}`,
+        image: await cover(l),
+      })),
+    ...added.map(async (row) => ({
+      // The day is in the key so tomorrow's photographs are a new line rather
+      // than yesterday's line quietly growing a bigger number.
+      id: `photos:${row.eventId}:${row.uploaderId}:${row.day}`,
+      kind: 'photos_added' as const,
+      at: new Date(row.at).toISOString(),
+      who: row.who,
+      what: `added ${row.n} ${row.n === 1 ? 'photo' : 'photos'} to ${row.eventName}`,
+      href: `/event/${row.eventId}`,
+      image: await avatarUrl(row.avatarKey),
     })),
     ...answered.map(async (a) => ({
       id: `answered:${a.id}`,
       kind: 'request_answered' as const,
       at: a.at!.toISOString(),
-      who: a.name,
-      what: a.status === 'approved' ? 'let you in' : 'was not opened to you',
-      href: a.status === 'approved' ? `/event/${a.eventId}` : null,
+      // Addressed to the person reading it, not reported about them: "You can
+      // see Barcelona now" rather than "Barcelona: access granted".
+      who: 'You',
+      what: `can see ${a.name} now`,
+      href: `/event/${a.eventId}`,
       image: await cover(a),
     })),
   ]);

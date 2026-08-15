@@ -106,7 +106,7 @@ export default async function ActivityPage() {
         <section className="panel">
           {/* Only when something sits above it. "Everything else" with nothing
               before it is a heading answering a question nobody asked. */}
-          {(requests.length > 0 || asked.length > 0) && <h2>Everything else</h2>}
+          {(requests.length > 0 || asked.length > 0) && <h2>Lately</h2>}
           {/*
             The rows are handed down already worded and already dated: the
             relative time is rounded once, here, against the server's clock.

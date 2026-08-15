@@ -9,6 +9,12 @@
  * of explanation, and the thing somebody actually wants to know — is there
  * anything for me to do — could only be answered by reading all of them.
  *
+ * "Invites", not "requests waiting on you". The old label described the
+ * product's job rather than the person's: it is a queue from the software's
+ * point of view and an invitation from theirs. Somebody asking into an album
+ * you run stretches the word slightly, and that is the right way round — the
+ * rows underneath say exactly who wants what.
+ *
  * It expands rather than links away. Every one of these is answerable in two
  * clicks and none of them needs a page of its own, so sending somebody
  * somewhere to press Accept would be a navigation that exists only because the
@@ -112,7 +118,7 @@ export function RequestBubble({ requests }: { requests: PendingRequest[] }) {
       <section className="requests requests-none">
         <div className="requests-bubble">
           <span className="requests-count">0</span>
-          <span className="requests-label">requests waiting on you</span>
+          <span className="requests-label">invites</span>
         </div>
       </section>
     );
@@ -128,9 +134,7 @@ export function RequestBubble({ requests }: { requests: PendingRequest[] }) {
         onClick={() => setExpanded((was) => !was)}
       >
         <span className="requests-count">{n}</span>
-        <span className="requests-label">
-          {n === 1 ? 'request waiting on you' : 'requests waiting on you'}
-        </span>
+        <span className="requests-label">{n === 1 ? 'invite' : 'invites'}</span>
         <span className="requests-chevron" aria-hidden="true">
           <svg viewBox="0 0 16 16" width="16" height="16">
             <path

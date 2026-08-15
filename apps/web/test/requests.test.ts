@@ -86,7 +86,7 @@ describe('people asking into albums you run', () => {
       kind: 'join',
       eventId: party.id,
       title: '@stranger',
-      detail: 'wants into Barcelona',
+      detail: 'would like to join Barcelona',
     });
   });
 

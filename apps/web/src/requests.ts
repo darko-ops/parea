@@ -114,7 +114,7 @@ export async function joinRequestsFor(
     id: row.id,
     eventId: row.eventId,
     title: nameOf(row.displayName, row.handle),
-    detail: `wants into ${row.eventName}`,
+    detail: `would like to join ${row.eventName}`,
     at: row.at.toISOString(),
   }));
 }
@@ -174,9 +174,12 @@ export async function pendingRequestsFor(
       id: invite.id,
       eventId: invite.eventId,
       title: invite.eventName,
+      // "Marcus invited you to Beach Weekend", said in two lines: the album is
+      // the headline and this is who asked. Warmer than "asked you", which
+      // reads like a form somebody filled in about you.
       detail: invite.caption
-        ? `${invite.from} asked you · ${invite.caption}`
-        : `${invite.from} asked you`,
+        ? `${invite.from} invited you · ${invite.caption}`
+        : `${invite.from} invited you`,
       at: invite.createdAt,
     })),
     ...friends.map((friend) => ({
@@ -185,7 +188,7 @@ export async function pendingRequestsFor(
       id: friend.id,
       eventId: null,
       title: nameOf(friend.displayName, friend.handle),
-      detail: 'wants to be friends',
+      detail: 'would like to be friends',
       at: friend.askedAt,
     })),
     ...joins,
