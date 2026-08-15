@@ -49,6 +49,8 @@ type EventListing = {
   mosaic: string[];
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
+  /** Whether this person made it, decided by the server. Drives the filter. */
+  mine: boolean;
   /** Whose album it is. The URL is presigned by the route; null is normal. */
   creator: { handle: string | null; avatarUrl: string | null };
 };
@@ -80,6 +82,12 @@ export function AccountView() {
     }
   }, []);
   const [events, setEvents] = useState<EventListing[]>([]);
+  /*
+   * Which albums to show. Client state rather than a URL: it is a way of
+   * looking at one list, not a second page, and somebody sending their profile
+   * to themselves should not be sending a filter with it.
+   */
+  const [lens, setLens] = useState<'all' | 'mine' | 'joined'>('all');
   const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -162,6 +170,16 @@ export function AccountView() {
       </LoginScreen>
     );
   }
+
+  /*
+   * The two halves, and the one on screen.
+   *
+   * Split here rather than in the render so the counts and the list cannot
+   * disagree — they are the same predicate, applied once.
+   */
+  const mine = events.filter((event) => event.mine);
+  const joined = events.filter((event) => !event.mine);
+  const shown = lens === 'mine' ? mine : lens === 'joined' ? joined : events;
 
   const initial = (account?.displayName?.trim() || account?.email || '?')
     .slice(0, 1)
@@ -324,9 +342,41 @@ export function AccountView() {
           deliberately stopped doing that. Asked for, so it is here, but it is
           the only place it says it.
         */}
-        <h2>Your Albums</h2>
+        <div className="you-events-head">
+          <h2>Your Albums</h2>
+          {/*
+            Three ways of reading one list. The counts are on the buttons
+            because the difference between them is the answer somebody wants —
+            "how many of these did I actually make" — and a filter that has to
+            be pressed to find out is a filter you press three times.
+
+            Only when there is a mix. With every album made by the same person
+            these are three buttons, two of which empty the screen.
+          */}
+          {mine.length > 0 && joined.length > 0 && (
+            <div className="pills">
+              {(
+                [
+                  ['all', 'All', events.length],
+                  ['mine', 'Created', mine.length],
+                  ['joined', 'Joined', joined.length],
+                ] as const
+              ).map(([id, label, count]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="pill small"
+                  aria-pressed={lens === id}
+                  onClick={() => setLens(id)}
+                >
+                  {label} <span className="pill-count">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="cards">
-          {events.map((event) => (
+          {shown.map((event) => (
             <EventCard
               key={event.id}
               event={{
@@ -352,8 +402,17 @@ export function AccountView() {
             The affordance is the empty state, exactly as on Events — and the
             same component, because it was the same eight lines twice and the
             copy here had already fallen a version behind once.
+
+            Only under All and Created. Under Joined it would be offering to
+            make an album on the screen that is deliberately showing the ones
+            somebody else made.
           */}
-          <CreateCard />
+          {lens !== 'joined' && <CreateCard />}
+          {lens === 'joined' && shown.length === 0 && (
+            <p className="field-help">
+              Nothing yet. Albums other people ask you into show up here.
+            </p>
+          )}
         </div>
       </section>
 

@@ -80,6 +80,16 @@ export type EventListing = {
    */
   creator: { handle: string | null; avatarKey: string | null };
   /**
+   * Whether this actor made it.
+   *
+   * Computed in the query rather than by comparing ids on the client, because
+   * the client would need the creator's actor id to do it — and that is an
+   * identifier this listing has deliberately never carried. `EventListing` is
+   * serialised straight out of `/api/events` to both clients, and an id added
+   * for one screen's convenience is an id published everywhere.
+   */
+  mine: boolean;
+  /**
    * Uploaded and not through the deriver yet.
    *
    * The difference between an event that is being added to right now and one
@@ -159,6 +169,7 @@ export async function eventsFor(
       )`,
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
+      mine: sql<boolean>`${schema.events.createdBy} = ${actorId}`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))

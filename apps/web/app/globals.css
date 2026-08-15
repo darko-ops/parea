@@ -858,6 +858,16 @@ button.secondary {
   color: var(--accent); font-weight: 600;
 }
 .pill.small { padding: 8px 13px; font-size: 14px; }
+/* The number on a filter. Quiet, and tabular so the row does not shuffle as
+   albums are made. */
+.pill-count { color: var(--dim); font-variant-numeric: tabular-nums; }
+.pill[aria-pressed='true'] .pill-count { color: inherit; opacity: .7; }
+/* The heading and its filters on one line, wrapping to two on a phone. */
+.you-events-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.you-events-head h2 { margin: 0; }
 
 /* ---------------------------------------------------------------------------
    The create form's newer parts: a place lookup, a member picker, and the
