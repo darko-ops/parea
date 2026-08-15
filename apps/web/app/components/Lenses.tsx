@@ -32,21 +32,33 @@ const LENSES = ['#ffb3b8', '#9db2f0', '#a5dcc6', '#f3b584'];
 export const CREATE_LENSES = ['#a5dcc6', '#c79ad9'];
 
 /**
- * Four is the cap, and it is the palette's cap rather than an arbitrary one:
- * a fifth circle would have to invent a colour the mark does not contain.
- * Nothing is appended to say there are more — the number of lenses is a sense
- * of scale, not a count, and "+3" beside it would turn it into one badly.
+ * How many circles, and what stands in for the rest.
+ *
+ * The palette caps it at four — a fifth would have to invent a colour the mark
+ * does not contain — and a caller can cap it lower. The card caps at three and
+ * writes "+2 more" beside them, which is a change of mind worth recording: the
+ * circles were a sense of scale rather than a count, and the argument against
+ * appending a number was that it turns a texture into arithmetic. It does. It
+ * also answers the question people actually have about an album they are
+ * scanning, which is how many of them are in it.
+ *
+ * The overflow text is the caller's, not this component's, because it belongs
+ * to the sentence it sits in.
  */
 export function Lenses({
   count,
   size = 14,
+  max,
   palette = LENSES,
 }: {
   count: number;
   size?: number;
+  /** Fewer circles than the palette allows. Defaults to all of them. */
+  max?: number;
   palette?: string[];
 }) {
-  const shown = Math.min(Math.max(count, 0), palette.length);
+  const cap = Math.min(max ?? palette.length, palette.length);
+  const shown = Math.min(Math.max(count, 0), cap);
   if (shown === 0) return null;
 
   return (

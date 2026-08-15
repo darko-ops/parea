@@ -166,11 +166,19 @@ describe('an event looks like an event wherever it is listed', () => {
     }
   });
 
-  it('builds the meta line from the shared function, not by hand', () => {
-    // `metaFor` is shared with the native client precisely so "2 days ago"
-    // rounds the same way everywhere. A locally assembled string would drift
-    // without anything failing.
-    expect(ACCOUNT).toMatch(/metaFor\(/);
+  it('rounds the relative time with the shared function, not by hand', () => {
+    /*
+     * `ago` is shared with the native client precisely so "2 days ago" rounds
+     * the same way everywhere. A locally assembled string would drift without
+     * anything failing.
+     *
+     * It used to be `metaFor`, which built a whole sentence — people, then
+     * place or recency. The card says those separately now, so what is left to
+     * share is the rounding, which is the part that could ever disagree.
+     */
+    expect(ACCOUNT).toMatch(/\bago\(/);
     expect(ACCOUNT).not.toMatch(/person' : 'people'/);
+    // Not a second implementation of the same rounding.
+    expect(ACCOUNT).not.toMatch(/days ago`|hours ago`|minutes ago`/);
   });
 });

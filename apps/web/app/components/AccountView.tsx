@@ -16,7 +16,7 @@
  * no persistent place to put it, and this is that place.
  */
 
-import { metaFor } from '@parea/cards';
+import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
@@ -47,7 +47,7 @@ type EventListing = {
   arrivingCount: number;
   photoCount: number;
   mosaic: string[];
-  /** ISO. Feeds the relative "added to …" half of the meta line. */
+  /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
 };
 
@@ -311,9 +311,9 @@ export function AccountView() {
 
         Built here rather than fetched differently: `/api/events` already
         returns signed mosaic URLs, because the native client cannot sign
-        anything and needs them too. `metaFor` is pure and shared with native,
-        so the sentence under the name is the same sentence on all three
-        surfaces rather than a third rounding of "2 days ago".
+        anything and needs them too. `ago` is pure and shared with native, so
+        "2 days ago" rounds the same way on every surface rather than three
+        times, differently.
       */}
       <section className="you-events">
         {/*
@@ -324,7 +324,7 @@ export function AccountView() {
         */}
         <h2>Your Albums</h2>
         <div className="cards">
-          {events.map((event, index) => (
+          {events.map((event) => (
             <EventCard
               key={event.id}
               event={{
@@ -338,9 +338,9 @@ export function AccountView() {
                 memberCount: event.memberCount,
                 arrivingCount: event.arrivingCount,
                 lastActiveAt: event.lastActiveAt,
-                // `newest` only for the first, matching Events: the top card
-                // says when it was last added to, the rest say where they were.
-                meta: metaFor(event, { newest: index === 0, now: new Date() }),
+                // Every card says when it was last added to now, rather than
+                // the first one saying it and the rest saying where they were.
+                added: `added ${ago(new Date(event.lastActiveAt), new Date())}`,
               }}
             />
           ))}

@@ -30,6 +30,15 @@ import type { CardEvent } from '@/cards';
 import { Lenses } from './Lenses';
 import { MosaicTile } from './MosaicTile';
 
+/**
+ * Circles before the count takes over.
+ *
+ * Three rather than the palette's four: with four drawn, "+1 more" appears
+ * only at five, and the number is doing no work until the album is bigger than
+ * the row of circles can suggest anyway.
+ */
+const LENS_CAP = 3;
+
 export function EventCard({ event }: { event: CardEvent }) {
   const photos = event.mosaic;
   const columns = mosaicLayout(photos.length);
@@ -124,15 +133,27 @@ export function EventCard({ event }: { event: CardEvent }) {
               photograph.
             */}
             {event.caption && <div className="card-caption">{event.caption}</div>}
+
             {/*
-              Lenses and place, where a sentence used to be. `event.meta` is
-              still the fallback: an event with no place has nothing to put
-              beside the circles, and "6 people ·" with nothing after it is
-              worse than the sentence it replaced.
+              Who is in it, and when it last moved.
+
+              Three circles and then a number. The circles used to run to four
+              with nothing after them, on the argument that they were a sense
+              of scale rather than a count — but "how many people are in this"
+              is the question somebody scanning a wall of albums actually has,
+              and four circles for eleven people answers it wrongly rather than
+              vaguely.
+
+              Members, not contributors: an album is the people in it, and
+              somebody who has not added a photograph yet is exactly who the
+              card is trying to prompt.
             */}
             <div className="card-who">
-              <Lenses count={event.contributorCount} size={12} />
-              <span className="card-where">{event.place ?? event.meta}</span>
+              <Lenses count={event.memberCount} size={12} max={LENS_CAP} />
+              {event.memberCount > LENS_CAP && (
+                <span className="card-more">+{event.memberCount - LENS_CAP} more</span>
+              )}
+              <span className="card-when">{event.added}</span>
             </div>
           </div>
           {/*
@@ -142,6 +163,31 @@ export function EventCard({ event }: { event: CardEvent }) {
             photographs it was counting, and the answer is one tap away.
           */}
         </div>
+
+        {/*
+          Where it was, on its own line and in its own register.
+
+          It shared a row with the circles and read as the tail of a sentence
+          about people. It is a different kind of fact — the one that tells two
+          albums of the same faces apart — so it gets a rule above it, a mark,
+          and letter-spacing that stops it competing with the name. Only for
+          albums that have one; there is no empty slot for a place nobody typed.
+        */}
+        {event.place && (
+          <div className="card-place">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+              <path
+                d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+              <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
+            </svg>
+            <span>{event.place}</span>
+          </div>
+        )}
       </div>
     </a>
   );
