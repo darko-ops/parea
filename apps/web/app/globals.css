@@ -1033,6 +1033,14 @@ button.secondary {
   font-size: 13px; color: var(--dim);
 }
 .event-more { font-variant-numeric: tabular-nums; font-weight: 600; }
+/* Where and when. The place can be long and the head is a bar, so it is the
+   one that truncates; the time is four characters and never does. */
+.event-where {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.event-where svg { flex: none; opacity: .8; }
+.event-when { flex: none; white-space: nowrap; }
 /* A row of overlapping circles: a photograph where somebody has one, a lens
    where they do not. */
 .faces { display: inline-flex; flex: none; }

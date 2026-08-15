@@ -88,6 +88,10 @@ type Feed = {
     /** What the link does on arrival, so the share panel can say so. */
     accessPolicy: string;
     joinsOpen: boolean;
+    /** Where it was, if the host said. Null draws nothing. */
+    place: string | null;
+    /** When it was last added to, worded by the server. See the route. */
+    added: string;
   };
   contributors: number;
   /** Everybody in it: the faces in the head, and the Members tab. */
@@ -398,6 +402,28 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             {guests.length > faces.length && (
               <span className="event-more">+{guests.length - faces.length} more</span>
             )}
+            {/*
+              Where and when, after who. All three are facts about the evening
+              rather than about the grid underneath, which is what the line
+              they replaced was — and they are in the order somebody asks them:
+              who was there, where were we, how long ago.
+            */}
+            {feed.event.place && (
+              <span className="event-where">
+                <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                  <path
+                    d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
+                </svg>
+                {feed.event.place}
+              </span>
+            )}
+            <span className="event-when">{feed.event.added}</span>
             {feed.event.groupId && (
               <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
             )}

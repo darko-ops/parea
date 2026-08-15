@@ -1,3 +1,4 @@
+import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
 import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -157,6 +158,10 @@ export default async function EventPage({
             // claims a second after it opens.
             accessPolicy: event.accessPolicy,
             joinsOpen: event.joinsOpen,
+            place: event.place,
+            // Both frames again: a field in one and not the other is a head
+            // that changes a second after it draws.
+            added: ago(event.lastActiveAt, new Date()),
           },
           contributors: people.length,
           people,

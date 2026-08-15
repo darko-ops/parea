@@ -10,6 +10,7 @@
  * (design §8). v1 accepts it.
  */
 
+import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
 import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -183,6 +184,17 @@ export async function GET(
       // immediately before sending the link to six people.
       accessPolicy: event.accessPolicy,
       joinsOpen: event.joinsOpen,
+      place: event.place,
+      /*
+       * Worded here rather than in the browser.
+       *
+       * It is a relative time, and the head is rendered on the server before
+       * it is hydrated in the client: two clocks, one of which is somebody's
+       * laptop. A minute's disagreement between them is "59m ago" against "1h
+       * ago", which React resolves by throwing the tree away. The client
+       * re-reads this string every time it polls, so it stays honest.
+       */
+      added: ago(event.lastActiveAt, new Date()),
     },
     contributors,
     people,
