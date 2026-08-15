@@ -104,6 +104,24 @@ export function EventCard({ event }: { event: CardEvent }) {
         so it costs no height: an album with no place is the same card, not a
         shorter one.
       */}
+      {/*
+        Who is in it, on the photographs.
+
+        Top left because that is where reading starts, and because the two
+        things sitting on the mosaic are then the two facts about the evening
+        itself — who was there and where it was — with the album's own details
+        in the strip below. Off the strip entirely, so the strip is two lines
+        rather than three.
+      */}
+      {event.memberAvatars.length > 0 && (
+        <span className="card-faces">
+          <Faces avatars={event.memberAvatars} size={20} />
+          {others > event.memberAvatars.length && (
+            <span className="card-more">+{others - event.memberAvatars.length}</span>
+          )}
+        </span>
+      )}
+
       {event.place && (
         <span className="card-tag">
           <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
@@ -159,6 +177,22 @@ export function EventCard({ event }: { event: CardEvent }) {
         <div className="card-scrim" aria-hidden="true" />
 
         <div className="card-text">
+          {/*
+            The picture beside both lines rather than above them.
+
+            Stacked, the strip was as tall as the circle plus the caption plus
+            the gap between them — and the circle wanted to be bigger, which
+            made it taller again. Beside them it is as tall as the two lines,
+            so the face can grow while the strip shrinks.
+          */}
+          <Face
+            src={event.creatorAvatar}
+            size={34}
+            className="card-face"
+            fallback={
+              <span aria-hidden="true">{initial(event.creatorHandle, event.name)}</span>
+            }
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
             {/*
               Whose album it is, beside its name.
@@ -169,17 +203,13 @@ export function EventCard({ event }: { event: CardEvent }) {
               never a silhouette: a generic avatar is a photograph of nobody.
             */}
             <div className="card-title">
-              <Face
-                src={event.creatorAvatar}
-                size={22}
-                className="card-face"
-                fallback={
-                  <span aria-hidden="true">
-                    {initial(event.creatorHandle, event.name)}
-                  </span>
-                }
-              />
               <div className="card-name">{event.name}</div>
+              {/*
+                At the end of the title row rather than on a line of its own.
+                It is the shortest fact on the card and the least urgent, and
+                giving it a row cost the strip a third of its height.
+              */}
+              <span className="card-when">{event.added}</span>
             </div>
             {/*
               The host's handle and their own line, on one row under the title.
@@ -199,33 +229,6 @@ export function EventCard({ event }: { event: CardEvent }) {
               </div>
             )}
 
-            {/*
-              The bottom line: who is in it, and when it last moved.
-
-              The people at the reading end, the time at the far one — a column
-              of times down the right of a grid is legible at a glance, and
-              inline after a variable number of faces it wanders. Where it was
-              has gone up to the photographs, which is the half of the card
-              that is about the evening rather than about the album.
-
-              Members, not contributors: an album is the people in it, and
-              somebody who has not added a photograph yet is exactly who the
-              card is trying to prompt. Three faces and then a number, because
-              "how many of us are in this" is the question somebody scanning a
-              wall of albums actually has, and four circles for eleven people
-              answers it wrongly rather than vaguely.
-            */}
-            <div className="card-foot">
-              <span className="card-who">
-                <Faces avatars={event.memberAvatars} size={16} />
-                {others > event.memberAvatars.length && (
-                  <span className="card-more">
-                    +{others - event.memberAvatars.length} more
-                  </span>
-                )}
-              </span>
-              <span className="card-when">{event.added}</span>
-            </div>
           </div>
           {/*
             No count. It is still in the card's `aria-label`, because "how many

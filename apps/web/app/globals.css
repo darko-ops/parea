@@ -608,27 +608,38 @@ button.secondary {
 /* Baseline-aligned at the bottom rather than centred: the name is 20px and the
    count is 24px, and centring two things of different sizes leaves neither
    sitting on a line the eye can find. */
+/* Two rows now — the title with the time, and the handle with the caption —
+   where it used to be three. Tighter with it: the strip is the album's details
+   and the photographs are the album, so every pixel it does not need is a
+   pixel of photograph. */
 .card-text {
-  position: relative; display: flex; align-items: flex-end; gap: 12px;
-  padding: 11px 13px 12px;
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px 8px;
 }
-/* The creator's picture and the album's name, on one line. */
-.card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* The album's name and the time, on one line. */
+.card-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 /* A ring in the card's own background colour, so the circle stays a circle
-   over whatever colour the blurred photographs put behind it. */
+   over whatever colour the blurred photographs put behind it. Large enough to
+   be a face rather than a token — it is the only picture of a person on the
+   card, and at 22px it read as a bullet point. */
 .card-face {
-  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   overflow: hidden; background: var(--card);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .7);
-  font-size: 11px; font-weight: 700; color: var(--dim);
+  font-size: 14px; font-weight: 700; color: var(--dim);
 }
 .card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
- /* Smaller than the brand-forward card made them. At 20px the name was
-    competing with the photographs above it for the same glance, and the whole
-    argument for a photo-led card is that the picture wins. */
+ /* Sized against the face beside it. It came down to 16px when the name sat
+    alone above the photographs and was competing with them for the same
+    glance; paired with a 30px circle it is one object with the person's
+    picture, and at 16px the circle was the louder half. */
 .card-name {
-  font-size: 16px; font-weight: 700; letter-spacing: -.01em;
+  flex: 1; font-size: 18px; font-weight: 700; letter-spacing: -.015em;
+  /* Explicit, because the strip's height is now the sum of two line boxes and
+     nothing else — left to the default, the two rows quietly set how tall the
+     card's detail strip is. */
+  line-height: 1.15;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The handle and the host's own line, on one row. Set in the text colour
@@ -636,7 +647,7 @@ button.secondary {
    worked out. */
 .card-caption {
   display: flex; align-items: baseline; gap: 6px;
-  font-size: 12.5px; line-height: 1.4; color: var(--fg); margin-top: 2px;
+  font-size: 12.5px; line-height: 1.3; color: var(--fg); margin-top: 1px;
   min-width: 0;
 }
 /* Whose it is. Heavier and quieter than what they wrote, so the eye reads the
@@ -657,16 +668,19 @@ button.secondary {
 .face-lens { display: block; border-radius: 50%; }
 .faces > * + * { margin-left: -6px; }
 .card-meta { font-size: 12.5px; color: var(--dim); }
-/* The last line: who at the reading end, when at the far one. */
-.card-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; margin-top: 5px; min-width: 0;
-}
+/* The time, at the end of the title row. Tabular and `flex: none` so a long
+   album name gives way to it rather than the other way round — the name has
+   an ellipsis, the time cannot have one. */
 .card-when {
   flex: none; white-space: nowrap;
-  font-size: 12px; font-weight: 500; color: var(--dim);
+  font-size: 11.5px; font-weight: 500; color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
-.card-who { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* Who is in it, on the photographs: the mirror of the place tag opposite. */
+.card-faces {
+  position: absolute; top: 10px; left: 10px; z-index: 1;
+  display: inline-flex; align-items: center; gap: 6px;
+}
 
 /* Where it was, on the photographs.
 
@@ -693,11 +707,17 @@ button.secondary {
 .card-tag > span {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* The count the circles stop being able to suggest. Tabular so a wall of cards
-   does not shuffle sideways between "+1" and "+11". */
+/* The count the circles stop being able to suggest, now sitting on the
+   photographs with them: the same pill as the place tag opposite, for the same
+   reason — behind it is whatever colour that album happens to be. */
 .card-more {
-  flex: none; font-size: 12px; font-weight: 600; color: var(--dim);
-  font-variant-numeric: tabular-nums;
+  flex: none; padding: 2px 7px; border-radius: 999px;
+  background: rgba(255, 255, 255, .92); color: var(--fg);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgba(20, 23, 28, .12);
+}
+@supports (backdrop-filter: blur(6px)) {
+  .card-more { background: rgba(255, 255, 255, .74); backdrop-filter: blur(6px); }
 }
 /* One circle per contributor, in the mark's colours, overlapped the way the
    mark's own lenses overlap. */

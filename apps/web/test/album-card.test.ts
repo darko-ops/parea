@@ -60,6 +60,13 @@ describe('the four things a card says', () => {
 });
 
 describe('the faces, and the number that takes over from them', () => {
+  it('draws them on the photographs, opposite the place', () => {
+    // Both facts about the evening sit on the evening; the strip below is the
+    // album's own details.
+    expect(CARD).toMatch(/className="card-faces"/);
+    expect(CSS).toMatch(/\.card-faces \{[^}]*position: absolute[^}]*left: 10px/s);
+  });
+
   it('draws the members, not the people who happened to upload', () => {
     /*
      * An album is the people in it. Drawing contributors meant somebody who
@@ -74,7 +81,9 @@ describe('the faces, and the number that takes over from them', () => {
     // The same person twice on one card reads as two people.
     expect(CARD).toMatch(/const others = Math\.max\(0, event\.memberCount - 1\)/);
     expect(CARD).toMatch(/others > event\.memberAvatars\.length/);
-    expect(CARD).toMatch(/\+\{others - event\.memberAvatars\.length\} more/);
+    // "+2" rather than "+2 more" now that it sits on the photographs as a
+    // pill of its own: a word inside a badge over a picture is furniture.
+    expect(CARD).toMatch(/\+\{others - event\.memberAvatars\.length\}/);
   });
 
   it('is bounded in the query rather than in the component', () => {
