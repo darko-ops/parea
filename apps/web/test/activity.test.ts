@@ -145,3 +145,29 @@ describe('hiding a line', () => {
     expect(await activityFor(db, me)).toHaveLength(1);
   });
 });
+
+describe('how much of the past is shown', () => {
+  it('stops at fifty, newest first', async () => {
+    /*
+     * A list somebody scans, not an archive they read. Fifty-one albums is a
+     * contrived number and the test is not: the bound is the only thing
+     * standing between this page and a query whose cost grows with how long
+     * somebody has used the product.
+     */
+    const me = await actor('me');
+    const host = await actor('host');
+    for (let i = 0; i < 55; i++) {
+      const made = await event(host, `Album ${i}`);
+      await db
+        .insert(schema.eventParticipants)
+        .values({ eventId: made.id, actorId: me });
+    }
+
+    const items = await activityFor(db, me);
+    expect(items).toHaveLength(50);
+
+    // And they are the newest fifty, not the first fifty the query found.
+    const times = items.map((i) => i.at);
+    expect([...times].sort().reverse()).toEqual(times);
+  });
+});

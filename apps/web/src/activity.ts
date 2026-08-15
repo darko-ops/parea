@@ -71,8 +71,22 @@ export type ActivityItem = {
   image: string | null;
 };
 
-/** How much of the past to show. A list, not an archive. */
-const LIMIT = 60;
+/**
+ * How much of the past to show. A list, not an archive.
+ *
+ * The same number in two places on purpose: each of the four queries takes at
+ * most this many, and the merged list is cut to this many again. Which means a
+ * feed dominated by one kind — two hundred reactions on a busy thread — can
+ * come back with fifty of that kind and nothing else, and that is the right
+ * answer for a page somebody scans rather than reads.
+ *
+ * The one visible cost is that hiding is applied after the queries: dismissing
+ * fifty reactions does not pull fifty older lines up behind them until the
+ * next page load has fewer to fetch. Fixing that means either an unbounded
+ * read or a `not in (...)` list built from every key somebody has ever hidden,
+ * and neither is worth it for a list nobody reaches the end of.
+ */
+const LIMIT = 50;
 
 /**
  * The album's newest photograph, for the square on rows that are about albums.
@@ -311,7 +325,7 @@ export async function activityFor(
     })),
   ]);
 
-  // Newest first, and bounded again after the merge — four queries of sixty is
+  // Newest first, and bounded again after the merge — four queries of fifty is
   // two hundred rows, and nobody scrolls that.
   const dismissed = new Set(hidden.map((row) => row.key));
   return items
