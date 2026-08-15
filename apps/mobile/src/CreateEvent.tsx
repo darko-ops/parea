@@ -107,14 +107,20 @@ export function CreateEvent({
   /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
   const [picked, setPicked] = useState<Bundle | null>(null);
   const [copied, setCopied] = useState(false);
-  /** The code is revealed on request; most people just send the link. */
-  const [showCode, setShowCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * What was made, and the link to it.
+   *
+   * No spoken phrase. It used to be offered here behind a "Say a code" button
+   * — the other door, for somebody across a room whose phone you are not
+   * holding — and it does not belong on the screen whose job is sending a
+   * link. The server no longer mints one unless an album asks for it, so this
+   * was also on its way to being a button that revealed nothing.
+   */
   const [made, setMade] = useState<{
     event: CreatedEvent;
     url: string;
-    code: string | null;
   } | null>(null);
 
   const copy = useCallback(async (url: string) => {
@@ -167,7 +173,6 @@ export function CreateEvent({
           endsAt: span?.endsAt ?? null,
         },
         url: `${webBase}/e/${created.linkToken}`,
-        code: created.code,
       });
     } catch {
       setError('Could not make the event. Try again in a moment.');
@@ -236,18 +241,6 @@ export function CreateEvent({
             </Pressable>
           </View>
 
-          {showCode && made.code && (
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.fieldLabel, { color: t.dim }]}>OR SAY IT OUT LOUD</Text>
-              <View style={[styles.codeCard, { backgroundColor: t.card, borderColor: t.line }]}>
-                <Text style={[styles.code, { color: t.fg }]}>{made.code}</Text>
-              </View>
-              <Text style={[styles.small, { color: t.dim }]}>
-                For the person across the room whose phone you are not holding.
-              </Text>
-            </View>
-          )}
-
           <View style={styles.actions}>
             <Pressable
               onPress={() => {
@@ -262,15 +255,6 @@ export function CreateEvent({
             >
               <Text style={[styles.actionText, { color: t.onAccent }]}>Send the link</Text>
             </Pressable>
-            {made.code && !showCode && (
-              <Pressable
-                onPress={() => setShowCode(true)}
-                style={[styles.action, styles.actionQuiet, { borderColor: t.line }]}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.actionText, { color: t.fg }]}>Say a code</Text>
-              </Pressable>
-            )}
           </View>
 
           <Pressable onPress={() => onCreated(made.event)} accessibilityRole="button">
@@ -563,10 +547,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   copy: { fontSize: 15, fontWeight: '600' },
-  codeCard: { borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
   actions: { flexDirection: 'row', gap: 10 },
   action: { flex: 1, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
-  actionQuiet: { backgroundColor: 'transparent', borderWidth: 1 },
   actionText: { fontSize: 16, fontWeight: '600' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   h1: { fontSize: 26, fontWeight: '700' },
@@ -574,7 +556,6 @@ const styles = StyleSheet.create({
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
   mono: { fontSize: 15, fontFamily: 'Courier' },
-  code: { fontSize: 24, fontWeight: '700', letterSpacing: 1 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
 });
 

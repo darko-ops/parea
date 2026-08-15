@@ -44,3 +44,37 @@ describe('sharing an album from the album', () => {
     expect(app).toMatch(/<EventScreen[\s\S]{0,200}webBase=\{API_BASE\}/);
   });
 });
+
+/**
+ * And the screen that makes an album.
+ *
+ * The phrase used to be offered here behind a button, on the one screen whose
+ * job is sending a link. Two doors shown as one act again, and this one had a
+ * second problem coming: the server stopped minting a phrase unless an album
+ * asks for one, so it was on its way to being a button that revealed nothing.
+ */
+describe('the create screen sends a link and offers nothing else', () => {
+  const create = readFileSync(
+    fileURLToPath(new URL('../src/CreateEvent.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  it('has no spoken phrase in it', () => {
+    /*
+     * Matched as rendered text — `>Say a code<` — rather than anywhere in the
+     * file, because the paragraph above this describes the button that was
+     * removed and would otherwise fail the test that removed it. The web side
+     * has `stripComments` for this; there is no such helper here, and one
+     * anchored regex is cheaper than importing one across a workspace.
+     */
+    expect(create).not.toMatch(/>\s*(Say a code|OR SAY IT OUT LOUD)\s*</);
+    // The state it was revealed by, and the field it read.
+    expect(create).not.toMatch(/showCode|made\.code/);
+  });
+
+  it('still sends the link itself', () => {
+    // The removal is of a second option, not of the thing the screen is for.
+    expect(create).toMatch(/Share\.share\(\{ message: made\.url \}\)/);
+    expect(create).toMatch(/Send the link/);
+  });
+});
