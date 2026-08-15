@@ -871,9 +871,36 @@ button.secondary {
    suggest the page knows more about some of them than it does.
    --------------------------------------------------------------------------- */
 .hit-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   font-size: 12px; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--dim); margin: 0 0 6px;
 }
+/* "12 in all", where a heading is showing some of something. Lower case and
+   unbolded, because it is an aside on the heading rather than part of it. */
+.hit-head-note { font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+/* The search box, and the three things it points at.
+
+   The scopes sit directly under the input and above everything else, because
+   they are the page's answer to "what can I find here" — an answer worth
+   giving before somebody has typed anything to test it with. */
+.find-box { display: grid; gap: 12px; }
+.find-scopes { margin: 0; }
+
+/* The rules, one click away.
+
+   They used to be four lines of prose immediately under the box, which made
+   the first thing on the page a description of the page. Closed, this is one
+   grey line; open, it is the same paragraph, at the moment somebody is
+   actually asking why a search did what it did. */
+.how > summary {
+  list-style: none; cursor: pointer; width: fit-content;
+  font-size: 13px; color: var(--dim); text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-color: var(--line);
+}
+.how > summary::-webkit-details-marker { display: none; }
+.how > summary:hover { color: var(--fg); }
+.how[open] > summary { margin-bottom: 8px; }
 .hits { list-style: none; margin: 0; padding: 0; display: grid; }
 .hits li + li { border-top: 1px solid var(--hairline); }
 .hit {

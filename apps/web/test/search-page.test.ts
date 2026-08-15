@@ -67,6 +67,58 @@ describe('one matcher, not two', () => {
   });
 });
 
+describe('what the page offers before anybody types', () => {
+  it('names the three things it finds', () => {
+    // The page's answer to "what can I find here". It used to be a paragraph
+    // of rules, which describes the page instead of being it.
+    for (const scope of ['All', 'People', 'Albums', 'Groups']) {
+      expect(VIEW).toMatch(new RegExp(`\\['\\w+', '${scope}'\\]`));
+    }
+  });
+
+  it('holds something under each of them with nothing typed', () => {
+    /*
+     * Three headings that only fill up after you type are three headings
+     * nobody knows are there. Suggestions, your own albums and your own
+     * groups are all lists the server already decided you may see, so showing
+     * them costs no lookup and discloses nothing.
+     */
+    expect(VIEW).toMatch(/!asking && wantsPeople && suggested\.length > 0/);
+    expect(VIEW).toMatch(/!asking && wantsAlbums && albums\.length > 0/);
+    expect(VIEW).toMatch(/!asking && wantsGroups && mine\.length > 0/);
+    expect(PAGE).toMatch(/groupsFor\(db, actorId\)/);
+  });
+
+  it('keeps the rules, one click away rather than first', () => {
+    // Still on the page and still true — a rule somebody wants at the moment
+    // a search surprises them, which is not the moment they arrive.
+    expect(VIEW).toMatch(/<summary>How search works<\/summary>/);
+    expect(VIEW).toMatch(/Photos are never searched/);
+  });
+});
+
+describe('narrowing the scope narrows what is asked', () => {
+  it('makes no lookup at all when the box is pointed at your own albums', () => {
+    /*
+     * The scope is not a filter over one result set. Albums are matched in
+     * the browser, so pressing Albums means `/api/people` and
+     * `/api/groups/search` are not called — narrowing the search also narrows
+     * what the page tells the server about what you are looking for.
+     */
+    expect(VIEW).toMatch(/const askPeople = within === 'all' \|\| within === 'people'/);
+    expect(VIEW).toMatch(/const askGroups = within === 'all' \|\| within === 'groups'/);
+    expect(VIEW).toMatch(/askGroups\s*\?\s*fetch\(`\/api\/groups\/search\?q=/);
+    expect(VIEW).toMatch(/askPeople\s*\?\s*fetch\(`\/api\/people\?q=/);
+  });
+
+  it('asks again when the scope changes, not only when the text does', () => {
+    // Otherwise widening from Albums to All shows the two lookups' last
+    // answer, which is nothing.
+    expect(VIEW).toMatch(/search\(query, scope\)/);
+    expect(VIEW).toMatch(/\}, \[query, scope, search\]\)/);
+  });
+});
+
 describe('who appears under People', () => {
   it('leaves out the ones already on the friends list', () => {
     // They are two headings on one screen, and somebody appearing under both

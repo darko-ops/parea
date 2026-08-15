@@ -26,6 +26,7 @@ import { FindView } from '@/../app/components/FindView';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { friendsOf, suggestionsFor } from '@/friends';
+import { groupsFor } from '@/groups';
 import { imageSrc } from '@/images';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
@@ -40,10 +41,14 @@ export const metadata = {
 export default async function FindPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [listings, friends, suggested] = await Promise.all([
+  const [listings, friends, suggested, groups] = await Promise.all([
     eventsFor(db, actorId),
     friendsOf(db, actorId),
     suggestionsFor(db, actorId),
+    // The groups this person is already in. Not a search — the page names
+    // Groups as one of the three things it finds, and a heading that only ever
+    // fills up after you type is a heading that has to be discovered.
+    groupsFor(db, actorId),
   ]);
 
   /*
@@ -82,7 +87,12 @@ export default async function FindPage() {
         <div className="main-head">
           <h1>Search</h1>
         </div>
-        <FindView albums={albums} friends={friends} suggested={suggested} />
+        <FindView
+          albums={albums}
+          friends={friends}
+          suggested={suggested}
+          groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
+        />
       </main>
     </Shell>
   );
