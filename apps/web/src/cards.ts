@@ -25,16 +25,18 @@ export type CardEvent = {
   /** Signed thumbnail URLs, most recent first. Empty renders no mosaic. */
   mosaic: string[];
   /**
-   * When it was last added to, as "added 3 days ago".
+   * When it was last added to, as "3 days ago".
    *
    * Built here rather than in the component because it is a relative time: the
    * server and the browser would round it differently, and React throws away
    * the whole tree when the two disagree. `ago` is shared with the native
    * client, so "3 days ago" means the same thing on both.
+   *
+   * No "added" in front of it any more. On a card whose other line is a name
+   * and a handle, the only time anything can be talking about is the last time
+   * something arrived, and the word was the longest part of the shortest fact.
    */
   added: string;
-  /** Where it was. Its own line on the card; null draws nothing. */
-  place: string | null;
   /**
    * Whose album it is — the picture beside the title, and the handle beside
    * the caption. Either can be null: an account is optional here, and so is a
@@ -42,15 +44,6 @@ export type CardEvent = {
    */
   creatorAvatar: string | null;
   creatorHandle: string | null;
-  /**
-   * The other members' pictures, in order, capped by the query.
-   *
-   * `null` in the array is a member with no picture, which is most of them —
-   * the card draws a coloured lens in that slot rather than a grey initial.
-   * The slots are kept rather than compacted so somebody who has a picture
-   * does not shuffle position as other people join.
-   */
-  memberAvatars: (string | null)[];
   /** The host's own line, under the title. Null draws nothing. */
   caption: string | null;
   /** How many lenses to draw. Capped at four when it is drawn, not here. */
@@ -92,15 +85,11 @@ export async function toCards(
           ),
         ),
       ),
-      added: `added ${ago(new Date(listing.lastActiveAt), now)}`,
-      place: listing.place,
+      added: ago(new Date(listing.lastActiveAt), now),
       // Presigned here, one per key. Local HMAC rather than a round trip, so
       // a page of six cards is not six round trips to storage.
       creatorAvatar: await avatarUrl(listing.creator.avatarKey),
       creatorHandle: listing.creator.handle,
-      memberAvatars: await Promise.all(
-        listing.members.map((member) => avatarUrl(member.avatarKey)),
-      ),
       caption: listing.caption,
       contributorCount: listing.contributorCount,
       memberCount: listing.memberCount,

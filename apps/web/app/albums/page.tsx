@@ -49,11 +49,17 @@ export default async function EventsPage() {
   const cards = await toCards(listings, now);
 
   /*
-   * Built here, not in the browser: the text a query is matched against is the
-   * same text the card draws, and deriving it twice is how the two come to
-   * disagree about whether the place counts.
+   * Built from the listings rather than from the cards.
+   *
+   * The card stopped drawing the place, and the search did not stop matching
+   * it: typing "greece" is what replaced the By place list, and that is worth
+   * more than the rule that a query only matches visible text. Reading it from
+   * the listing keeps the place out of `CardEvent` altogether, so nothing is
+   * carried into the component that the component does not draw.
    */
-  const haystacks = Object.fromEntries(cards.map((event) => [event.id, searchable(event)]));
+  const haystacks = Object.fromEntries(
+    listings.map((listing) => [listing.id, searchable(listing)]),
+  );
 
   return (
     <Shell current="events">

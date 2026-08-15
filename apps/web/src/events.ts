@@ -80,14 +80,6 @@ export type EventListing = {
    */
   creator: { handle: string | null; avatarKey: string | null };
   /**
-   * The first few members other than the creator, for the row of faces.
-   *
-   * Bounded in the query at the number the card draws. Fetching every member
-   * of an album to render three circles is a list that grows without bound on
-   * the screen with the most rows on it.
-   */
-  members: { avatarKey: string | null }[];
-  /**
    * Uploaded and not through the deriver yet.
    *
    * The difference between an event that is being added to right now and one
@@ -97,15 +89,6 @@ export type EventListing = {
   arrivingCount: number;
   lastActiveAt: string;
 };
-
-/**
- * How many member faces a card draws before it starts counting instead.
- *
- * Here rather than in the component because it bounds a query: the point of
- * the cap is that an album with two hundred people costs the same to list as
- * one with three.
- */
-export const CARD_FACES = 3;
 
 export async function eventsFor(
   db: Db,
@@ -176,26 +159,6 @@ export async function eventsFor(
       )`,
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
-      /*
-       * The faces on the card, oldest first, and never the creator's — theirs
-       * is drawn beside the title, and the same person twice on one card reads
-       * as two people.
-       *
-       * `json_agg` of a bounded subselect rather than a join: a join would
-       * multiply every event row by its members and the counts above would all
-       * have to become `count(distinct …)` to survive it.
-       */
-      members: sql<{ avatarKey: string | null }[]>`(
-        select coalesce(json_agg(row_to_json(m)), '[]'::json) from (
-          select a.avatar_key as "avatarKey"
-          from "event_participant" ep
-          join "actor" a on a.id = ep.actor_id
-          where ep.event_id = ${schema.events.id}
-            and ep.actor_id <> ${schema.events.createdBy}
-          order by ep.first_seen_at asc
-          limit ${CARD_FACES}
-        ) m
-      )`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
@@ -234,6 +197,5 @@ export async function eventsFor(
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),
     creator: { handle: creatorHandle, avatarKey: creatorAvatarKey },
-    members: row.members ?? [],
   }));
 }

@@ -11,6 +11,11 @@
  * Over the name and the place together, which is what let "By place" go. That
  * was a second ordering of the whole list to answer "the Greece one", and a
  * list re-sorted alphabetically is a worse answer to that than typing "greece".
+ *
+ * The place is matched even though the card no longer prints it. That breaks
+ * the usual rule — a query should match what somebody can see — and it is the
+ * right trade here: the alternative is that the one thing By place existed for
+ * stops working, silently, because a card was redesigned.
  */
 
 /** What a query is matched against: everything about an event that is words. */

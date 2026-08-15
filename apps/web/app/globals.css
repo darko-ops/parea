@@ -664,17 +664,6 @@ button.secondary {
 .card-said {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* The members' row: a photograph where there is one, a lens where there is
-   not, overlapped the way the mark's own lenses overlap. */
-.faces { display: inline-flex; flex: none; }
-.faces > * {
-  border-radius: 50%; display: block; object-fit: cover;
-  box-shadow: 0 0 0 1.5px var(--card);
-}
-/* The stand-in when somebody has no picture, or when a presigned one has
-   aged out. Same circle, same slot — the row must not develop a gap. */
-.face-lens { display: block; border-radius: 50%; }
-.faces > * + * { margin-left: -6px; }
 .card-meta { font-size: 12.5px; color: var(--dim); }
 /* The time, at the end of the title row. Tabular and `flex: none` so a long
    album name gives way to it rather than the other way round — the name has
@@ -684,49 +673,7 @@ button.secondary {
   font-size: 11.5px; font-weight: 500; color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
-/* Who is in it, on the photographs: the mirror of the place tag opposite. */
-.card-faces {
-  position: absolute; top: 10px; left: 10px; z-index: 1;
-  display: inline-flex; align-items: center; gap: 6px;
-}
 
-/* Where it was, on the photographs.
-
-   A pill rather than plain text, because what is behind it is two hundred
-   unknown colours: `backdrop-filter` where it exists, and a solid fallback
-   where it does not — over a photograph, translucent-without-blur is the case
-   that becomes unreadable rather than merely less pretty.
-
-   Capped at half the card so a long place name cannot run the width of the
-   photographs it is sitting on. */
-.card-tag {
-  position: absolute; top: 10px; right: 10px; z-index: 1;
-  display: inline-flex; align-items: center; gap: 4px;
-  max-width: calc(50% - 20px);
-  padding: 4px 9px 4px 7px; border-radius: 999px;
-  background: rgba(255, 255, 255, .92); color: var(--fg);
-  font-size: 11.5px; font-weight: 600; letter-spacing: .01em;
-  box-shadow: 0 1px 3px rgba(20, 23, 28, .12);
-}
-@supports (backdrop-filter: blur(6px)) {
-  .card-tag { background: rgba(255, 255, 255, .74); backdrop-filter: blur(6px); }
-}
-.card-tag svg { flex: none; opacity: .75; }
-.card-tag > span {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* The count the circles stop being able to suggest, now sitting on the
-   photographs with them: the same pill as the place tag opposite, for the same
-   reason — behind it is whatever colour that album happens to be. */
-.card-more {
-  flex: none; padding: 2px 7px; border-radius: 999px;
-  background: rgba(255, 255, 255, .92); color: var(--fg);
-  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 3px rgba(20, 23, 28, .12);
-}
-@supports (backdrop-filter: blur(6px)) {
-  .card-more { background: rgba(255, 255, 255, .74); backdrop-filter: blur(6px); }
-}
 /* One circle per contributor, in the mark's colours, overlapped the way the
    mark's own lenses overlap. */
 .lenses { display: inline-flex; flex: none; }

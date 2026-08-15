@@ -27,7 +27,7 @@ import { mosaicLayout } from '@parea/cards';
 
 import type { CardEvent } from '@/cards';
 
-import { Face, Faces } from './Faces';
+import { Face } from './Faces';
 import { MosaicTile } from './MosaicTile';
 
 /**
@@ -43,13 +43,6 @@ function initial(handle: string | null, name: string): string {
 
 export function EventCard({ event }: { event: CardEvent }) {
   const photos = event.mosaic;
-  /*
-   * Everybody but the creator, because the creator is the circle beside the
-   * title. Clamped at zero: `memberCount` and the faces come from two
-   * subqueries, and an album whose membership changed between them should draw
-   * a smaller row rather than "+-1 more".
-   */
-  const others = Math.max(0, event.memberCount - 1);
   const columns = mosaicLayout(photos.length);
   const tracks = columns.map((column) => `${column.weight}fr`).join(' ');
 
@@ -94,50 +87,6 @@ export function EventCard({ event }: { event: CardEvent }) {
       className="card"
       aria-label={label}
     >
-      {/*
-        Where it was, over the corner of the photographs.
-
-        It has now been three places: the tail of the people sentence, a strip
-        under the card, and here. This is the one that matches what it is —
-        a fact about the evening, sitting on the evening, rather than a field
-        in the list of facts about the album underneath. Absolutely positioned
-        so it costs no height: an album with no place is the same card, not a
-        shorter one.
-      */}
-      {/*
-        Who is in it, on the photographs.
-
-        Top left because that is where reading starts, and because the two
-        things sitting on the mosaic are then the two facts about the evening
-        itself — who was there and where it was — with the album's own details
-        in the strip below. Off the strip entirely, so the strip is two lines
-        rather than three.
-      */}
-      {event.memberAvatars.length > 0 && (
-        <span className="card-faces">
-          <Faces avatars={event.memberAvatars} size={20} />
-          {others > event.memberAvatars.length && (
-            <span className="card-more">+{others - event.memberAvatars.length}</span>
-          )}
-        </span>
-      )}
-
-      {event.place && (
-        <span className="card-tag">
-          <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
-            <path
-              d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-            <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
-          </svg>
-          <span>{event.place}</span>
-        </span>
-      )}
-
       <div className="mosaic" style={{ gridTemplateColumns: tracks }}>
         {columns.map((column, i) =>
           column.photos.length > 1 ? (

@@ -51,8 +51,6 @@ type EventListing = {
   lastActiveAt: string;
   /** Whose album it is. The URL is presigned by the route; null is normal. */
   creator: { handle: string | null; avatarUrl: string | null };
-  /** The other members' pictures, in order. `null` draws a lens instead. */
-  members: { avatarUrl: string | null }[];
 };
 
 /** Only 'loading' still matters here; the sign-in form owns its own steps. */
@@ -336,7 +334,6 @@ export function AccountView() {
                 name: event.name,
                 photoCount: event.photoCount,
                 mosaic: event.mosaic,
-                place: event.place,
                 caption: event.caption,
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,
@@ -344,10 +341,9 @@ export function AccountView() {
                 lastActiveAt: event.lastActiveAt,
                 // Every card says when it was last added to now, rather than
                 // the first one saying it and the rest saying where they were.
-                added: `added ${ago(new Date(event.lastActiveAt), new Date())}`,
+                added: ago(new Date(event.lastActiveAt), new Date()),
                 creatorAvatar: event.creator?.avatarUrl ?? null,
                 creatorHandle: event.creator?.handle ?? null,
-                memberAvatars: (event.members ?? []).map((m) => m.avatarUrl),
               }}
             />
           ))}

@@ -89,15 +89,14 @@ export async function GET() {
           ),
         );
         /*
-         * Avatars leave as URLs, and the keys do not leave at all.
+         * The avatar leaves as a URL, and the key does not leave at all.
          *
          * Same rule as the photo keys directly above: a storage key is an
          * internal address, and a presigned URL is a short-lived capability
-         * the client can actually use. `creator` and `members` are rebuilt
-         * rather than spread, so adding a column to either one cannot leak it
-         * by default.
+         * the client can actually use. `creator` is rebuilt rather than
+         * spread, so a column added to it cannot leak by default.
          */
-        const { creator, members, ...rest } = listing;
+        const { creator, ...rest } = listing;
         return {
           ...rest,
           mosaic,
@@ -105,11 +104,6 @@ export async function GET() {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),
           },
-          members: await Promise.all(
-            members.map(async (member) => ({
-              avatarUrl: await avatarUrl(member.avatarKey),
-            })),
-          ),
         };
       }),
     ),
