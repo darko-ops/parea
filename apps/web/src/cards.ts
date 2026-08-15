@@ -12,6 +12,7 @@
 
 import { ago } from '@parea/cards';
 
+import { avatarUrl } from './accounts';
 import { imageSrc } from './images';
 import type { EventListing } from './events';
 
@@ -34,6 +35,22 @@ export type CardEvent = {
   added: string;
   /** Where it was. Its own line on the card; null draws nothing. */
   place: string | null;
+  /**
+   * Whose album it is — the picture beside the title, and the handle beside
+   * the caption. Either can be null: an account is optional here, and so is a
+   * picture.
+   */
+  creatorAvatar: string | null;
+  creatorHandle: string | null;
+  /**
+   * The other members' pictures, in order, capped by the query.
+   *
+   * `null` in the array is a member with no picture, which is most of them —
+   * the card draws a coloured lens in that slot rather than a grey initial.
+   * The slots are kept rather than compacted so somebody who has a picture
+   * does not shuffle position as other people join.
+   */
+  memberAvatars: (string | null)[];
   /** The host's own line, under the title. Null draws nothing. */
   caption: string | null;
   /** How many lenses to draw. Capped at four when it is drawn, not here. */
@@ -77,6 +94,13 @@ export async function toCards(
       ),
       added: `added ${ago(new Date(listing.lastActiveAt), now)}`,
       place: listing.place,
+      // Presigned here, one per key. Local HMAC rather than a round trip, so
+      // a page of six cards is not six round trips to storage.
+      creatorAvatar: await avatarUrl(listing.creator.avatarKey),
+      creatorHandle: listing.creator.handle,
+      memberAvatars: await Promise.all(
+        listing.members.map((member) => avatarUrl(member.avatarKey)),
+      ),
       caption: listing.caption,
       contributorCount: listing.contributorCount,
       memberCount: listing.memberCount,

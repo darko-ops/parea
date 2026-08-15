@@ -610,19 +610,50 @@ button.secondary {
   position: relative; display: flex; align-items: flex-end; gap: 12px;
   padding: 11px 13px 12px;
 }
+/* The creator's picture and the album's name, on one line. */
+.card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* A ring in the card's own background colour, so the circle stays a circle
+   over whatever colour the blurred photographs put behind it. */
+.card-face {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; background: var(--card);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .7);
+  font-size: 11px; font-weight: 700; color: var(--dim);
+}
+.card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
  /* Smaller than the brand-forward card made them. At 20px the name was
     competing with the photographs above it for the same glance, and the whole
     argument for a photo-led card is that the picture wins. */
 .card-name {
   font-size: 16px; font-weight: 700; letter-spacing: -.01em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* The host's own line. Set in the text colour rather than `--dim` — it is
-   something a person wrote, not a fact the page worked out. */
+/* The handle and the host's own line, on one row. Set in the text colour
+   rather than `--dim` — it is something a person wrote, not a fact the page
+   worked out. */
 .card-caption {
+  display: flex; align-items: baseline; gap: 6px;
   font-size: 12.5px; line-height: 1.4; color: var(--fg); margin-top: 2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
 }
+/* Whose it is. Heavier and quieter than what they wrote, so the eye reads the
+   sentence and not the name in front of it. */
+.card-handle { flex: none; font-weight: 600; color: var(--dim); }
+.card-said {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The members' row: a photograph where there is one, a lens where there is
+   not, overlapped the way the mark's own lenses overlap. */
+.faces { display: inline-flex; flex: none; }
+.faces > * {
+  border-radius: 50%; display: block; object-fit: cover;
+  box-shadow: 0 0 0 1.5px var(--card);
+}
+/* The stand-in when somebody has no picture, or when a presigned one has
+   aged out. Same circle, same slot — the row must not develop a gap. */
+.face-lens { display: block; border-radius: 50%; }
+.faces > * + * { margin-left: -6px; }
 .card-meta { font-size: 12.5px; color: var(--dim); }
 /* Who is in it, then when it last moved. The circles carry the colour, so
    everything beside them is grey — two strong things on one short row read as

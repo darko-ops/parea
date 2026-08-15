@@ -27,20 +27,29 @@ import { mosaicLayout } from '@parea/cards';
 
 import type { CardEvent } from '@/cards';
 
-import { Lenses } from './Lenses';
+import { Face, Faces } from './Faces';
 import { MosaicTile } from './MosaicTile';
 
 /**
- * Circles before the count takes over.
+ * The letter in the creator's circle when they have no picture.
  *
- * Three rather than the palette's four: with four drawn, "+1 more" appears
- * only at five, and the number is doing no work until the album is bigger than
- * the row of circles can suggest anyway.
+ * Their handle first, because that is what the row underneath says, and the
+ * album's name only if there is no handle — a circle with nothing in it beside
+ * a name reads as an image that failed to load.
  */
-const LENS_CAP = 3;
+function initial(handle: string | null, name: string): string {
+  return (handle?.trim() || name.trim() || '?').slice(0, 1).toUpperCase();
+}
 
 export function EventCard({ event }: { event: CardEvent }) {
   const photos = event.mosaic;
+  /*
+   * Everybody but the creator, because the creator is the circle beside the
+   * title. Clamped at zero: `memberCount` and the faces come from two
+   * subqueries, and an album whose membership changed between them should draw
+   * a smaller row rather than "+-1 more".
+   */
+  const others = Math.max(0, event.memberCount - 1);
   const columns = mosaicLayout(photos.length);
   const tracks = columns.map((column) => `${column.weight}fr`).join(' ');
 
@@ -125,14 +134,44 @@ export function EventCard({ event }: { event: CardEvent }) {
 
         <div className="card-text">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="card-name">{event.name}</div>
             {/*
-              The host's own line, under the title and above the facts the
-              page derived. One line, ellipsised: a card is a thing you scan,
-              and a caption that wraps to three lines is a paragraph on a
-              photograph.
+              Whose album it is, beside its name.
+
+              The picture answers "is this mine or was I asked into it" before
+              the name is read, which on a wall of albums is the first thing
+              somebody wants to know. A letter when there is no picture, and
+              never a silhouette: a generic avatar is a photograph of nobody.
             */}
-            {event.caption && <div className="card-caption">{event.caption}</div>}
+            <div className="card-title">
+              <Face
+                src={event.creatorAvatar}
+                size={22}
+                className="card-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {initial(event.creatorHandle, event.name)}
+                  </span>
+                }
+              />
+              <div className="card-name">{event.name}</div>
+            </div>
+            {/*
+              The host's handle and their own line, on one row under the title.
+              Whoever made an album is part of what the caption means — "the
+              balcony flat" from somebody you know is a different sentence from
+              the same words from a stranger.
+
+              One line, ellipsised: a card is a thing you scan, and a caption
+              that wraps to three lines is a paragraph on a photograph.
+            */}
+            {(event.creatorHandle || event.caption) && (
+              <div className="card-caption">
+                {event.creatorHandle && (
+                  <span className="card-handle">@{event.creatorHandle}</span>
+                )}
+                {event.caption && <span className="card-said">{event.caption}</span>}
+              </div>
+            )}
 
             {/*
               Who is in it, and when it last moved.
@@ -149,9 +188,11 @@ export function EventCard({ event }: { event: CardEvent }) {
               card is trying to prompt.
             */}
             <div className="card-who">
-              <Lenses count={event.memberCount} size={12} max={LENS_CAP} />
-              {event.memberCount > LENS_CAP && (
-                <span className="card-more">+{event.memberCount - LENS_CAP} more</span>
+              <Faces avatars={event.memberAvatars} size={16} />
+              {others > event.memberAvatars.length && (
+                <span className="card-more">
+                  +{others - event.memberAvatars.length} more
+                </span>
               )}
               <span className="card-when">{event.added}</span>
             </div>

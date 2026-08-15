@@ -63,12 +63,30 @@ export type EventListing = {
   /**
    * People who actually put something in, which is a different number.
    *
-   * The card draws one lens per contributor, and drawing one per *member*
-   * would put a circle on the card for everybody who opened the link and
-   * looked — "who was there" turning into "who has the link", which is the
-   * one thing this product is careful not to conflate.
+   * The card used to draw one lens per contributor on the reasoning that a
+   * circle per *member* turns "who was there" into "who has the link". The
+   * card draws members now — asked for, and defensible: a member is somebody
+   * who was let in rather than anybody who ever loaded the page, and the card
+   * is trying to prompt the ones who have not added anything yet. This is kept
+   * because the number is still a different fact and other things read it.
    */
   contributorCount: number;
+  /**
+   * Whose album it is: the handle, and their picture if they have one.
+   *
+   * A key rather than a URL, and it stays a key until something presigns it —
+   * the bucket is private, so a URL is a short-lived capability and one stored
+   * or shipped raw is a credential with an expiry attached.
+   */
+  creator: { handle: string | null; avatarKey: string | null };
+  /**
+   * The first few members other than the creator, for the row of faces.
+   *
+   * Bounded in the query at the number the card draws. Fetching every member
+   * of an album to render three circles is a list that grows without bound on
+   * the screen with the most rows on it.
+   */
+  members: { avatarKey: string | null }[];
   /**
    * Uploaded and not through the deriver yet.
    *
@@ -79,6 +97,15 @@ export type EventListing = {
   arrivingCount: number;
   lastActiveAt: string;
 };
+
+/**
+ * How many member faces a card draws before it starts counting instead.
+ *
+ * Here rather than in the component because it bounds a query: the point of
+ * the cap is that an album with two hundred people costs the same to list as
+ * one with three.
+ */
+export const CARD_FACES = 3;
 
 export async function eventsFor(
   db: Db,
@@ -147,9 +174,34 @@ export async function eventsFor(
         where p.event_id = ${schema.events.id}
           and p.status = 'pending' and p.deleted_at is null
       )`,
+      creatorHandle: schema.actors.handle,
+      creatorAvatarKey: schema.actors.avatarKey,
+      /*
+       * The faces on the card, oldest first, and never the creator's — theirs
+       * is drawn beside the title, and the same person twice on one card reads
+       * as two people.
+       *
+       * `json_agg` of a bounded subselect rather than a join: a join would
+       * multiply every event row by its members and the counts above would all
+       * have to become `count(distinct …)` to survive it.
+       */
+      members: sql<{ avatarKey: string | null }[]>`(
+        select coalesce(json_agg(row_to_json(m)), '[]'::json) from (
+          select a.avatar_key as "avatarKey"
+          from "event_participant" ep
+          join "actor" a on a.id = ep.actor_id
+          where ep.event_id = ${schema.events.id}
+            and ep.actor_id <> ${schema.events.createdBy}
+          order by ep.first_seen_at asc
+          limit ${CARD_FACES}
+        ) m
+      )`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
+    // Left, not inner: an actor row is never missing, but an inner join here
+    // would silently drop an album if one ever were.
+    .leftJoin(schema.actors, eq(schema.actors.id, schema.events.createdBy))
     .where(
       and(
         isNull(schema.events.deletedAt),
@@ -173,7 +225,7 @@ export async function eventsFor(
     // somebody can build a memory of.
     .orderBy(desc(schema.events.lastActiveAt));
 
-  return rows.map((row) => ({
+  return rows.map(({ creatorHandle, creatorAvatarKey, ...row }) => ({
     ...row,
     // `encode()` on a null bytea is null, and json_agg keeps the key, so a
     // photo mid-ingest arrives as {hash: null} rather than being dropped.
@@ -181,5 +233,7 @@ export async function eventsFor(
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),
+    creator: { handle: creatorHandle, avatarKey: creatorAvatarKey },
+    members: row.members ?? [],
   }));
 }

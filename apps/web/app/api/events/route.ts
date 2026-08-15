@@ -17,6 +17,7 @@ import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
+import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { imageSrc } from '@/images';
@@ -87,7 +88,29 @@ export async function GET() {
             ),
           ),
         );
-        return { ...listing, mosaic };
+        /*
+         * Avatars leave as URLs, and the keys do not leave at all.
+         *
+         * Same rule as the photo keys directly above: a storage key is an
+         * internal address, and a presigned URL is a short-lived capability
+         * the client can actually use. `creator` and `members` are rebuilt
+         * rather than spread, so adding a column to either one cannot leak it
+         * by default.
+         */
+        const { creator, members, ...rest } = listing;
+        return {
+          ...rest,
+          mosaic,
+          creator: {
+            handle: creator.handle,
+            avatarUrl: await avatarUrl(creator.avatarKey),
+          },
+          members: await Promise.all(
+            members.map(async (member) => ({
+              avatarUrl: await avatarUrl(member.avatarKey),
+            })),
+          ),
+        };
       }),
     ),
   });

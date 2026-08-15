@@ -20,6 +20,8 @@ const read = (path: string) =>
 
 const CARD = read('../app/components/EventCard.tsx');
 const CARDS = read('../src/cards.ts');
+const EVENTS = read('../src/events.ts');
+const API = read('../app/api/events/route.ts');
 const CSS = readFileSync(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
   'utf8',
@@ -43,21 +45,34 @@ describe('the four things a card says', () => {
   });
 });
 
-describe('the circles, and the number that takes over from them', () => {
-  it('draws members rather than contributors', () => {
+describe('the faces, and the number that takes over from them', () => {
+  it('draws the members, not the people who happened to upload', () => {
     /*
      * An album is the people in it. Drawing contributors meant somebody who
      * had been let in but not yet added a photograph was invisible on the card
      * — and they are exactly who it is trying to prompt.
      */
-    expect(CARD).toMatch(/<Lenses count=\{event\.memberCount\}/);
-    expect(CARD).not.toMatch(/<Lenses count=\{event\.contributorCount\}/);
+    expect(CARD).toMatch(/<Faces avatars=\{event\.memberAvatars\}/);
+    expect(CARD).not.toMatch(/contributorCount/);
   });
 
-  it('caps the circles and says the rest as a number', () => {
-    expect(CARD).toMatch(/const LENS_CAP = 3/);
-    expect(CARD).toMatch(/event\.memberCount > LENS_CAP/);
-    expect(CARD).toMatch(/\+\{event\.memberCount - LENS_CAP\} more/);
+  it('counts everybody but the creator, whose picture is beside the title', () => {
+    // The same person twice on one card reads as two people.
+    expect(CARD).toMatch(/const others = Math\.max\(0, event\.memberCount - 1\)/);
+    expect(CARD).toMatch(/others > event\.memberAvatars\.length/);
+    expect(CARD).toMatch(/\+\{others - event\.memberAvatars\.length\} more/);
+  });
+
+  it('is bounded in the query rather than in the component', () => {
+    // The point of the cap is that an album with two hundred people costs the
+    // same to list as one with three. A component-side slice would fetch all
+    // two hundred first.
+    expect(EVENTS).toMatch(/export const CARD_FACES = 3/);
+    expect(EVENTS).toMatch(/limit \$\{CARD_FACES\}/);
+  });
+
+  it('never asks for the creator twice', () => {
+    expect(EVENTS).toMatch(/ep\.actor_id <> \$\{schema\.events\.createdBy\}/);
   });
 
   it('does not shuffle the row as the number grows', () => {
@@ -84,5 +99,45 @@ describe('the relative time is derived once, on the server', () => {
     const now = new Date('2026-08-15T12:00:00Z');
     expect(ago(new Date('2026-08-14T12:00:00Z'), now)).toBe('1 day ago');
     expect(ago(new Date('2026-08-15T11:40:00Z'), now)).toBe('20m ago');
+  });
+});
+
+describe('whose album it is', () => {
+  it('draws their picture beside the name and their handle beside the caption', () => {
+    expect(CARD).toMatch(/src=\{event\.creatorAvatar\}/);
+    expect(CARD).toMatch(/@\{event\.creatorHandle\}/);
+  });
+
+  it('puts a letter in the circle rather than a silhouette', () => {
+    // A generic avatar is a photograph of nobody. The letter at least belongs
+    // to the person whose album it is.
+    expect(CARD).toMatch(/initial\(event\.creatorHandle, event\.name\)/);
+  });
+
+  it('still draws a card for an album whose host has no handle or picture', () => {
+    // An account is optional in this product, and so is a picture. Both of
+    // these are null far more often than not.
+    expect(CARD).toMatch(/\(event\.creatorHandle \|\| event\.caption\) && \(/);
+    expect(CARD).toMatch(/handle\?\.trim\(\) \|\| name\.trim\(\) \|\| '\?'/);
+  });
+});
+
+describe('the pictures cross the boundary as URLs, never as keys', () => {
+  /*
+   * The same rule the photo keys have: a storage key is an internal address,
+   * and the bucket is private, so what a client can use is a presigned URL —
+   * short-lived on purpose, because it is a capability.
+   */
+  it('presigns on the page path', () => {
+    expect(CARDS).toMatch(/creatorAvatar: await avatarUrl\(listing\.creator\.avatarKey\)/);
+    expect(CARDS).toMatch(/listing\.members\.map\(\(member\) => avatarUrl\(member\.avatarKey\)\)/);
+  });
+
+  it('presigns on the API path, and rebuilds rather than spreads', () => {
+    // Spreading the listing would ship `avatarKey` the moment anybody adds a
+    // field, which is the failure this shape exists to prevent.
+    expect(API).toMatch(/const \{ creator, members, \.\.\.rest \} = listing/);
+    expect(API).toMatch(/avatarUrl: await avatarUrl\(creator\.avatarKey\)/);
+    expect(API).not.toMatch(/avatarKey,/);
   });
 });
