@@ -96,6 +96,86 @@ export async function friendsOf(db: Db, actorId: string | null): Promise<Person[
     .orderBy(schema.actors.handle);
 }
 
+/**
+ * People your friends are friends with, and you are not.
+ *
+ * The one suggestion this product makes about people, and it is deliberately
+ * the weakest one available: a friend of a friend is somebody you can already
+ * reach by asking the friend, so the suggestion saves a message rather than
+ * disclosing a relationship you had no route to.
+ *
+ * ## What a count discloses, and what a list would
+ *
+ * The row says "2 mutual friends" and never which two. That is not squeamish
+ * about a small number — naming them tells the person reading it who two of
+ * *their own* friends are friends with, which is a fact about those two that
+ * neither was asked about. The count is the same shape of information every
+ * product of this kind shows, and the names are the line past it.
+ *
+ * ## Everybody who must not appear
+ *
+ * Yourself, obviously. People you are already friends with, because a
+ * suggestion is an offer to ask. Anybody with a request open in either
+ * direction, because asking twice is not a feature. And anybody either of you
+ * has blocked — a block hides two people from each other everywhere, and a
+ * suggestion screen is exactly where a missed exclusion becomes a person
+ * reappearing in front of somebody who cut them off.
+ */
+export type Suggestion = Person & { mutuals: number };
+
+/** Enough to be worth a screen, few enough to read. */
+export const SUGGESTION_LIMIT = 12;
+
+export async function suggestionsFor(
+  db: Db,
+  actorId: string | null,
+): Promise<Suggestion[]> {
+  if (!actorId) return [];
+
+  const rows = await db.execute<{
+    actorId: string;
+    handle: string | null;
+    displayName: string | null;
+    mutuals: number;
+  }>(sql`
+    select
+      a.id            as "actorId",
+      a.handle        as "handle",
+      a.display_name  as "displayName",
+      count(*)::int   as "mutuals"
+    from "friendship" mine
+    join "friendship" theirs on theirs.actor_id = mine.friend_actor_id
+    join "actor" a on a.id = theirs.friend_actor_id
+    where mine.actor_id = ${actorId}
+      and theirs.friend_actor_id <> ${actorId}
+      -- An account, not a device: the same test everything here uses for "a
+      -- person", and the same one the handle search applies.
+      and a.account_id is not null
+      and a.merged_into_id is null
+      and not exists (
+        select 1 from "friendship" f
+        where f.actor_id = ${actorId} and f.friend_actor_id = a.id
+      )
+      and not exists (
+        select 1 from "friend_request" r
+        where (r.from_actor_id = ${actorId} and r.to_actor_id = a.id)
+           or (r.from_actor_id = a.id and r.to_actor_id = ${actorId})
+      )
+      and not exists (
+        select 1 from "block" b
+        where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
+           or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
+      )
+    group by a.id, a.handle, a.display_name
+    -- Most mutual friends first: the strongest suggestion is the one the most
+    -- of your own people already know.
+    order by count(*) desc, a.handle asc
+    limit ${SUGGESTION_LIMIT}
+  `);
+
+  return [...rows];
+}
+
 export type FriendRequest = Person & { id: string; askedAt: string };
 
 /** The people waiting on an answer from this actor. */

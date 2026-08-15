@@ -40,7 +40,7 @@ import { Face } from './Faces';
 
 type Door = { id: string; name: string; memberCount: number };
 type Person = { actorId: string; handle: string | null; displayName: string | null };
-type Place = { place: string; events: { id: string; name: string }[] };
+type Suggestion = Person & { mutuals: number };
 
 export type AlbumHit = {
   id: string;
@@ -61,13 +61,12 @@ const MIN = 2;
 export function FindView({
   albums,
   friends,
-  places,
-  unplaced,
+  suggested,
 }: {
   albums: AlbumHit[];
   friends: Person[];
-  places: Place[];
-  unplaced: number;
+  /** Friends of your friends. Shown when nothing is typed. */
+  suggested: Suggestion[];
 }) {
   const [query, setQuery] = useState('');
   const [doors, setDoors] = useState<Door[]>([]);
@@ -231,44 +230,25 @@ export function FindView({
       )}
 
       {/*
-        Browsing, for when there is nothing typed. It answers "the Greece one"
-        for somebody who remembers where before they remember what — and it
-        only ever arranges albums they are already in, so nothing is discovered
-        by it either.
+        With nothing typed, the page suggests people rather than sitting empty.
+
+        Friends of your friends, and only them: somebody you could already
+        reach by asking the friend you have in common, so the suggestion saves
+        a message rather than disclosing a relationship you had no route to.
+        The count of mutuals, never their names — see `suggestionsFor`.
       */}
-      {!asking && (
-        <section className="panel">
-          <h2 style={{ fontSize: 18, margin: '0 0 4px' }}>Your albums by place</h2>
-          {places.length === 0 ? (
-            <p className="muted">
-              None of your albums has a place yet. Add one when you start the
-              next — it is typed by whoever creates it, never taken from a photo.
-            </p>
-          ) : (
-            <ul className="plain">
-              {places.map(({ place, events }) => (
-                <li key={place}>
-                  <strong>{place}</strong>{' '}
-                  <span className="muted">
-                    ·{' '}
-                    {events.map((event, i) => (
-                      <span key={event.id}>
-                        {i > 0 && ', '}
-                        <a href={`/event/${event.id}`}>{event.name}</a>
-                      </span>
-                    ))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {unplaced > 0 && (
-            <p className="muted" style={{ marginTop: 10 }}>
-              {unplaced} {unplaced === 1 ? 'album has' : 'albums have'} no place set.
-            </p>
-          )}
-        </section>
+      {!asking && suggested.length > 0 && (
+        <Group title="People you may know">
+          {suggested.map((person) => (
+            <PersonRow
+              key={person.actorId}
+              person={person}
+              note={`${person.mutuals} ${person.mutuals === 1 ? 'mutual friend' : 'mutual friends'}`}
+            />
+          ))}
+        </Group>
       )}
+
     </>
   );
 }
@@ -291,7 +271,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
  * A friend's row with more on it would be a reason to go looking for people
  * whose rows are fuller.
  */
-function PersonRow({ person }: { person: Person }) {
+function PersonRow({ person, note }: { person: Person; note?: string }) {
   const name = person.displayName?.trim() || (person.handle ? `@${person.handle}` : 'Someone');
   return (
     <li>
@@ -301,7 +281,9 @@ function PersonRow({ person }: { person: Person }) {
         </span>
         <span className="hit-text">
           <strong>{name}</strong>
-          {person.handle && <span className="muted">@{person.handle}</span>}
+          {/* The handle, unless there is something more useful to say — two
+              grey lines under one name is a row that has stopped being read. */}
+          <span className="muted">{note ?? (person.handle ? `@${person.handle}` : '')}</span>
         </span>
       </a>
     </li>

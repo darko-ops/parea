@@ -12,6 +12,10 @@
  *     enough to be asked and no further;
  *   - findable groups, which return a door and never what is inside.
  *
+ * With nothing typed it suggests people instead: friends of your friends, who
+ * are the one suggestion this product makes and the weakest one available —
+ * somebody you could already reach by asking the friend you have in common.
+ *
  * There is no album search beyond your own and no photo search at all. Adding
  * either would turn "possession of the link is the access model" into "type a
  * word and see whose wedding comes up".
@@ -21,7 +25,7 @@ import { Shell } from '@/../app/components/Shell';
 import { FindView } from '@/../app/components/FindView';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
-import { friendsOf } from '@/friends';
+import { friendsOf, suggestionsFor } from '@/friends';
 import { imageSrc } from '@/images';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
@@ -36,9 +40,10 @@ export const metadata = {
 export default async function FindPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [listings, friends] = await Promise.all([
+  const [listings, friends, suggested] = await Promise.all([
     eventsFor(db, actorId),
     friendsOf(db, actorId),
+    suggestionsFor(db, actorId),
   ]);
 
   /*
@@ -71,30 +76,13 @@ export default async function FindPage() {
     })),
   );
 
-  // Grouped here rather than in the client: it is a pure transform of data
-  // the server already has, and shipping the whole list to re-derive it in
-  // the browser would be the same work done later and twice.
-  const byPlace = new Map<string, { id: string; name: string }[]>();
-  for (const listing of listings) {
-    if (!listing.place) continue;
-    byPlace.set(listing.place, [
-      ...(byPlace.get(listing.place) ?? []),
-      { id: listing.id, name: listing.name },
-    ]);
-  }
-
   return (
     <Shell current="find">
       <main className="main">
         <div className="main-head">
           <h1>Search</h1>
         </div>
-        <FindView
-          albums={albums}
-          friends={friends}
-          places={[...byPlace].map(([place, events]) => ({ place, events }))}
-          unplaced={listings.filter((l) => !l.place).length}
-        />
+        <FindView albums={albums} friends={friends} suggested={suggested} />
       </main>
     </Shell>
   );

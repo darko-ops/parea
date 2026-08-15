@@ -75,3 +75,48 @@ describe('who appears under People', () => {
     expect(VIEW).toMatch(/people\.filter\(\(person\) => !friendIds\.has\(person\.actorId\)\)/);
   });
 });
+
+describe('who a suggestion may be', () => {
+  const FRIENDS = read('../src/friends.ts');
+  const SUGGEST = FRIENDS.slice(
+    FRIENDS.indexOf('export async function suggestionsFor'),
+    FRIENDS.indexOf('export type FriendRequest'),
+  );
+
+  it('is a friend of a friend, and nothing looser', () => {
+    /*
+     * The weakest suggestion available, and that is the point: somebody you
+     * could already reach by asking the friend you have in common. Anything
+     * broader — people in your albums, people who share a group — would be a
+     * relationship the product invented rather than one that exists.
+     */
+    expect(SUGGEST).toMatch(/from "friendship" mine/);
+    expect(SUGGEST).toMatch(/join "friendship" theirs on theirs\.actor_id = mine\.friend_actor_id/);
+  });
+
+  it('excludes yourself, your friends, open requests and blocks', () => {
+    // The last one matters most: a block hides two people from each other
+    // everywhere, and a suggestion screen is where a missed exclusion becomes
+    // somebody reappearing in front of the person who cut them off.
+    expect(SUGGEST).toMatch(/theirs\.friend_actor_id <> \$\{actorId\}/);
+    expect(SUGGEST).toMatch(/not exists[\s\S]{0,120}from "friendship" f/);
+    expect(SUGGEST).toMatch(/not exists[\s\S]{0,120}from "friend_request" r/);
+    expect(SUGGEST).toMatch(/not exists[\s\S]{0,160}from "block" b/);
+  });
+
+  it('counts the mutuals and never names them', () => {
+    /*
+     * Naming them tells the reader which of *their own* friends is friends
+     * with this person — a fact about those two that neither was asked about.
+     * The count is the line; the names are past it.
+     */
+    expect(SUGGEST).toMatch(/count\(\*\)::int\s+as "mutuals"/);
+    expect(VIEW).toMatch(/mutual friends?/);
+    expect(VIEW).not.toMatch(/mutualNames|mutuals\.map/);
+  });
+
+  it('is bounded', () => {
+    expect(FRIENDS).toMatch(/export const SUGGESTION_LIMIT = 12/);
+    expect(SUGGEST).toMatch(/limit \$\{SUGGESTION_LIMIT\}/);
+  });
+});
