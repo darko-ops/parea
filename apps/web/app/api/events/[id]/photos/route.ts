@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
+import { membersOf } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
@@ -185,6 +186,9 @@ export async function GET(
     },
     contributors,
     people,
+    // Everybody in the album, for the faces in the head and the Members tab.
+    // Not the same list as `people`, which is whose photographs these are.
+    members: await membersOf(db, event.id),
     messages,
     // `contribute` and an account, matching what the POST actually enforces.
     // Computed from the same helper rather than from `viewerId != null`, which

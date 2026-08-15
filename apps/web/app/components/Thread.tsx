@@ -25,8 +25,10 @@ import { ago } from '@parea/cards';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import type { Member } from '@/members';
 import { REACTIONS, type Message } from '@/messages';
 
+import { Face } from './Faces';
 import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
 
@@ -39,6 +41,8 @@ export type ThreadProps = {
   canPost: boolean;
   /** The event's contributors, for the mention list. Never anybody else. */
   people: Person[];
+  /** Everybody in the event, for the Members tab. A different list to `people`. */
+  members: Member[];
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
   /**
@@ -199,11 +203,21 @@ function ThreadBody({
   messages,
   canPost,
   people,
+  members,
   onChanged,
   onSeen,
   onCollapse,
 }: ThreadProps) {
   const session = useSession();
+  /*
+   * Two tabs, and the second one is a list rather than a conversation.
+   *
+   * Client state rather than a URL, unlike the Manage screen's tabs: those are
+   * two pages of settings somebody might send to themselves, and this is a
+   * column beside the photographs that comes back to the conversation the next
+   * time the page loads. Nobody wants an album's link to open on its roster.
+   */
+  const [tab, setTab] = useState<'chats' | 'members'>('chats');
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -291,7 +305,31 @@ function ThreadBody({
   return (
     <>
       <div className="thread-head">
-        <strong>Thread</strong>
+        {/*
+          Tabs rather than a heading. "Thread" named the column for somebody
+          who could already see it was a thread; these name the two things in
+          it, and the second one is the answer to "who else is here" that the
+          head's row of faces can only gesture at.
+        */}
+        <div className="thread-tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={tab === 'chats'}
+            className={tab === 'chats' ? 'is-on' : undefined}
+            onClick={() => setTab('chats')}
+          >
+            Chats
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'members'}
+            className={tab === 'members' ? 'is-on' : undefined}
+            onClick={() => setTab('members')}
+          >
+            Members
+            <span className="thread-count">{members.length}</span>
+          </button>
+        </div>
         {/*
           Only on the column. The sheet has a scrim, a grab handle and Escape;
           a fourth way to shut it would be a button that does what tapping
@@ -308,8 +346,36 @@ function ThreadBody({
         )}
       </div>
 
+      {tab === 'members' && (
+        <div className="thread-list" role="tabpanel">
+          <ul className="thread-members">
+            {members.map((member) => (
+              <li key={member.actorId}>
+                <Face
+                  src={member.avatarUrl}
+                  size={30}
+                  className="thread-face"
+                  fallback={
+                    <span aria-hidden="true">
+                      {member.name.replace('@', '').slice(0, 1).toUpperCase()}
+                    </span>
+                  }
+                />
+                <span className="thread-member-name">
+                  {member.name}
+                  {/* The host, said once. Everybody else is just here. */}
+                  {member.isCreator && <span className="thread-host">host</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {tab === 'chats' && (
       <div
         className="thread-list"
+        role="tabpanel"
         ref={listRef}
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -338,7 +404,10 @@ function ThreadBody({
           />
         ))}
       </div>
+      )}
 
+      {/* The composer belongs to the conversation, not to the roster. */}
+      {tab === 'chats' && (
       <div className="thread-composer">
         {canPost ? (
           <Composer
@@ -360,6 +429,7 @@ function ThreadBody({
           <p className="muted thread-note">Only people who can add photos can post.</p>
         )}
       </div>
+      )}
     </>
   );
 }

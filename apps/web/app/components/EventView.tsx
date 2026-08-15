@@ -37,7 +37,13 @@ import { Thread, ThreadSheet } from './Thread';
 import { PhotoLightbox } from './PhotoLightbox';
 import { ShareEvent } from './ShareEvent';
 import { PhotoTile } from './PhotoTile';
+import type { Member } from '@/members';
+
+import { Face, Faces } from './Faces';
 import { useUploads } from './useUploads';
+
+/** Faces in the head before the count takes over. Three, as on the cards. */
+const HEAD_FACES = 3;
 import { SiteFooter } from './SiteFooter';
 
 type Photo = {
@@ -84,6 +90,8 @@ type Feed = {
     joinsOpen: boolean;
   };
   contributors: number;
+  /** Everybody in it: the faces in the head, and the Members tab. */
+  members: Member[];
   people: Person[];
   /** The event's thread, seeded server-side like the photos. */
   messages: Message[];
@@ -210,6 +218,17 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   const uploads = useUploads(eventId, refresh);
 
   /*
+   * The host, and the first few faces beside them.
+   *
+   * `membersOf` puts the creator first, so the head's own picture is
+   * `members[0]` and the row beside the name is everybody else — the same
+   * person twice on one bar reads as two people.
+   */
+  const host = feed.members.find((m) => m.isCreator);
+  const guests = feed.members.filter((m) => !m.isCreator);
+  const faces = guests.slice(0, HEAD_FACES).map((m) => m.avatarUrl);
+
+  /*
    * Photos appear as ingest finishes, which is seconds behind the upload.
    *
    * Keyed on anything being in flight, not on this tab being the one sending
@@ -333,26 +352,48 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         so the photographs scrolling under it are still visibly photographs.
       */}
       <header className="event-head">
+        {/*
+          Whose album this is, beside its name — the same pair the cards use,
+          and the same reason: it answers "is this mine or was I asked into it"
+          before the name is read.
+        */}
+        <Face
+          src={host?.avatarUrl ?? null}
+          size={38}
+          className="event-face"
+          fallback={
+            <span aria-hidden="true">
+              {(host?.name ?? feed.event.name).slice(0, 1).toUpperCase()}
+            </span>
+          }
+        />
+
         <div className="event-head-text">
           <h1>{feed.event.name}</h1>
           {/*
-            The host's own line, above the counts rather than below them: it
-            says what the evening was, and the counts say how much of it there
-            is. One line, ellipsised — the head is a bar, not a paragraph.
+            The host's own line, above the faces rather than below them: it
+            says what the evening was, and the faces say who it was with. One
+            line, ellipsised — the head is a bar, not a paragraph.
           */}
           {feed.event.caption && (
             <p className="event-caption">{feed.event.caption}</p>
           )}
-          <p className="muted">
-            {feed.count} {feed.count === 1 ? 'photo' : 'photos'} from{' '}
-            {feed.contributors} {feed.contributors === 1 ? 'person' : 'people'}
-            {feed.event.groupId && (
-              <>
-                {' · '}
-                <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
-              </>
-            )}
+          {/*
+            Who is in it, where a count of photographs used to be.
 
+            "12 photos from 3 people" was a fact about the grid directly
+            underneath, which is the one place it did not need saying. Faces
+            answer the question somebody in an album actually has — who else
+            can see this — and the number after them is the rest of the answer.
+          */}
+          <p className="event-people">
+            <Faces avatars={faces} size={20} />
+            {guests.length > faces.length && (
+              <span className="event-more">+{guests.length - faces.length} more</span>
+            )}
+            {feed.event.groupId && (
+              <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
+            )}
           </p>
         </div>
 
@@ -384,6 +425,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
           messages={feed.messages}
           canPost={feed.canPost}
           people={feed.people}
+          members={feed.members}
           onChanged={refresh}
           unread={unread}
           onOpened={markSeen}
@@ -735,6 +777,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             messages={feed.messages}
             canPost={feed.canPost}
             people={feed.people}
+            members={feed.members}
             onChanged={refresh}
             onSeen={markSeen}
             onCollapse={() => foldThread(false)}

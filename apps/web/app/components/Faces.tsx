@@ -60,3 +60,51 @@ export function Face({
     />
   );
 }
+
+/** Mark order, from `Mark.tsx`. The fourth is one of the overlap colours. */
+const LENSES = ['#ffb3b8', '#9db2f0', '#a5dcc6', '#f3b584'];
+
+/**
+ * A row of them, overlapped — the people in an album.
+ *
+ * A photograph where somebody has one, a lens where they do not. Not a grey
+ * letter-circle in the gap: a row of initials is a list of names, which is a
+ * much louder claim about who was somewhere than three overlapping colours.
+ *
+ * The slots keep their order and their count, so somebody who has a picture
+ * does not move along the row as other people join.
+ */
+export function Faces({
+  /** One entry per person, in order. `null` means no picture. */
+  avatars,
+  size = 18,
+}: {
+  avatars: (string | null)[];
+  size?: number;
+}) {
+  if (avatars.length === 0) return null;
+
+  return (
+    <span className="faces" aria-hidden="true">
+      {avatars.map((src, i) => (
+        <Face
+          key={i}
+          src={src}
+          size={size}
+          fallback={
+            <span
+              className="face-lens"
+              style={{
+                width: size,
+                height: size,
+                // The palette in order, so two people without pictures are two
+                // different colours rather than the same one twice.
+                background: LENSES[i % LENSES.length],
+              }}
+            />
+          }
+        />
+      ))}
+    </span>
+  );
+}

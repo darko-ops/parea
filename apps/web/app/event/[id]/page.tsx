@@ -8,6 +8,7 @@ import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
+import { membersOf } from '@/members';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
@@ -159,6 +160,10 @@ export default async function EventPage({
           },
           contributors: people.length,
           people,
+          // Both frames carry it, for the reason the access fields do: a field
+          // in one and not the other is a head that changes a second after it
+          // draws.
+          members: await membersOf(db, event.id),
           messages,
           // `contribute` and an account, matching what the POST actually enforces.
     // Computed from the same helper rather than from `viewerId != null`, which
