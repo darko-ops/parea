@@ -151,6 +151,11 @@ describe('the closed list of what is collected', () => {
       bio: /<h3>A line about you/,
       handle: /<h3>A handle<\/h3>/,
       avatar_key: /<h3>A profile picture/,
+      // Two columns, one promise, and the promise is the unusual half: the
+      // number is not kept, so the page has to say what is — and has to be
+      // straight about the number being *sent* in order to be matched.
+      phone_hash: /scrambled form of it/,
+      phone_last2: /last two digits/,
     };
 
     // `getTableColumns` rather than `Object.values`, which also hands back

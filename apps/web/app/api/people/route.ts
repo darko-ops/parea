@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
-import { findPeople } from '@/friends';
+import { findByPhone, findPeople, looksLikePhone } from '@/friends';
 import { PEOPLE_SEARCH_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId } from '@/session';
 
@@ -35,5 +35,23 @@ export async function GET(request: Request) {
   }
 
   const query = new URL(request.url).searchParams.get('q') ?? '';
+
+  /*
+   * A number is an exact lookup, not a search.
+   *
+   * Somebody typing a phone number is not browsing — they have the number
+   * already, which is the whole permission model for this: the number *is* the
+   * introduction. So it matches the whole thing or nothing, and there is no
+   * prefix, no partial and no "did you mean". A prefix search over phone
+   * numbers would be a way to walk the account table ten digits at a time.
+   *
+   * It answers in the same shape as a handle search — a handle and a name —
+   * so a caller cannot tell from the response which door it came through, and
+   * a number that matches nobody is simply an empty list.
+   */
+  if (looksLikePhone(query)) {
+    return NextResponse.json({ people: await findByPhone(db, actorId, query) });
+  }
+
   return NextResponse.json({ people: await findPeople(db, actorId, query) });
 }

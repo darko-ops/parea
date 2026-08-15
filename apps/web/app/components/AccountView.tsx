@@ -66,6 +66,7 @@ export function AccountView() {
     bio: string | null;
     handle: string | null;
     avatarUrl: string | null;
+    phoneLast2: string | null;
   } | null>(null);
   /** Which of the three faces of this page is showing. */
   const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');

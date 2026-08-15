@@ -18,6 +18,7 @@ import { handleKey, schema } from '@parea/core';
 import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { hashPhone, normalisePhone } from './phone';
 
 /** What a person looks like to somebody who is not them. */
 export type Person = {
@@ -174,6 +175,64 @@ export async function suggestionsFor(
   `);
 
   return [...rows];
+}
+
+/**
+ * Whether what somebody typed is a number rather than a name.
+ *
+ * Deliberately narrow: a leading `+` and then digits. Without the `+` this
+ * would have to guess a country, and a wrong guess is a lookup that silently
+ * finds nobody — which reads as "they are not on here" rather than as "that is
+ * not how to type it".
+ */
+export function looksLikePhone(query: string): boolean {
+  return /^\+[\d\s()\-.]{6,}$/.test(query.trim());
+}
+
+/**
+ * The one person whose number this is, if they are findable at all.
+ *
+ * Exact, because possession of the number is the permission: somebody who has
+ * it can already ring you, and this saves them asking what your handle is. A
+ * partial match would turn that into a way to walk the account table.
+ *
+ * The same exclusions as the handle search — yourself, and anybody either of
+ * you has blocked — and the same answer shape, so nothing about the response
+ * says which door it came through.
+ */
+export async function findByPhone(
+  db: Db,
+  actorId: string | null,
+  query: string,
+): Promise<Person[]> {
+  const e164 = normalisePhone(query);
+  if (!e164) return [];
+
+  const rows = await db
+    .select({
+      actorId: schema.actors.id,
+      handle: schema.actors.handle,
+      displayName: schema.actors.displayName,
+    })
+    .from(schema.actors)
+    .where(
+      and(
+        eq(schema.actors.phoneHash, hashPhone(e164)),
+        sql`${schema.actors.accountId} is not null`,
+        sql`${schema.actors.mergedIntoId} is null`,
+        actorId ? ne(schema.actors.id, actorId) : sql`true`,
+        actorId
+          ? sql`not exists (
+              select 1 from "block" b
+              where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.actors.id})
+                 or (b.blocker_actor_id = ${schema.actors.id} and b.blocked_actor_id = ${actorId})
+            )`
+          : sql`true`,
+      ),
+    )
+    .limit(1);
+
+  return rows;
 }
 
 export type FriendRequest = Person & { id: string; askedAt: string };

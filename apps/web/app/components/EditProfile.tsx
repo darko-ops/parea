@@ -18,6 +18,8 @@ type Profile = {
   displayName: string | null;
   handle: string | null;
   bio: string | null;
+  /** "47" when a number is set. Never the number — see `phone.ts`. */
+  phoneLast2?: string | null;
   avatarUrl: string | null;
 };
 
@@ -35,10 +37,62 @@ export function EditProfile({
   const [handle, setHandle] = useState(profile.handle ?? '');
   const [handleError, setHandleError] = useState<string | null>(null);
   const [picError, setPicError] = useState<string | null>(null);
+  /*
+   * The number is write-only from here.
+   *
+   * There is nothing to prefill it with: what the server holds is a hash and
+   * two digits, and it could not send the number back if it wanted to. So the
+   * box is empty with the masked digits beside it, which is also the honest
+   * picture of what is stored.
+   */
+  const [phone, setPhone] = useState('');
+  const [last2, setLast2] = useState(profile.phoneLast2 ?? null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const initial = (name.trim() || '?').slice(0, 1).toUpperCase();
+
+  const savePhone = useCallback(async () => {
+    setBusy(true);
+    setPhoneError(null);
+    try {
+      const res = await fetch('/api/account/phone', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      if (res.ok) {
+        setLast2(((await res.json()) as { last2: string }).last2);
+        setPhone('');
+        await onSaved();
+        return;
+      }
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      // Two failures worth telling apart. One is a format nobody can guess is
+      // wrong without being told which part; the other is a number that is
+      // already somebody's, and re-typing it will not help.
+      setPhoneError(
+        body.error === 'already_claimed'
+          ? 'That number is already on another account.'
+          : 'Start with the country code, like +1 555 010 4477.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [onSaved, phone]);
+
+  const removePhone = useCallback(async () => {
+    setBusy(true);
+    try {
+      await fetch('/api/account/phone', { method: 'DELETE' });
+      setLast2(null);
+      setPhoneError(null);
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }, [onSaved]);
 
   const savePicture = useCallback(
     async (file: File) => {
@@ -220,6 +274,40 @@ export function EditProfile({
       <p className="muted">
         Optional, and on your profile. Anybody who can see your profile can read
         it.
+      </p>
+
+      <label htmlFor="edit-phone" style={{ marginTop: 16 }}>
+        Phone number
+      </label>
+      {last2 ? (
+        <div className="row">
+          <span className="phone-set">••• ••• ••{last2}</span>
+          <button className="secondary small" onClick={removePhone} disabled={busy}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <div className="row">
+          <input
+            id="edit-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 555 010 4477"
+            autoComplete="tel"
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <button className="small" onClick={savePhone} disabled={busy || !phone.trim()}>
+            Save
+          </button>
+        </div>
+      )}
+      {phoneError && <p className="muted">{phoneError}</p>}
+      <p className="muted">
+        Optional, and only so people who already have your number can find you.
+        It is never shown to anybody and never appears on your profile — what is
+        kept is a scrambled form of it and the last two digits, which is why the
+        box above is empty even when a number is set.
       </p>
 
       <div className="row" style={{ marginTop: 20 }}>

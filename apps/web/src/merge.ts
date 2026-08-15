@@ -28,7 +28,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -166,12 +166,32 @@ export async function mergeActor(
       .delete(schema.friendRequests)
       .where(eq(schema.friendRequests.fromActorId, schema.friendRequests.toActorId));
 
+    /*
+     * The number comes across, if the survivor has none.
+     *
+     * A phone number is unique across actors, so it cannot simply be left on
+     * the loser: the row is tombstoned and the number goes with it, and the
+     * person finds their own number unclaimed and themselves unfindable by it.
+     * Carried only into an empty slot — the survivor's own number is the one
+     * they set most recently and the one they expect to keep.
+     */
+    const [loser] = await tx
+      .select({ hash: schema.actors.phoneHash, last2: schema.actors.phoneLast2 })
+      .from(schema.actors)
+      .where(eq(schema.actors.id, from));
+    if (loser?.hash) {
+      await tx
+        .update(schema.actors)
+        .set({ phoneHash: loser.hash, phoneLast2: loser.last2 })
+        .where(and(eq(schema.actors.id, into), isNull(schema.actors.phoneHash)));
+    }
+
     // Tombstoned rather than deleted: the phone that owned this actor still
     // has its token in the keychain, and `currentActorId` follows the pointer
     // so that phone keeps working without anyone signing in again.
     await tx
       .update(schema.actors)
-      .set({ mergedIntoId: into, accountId: null })
+      .set({ mergedIntoId: into, accountId: null, phoneHash: null, phoneLast2: null })
       .where(eq(schema.actors.id, from));
 
     // Anything that pointed at the loser now points at the survivor, so a

@@ -105,6 +105,32 @@ export const actors = pgTable(
    */
   avatarKey: text('avatar_key'),
   /**
+   * A phone number, kept as a keyed hash and never as a number.
+   *
+   * It exists for one thing: somebody who already has your number being able
+   * to find you. That is the whole feature, and it is why the column is a
+   * hash — the product has no use for the digits themselves, so it does not
+   * hold them, and a copy of this table is not a phone book.
+   *
+   * HMAC rather than a bare digest, because the space of phone numbers is
+   * about ten billion and a plain SHA-256 of one is reversible on a laptop in
+   * an afternoon. The key lives in the environment; see `phone.ts`.
+   *
+   * Unique, so a number names at most one account. Somebody claiming a number
+   * another account holds is told so rather than quietly given a second
+   * listing that makes "find by number" ambiguous.
+   */
+  phoneHash: text('phone_hash').unique(),
+  /**
+   * The last two digits, in the clear, and nothing else.
+   *
+   * So the profile can say "••• ••• ••47" and somebody can tell which of their
+   * numbers they gave us. Two digits identify nobody; the alternative is a
+   * screen that can only say "a number is set", which is not enough to answer
+   * "is it my old one?".
+   */
+  phoneLast2: text('phone_last2'),
+  /**
    * A line or two somebody writes about themselves, shown on their profile.
    *
    * Bounded short on purpose. This is a product about photographs of an

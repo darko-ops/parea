@@ -199,6 +199,24 @@ export default function PrivacyPage() {
             you see, exactly as their photographs do not.
           </p>
 
+          <h3>Your phone number, if you give one</h3>
+          <p className="muted">
+            Optional, and it exists for one thing: somebody who already has
+            your number being able to find you here. The number itself is not
+            kept. What is stored is a scrambled form of it &mdash; a keyed hash,
+            which cannot be turned back into the digits without a key that
+            lives outside the database &mdash; and the last two digits, so that
+            your own profile can show you which number you gave. It is never
+            displayed to anybody else and never appears on your profile.
+          </p>
+          <p className="muted">
+            To match a number, it has to reach our server: it travels in the
+            request, is scrambled here, and is not written down. &ldquo;Never
+            stored&rdquo; is the promise; &ldquo;never sent&rdquo; would not be
+            true, and we would rather say so. Removing your number deletes both
+            the scrambled form and the two digits.
+          </p>
+
           <h3>Notifications you have hidden</h3>
           <p className="muted">
             The Activity page is worked out when you open it, from things that

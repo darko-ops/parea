@@ -227,6 +227,8 @@ export type AccountProfile = {
   handle: string | null;
   /** Presigned and short-lived. The bucket is private; see `avatarUrl`. */
   avatarUrl: string | null;
+  /** "47" when a number is set, null when none is. Never the number. */
+  phoneLast2: string | null;
 };
 
 export async function accountFor(
@@ -243,6 +245,8 @@ export async function accountFor(
       bio: schema.actors.bio,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
+      // The last two digits, never the number — there is no number to send.
+      phoneLast2: schema.actors.phoneLast2,
     })
     .from(schema.actors)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
