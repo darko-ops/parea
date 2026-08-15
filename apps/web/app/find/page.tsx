@@ -1,22 +1,29 @@
 /**
- * Search — groups by name, and your own events by place.
+ * Search — one box over the things this person can already reach, plus the two
+ * namespaces the product allows to be looked up.
  *
- * The narrow half of the product, deliberately. §3's rule is that **groups can
- * be findable and photos never are**, so this searches a group namespace and
- * nothing else. There is no event search and no photo search, and adding
+ * §3's rule is that **groups can be findable and photos never are**, and this
+ * page is where that rule is most visible. What is matched here:
+ *
+ *   - your own albums, filtered in the browser over a list the server already
+ *     decided you may see. Nothing is discovered;
+ *   - your own friends, the same;
+ *   - anybody by handle, prefix-only, which is what makes a person findable
+ *     enough to be asked and no further;
+ *   - findable groups, which return a door and never what is inside.
+ *
+ * There is no album search beyond your own and no photo search at all. Adding
  * either would turn "possession of the link is the access model" into "type a
  * word and see whose wedding comes up".
- *
- * The by-place list is not an exception to that. It arranges events the viewer
- * is *already in*, so nothing is discovered — it is a second way to look at
- * what is already on the home screen, for someone who remembers where before
- * they remember what.
  */
 
 import { Shell } from '@/../app/components/Shell';
 import { FindView } from '@/../app/components/FindView';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { friendsOf } from '@/friends';
+import { imageSrc } from '@/images';
+import { searchable } from '@/search';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +34,42 @@ export const metadata = {
 };
 
 export default async function FindPage() {
-  const listings = await eventsFor(getDb(), await currentActorId());
+  const db = getDb();
+  const actorId = await currentActorId();
+  const [listings, friends] = await Promise.all([
+    eventsFor(db, actorId),
+    friendsOf(db, actorId),
+  ]);
+
+  /*
+   * The albums, with the string they are matched against built here.
+   *
+   * Server-side for the same reason the home screen builds its haystack there:
+   * the text a query is matched against and the text on the row have to be
+   * derived once, or they come to disagree about whether the place counts.
+   */
+  const albums = await Promise.all(
+    listings.map(async (listing) => ({
+      id: listing.id,
+      name: listing.name,
+      place: listing.place,
+      caption: listing.caption,
+      thumb: listing.mosaic[0]
+        ? await imageSrc(
+            {
+              eventId: listing.id,
+              storageKey: listing.mosaic[0].storageKey,
+              contentHash: listing.mosaic[0].hash
+                ? Buffer.from(listing.mosaic[0].hash, 'hex')
+                : null,
+            },
+            'thumb',
+            listing.capEpoch,
+          )
+        : null,
+      haystack: searchable(listing),
+    })),
+  );
 
   // Grouped here rather than in the client: it is a pure transform of data
   // the server already has, and shipping the whole list to re-derive it in
@@ -48,6 +90,8 @@ export default async function FindPage() {
           <h1>Search</h1>
         </div>
         <FindView
+          albums={albums}
+          friends={friends}
           places={[...byPlace].map(([place, events]) => ({ place, events }))}
           unplaced={listings.filter((l) => !l.place).length}
         />

@@ -861,6 +861,43 @@ button.secondary {
 /* The number on a filter. Quiet, and tabular so the row does not shuffle as
    albums are made. */
 .pill-count { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   Search results: four kinds of answer, one row shape.
+
+   The same row for an album, a friend, a stranger and a group, because what
+   is known about each of them at this point is the same amount: a picture or
+   a letter, a name, and one line under it. Four differently shaped rows would
+   suggest the page knows more about some of them than it does.
+   --------------------------------------------------------------------------- */
+.hit-head {
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--dim); margin: 0 0 6px;
+}
+.hits { list-style: none; margin: 0; padding: 0; display: grid; }
+.hits li + li { border-top: 1px solid var(--hairline); }
+.hit {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 6px; margin: 0 -6px; border-radius: 10px;
+  color: inherit; text-decoration: none;
+}
+.hit:hover { background: var(--track); }
+/* A rounded square for all four, and a letter when there is no picture — the
+   same fallback the Activity rows use, and never a silhouette. */
+.hit-thumb {
+  flex: none; width: 38px; height: 38px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
+  background: var(--track); color: var(--dim);
+  font-size: 15px; font-weight: 700;
+}
+.hit-text { min-width: 0; display: grid; }
+.hit-text strong {
+  font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hit-text .muted {
+  font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .pill[aria-pressed='true'] .pill-count { color: inherit; opacity: .7; }
 /* The heading and its filters on one line, wrapping to two on a phone. */
 .you-events-head {
