@@ -1049,9 +1049,17 @@ button.secondary {
 .event-head p { margin: 0; font-size: 13px; }
 /* The host's line. Set in the text colour rather than `--dim`: it is something
    somebody wrote, not a count the page derived. */
+/* The handle and the host's own line, on one row — the card's arrangement. */
 .event-caption {
+  display: flex; align-items: baseline; gap: 6px; min-width: 0;
   color: var(--fg); font-size: 13.5px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Whose it is: heavier and quieter than what they wrote, so the eye reads the
+   sentence and not the name in front of it. Never the thing that gives way —
+   the caption is longer and has somewhere to go. */
+.event-handle { flex: none; font-weight: 600; color: var(--dim); }
+.event-said {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .event-head .button-like { padding: 10px 15px; font-size: 14px; white-space: nowrap; }
 .event-body {

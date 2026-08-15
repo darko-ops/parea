@@ -371,12 +371,19 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         <div className="event-head-text">
           <h1>{feed.event.name}</h1>
           {/*
-            The host's own line, above the faces rather than below them: it
-            says what the evening was, and the faces say who it was with. One
-            line, ellipsised — the head is a bar, not a paragraph.
+            Whose album it is, and their own line about it — the same row as on
+            the cards, and for the same reason: a caption means something
+            different depending on who wrote it. "The balcony flat" from
+            somebody you know is a different sentence from the same words from
+            a stranger.
+
+            One line, ellipsised. The head is a bar, not a paragraph.
           */}
-          {feed.event.caption && (
-            <p className="event-caption">{feed.event.caption}</p>
+          {(host?.handle || feed.event.caption) && (
+            <p className="event-caption">
+              {host?.handle && <span className="event-handle">@{host.handle}</span>}
+              {feed.event.caption && <span className="event-said">{feed.event.caption}</span>}
+            </p>
           )}
           {/*
             Who is in it, where a count of photographs used to be.
