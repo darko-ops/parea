@@ -19,6 +19,7 @@
 
 import { useCallback, useState } from 'react';
 
+import { Face } from './Faces';
 import { Menu } from './Menu';
 
 export type ActivityRow = {
@@ -27,6 +28,8 @@ export type ActivityRow = {
   what: string;
   when: string;
   href: string | null;
+  /** A person's picture, or the album's newest photograph. Null draws a letter. */
+  image: string | null;
 };
 
 export function ActivityList({ items }: { items: ActivityRow[] }) {
@@ -69,7 +72,27 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
         {rows.map((row) => {
           const line = (
             <>
-              <span className="activity-who">{row.who}</span> {row.what}
+              {/*
+                The square, and what stands in when there is nothing to put in
+                it: the first letter of whatever the row is about. Never a
+                silhouette or a placeholder glyph — a letter at least belongs
+                to the thing the sentence names.
+
+                `Face` rather than a bare `<img>` because these expire: an
+                avatar URL is presigned for an hour and a photograph is signed
+                against its album's epoch, so a tab left open long enough holds
+                a row whose picture is gone. The letter is what that becomes,
+                rather than the broken-image glyph.
+              */}
+              <Face
+                src={row.image}
+                size={34}
+                className="activity-thumb"
+                fallback={<span aria-hidden="true">{row.who.slice(0, 1).toUpperCase()}</span>}
+              />
+              <span className="activity-said">
+                <span className="activity-who">{row.who}</span> {row.what}
+              </span>
               <span className="activity-when">{row.when}</span>
             </>
           );

@@ -120,6 +120,7 @@ export default async function ActivityPage() {
               what: item.what,
               when: ago(item.at, now),
               href: item.href,
+              image: item.image,
             }))}
           />
         </section>

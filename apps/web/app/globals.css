@@ -517,17 +517,31 @@ button.secondary {
 @media (hover: none) {
   .activity-row .dots-go { opacity: 1; }
 }
-.activity a, .activity span {
-  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
-  padding: 11px 2px; font-size: 14px; line-height: 1.45;
+.activity a, .activity > li > span {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; font-size: 14px; line-height: 1.45;
   color: var(--fg); text-decoration: none;
 }
 .activity a { border-radius: 8px; }
+/* A rounded square rather than a circle: half of these are albums, and an
+   album is a stack of photographs rather than a person. The people get the
+   same shape — a row of alternating circles and squares reads as two lists. */
+.activity-thumb {
+  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
+  background: var(--track); color: var(--dim);
+  font-size: 14px; font-weight: 700;
+}
+/* The sentence, between the square and the time. Wraps rather than truncates:
+   a mention quotes what somebody said, and an ellipsis mid-quote tells you
+   less than a second line does. */
+.activity-said { flex: 1; min-width: 0; }
 .activity-row:hover > a { background: var(--track); }
 .activity-who { font-weight: 600; }
 /* Pushed to the end rather than sitting after the sentence: a column of times
    down the right is readable at a glance, and inline they wander. */
-.activity-when { margin-left: auto; font-size: 12.5px; color: var(--dim); }
+.activity-when { flex: none; font-size: 12.5px; color: var(--dim); }
 
 /* Events you have asked about and not been let into. No photographs, because
    that is the whole point — this is the list of things you cannot see yet. */

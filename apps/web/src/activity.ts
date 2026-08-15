@@ -32,7 +32,9 @@
 import { schema } from '@parea/core';
 import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
 
+import { avatarUrl } from './accounts';
 import type { Db } from './db';
+import { imageSrc } from './images';
 
 /*
  * No `friend_request` here any more.
@@ -57,10 +59,40 @@ export type ActivityItem = {
   what: string;
   /** Where it happened, if there is somewhere to go. */
   href: string | null;
+  /**
+   * The picture on the row: a person's, or the album's newest photograph.
+   *
+   * Which one depends on what the line is about, and that is the whole rule —
+   * "Wren reacted to something you wrote" is about Wren, and "Barcelona is
+   * yours to look at now" is about Barcelona. A row whose picture is not the
+   * thing its sentence names is worse than a row with no picture, which is
+   * what null draws.
+   */
+  image: string | null;
 };
 
 /** How much of the past to show. A list, not an archive. */
 const LIMIT = 60;
+
+/**
+ * The album's newest photograph, for the square on rows that are about albums.
+ *
+ * A subselect rather than a join for the usual reason: joining the photo table
+ * multiplies the rows the query is counting. Null for an album nobody has
+ * added to yet, which draws a letter instead — the same fallback the cards use
+ * when there is nothing to show.
+ */
+const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
+  select json_build_object(
+    'storageKey', p.storage_key,
+    'hash', encode(p.content_hash, 'hex')
+  )
+  from "photo" p
+  where p.event_id = ${schema.events.id}
+    and p.status = 'ready' and p.deleted_at is null
+  order by p.uploaded_at desc
+  limit 1
+)`;
 
 const NAME = sql<string>`coalesce(
   nullif(btrim(${schema.actors.displayName}), ''),
@@ -105,6 +137,7 @@ export async function activityFor(
         emoji: schema.messageReactions.emoji,
         at: schema.messageReactions.createdAt,
         who: NAME,
+        avatarKey: schema.actors.avatarKey,
         eventId: schema.eventMessages.eventId,
       })
       .from(schema.messageReactions)
@@ -138,6 +171,7 @@ export async function activityFor(
             id: schema.eventMessages.id,
             at: schema.eventMessages.createdAt,
             who: NAME,
+            avatarKey: schema.actors.avatarKey,
             eventId: schema.eventMessages.eventId,
             body: schema.eventMessages.body,
           })
@@ -168,6 +202,8 @@ export async function activityFor(
         at: schema.eventParticipants.firstSeenAt,
         name: schema.events.name,
         eventId: schema.events.id,
+        capEpoch: schema.events.capEpoch,
+        cover: COVER,
       })
       .from(schema.eventParticipants)
       .innerJoin(schema.events, eq(schema.events.id, schema.eventParticipants.eventId))
@@ -189,6 +225,8 @@ export async function activityFor(
         status: schema.eventAccessRequests.status,
         name: schema.events.name,
         eventId: schema.events.id,
+        capEpoch: schema.events.capEpoch,
+        cover: COVER,
       })
       .from(schema.eventAccessRequests)
       .innerJoin(schema.events, eq(schema.events.id, schema.eventAccessRequests.eventId))
@@ -204,8 +242,34 @@ export async function activityFor(
       .limit(LIMIT),
   ]);
 
-  const items: ActivityItem[] = [
-    ...reactions.map((r) => ({
+  /*
+   * The picture, resolved once per row.
+   *
+   * Two different signatures for two different kinds of image: an avatar is
+   * presigned against private storage for an hour, a photograph is signed
+   * against its album's `cap_epoch` so rotating the album's link stops it
+   * resolving. Both are addresses handed to the browser; neither is a byte
+   * this process ever touches.
+   */
+  const cover = (row: {
+    eventId: string;
+    capEpoch: number;
+    cover: { storageKey: string; hash: string | null } | null;
+  }) =>
+    row.cover
+      ? imageSrc(
+          {
+            eventId: row.eventId,
+            storageKey: row.cover.storageKey,
+            contentHash: row.cover.hash ? Buffer.from(row.cover.hash, 'hex') : null,
+          },
+          'thumb',
+          row.capEpoch,
+        )
+      : Promise.resolve(null);
+
+  const items: ActivityItem[] = await Promise.all([
+    ...reactions.map(async (r) => ({
       id: `reaction:${r.id}:${r.emoji}:${r.at.toISOString()}`,
       kind: 'reaction' as const,
       at: r.at.toISOString(),
@@ -214,8 +278,9 @@ export async function activityFor(
       // that sit hard against the next word, and "🔥to" reads as a typo.
       what: `reacted ${r.emoji}\u00a0 to something you wrote`,
       href: `/event/${r.eventId}`,
+      image: await avatarUrl(r.avatarKey),
     })),
-    ...mentions.map((m) => ({
+    ...mentions.map(async (m) => ({
       id: `mention:${m.id}`,
       kind: 'mention' as const,
       at: m.at.toISOString(),
@@ -224,24 +289,27 @@ export async function activityFor(
       // notification that can only be answered by opening it.
       what: `mentioned you: “${m.body.slice(0, 90)}${m.body.length > 90 ? '…' : ''}”`,
       href: `/event/${m.eventId}`,
+      image: await avatarUrl(m.avatarKey),
     })),
-    ...letIn.map((l) => ({
+    ...letIn.map(async (l) => ({
       id: `letin:${l.id}`,
       kind: 'let_in' as const,
       at: l.at.toISOString(),
       who: l.name,
       what: 'is yours to look at now',
       href: `/event/${l.eventId}`,
+      image: await cover(l),
     })),
-    ...answered.map((a) => ({
+    ...answered.map(async (a) => ({
       id: `answered:${a.id}`,
       kind: 'request_answered' as const,
       at: a.at!.toISOString(),
       who: a.name,
       what: a.status === 'approved' ? 'let you in' : 'was not opened to you',
       href: a.status === 'approved' ? `/event/${a.eventId}` : null,
+      image: await cover(a),
     })),
-  ];
+  ]);
 
   // Newest first, and bounded again after the merge — four queries of sixty is
   // two hundred rows, and nobody scrolls that.
