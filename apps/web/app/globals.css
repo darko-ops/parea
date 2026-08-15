@@ -655,42 +655,33 @@ button.secondary {
 .face-lens { display: block; border-radius: 50%; }
 .faces > * + * { margin-left: -6px; }
 .card-meta { font-size: 12.5px; color: var(--dim); }
-/* Who is in it, then when it last moved. The circles carry the colour, so
-   everything beside them is grey — two strong things on one short row read as
-   a label and a value rather than as one fact. */
-.card-who {
-  display: flex; align-items: center; gap: 7px; margin-top: 4px;
-  min-width: 0;
+/* The last line of the card: where and when at one end, who at the other.
+
+   Two ends rather than a sentence, because they are two kinds of fact — one
+   about the evening, one about the people — and reading them as a list is the
+   thing the old single row got wrong. */
+.card-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 5px; min-width: 0;
 }
+/* Place then time. The place can be long and the time cannot, so the place is
+   the thing that gives way. */
+.card-facts {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  font-size: 12px; font-weight: 500; color: var(--dim);
+}
+.card-place { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.card-place svg { flex: none; opacity: .8; }
+.card-place span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-when { flex: none; white-space: nowrap; }
+.card-who { display: flex; align-items: center; gap: 6px; flex: none; }
 /* The count the circles stop being able to suggest. Tabular so a wall of cards
    does not shuffle sideways between "+1" and "+11". */
 .card-more {
   flex: none; font-size: 12px; font-weight: 600; color: var(--dim);
   font-variant-numeric: tabular-nums;
-}
-/* Pushed to the end of the row: times down the right of a grid are readable at
-   a glance, and inline after a variable number of circles they wander. */
-.card-when {
-  margin-left: auto; flex: none;
-  font-size: 12px; font-weight: 500; color: var(--dim);
-  white-space: nowrap;
-}
-/* Where it was, in its own register.
-
-   It used to sit on the row above as the tail of a sentence about people, and
-   read as one. It is the fact that tells two albums of the same faces apart,
-   so it gets a rule, a mark and letter-spacing — small and quiet, but not the
-   same shape as anything else on the card. */
-.card-place {
-  position: relative; display: flex; align-items: center; gap: 6px;
-  padding: 8px 13px 10px;
-  border-top: 1px solid var(--hairline);
-  font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--dim);
-}
-.card-place svg { flex: none; }
-.card-place span {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* One circle per contributor, in the mark's colours, overlapped the way the
    mark's own lenses overlap. */

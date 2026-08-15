@@ -174,27 +174,49 @@ export function EventCard({ event }: { event: CardEvent }) {
             )}
 
             {/*
-              Who is in it, and when it last moved.
+              The bottom line: where and when on the left, who on the right.
 
-              Three circles and then a number. The circles used to run to four
-              with nothing after them, on the argument that they were a sense
-              of scale rather than a count — but "how many people are in this"
-              is the question somebody scanning a wall of albums actually has,
-              and four circles for eleven people answers it wrongly rather than
-              vaguely.
+              Facts about the evening and facts about the people, at opposite
+              ends of one row. The place had a strip of its own under the card
+              — a lip below the photographs that made every card taller for a
+              field most albums leave empty. It reads as part of the sentence
+              here, which is what it always was.
 
               Members, not contributors: an album is the people in it, and
               somebody who has not added a photograph yet is exactly who the
-              card is trying to prompt.
+              card is trying to prompt. Three faces and then a number, because
+              "how many of us are in this" is the question somebody scanning a
+              wall of albums actually has, and four circles for eleven people
+              answers it wrongly rather than vaguely.
             */}
-            <div className="card-who">
-              <Faces avatars={event.memberAvatars} size={16} />
-              {others > event.memberAvatars.length && (
-                <span className="card-more">
-                  +{others - event.memberAvatars.length} more
-                </span>
-              )}
-              <span className="card-when">{event.added}</span>
+            <div className="card-foot">
+              <span className="card-facts">
+                {event.place && (
+                  <span className="card-place">
+                    <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                      <path
+                        d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinejoin="round"
+                      />
+                      <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
+                    </svg>
+                    <span>{event.place}</span>
+                  </span>
+                )}
+                <span className="card-when">{event.added}</span>
+              </span>
+
+              <span className="card-who">
+                <Faces avatars={event.memberAvatars} size={16} />
+                {others > event.memberAvatars.length && (
+                  <span className="card-more">
+                    +{others - event.memberAvatars.length} more
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           {/*
@@ -205,30 +227,6 @@ export function EventCard({ event }: { event: CardEvent }) {
           */}
         </div>
 
-        {/*
-          Where it was, on its own line and in its own register.
-
-          It shared a row with the circles and read as the tail of a sentence
-          about people. It is a different kind of fact — the one that tells two
-          albums of the same faces apart — so it gets a rule above it, a mark,
-          and letter-spacing that stops it competing with the name. Only for
-          albums that have one; there is no empty slot for a place nobody typed.
-        */}
-        {event.place && (
-          <div className="card-place">
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-              <path
-                d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-              <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
-            </svg>
-            <span>{event.place}</span>
-          </div>
-        )}
       </div>
     </a>
   );
