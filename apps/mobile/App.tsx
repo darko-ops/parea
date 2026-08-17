@@ -50,6 +50,7 @@ import {
 import { AccountCard, HomeTab, ProfileTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
+import { PersonScreen } from './src/Person';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
@@ -104,6 +105,7 @@ type Route =
   | { screen: 'join' }
   | { screen: 'event'; event: SavedEvent }
   | { screen: 'group'; id: string }
+  | { screen: 'person'; handle: string }
   | { screen: 'create'; groupId?: string; groupName?: string };
 
 export default function App() {
@@ -402,6 +404,24 @@ export default function App() {
         />
       )}
 
+      {/*
+        Somebody's page, pushed over whichever tab found them. The app's own
+        event list goes with it: the albums you are both in are all albums this
+        device already holds a link token for, so opening one from here is the
+        same act as opening it from home.
+      */}
+      {route.screen === 'person' && (
+        <PersonScreen
+          api={api}
+          handle={route.handle}
+          events={events}
+          t={t}
+          onBack={() => setRoute({ screen: 'tabs' })}
+          onOpenEvent={openListing}
+          Button={Button}
+        />
+      )}
+
       {route.screen === 'join' && (
         <JoinScreen
           api={api}
@@ -444,6 +464,7 @@ export default function App() {
               t={t}
               onOpen={openListing}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+              onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             />
           )}
           {tab === 'profile' && (

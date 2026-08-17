@@ -260,6 +260,89 @@ describe('the things waiting on you, on the wire', () => {
   });
 });
 
+describe('a person, on the wire', () => {
+  function respond(body: unknown, status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status });
+    });
+    return calls;
+  }
+
+  it('escapes the handle rather than pasting it into the path', async () => {
+    // A handle in a URL has been tapped out of a search result, and the app
+    // must not be the thing that turns one into a different request.
+    const calls = respond({ person: {}, shared: [] });
+    await new Api('https://api.test').person('a/b?c');
+    expect(calls[0]!.url).toBe('https://api.test/api/people/a%2Fb%3Fc');
+  });
+
+  it('hands back the page whole, envelope and all', async () => {
+    // Both halves come from one call because they are one decision: who this
+    // is, and which albums you are both in.
+    respond({
+      person: {
+        actorId: 'a1',
+        handle: 'wren',
+        displayName: 'Wren',
+        avatar: null,
+        standing: 'none',
+        requestId: null,
+      },
+      shared: [{ id: 'e1', name: 'Barcelona', caption: null, lastActiveAt: 'x', thumb: null }],
+    });
+    const body = await new Api('https://api.test').person('wren');
+    expect(body.person).toMatchObject({ handle: 'wren', standing: 'none' });
+    expect(body.shared).toHaveLength(1);
+  });
+
+  it('surfaces the 404 that covers everybody without a page', async () => {
+    /*
+     * No such handle, a device that never signed in, a merged actor, either
+     * side of a block — one answer for all of them. The client must not try
+     * to tell them apart, because telling them apart is how a screen becomes
+     * a way to ask whether somebody exists.
+     */
+    vi.stubGlobal('fetch', async () =>
+      new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }),
+    );
+    const err = await new Api('https://api.test').person('wren').catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(404);
+  });
+
+  it('asks by actor id, and says what is now true', async () => {
+    // `accepted` comes back when the ask crossed with theirs: the endpoint
+    // answers their open request rather than opening a second one.
+    const calls = respond({ status: 'accepted' });
+    expect(await new Api('https://api.test').askFriend('a1')).toEqual({
+      status: 'accepted',
+    });
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({ actorId: 'a1' });
+  });
+
+  it('answers by request id, the same PATCH the bubble sends', async () => {
+    // Two screens, one endpoint. A second way to accept a friend request
+    // would be a second place for "who may answer this" to live.
+    const calls = respond({ ok: true });
+    await new Api('https://api.test').answerFriend('r1', false);
+    expect(calls[0]!.url).toBe('https://api.test/api/friends');
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      requestId: 'r1',
+      action: 'decline',
+    });
+  });
+
+  it('escapes a handle search the same way the group one is escaped', async () => {
+    const calls = respond({ people: [] });
+    await new Api('https://api.test').findPeople('wren smith');
+    expect(calls[0]!.url).toBe('https://api.test/api/people?q=wren%20smith');
+  });
+});
+
 describe('failures', () => {
   it('keeps the status and the code, because the UI branches on both', async () => {
     // 404 is "no such event"; 403 blocked and 429 quota_exceeded both need

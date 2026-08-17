@@ -133,6 +133,42 @@ export type PendingRequest = {
   at: string;
 };
 
+/**
+ * Where you and somebody else stand, as the profile screen draws it.
+ *
+ * `asked` covers a refusal as well as an unanswered ask, and the server is
+ * where that decision lives: telling somebody they were declined is the
+ * decliner's to do, so the app is never told either.
+ */
+export type Standing = 'self' | 'friends' | 'asked' | 'asking' | 'none';
+
+/** One person, as everybody else is allowed to see them. */
+export type Person = {
+  actorId: string;
+  handle: string;
+  displayName: string | null;
+  /** Presigned for an hour. The storage key never crosses this boundary. */
+  avatar: string | null;
+  standing: Standing;
+  /** Only when they are the one waiting: the id the answer goes to. */
+  requestId: string | null;
+};
+
+/**
+ * An album you are both in.
+ *
+ * Taken out of the *viewer's* list on the server and filtered down to the
+ * ones this person is in — never the other way round. See `people.ts` on the
+ * web for why the direction of that sentence is the safety property.
+ */
+export type SharedAlbum = {
+  id: string;
+  name: string;
+  caption: string | null;
+  lastActiveAt: string;
+  thumb: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -409,6 +445,57 @@ export class Api {
   deleteAccount(alsoPhotos: boolean): Promise<{ deleted: boolean; photos: number }> {
     return this.call(`/api/account${alsoPhotos ? '?photos=1' : ''}`, {
       method: 'DELETE',
+    });
+  }
+
+  // --- people ----------------------------------------------------------
+
+  /**
+   * Somebody, by handle.
+   *
+   * Prefix-only, ten results, a handle and a name and nothing else — the same
+   * narrowness the web search has, because it is the same endpoint. Being
+   * findable leads to being able to ask and to nothing further.
+   */
+  async findPeople(
+    query: string,
+  ): Promise<{ actorId: string; handle: string | null; displayName: string | null }[]> {
+    const { people } = await this.call<{
+      people: { actorId: string; handle: string | null; displayName: string | null }[];
+    }>(`/api/people?q=${encodeURIComponent(query)}`);
+    return people;
+  }
+
+  /**
+   * One person's page.
+   *
+   * 404 covers every reason there is not to have one — no such handle, a
+   * device that never signed in, a merged actor, either side of a block — so
+   * this cannot be used to ask whether somebody exists.
+   */
+  person(handle: string): Promise<{ person: Person; shared: SharedAlbum[] }> {
+    return this.call(`/api/people/${encodeURIComponent(handle)}`);
+  }
+
+  /**
+   * Asking to be friends.
+   *
+   * The response says what is now true rather than what was done: an ask that
+   * crosses with theirs answers their request instead of opening a second one,
+   * and comes back `accepted`.
+   */
+  askFriend(actorId: string): Promise<{ status?: string }> {
+    return this.call('/api/friends', {
+      method: 'POST',
+      body: JSON.stringify({ actorId }),
+    });
+  }
+
+  /** Answering one, from their page rather than from the bubble on home. */
+  answerFriend(requestId: string, yes: boolean): Promise<unknown> {
+    return this.call('/api/friends', {
+      method: 'PATCH',
+      body: JSON.stringify({ requestId, action: yes ? 'accept' : 'decline' }),
     });
   }
 

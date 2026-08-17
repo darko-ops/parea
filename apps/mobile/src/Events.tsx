@@ -310,14 +310,16 @@ export function HomeTab({
 /**
  * Page 2 — finding things.
  *
- * Two halves, and they are different in kind. Group search reaches groups this
- * person is *not* in, and is the only discovery surface in the product: it
- * returns findable groups by name, never events and never photos. §3's rule
- * holds — groups can be findable, photos never are — so there is deliberately
- * no event search here, and adding one would make people's photos
- * discoverable by strangers.
+ * Three parts, and they differ in kind rather than in subject. Group search
+ * and handle search both reach past what this person already has, and both are
+ * deliberately narrow: a findable group comes back as a name and a member
+ * count, never what is inside, and a person comes back as a handle and
+ * whatever name they chose to show, by prefix, so somebody is findable enough
+ * to be *asked* and no further. §3's rule holds — groups can be findable,
+ * photos never are — so there is no event search here, and adding one would
+ * make people's photographs discoverable by strangers.
  *
- * The map half is the opposite: it reaches only events this person is already
+ * The map part is the opposite: it reaches only events this person is already
  * in, arranged by where they were. Nothing is discovered, and nothing is
  * exposed that they could not already see.
  */
@@ -327,16 +329,22 @@ export function SearchTab({
   t,
   onOpen,
   onOpenGroup,
+  onOpenPerson,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
+  onOpenPerson: (handle: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<
     { id: string; name: string; memberCount: number }[]
+  >([]);
+  const [handle, setHandle] = useState('');
+  const [people, setPeople] = useState<
+    { actorId: string; handle: string | null; displayName: string | null }[]
   >([]);
 
   const search = useCallback(
@@ -346,6 +354,23 @@ export function SearchTab({
       // ask for, and asking per keystroke is a request per keystroke.
       if (next.trim().length < 2) return setResults([]);
       setResults(await api.searchGroups(next).catch(() => []));
+    },
+    [api],
+  );
+
+  /*
+   * The same shape, against the other namespace.
+   *
+   * A failed lookup empties the list rather than leaving the last one up:
+   * unlike the home screen's count, a stale result here is a row somebody is
+   * about to tap, and tapping it would open a page for a search they have
+   * already changed.
+   */
+  const searchPeople = useCallback(
+    async (next: string) => {
+      setHandle(next);
+      if (next.trim().length < 2) return setPeople([]);
+      setPeople(await api.findPeople(next).catch(() => []));
     },
     [api],
   );
@@ -365,6 +390,49 @@ export function SearchTab({
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={[styles.h1, { color: t.fg }]}>Find</Text>
+
+      {/*
+        Somebody, by handle — the way into their page.
+        
+        Its own card rather than one box over both, which is what the web does
+        now: this tab is built as a card per kind and folding them together is
+        a redesign of the tab rather than an addition to it.
+      */}
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>Somebody, by handle</Text>
+        <TextInput
+          value={handle}
+          onChangeText={searchPeople}
+          placeholder="Their handle"
+          placeholderTextColor={t.dim}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Find somebody by handle"
+          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+        />
+        <Text style={[styles.small, { color: t.dim }]}>
+          By the start of a handle, and only that. Nobody is listed — you have
+          to be told who somebody is before you can find them.
+        </Text>
+        {people.map((person) => (
+          <Pressable
+            key={person.actorId}
+            style={styles.row}
+            disabled={!person.handle}
+            onPress={() => person.handle && onOpenPerson(person.handle)}
+          >
+            <Text style={[styles.body, { color: t.accent, flex: 1 }]}>
+              {person.displayName?.trim() || `@${person.handle}`}
+            </Text>
+            {person.displayName?.trim() && person.handle && (
+              <Text style={[styles.small, { color: t.dim }]}>@{person.handle}</Text>
+            )}
+          </Pressable>
+        ))}
+        {handle.trim().length >= 2 && people.length === 0 && (
+          <Text style={[styles.body, { color: t.dim }]}>No handle starts with that.</Text>
+        )}
+      </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>A group, by name</Text>
