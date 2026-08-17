@@ -26,6 +26,29 @@ function name(person: Person): string {
   return person.displayName || (person.handle ? `@${person.handle}` : 'Someone');
 }
 
+/**
+ * A name, linked to the person it belongs to.
+ *
+ * Keyed by handle, which is the only thing about somebody that is durable and
+ * public — a row without one is not a findable person and has no page, so it
+ * stays plain text rather than becoming a link to a 404.
+ */
+function Named({ person }: { person: Person }) {
+  const label = name(person);
+  return (
+    <div>
+      {person.handle ? (
+        <a href={`/u/${encodeURIComponent(person.handle)}`} className="named">
+          <strong>{label}</strong>
+        </a>
+      ) : (
+        <strong>{label}</strong>
+      )}
+      {person.displayName && person.handle && <p className="muted">@{person.handle}</p>}
+    </div>
+  );
+}
+
 export function FriendsView() {
   const [friends, setFriends] = useState<Person[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
@@ -158,12 +181,7 @@ export function FriendsView() {
             <ul className="people">
               {results.map((person) => (
                 <li key={person.actorId}>
-                  <div>
-                    <strong>{name(person)}</strong>
-                    {person.displayName && person.handle && (
-                      <p className="muted">@{person.handle}</p>
-                    )}
-                  </div>
+                  <Named person={person} />
                   {known.has(person.actorId) ? (
                     <span className="pip pip-declined">Friends</span>
                   ) : asked[person.actorId] ? (
@@ -190,12 +208,7 @@ export function FriendsView() {
           <ul className="people">
             {requests.map((request) => (
               <li key={request.id}>
-                <div>
-                  <strong>{name(request)}</strong>
-                  {request.displayName && request.handle && (
-                    <p className="muted">@{request.handle}</p>
-                  )}
-                </div>
+                <Named person={request} />
                 <div className="row">
                   <button
                     onClick={() => answer(request, 'accept')}
@@ -228,12 +241,7 @@ export function FriendsView() {
           <ul className="people">
             {friends.map((person) => (
               <li key={person.actorId}>
-                <div>
-                  <strong>{name(person)}</strong>
-                  {person.displayName && person.handle && (
-                    <p className="muted">@{person.handle}</p>
-                  )}
-                </div>
+                <Named person={person} />
                 <button
                   className="secondary"
                   onClick={() => remove(person)}

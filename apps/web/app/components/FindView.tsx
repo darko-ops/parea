@@ -449,9 +449,18 @@ function AlbumRow({ album }: { album: AlbumHit }) {
  */
 function PersonRow({ person, note }: { person: Person; note?: string }) {
   const name = person.displayName?.trim() || (person.handle ? `@${person.handle}` : 'Someone');
+  /*
+   * The person, not the friends list.
+   *
+   * Every one of these rows used to lead to `/friends` — an answer to "who do
+   * I know" for somebody who had just asked "who is this". A handle is what
+   * that page is keyed by, and a row without one cannot be visited: it is not
+   * a findable person, so it is not one with a page.
+   */
+  const href = person.handle ? `/u/${encodeURIComponent(person.handle)}` : '/friends';
   return (
     <li>
-      <a href="/friends" className="hit">
+      <a href={href} className="hit">
         <span className="hit-thumb" aria-hidden="true">
           {name.replace('@', '').slice(0, 1).toUpperCase()}
         </span>

@@ -21,9 +21,15 @@ import { currentActorId } from '@/session';
 export const runtime = 'nodejs';
 
 /**
- * Blocking is by photo rather than by actor id. Uploader ids are not exposed
- * to clients — there is no profile to visit and no user directory — so the
- * only handle a viewer has on a person is something they uploaded.
+ * Blocking is by photo rather than by actor id.
+ *
+ * It stays that way now that people have pages. A profile is reached by
+ * handle, and what it offers is the ask — the answer to somebody you do not
+ * want to hear from is to decline, which is said once and cannot be pressed
+ * past. Blocking is the heavier tool and belongs where the heavier problem is:
+ * a photograph of you, in an album you are both in, put there by somebody you
+ * cannot simply stop asking. That is the handle a viewer has on a person, and
+ * it is the one this takes.
  */
 async function resolveTarget(
   db: ReturnType<typeof getDb>,

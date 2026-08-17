@@ -33,7 +33,13 @@ export async function GET(
     .select({
       id: schema.groupJoinRequests.id,
       createdAt: schema.groupJoinRequests.createdAt,
-      // A display name if they gave one; there are no profiles to link to.
+      /*
+       * A display name if they gave one, and no handle — so this row cannot
+       * link to the asker's page even now that there is one. Deliberate: a
+       * request to join is answered on what the group knows about the person
+       * asking, and handing an admin a way to go and read about a stranger
+       * turns answering into looking somebody up.
+       */
       displayName: schema.actors.displayName,
     })
     .from(schema.groupJoinRequests)

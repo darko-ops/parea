@@ -128,6 +128,22 @@ describe('who appears under People', () => {
   });
 });
 
+describe('where a result leads', () => {
+  it('sends a person to their own page, not to your friends list', () => {
+    // Every row used to lead to `/friends` — an answer to "who do I know" for
+    // somebody who had just asked "who is this".
+    expect(VIEW).toMatch(/`\/u\/\$\{encodeURIComponent\(person\.handle\)\}`/);
+    expect(VIEW).toMatch(/`\/event\/\$\{album\.id\}`/);
+    expect(VIEW).toMatch(/`\/group\/\$\{door\.id\}`/);
+  });
+
+  it('leaves a row with no handle where it was', () => {
+    // The page is keyed by handle. Somebody without one is not findable, so
+    // linking to them would be linking to a 404.
+    expect(VIEW).toMatch(/person\.handle \? `\/u\//);
+  });
+});
+
 describe('who a suggestion may be', () => {
   const FRIENDS = read('../src/friends.ts');
   const SUGGEST = FRIENDS.slice(

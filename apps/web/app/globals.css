@@ -879,6 +879,25 @@ button.secondary {
    unbolded, because it is an aside on the heading rather than part of it. */
 .hit-head-note { font-weight: 400; letter-spacing: 0; text-transform: none; }
 
+/* Somebody else's page.
+
+   One row: their picture, their name, and the one thing you can do about
+   them. Everything the product is willing to say about a person to another
+   person fits on a line, and the layout says so rather than padding it out
+   into a profile that looks like it should have more on it. */
+.person { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.person-face { flex: none; }
+.person-who { flex: 1; min-width: 160px; }
+.person-who h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+.person-who p { margin: 2px 0 0; font-size: 14px; }
+.person-act { flex: none; }
+
+/* A name that leads to the person. Underlined only on hover: in a list of
+   rows that each end in a button, three underlined names read as three more
+   controls. */
+.named { color: inherit; text-decoration: none; }
+.named:hover { text-decoration: underline; text-underline-offset: 3px; }
+
 /* The search box, and the three things it points at.
 
    The scopes sit directly under the input and above everything else, because
