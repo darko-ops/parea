@@ -119,7 +119,15 @@ export function RequestBubble({
           <Text style={[styles.countText, { color: t.onAccent }]}>{n}</Text>
         </View>
         <Text style={[styles.label, { color: none ? t.dim : t.accent }]}>
-          {n === 1 ? 'request waiting on you' : 'requests waiting on you'}
+          {/*
+            "Invites", the same word the web bubble uses. The old label
+            described the product's job rather than the person's: it is a queue
+            from the software's point of view and an invitation from theirs.
+            Somebody asking into an album you run stretches the word slightly,
+            and that is the right way round — the rows underneath say exactly
+            who wants what.
+          */}
+          {n === 1 ? 'invite' : 'invites'}
         </Text>
         {!none && (
           <Text style={[styles.chevron, { color: t.accent }]}>

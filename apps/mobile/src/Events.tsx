@@ -410,9 +410,17 @@ export function SearchTab({
           accessibilityLabel="Find somebody by handle"
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
         />
+        {/*
+          There used to be a card further down that said this and offered no
+          box: it had been rewritten twice as the product moved under it, from
+          "an account is an email address and nothing else" to "there is nobody
+          to find". A paragraph describing a search, above no search, is the
+          same overexplaining the web page had — so it says it here, once,
+          under the thing it is about.
+        */}
         <Text style={[styles.small, { color: t.dim }]}>
-          By the start of a handle, and only that. Nobody is listed — you have
-          to be told who somebody is before you can find them.
+          By the start of a handle, and only that. A search returns a handle
+          and a name — never their events, their photos, or who else they know.
         </Text>
         {people.map((person) => (
           <Pressable
@@ -515,20 +523,6 @@ export function SearchTab({
         )}
       </View>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>People</Text>
-        {/*
-          Rewritten twice, and this is the second time the product moved under
-          it. It said an account was "an email address and nothing else", then
-          that there was nobody to find at all. Handles are searchable now, so
-          the honest version says what a search does and what it stops at.
-        */}
-        <Text style={[styles.body, { color: t.dim }]}>
-          Search a handle to find somebody and ask to be friends. That is all a
-          search returns — a handle and a name. Never their events, their
-          photos, or who else they know.
-        </Text>
-      </View>
     </ScrollView>
   );
 }
