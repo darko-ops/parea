@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 /** Written once so the two private-path rules cannot drift apart. */
@@ -92,4 +93,31 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+/*
+ * Sentry, wrapped around the config rather than configured inside it.
+ *
+ * What this adds at build time is source maps. Without them a production stack
+ * trace is a list of minified frames, which tells you a crash happened and
+ * nothing about where — the same amount of information the log already had.
+ *
+ * `widenClientFileUpload` is off and `disableLogger` is on for the same reason
+ * there is no client config: nothing of Sentry's should reach the browser
+ * bundle. The org, project and token come from the Vercel integration and
+ * exist only on Preview and Production, so a local `next build` skips the
+ * upload rather than failing — which is what `silent` keeps quiet about.
+ */
+export default withSentryConfig(config, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: false,
+  disableLogger: true,
+  // Deleting them after upload is the point: a source map served from the
+  // origin hands the whole codebase to anybody who opens devtools.
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+  // A route that proxies Sentry's ingest through this origin, so an ad
+  // blocker cannot silence reports. Off: it only matters for a browser SDK,
+  // and there is deliberately not one.
+  tunnelRoute: undefined,
+});
