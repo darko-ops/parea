@@ -34,7 +34,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SignIn, useSession } from './SignIn';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
-import { PhotoLightbox } from './PhotoLightbox';
 import { ShareEvent } from './ShareEvent';
 import { PhotoTile } from './PhotoTile';
 import type { Member, Roster } from '@/members';
@@ -53,7 +52,7 @@ type Photo = {
   src: string;
   /** The same thumbnail in every encoding that exists, best first (§11). */
   sources?: { type: string; src: string }[];
-  /** Larger rendition, for the lightbox. */
+  /** Larger rendition, for the photo page and the download chip. */
   full: string;
   takenAt: string;
   /** Pixels, as the deriver read them. Null before it has. See the page. */
@@ -175,7 +174,6 @@ export function EventView({
   const [feed, setFeed] = useState<Feed>(initial);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
   /** How many of the last selection were not photos. */
   const [skipped, setSkipped] = useState(0);
   /**
@@ -628,9 +626,9 @@ export function EventView({
               />
               <Masonry
                 photos={fresh}
+                eventId={eventId}
                 picked={picked}
                 onPick={togglePick}
-                onOpen={setOpenPhoto}
                 people={feed.people}
                 lead={null}
               />
@@ -649,9 +647,9 @@ export function EventView({
           */}
           <Masonry
             photos={fresh.length > 0 ? earlier : visible}
+            eventId={eventId}
             picked={picked}
             onPick={togglePick}
-            onOpen={setOpenPhoto}
             people={feed.people}
             lead={
               feed.event.uploadsOpen && session.account && !picked ? (
@@ -679,7 +677,8 @@ export function EventView({
             The bar for a selection, at the foot of the body rather than
             floating over the gallery: it appears when the mode starts and it
             says how to leave, because while it is up a tile picks instead of
-            opening — and the lightbox is where the reporting actions are.
+            going to the photograph's own page — which is where the reporting
+            actions are.
           */}
           {picked && (
             <div className="picking">
@@ -758,16 +757,6 @@ export function EventView({
         />
       )}
 
-      {openPhoto && (
-        <PhotoLightbox
-          photo={openPhoto}
-          eventId={eventId}
-          messages={feed.messages}
-          canPost={feed.canPost}
-          onClose={() => setOpenPhoto(null)}
-          onChanged={refresh}
-        />
-      )}
     </main>
   );
 }
@@ -854,16 +843,17 @@ const COLUMN_COUNTS = 4;
 
 function Masonry({
   photos,
+  eventId,
   picked,
   onPick,
-  onOpen,
   people,
   lead,
 }: {
   photos: Photo[];
+  /** For each tile's own address — a photograph is a page now, not a dialog. */
+  eventId: string;
   picked: Set<string> | null;
   onPick: (id: string) => void;
-  onOpen: (photo: Photo) => void;
   /** For the name on a tile's overlay. Keyed by the contributor digest. */
   people: Person[];
   /** The contribute tile, which is first in the first column. */
@@ -904,12 +894,12 @@ function Masonry({
             <PhotoTile
               key={photo.id}
               photo={photo}
+              href={`/event/${eventId}/p/${photo.id}`}
               ratio={ratio}
               by={people.find((person) => person.key === photo.by)?.name ?? null}
               picking={picked !== null}
               picked={picked?.has(photo.id) ?? false}
               onPick={() => onPick(photo.id)}
-              onOpen={() => onOpen(photo)}
             />
           ))}
         </div>

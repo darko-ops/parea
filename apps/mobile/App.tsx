@@ -1314,9 +1314,15 @@ function EventScreen({
 // --- per-photo safety actions -------------------------------------------------
 
 /**
- * The same set as the web lightbox — remove your own, or ask/report/block
+ * The same set as the web photo page — remove your own, or ask/report/block
  * someone else's. App Store Guideline 1.2 requires these reachable in the app,
  * and this is a photo-sharing app carrying other people's faces regardless.
+ *
+ * The web moved these behind a `···` when the photograph became a page of its
+ * own; here they stay as they are. That is not drift: this is a sheet somebody
+ * opened for one photograph, so there is nothing else on it for them to
+ * compete with — the reason for hiding them on the web was that they sat in
+ * the open at the same weight as a comment.
  */
 function PhotoActions({
   api,

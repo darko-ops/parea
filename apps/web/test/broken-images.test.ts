@@ -138,13 +138,25 @@ describe('images that will not load', () => {
   it('keep the way in to the safety actions', async () => {
     const tile = await source('app/components/PhotoTile.tsx');
 
-    // Guideline 1.2 wants reporting reachable. A photo that will not render
-    // for you is not a photo nobody can see — it may be the one someone means
-    // to report — so the failed tile is still the button that opens the
-    // lightbox, and the lightbox's own actions do not depend on its image.
-    const button = tile.match(/<button[\s\S]*?>/)?.[0] ?? '';
-    expect(button).toContain('onClick');
-    expect(button).toContain('aria-label');
+    /*
+     * Guideline 1.2 wants reporting reachable. A photo that will not render
+     * for you is not a photo nobody can see — it may be the one someone means
+     * to report — so the failed tile is still the way to the photograph's own
+     * page, whose actions do not depend on its image.
+     *
+     * Anchored to `.tile-open` by name rather than to "the first control in
+     * the file". It used to read the first `<button>`, and when the tile
+     * became a link that match slid onto the selection checkbox underneath —
+     * which has an `onClick` and an `aria-label` of its own and so kept the
+     * test green while the property it defends had moved.
+     */
+    // To the closing tag rather than to the first `>`, which the arrow
+    // function in the click handler gets to first.
+    const open = tile.match(/<a\s+className="tile-open"[\s\S]*?<\/a>/)?.[0] ?? '';
+    expect(open).toContain('href={href}');
+    expect(open).toContain('aria-label');
+    // The failed tile renders the same link. `return null` is already refused
+    // above; this is the other half — nothing may take the href away.
     expect(tile).not.toMatch(/disabled/);
   });
 });

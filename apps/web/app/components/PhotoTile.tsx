@@ -15,11 +15,19 @@ import { useImageFailure } from './useImageFailure';
  * deleted. So the slot stays, empty and obviously empty, and keeps a 3:2 box
  * so the column does not close up around the gap.
  *
- * It also stays a button. Every photograph is the route to the reporting and
- * takedown actions in the lightbox (App Store guideline 1.2 wants those
+ * It also stays clickable. Every photograph is the route to the reporting and
+ * takedown actions on its own page (App Store guideline 1.2 wants those
  * reachable, not merely implemented), and a photograph that will not render
  * for *you* is not one nobody else can see — it may be exactly the one
  * somebody means to report.
+ *
+ * ## A link, not a button
+ *
+ * It opened a dialog and it opens a page now, so it is an `<a href>`: the
+ * middle-click, the Copy-link, the Back button and the shared URL all come
+ * from the element rather than from anything written here. The click handler
+ * survives for one job — while the gallery is selecting, a tap ticks the
+ * photograph instead of leaving the page.
  *
  * ## The overlay
  *
@@ -34,12 +42,12 @@ import { useImageFailure } from './useImageFailure';
  */
 export function PhotoTile({
   photo,
+  href,
   ratio,
   by,
   picking,
   picked,
   onPick,
-  onOpen,
 }: {
   photo: {
     id: string;
@@ -48,6 +56,8 @@ export function PhotoTile({
     full: string;
     takenAt: string;
   };
+  /** This photograph's own page. */
+  href: string;
   /** Height as a fraction of width, so the tile reserves its space up front. */
   ratio: number;
   /** Whose photograph it is. Null for somebody who arrived by link unnamed. */
@@ -56,19 +66,26 @@ export function PhotoTile({
   picking: boolean;
   picked: boolean;
   onPick: () => void;
-  onOpen: () => void;
 }) {
   const { ref, failed, onError } = useImageFailure(photo.src);
 
   return (
     <div className={`tile${picked ? ' tile-picked' : ''}`}>
-      <button
+      <a
         className="tile-open"
+        href={href}
         // The whole tile is one control while picking, so a tap anywhere on it
-        // does the thing the mode is for rather than opening what you were
-        // trying to tick.
-        onClick={picking ? onPick : onOpen}
-        aria-pressed={picking ? picked : undefined}
+        // does the thing the mode is for rather than leaving the gallery you
+        // were choosing from. `aria-pressed` stays off the link — the tick is
+        // the checkbox below, which is a real button and says so.
+        onClick={
+          picking
+            ? (e) => {
+                e.preventDefault();
+                onPick();
+              }
+            : undefined
+        }
         aria-label={
           picking
             ? picked
@@ -102,7 +119,7 @@ export function PhotoTile({
             <img ref={ref} src={photo.src} alt="" loading="lazy" onError={onError} />
           </picture>
         )}
-      </button>
+      </a>
 
       <span className="tile-scrim" aria-hidden="true" />
 
@@ -131,14 +148,9 @@ export function PhotoTile({
         >
           {'↓'}
         </a>
-        <button
-          type="button"
-          className="tile-chip"
-          aria-label="More about this photo"
-          onClick={onOpen}
-        >
+        <a className="tile-chip" href={href} aria-label="More about this photo">
           ···
-        </button>
+        </a>
       </span>
 
       {by && (

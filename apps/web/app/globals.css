@@ -54,6 +54,12 @@
      of page showing between them, and white between prints reads as a light
      box rather than as a wall. */
   --page-warm: #fbf8f4;
+  /* Behind a photograph that does not fill its frame. A shade deeper than the
+     surface so the picture has an edge, and warm rather than the black a
+     lightbox used — black is a decision about how somebody's photograph looks,
+     made on their behalf, and a portrait in a landscape frame should not
+     arrive matted differently from a landscape one. */
+  --photo-bed: #f2ede5;
   /* The rule between two people in a list. Lighter than `--hairline`, which
      separates sections rather than rows. */
   --row-line: #f2ece3;
@@ -218,28 +224,6 @@ button.secondary {
 /* <picture> is inline by default, which leaves a baseline gap under each tile. */
 .tile picture { display: block; }
 .footer { margin-top: 48px; font-size: 14px; }
-.lightbox {
-  position: fixed; inset: 0; background: rgba(0, 0, 0, .82);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  z-index: 10; overflow-y: auto;
-}
-.lightbox-inner {
-  background: var(--card); border-radius: 14px; padding: 16px;
-  max-width: 720px; width: 100%; display: grid; gap: 14px;
-}
-.lightbox-inner img {
-  width: 100%; max-height: 60vh; object-fit: contain;
-  border-radius: 8px; background: var(--bg);
-}
-/* Where the photo would have been. Given the height a photo would have had,
-   so the report and takedown buttons underneath do not jump up the screen. */
-.lightbox-empty {
-  display: flex; align-items: center; justify-content: center; text-align: center;
-  margin: 0; min-height: 180px; padding: 20px;
-  border-radius: 8px; background: var(--bg);
-  border: 1px dashed var(--line-dashed);
-}
-.lightbox-actions { display: grid; gap: 10px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .switch { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
 .danger { background: #b3261e; }
@@ -1561,14 +1545,13 @@ button.secondary {
 
 /* The share dialog, over everything.
 
-   Above the lightbox (10) and the thread's sheet (20), because it can be
-   opened from the head while either is up and the one on top should be the one
-   just asked for.
+   The last scrim in the product, and the only one. The photo dialog it used to
+   share a stacking context with is a page now, and the thread's sheet went
+   when the conversation became a tab — so this is a `z-index` with nothing
+   left to be above, kept high because it is opened from a sticky header.
 
-   Lighter than the lightbox's `rgba(0,0,0,.82)`: that one is dark because the
-   thing it frames is a photograph and the page around it would compete. This
-   frames a link, and blacking out the event to show somebody a URL is heavier
-   than the moment deserves. */
+   Light, at 28%: it frames a link. Blacking out the album to show somebody a
+   URL is heavier than the moment deserves. */
 .share-scrim {
   position: fixed; inset: 0; z-index: 30;
   background: rgba(20, 23, 28, .28);
@@ -1769,16 +1752,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
 .dots-body .menu-danger { color: #b3261e; }
-/* Comments on one photograph, inside the lightbox. The same rows as the
-   thread, because they are the same records — a photo comment carries a
-   `photoId` and appears in both places. */
-.photo-thread {
-  display: grid; gap: 12px;
-  border-top: 1px solid var(--line); padding-top: 14px;
-}
-.photo-thread .message-text { font-size: 14px; }
-.photo-thread-note { margin: 0; font-size: 12.5px; color: var(--dim); }
-
 /* The conversation, as a pane rather than a column beside the photographs.
 
    It was 360px of thread on every screen whether anybody was talking or not,
@@ -1856,6 +1829,172 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .thread-mentions button {
   padding: 5px 10px; border-radius: 999px; font-size: 13px;
   background: var(--accent-soft); color: var(--accent-ink); border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   One photograph, as a page.
+
+   It was a 720px card on an 82% black scrim, and the scrim is the thing worth
+   naming: it made the photograph the only lit object on screen, which sounds
+   like respect for the picture and is actually why there was nowhere to put
+   anything else. Nothing could say who took it, nothing could reach the next
+   one, and the safety actions had to sit in the open under it because there
+   was no second surface to put them on.
+
+   So this is the album's own warm page with the photograph on it. The picture
+   is the largest thing here and is never cropped; the album's conversation is
+   beside it, not a comment section under it.
+   --------------------------------------------------------------------------- */
+.photo-page {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  background: var(--page-warm);
+}
+.photo-head { padding: 18px 28px 14px; display: flex; align-items: center; gap: 14px; }
+/* -6px so the glyph's own side bearing does not push it in from the edge the
+   content below is aligned to. */
+.photo-back {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; margin-left: -6px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); text-decoration: none; font-size: 19px;
+}
+.photo-back:hover { background: var(--hairline); }
+.photo-back-text {
+  flex: 1; min-width: 0; font-size: 14px; color: var(--dim-warm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.photo-back-name { color: var(--fg); font-weight: 600; text-decoration: none; }
+.photo-back-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.photo-where {
+  flex: none; font-size: 13px; color: var(--dim-warm);
+  font-variant-numeric: tabular-nums;
+}
+.photo-step {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--line); background: none;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg); text-decoration: none; font-size: 15px;
+}
+.photo-step:hover { border-color: var(--accent); color: var(--accent-ink); }
+/* The end of the album. Faded rather than removed: a row of controls that
+   loses a button at the last photograph is a row that moves under the hand. */
+.photo-step-end { opacity: .4; }
+
+.photo-body { padding: 0 28px 34px; display: flex; gap: 28px; align-items: flex-start; }
+.photo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+
+/* `contain`, so nothing is cropped — this is the one place in the product
+   where the whole frame is the point. The bed shows through whatever the
+   photograph does not fill, in the page's own warmth rather than in black. */
+.photo-frame {
+  height: 560px; border-radius: 16px; overflow: hidden;
+  background: var(--photo-bed);
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-frame:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.photo-frame picture { display: flex; width: 100%; height: 100%; }
+.photo-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+@media (min-height: 1000px) { .photo-frame { height: min(62vh, 720px); } }
+/* Said out loud, and the frame keeps its height: the actions under it are how
+   somebody reports a photograph, and they must not jump up the screen. */
+.photo-dead {
+  margin: 0; padding: 20px; max-width: 380px; text-align: center;
+  font-size: 15px; color: var(--dim);
+  border: 1px dashed var(--line-dashed); border-radius: 12px; background: #f7f5f1;
+}
+
+.photo-by { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* Upward. Every other menu in the product hangs off a header near the top of
+   the page; this one hangs off a row that sits under 560px of photograph, so
+   downward puts its items under the fold of a laptop screen — a menu you have
+   to scroll to read is one somebody thinks did not open. */
+.photo-by .dots-body { top: auto; bottom: calc(100% + 8px); }
+.photo-by-face {
+  width: 36px; height: 36px; border-radius: 50%; flex: none; object-fit: cover;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 14px; font-weight: 600;
+}
+.photo-by-text { flex: 1; min-width: 0; }
+.photo-by-who { display: block; font-size: 15px; }
+.photo-by-who strong { font-weight: 600; }
+.photo-by-when { display: block; font-size: 12.5px; color: var(--dim-warm); }
+.photo-get {
+  flex: none; padding: 9px 14px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--fg); text-decoration: none;
+  font-size: 13.5px; font-weight: 600;
+}
+.photo-get:hover { border-color: var(--accent); color: var(--accent-ink); }
+/* What happened to a report, where the menu was. Not a toast: this is the only
+   account somebody gets, and a message that fades is one they can miss. */
+/* Its own line under the row rather than a fourth item in it: it is a
+   sentence, and a sentence between a name and a Download button squeezes both
+   into nothing. `flex-basis: 100%` wraps it rather than moving it out of the
+   component that owns the state it came from. */
+.photo-said {
+  flex-basis: 100%; margin: 0; font-size: 13px; line-height: 1.5; color: var(--dim);
+  border-left: 2px solid var(--accent); padding-left: 10px;
+}
+
+/* Where you are in the album. A window around this photograph rather than all
+   of it — see the route. */
+.photo-strip {
+  display: flex; gap: 8px; overflow-x: auto; padding-top: 4px;
+  scrollbar-width: none;
+}
+.photo-strip::-webkit-scrollbar { display: none; }
+.photo-strip-one {
+  flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden;
+  opacity: .55; background: var(--hairline);
+}
+.photo-strip-one img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-strip-one:hover { opacity: .85; }
+.photo-strip-on { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
+.photo-strip-one:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* The album's conversation, in full — not this photograph's comments. See the
+   note on `PhotoView`. */
+.photo-aside {
+  width: 352px; flex: none; display: flex; flex-direction: column; gap: 12px;
+  position: sticky; top: 18px;
+}
+.photo-chat-label {
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim-warm); text-decoration: none;
+}
+.photo-chat-label:hover { color: var(--accent-ink); }
+.photo-chat { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+/* Bounded and scrolling, so the composer stays where it was put. A column that
+   grows with the conversation pushes the box you type in off the bottom of a
+   busy album. */
+.photo-chat .thread-list { max-height: 452px; overflow-y: auto; }
+.photo-chat .thread-empty { padding: 24px 0; }
+.photo-chat .thread-empty h2 { font-size: 17px; }
+.photo-chat .thread-empty p { font-size: 13.5px; }
+
+/* The note under an item in the `···`. `.dots-body` sets its own padding on
+   buttons and links; a bare paragraph would sit against the panel's edge. */
+.dots-body p { padding: 2px 10px 6px; }
+
+@media (max-width: 1100px) {
+  /* The conversation goes under the photograph rather than beside it, and
+     stops being sticky — a sticky element in a single column is one that
+     covers what is above it. */
+  .photo-body { flex-direction: column; align-items: stretch; }
+  .photo-aside { width: 100%; position: static; }
+  /* `align-items: flex-start` is what stops the row layout stretching the
+     column to the tallest of the two. Turned off above, it has to be, or the
+     photograph shrinks to its own width and sits in the left half of the page
+     with the conversation running full width underneath it. */
+  .photo-main { width: 100%; }
+}
+@media (max-width: 720px) {
+  .photo-head { padding: 14px 16px 10px; }
+  .photo-body { padding: 0 16px 28px; }
+  .photo-frame { height: min(58vh, 420px); }
+  /* Swipe is the way through on a touch screen, and the position label in the
+     header is what says where that got you. Two 34px arrows are a poor target
+     for a thumb and are the second way to do the same thing. */
+  .photo-step { display: none; }
 }
 
 /* ---------------------------------------------------------------------------

@@ -67,6 +67,9 @@ const PRIVATE = [
   '/find',
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/manage',
+  // A single photograph has its own URL now, which is the whole point of it
+  // being a page — and a URL people send each other is a URL a crawler finds.
+  '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/p/8c2b7d10-1a2b-4c3d-9e8f-7a6b5c4d3e2f',
   '/group/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
   '/api/events/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/photos',
 ];
@@ -128,6 +131,7 @@ describe('the pages say so themselves', () => {
   it.each([
     'app/event/[id]/page.tsx',
     'app/event/[id]/manage/page.tsx',
+    'app/event/[id]/p/[photoId]/page.tsx',
     'app/group/[id]/page.tsx',
     'app/account/page.tsx',
     'app/albums/page.tsx',
