@@ -16,7 +16,7 @@
  * no persistent place to put it, and this is that place.
  */
 
-import { ago } from '@parea/cards';
+import { ago, albumDate, CARD_FACES, isLive } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
@@ -49,6 +49,12 @@ type EventListing = {
   mosaic: string[];
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
+  /** The album's own day, for the card's date. Any of the three may be absent. */
+  eventDate: string | null;
+  startsAt: string | null;
+  firstPhotoAt: string | null;
+  /** Host first, presigned by the route. The card draws three of them. */
+  faces: { actorId: string; name: string; avatarUrl: string | null }[];
   /** Whether this person made it, decided by the server. Drives the filter. */
   mine: boolean;
   /** Whose album it is. The URL is presigned by the route; null is normal. */
@@ -393,6 +399,19 @@ export function AccountView() {
                 // Every card says when it was last added to now, rather than
                 // the first one saying it and the rest saying where they were.
                 added: ago(new Date(event.lastActiveAt), new Date()),
+                /*
+                 * The same three facts the server computes for Home, computed
+                 * here because this list arrives from `/api/events` rather
+                 * than from `toCards`. The functions are shared — a date that
+                 * formatted differently on two screens of one product is the
+                 * failure a second copy produces.
+                 */
+                date: albumDate(event.eventDate ?? event.startsAt ?? event.firstPhotoAt ?? null),
+                live: isLive(event.lastActiveAt, new Date()),
+                faces: (event.faces ?? [])
+                  .slice(0, CARD_FACES)
+                  .map((face) => ({ name: face.name, avatar: face.avatarUrl })),
+                moreFaces: Math.max(0, event.memberCount - CARD_FACES),
                 creatorAvatar: event.creator?.avatarUrl ?? null,
                 creatorHandle: event.creator?.handle ?? null,
               }}

@@ -27,32 +27,63 @@ const CSS = readFileSync(
   'utf8',
 );
 
-describe('the four things a card says', () => {
-  it('says the name and the caption the host wrote', () => {
+describe('what a card says now that the photograph is the card', () => {
+  it('says the name, and nothing else in that line', () => {
     expect(CARD).toMatch(/className="card-name">\{event\.name\}/);
-    expect(CARD).toMatch(/event\.caption && <div className="card-caption">/);
   });
 
-  it('says when it was last added to', () => {
-    expect(CARD).toMatch(/className="card-when">\{event\.added\}/);
-  });
-
-  it('does not say where, and does not draw the members', () => {
+  it('says who and when, in that order', () => {
     /*
-     * Both were on the photographs and both came off. The place is still
-     * searchable — typing "greece" is what replaced the By place list — but it
-     * is matched from the listing rather than carried into the card, so the
-     * component holds nothing it does not draw.
+     * "8 people · Fri 14 Mar". The people first because that is what somebody
+     * recognises an evening by, and the date is the album's own evening rather
+     * than the last upload — except while it is being added to, where the
+     * recent thing *is* the news.
      */
-    expect(CARD).not.toMatch(/card-tag|card-faces|<Faces\b/);
+    expect(CARD).toMatch(/event\.memberCount === 1 \? 'person' : 'people'/);
+    expect(CARD).toMatch(/event\.live \? `added to \$\{event\.added\}` : event\.date/);
+  });
+
+  it('has dropped the handle, the caption and the place', () => {
+    /*
+     * The three lines that made a wall of evenings look like a wall of
+     * listings. The place is still searchable — typing "greece" is what
+     * replaced the By place list — but it is matched from the listing rather
+     * than carried into the card, so the component holds nothing it does not
+     * draw.
+     */
+    expect(CARD).not.toMatch(/card-handle|card-said|creatorHandle/);
     expect(CARDS).not.toMatch(/place|memberAvatars/);
   });
 
-  it('says the time without saying "added"', () => {
-    // On a card whose other line is a name and a handle, the only time
-    // anything can be talking about is the last time something arrived.
-    expect(CARDS).toMatch(/added: ago\(/);
-    expect(CARDS).not.toMatch(/`added \$\{/);
+  it('keeps the photograph count where a screen reader can still get it', () => {
+    // On screen it was a number competing with the photographs it counted.
+    expect(CARD).toMatch(/aria-label=\{label\}/);
+    expect(CARD).toMatch(/\$\{event\.photoCount\}/);
+  });
+});
+
+describe('the people on a card', () => {
+  it('draws the faces, host first, and counts the rest', () => {
+    // Three faces and a chip. The chip counts everybody the faces do not
+    // show — `memberCount` minus what is drawn — not the difference between
+    // two limits.
+    expect(CARD).toMatch(/event\.faces\.map/);
+    expect(CARD).toMatch(/event\.moreFaces > 0/);
+    expect(CARDS).toMatch(/moreFaces: Math\.max\(0, listing\.memberCount - CARD_FACES\)/);
+    expect(EVENTS).toMatch(/order by \(a\.id = \$\{schema\.events\.createdBy\}\) desc/);
+  });
+
+  it('puts a letter in an empty circle rather than a silhouette', () => {
+    // A generic avatar is a photograph of nobody. The letter at least belongs
+    // to the person whose circle it is.
+    expect(CARD).toMatch(/fallback=\{[\s\S]{0,80}initial\(face\.name\)/);
+  });
+
+  it('fetches them with the listing rather than a query per card', () => {
+    // This is the screen with the most rows on it; a round trip per album is a
+    // page that gets slower the more somebody uses the product.
+    expect(EVENTS).toMatch(/faces: sql<FaceRow\[\]>/);
+    expect(EVENTS).toMatch(/limit \$\{CARD_FACES \+ 1\}/);
   });
 });
 
@@ -76,26 +107,6 @@ describe('the relative time is derived once, on the server', () => {
   });
 });
 
-describe('whose album it is', () => {
-  it('draws their picture beside the name and their handle beside the caption', () => {
-    expect(CARD).toMatch(/src=\{event\.creatorAvatar\}/);
-    expect(CARD).toMatch(/@\{event\.creatorHandle\}/);
-  });
-
-  it('puts a letter in the circle rather than a silhouette', () => {
-    // A generic avatar is a photograph of nobody. The letter at least belongs
-    // to the person whose album it is.
-    expect(CARD).toMatch(/initial\(event\.creatorHandle, event\.name\)/);
-  });
-
-  it('still draws a card for an album whose host has no handle or picture', () => {
-    // An account is optional in this product, and so is a picture. Both of
-    // these are null far more often than not.
-    expect(CARD).toMatch(/\(event\.creatorHandle \|\| event\.caption\) && \(/);
-    expect(CARD).toMatch(/handle\?\.trim\(\) \|\| name\.trim\(\) \|\| '\?'/);
-  });
-});
-
 describe('the pictures cross the boundary as URLs, never as keys', () => {
   /*
    * The same rule the photo keys have: a storage key is an internal address,
@@ -113,10 +124,13 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
      * happened the first time somebody did: `coverKey` went onto the listing
      * for the cards to read, and `...rest` would have published it.
      */
-    expect(API).toMatch(/const \{ creator, coverKey, \.\.\.rest \} = listing/);
+    expect(API).toMatch(/const \{ creator, coverKey, faces: faceRows, \.\.\.rest \} = listing/);
     expect(API).toMatch(/avatarUrl: await avatarUrl\(creator\.avatarKey\)/);
     expect(API).not.toMatch(/avatarKey,/);
     expect(API).not.toMatch(/coverKey:/);
+    // The faces leave as URLs too, by the same rule.
+    expect(API).toMatch(/avatarUrl: await avatarUrl\(face\.avatarKey\)/);
+    expect(API).not.toMatch(/avatarKey,/);
   });
 
   it('sends the cover as a URL, at the front of the mosaic', () => {

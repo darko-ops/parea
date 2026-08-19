@@ -109,17 +109,20 @@ describe('images that will not load', () => {
     expect(hook).toMatch(/\[src\]/);
   });
 
-  it('leave a card mosaic as one even panel', async () => {
+  it('leave a cover as the flat rectangle it was drawn on', async () => {
     const css = await source('app/globals.css');
-    const mosaic = css.match(/^\.mosaic \{[^}]*\}/m)?.[0] ?? '';
-    const tile = css.match(/^\.mosaic > \* \{[^}]*\}/m)?.[0] ?? '';
+    const cover = css.match(/^\.card-cover \{[^}]*\}/m)?.[0] ?? '';
 
-    // Otherwise a card whose photos all failed is an empty grid with the
-    // gutters ruled across it in a contrasting colour, which looks like
-    // damage. Same colour, and it is one clean panel.
-    const colour = /background:\s*(var\(--[a-z-]+\)|#[0-9a-f]{3,8})/;
-    expect(mosaic).toMatch(colour);
-    expect(tile.match(colour)?.[1]).toBe(mosaic.match(colour)?.[1]);
+    /*
+     * There is no mosaic on a card any more — one cover, full bleed. So the
+     * failure has one shape rather than four: `MosaicTile` removes an `<img>`
+     * it cannot load, and what is left underneath has to be a deliberate
+     * colour rather than a hole. A white gap in a grid of photographs reads as
+     * a card that is still loading; a flat warm rectangle reads as a card
+     * whose picture is not there, which is what is true.
+     */
+    expect(cover).toMatch(/background:\s*var\(--hairline\)/);
+    expect(cover).toMatch(/overflow:\s*hidden/);
   });
 
   it('keep the event grid honest about how many photos there are', async () => {

@@ -1,29 +1,30 @@
 /**
- * One event, led by its photos.
+ * One album, led by its photograph.
  *
- * A name is a poor way to recognise a night out and the photos are a good one,
- * so the card is mostly mosaic. Underneath, the detail strip has no dividing
- * line above it — instead the event's own colours bleed upward under the text:
- * the same images again, mirrored, blurred and scrimmed. That is what joins
- * the two halves into one object rather than a picture with a caption.
+ * The photograph *is* the card: a tall cover, the faces of the people in it
+ * overlapping its bottom edge, and two lines underneath. No border, no panel,
+ * no strip of chrome — the previous card had a metadata strip over a blurred
+ * bleed of its own images, and the effect was handsome and made a wall of
+ * evenings look like a wall of listings.
  *
- * Cheap, too. The mirrored copies are the same URLs the mosaic already
- * fetched, so the browser serves them from cache and the effect costs one
- * blur filter rather than a second round of image loads.
+ * What came off it is as much the design as what is on it. The mosaic of three
+ * or four tiles is gone, and with it the argument that a card should show a
+ * sample of what is inside: one picture chosen as the cover says more, and the
+ * sample was four thumbnails too small to recognise anybody in. The handle and
+ * the caption are gone from this screen — they are on the album itself, and on
+ * a card they were the two lines doing the listing impression.
  *
- * The scrim is lighter than it was — `.34` at the top where it used to be
- * `.62` — because the point of the bleed is the album's own colour and the old
- * wash was most of the way to white before the text even arrived. The name is
- * `#14171c` on at least a `.34` white wash over a blurred photograph; if a
- * genuinely dark album ever fails contrast here the fix is to raise that stop,
- * not to darken the text, which would make every other card worse.
+ * What replaced them is people. Three faces and "8 people · Fri 14 Mar", which
+ * is how somebody actually recognises an evening: who was there and when it
+ * was. The count in the aria-label is unchanged, because "how many
+ * photographs" is a fact somebody navigating by screen reader has no other way
+ * to get.
  *
- * An event with no photos gets neither mosaic nor bleed. Blurring nothing
- * produces a grey smear that reads as a loading state which never finishes, so
- * it becomes a different card entirely — see `card-empty` below.
+ * An album with no photographs gets none of this. Blurring or cropping nothing
+ * produces a grey rectangle that reads as a loading state which never
+ * finishes, so it stays the separate card below whose job is to get the first
+ * photograph out of somebody.
  */
-
-import { mosaicLayout } from '@parea/cards';
 
 import type { CardEvent } from '@/cards';
 
@@ -31,20 +32,17 @@ import { Face } from './Faces';
 import { MosaicTile } from './MosaicTile';
 
 /**
- * The letter in the creator's circle when they have no picture.
+ * The letter in somebody's circle when they have no picture.
  *
- * Their handle first, because that is what the row underneath says, and the
- * album's name only if there is no handle — a circle with nothing in it beside
- * a name reads as an image that failed to load.
+ * Never a silhouette, which is a photograph of nobody — the same rule
+ * `Faces.tsx` states and the design spells out again for the people row.
  */
-function initial(handle: string | null, name: string): string {
-  return (handle?.trim() || name.trim() || '?').slice(0, 1).toUpperCase();
+function initial(name: string): string {
+  return (name.trim() || '?').slice(0, 1).toUpperCase();
 }
 
 export function EventCard({ event }: { event: CardEvent }) {
-  const photos = event.mosaic;
-  const columns = mosaicLayout(photos.length);
-  const tracks = columns.map((column) => `${column.weight}fr`).join(' ');
+  const cover = event.mosaic[0] ?? null;
 
   const label = `${event.name}, ${event.photoCount} ${
     event.photoCount === 1 ? 'photo' : 'photos'
@@ -96,106 +94,67 @@ export function EventCard({ event }: { event: CardEvent }) {
       className="card"
       aria-label={label}
     >
-      <div className="mosaic" style={{ gridTemplateColumns: tracks }}>
-        {columns.map((column, i) =>
-          column.photos.length > 1 ? (
-            <div className="mosaic-split" key={i}>
-              {column.photos.map((index) => (
-                <div key={index}>
-                  <MosaicTile src={photos[index]!} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div key={i}>
-              <MosaicTile src={photos[column.photos[0]!]!} />
-            </div>
-          ),
+      {/*
+        The photograph is the card. No border, no panel, no strip of chrome
+        under it — a tall cover with the name beneath, which is what a shelf of
+        albums looks like when it is not trying to look like a listing.
+      */}
+      <div className="card-cover">
+        {cover && <MosaicTile src={cover} />}
+        {/*
+          Only while it is true, which is an hour. A badge that stays up all
+          day is a badge nobody reads, and "being added to now" is the one
+          claim on this page worth interrupting a photograph for.
+        */}
+        {event.live && (
+          <span className="card-live">
+            <span className="card-live-dot" aria-hidden="true" />
+            Being added to now
+          </span>
         )}
       </div>
 
-      <div className="card-body">
-        {/*
-          Decorative, and hidden from assistive tech: it is the same images
-          again, and announcing them twice is noise. `-26px` inset so the blur
-          has bleed and no soft edge shows at the corners.
-
-          One band per *column*, at the column's own width — not one per photo
-          at equal widths. The point of the effect is that the colour under a
-          piece of text is the colour of the photo directly above it, and equal
-          bands slide the hero's colour off to the left of where it belongs.
-        */}
-        <div className="card-bleed" aria-hidden="true">
-          {columns.map((column, i) => (
-            <div key={i} style={{ flex: column.weight }}>
-              <MosaicTile src={photos[column.photos[0]!]!} hidden />
-            </div>
+      {/*
+        Overlapping the photograph's bottom edge rather than sitting under it.
+        These are the people, and the point of the design is that they are the
+        first thing you recognise an evening by — a row of circles floating
+        below a picture reads as metadata, the same row half over it reads as
+        who was there.
+      */}
+      {event.faces.length > 0 && (
+        <div className="card-faces">
+          {event.faces.map((face, i) => (
+            <Face
+              key={`${face.name}-${i}`}
+              src={face.avatar}
+              size={32}
+              className="card-facel"
+              fallback={
+                <span aria-hidden="true">{initial(face.name)}</span>
+              }
+            />
           ))}
+          {event.moreFaces > 0 && (
+            <span className="card-facel card-more" aria-hidden="true">
+              +{event.moreFaces}
+            </span>
+          )}
         </div>
-        <div className="card-scrim" aria-hidden="true" />
+      )}
 
-        <div className="card-text">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/*
-              Whose album it is, beside its name.
-
-              The picture answers "is this mine or was I asked into it" before
-              the name is read, which on a wall of albums is the first thing
-              somebody wants to know. A letter when there is no picture, and
-              never a silhouette: a generic avatar is a photograph of nobody.
-            */}
-            <div className="card-title">
-              {/*
-                On the title's line, which puts it directly above the handle it
-                belongs to — the picture and the name of the person who made
-                this, one under the other, rather than a circle floating beside
-                two lines about different things.
-              */}
-              <Face
-                src={event.creatorAvatar}
-                size={22}
-                className="card-face"
-                fallback={
-                  <span aria-hidden="true">
-                    {initial(event.creatorHandle, event.name)}
-                  </span>
-                }
-              />
-              <div className="card-name">{event.name}</div>
-              {/*
-                At the end of the title row rather than on a line of its own.
-                It is the shortest fact on the card and the least urgent, and
-                giving it a row cost the strip a third of its height.
-              */}
-              <span className="card-when">{event.added}</span>
-            </div>
-            {/*
-              The host's handle and their own line, on one row under the title.
-              Whoever made an album is part of what the caption means — "the
-              balcony flat" from somebody you know is a different sentence from
-              the same words from a stranger.
-
-              One line, ellipsised: a card is a thing you scan, and a caption
-              that wraps to three lines is a paragraph on a photograph.
-            */}
-            {(event.creatorHandle || event.caption) && (
-              <div className="card-caption">
-                {event.creatorHandle && (
-                  <span className="card-handle">@{event.creatorHandle}</span>
-                )}
-                {event.caption && <span className="card-said">{event.caption}</span>}
-              </div>
-            )}
-
-          </div>
-          {/*
-            No count. It is still in the card's `aria-label`, because "how many
-            photographs" is a fact somebody navigating by screen reader has no
-            other way to get — but on screen it was a number competing with the
-            photographs it was counting, and the answer is one tap away.
-          */}
+      <div className="card-under">
+        <div className="card-name">{event.name}</div>
+        {/*
+          Who and when, in that order, and the when is the evening rather than
+          the upload — except on an album being added to now, where the recent
+          thing *is* the news. No handle and no caption: they were the two
+          lines that made a photograph look like a listing.
+        */}
+        <div className="card-meta">
+          {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}
+          {(event.live || event.date) && ' · '}
+          {event.live ? `added to ${event.added}` : event.date}
         </div>
-
       </div>
     </a>
   );

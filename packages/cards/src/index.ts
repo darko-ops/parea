@@ -52,6 +52,54 @@ export function ago(from: Date, now: Date): string {
  * signed URLs on the web, the same strings behind a React Native `Image` on
  * the phone — and this function has no business knowing which.
  */
+/**
+ * The evening an album is about, as "Fri 14 Mar".
+ *
+ * Shared because two clients format it: the web signs its cards on the server,
+ * and the profile page builds them in the browser from `/api/events`. Two
+ * copies of a date format is two ways for the same album to be dated on two
+ * screens of one product.
+ *
+ * The year is left off deliberately — these are recent evenings, and "Fri 14
+ * Mar 2026" on a card is a filing reference. UTC because the album's own date
+ * is a day, not a moment: rendering it in the reader's zone is how a Saturday
+ * night becomes Sunday for somebody reading in Auckland.
+ */
+export function albumDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(date);
+}
+
+/**
+ * How many faces a card draws before it starts counting.
+ *
+ * Three, and then a chip saying how many more. Four circles is the most a
+ * 290px card carries without the row becoming a crowd, and a crowd is what the
+ * number is for. Shared because the query that fetches them and the components
+ * that draw them have to agree, and they live on opposite sides of the wire.
+ */
+export const CARD_FACES = 3;
+
+/** An hour: the width of the claim "being added to now" makes. */
+export const LIVE_MS = 60 * 60 * 1000;
+
+/**
+ * Whether an album is being added to right now.
+ *
+ * An hour rather than a day, because the badge says *now*: it is false about
+ * something that stopped forty minutes ago in a way that "today" would not be.
+ */
+export function isLive(lastActiveAt: string, now: Date): boolean {
+  return now.getTime() - new Date(lastActiveAt).getTime() < LIVE_MS;
+}
+
 export type MosaicColumn = { weight: number; photos: number[] };
 
 /**

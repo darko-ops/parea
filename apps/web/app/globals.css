@@ -32,12 +32,26 @@
   /* White, not off-white. The page is the background the photos sit on, and
      anything tinted competes with them — every colour in a grid of holiday
      pictures is one the page is not entitled to have an opinion about. */
-  --bg: #fff; --card: #fff; --line: #e3e6ea;
-  --fg: #14171c; --dim: #5b6472; --accent: #1a5fd0;
+  --bg: #fff; --card: #fff;
+  /* Warmer than the blue-grey they were. The rules on this page sit between
+     photographs, and a cool hairline next to a warm print reads as a seam. */
+  --line: #e8e4dd;
+  --fg: #14171c; --dim: #5b6472;
+  /* A muted relative of the logo blue, not the full-strength one it was
+     (#1a5fd0). At full strength every button and every active row shouted the
+     same note, and a product about other people's evenings was reading as a
+     utility. 5.4:1 on white, which passes AA for the 15px button label. */
+  --accent: #4e63a8;
   /* Selected pill fill, and the active nav row in the rail. */
-  --accent-soft: #e8eefb;
+  --accent-soft: #eceffb;
+  /* Accent text on white or on the soft fill, where the accent itself is a
+     shade too light to be read comfortably at 15px. */
+  --accent-ink: #3f5498;
+  /* The greeting, dates, and the counts under a card. Warm, because they sit
+     under photographs rather than in a form. */
+  --dim-warm: #8a8378;
   /* Dashed affordances: the empty grid cell, the add-contact circle. */
-  --line-dashed: #d3d8de;
+  --line-dashed: #d7d1c6;
   /* Lifts the card text off the blurred photo bleeding up behind it. Two of
      them, because the card and the hero want different amounts of it: the
      card is 20px of name over a blurred strip and can afford to let the
@@ -48,7 +62,7 @@
   /* A rule *inside* a bordered container. Lighter than `--line`, which is an
      edge: the same colour for both makes a list of rows read as a stack of
      separate boxes rather than one list. */
-  --hairline: #eef1f4;
+  --hairline: #f0ece5;
   /* The trough of every progress bar, and the hover fill on a list row. */
   --track: #f4f6f8;
   /* The second stripe of the moving upload bar. Near enough to the accent
@@ -563,161 +577,180 @@ button.secondary {
 .pip-declined { background: #eef0f3; color: var(--dim); }
 
 /* ---------------------------------------------------------------------------
-   Event cards — photo-led, because a name is a worse way to recognise a night
-   out than the photos from it.
+   Home — a greeting, your people, then your albums.
+
+   The page led with the word "Home" over a grid. It was accurate and it was
+   nobody's: the first thing on a page you return to should be the people you
+   are returning to, not a label for the page you are on.
+   --------------------------------------------------------------------------- */
+.home-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 18px;
+}
+.home-greeting { font-size: 13px; color: var(--dim-warm); }
+.home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
+
+/* The people you are in albums with. Scrolls on a narrow screen rather than
+   wrapping to a second row: it is one row of faces, and two rows of them is a
+   directory. */
+.people-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 0 20px; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.people-row::-webkit-scrollbar { display: none; }
+.person {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  width: 76px; flex: none; padding: 0; border: 0; background: none;
+  cursor: pointer; text-decoration: none; color: inherit;
+}
+.person-face {
+  width: 56px; height: 56px; border-radius: 50%; flex: none; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 19px; font-weight: 600;
+  transition: box-shadow 120ms;
+}
+.person-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.person-name {
+  font-size: 12px; color: var(--dim);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Two rings, the inner one the page's own colour: a single accent ring against
+   a photograph of somebody's face reads as a border on the photograph. */
+.person-on .person-face { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.person-on .person-name { font-weight: 600; color: var(--fg); }
+.person:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.person-plus {
+  background: none; border: 1px dashed var(--line-dashed);
+  color: var(--dim-warm); font-size: 20px; font-weight: 400;
+}
+.person-invite .person-name { color: var(--dim-warm); }
+
+/* Only while a filter is on. It says what the grid is showing and how to stop,
+   in that order, because the second question only arises from the first. */
+.people-filter {
+  flex: none; margin-left: auto;
+  font-size: 12.5px; color: var(--dim);
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px;
+  white-space: nowrap;
+}
+.people-filter b { color: var(--accent-ink); font-weight: 700; }
+.link-button {
+  padding: 0; border: 0; background: none; color: inherit; cursor: pointer;
+  font: inherit; text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* The grid, under a rule. The rule is what separates the people from the
+   albums without a heading having to say so. */
+.cards { border-top: 1px solid var(--hairline); padding-top: 22px; }
+
+@media (max-width: 700px) {
+  .card-cover, .card-new, .card-empty { height: 260px; min-height: 260px; }
+}
+@media (max-width: 460px) {
+  .card-cover, .card-new, .card-empty { height: 300px; min-height: 300px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Album cards — the photograph is the card.
+
+   What was here was a bordered panel: a mosaic of three or four thumbnails
+   over a metadata strip, the strip lit from underneath by a blurred, mirrored
+   copy of the same images. It was handsome and it made a wall of evenings look
+   like a wall of listings, which is the complaint the redesign starts from.
+
+   Now: one tall cover, the faces of the people in it overlapping its bottom
+   edge, a name and a line. No border, no background, no box — nothing around
+   the photograph at all, so what the eye lands on is the picture and then the
+   people, which is the order somebody actually recognises an evening in.
    --------------------------------------------------------------------------- */
 .cards {
-  display: grid; gap: 18px;
+  display: grid; gap: 20px;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
 }
-/* 14px. It went to 20 with the brand-forward card, which on a 290px cell took
-   a visible bite out of the corner photograph — the mosaic runs to the edge, so
-   the radius is cropping the picture rather than rounding a box. */
 .card {
-  /* Relative so the place tag can sit on the photographs. */
-  position: relative;
-  display: flex; flex-direction: column; height: 100%;
+  display: flex; flex-direction: column;
   text-decoration: none; color: inherit;
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms;
 }
-/* Every cell in a row the same height. Grid stretches its items, but the item
-   is the wrapper the search filter puts the id on — the card inside it was free
-   to be its own height, which is why one with a caption stood 20px taller than
-   the one beside it. */
+/* Every cell in a row the same height: grid stretches its items, but the item
+   is the wrapper the filters put the id on, so the card inside was free to be
+   its own height. */
 .cards > * { display: flex; }
 .cards > * > .card { flex: 1; }
-/* The strip takes whatever the mosaic leaves, so the text sits at the bottom of
-   a taller card rather than leaving a white band under it. */
-.card > .card-body { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-.card:hover { border-color: var(--line-dashed); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* Gutters and tiles are the same colour, which is the whole trick behind how
-   this fails. MosaicTile removes an <img> that will not load, so a card whose
-   photos are all unreachable — the usual case, since one rotated `cap_epoch`
-   invalidates every URL on the card at once — collapses to a single even
-   panel instead of an empty grid with hairlines ruled across it. Between
-   photos that do load, the same colour reads as an ordinary gutter. */
- /* No gutters. The gap was the page showing through between the tiles, which
-    turned four photographs into four framed photographs — the collage reads as
-    one image when the pictures touch. */
-.mosaic { display: grid; gap: 0; height: 168px; background: var(--bg); }
-.mosaic > * { background: var(--bg); overflow: hidden; }
-.mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* A split column: two tiles stacked in one grid track.
-   `minmax(0, 1fr)` rather than `1fr`, which is `minmax(auto, 1fr)` and floors
-   each row at its content's min-content height — an image, whose min-content
-   height is its intrinsic one. So two 320px-tall thumbnails asked for 128 and
-   132 pixels inside a 168px column, overflowed it, and the clip on `.mosaic`
-   hid the evidence: the lower tile was a sliver with its top third showing.
-   Visible once the mosaic grew from 150px to 168 and the sliver got big enough
-   to read as a mistake rather than as a gutter. */
-.mosaic-split {
-  display: grid; grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 0; background: var(--bg);
+/* The cover. `--hairline` behind it rather than white: a cover that will not
+   load — the URLs are signed and expire — leaves a flat warm rectangle the
+   size of the picture rather than a hole in the grid or a broken glyph. */
+.card-cover {
+  position: relative; height: 320px; border-radius: 16px; overflow: hidden;
+  background: var(--hairline);
 }
-.mosaic-split > * { min-height: 0; overflow: hidden; }
+.card-cover img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform 160ms ease;
+}
+/* Inside `overflow: hidden`, so the picture grows into its own corners rather
+   than the card growing. No border to change and no shadow to add — the only
+   thing there is to respond with is the photograph. */
+.card:hover .card-cover img { transform: scale(1.02); }
+.card:hover .card-name { color: #000; }
+@media (prefers-reduced-motion: reduce) {
+  .card-cover img, .card:hover .card-cover img { transition: none; transform: none; }
+}
 
-/* The detail strip. No dividing line above it — instead the album's own
-   colours bleed up underneath the text, which is what ties the two halves
-   together. Same images again, mirrored and blurred, under a scrim. */
-.card-body { position: relative; overflow: hidden; }
-.card-bleed {
-  position: absolute; inset: -26px; display: flex;
-  /* More saturation with the lighter scrim: the wash takes colour out, and
-     what is left has to survive being blurred at 20px as well. */
-  transform: scaleY(-1); filter: blur(20px) saturate(1.35);
-  /* Decorative: the real copy is in the layer above. */
-  pointer-events: none;
+/* "Being added to now", top left, on white so it is legible over any
+   photograph. Only ever up for an hour — see `isLive`. */
+.card-live {
+  position: absolute; left: 12px; top: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, .93);
+  font-size: 11.5px; font-weight: 600; color: #3d6a55;
 }
-/* Widths come from the column weights inline — see EventCard's `layout`. */
-.card-bleed img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.card-scrim { position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
-/* Baseline-aligned at the bottom rather than centred: the name is 20px and the
-   count is 24px, and centring two things of different sizes leaves neither
-   sitting on a line the eye can find. */
-/* Two rows now — the title with the time, and the handle with the caption —
-   where it used to be three. Tighter with it: the strip is the album's details
-   and the photographs are the album, so every pixel it does not need is a
-   pixel of photograph. */
-.card-text {
-  position: relative; display: flex; align-items: center; gap: 10px;
-  /* Tight, because the strip's job is to stay out of the photographs' way.
-     The two rows and this padding are the whole of its height — 55px against
-     the 90 it started at. */
-  padding: 7px 12px 7px;
+.card-live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #a5dcc6;
+  animation: pulse 1.6s ease-in-out infinite;
 }
-/* The picture, the album's name and the time, on one line. Centred rather than
-   on the baseline: a circle has no baseline, and aligning one to text sits it
-   a couple of pixels low every time. */
-.card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-/* A ring in the card's own background colour, so the circle stays a circle
-   over whatever colour the blurred photographs put behind it. Large enough to
-   be a face rather than a token — it is the only picture of a person on the
-   card, and at 22px it read as a bullet point. */
-.card-face {
-  flex: none; width: 22px; height: 22px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  overflow: hidden; background: var(--card);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .7);
-  font-size: 11px; font-weight: 700; color: var(--dim);
+@media (prefers-reduced-motion: reduce) { .card-live-dot { animation: none; } }
+
+/* Half over the photograph. Below it they read as metadata; overlapping, they
+   read as the people who were there. */
+/* `position: relative` is load-bearing, not decoration: the cover above is
+   positioned (it holds the live badge), so a static row of faces paints
+   *under* it and shows as a row of half-circles. */
+.card-faces {
+  display: flex; align-items: center; margin: -16px 0 0 12px;
+  position: relative; z-index: 1;
 }
-.card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
- /* Sized against the face beside it: 22px of circle wants 16px of name, and
-    the pair reads as one object. It went to 18 while the circle was 34 and
-    came back with it — a title set larger than the picture it sits next to
-    makes the picture look like a bullet point. */
+.card-facel {
+  width: 32px; height: 32px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2.5px var(--bg);
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 12px; font-weight: 600; overflow: hidden;
+  /* The class lands on the `<img>` itself when there is a picture and on a
+     `<span>` when there is a letter — see `Face`. */
+  object-fit: cover;
+}
+.card-facel + .card-facel { margin-left: -10px; }
+.card-more { background: var(--hairline); color: var(--dim); font-size: 11px; }
+
+.card-under { padding: 12px 2px 0; }
 .card-name {
-  flex: 1; font-size: 16px; font-weight: 700; letter-spacing: -.01em;
-  /* Explicit, because the strip's height is now the sum of two line boxes and
-     nothing else — left to the default, the two rows quietly set how tall the
-     card's detail strip is. */
-  line-height: 1.15;
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 17px; font-weight: 700; letter-spacing: -.015em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color 120ms;
 }
-/* The handle and the host's own line, on one row. Set in the text colour
-   rather than `--dim` — it is something a person wrote, not a fact the page
-   worked out. */
-.card-caption {
-  display: flex; align-items: baseline; gap: 5px;
-  /* Quieter than the title row above it. The name and the time are what a
-     card is scanned for; whose it is and what they said are what it is read
-     for, and those are two different sizes. */
-  font-size: 11.5px; line-height: 1.35; color: var(--fg); margin-top: 2px;
-  min-width: 0;
-}
-/* Whose it is. Heavier and quieter than what they wrote, so the eye reads the
-   sentence and not the name in front of it. */
-.card-handle { flex: none; font-weight: 600; color: var(--dim); }
-.card-said {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.card-meta { font-size: 12.5px; color: var(--dim); }
-/* The time, at the end of the title row. Tabular and `flex: none` so a long
-   album name gives way to it rather than the other way round — the name has
-   an ellipsis, the time cannot have one. */
-.card-when {
-  flex: none; white-space: nowrap;
-  font-size: 11.5px; font-weight: 500; color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
+.card-meta { font-size: 13px; color: var(--dim); margin-top: 4px; }
 
-/* One circle per contributor, in the mark's colours, overlapped the way the
-   mark's own lenses overlap. */
-.lenses { display: inline-flex; flex: none; }
-.lenses > * { border-radius: 50%; display: block; }
-.lenses > * + * { margin-left: -5px; }
-/* A bare number, in the same face and weight as everything else. It was
-   briefly set larger and pressed into the blurred strip with a highlight and a
-   shade; the effect competed with the photographs it was sitting on, which is
-   the one thing a card is not allowed to do. */
-
-/* An event with no photos gets no mosaic and no bleed — blurring nothing
-   produces a grey smear that looks like a loading state that never finishes.
-   So it is a different card: a name, a sentence, and the argument. */
+/* An album with no photographs gets none of the above — cropping nothing
+   produces a grey rectangle that reads as a loading state that never
+   finishes. So it is a different card: a name, a sentence, and the argument. */
 .card-empty {
-  min-height: 210px; padding: 16px;
+  min-height: 320px; padding: 16px;
+  border: 1px solid var(--line); border-radius: 16px; background: var(--card);
   display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
 }
 .card-empty .card-name { white-space: normal; }
@@ -742,13 +775,19 @@ button.secondary {
   background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
 }
 
+/* One circle per contributor, in the mark's colours, overlapped the way the
+   mark's own lenses overlap. */
+.lenses { display: inline-flex; flex: none; }
+.lenses > * { border-radius: 50%; display: block; }
+.lenses > * + * { margin-left: -5px; }
+
 .card-new {
-  border: 1px dashed var(--line-dashed); border-radius: 14px; min-height: 210px;
-  display: flex; flex-direction: column; justify-content: center; gap: 8px;
-  padding: 18px; text-decoration: none; color: inherit; background: none;
+  border: 1px dashed var(--line-dashed); border-radius: 16px; height: 320px;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  padding: 20px; text-decoration: none; color: inherit; background: none;
 }
 .card-new strong { font-size: 17px; font-weight: 600; }
-.card-new span { font-size: 14px; color: var(--dim); }
+.card-new span { font-size: 13.5px; color: var(--dim); line-height: 1.5; }
 /* Wider overlap at this size — the -5px that reads as "just touching" on a
    14px circle is barely a notch on an 18px one. */
 .card-new .lenses > * + * { margin-left: -6px; }

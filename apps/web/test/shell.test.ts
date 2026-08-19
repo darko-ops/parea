@@ -117,13 +117,13 @@ describe('an event looks like an event wherever it is listed', () => {
     // became a list of things that happened, and the one place it still shows
     // an event is a row in a sentence.
     //
-    // Two files per screen, because Home hands its grid to `SearchEvents` —
+    // Two files per screen, because Home hands its grid to `HomeView` —
     // the cards are still `EventCard` and the container is still `.cards`,
     // they are just declared one component apart. Asserting both against the
     // page would only prove the grid had not moved, which is not the property
     // worth holding.
     const screens = [
-      { name: 'events', cards: '../app/albums/page.tsx', grid: '../app/components/SearchEvents.tsx' },
+      { name: 'events', cards: '../app/albums/page.tsx', grid: '../app/components/HomeView.tsx' },
       { name: 'account', cards: '../app/components/AccountView.tsx', grid: '../app/components/AccountView.tsx' },
     ];
     for (const screen of screens) {
@@ -136,22 +136,19 @@ describe('an event looks like an event wherever it is listed', () => {
     }
   });
 
-  it('gets its mosaic shape from the shared function, in every client', () => {
+  it('gets its mosaic shape from the shared function, wherever one is drawn', () => {
     /*
      * The tile arrangement existed twice — once in the web card, once in the
-     * native events tab — each with a comment on it saying the other one had
-     * to agree. Two copies and a comment is not a mechanism, and when the
-     * brand-forward card changed the four-photo shape it would have been two
-     * edits with nothing to catch the second being forgotten.
+     * native events tab — each with a comment saying the other one had to
+     * agree. Two copies and a comment is not a mechanism.
      *
-     * So: nobody declares their own. Anything drawing a mosaic imports
-     * `mosaicLayout` from `@parea/cards` and maps it to whatever its layout
-     * primitive is — grid track weights on the web, `flex` on the phone.
+     * The web card no longer draws a mosaic at all: Home leads with one cover
+     * per album, so there is one image and nothing to arrange. That leaves the
+     * phone as the only drawer, and this keeps the rule pointed at whoever is
+     * drawing rather than deleting it — the day the web grows a mosaic back,
+     * it imports the shared one like everybody else.
      */
-    const drawers = [
-      '../app/components/EventCard.tsx',
-      '../../../apps/mobile/src/Events.tsx',
-    ];
+    const drawers = ['../../../apps/mobile/src/Events.tsx'];
     for (const path of drawers) {
       const source = read2(path);
       expect(source, `${path} does not use the shared layout`).toMatch(/mosaicLayout\(/);

@@ -28,11 +28,13 @@
 
 import { CreateCard } from '@/../app/components/CreateCard';
 import { EventCard } from '@/../app/components/EventCard';
-import { SearchEvents } from '@/../app/components/SearchEvents';
+import { HomeView } from '@/../app/components/HomeView';
 import { Shell } from '@/../app/components/Shell';
+import { avatarUrl, accountFor } from '@/accounts';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { peopleAround } from '@/people';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
 
@@ -43,8 +45,33 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * "Evening, Nadia" — the time of day, on the server's clock.
+ *
+ * Worded here rather than in the browser for the reason every other time on
+ * this page is: the two clocks disagree, and React discards a tree whose text
+ * does not match the HTML it is hydrating. The server's zone is not the
+ * reader's, which makes this occasionally wrong by a few hours for somebody
+ * travelling — a greeting is allowed to be wrong in that way, and a page that
+ * flickered on every load is not.
+ */
+function greetingFor(name: string | null, now: Date): string | null {
+  if (!name?.trim()) return null;
+  const hour = now.getHours();
+  const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+  return `${part}, ${name.trim().split(/\s+/)[0]}`;
+}
+
 export default async function EventsPage() {
-  const listings = await eventsFor(getDb(), await currentActorId());
+  const db = getDb();
+  const actorId = await currentActorId();
+  const [listings, account, nearby] = await Promise.all([
+    eventsFor(db, actorId),
+    // For the greeting only. Null for a browser that has never signed in,
+    // which is the case this page renders without a greeting at all.
+    actorId ? accountFor(db, actorId) : Promise.resolve(null),
+    peopleAround(db, actorId),
+  ]);
   const now = new Date();
   const cards = await toCards(listings, now);
 
@@ -64,21 +91,32 @@ export default async function EventsPage() {
   return (
     <Shell current="events">
       <main className="main">
-        <SearchEvents
+        <HomeView
           haystacks={haystacks}
-          heading={<h1>Home</h1>}
+          greeting={greetingFor(account?.displayName ?? null, now)}
+          people={await Promise.all(
+            nearby.map(async (person) => ({
+              actorId: person.actorId,
+              handle: person.handle,
+              name: person.name,
+              // Presigned here, like every other avatar that crosses this
+              // boundary. The key does not cross it.
+              avatar: await avatarUrl(person.avatarKey),
+              eventIds: person.eventIds,
+            })),
+          )}
           footer={<CreateCard />}
         >
           {/*
             The id sits on a wrapper so `EventCard` stays a server component
-            with no idea it is inside a search.
+            with no idea it is inside two filters.
           */}
           {cards.map((event) => (
             <div key={event.id} data-event={event.id}>
               <EventCard event={event} />
             </div>
           ))}
-        </SearchEvents>
+        </HomeView>
       </main>
     </Shell>
   );

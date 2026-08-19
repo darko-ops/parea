@@ -98,7 +98,19 @@ export async function GET() {
          * spread, so a column added to it cannot leak by default.
          */
         const cover = await coverSrc(listing.coverKey);
-        const { creator, coverKey, ...rest } = listing;
+        /*
+         * The faces, as URLs. Same rule as the creator's picture directly
+         * below and the photo keys above it: an avatar key is an internal
+         * address, and what a client can use is a presigned URL.
+         */
+        const faces = await Promise.all(
+          listing.faces.map(async (face) => ({
+            actorId: face.actorId,
+            name: face.name,
+            avatarUrl: await avatarUrl(face.avatarKey),
+          })),
+        );
+        const { creator, coverKey, faces: faceRows, ...rest } = listing;
         return {
           ...rest,
           /*
@@ -111,6 +123,7 @@ export async function GET() {
            * paragraph above about photo keys applies to it word for word.
            */
           mosaic: [...(cover ? [cover] : []), ...mosaic],
+          faces,
           creator: {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),

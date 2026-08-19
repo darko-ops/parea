@@ -19,6 +19,7 @@
  * forgot on their home screen forever.
  */
 
+import { CARD_FACES } from '@parea/cards';
 import { schema } from '@parea/core';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
@@ -41,6 +42,19 @@ export type MosaicPhoto = {
  */
 export const MOSAIC_TILES = 4;
 
+/**
+ * One person on a card.
+ *
+ * A key rather than a URL, like every other image in this type: the boundary
+ * that hands a listing to a client is the boundary that signs it. See
+ * `toCards` and `/api/events`.
+ */
+export type FaceRow = {
+  actorId: string;
+  name: string;
+  avatarKey: string | null;
+};
+
 export type EventListing = {
   id: string;
   name: string;
@@ -49,6 +63,15 @@ export type EventListing = {
   capEpoch: number;
   /** Most recent first. Empty for an event nobody has added to yet. */
   mosaic: MosaicPhoto[];
+  /**
+   * The first few people in it, host first — the faces on the card.
+   *
+   * Three is what the card draws; four are fetched so that "and how many
+   * more" can be answered without a second query when the third and fourth
+   * are the same person under two rows. The rest of the number comes from
+   * `memberCount`, which counts everybody.
+   */
+  faces: FaceRow[];
   place: string | null;
   /** The host's line under the name. Drawn on the card, under the title. */
   caption: string | null;
@@ -107,6 +130,13 @@ export type EventListing = {
    */
   arrivingCount: number;
   lastActiveAt: string;
+  /**
+   * The earliest photograph in it, ISO, or null for an album with none.
+   *
+   * What the card dates an evening by when the host never said — see the query
+   * for why the earliest and not the latest.
+   */
+  firstPhotoAt: string | null;
 };
 
 export async function eventsFor(
@@ -151,6 +181,48 @@ export async function eventsFor(
           order by p.uploaded_at desc
           limit ${MOSAIC_TILES}
         ) t
+      )`,
+      /*
+       * The faces, in the order the card draws them: whoever made it, then
+       * the rest by when they arrived.
+       *
+       * A lateral four rather than a query per card, for the same reason the
+       * mosaic is one: this is the screen with the most rows on it, and a
+       * round trip per album is a page that gets slower the more somebody
+       * uses the product. The name is coalesced here rather than in
+       * JavaScript so that the ordering and the label agree about who this
+       * is.
+       */
+      faces: sql<FaceRow[]>`(
+        select coalesce(json_agg(row_to_json(f)), '[]'::json) from (
+          select a.id as "actorId",
+                 coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone') as name,
+                 a.avatar_key as "avatarKey"
+          from "event_participant" ep
+          join "actor" a on a.id = ep.actor_id
+          where ep.event_id = ${schema.events.id}
+          order by (a.id = ${schema.events.createdBy}) desc, ep.first_seen_at asc
+          limit ${CARD_FACES + 1}
+        ) f
+      )`,
+      /*
+       * The evening itself, as the photographs remember it.
+       *
+       * `event_date` is what the host typed and is the best answer when there
+       * is one — but the web's create form stopped asking when, so most albums
+       * do not have one, and a card that says "8 people" and then nothing has
+       * lost half its line. The earliest photograph is the honest fallback:
+       * `captured_at` is when the shutter went, and `uploaded_at` stands in
+       * for the ones whose EXIF said nothing.
+       *
+       * The earliest rather than the latest, because an album is about the
+       * evening it happened, not about somebody adding four more photographs
+       * to it a fortnight later.
+       */
+      firstPhotoAt: sql<Date | null>`(
+        select min(coalesce(p.captured_at, p.uploaded_at)) from "photo" p
+        where p.event_id = ${schema.events.id}
+          and p.status = 'ready' and p.deleted_at is null
       )`,
       // Counted in the query rather than per row: a home screen that issues
       // two round trips per event is a home screen that is slow at exactly
@@ -214,9 +286,14 @@ export async function eventsFor(
     // `encode()` on a null bytea is null, and json_agg keeps the key, so a
     // photo mid-ingest arrives as {hash: null} rather than being dropped.
     mosaic: (row.mosaic ?? []).filter((p) => p.hash !== null),
+    // `json_agg` over no rows is null rather than an empty array, and an album
+    // with no participants is not a contradiction — it is one nobody has
+    // opened yet.
+    faces: row.faces ?? [],
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),
+    firstPhotoAt: row.firstPhotoAt ? new Date(row.firstPhotoAt).toISOString() : null,
     creator: { handle: creatorHandle, avatarKey: creatorAvatarKey },
   }));
 }

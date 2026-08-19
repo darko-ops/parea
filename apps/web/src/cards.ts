@@ -10,7 +10,7 @@
  * divergence a second copy produces.
  */
 
-import { ago } from "@parea/cards";
+import { ago, albumDate, CARD_FACES, isLive } from "@parea/cards";
 
 import { avatarUrl } from "./accounts";
 import { imageSrc } from "./images";
@@ -55,6 +55,35 @@ export type CardEvent = {
   arrivingCount: number;
   /** ISO. Used to decide whether an event is live enough to lead the page. */
   lastActiveAt: string;
+  /**
+   * The album's own day, as "Fri 14 Mar", or null for one that never said.
+   *
+   * Formatted here rather than in the component for the reason `added` is:
+   * `Intl` on the server and `Intl` in the browser can disagree about a
+   * locale, and React discards a tree whose text does not match. The card asks
+   * a question about an evening — this is the evening, not the upload.
+   */
+  date: string | null;
+  /**
+   * Being added to right now.
+   *
+   * An hour, which is the width of the claim the badge makes: "being added to
+   * now" is false about something that stopped forty minutes ago in a way that
+   * "today" would not be. Computed against the server's clock, so it does not
+   * flicker on a device whose own is wrong.
+   */
+  live: boolean;
+  /**
+   * The faces on the card: whoever made it, then whoever else is in it.
+   *
+   * Signed URLs and names, capped by `CARD_FACES`. The name rides along for
+   * the letter that stands in when there is no picture and for the alt-free
+   * circle's accessible name — never a silhouette, which is a photograph of
+   * nobody.
+   */
+  faces: { name: string; avatar: string | null }[];
+  /** How many people the faces do not show. Zero draws no chip. */
+  moreFaces: number;
   /**
    * Where the card goes. Defaults to the event, which works for anybody whose
    * browser already holds a capability for it — everybody who arrived by
@@ -102,6 +131,7 @@ export async function leadImage(
   );
 }
 
+
 /** Signs every mosaic thumbnail and builds the meta line. */
 export async function toCards(
   listings: EventListing[],
@@ -143,6 +173,24 @@ export async function toCards(
           )),
         ],
         added: ago(new Date(listing.lastActiveAt), now),
+        date: albumDate(listing.eventDate ?? listing.startsAt ?? listing.firstPhotoAt),
+        live: isLive(listing.lastActiveAt, now),
+        /*
+         * Three faces and a number, both decided here.
+         *
+         * The listing fetches one more than the card draws so that the
+         * overflow is honest without a second query — but the number the chip
+         * shows is `memberCount` minus what is drawn, not the difference
+         * between two limits, because the fourth row is fetched to prove there
+         * is a fourth and not to be counted.
+         */
+        faces: await Promise.all(
+          listing.faces.slice(0, CARD_FACES).map(async (face) => ({
+            name: face.name,
+            avatar: await avatarUrl(face.avatarKey),
+          })),
+        ),
+        moreFaces: Math.max(0, listing.memberCount - CARD_FACES),
         // Presigned here, one per key. Local HMAC rather than a round trip, so
         // a page of six cards is not six round trips to storage.
         creatorAvatar: await avatarUrl(listing.creator.avatarKey),

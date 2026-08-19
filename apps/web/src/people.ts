@@ -218,3 +218,91 @@ export async function albumsWithBoth(
   const inCommon = new Set(theirs.map((row) => row.eventId));
   return mine.filter((listing) => inCommon.has(listing.id));
 }
+
+/**
+ * Enough faces to fill the row, few enough that it is a row and not a
+ * directory. The row scrolls on a phone; on a laptop this is about two
+ * screens' worth of the people somebody actually shares evenings with.
+ */
+export const PEOPLE_ROW_LIMIT = 14;
+
+export type PersonNearby = {
+  actorId: string;
+  handle: string | null;
+  name: string;
+  avatarKey: string | null;
+  /** Which of the viewer's albums they are in. The row filters the grid. */
+  eventIds: string[];
+};
+
+/**
+ * The people you are in albums with, most recently active first.
+ *
+ * The first thing on Home, and it is the same intersection the profile page
+ * does, widened: rather than "which albums am I in with this person", it is
+ * "who is in the albums I am in". Nothing is disclosed by it — every person
+ * here is somebody the viewer could find by opening any of those albums and
+ * reading its Members tab.
+ *
+ * Ordered by the most recent activity of any album they share with the viewer,
+ * so the row is about who you are seeing rather than who you have known
+ * longest. Guests are included: somebody who opened a link and put twenty
+ * photographs in was at the party, whether or not they made an account.
+ *
+ * The viewer is not in their own row. It would be the one face that filters
+ * the grid to everything.
+ */
+export async function peopleAround(
+  db: Db,
+  actorId: string | null,
+): Promise<PersonNearby[]> {
+  if (!actorId) return [];
+
+  /*
+   * Raw SQL for the aggregate. The query builder can express this, and
+   * `array_agg` over a grouped join with an ordering that is not the grouping
+   * key is the point at which it stops reading like the question being asked.
+   */
+  const rows = await db.execute(sql`
+    select a.id as "actorId",
+           a.handle as handle,
+           coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone') as name,
+           a.avatar_key as "avatarKey",
+           array_agg(distinct e.id::text) as "eventIds",
+           max(e.last_active_at) as "lastActive"
+      from "event_participant" mine
+      join "event" e on e.id = mine.event_id and e.deleted_at is null
+      join "event_participant" theirs on theirs.event_id = e.id
+      join "actor" a on a.id = theirs.actor_id
+     where mine.actor_id = ${actorId}
+       and theirs.actor_id <> ${actorId}
+       and a.merged_into_id is null
+       and not exists (
+         select 1 from "block" b
+         where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
+            or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
+       )
+     group by a.id, a.handle, a.display_name, a.avatar_key
+     order by max(e.last_active_at) desc
+     limit ${PEOPLE_ROW_LIMIT}
+  `);
+
+  // PGlite answers `{rows}` and postgres.js answers an array. Both are true of
+  // `db.execute`, and a screen that worked in tests and not in production is
+  // how that was found out the first time.
+  const list = (Array.isArray(rows) ? rows : (rows as { rows: unknown[] }).rows) as {
+    actorId: string;
+    handle: string | null;
+    name: string;
+    avatarKey: string | null;
+    eventIds: string[];
+  }[];
+
+  return list.map((row) => ({
+    actorId: row.actorId,
+    handle: row.handle,
+    name: row.name,
+    avatarKey: row.avatarKey,
+    eventIds: row.eventIds ?? [],
+  }));
+}
