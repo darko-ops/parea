@@ -43,15 +43,32 @@ describe('what a card says now that the photograph is the card', () => {
     expect(CARD).toMatch(/event\.live \? `added to \$\{event\.added\}` : event\.date/);
   });
 
-  it('has dropped the handle, the caption and the place', () => {
+  it('says whose album it is, in both of their names', () => {
     /*
-     * The three lines that made a wall of evenings look like a wall of
-     * listings. The place is still searchable — typing "greece" is what
-     * replaced the By place list — but it is matched from the listing rather
-     * than carried into the card, so the component holds nothing it does not
-     * draw.
+     * The name is what somebody recognises and the handle is what is unique,
+     * so a card that printed one of them made the reader guess which. On your
+     * own albums the name is "You" — your own name read back at you on a wall
+     * of your own evenings is the page describing you to yourself.
      */
-    expect(CARD).not.toMatch(/card-handle|card-said|creatorHandle/);
+    expect(CARD).toMatch(/event\.mine \? 'You' : event\.creatorName/);
+    expect(CARD).toMatch(/@\{event\.creatorHandle\}/);
+  });
+
+  it('has dropped the caption and the place', () => {
+    /*
+     * The two that made a wall of evenings look like a wall of listings — a
+     * second sentence under the name, and a location tag. The place is still
+     * searchable, because typing "greece" is what replaced the By place list,
+     * but it is matched from the listing rather than carried into the card, so
+     * the component holds nothing it does not draw.
+     */
+    expect(CARD).not.toMatch(/card-said/);
+    // Not below the cover, which is the card this test is about. The album
+    // with no photographs keeps its caption: that card is text, and the
+    // sentence is most of what it has.
+    const photoCard = CARD.slice(CARD.indexOf('card-cover'));
+    expect(photoCard).not.toMatch(/event\.caption/);
+    expect(CARD.slice(0, CARD.indexOf('card-cover'))).toMatch(/event\.caption/);
     expect(CARDS).not.toMatch(/place|memberAvatars/);
   });
 
@@ -114,7 +131,9 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
    * short-lived on purpose, because it is a capability.
    */
   it('presigns on the page path', () => {
-    expect(CARDS).toMatch(/creatorAvatar: await avatarUrl\(listing\.creator\.avatarKey\)/);
+    // The host's picture is the first circle in the faces row now, signed with
+    // the rest of them rather than on its own.
+    expect(CARDS).toMatch(/avatar: await avatarUrl\(face\.avatarKey\)/);
   });
 
   it('presigns on the API path, and rebuilds rather than spreads', () => {

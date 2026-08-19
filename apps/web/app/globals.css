@@ -744,6 +744,20 @@ button.secondary {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: color 120ms;
 }
+/* Whose album it is, between the title and the people.
+
+   The name at text weight and the handle a size down and warmer: they are one
+   line about one person, so the second half recedes rather than repeating the
+   first at the same volume. */
+.card-host {
+  display: flex; align-items: baseline; gap: 6px; margin-top: 5px;
+  font-size: 13px; min-width: 0;
+}
+.card-host-name { color: var(--fg); font-weight: 500; flex: none; }
+.card-host-handle {
+  font-size: 12px; color: var(--dim-warm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .card-meta { font-size: 13px; color: var(--dim); margin-top: 4px; }
 
 /* An album with no photographs gets none of the above — cropping nothing

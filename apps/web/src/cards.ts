@@ -55,12 +55,18 @@ export type CardEvent = {
    */
   added: string;
   /**
-   * Whose album it is — the picture beside the title, and the handle beside
-   * the caption. Either can be null: an account is optional here, and so is a
-   * picture.
+   * Whose album it is, as the line under the title says it.
+   *
+   * Both, always: the name is what somebody recognises and the handle is what
+   * is unique, and a card that printed one of them made you guess which. Each
+   * can be absent on its own — an account is optional in this product, and so
+   * is a display name — and what is left stands alone rather than leaving a
+   * gap where the other was.
    */
-  creatorAvatar: string | null;
+  creatorName: string | null;
   creatorHandle: string | null;
+  /** Yours, so the line reads "You" rather than your own name back at you. */
+  mine: boolean;
   /** The host's own line, under the title. Null draws nothing. */
   caption: string | null;
   /** How many lenses to draw. Capped at four when it is drawn, not here. */
@@ -205,10 +211,9 @@ export async function toCards(
           })),
         ),
         moreFaces: Math.max(0, listing.memberCount - CARD_FACES),
-        // Presigned here, one per key. Local HMAC rather than a round trip, so
-        // a page of six cards is not six round trips to storage.
-        creatorAvatar: await avatarUrl(listing.creator.avatarKey),
+        creatorName: listing.creator.name,
         creatorHandle: listing.creator.handle,
+        mine: listing.mine,
         caption: listing.caption,
         contributorCount: listing.contributorCount,
         memberCount: listing.memberCount,

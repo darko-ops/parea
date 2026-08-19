@@ -10,9 +10,9 @@
  * What came off it is as much the design as what is on it. The mosaic of three
  * or four tiles is gone, and with it the argument that a card should show a
  * sample of what is inside: one picture chosen as the cover says more, and the
- * sample was four thumbnails too small to recognise anybody in. The handle and
- * the caption are gone from this screen — they are on the album itself, and on
- * a card they were the two lines doing the listing impression.
+ * sample was four thumbnails too small to recognise anybody in. The caption is
+ * gone from this screen — it is on the album itself, and on a card a second
+ * sentence under the name is the listing impression.
  *
  * What replaced them is people. Three faces and "8 people · Fri 14 Mar", which
  * is how somebody actually recognises an evening: who was there and when it
@@ -145,10 +145,37 @@ export function EventCard({ event }: { event: CardEvent }) {
       <div className="card-under">
         <div className="card-name">{event.name}</div>
         {/*
+          Whose album it is, in their own two names.
+
+          Both, always. The name is what somebody recognises — it is how they
+          are spoken about — and the handle is what is unique, so printing one
+          of them makes the reader guess which they are looking at. On your own
+          albums the name is "You": your own name read back at you on a wall of
+          your own evenings is the page describing you to yourself.
+
+          Either can be missing on its own — an account is optional here, and
+          so is a display name — and what is left stands alone rather than
+          leaving a gap where the other was.
+        */}
+        {(event.mine || event.creatorName || event.creatorHandle) && (
+          <div className="card-host">
+            {(event.mine || event.creatorName) && (
+              <span className="card-host-name">
+                {event.mine ? 'You' : event.creatorName}
+              </span>
+            )}
+            {event.creatorHandle && (
+              <span className="card-host-handle">@{event.creatorHandle}</span>
+            )}
+          </div>
+        )}
+        {/*
           Who and when, in that order, and the when is the evening rather than
           the upload — except on an album being added to now, where the recent
-          thing *is* the news. No handle and no caption: they were the two
-          lines that made a photograph look like a listing.
+          thing *is* the news. No caption on this line and none above it: a
+          second sentence under the name is what made a photograph look like a
+          listing. The album with no photographs still has one, because that
+          card is text and the sentence is most of what it has.
         */}
         <div className="card-meta">
           {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}

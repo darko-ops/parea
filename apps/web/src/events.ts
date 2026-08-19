@@ -110,7 +110,12 @@ export type EventListing = {
    * the bucket is private, so a URL is a short-lived capability and one stored
    * or shipped raw is a credential with an expiry attached.
    */
-  creator: { handle: string | null; avatarKey: string | null };
+  /**
+   * Whose album it is: the name the card prints, the handle beside it, and the
+   * picture in the first circle. The name may be absent — an account is
+   * optional here — in which case the handle stands alone.
+   */
+  creator: { name: string | null; handle: string | null; avatarKey: string | null };
   /**
    * Whether this actor made it.
    *
@@ -249,6 +254,7 @@ export async function eventsFor(
         where p.event_id = ${schema.events.id}
           and p.status = 'pending' and p.deleted_at is null
       )`,
+      creatorName: schema.actors.displayName,
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
       mine: sql<boolean>`${schema.events.createdBy} = ${actorId}`,
@@ -281,7 +287,7 @@ export async function eventsFor(
     // somebody can build a memory of.
     .orderBy(desc(schema.events.lastActiveAt));
 
-  return rows.map(({ creatorHandle, creatorAvatarKey, ...row }) => ({
+  return rows.map(({ creatorName, creatorHandle, creatorAvatarKey, ...row }) => ({
     ...row,
     // `encode()` on a null bytea is null, and json_agg keeps the key, so a
     // photo mid-ingest arrives as {hash: null} rather than being dropped.
@@ -294,6 +300,10 @@ export async function eventsFor(
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),
     firstPhotoAt: row.firstPhotoAt ? new Date(row.firstPhotoAt).toISOString() : null,
-    creator: { handle: creatorHandle, avatarKey: creatorAvatarKey },
+    creator: {
+      name: creatorName?.trim() || null,
+      handle: creatorHandle,
+      avatarKey: creatorAvatarKey,
+    },
   }));
 }

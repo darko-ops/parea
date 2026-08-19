@@ -60,7 +60,7 @@ type EventListing = {
   /** Whether this person made it, decided by the server. Drives the filter. */
   mine: boolean;
   /** Whose album it is. The URL is presigned by the route; null is normal. */
-  creator: { handle: string | null; avatarUrl: string | null };
+  creator: { name: string | null; handle: string | null; avatarUrl: string | null };
 };
 
 /** Only 'loading' still matters here; the sign-in form owns its own steps. */
@@ -414,8 +414,9 @@ export function AccountView() {
                   .slice(0, CARD_FACES)
                   .map((face) => ({ name: face.name, avatar: face.avatarUrl })),
                 moreFaces: Math.max(0, event.memberCount - CARD_FACES),
-                creatorAvatar: event.creator?.avatarUrl ?? null,
+                creatorName: event.creator?.name ?? null,
                 creatorHandle: event.creator?.handle ?? null,
+                mine: event.mine,
               }}
             />
           ))}

@@ -149,6 +149,7 @@ export async function GET() {
               : null,
           faces,
           creator: {
+            name: creator.name,
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),
           },
