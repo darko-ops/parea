@@ -141,6 +141,37 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
   });
 });
 
+describe('the size a cover is drawn at', () => {
+  it('asks for the derivative that fits the card, not the one that fitted the old one', () => {
+    /*
+     * The card used to be four tiles about 145px wide, and `thumb` — 320px on
+     * its longest edge — was two device pixels per CSS pixel and sharp. One
+     * cover 320px tall and up to 360 wide is upwards of 720 device pixels on a
+     * retina screen, and the same file stretched over that is the blur this
+     * fixes. `grid` is 1280px and the deriver already makes it for every
+     * photograph, so nothing has to be re-derived.
+     */
+    expect(CARDS).toMatch(/imageSrc\(first, 'grid', listing\.capEpoch\)/);
+    expect(CARDS).toMatch(/imageSources\(first, 'grid', listing\.capEpoch\)/);
+    expect(CARDS).not.toMatch(/'thumb'/);
+  });
+
+  it('lets the browser choose the encoding', () => {
+    // At 1280px the AVIF is most of what keeps a bigger picture from being a
+    // bigger download — and only the browser knows what it can decode.
+    const COVER = read('../app/components/CoverImage.tsx');
+    expect(COVER).toMatch(/<source key=\{source\.type\} srcSet=\{source\.src\} type=\{source\.type\}/);
+    expect(COVER).toMatch(/source\.type !== 'image\/jpeg'/);
+    // The JPEG is not optional: a <picture> whose sources are all rejected
+    // renders nothing at all.
+    expect(COVER).toMatch(/<img ref=\{ref\} src=\{src\}/);
+  });
+
+  it('sends the same picture to the profile, which builds its cards in the browser', () => {
+    expect(API).toMatch(/imageSrc\(first, 'grid', listing\.capEpoch\)/);
+  });
+});
+
 describe('the picture an album leads with', () => {
   it('is the cover when there is one, and the newest photo otherwise', () => {
     // One rule, in one place: search rows, the albums two people share, and

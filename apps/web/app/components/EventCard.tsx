@@ -29,7 +29,7 @@
 import type { CardEvent } from '@/cards';
 
 import { Face } from './Faces';
-import { MosaicTile } from './MosaicTile';
+import { CoverImage } from './CoverImage';
 
 /**
  * The letter in somebody's circle when they have no picture.
@@ -42,7 +42,7 @@ function initial(name: string): string {
 }
 
 export function EventCard({ event }: { event: CardEvent }) {
-  const cover = event.mosaic[0] ?? null;
+  const cover = event.cover;
 
   const label = `${event.name}, ${event.photoCount} ${
     event.photoCount === 1 ? 'photo' : 'photos'
@@ -100,7 +100,7 @@ export function EventCard({ event }: { event: CardEvent }) {
         albums looks like when it is not trying to look like a listing.
       */}
       <div className="card-cover">
-        {cover && <MosaicTile src={cover} />}
+        {cover && <CoverImage src={cover.src} sources={cover.sources} />}
         {/*
           Only while it is true, which is an hour. A badge that stays up all
           day is a badge nobody reads, and "being added to now" is the one

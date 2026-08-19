@@ -13,7 +13,7 @@
 import { ago, albumDate, CARD_FACES, isLive } from "@parea/cards";
 
 import { avatarUrl } from "./accounts";
-import { imageSrc } from "./images";
+import { imageSources, imageSrc } from "./images";
 import { getStorage } from "./storage";
 import type { EventListing } from "./events";
 
@@ -23,8 +23,24 @@ export type CardEvent = {
   linkToken?: string;
   name: string;
   photoCount: number;
-  /** Signed thumbnail URLs, most recent first. Empty renders no mosaic. */
-  mosaic: string[];
+  /**
+   * The one image the card leads with, and the encodings for it.
+   *
+   * `grid`, not `thumb`. The card used to draw four tiles about 145px wide, so
+   * a 320px derivative was two device pixels for every CSS one and sharp. It
+   * now draws a single 290–360px cover 320px tall, which on a retina screen is
+   * upwards of 720 device pixels across — and the same 320px file stretched
+   * over that is the blur. `grid` is 1280px, the next size the deriver already
+   * makes for every photograph, so this costs no backfill.
+   *
+   * The AVIF sits in `sources` and the JPEG in `src`, because the browser is
+   * the only party that knows what it can decode — and at 1280px the AVIF is
+   * most of what keeps the bigger picture from being a bigger download.
+   *
+   * Null for an album with no photographs and no cover, which draws the empty
+   * card instead.
+   */
+  cover: { src: string; sources: { type: string; src: string }[] } | null;
   /**
    * When it was last added to, as "3 days ago".
    *
@@ -140,38 +156,36 @@ export async function toCards(
   return Promise.all(
     listings.map(async (listing) => {
       const cover = await coverSrc(listing.coverKey);
+      const shot = listing.mosaic[0];
+      const first = shot
+        ? {
+            eventId: listing.id,
+            storageKey: shot.storageKey,
+            contentHash: shot.hash ? Buffer.from(shot.hash, 'hex') : null,
+          }
+        : null;
       return {
         id: listing.id,
         name: listing.name,
         photoCount: listing.photoCount,
         /*
-         * The cover first, then the photographs.
+         * The cover if the album has one, else its newest photograph.
          *
-         * Prepended rather than given a field of its own, because "the picture
-         * the album leads with" is exactly what the first mosaic tile already
-         * is: the layout draws it largest, the blurred bleed under the text is
-         * taken from it, and the search rows use it as their thumbnail. A
-         * separate `cover` prop would mean four surfaces each deciding again
-         * which image wins.
+         * One image now, where this used to hand over four: the mosaic is gone
+         * from the web card, and this is the same question `leadImage` answers
+         * for the search rows and the albums-in-common list. A cover object is
+         * one presigned URL with no derivatives — it was re-encoded once, on
+         * the way in, to the size it is drawn at — so it arrives with an empty
+         * `sources` and the browser takes the JPEG.
          */
-        mosaic: [
-          ...(cover ? [cover] : []),
-          ...(await Promise.all(
-            listing.mosaic.map((photo) =>
-              imageSrc(
-                {
-                  eventId: listing.id,
-                  storageKey: photo.storageKey,
-                  contentHash: photo.hash
-                    ? Buffer.from(photo.hash, "hex")
-                    : null,
-                },
-                "thumb",
-                listing.capEpoch,
-              ),
-            ),
-          )),
-        ],
+        cover: cover
+          ? { src: cover, sources: [] }
+          : first
+            ? {
+                src: await imageSrc(first, 'grid', listing.capEpoch),
+                sources: await imageSources(first, 'grid', listing.capEpoch),
+              }
+            : null,
         added: ago(new Date(listing.lastActiveAt), now),
         date: albumDate(listing.eventDate ?? listing.startsAt ?? listing.firstPhotoAt),
         live: isLive(listing.lastActiveAt, now),

@@ -21,7 +21,7 @@ import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { coverSrc } from '@/cards';
-import { imageSrc } from '@/images';
+import { imageSources, imageSrc } from '@/images';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
 import { asDateString, parseWindow } from '@/eventwindow';
@@ -123,6 +123,30 @@ export async function GET() {
            * paragraph above about photo keys applies to it word for word.
            */
           mosaic: [...(cover ? [cover] : []), ...mosaic],
+          /*
+           * The single image the web's card leads with, at the size it is
+           * drawn — `grid`, not one of the `thumb`s above. The mosaic stays
+           * beside it because the native client still draws four tiles, and
+           * dropping it here to tidy this response would blank every card in
+           * the app.
+           */
+          cover: cover
+            ? { src: cover, sources: [] }
+            : listing.mosaic[0]
+              ? await (async () => {
+                  const first = {
+                    eventId: listing.id,
+                    storageKey: listing.mosaic[0]!.storageKey,
+                    contentHash: listing.mosaic[0]!.hash
+                      ? Buffer.from(listing.mosaic[0]!.hash, 'hex')
+                      : null,
+                  };
+                  return {
+                    src: await imageSrc(first, 'grid', listing.capEpoch),
+                    sources: await imageSources(first, 'grid', listing.capEpoch),
+                  };
+                })()
+              : null,
           faces,
           creator: {
             handle: creator.handle,

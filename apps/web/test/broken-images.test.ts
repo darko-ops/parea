@@ -115,7 +115,7 @@ describe('images that will not load', () => {
 
     /*
      * There is no mosaic on a card any more — one cover, full bleed. So the
-     * failure has one shape rather than four: `MosaicTile` removes an `<img>`
+     * failure has one shape rather than four: `CoverImage` removes an `<img>`
      * it cannot load, and what is left underneath has to be a deliberate
      * colour rather than a hole. A white gap in a grid of photographs reads as
      * a card that is still loading; a flat warm rectangle reads as a card

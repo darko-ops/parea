@@ -47,6 +47,8 @@ type EventListing = {
   arrivingCount: number;
   photoCount: number;
   mosaic: string[];
+  /** The one image the card draws, at the size it draws it. See `toCards`. */
+  cover: { src: string; sources: { type: string; src: string }[] } | null;
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
   /** The album's own day, for the card's date. Any of the three may be absent. */
@@ -390,7 +392,7 @@ export function AccountView() {
                 id: event.id,
                 name: event.name,
                 photoCount: event.photoCount,
-                mosaic: event.mosaic,
+                cover: event.cover,
                 caption: event.caption,
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,
