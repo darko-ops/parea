@@ -13,7 +13,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, count, desc, eq, ilike, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -184,6 +184,122 @@ export async function searchGroups(db: Db, query: string, limit = 20) {
     .limit(limit);
 
   return rows;
+}
+
+/**
+ * How many groups the search page will offer, and how many friends it names.
+ *
+ * Four groups because it is a two-column grid two rows deep, and because a
+ * recommendation list long enough to scroll is a feed. Two names because that
+ * is how somebody says this out loud — "Priya and Dee are in that one" — and
+ * the third name is where a sentence becomes a membership list.
+ */
+export const SUGGESTED_GROUP_LIMIT = 4;
+export const MUTUALS_NAMED = 2;
+
+/** A findable group somebody could ask to be let into, and why they might. */
+export type SuggestedGroup = {
+  id: string;
+  name: string;
+  memberCount: number;
+  /** The actor's own friends who are in it — at most `MUTUALS_NAMED` of them. */
+  mutuals: {
+    id: string;
+    name: string | null;
+    handle: string | null;
+    avatarKey: string | null;
+  }[];
+  /** All of them, including the ones not named. */
+  mutualCount: number;
+  /** Whether this person has already asked and is waiting on an admin. */
+  asked: boolean;
+};
+
+/**
+ * Findable groups this person's friends are in — the one recommendation the
+ * product makes about a place rather than about a person.
+ *
+ * The rule it lives under is worth stating because it is the rule the whole
+ * product is built on: **albums are never recommended.** Possession of the link
+ * is the access model, so an album surfaced to somebody who was not sent one is
+ * a door nobody opened. A group is the exception and only barely — what comes
+ * back is a name, a count and nothing from inside, and the person still has to
+ * ask to be let in. This is a suggestion of somewhere to knock.
+ *
+ * What makes it honest is the mutuals. Every group here is one a friend is
+ * already in, which means it was reachable by asking that friend; naming them
+ * says so on the card rather than presenting the group as something the
+ * product knows about you. Nothing else about the group crosses this line — no
+ * events, no photographs, no member list beyond the friends the reader has
+ * themselves.
+ *
+ * `findable` is checked here exactly as `searchGroups` checks it: an unfindable
+ * group is absent rather than returned-and-filtered, so no count or ordering
+ * can betray that one exists.
+ */
+export async function suggestedGroupsFor(
+  db: Db,
+  actorId: string | null,
+  limit = SUGGESTED_GROUP_LIMIT,
+): Promise<SuggestedGroup[]> {
+  if (!actorId) return [];
+
+  const answer = await db.execute(sql`
+    select
+      g.id   as "id",
+      g.name as "name",
+      (
+        select count(*)::int from "group_member" m where m.group_id = g.id
+      )              as "memberCount",
+      count(*)::int  as "mutualCount",
+      json_agg(
+        json_build_object(
+          'id', a.id,
+          'name', a.display_name,
+          'handle', a.handle,
+          'avatarKey', a.avatar_key
+        )
+        -- A stable order, so the two friends named on a card are the same two
+        -- on the next visit. Someone who joined and then dropped off the line
+        -- reads as the product changing its mind about who is in there.
+        order by a.display_name asc, a.id asc
+      )              as "mutuals",
+      exists (
+        select 1 from "group_join_request" r
+        where r.group_id = g.id and r.actor_id = ${actorId} and r.status = 'open'
+      )              as "asked"
+    from "friendship" mine
+    join "group_member" gm on gm.actor_id = mine.friend_actor_id
+    join "groups" g on g.id = gm.group_id
+    join "actor" a on a.id = mine.friend_actor_id
+    where mine.actor_id = ${actorId}
+      and g.findable = true
+      and g.deleted_at is null
+      -- Somewhere you already are is not somewhere to discover.
+      and not exists (
+        select 1 from "group_member" me
+        where me.group_id = g.id and me.actor_id = ${actorId}
+      )
+    group by g.id, g.name
+    -- The strongest suggestion is the one the most of your own people are in.
+    order by count(*) desc, g.name asc
+    limit ${limit}
+  `);
+
+  // PGlite answers `{rows}` and postgres.js answers an array. Both are true of
+  // `db.execute`, and a screen that worked in tests and not in production is
+  // how that was found out the first time.
+  const rows = (
+    Array.isArray(answer) ? answer : (answer as { rows: unknown[] }).rows
+  ) as SuggestedGroup[];
+
+  return rows.map((row) => ({
+    ...row,
+    // Named on the card, and the rest are a number. Sent short rather than
+    // sent whole and sliced in the browser: a card that draws two faces has no
+    // use for the other nine, and they would be nine names in the payload.
+    mutuals: row.mutuals.slice(0, MUTUALS_NAMED),
+  }));
 }
 
 function sqlIlike(term: string) {

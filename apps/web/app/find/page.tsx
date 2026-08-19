@@ -12,21 +12,27 @@
  *     enough to be asked and no further;
  *   - findable groups, which return a door and never what is inside.
  *
- * With nothing typed it suggests people instead: friends of your friends, who
- * are the one suggestion this product makes and the weakest one available —
- * somebody you could already reach by asking the friend you have in common.
+ * With nothing typed it offers the two things that may be offered: friends of
+ * your friends, who are the weakest suggestion available — somebody you could
+ * already reach by asking the friend you have in common — and findable groups
+ * those friends are in, which are a door to knock on rather than a way in.
  *
- * There is no album search beyond your own and no photo search at all. Adding
- * either would turn "possession of the link is the access model" into "type a
- * word and see whose wedding comes up".
+ * **Your albums used to be the third of those and are not any more.** They were
+ * a worse copy of the home screen one tap away, and, more to the point, a list
+ * of albums under a heading on a search page is one ticket away from a list of
+ * *other people's*. There is no album search beyond your own and no photo
+ * search at all. Adding either would turn "possession of the link is the access
+ * model" into "type a word and see whose wedding comes up".
  */
 
 import { Shell } from '@/../app/components/Shell';
 import { FindView } from '@/../app/components/FindView';
+import { accountFor, avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { friendsOf, suggestionsFor } from '@/friends';
-import { groupsFor } from '@/groups';
+import { greetingFor } from '@/greeting';
+import { groupsFor, suggestedGroupsFor } from '@/groups';
 import { leadImage } from '@/cards';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
@@ -41,7 +47,7 @@ export const metadata = {
 export default async function FindPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [listings, friends, suggested, groups] = await Promise.all([
+  const [listings, friends, suggested, groups, offered, account] = await Promise.all([
     eventsFor(db, actorId),
     friendsOf(db, actorId),
     suggestionsFor(db, actorId),
@@ -49,6 +55,12 @@ export default async function FindPage() {
     // Groups as one of the three things it finds, and a heading that only ever
     // fills up after you type is a heading that has to be discovered.
     groupsFor(db, actorId),
+    // Findable groups a friend is already in. The only thing on this page that
+    // is *recommended* rather than listed back, and it is a door — see
+    // `suggestedGroupsFor` for why a group may be one and an album may not.
+    suggestedGroupsFor(db, actorId),
+    // For the greeting only, as on Home.
+    actorId ? accountFor(db, actorId) : Promise.resolve(null),
   ]);
 
   /*
@@ -72,18 +84,51 @@ export default async function FindPage() {
     })),
   );
 
+  /*
+   * The mutual friends' pictures, presigned here.
+   *
+   * Same boundary rule as everywhere else: the object key stays on the server
+   * and what crosses is a URL that expires. `Face` handles the expiry, which
+   * on this page matters — a tab left open overnight would otherwise show
+   * broken-image glyphs beside "Priya and Dee are in this".
+   */
+  const suggestedGroups = await Promise.all(
+    offered.map(async (group) => ({
+      id: group.id,
+      name: group.name,
+      memberCount: group.memberCount,
+      mutualCount: group.mutualCount,
+      asked: group.asked,
+      mutuals: await Promise.all(
+        group.mutuals.map(async (person) => ({
+          id: person.id,
+          name: person.name,
+          handle: person.handle,
+          avatar: await avatarUrl(person.avatarKey),
+        })),
+      ),
+    })),
+  );
+
   return (
     <Shell current="find">
-      <main className="main">
-        <div className="main-head">
-          <h1>Search</h1>
+      {/*
+        Its own surface rather than `.main`'s white. The page is a column of
+        cards now — groups, people, your own groups — and cards on white are
+        outlines drawn on nothing; the warm ground is what makes them objects,
+        the same way it does on an album.
+      */}
+      <main className="main main-find">
+        <div className="find-page">
+          <FindView
+            greeting={greetingFor(account?.displayName ?? null, new Date())}
+            albums={albums}
+            friends={friends}
+            suggested={suggested}
+            suggestedGroups={suggestedGroups}
+            groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
+          />
         </div>
-        <FindView
-          albums={albums}
-          friends={friends}
-          suggested={suggested}
-          groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
-        />
       </main>
     </Shell>
   );

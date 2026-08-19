@@ -76,17 +76,51 @@ describe('what the page offers before anybody types', () => {
     }
   });
 
-  it('holds something under each of them with nothing typed', () => {
+  it('holds something under each heading it shows', () => {
     /*
-     * Three headings that only fill up after you type are three headings
-     * nobody knows are there. Suggestions, your own albums and your own
-     * groups are all lists the server already decided you may see, so showing
-     * them costs no lookup and discloses nothing.
+     * A heading that only fills up after you type is a heading nobody knows
+     * is there. Suggested people, findable groups a friend is in, and the
+     * groups you are in yourself are all things the server decided you may
+     * see, so showing them discloses nothing.
      */
+    expect(VIEW).toMatch(/!asking && wantsGroups && suggestedGroups\.length > 0/);
     expect(VIEW).toMatch(/!asking && wantsPeople && suggested\.length > 0/);
-    expect(VIEW).toMatch(/!asking && wantsAlbums && albums\.length > 0/);
     expect(VIEW).toMatch(/!asking && wantsGroups && mine\.length > 0/);
     expect(PAGE).toMatch(/groupsFor\(db, actorId\)/);
+    expect(PAGE).toMatch(/suggestedGroupsFor\(db, actorId\)/);
+  });
+
+  it('does not list albums back, and says why not', () => {
+    /*
+     * The one heading that was removed rather than redrawn. "Your albums" was
+     * a worse copy of the home screen one tap away — and, more to the point, a
+     * list of albums under a heading on a search page is one ticket away from
+     * a list of somebody else's.
+     *
+     * The sentence is the other half. An absence cannot explain itself: with
+     * the heading simply gone, the page reads as broken rather than as a
+     * product that will not do this.
+     */
+    // `albums` survives as a prop because typing still matches against it.
+    // What went is every use of it that draws a list nobody asked for.
+    expect(VIEW).not.toMatch(/!asking && wantsAlbums/);
+    expect(VIEW).not.toMatch(/IDLE_ALBUMS|albums\.slice/);
+    expect(VIEW).toMatch(/Albums are never recommended/);
+  });
+
+  it('offers groups as a door and never as a way in', () => {
+    /*
+     * The only recommendation in the product. What makes it allowed is that
+     * what comes back is a name and a count, the reader still has to ask, and
+     * the friends who are already in it are named — because they are how this
+     * was reachable anyway.
+     */
+    expect(VIEW).toMatch(/You would still be asking to be\s+let in/);
+    expect(VIEW).toMatch(/`\/api\/groups\/\$\{group\.id\}\/requests`/);
+    expect(VIEW).toMatch(/\$\{who\} \$\{verb\} in this/);
+    // Two names and then a number. The third name is where a sentence turns
+    // into a membership list, which is not this card's to publish.
+    expect(VIEW).toMatch(/\$\{rest\} \$\{rest === 1 \? 'other' : 'others'\}/);
   });
 
   it('keeps the rules, one click away rather than first', () => {
@@ -180,7 +214,13 @@ describe('who a suggestion may be', () => {
      */
     expect(SUGGEST).toMatch(/count\(\*\)::int\s+as "mutuals"/);
     expect(VIEW).toMatch(/mutual friends?/);
-    expect(VIEW).not.toMatch(/mutualNames|mutuals\.map/);
+    /*
+     * `person.mutuals` is a number and is only ever drawn as one. A group
+     * card does name friends — deliberately, and they are a different set:
+     * the reader's own friends, who are how that group was reachable anyway.
+     * A friend-of-a-friend's mutuals are somebody else's relationships.
+     */
+    expect(VIEW).not.toMatch(/mutualNames|person\.mutuals\.map/);
   });
 
   it('is bounded', () => {

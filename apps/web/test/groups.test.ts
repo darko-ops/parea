@@ -26,6 +26,7 @@ import {
   membershipOf,
   participatedInGroup,
   searchGroups,
+  suggestedGroupsFor,
 } from '@/groups';
 
 const MIGRATIONS = fileURLToPath(
@@ -42,8 +43,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "block", "code", "derivative", "device",
-      "event", "event_participant", "group_join_request", "group_member",
-      "groups", "photo", "report", "safety_incident"
+      "event", "event_participant", "friendship", "group_join_request",
+      "group_member", "groups", "photo", "report", "safety_incident"
     restart identity cascade
   `);
 });
@@ -374,6 +375,176 @@ describe('the groups an actor is in', () => {
       .where(eq(schema.groupMembers.actorId, person));
 
     expect(await groupsFor(db, person)).toEqual([]);
+  });
+});
+
+/**
+ * The one recommendation the product makes about a place.
+ *
+ * Worth its own block because it is the single query that shows somebody a
+ * thing they do not already hold. Everything asserted here is the boundary of
+ * that: findable only, not one you are already in, a friend of yours must be
+ * in it, and what comes back is a name and a count and your own friends'
+ * names — never an event, a photograph, or anybody else who is in there.
+ */
+describe('groups you could join', () => {
+  async function befriend(a: string, b: string) {
+    // Both directions, as `friendsOf` expects — the row is the relationship
+    // from one side, and a suggestion made only to whoever asked first would
+    // be a suggestion that depends on who typed a handle.
+    await db.insert(schema.friendships).values([
+      { actorId: a, friendActorId: b },
+      { actorId: b, friendActorId: a },
+    ]);
+  }
+
+  async function named(name: string) {
+    const [row] = await db
+      .insert(schema.actors)
+      .values({ kind: 'guest', displayName: name })
+      .returning();
+    return row!.id;
+  }
+
+  it('offers a findable group a friend is in, and names the friend', async () => {
+    const me = await actor();
+    const priya = await named('Priya');
+    await befriend(me, priya);
+    const climbers = await group('Cotswold climbers', true);
+    await addMember(db, climbers.id, priya);
+    await addMember(db, climbers.id, await actor());
+
+    const [offered] = await suggestedGroupsFor(db, me);
+    expect(offered).toMatchObject({
+      id: climbers.id,
+      name: 'Cotswold climbers',
+      memberCount: 2,
+      mutualCount: 1,
+      asked: false,
+    });
+    expect(offered!.mutuals.map((m) => m.name)).toEqual(['Priya']);
+  });
+
+  it('never offers an unfindable one, however many friends are in it', async () => {
+    /*
+     * The rule the page is built on, applied to the only surface that could
+     * break it. A private group with two of your friends in it is exactly the
+     * kind of thing a recommender would love to surface, and surfacing it
+     * would tell you that a room you were not asked into exists.
+     */
+    const me = await actor();
+    const priya = await named('Priya');
+    const dee = await named('Dee');
+    await befriend(me, priya);
+    await befriend(me, dee);
+    const secret = await group('The Flat', false);
+    await addMember(db, secret.id, priya);
+    await addMember(db, secret.id, dee);
+
+    expect(await suggestedGroupsFor(db, me)).toEqual([]);
+  });
+
+  it('leaves out somewhere you already are', async () => {
+    const me = await actor();
+    const priya = await named('Priya');
+    await befriend(me, priya);
+    const club = await group('Climbing', true);
+    await addMember(db, club.id, priya);
+    await addMember(db, club.id, me);
+
+    expect(await suggestedGroupsFor(db, me)).toEqual([]);
+  });
+
+  it('leaves out a group no friend of yours is in', async () => {
+    // A findable group is findable by *name*. Being findable is not a reason
+    // to put one in front of somebody who has no route to it at all.
+    const me = await actor();
+    const stranger = await actor();
+    const club = await group('Climbing', true);
+    await addMember(db, club.id, stranger);
+
+    expect(await suggestedGroupsFor(db, me)).toEqual([]);
+  });
+
+  it('leaves out one that has been deleted', async () => {
+    const me = await actor();
+    const priya = await named('Priya');
+    await befriend(me, priya);
+    const gone = await group('Old', true);
+    await addMember(db, gone.id, priya);
+    await db
+      .update(schema.groups)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.groups.id, gone.id));
+
+    expect(await suggestedGroupsFor(db, me)).toEqual([]);
+  });
+
+  it('names two friends and counts the rest', async () => {
+    /*
+     * The card says "Priya, Dee and 2 others are in this". Two names is how
+     * somebody says it out loud; the third is where a sentence becomes a
+     * membership list, and the list is not this card's to publish.
+     */
+    const me = await actor();
+    const club = await group('Climbing', true);
+    for (const name of ['Ash', 'Dee', 'Mo', 'Priya']) {
+      const friend = await named(name);
+      await befriend(me, friend);
+      await addMember(db, club.id, friend);
+    }
+
+    const [offered] = await suggestedGroupsFor(db, me);
+    expect(offered!.mutualCount).toBe(4);
+    expect(offered!.mutuals).toHaveLength(2);
+    // Stable, so the two named on a card are the same two next time.
+    expect(offered!.mutuals.map((m) => m.name)).toEqual(['Ash', 'Dee']);
+  });
+
+  it('puts the group the most of your people are in first, and stops at four', async () => {
+    const me = await actor();
+    const friends = await Promise.all(
+      ['A', 'B', 'C', 'D', 'E'].map(async (name) => {
+        const id = await named(name);
+        await befriend(me, id);
+        return id;
+      }),
+    );
+    // Five groups, each with one more friend of mine in it than the last.
+    for (let i = 0; i < 5; i += 1) {
+      const club = await group(`Club ${i}`, true);
+      for (const friend of friends.slice(0, i + 1)) {
+        await addMember(db, club.id, friend);
+      }
+    }
+
+    const offered = await suggestedGroupsFor(db, me);
+    expect(offered.map((g) => g.name)).toEqual([
+      'Club 4',
+      'Club 3',
+      'Club 2',
+      'Club 1',
+    ]);
+  });
+
+  it('says when you have already asked, rather than offering again', async () => {
+    // There is one open request per person per group, so a button offering to
+    // make a second one is a button that cannot do anything.
+    const me = await actor();
+    const priya = await named('Priya');
+    await befriend(me, priya);
+    const club = await group('Climbing', true);
+    await addMember(db, club.id, priya);
+    await db
+      .insert(schema.groupJoinRequests)
+      .values({ groupId: club.id, actorId: me });
+
+    const [offered] = await suggestedGroupsFor(db, me);
+    expect(offered!.asked).toBe(true);
+  });
+
+  it('offers nothing to a browser that has never signed in', async () => {
+    expect(await suggestedGroupsFor(db, null)).toEqual([]);
   });
 });
 

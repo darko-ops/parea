@@ -1020,13 +1020,219 @@ button.secondary {
    of thing. */
 .named { color: inherit; text-decoration: none; }
 
-/* The search box, and the three things it points at.
+/* ---------------------------------------------------------------------------
+   Find — the box, and what the page holds before anybody uses it.
 
-   The scopes sit directly under the input and above everything else, because
-   they are the page's answer to "what can I find here" — an answer worth
-   giving before somebody has typed anything to test it with. */
-.find-box { display: grid; gap: 12px; }
-.find-scopes { margin: 0; }
+   This was four stacked bordered panels: the box, "People you may know",
+   "Your albums", "Your groups", each a list of identical 38px rows. It read as
+   a form, and the field somebody came here to type in had the same weight as
+   the rules link underneath it.
+
+   No panels here now. Sections are headings over content on the page's own
+   warm surface, and only a card carries a border — which is what makes a card
+   an object rather than a region. A group, a person and a group you are
+   already in are three different shapes, because they are three different
+   things and the old page drew them identically.
+   --------------------------------------------------------------------------- */
+.main-find {
+  /* The album page's surface, for the same reason: a column of white cards on
+     a white page is a set of outlines drawn on nothing. */
+  background: var(--page-warm);
+  padding: 28px 30px 34px;
+}
+/* The measure. Wider than prose and narrower than the grid: two group cards
+   side by side, and a row of person cards that wraps rather than stretches. */
+.find-page { max-width: 820px; width: 100%; }
+.find-greeting { font-size: 13px; color: var(--dim-warm); }
+.find-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px; }
+
+/* The box, given the weight of the thing the page is for.
+
+   The glyph sits inside it rather than beside it, so the whole white shape is
+   the target and there is nothing else on the line to press by mistake. */
+.find-box {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.find-box > svg { flex: none; color: var(--dim-warm); }
+/* The input is the box's inside, not a control within it: the border, radius
+   and padding are the parent's, and drawing them twice makes a field in a
+   frame. */
+.find-box input[type="search"] {
+  flex: 1; min-width: 0;
+  border: 0; background: none; padding: 0; border-radius: 0;
+  font-size: 17px;
+}
+.find-box input[type="search"]:focus-visible { outline: none; box-shadow: none; }
+/* Focus lands on the box, because that is the shape somebody sees. `:has` so
+   it happens whether the field was tabbed to or clicked into — the ring is
+   the only thing marking which of two boxes on the screen has the caret. */
+.find-box:focus-within {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* The three namespaces, directly under the box: the page's answer to "what
+   can I find here", given before somebody has typed anything to test it. */
+.find-scopes { margin-top: 12px; flex-wrap: nowrap; overflow-x: auto; }
+.find-scopes .pill { flex: none; padding: 7px 14px; font-size: 14px; }
+
+.find-section { margin-top: 30px; }
+/* The first section sits closer: it is under the scopes, which are part of the
+   box rather than a section of their own. */
+.find-section:first-of-type { margin-top: 28px; }
+.find-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 15px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 12px;
+}
+/* "friends of your friends" — the heading's own gloss, and the reason the
+   section does not need a sentence under it. */
+.find-head-note { font-size: 12.5px; font-weight: 400; color: var(--dim-warm); }
+/* "You would still be asking to be let in." Load-bearing rather than a
+   caption: it is what stops a list of groups reading as a list of yours. */
+.find-sub { margin: -8px 0 14px; font-size: 12.5px; color: var(--dim-warm); }
+/* An answer the page has to give in words. On the page rather than in a box,
+   at reading width. */
+.find-empty {
+  margin: 28px 0 0; max-width: 520px;
+  font-size: 13.5px; color: var(--dim-warm);
+}
+
+/* A findable group somebody could ask to be let into.
+
+   Two up, and one up before the cards get too narrow for a name and a member
+   line to sit beside a 44px tile. */
+.doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.door {
+  background: var(--card); border: 1px solid var(--hairline);
+  border-radius: 16px; padding: 16px;
+}
+.door-head { display: flex; align-items: center; gap: 12px; }
+/* A letter on a colour, never a photograph: a group has no cover, and
+   borrowing one from an event inside it would put a picture from a room on a
+   card offered to somebody who has not been let into the room. */
+.door-mark {
+  flex: none; width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 700;
+}
+.door-text { flex: 1; min-width: 0; display: grid; }
+.door-name {
+  font-size: 16px; font-weight: 600; color: inherit; text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.door-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.door-count { font-size: 12.5px; color: var(--dim-warm); margin-top: 2px; }
+.door-foot { display: flex; align-items: center; gap: 9px; margin-top: 12px; }
+.door-faces { display: inline-flex; flex: none; }
+/* Ringed in the card's own white so two overlapping faces read as two rather
+   than as one shape with a bite out of it. */
+.door-face {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  object-fit: cover; box-shadow: 0 0 0 2px var(--card);
+}
+.door-faces > * + * { margin-left: -7px; }
+/* Fills the circle `Face` drew when there is no picture behind it. */
+.door-face-lens { display: block; width: 100%; height: 100%; border-radius: 50%; }
+/* "Priya and Dee are in this" — the sentence that makes the suggestion
+   honest, so it gets the readable grey rather than the quiet one. */
+.door-why {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.door-ask {
+  flex: none; padding: 7px 13px; border-radius: 9px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg);
+  font-size: 13px; font-weight: 600;
+}
+.door-ask:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-ink); }
+/* Not a disabled button. There is one open request per person per group, so
+   asking again is not a thing that can be done — what is left is a statement
+   of where it got to. */
+.door-asked {
+  flex: none; padding: 7px 13px; border-radius: 9px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 13px; font-weight: 600;
+}
+.door-error { margin: 10px 0 0; font-size: 12.5px; color: var(--dim); }
+
+/* Somebody you may know. A card rather than a row, because a face is the
+   thing being recognised and a 38px square in a list is not one. */
+.faces-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.face-card {
+  width: 118px; flex: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 8px; border: 1px solid var(--hairline); border-radius: 14px;
+  background: var(--card); color: inherit; text-decoration: none;
+}
+.face-card-mark {
+  width: 48px; height: 48px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 600;
+}
+.face-card-name {
+  font-size: 14px; font-weight: 600; text-align: center;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.face-card-note { font-size: 12px; color: var(--dim-warm); }
+
+/* The groups you are already in. Chips, because they are places you go rather
+   than things to consider — drawn at a suggestion's size they were the
+   loudest thing on a page about finding something else. */
+.group-chips { display: flex; gap: 9px; flex-wrap: wrap; }
+.group-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 8px 14px 8px 8px; border-radius: 999px;
+  border: 1px solid var(--hairline); background: var(--card);
+  color: inherit; text-decoration: none;
+}
+.group-chip:hover { border-color: var(--line); }
+.group-chip-mark {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--photo-bed); color: var(--dim-warm);
+  font-size: 12px; font-weight: 700;
+}
+.group-chip-name { font-size: 14px; font-weight: 600; }
+.group-chip-note { font-size: 12px; color: var(--dim-warm); }
+
+/* The foot: the rules behind a link, and beside them the one rule that has to
+   be readable without being asked for.
+
+   An absence cannot explain itself. "Your albums" was on this page and is not
+   any more, and without this sentence where the list was, the missing heading
+   reads as something broken rather than as the policy it is. */
+.find-foot {
+  margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hairline);
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+}
+.find-foot-note { font-size: 12.5px; color: var(--dim-warm); }
+
+/* Focus, on everything here that can be reached by keyboard. The cards are
+   white on warm and a border-colour change is not enough of a difference to
+   find with the tab key. */
+.door-ask:focus-visible,
+.door-name:focus-visible,
+.face-card:focus-visible,
+.group-chip:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  /* One up. A 44px tile, a name and a member count do not fit beside each
+     other in half of a narrow column. */
+  .doors { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .main-find { padding: 20px 20px 28px; }
+  /* Scrolls rather than wrapping, like the people row on Home: one row of
+     faces is a suggestion and two rows of them is a directory. */
+  .faces-row {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .faces-row::-webkit-scrollbar { display: none; }
+}
 
 /* The rules, one click away.
 
