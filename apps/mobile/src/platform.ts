@@ -6,7 +6,7 @@
  * scattered.
  */
 
-import { File, Paths, UploadTask } from 'expo-file-system';
+import { File, Paths, UploadTask, UploadType } from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
@@ -161,6 +161,44 @@ export async function uploadItem(item: QueueItem): Promise<void> {
 
   if (result.status < 200 || result.status >= 300) {
     throw new Error(`upload failed: ${result.status}`);
+  }
+}
+
+/**
+ * POST an album cover, straight from the camera roll.
+ *
+ * The same `UploadTask` the photographs use, pointed at this product's own
+ * endpoint rather than at storage — which is the difference between a cover
+ * and a photograph on this side too: a photograph is presigned and goes to the
+ * bucket, a cover goes to the server, which re-encodes it and keeps one wide
+ * JPEG. See `/api/events/[id]/cover`.
+ *
+ * Not awaited by the screen that starts it. `sessionType: 'background'` means
+ * iOS carries it on after the sheet has been dismissed and after the app has
+ * been left, and there is nothing for anybody to wait in front of: the album
+ * exists, and a cover that does not arrive leaves it looking exactly as it
+ * would have looked without one.
+ */
+export async function uploadCover(
+  url: string,
+  headers: Record<string, string>,
+  uri: string,
+): Promise<void> {
+  const task = new UploadTask(new File(uri), url, {
+    httpMethod: 'POST',
+    // The file as the request body and nothing else. It is the default, and
+    // it is written down because the endpoint reads `arrayBuffer()` — a
+    // multipart body would arrive as a form with a JPEG somewhere inside it,
+    // which sharp answers "not an image" to, and the album would quietly have
+    // no cover.
+    uploadType: UploadType.BINARY_CONTENT,
+    headers,
+    mimeType: headers['content-type'] ?? 'image/jpeg',
+    sessionType: 'background',
+  });
+  const result = await task.uploadAsync();
+  if (!result || result.status < 200 || result.status >= 300) {
+    throw new Error(`cover failed: ${result?.status ?? 'no response'}`);
   }
 }
 

@@ -22,9 +22,11 @@
  */
 
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   Share,
@@ -37,6 +39,7 @@ import {
 import type { Api } from './api';
 import type { GroupTheme } from './Groups';
 import { DetectedEvents } from './DetectedEvents';
+import { uploadCover } from './platform';
 import {
   WHEN_OPTIONS,
   eventDateFor,
@@ -106,6 +109,16 @@ export function CreateEvent({
   const [when, setWhen] = useState<WindowId | null>(null);
   /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
   const [picked, setPicked] = useState<Bundle | null>(null);
+  /*
+   * The picture the album leads with, if they choose one.
+   *
+   * From the camera roll rather than from photographs already picked, which is
+   * what the web offers — because this screen has none to offer. Nothing is
+   * chosen here yet: a run of photographs is detected, and the choosing
+   * happens on the album afterwards. So the cover is asked for the only way it
+   * can be, and it is the one image this screen sends anywhere.
+   */
+  const [cover, setCover] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +150,32 @@ export function CreateEvent({
   /** Public unless the creator says otherwise — a forwarded link still works. */
   const [isPrivate, setIsPrivate] = useState(false);
 
+  /**
+   * One photograph, from the system picker.
+   *
+   * The system picker rather than the library reader that detection uses, and
+   * deliberately: picking one image needs no permission at all on iOS, and
+   * asking for the whole library to choose a cover would be the app requesting
+   * everything in order to take one thing. Detection asks for that access when
+   * it is what detection is for, and offers it after a contribution rather
+   * than in front of one — design §7.4.
+   */
+  const chooseCover = useCallback(async () => {
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      // Photographs only, for the same reason the album's picker says so: no
+      // part of this can do anything with a video.
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      // Re-encoded on the way out of the picker, which is most of the
+      // difference between a two-megabyte request and a twelve-megabyte one.
+      // The server re-encodes again to the size it actually draws.
+      quality: 0.8,
+      exif: false,
+    });
+    if (picked.canceled || picked.assets.length === 0) return;
+    setCover(picked.assets[0] ?? null);
+  }, []);
+
   const create = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed || (picked === null && when === null)) return;
@@ -164,6 +203,21 @@ export function CreateEvent({
         endsAt: span?.endsAt ?? null,
         accessPolicy: isPrivate ? 'account_required' : 'link_open',
       });
+      /*
+       * Sent, not waited for.
+       *
+       * The share step is the most important moment in this product and the
+       * one thing that must not be behind a progress bar — so the cover goes
+       * up while the sheet is being read, on a background session that
+       * survives the app being left. A failure leaves the album exactly as it
+       * would have looked without a cover, which is why nothing here surfaces
+       * one.
+       */
+      if (cover) {
+        const target = api.coverTarget(created.id);
+        void uploadCover(target.url, target.headers, cover.uri).catch(() => {});
+      }
+
       setMade({
         event: {
           id: created.id,
@@ -179,7 +233,7 @@ export function CreateEvent({
     } finally {
       setBusy(false);
     }
-  }, [api, groupId, name, picked, place, webBase, when]);
+  }, [api, cover, groupId, isPrivate, name, picked, place, webBase, when]);
 
   /**
    * Tapping a run fills the name in rather than creating straight away.
@@ -378,6 +432,39 @@ export function CreateEvent({
         </Text>
       </View>
 
+      <View style={styles.field}>
+        <View style={styles.fieldHead}>
+          <Text style={[styles.fieldLabel, { color: t.dim }]}>ALBUM COVER</Text>
+          <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
+        </View>
+        <View style={styles.coverRow}>
+          {cover && (
+            <Image source={{ uri: cover.uri }} style={[styles.coverThumb, { borderColor: t.line }]} />
+          )}
+          <View style={{ flex: 1, gap: 6 }}>
+            <Pressable
+              onPress={chooseCover}
+              accessibilityRole="button"
+              style={[styles.pill, { borderColor: t.line, backgroundColor: t.card, alignSelf: 'flex-start' }]}
+            >
+              <Text style={[styles.pillText, { color: t.accent }]}>
+                {cover ? 'Choose another' : 'Choose a photo'}
+              </Text>
+            </Pressable>
+            <Text style={[styles.small, { color: t.dim }]}>
+              {cover
+                ? 'This one leads, wherever the album is shown.'
+                : 'Without one the album leads with its newest photo.'}
+            </Text>
+          </View>
+          {cover && (
+            <Pressable onPress={() => setCover(null)} accessibilityRole="button">
+              <Text style={[styles.small, { color: t.accent }]}>Remove</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
       {/*
         The fallback, and only that. Detection covers the common case — someone
         adding last night — and cannot cover the other one, which is an event
@@ -499,6 +586,8 @@ export function CreateEvent({
 }
 
 const styles = StyleSheet.create({
+  coverRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  coverThumb: { width: 56, height: 56, borderRadius: 10, borderWidth: 1 },
   scroll: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 18 },
   headerRow: {
     flexDirection: 'row',

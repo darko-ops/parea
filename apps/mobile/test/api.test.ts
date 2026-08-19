@@ -260,6 +260,29 @@ describe('the things waiting on you, on the wire', () => {
   });
 });
 
+describe('an album cover, on the wire', () => {
+  it('is a target rather than a call, because the bytes never touch JS', () => {
+    /*
+     * A cover is a photograph off the camera roll. Reading a few megabytes
+     * into JavaScript to hand them straight back to the same operating system
+     * is the version of this that runs out of memory on an old phone, so the
+     * native uploader streams it from disk and this owns only the address and
+     * the identity.
+     */
+    const target = new Api('https://api.test', 'tok').coverTarget('e1');
+    expect(target.url).toBe('https://api.test/api/events/e1/cover');
+    expect(target.headers.authorization).toBe('Bearer tok');
+    expect(target.headers['content-type']).toBe('image/jpeg');
+  });
+
+  it('carries no bearer when there is nobody to be', () => {
+    // The endpoint answers 404 to anyone who cannot administer the album, and
+    // a header saying `Bearer null` would be a request claiming to be somebody.
+    const target = new Api('https://api.test').coverTarget('e1');
+    expect(target.headers.authorization).toBeUndefined();
+  });
+});
+
 describe('a person, on the wire', () => {
   function respond(body: unknown, status = 200) {
     const calls: { url: string; init: RequestInit }[] = [];

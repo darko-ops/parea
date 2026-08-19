@@ -448,6 +448,25 @@ export class Api {
     });
   }
 
+  /**
+   * Where an album's cover is sent, and with what.
+   *
+   * A target rather than a method, because the bytes do not go through
+   * `fetch` here: a cover is a photograph off the camera roll, and the native
+   * uploader streams it from disk instead of reading a few megabytes into
+   * JavaScript to hand back to the same OS. `platform.uploadCover` does the
+   * sending; this owns the one thing it must not get wrong, which is who the
+   * request says it is from.
+   */
+  coverTarget(eventId: string): { url: string; headers: Record<string, string> } {
+    const headers: Record<string, string> = {
+      'content-type': 'image/jpeg',
+      'x-parea-client': this.client,
+    };
+    if (this.token) headers.authorization = `Bearer ${this.token}`;
+    return { url: `${this.baseUrl}/api/events/${eventId}/cover`, headers };
+  }
+
   // --- people ----------------------------------------------------------
 
   /**
