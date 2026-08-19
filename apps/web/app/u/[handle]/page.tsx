@@ -5,23 +5,25 @@
  * anywhere a name is drawn. Before this, all of those went to `/friends`,
  * which answers "who do I know" when the question was "who is this".
  *
+ * Laid out as your own profile is, minus Edit and with the albums narrowed to
+ * the ones you can both see. See `PersonView` for what the two empty states
+ * mean, and `people.ts` for who has no page at all.
+ *
  * Signed in only, and a 404 for everybody the search box would not have
- * returned. See `people.ts` for what the page may say and why the omissions
- * are the design.
+ * returned.
  *
  * Not indexable, and more emphatically than most: it is a page about a named
  * person, which is the last thing in this product that should be in an index.
  */
 
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { PersonView } from '@/../app/components/PersonView';
 import { Shell } from '@/../app/components/Shell';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
-import { ago } from '@parea/cards';
+import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { leadImage } from '@/cards';
 import { albumsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -66,8 +68,18 @@ export default async function PersonPage({
   const person = await profileFor(db, actorId, decodeURIComponent(handle));
   if (!person) notFound();
 
+  /*
+   * Your own handle is your own profile.
+   *
+   * This page is the other-person version of `/account`, and the two would
+   * disagree about you: the album list here is "albums we are both in", which
+   * for yourself is empty, so your own page would say Account Private about
+   * you. Sending you to the real one is the only answer that is not a worse
+   * version of a page you already have.
+   */
+  if (person.standing === 'self') redirect('/account');
+
   const shared = await albumsWithBoth(db, actorId, person.actorId);
-  const now = new Date();
 
   return (
     <Shell>
@@ -77,24 +89,15 @@ export default async function PersonPage({
             actorId: person.actorId,
             handle: person.handle,
             displayName: person.displayName,
+            bio: person.bio,
             avatar: await avatarUrl(person.avatarKey),
             standing: person.standing,
             requestId: person.requestId,
           }}
-          shared={await Promise.all(
-            shared.map(async (listing) => ({
-              id: listing.id,
-              name: listing.name,
-              caption: listing.caption,
-              // Rounded here, against the server's clock, for the same reason
-              // every other relative time in this product is: rounding it in
-              // the browser makes the first render disagree with the HTML it
-              // replaced, and React throws the tree away when it does.
-              when: ago(new Date(listing.lastActiveAt), now),
-              // Cover first, newest photograph otherwise. See `leadImage`.
-              thumb: await leadImage(listing),
-            })),
-          )}
+          // The same cards the home screen and your own profile draw, from the
+          // same builder: an album should not look like a different kind of
+          // thing depending on which page it is on.
+          albums={await toCards(shared)}
         />
       </main>
     </Shell>

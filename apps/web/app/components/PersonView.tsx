@@ -1,16 +1,33 @@
 'use client';
 
 /**
- * A person, and the one thing you can do about them.
+ * A person, laid out the way your own profile is.
  *
- * The page is deliberately short. A handle, a name, a picture, where you two
- * stand, and the albums you are both in — which is everything the product
- * knows about somebody that it is willing to say to somebody else.
+ * Deliberately the same page with two things taken out and one put in: no
+ * Edit, because it is not yours to edit, and the albums are the ones you can
+ * both see rather than everything they have. Where Edit sits, the one thing
+ * you can do about somebody sits instead — ask to be friends, or answer their
+ * asking.
  *
- * The button is the reason the page exists. Finding a person leads to being
- * able to ask, and until now the asking happened on a search results row on
- * another screen, which meant the answer to "who is this" and the way to act
- * on it were never in the same place.
+ * Same shape on purpose. Somebody arriving here from a search result has seen
+ * their own profile already, and a second layout for the same kind of object
+ * means reading the screen before reading the person.
+ *
+ * ## The albums, and the two ways of having none
+ *
+ * The list is the viewer's own, filtered to the ones this person is also in —
+ * see `albumsWithBoth`, where the direction of that sentence is the whole
+ * safety property. So an empty list means two quite different things, and it
+ * says which:
+ *
+ *   - **a friend with nothing shared** gets "No Albums Available Yet", which
+ *     is about the two of you and is likely to change;
+ *   - **anybody else** gets "Account Private", which is the honest answer to
+ *     "why can I not see anything": not that they have nothing, but that what
+ *     somebody has made is theirs to send you a link to.
+ *
+ * Neither says how much is behind the door. "Account Private" over four
+ * hundred albums and over none reads identically, which is the point.
  *
  * ## Why "Asked" is what a refusal says too
  *
@@ -24,33 +41,29 @@
 
 import { useCallback, useState } from 'react';
 
+import type { CardEvent } from '@/cards';
 import type { Standing } from '@/people';
 
-import { Face } from './Faces';
+import { Avatar } from './Avatar';
+import { EventCard } from './EventCard';
 
 type Person = {
   actorId: string;
   handle: string;
   displayName: string | null;
   avatar: string | null;
+  bio: string | null;
   standing: Standing;
   requestId: string | null;
 };
 
-type SharedAlbum = {
-  id: string;
-  name: string;
-  caption: string | null;
-  when: string;
-  thumb: string | null;
-};
-
 export function PersonView({
   person,
-  shared,
+  albums,
 }: {
   person: Person;
-  shared: SharedAlbum[];
+  /** Albums the viewer can see that this person is also in. */
+  albums: CardEvent[];
 }) {
   const [standing, setStanding] = useState<Standing>(person.standing);
   const [busy, setBusy] = useState(false);
@@ -104,41 +117,55 @@ export function PersonView({
 
   return (
     <>
-      <section className="panel person">
-        <Face
-          src={person.avatar}
-          size={72}
-          className="person-face"
-          fallback={<span aria-hidden="true">{name.replace('@', '').slice(0, 1).toUpperCase()}</span>}
-        />
-        <div className="person-who">
-          <h1>{name}</h1>
-          {/* The handle under the name, always — it is the durable one, and
-              the name above it is whatever they last chose to show. */}
-          <p className="muted">@{person.handle}</p>
+      <header className="you-head">
+        {/* A letter until there is a picture, and again if one will not load.
+            Never a silhouette: a generic avatar is a photograph of nobody. */}
+        <Avatar url={person.avatar} initial={name.replace('@', '').slice(0, 1).toUpperCase()} />
+
+        <div className="you-id">
+          <h1 className="you-name">{name}</h1>
+          {/* Always, and not only when there is a display name above it: the
+              handle is the durable one and the thing this page is reached by. */}
+          <p className="muted you-handle">@{person.handle}</p>
+          {person.bio && <p className="you-bio">{person.bio}</p>}
+          {/*
+            One number, and it counts the viewer's own shelf: how many of your
+            albums this person is also in. Their totals are not on this page —
+            a profile that said "41 albums" would make search a way to measure
+            strangers.
+          */}
+          {albums.length > 0 && (
+            <p className="you-counts">
+              <span>
+                {albums.length} {albums.length === 1 ? 'album' : 'albums'} with you
+              </span>
+            </p>
+          )}
         </div>
 
-        <div className="person-act">
-          {standing === 'self' && <span className="pip">This is you</span>}
-
+        {/* Where Edit sits on your own. The quiet states are worn as a label;
+            the ones that are somebody's to answer are buttons. */}
+        <div className="you-act">
           {standing === 'friends' && <span className="pip">Friends</span>}
-
           {standing === 'asked' && <span className="pip">Asked</span>}
-
           {standing === 'none' && (
-            <button type="button" disabled={busy} onClick={ask}>
+            <button type="button" className="small" disabled={busy} onClick={ask}>
               Add friend
             </button>
           )}
-
           {standing === 'asking' && (
             <div className="row">
-              <button type="button" disabled={busy} onClick={() => answer('accept')}>
+              <button
+                type="button"
+                className="small"
+                disabled={busy}
+                onClick={() => answer('accept')}
+              >
                 Accept
               </button>
               <button
                 type="button"
-                className="secondary"
+                className="secondary small"
                 disabled={busy}
                 onClick={() => answer('decline')}
               >
@@ -147,68 +174,34 @@ export function PersonView({
             </div>
           )}
         </div>
-      </section>
+      </header>
 
-      {error && (
-        <section className="panel">
-          <p className="panel-note">{error}</p>
-        </section>
-      )}
+      {error && <p className="panel-note">{error}</p>}
 
-      {standing === 'asking' && (
-        <section className="panel">
-          <p className="muted">{name} asked to be friends.</p>
-        </section>
-      )}
+      <section className="you-events">
+        <div className="you-events-head">
+          <h2>Albums</h2>
+        </div>
 
-      {/*
-        Albums you are both in — the viewer's own list, filtered. Not a list of
-        theirs: see `albumsWithBoth` for why the direction of that sentence is
-        the whole safety property.
-      */}
-      {shared.length > 0 && (
-        <section className="panel">
-          <h2 className="hit-head">
-            Both of you
-            <span className="hit-head-note">
-              {shared.length} {shared.length === 1 ? 'album' : 'albums'}
-            </span>
-          </h2>
-          <ul className="hits">
-            {shared.map((album) => (
-              <li key={album.id}>
-                <a href={`/event/${album.id}`} className="hit">
-                  <Face
-                    src={album.thumb}
-                    size={38}
-                    className="hit-thumb"
-                    fallback={
-                      <span aria-hidden="true">{album.name.slice(0, 1).toUpperCase()}</span>
-                    }
-                  />
-                  <span className="hit-text">
-                    <strong>{album.name}</strong>
-                    <span className="muted">{album.caption ?? album.when}</span>
-                  </span>
-                </a>
-              </li>
+        {albums.length > 0 ? (
+          <div className="cards">
+            {albums.map((album) => (
+              <EventCard key={album.id} event={album} />
             ))}
-          </ul>
-        </section>
-      )}
-
-      {/*
-        Nothing else about them, and the page says so rather than ending in
-        white space that reads as something still loading.
-      */}
-      {standing !== 'self' && shared.length === 0 && (
-        <section className="panel">
-          <p className="muted">
-            No albums with both of you in them yet. What somebody has made is
-            theirs to send you a link to — it is never listed here.
+          </div>
+        ) : (
+          /*
+            The two empty states, and they are different sentences rather than
+            one sentence with a word swapped. Being told there is nothing *yet*
+            is a fact about the two of you; being told the account is private
+            is a fact about how this product works, and it is the true answer
+            to "why is this page empty" for somebody who is not a friend.
+          */
+          <p className="muted person-empty">
+            {standing === 'friends' ? 'No Albums Available Yet' : 'Account Private'}
           </p>
-        </section>
-      )}
+        )}
+      </section>
     </>
   );
 }

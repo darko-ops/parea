@@ -879,18 +879,14 @@ button.secondary {
    unbolded, because it is an aside on the heading rather than part of it. */
 .hit-head-note { font-weight: 400; letter-spacing: 0; text-transform: none; }
 
-/* Somebody else's page.
+/* Where Edit sits on your own profile, on somebody else's. Top-aligned with
+   the name for the same reason Edit is: the header's height is set by the
+   picture, and a control centred against it floats beside nothing. */
+.you-act { align-self: flex-start; flex: none; display: flex; gap: 8px; }
 
-   One row: their picture, their name, and the one thing you can do about
-   them. Everything the product is willing to say about a person to another
-   person fits on a line, and the layout says so rather than padding it out
-   into a profile that looks like it should have more on it. */
-.person { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.person-face { flex: none; }
-.person-who { flex: 1; min-width: 160px; }
-.person-who h1 { margin: 0; font-size: 22px; line-height: 1.2; }
-.person-who p { margin: 2px 0 0; font-size: 14px; }
-.person-act { flex: none; }
+/* The two ways of having no albums in common. Given room rather than tucked
+   under the heading: on this page it is the answer, not an aside. */
+.person-empty { margin: 0; padding: 28px 0; font-size: 15px; }
 
 /* A name that leads to the person.
 

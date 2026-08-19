@@ -12,10 +12,12 @@
  * and them* rather than about them: whether you are friends, and which albums
  * you are both in.
  *
- * Nothing else, and the omissions are the design. No friend count, no album
- * count, no list of what they have made, no mutual friends. §3's rule is that
- * a person is findable enough to be *asked* and no further; a profile that
- * grew a number would make the search box a way to measure strangers.
+ * Nothing else, and the omissions are the design. No friend count, no count of
+ * what they have made, no list of it, no mutual friends. §3's rule is that a
+ * person is findable enough to be *asked* and no further; a profile that grew
+ * a number would make the search box a way to measure strangers. The one
+ * number on the page counts the albums *you* are in with them, which is a fact
+ * about the viewer's own shelf.
  *
  * The albums are safe for a reason worth stating rather than assuming: the
  * list is the *viewer's* own — `eventsFor(db, viewer)`, the home screen —
@@ -55,6 +57,15 @@ export type Profile = {
   handle: string;
   displayName: string | null;
   avatarKey: string | null;
+  /**
+   * What they wrote about themselves.
+   *
+   * Shown here because it is the one thing on a profile that is not a fact the
+   * page derived — somebody chose those words for other people to read, which
+   * is what a bio is for. It is already on their own screen; a bio nobody else
+   * could see would be a diary.
+   */
+  bio: string | null;
   standing: Standing;
   /** Only when they have asked you: the id the answering endpoint wants. */
   requestId: string | null;
@@ -82,6 +93,7 @@ export async function profileFor(
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
       avatarKey: schema.actors.avatarKey,
+      bio: schema.actors.bio,
     })
     .from(schema.actors)
     .where(

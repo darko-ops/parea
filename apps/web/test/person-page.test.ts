@@ -12,6 +12,8 @@
  * fails open. These tests pin the direction by constructing exactly that day.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -21,6 +23,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
 import { albumsWithBoth, profileFor } from '@/people';
+import { stripComments } from './support/source';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -222,6 +225,65 @@ describe('where you and they stand', () => {
     await asks(them, me);
 
     expect(await profileFor(db, me, 'wren')).toMatchObject({ standing: 'asking' });
+  });
+});
+
+describe('what the page looks like', () => {
+  const VIEW = stripComments(
+    readFileSync(fileURLToPath(new URL('../app/components/PersonView.tsx', import.meta.url)), 'utf8'),
+  );
+  const PAGE = stripComments(
+    readFileSync(fileURLToPath(new URL('../app/u/[handle]/page.tsx', import.meta.url)), 'utf8'),
+  );
+
+  it('is your own profile, minus the parts that are yours', () => {
+    /*
+     * The same header and the same cards, so that somebody arriving from a
+     * search result does not have to read the screen before reading the
+     * person. What is missing is Edit — it is not theirs to edit — and what is
+     * in its place is the one thing you can do about somebody.
+     */
+    expect(VIEW).toMatch(/className="you-head"/);
+    expect(VIEW).toMatch(/<Avatar url=\{person\.avatar\}/);
+    expect(VIEW).toMatch(/className="you-name"/);
+    expect(VIEW).toMatch(/<EventCard key=\{album\.id\} event=\{album\} \/>/);
+    expect(VIEW).not.toMatch(/Edit profile|you-edit/);
+  });
+
+  it('draws the albums with the builder every other screen uses', () => {
+    // An album should not look like a different kind of thing depending on
+    // which page it is on.
+    expect(PAGE).toMatch(/albums=\{await toCards\(shared\)\}/);
+  });
+
+  it('says which kind of nothing it is', () => {
+    /*
+     * The two empty states are different sentences, not one sentence with a
+     * word swapped. "Yet" is a fact about the two of you and is likely to
+     * change; "Account Private" is the true answer to "why is this empty" for
+     * anybody else — and neither says how much is behind the door.
+     */
+    expect(VIEW).toMatch(
+      /standing === 'friends' \? 'No Albums Available Yet' : 'Account Private'/,
+    );
+  });
+
+  it('sends you to your own profile rather than showing you a worse one', () => {
+    // The album list here is "albums we are both in", which for yourself is
+    // empty — so your own page would tell you your account is private.
+    expect(PAGE).toMatch(/if \(person\.standing === 'self'\) redirect\('\/account'\)/);
+  });
+
+  it('says the same two things on the phone', () => {
+    const NATIVE = stripComments(
+      readFileSync(
+        fileURLToPath(new URL('../../mobile/src/Person.tsx', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(NATIVE).toMatch(
+      /standing === 'friends' \? 'No Albums Available Yet' : 'Account Private'/,
+    );
   });
 });
 

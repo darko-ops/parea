@@ -209,11 +209,21 @@ export function PersonScreen({
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Both of you</Text>
+        <Text style={[styles.label, { color: t.fg }]}>Albums</Text>
         {shared.length === 0 ? (
+          /*
+           * Two ways of having none, and they are different sentences.
+           *
+           * A friend with nothing shared is told it is not there *yet*, which
+           * is a fact about the two of you and likely to change. Anybody else
+           * is told the account is private, which is the honest answer to "why
+           * is this empty": not that they have nothing, but that what somebody
+           * has made is theirs to send you a link to. Neither says how much is
+           * behind the door — over four hundred albums and over none, it reads
+           * the same.
+           */
           <Text style={[styles.body, { color: t.dim }]}>
-            No albums with both of you in them yet. What somebody has made is
-            theirs to send you a link to — it is never listed here.
+            {standing === 'friends' ? 'No Albums Available Yet' : 'Account Private'}
           </Text>
         ) : (
           shared.map((album) => {
