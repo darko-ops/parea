@@ -892,11 +892,15 @@ button.secondary {
 .person-who p { margin: 2px 0 0; font-size: 14px; }
 .person-act { flex: none; }
 
-/* A name that leads to the person. Underlined only on hover: in a list of
-   rows that each end in a button, three underlined names read as three more
-   controls. */
+/* A name that leads to the person.
+
+   No styling of its own, and nothing on hover: `.people li:hover` already
+   lifts the whole row, which is the affordance — and the name is `<strong>`
+   already, so the weight `.you-friends` spends on hover is not there to
+   spend. An underline here would be the only underlined text on the screen,
+   and blue would make one name in a list of names look like a different kind
+   of thing. */
 .named { color: inherit; text-decoration: none; }
-.named:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* The search box, and the three things it points at.
 
@@ -1977,5 +1981,16 @@ button.link {
 /* The friend count under the handle. A link, and it looks like one on hover
    rather than always: the line above it is plain text and a permanently blue
    number beside a name reads as a notification. */
+/* The friends count, which goes to the friends page.
+
+   It sits beside the album count and reads as part of the same line, so it is
+   drawn as that line and not as a link: same grey, no underline, and hovering
+   it thickens the text rather than turning it blue and underlining it. Colour
+   and a rule are what a link uses to announce itself among prose; this one is
+   a number in a two-item line where the pointer has already said it is live.
+
+   Weight rather than colour costs nothing here because it is the last thing on
+   its line — nothing sits to its right to be nudged when the glyphs widen. */
 .you-friends { color: var(--dim); text-decoration: none; }
-.you-friends:hover { color: var(--accent); text-decoration: underline; }
+.you-friends:hover,
+.you-friends:focus-visible { color: var(--dim); font-weight: 600; }
