@@ -38,7 +38,7 @@ beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
-      "photo", "hidden_activity"
+      "friend_request", "photo", "hidden_activity"
     restart identity cascade
   `);
 });
@@ -310,6 +310,113 @@ describe('photographs arriving', () => {
     expect((await activityFor(db, me)).filter((i) => i.kind === 'photos_added')).toEqual(
       [],
     );
+  });
+});
+
+describe('being said yes to', () => {
+  const asks = (from: string, to: string, status = 'open', resolvedAt: Date | null = null) =>
+    db
+      .insert(schema.friendRequests)
+      .values({ fromActorId: from, toActorId: to, status, resolvedAt } as never);
+
+  it('tells the person who asked', async () => {
+    /*
+     * The line this page was missing. A friend request is answered in the
+     * bubble at the top, and answering it takes the row out of the answerer's
+     * queue — which left the *asker* with nothing at all: their question left
+     * one list and joined no other, so being said yes to looked exactly like
+     * never being answered.
+     */
+    const me = await actor('me');
+    const them = await actor('wren');
+    await asks(me, them, 'accepted', new Date());
+
+    const items = await activityFor(db, me);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'friend_accepted',
+      who: 'You',
+      what: 'and @wren are friends now',
+      href: '/u/wren',
+    });
+  });
+
+  it('does not tell the person who pressed Accept', async () => {
+    // They were there. Telling somebody what they have just done is the
+    // product confirming its own button.
+    const me = await actor('me');
+    const them = await actor('wren');
+    await asks(them, me, 'accepted', new Date());
+
+    expect(await activityFor(db, me)).toEqual([]);
+  });
+
+  it('says nothing about one still waiting, or one refused', async () => {
+    // Open belongs in the bubble, where it can be answered. A refusal is the
+    // refuser's to say, and this page never says it — see `requests.ts`.
+    const me = await actor('me');
+    const open = await actor('open');
+    const no = await actor('no');
+    await asks(me, open);
+    await asks(me, no, 'declined', new Date());
+
+    expect(await activityFor(db, me)).toEqual([]);
+  });
+});
+
+describe('somebody arriving in an album you made', () => {
+  it('tells the host, who otherwise hears nothing back', async () => {
+    /*
+     * The other half of `let_in`, which has always said when *you* were let
+     * into somebody else's. A host invites four people and hears nothing until
+     * photographs appear — and if none do, never learns whether anybody opened
+     * it.
+     */
+    const me = await actor('me');
+    const them = await actor('wren');
+    const mine = await event(me, 'Barcelona');
+    await db.insert(schema.eventParticipants).values({ eventId: mine.id, actorId: them });
+
+    const items = await activityFor(db, me);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'joined_yours',
+      who: '@wren',
+      what: 'joined Barcelona',
+    });
+  });
+
+  it('says nothing about the ones you let in yourself', async () => {
+    // Approving a request writes the participant row, so without this the host
+    // who pressed "Let in" is told a second later that the person they let in
+    // has joined.
+    const me = await actor('me');
+    const them = await actor('wren');
+    const mine = await event(me, 'Barcelona');
+    await db.insert(schema.eventParticipants).values({ eventId: mine.id, actorId: them });
+    await db.insert(schema.eventAccessRequests).values({
+      eventId: mine.id,
+      actorId: them,
+      status: 'approved',
+      resolvedAt: new Date(),
+    } as never);
+
+    expect(await activityFor(db, me)).toEqual([]);
+  });
+
+  it('says nothing about your own arrival, or about somebody else’s album', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const mine = await event(me, 'Mine');
+    await db.insert(schema.eventParticipants).values({ eventId: mine.id, actorId: me });
+
+    const theirs = await event(host, 'Theirs');
+    const stranger = await actor('stranger');
+    await db
+      .insert(schema.eventParticipants)
+      .values({ eventId: theirs.id, actorId: stranger });
+
+    expect(await activityFor(db, me)).toEqual([]);
   });
 });
 

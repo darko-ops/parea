@@ -37,20 +37,27 @@ import type { Db } from './db';
 import { imageSrc } from './images';
 
 /*
- * No `friend_request` here any more.
+ * A friend request appears here answered, never open.
  *
- * An open request is not something that has happened, it is something being
- * asked, and it now lives in the bubble at the top of the page where it can be
- * answered. Leaving it in both places put the same request on the screen twice
- * — answered in one of them and still sitting in the other, which reads as the
- * answer not having taken.
+ * An open one is not something that has happened, it is something being asked,
+ * and it lives in the bubble at the top of the page where it can be answered.
+ * Leaving it in both places put the same request on the screen twice — dealt
+ * with in one and still sitting in the other, which reads as the answer not
+ * having taken.
+ *
+ * The mistake that made was leaving the asker with nothing at all: their
+ * question left the other person's queue and joined no list of their own, so
+ * being said yes to looked exactly like never being answered. `friend_accepted`
+ * is that missing half.
  */
 export type ActivityKind =
   | 'reaction'
   | 'mention'
   | 'let_in'
   | 'photos_added'
-  | 'request_answered';
+  | 'request_answered'
+  | 'friend_accepted'
+  | 'joined_yours';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -139,7 +146,8 @@ export async function activityFor(
    * somebody has hidden — and the alternative is four `not exists` clauses
    * built from string concatenation in four places.
    */
-  const [hidden, reactions, mentions, letIn, added, answered] = await Promise.all([
+  const [hidden, reactions, mentions, letIn, added, answered, befriended, arrivals] =
+    await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
       .from(schema.hiddenActivity)
@@ -324,6 +332,92 @@ export async function activityFor(
       )
       .orderBy(desc(schema.eventAccessRequests.resolvedAt))
       .limit(LIMIT),
+
+    /*
+     * Somebody said yes to being friends.
+     *
+     * The line this page was missing, and the way it went missing is worth
+     * recording: a friend request is *asked* in the bubble at the top, and
+     * answering it makes the row disappear from the asker's queue — which
+     * looked, from the asker's side, exactly like nothing having happened. The
+     * question left one list and joined no other.
+     *
+     * Only the asker's side. Whoever pressed Accept was there when it
+     * happened; telling them what they have just done is the product
+     * confirming its own button.
+     */
+    db
+      .select({
+        id: schema.friendRequests.id,
+        at: schema.friendRequests.resolvedAt,
+        who: NAME,
+        handle: schema.actors.handle,
+        avatarKey: schema.actors.avatarKey,
+      })
+      .from(schema.friendRequests)
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.friendRequests.toActorId))
+      .where(
+        and(
+          eq(schema.friendRequests.fromActorId, actorId),
+          eq(schema.friendRequests.status, 'accepted'),
+          isNotNull(schema.friendRequests.resolvedAt),
+        ),
+      )
+      .orderBy(desc(schema.friendRequests.resolvedAt))
+      .limit(LIMIT),
+
+    /*
+     * Somebody arrived in an album you made.
+     *
+     * The other half of `let_in`, which has always told you when *you* were
+     * let into somebody else's. A host invites four people and hears nothing
+     * back until photographs start appearing — and if none do, never learns
+     * whether anybody opened it.
+     *
+     * Everybody who arrives, however they arrived: an invitation accepted, a
+     * request approved, or a link opened. The three are one fact from the
+     * host's side — somebody is in — and `event_participant` is where that
+     * fact lives whichever door it came through.
+     *
+     * Not yourself, and not albums somebody else made.
+     */
+    db
+      .select({
+        id: schema.eventParticipants.eventId,
+        actorId: schema.eventParticipants.actorId,
+        at: schema.eventParticipants.firstSeenAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        name: schema.events.name,
+        eventId: schema.events.id,
+      })
+      .from(schema.eventParticipants)
+      .innerJoin(schema.events, eq(schema.events.id, schema.eventParticipants.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.eventParticipants.actorId))
+      .where(
+        and(
+          eq(schema.events.createdBy, actorId),
+          ne(schema.eventParticipants.actorId, actorId),
+          isNull(schema.events.deletedAt),
+          /*
+           * Not the ones you let in yourself.
+           *
+           * Approving a request writes the participant row, so without this a
+           * host who pressed "Let in" is told a second later that the person
+           * they just let in has joined — the product confirming its own
+           * button. An invitation accepted is the opposite: you asked, and
+           * this is them answering.
+           */
+          sql`not exists (
+            select 1 from "event_access_request" r
+            where r.event_id = ${schema.eventParticipants.eventId}
+              and r.actor_id = ${schema.eventParticipants.actorId}
+              and r.status = 'approved'
+          )`,
+        ),
+      )
+      .orderBy(desc(schema.eventParticipants.firstSeenAt))
+      .limit(LIMIT),
   ]);
 
   /*
@@ -412,6 +506,28 @@ export async function activityFor(
       what: `added ${row.n} ${row.n === 1 ? 'photo' : 'photos'} to ${row.eventName}`,
       href: `/event/${row.eventId}`,
       image: await avatarUrl(row.avatarKey),
+    })),
+    ...befriended.map(async (f) => ({
+      id: `friend:${f.id}`,
+      kind: 'friend_accepted' as const,
+      at: f.at!.toISOString(),
+      who: 'You',
+      // Said as the state it left behind rather than as the act — "Wren
+      // accepted your friend request" is a receipt, and this is the thing
+      // somebody actually wanted to know.
+      what: `and ${f.who} are friends now`,
+      // Their page, which is what somebody does next with this: look.
+      href: f.handle ? `/u/${encodeURIComponent(f.handle)}` : '/friends',
+      image: await avatarUrl(f.avatarKey),
+    })),
+    ...arrivals.map(async (a) => ({
+      id: `arrived:${a.eventId}:${a.actorId}`,
+      kind: 'joined_yours' as const,
+      at: a.at.toISOString(),
+      who: a.who,
+      what: `joined ${a.name}`,
+      href: `/event/${a.eventId}`,
+      image: await avatarUrl(a.avatarKey),
     })),
     ...answered.map(async (a) => ({
       id: `answered:${a.id}`,
