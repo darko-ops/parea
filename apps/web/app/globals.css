@@ -60,6 +60,11 @@
      made on their behalf, and a portrait in a landscape frame should not
      arrive matted differently from a landscape one. */
   --photo-bed: #f2ede5;
+  /* A line on Activity that arrived since the last look. White at 70% over the
+     warm page: enough to read as a block of new things without becoming a
+     highlight colour, which is what a tint would be — and there is no per-item
+     read state, so this mark has to survive being slightly wrong. */
+  --unread: rgba(255, 255, 255, .7);
   /* The rule between two people in a list. Lighter than `--hairline`, which
      separates sections rather than rows. */
   --row-line: #f2ece3;
@@ -431,89 +436,133 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------------
-   The request bubble.
+   Lately — answer, then read.
 
-   A pill rather than a panel, because it is a count first and a container
-   second — closed, it should read as one object on the page, and a bordered
-   box the width of the column reads as a section with something inside it
-   whether or not you have opened it.
+   The page opened with an accent-tinted pill reading "3 invites", or, far more
+   often, "0 invites" — a full-width coloured bar announcing an absence, and
+   the loudest object on the screen on every load where nothing had happened.
+   When it was not zero, the things needing a person were folded away behind a
+   click, so the one part of the page that cannot be read and forgotten was the
+   one part hidden.
 
-   Accent-tinted, and the only tinted thing on the page. Everything else on
-   Activity has already happened; this is the one part somebody is waiting on
-   an answer to, and the colour is doing the work the word "waiting" would
-   otherwise have to do twice.
+   Now: what is waiting is cards you can answer where they are, and it is drawn
+   only when there is something in it. What has already happened is grouped by
+   day underneath, so "is any of this new?" is answerable without reading the
+   times down the right-hand side.
    --------------------------------------------------------------------------- */
-.requests { margin: 16px 0; }
-/* Resets `button`'s 16px/13px-padding default rather than overriding half of
-   it: this is a bar, not a button-shaped button, and the two disagree about
-   nearly everything. */
-.requests-bubble {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 9px 14px 9px 9px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 14.5px; font-weight: 600; text-align: left;
-  border: 1px solid transparent;
+.lately {
+  flex: 1; min-width: 0; max-width: 820px;
+  padding: 28px 30px 34px; background: var(--page-warm);
 }
-.requests-bubble:hover { border-color: rgba(26, 95, 208, .28); }
-/* Nothing waiting. Still there, still the same shape, but grey and inert —
-   the accent is reserved for something being asked of somebody, and a blue
-   pill that cannot be opened is a control that does not work. */
-.requests-none .requests-bubble { background: var(--track); color: var(--dim); }
-.requests-none .requests-count { background: #d5dae1; color: var(--card); }
-.requests-none .requests-bubble:hover { border-color: transparent; }
-.requests-bubble:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* The number, in a filled disc. A count set in the same line as the words
-   beside it is read as part of the sentence; in a disc it is read first, which
-   is the order the information matters in. */
-.requests-count {
-  flex: none; display: grid; place-items: center;
-  min-width: 26px; height: 26px; padding: 0 7px;
-  border-radius: 999px; background: var(--accent); color: #fff;
-  font-size: 13.5px; font-variant-numeric: tabular-nums;
+.lately-head { margin-bottom: 22px; }
+
+/* One heading treatment for the two sections that have one. Baseline-aligned
+   with its count, because the count is part of the phrase rather than a badge
+   on it — "Waiting on you, 3" and not "Waiting on you ③". */
+.section-title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.section-title h2 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
+.section-count { font-size: 12.5px; color: var(--dim-warm); font-variant-numeric: tabular-nums; }
+
+.waiting { margin-top: 22px; }
+.waiting-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
+.waiting-list { display: flex; flex-direction: column; gap: 10px; }
+/* A hairline on white over the warm page, and no shadow. These are the only
+   boxes on the page and the border is enough to lift them — a shadow under
+   three stacked cards reads as three things floating rather than one list. */
+.waiting-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--hairline);
+  border-radius: 14px; padding: 14px 16px;
 }
-.requests-label { flex: 1; }
-.requests-chevron { flex: none; display: flex; transition: transform .16s ease; }
-.requests-open .requests-chevron { transform: rotate(180deg); }
-/* The list, in the panel the bubble is the lid of. Indented by the disc's
-   width so the names line up under the count rather than under the pill's
-   edge — the two are the same list read at two levels of detail. */
-.requests-body {
-  margin: 10px 0 0; padding: 4px 2px 0;
+/* 11px rather than a circle, matching the feed's squares: half of these are
+   albums, and an album is a stack of photographs rather than a person. */
+.waiting-face {
+  flex: none; width: 44px; height: 44px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 17px; font-weight: 600;
 }
-.requests-error { margin: 0 0 10px; color: #b3261e; }
-.requests-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.requests-list li {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: 12px; padding: 12px 14px;
+.waiting-what { flex: 1; min-width: 0; }
+.waiting-title { display: block; font-size: 15.5px; font-weight: 600; }
+/* Wraps rather than truncates. The line carries a caption somebody wrote and
+   an album's name, and an ellipsis in the middle of "invited you" tells you
+   less than a second line does. */
+.waiting-detail {
+  display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--dim);
 }
-.requests-what { min-width: 0; }
+.waiting-answers { flex: none; display: flex; gap: 8px; }
+.waiting-yes, .waiting-no {
+  padding: 9px 15px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
+}
+.waiting-yes { border: 0; background: var(--accent); color: #fff; }
+/* Outlined rather than a second filled button. Both answers are legitimate and
+   neither is a warning, so the difference between them is emphasis and not
+   colour — a red Decline would make saying no to an invitation feel like
+   reporting somebody. */
+.waiting-no {
+  border: 1px solid var(--line); background: transparent; color: var(--fg);
+}
+.waiting-no:hover { border-color: var(--accent); color: var(--accent-ink); }
+.waiting-yes:disabled, .waiting-no:disabled { opacity: .5; }
 /* On a phone the two answers take half the row, which leaves a name wrapping
    across three lines beside them. Below this the buttons go under the line
    they answer and both get the full width. */
 @media (max-width: 560px) {
-  .requests-list li { display: grid; justify-items: stretch; gap: 12px; }
-  .requests-list .row { justify-content: flex-end; }
+  .waiting-card { display: grid; grid-template-columns: 44px 1fr; gap: 12px 14px; }
+  .waiting-answers { grid-column: 1 / -1; }
+  .waiting-answers button { flex: 1; }
 }
-.requests-what strong { display: block; font-size: 15px; }
-/* Wraps rather than truncates. The line carries a caption somebody wrote and
-   an album's name, and an ellipsis in the middle of "wants into" tells you
-   less than a second line does. */
-.requests-what p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; }
-.requests-list .row { flex: none; flex-wrap: nowrap; gap: 8px; }
 
- /* The activity list. One line each, and a whole row is the link — a name in
-    blue with the rest of the sentence in black would make the person the
-    thing you press, when the thing you want is where it happened. */
+/* Asked and not answered. Rows, not cards: somebody else is deciding these, so
+   a bordered box — which everywhere else on this page means "there is
+   something to do with this" — would be the wrong promise. */
+.asked-section { margin-top: 22px; }
+.asked-section .section-title { margin-bottom: 6px; }
+.asked { list-style: none; margin: 0; padding: 0; }
+.asked li {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 2px;
+}
+.asked li + li { border-top: 1px solid var(--row-line); }
+.asked-what { flex: 1; min-width: 0; }
+.asked-name { display: block; font-size: 14.5px; }
+.asked-when { display: block; margin-top: 2px; font-size: 12.5px; color: var(--dim-warm); }
+.pip {
+  flex: none; padding: 5px 11px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.pip-open { background: var(--accent-soft); color: var(--accent-ink); }
+/* Grey rather than red. A host who said no has not done something wrong, and
+   an alarm colour beside their album's name reads as one. */
+.pip-declined { background: #eef0f3; color: var(--dim); }
+
+/* The feed. */
+.feed { margin-top: 30px; }
+.activity-empty { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); max-width: 460px; }
+.activity-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
+.activity-day + .activity-day { margin-top: 20px; }
+/* The day, and a rule filling whatever is left of the line. The rule is what
+   makes it a divider rather than a heading: it separates without taking a line
+   of its own, which is the same device the album page's sections use. */
+.day-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.day-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--dim-warm);
+}
+.day-rule { flex: 1; height: 1px; background: var(--hairline); }
+
+/* One line each, and a whole row is the link — a name in blue with the rest of
+   the sentence in black would make the person the thing you press, when the
+   thing you want is where it happened. */
 .activity { list-style: none; margin: 0; padding: 0; display: grid; }
-.activity li + li { border-top: 1px solid var(--hairline); }
 /* The row is a link and the menu is a button, and a button inside a link is
    markup a browser refuses to nest. So they are siblings and the link is what
    stretches — which also means the hover fill has to move to the row, or it
    stops short of the menu it sits beside. */
-.activity-row { display: flex; align-items: center; gap: 4px; }
+.activity-row { display: flex; align-items: center; gap: 4px; border-radius: 12px; }
 .activity-row > a, .activity-row > span:first-child { flex: 1; min-width: 0; }
-.activity-row .dots-go { opacity: 0; transition: opacity 120ms; }
+.activity-row .dots-go { flex: none; width: 24px; color: #c9c3b8; opacity: 0; transition: opacity 120ms; }
 /* Shown on hover, and always on a touch screen — where there is no hover, an
    opacity-gated control is a control that does not exist. Focus-within so it
    survives being reached by keyboard. */
@@ -523,11 +572,19 @@ button.secondary {
   .activity-row .dots-go { opacity: 1; }
 }
 .activity a, .activity > li > span {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 2px; font-size: 14px; line-height: 1.45;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 8px; border-radius: 12px;
+  font-size: 14.5px; line-height: 1.45;
   color: var(--fg); text-decoration: none;
 }
-.activity a { border-radius: 8px; }
+/* Arrived since the last look, and the only mark it gets: there is no
+   per-item read state to spend anything more on, so a fill that says "this
+   part of the list is new" is the honest amount of signal. The fill is on the
+   row rather than the link so it reaches under the menu beside it. */
+.activity-new { background: var(--unread); }
+.activity-row:hover { background: rgba(255, 255, 255, .55); }
+.activity-new:hover { background: var(--unread); }
+.activity a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* A rounded square rather than a circle: half of these are albums, and an
    album is a stack of photographs rather than a person. The people get the
    same shape — a row of alternating circles and squares reads as two lists. */
@@ -542,30 +599,42 @@ button.secondary {
    a mention quotes what somebody said, and an ellipsis mid-quote tells you
    less than a second line does. */
 .activity-said { flex: 1; min-width: 0; }
-.activity-row:hover > a { background: var(--track); }
 .activity-who { font-weight: 600; }
-/* Pushed to the end rather than sitting after the sentence: a column of times
-   down the right is readable at a glance, and inline they wander. */
-.activity-when { flex: none; font-size: 12.5px; color: var(--dim); }
+/* What the sentence is counting, on the one kind that counts photographs.
+   Before the time, so the times still form a column. */
+.activity-strip { flex: none; display: flex; gap: 4px; }
+.activity-strip-one {
+  width: 38px; height: 38px; border-radius: 8px; flex: none;
+  overflow: hidden; object-fit: cover; background: var(--hairline);
+  display: block;
+}
+/* A column rather than a word after the sentence: the times line up down the
+   right and are readable at a glance, and inline they wander.
 
-/* Events you have asked about and not been let into. No photographs, because
-   that is the whole point — this is the list of things you cannot see yet. */
-.asked { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.asked li {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: 12px; padding: 14px 16px;
+   `min-width` and not `width`. The design specifies 66px, which fits "2 hours
+   ago" and "5 days ago" and breaks "20 hours ago" over two lines — this feed
+   words its times in full rather than as "20h", so the column has to be a
+   floor and not a ceiling. The right edges align either way, because this is
+   the last thing in the row; the floor is what stops a short time letting the
+   sentence run further than a long one does. */
+.activity-when {
+  flex: none; min-width: 66px; text-align: right; white-space: nowrap;
+  font-size: 12.5px; color: var(--dim-warm);
 }
-.asked strong { display: block; font-size: 16px; }
-.asked p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; }
-.pip {
-  flex: none; padding: 5px 11px; border-radius: 999px;
-  font-size: 13px; font-weight: 600; white-space: nowrap;
+
+@media (max-width: 720px) {
+  .lately { padding: 22px 16px 28px; }
+  /* Two thumbnails, then none. A strip squeezed between a wrapping sentence
+     and a time is three small squares nobody can see anything in. */
+  .activity-strip-one:nth-child(3) { display: none; }
+  /* The time under the sentence rather than in a column of its own, which at
+     this width is competing with the sentence for the same 40 characters. */
+  .activity a, .activity > li > span { flex-wrap: wrap; padding: 10px 6px; }
+  .activity-when { min-width: 0; margin-left: 46px; text-align: left; }
 }
-.pip-open { background: var(--accent-soft); color: var(--accent); }
-/* Grey rather than red. A host who said no has not done something wrong, and
-   an alarm colour beside their event's name reads as one. */
-.pip-declined { background: #eef0f3; color: var(--dim); }
+@media (max-width: 420px) {
+  .activity-strip { display: none; }
+}
 
 /* ---------------------------------------------------------------------------
    Home — a greeting, your people, then your albums.

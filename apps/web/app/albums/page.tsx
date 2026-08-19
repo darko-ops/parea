@@ -34,6 +34,7 @@ import { avatarUrl, accountFor } from '@/accounts';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { greetingFor } from '@/greeting';
 import { peopleAround } from '@/people';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
@@ -44,23 +45,6 @@ export const metadata = {
   title: 'Home',
   robots: { index: false, follow: false },
 };
-
-/**
- * "Evening, Nadia" — the time of day, on the server's clock.
- *
- * Worded here rather than in the browser for the reason every other time on
- * this page is: the two clocks disagree, and React discards a tree whose text
- * does not match the HTML it is hydrating. The server's zone is not the
- * reader's, which makes this occasionally wrong by a few hours for somebody
- * travelling — a greeting is allowed to be wrong in that way, and a page that
- * flickered on every load is not.
- */
-function greetingFor(name: string | null, now: Date): string | null {
-  if (!name?.trim()) return null;
-  const hour = now.getHours();
-  const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
-  return `${part}, ${name.trim().split(/\s+/)[0]}`;
-}
 
 export default async function EventsPage() {
   const db = getDb();

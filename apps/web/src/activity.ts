@@ -81,6 +81,21 @@ export type ActivityItem = {
    * what null draws.
    */
   image: string | null;
+  /**
+   * The photographs the line is about. Empty on every kind but `photos_added`.
+   *
+   * "Maya added 12 photos to Naxos, September" is a sentence about pictures
+   * that shows you none of them, on a page inside a product whose subject is
+   * photographs. Three of them is not decoration: it is the difference between
+   * a notification you have to open to evaluate and one you can act on — the
+   * ones from the beach are worth opening now, the twelve of the car park are
+   * not.
+   *
+   * Deliberately only this kind. A reaction has no photographs to show and a
+   * friendship has none either; giving every row an optional strip would make
+   * the list scan as two lists, one with pictures and one without.
+   */
+  images: string[];
 };
 
 /**
@@ -118,6 +133,33 @@ const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
     and p.status = 'ready' and p.deleted_at is null
   order by p.uploaded_at desc
   limit 1
+)`;
+
+/**
+ * Three of the photographs a `photos_added` line is counting.
+ *
+ * An aggregate over the rows already being grouped rather than a second query
+ * or a subselect: the group *is* "these photographs, by this person, in this
+ * album, on this day", so the strip has to come from the same rows as the
+ * count or the two can disagree about what they describe.
+ *
+ * Sliced in SQL rather than in TypeScript. `json_agg` of the whole group would
+ * carry every photograph of a two-hundred-picture burst across the wire to
+ * draw three of them — fifty such rows is a megabyte of JSON for 150 thumbnails.
+ *
+ * Wrapped in `to_json` so both drivers agree what comes back. A bare
+ * `json[]` arrives parsed under one and as an array of strings under the
+ * other; one json value is one shape everywhere.
+ */
+const STRIP = sql<{ storageKey: string; hash: string | null }[]>`coalesce(
+  to_json((array_agg(
+    json_build_object(
+      'storageKey', ${schema.photos.storageKey},
+      'hash', encode(${schema.photos.contentHash}, 'hex')
+    )
+    order by ${schema.photos.uploadedAt} desc
+  ))[1:3]),
+  '[]'::json
 )`;
 
 const NAME = sql<string>`coalesce(
@@ -260,12 +302,14 @@ export async function activityFor(
       .select({
         eventId: schema.events.id,
         eventName: schema.events.name,
+        capEpoch: schema.events.capEpoch,
         uploaderId: schema.actors.id,
         who: NAME,
         avatarKey: schema.actors.avatarKey,
         n: sql<number>`count(*)::int`,
         at: sql<Date>`max(${schema.photos.uploadedAt})`,
         day: sql<string>`to_char(max(${schema.photos.uploadedAt}), 'YYYY-MM-DD')`,
+        strip: STRIP,
       })
       .from(schema.photos)
       .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
@@ -290,6 +334,7 @@ export async function activityFor(
       .groupBy(
         schema.events.id,
         schema.events.name,
+        schema.events.capEpoch,
         schema.actors.id,
         schema.actors.displayName,
         schema.actors.handle,
@@ -454,6 +499,15 @@ export async function activityFor(
         )
       : Promise.resolve(null);
 
+  /*
+   * `images` is on every line and empty on all but one.
+   *
+   * An optional field would have been the smaller diff and the worse type: a
+   * consumer that forgot the `?? []` would render `undefined.map` on whichever
+   * kind it had not thought about, which is the kind nobody was testing. An
+   * always-present array makes "this line has no photographs to show" a value
+   * rather than an absence.
+   */
   const items: ActivityItem[] = await Promise.all([
     ...reactions.map(async (r) => ({
       id: `reaction:${r.id}:${r.emoji}:${r.at.toISOString()}`,
@@ -465,6 +519,7 @@ export async function activityFor(
       what: `reacted ${r.emoji}\u00a0 to something you wrote`,
       href: `/event/${r.eventId}`,
       image: await avatarUrl(r.avatarKey),
+      images: [],
     })),
     ...mentions.map(async (m) => ({
       id: `mention:${m.id}`,
@@ -476,6 +531,7 @@ export async function activityFor(
       what: `mentioned you: “${m.body.slice(0, 90)}${m.body.length > 90 ? '…' : ''}”`,
       href: `/event/${m.eventId}`,
       image: await avatarUrl(m.avatarKey),
+      images: [],
     })),
     ...letIn
       /*
@@ -495,6 +551,7 @@ export async function activityFor(
         what: `joined ${l.name}`,
         href: `/event/${l.eventId}`,
         image: await cover(l),
+        images: [],
       })),
     ...added.map(async (row) => ({
       // The day is in the key so tomorrow's photographs are a new line rather
@@ -506,6 +563,22 @@ export async function activityFor(
       what: `added ${row.n} ${row.n === 1 ? 'photo' : 'photos'} to ${row.eventName}`,
       href: `/event/${row.eventId}`,
       image: await avatarUrl(row.avatarKey),
+      // The photographs themselves, signed the way every photograph is: against
+      // the album's `cap_epoch`, so rotating its link stops these resolving
+      // along with everything else that album ever handed out.
+      images: await Promise.all(
+        row.strip.map((one) =>
+          imageSrc(
+            {
+              eventId: row.eventId,
+              storageKey: one.storageKey,
+              contentHash: one.hash ? Buffer.from(one.hash, 'hex') : null,
+            },
+            'thumb',
+            row.capEpoch,
+          ),
+        ),
+      ),
     })),
     ...befriended.map(async (f) => ({
       id: `friend:${f.id}`,
@@ -519,6 +592,7 @@ export async function activityFor(
       // Their page, which is what somebody does next with this: look.
       href: f.handle ? `/u/${encodeURIComponent(f.handle)}` : '/friends',
       image: await avatarUrl(f.avatarKey),
+      images: [],
     })),
     ...arrivals.map(async (a) => ({
       id: `arrived:${a.eventId}:${a.actorId}`,
@@ -528,6 +602,7 @@ export async function activityFor(
       what: `joined ${a.name}`,
       href: `/event/${a.eventId}`,
       image: await avatarUrl(a.avatarKey),
+      images: [],
     })),
     ...answered.map(async (a) => ({
       id: `answered:${a.id}`,
@@ -539,6 +614,7 @@ export async function activityFor(
       what: `can see ${a.name} now`,
       href: `/event/${a.eventId}`,
       image: await cover(a),
+      images: [],
     })),
   ]);
 

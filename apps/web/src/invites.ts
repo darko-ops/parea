@@ -188,6 +188,32 @@ export async function invitesWaiting(db: Db, actorId: string | null): Promise<nu
   return (letIn?.n ?? 0) + (refused?.n ?? 0) + (offered?.n ?? 0);
 }
 
+/**
+ * The boundary, read before it is moved.
+ *
+ * One timestamp for the whole list rather than a flag per line — the cost
+ * `activity.ts` names at the top of itself, and the reason the feed can be
+ * derived at all. Activity needs it to mark which rows arrived since the last
+ * look, and it has to be read *before* `markInvitesSeen` runs on the same
+ * render, or every row is read the moment it is drawn and nothing is ever new.
+ *
+ * Null means never looked, which the caller has to treat as "everything is
+ * new" rather than as "nothing is": comparing against null in SQL returns
+ * null, and in JavaScript returns false, and both are the wrong answer.
+ */
+export async function invitesSeenAtFor(
+  db: Db,
+  actorId: string | null,
+): Promise<Date | null> {
+  if (!actorId) return null;
+  const [me] = await db
+    .select({ seenAt: schema.actors.invitesSeenAt })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId))
+    .limit(1);
+  return me?.seenAt ?? null;
+}
+
 /** Looking is what clears it. Called when the Invites page renders. */
 export async function markInvitesSeen(db: Db, actorId: string | null): Promise<void> {
   if (!actorId) return;

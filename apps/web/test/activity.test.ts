@@ -252,6 +252,58 @@ describe('photographs arriving', () => {
     );
   });
 
+  it('carries three of the photographs it is counting, and no more', async () => {
+    /*
+     * "Maya added 12 photos to Naxos, September" is a sentence about pictures
+     * that shows you none of them, on a page inside a product whose subject is
+     * photographs. Three is the number the row has space for; the bound is in
+     * SQL rather than in TypeScript because the alternative carries every
+     * photograph of a two-hundred-picture burst across the wire to draw three.
+     */
+    const me = await actor('me');
+    const sarah = await actor('sarah');
+    const made = await event(sarah, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const at = new Date();
+    for (let i = 0; i < 9; i++) await photo(made.id, sarah, at, i);
+
+    const line = (await activityFor(db, me)).find((i) => i.kind === 'photos_added');
+    expect(line?.what).toBe('added 9 photos to Dinner');
+    expect(line?.images).toHaveLength(3);
+    // Addresses, not keys. Every one of these crosses the boundary to a browser.
+    expect(line?.images.every((src) => typeof src === 'string' && src.length > 0)).toBe(
+      true,
+    );
+  });
+
+  it('shows what it has when there are fewer than three', async () => {
+    const me = await actor('me');
+    const sarah = await actor('sarah');
+    const made = await event(sarah, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    await photo(made.id, sarah, new Date(), 0);
+
+    const line = (await activityFor(db, me)).find((i) => i.kind === 'photos_added');
+    expect(line?.images).toHaveLength(1);
+  });
+
+  it('gives every other kind an empty strip rather than none at all', async () => {
+    /*
+     * `images` is present on every line and empty on all but this one. An
+     * optional field would have been the smaller diff and the worse type: a
+     * consumer that forgot the `?? []` renders `undefined.map` on whichever
+     * kind it had not thought about, which is the kind nobody was testing.
+     */
+    const me = await actor('me');
+    await twoLines(me);
+
+    const items = await activityFor(db, me);
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => Array.isArray(i.images) && i.images.length === 0)).toBe(
+      true,
+    );
+  });
+
   it('separates two people and two days', async () => {
     // The key carries the day, so tomorrow's photographs are a new line rather
     // than yesterday's line quietly growing a bigger number under the same id

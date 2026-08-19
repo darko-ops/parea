@@ -26,10 +26,12 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, exists, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 
+import { avatarUrl } from './accounts';
 import type { Db } from './db';
 import { requestsFor } from './friends';
+import { imageSrc } from './images';
 import { pendingInvites } from './invites';
 
 export type PendingRequestKind = 'invite' | 'friend' | 'join';
@@ -48,6 +50,21 @@ export type PendingRequest = {
   detail: string;
   /** ISO. */
   at: string;
+  /**
+   * The picture on the card. Null draws the title's first letter.
+   *
+   * Whichever thing the card is *about*, which is the same rule the feed's
+   * squares follow: an invitation and a request to come in are about an album,
+   * so they get its newest photograph; a friend request is about a person, so
+   * it gets their face. Deciding between yes and no is easier when you can see
+   * what you are deciding about, and an album you have been invited to is one
+   * you have never seen.
+   *
+   * Presigned here rather than handed over as a key. Neither an avatar key nor
+   * a storage key crosses this boundary — see `accounts.avatarUrl` and
+   * `images.imageSrc`, which is the same discipline every other surface keeps.
+   */
+  image: string | null;
 };
 
 function nameOf(displayName: string | null, handle: string | null): string {
@@ -116,6 +133,10 @@ export async function joinRequestsFor(
     title: nameOf(row.displayName, row.handle),
     detail: `would like to join ${row.eventName}`,
     at: row.at.toISOString(),
+    // Filled in by `pendingRequestsFor`, which resolves every card's picture in
+    // one pass. Null here rather than a second query per row: this function is
+    // also called on its own, by the badge, which counts rows and draws none.
+    image: null,
   }));
 }
 
@@ -181,6 +202,7 @@ export async function pendingRequestsFor(
         ? `${invite.from} invited you · ${invite.caption}`
         : `${invite.from} invited you`,
       at: invite.createdAt,
+      image: null as string | null,
     })),
     ...friends.map((friend) => ({
       key: `friend:${friend.id}`,
@@ -190,9 +212,120 @@ export async function pendingRequestsFor(
       title: nameOf(friend.displayName, friend.handle),
       detail: 'would like to be friends',
       at: friend.askedAt,
+      image: null as string | null,
     })),
     ...joins,
   ];
 
-  return all.sort((a, b) => b.at.localeCompare(a.at));
+  const sorted = all.sort((a, b) => b.at.localeCompare(a.at));
+
+  /*
+   * Every card's picture, in two queries rather than one per card.
+   *
+   * Album covers for the kinds about albums, faces for the kind about a
+   * person, and both resolved after the merge so a card gets one lookup
+   * whichever list it came from.
+   */
+  const [covers, faces] = await Promise.all([
+    coversFor(db, sorted.flatMap((r) => (r.eventId ? [r.eventId] : []))),
+    facesFor(db, friends.map((f) => f.actorId)),
+  ]);
+
+  return Promise.all(
+    sorted.map(async (request) => ({
+      ...request,
+      image:
+        request.kind === 'friend'
+          ? (faces.get(request.id) ?? null)
+          : request.eventId
+            ? (covers.get(request.eventId) ?? null)
+            : null,
+    })),
+  );
+}
+
+/**
+ * The newest photograph in each of these albums, presigned.
+ *
+ * `distinct on` rather than a correlated subselect per row: this is asked
+ * about a handful of albums at once, and one pass over the photo table
+ * indexed by event is cheaper than one subselect per card.
+ *
+ * An album nobody has added to yet is simply absent from the map, which the
+ * caller draws as a letter — the same fallback the cards use.
+ */
+async function coversFor(db: Db, eventIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (eventIds.length === 0) return out;
+
+  const rows = await db
+    .select({
+      eventId: schema.events.id,
+      capEpoch: schema.events.capEpoch,
+      storageKey: schema.photos.storageKey,
+      hash: sql<string | null>`encode(${schema.photos.contentHash}, 'hex')`,
+    })
+    .from(schema.photos)
+    .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
+    .where(
+      and(
+        inArray(schema.photos.eventId, eventIds),
+        eq(schema.photos.status, 'ready'),
+        isNull(schema.photos.deletedAt),
+      ),
+    )
+    .orderBy(schema.photos.eventId, desc(schema.photos.uploadedAt));
+
+  for (const row of rows) {
+    // First per album wins, which the ordering makes the newest. Cheaper than
+    // `distinct on` through the query builder and identical in effect for a
+    // list this size.
+    if (out.has(row.eventId)) continue;
+    out.set(
+      row.eventId,
+      await imageSrc(
+        {
+          eventId: row.eventId,
+          storageKey: row.storageKey,
+          contentHash: row.hash ? Buffer.from(row.hash, 'hex') : null,
+        },
+        'thumb',
+        row.capEpoch,
+      ),
+    );
+  }
+  return out;
+}
+
+/**
+ * The asker's picture on each friend request, keyed by the request's own id.
+ *
+ * By request rather than by actor, because that is what the card has in its
+ * hand — and because one person can only have one open request to you, so the
+ * two are the same map with a different key and this one needs no second
+ * lookup at the call site.
+ */
+async function facesFor(db: Db, actorIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (actorIds.length === 0) return out;
+
+  const rows = await db
+    .select({
+      requestId: schema.friendRequests.id,
+      avatarKey: schema.actors.avatarKey,
+    })
+    .from(schema.friendRequests)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.friendRequests.fromActorId))
+    .where(
+      and(
+        inArray(schema.friendRequests.fromActorId, actorIds),
+        eq(schema.friendRequests.status, 'open'),
+      ),
+    );
+
+  for (const row of rows) {
+    const url = await avatarUrl(row.avatarKey);
+    if (url) out.set(row.requestId, url);
+  }
+  return out;
 }
