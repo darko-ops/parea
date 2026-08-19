@@ -53,11 +53,22 @@ describe('adding photos to an event', () => {
     expect(CSS).toMatch(/input\.visually-hidden:focus-visible\) \.button-like/);
   });
 
-  it('is behind the head\u2019s + menu, which stays the primary action', () => {
-    // The head is two menus now. If the `+` ever stops being the filled one,
-    // the page's main action is a grey glyph among grey glyphs.
-    expect(EVENT).toMatch(/glyph="\+" tone="primary"/);
-    expect(CSS).toMatch(/\.dots-primary\s*\{[^}]*background: var\(--accent\)/);
+  it('says what it does, in the header, as the one filled control', () => {
+    /*
+     * It was behind a filled `+` menu, which made the page's main action a
+     * glyph somebody had to open to find out about. The header says the words
+     * now — and it is still the only filled thing on it, because a page whose
+     * subject is photographs has exactly one action worth colouring.
+     */
+    expect(EVENT).toMatch(/className="button-like primary event-add"/);
+    expect(EVENT).toMatch(/uploads\.running \? 'Adding…' : 'Add photos'/);
+  });
+
+  it('is offered again in the gallery, on the same input', () => {
+    // The first tile. One file dialog and one disabled state — two controls
+    // wired to two inputs is how a page ends up with two half-working ones.
+    expect(EVENT).toMatch(/<label htmlFor="add-photos" className="tile-add">/);
+    expect(EVENT).toMatch(/id="add-photos"/);
   });
 
   it('does not disable a label, which cannot be disabled', () => {

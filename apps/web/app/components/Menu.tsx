@@ -31,7 +31,8 @@ export function Menu({
   /** What is drawn on the button. */
   glyph?: string;
   /** `primary` fills it, for the one menu that is the page's main action. */
-  tone?: 'primary';
+  /** `quiet` is the album header's outlined square; `primary` the filled one. */
+  tone?: 'primary' | 'quiet';
   /** A count on the button, for something waiting behind it. Zero draws none. */
   badge?: number;
   /** Which edge the panel hangs from. `left` for a control near the page edge. */
@@ -68,7 +69,9 @@ export function Menu({
   return (
     <div className="dots" ref={ref}>
       <button
-        className={`dots-go${tone === 'primary' ? ' dots-primary' : ''}`}
+        className={`dots-go${tone === 'primary' ? ' dots-primary' : ''}${
+          tone === 'quiet' ? ' dots-quiet' : ''
+        }`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}

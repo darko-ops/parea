@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
-import { membersOf } from '@/members';
+import { membersOf, rosterFor } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
@@ -201,6 +201,10 @@ export async function GET(
     // Everybody in the album, for the faces in the head and the Members tab.
     // Not the same list as `people`, which is whose photographs these are.
     members: await membersOf(db, event.id),
+    // The People tab's fuller answer: everybody in it with what they have put
+    // in, plus whoever was asked and has not arrived. One query more, rather
+    // than one per row on a page that is nothing but rows.
+    roster: await rosterFor(db, event.id, photoCounts(rows)),
     messages,
     // `contribute` and an account, matching what the POST actually enforces.
     // Computed from the same helper rather than from `viewerId != null`, which
@@ -213,4 +217,21 @@ export async function GET(
     count: photos.length,
     photos,
   });
+}
+
+/**
+ * Whose photographs these are, counted once.
+ *
+ * By actor id rather than by the per-event contributor key: the roster is a
+ * list of people the viewer can already see in the Members list, so it is
+ * keyed by who they are. The key exists for the *photo* feed, where an
+ * uploader id must not cross the boundary — see `contributors.ts`.
+ */
+function photoCounts(rows: { uploaderId: string | null }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.uploaderId) continue;
+    counts.set(row.uploaderId, (counts.get(row.uploaderId) ?? 0) + 1);
+  }
+  return counts;
 }

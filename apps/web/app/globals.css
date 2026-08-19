@@ -35,7 +35,7 @@
   --bg: #fff; --card: #fff;
   /* Warmer than the blue-grey they were. The rules on this page sit between
      photographs, and a cool hairline next to a warm print reads as a seam. */
-  --line: #e8e4dd;
+  --line: #e4ded4;
   --fg: #14171c; --dim: #5b6472;
   /* A muted relative of the logo blue, not the full-strength one it was
      (#1a5fd0). At full strength every button and every active row shouted the
@@ -50,6 +50,13 @@
   /* The greeting, dates, and the counts under a card. Warm, because they sit
      under photographs rather than in a form. */
   --dim-warm: #8a8378;
+  /* The album page's own surface. Photographs at their own shapes leave a lot
+     of page showing between them, and white between prints reads as a light
+     box rather than as a wall. */
+  --page-warm: #fbf8f4;
+  /* The rule between two people in a list. Lighter than `--hairline`, which
+     separates sections rather than rows. */
+  --row-line: #f2ece3;
   /* Dashed affordances: the empty grid cell, the add-contact circle. */
   --line-dashed: #d7d1c6;
   /* Lifts the card text off the blurred photo bleeding up behind it. Two of
@@ -62,7 +69,7 @@
   /* A rule *inside* a bordered container. Lighter than `--line`, which is an
      edge: the same colour for both makes a list of rows read as a stack of
      separate boxes rather than one list. */
-  --hairline: #f0ece5;
+  --hairline: #eee7dd;
   /* The trough of every progress bar, and the hover fill on a list row. */
   --track: #f4f6f8;
   /* The second stripe of the moving upload bar. Near enough to the accent
@@ -1198,92 +1205,290 @@ button.secondary {
    under the head — without it, `flex: 1` on the split was inert and the body
    was only ever as tall as its contents, which is what left the footer
    floating in the middle of a short event. */
-.event { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.event-head {
-  position: sticky; top: 0; z-index: 2; min-height: var(--head-h);
-  display: flex; align-items: center; gap: 16px;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--line);
-  /* Translucent, so the photographs going under it stay visible as
-     photographs. The solid fallback matters: without `backdrop-filter` this
-     is text over a moving grid, which is unreadable rather than merely less
-     pretty. */
-  background: var(--bg);
+.event {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  /* The album's own surface, warmer than the white it sat on. Photographs at
+     their own shapes leave a lot of page showing between them, and white
+     between prints reads as a light box rather than as a wall. */
+  background: var(--page-warm);
 }
-@supports (backdrop-filter: blur(8px)) {
-  .event-head { background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); }
+
+/* The header, which stopped being a sticky bar.
+
+   It was pinned so the count and the controls stayed reachable over a long
+   grid. The controls are still at the top and the page is now three tabs, so
+   what pinning bought was a permanent 78px of chrome over the pictures — and a
+   `backdrop-filter` that made every `position: fixed` child of it, including
+   the share sheet, measure itself against the header instead of the viewport. */
+.event-head { padding: 18px 28px 0; }
+.event-head-row { display: flex; align-items: flex-start; gap: 16px; }
+.event-back {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); text-decoration: none; font-size: 19px;
+  /* Optically flush with the title, which the glyph's own side bearing is not. */
+  margin: 2px 0 0 -6px;
 }
-/* The host's picture, at the left of the bar. A ring in the head's own colour
-   so it stays a circle over whatever is scrolling under the blur. */
-.event-face {
-  flex: none; width: 38px; height: 38px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  overflow: hidden; object-fit: cover;
-  background: var(--track); color: var(--dim);
-  font-size: 15px; font-weight: 700;
-}
-.event-head-text { flex: 1; min-width: 0; }
-/* Who is in it, where the photo count used to be. */
-.event-people {
-  display: flex; align-items: center; gap: 8px; margin: 2px 0 0;
-  font-size: 13px; color: var(--dim);
-}
-.event-more { font-variant-numeric: tabular-nums; font-weight: 600; }
-/* Where and when. The place can be long and the head is a bar, so it is the
-   one that truncates; the time is four characters and never does. */
-.event-where {
-  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.event-where svg { flex: none; opacity: .8; }
-.event-when { flex: none; white-space: nowrap; }
-/* A row of overlapping circles: a photograph where somebody has one, a lens
-   where they do not. */
-.faces { display: inline-flex; flex: none; }
-.faces > * {
-  border-radius: 50%; display: block; object-fit: cover;
-  box-shadow: 0 0 0 1.5px var(--bg);
-}
-.faces > * + * { margin-left: -6px; }
-.face-lens { display: block; border-radius: 50%; }
+.event-back:hover { background: var(--hairline); }
+.event-head-text { flex: 1 1 auto; min-width: 0; }
 .event-head h1 {
-  font-size: 20px; font-weight: 700; letter-spacing: -.015em; margin: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 25px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
+  margin: 0;
 }
-.event-head p { margin: 0; font-size: 13px; }
-/* The host's line. Set in the text colour rather than `--dim`: it is something
-   somebody wrote, not a count the page derived. */
-/* The handle and the host's own line, on one row — the card's arrangement. */
-.event-caption {
-  display: flex; align-items: baseline; gap: 6px; min-width: 0;
-  color: var(--fg); font-size: 13.5px;
+.event-head p { margin: 0; }
+/* One line of facts about the evening: when, where, who, how much. */
+.event-meta { font-size: 13.5px; color: var(--dim-warm); margin-top: 5px !important; }
+.event-who {
+  display: flex; align-items: center; gap: 9px; margin-top: 9px !important;
+  font-size: 13px; color: var(--dim); flex-wrap: wrap;
 }
-/* Whose it is: heavier and quieter than what they wrote, so the eye reads the
-   sentence and not the name in front of it. Never the thing that gives way —
-   the caption is longer and has somewhere to go. */
-.event-handle { flex: none; font-weight: 600; color: var(--dim); }
-.event-said {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.event-by-name { color: var(--fg); font-weight: 500; }
+.event-more {
+  font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px;
+  color: var(--dim);
 }
-.event-head .button-like { padding: 10px 15px; font-size: 14px; white-space: nowrap; }
+/* What the host wrote. Its own line, never the title's: appended there it read
+   as part of the name. */
+.event-said { font-size: 13.5px; color: var(--dim); margin-top: 8px !important; }
+
+/* Words, not glyphs. A filled `+` and a `···` at the top of a page make
+   somebody guess twice about the two things they came here to do. */
+.event-actions { flex: none; display: flex; align-items: center; gap: 8px; }
+.event-actions .button-like,
+.event-invite {
+  padding: 10px 16px; font-size: 14.5px; font-weight: 600; border-radius: 10px;
+  white-space: nowrap;
+}
+.event-invite {
+  background: transparent; border: 1px solid var(--line); color: var(--fg);
+  padding: 10px 15px;
+}
+.event-invite:hover { border-color: var(--accent); color: var(--accent-ink); }
+.event-add[aria-disabled='true'] { opacity: .6; pointer-events: none; }
+
+/* The tabs, and the rule under them is the header's only border. */
+.event-tabs {
+  display: flex; gap: 26px; margin-top: 18px;
+  border-bottom: 1px solid var(--hairline); overflow-x: auto;
+  scrollbar-width: none;
+}
+.event-tabs::-webkit-scrollbar { display: none; }
+.event-tab {
+  padding: 0 2px 11px; font-size: 14.5px; color: var(--dim);
+  text-decoration: none; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.event-tab-on {
+  color: var(--fg); font-weight: 600;
+  border-bottom: 2px solid var(--accent); margin-bottom: -1px;
+}
+.event-tab-count {
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 11.5px; font-weight: 700;
+}
+
 .event-body {
-  padding: 20px 24px 28px;
+  padding: 22px 28px 34px;
   display: flex; flex-direction: column; gap: 18px;
-  /* Starts under the head, so the screenful it has to fill is what is left
-     below it — plus the footer and this element's own bottom padding. */
-  min-height: calc(100dvh - var(--head-h) + var(--footer-h) + 28px);
+  min-height: calc(100dvh - 190px);
 }
+/* Conversation and People are columns of text, not a gallery: they get a
+   measure rather than the full width of a four-column grid. */
+.event-column { max-width: 820px; width: 100%; }
+
 /* The one thing on this page that is about the future. */
 .arriving {
   flex: none; display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 13px; font-weight: 600; white-space: nowrap;
+  padding: 5px 11px; border-radius: 999px;
+  background: #eaf5ef; color: #3d6a55;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .arriving-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent); animation: pulse 1.6s ease-in-out infinite;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #a5dcc6; animation: pulse 1.6s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) { .arriving-dot { animation: none; } }
+
+/* A run of photographs, labelled. The rule fills whatever the label and its
+   caption leave, so the head separates without taking a line of its own. */
+.section-head {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-size: 12.5px; color: var(--dim-warm);
+}
+.section-label {
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+}
+.section-caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section-rule { flex: 1; height: 1px; background: var(--hairline); }
+
+/* The gallery: columns of photographs at their own shapes.
+
+   Four fixed columns rather than `auto-fill`, because the distribution is
+   decided in the component — it fills the shortest column next so the reading
+   order stays the feed's order across the row, and that needs to know how many
+   columns there are. */
+.masonry {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px; align-items: start;
+}
+.masonry-column { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (max-width: 1200px) { .masonry { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .masonry { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .masonry { grid-template-columns: 1fr; } }
+
+/* One photograph, with its chrome on top of it. */
+.tile { position: relative; border-radius: 14px; overflow: hidden; }
+.tile-open {
+  display: block; width: 100%; padding: 0; border: 0; background: var(--hairline);
+  border-radius: 14px; overflow: hidden; cursor: pointer;
+}
+.tile-open picture, .tile-open img { display: block; width: 100%; height: 100%; }
+.tile-open img { object-fit: cover; }
+.tile-open:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tile-empty {
+  display: flex; align-items: center; justify-content: center; height: 100%;
+  border: 1px dashed var(--line-dashed); border-radius: 14px;
+  color: var(--dim); font-size: 12px;
+}
+
+/* The overlay: on hover, on focus-within, and on a first tap — which is what
+   focus-within gives on touch, where there is no hover to have. */
+.tile-scrim, .tile-pick, .tile-chips, .tile-by {
+  opacity: 0; transition: opacity 120ms ease; pointer-events: none;
+}
+.tile:hover .tile-scrim, .tile:focus-within .tile-scrim,
+.tile:hover .tile-pick, .tile:focus-within .tile-pick,
+.tile:hover .tile-chips, .tile:focus-within .tile-chips,
+.tile:hover .tile-by, .tile:focus-within .tile-by { opacity: 1; }
+.tile:hover .tile-pick, .tile:focus-within .tile-pick,
+.tile:hover .tile-chips, .tile:focus-within .tile-chips { pointer-events: auto; }
+/* A picked one keeps its chrome up: the checkbox is the state, and a state you
+   can only see while pointing at it is not one. */
+.tile-picked .tile-scrim, .tile-picked .tile-pick { opacity: 1; pointer-events: auto; }
+.tile-picked { outline: 3px solid var(--accent); outline-offset: -3px; }
+
+.tile-scrim {
+  position: absolute; inset: 0; border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 23, 28, .42),
+    rgba(20, 23, 28, 0) 42%,
+    rgba(20, 23, 28, .55)
+  );
+}
+.tile-pick {
+  position: absolute; left: 12px; top: 12px;
+  width: 22px; height: 22px; padding: 0; border-radius: 6px;
+  border: 1.5px solid rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .18);
+  color: #fff; font-size: 13px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.tile-pick-on { background: var(--accent); border-color: var(--accent); }
+.tile-chips { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+.tile-chip {
+  width: 30px; height: 30px; border-radius: 8px; border: 0;
+  background: rgba(255, 255, 255, .92); color: var(--fg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; text-decoration: none; cursor: pointer;
+}
+.tile-by {
+  position: absolute; left: 12px; right: 12px; bottom: 11px;
+  display: flex; align-items: center; gap: 8px; color: #fff; min-width: 0;
+}
+.tile-by-face {
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .22); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85);
+  font-size: 11px; font-weight: 600;
+}
+.tile-by-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tile-by-when {
+  font-size: 12.5px; opacity: .85; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The first cell: the way to add, in the gallery rather than only in the
+   header. It stays first even when the album is full — an album that fills up
+   is the one whose next photograph is easiest to forget to add. */
+.tile-add {
+  height: 210px; border-radius: 14px;
+  border: 1px dashed var(--line-dashed); background: rgba(255, 255, 255, .5);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; cursor: pointer; text-align: center; padding: 20px;
+}
+.tile-add strong { font-size: 15.5px; font-weight: 600; }
+.tile-add .muted { font-size: 12.5px; }
+.tile-add-lenses { display: inline-flex; }
+.tile-add-lenses > * { width: 24px; height: 24px; border-radius: 50%; display: block; }
+.tile-add-lenses > :first-child { background: #ffb3b8; }
+.tile-add-lenses > :nth-child(2) { background: #9db2f0; margin-left: -8px; }
+.tile-add-lenses > :nth-child(3) { background: #a5dcc6; margin-left: -8px; }
+
+/* The bar for a selection. In the flow at the foot of the body rather than
+   floating over the gallery — a floating bar covers the bottom row of exactly
+   the thing being chosen from. */
+.picking {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--accent); background: var(--accent-soft);
+  border-radius: 14px; padding: 12px 14px;
+}
+.picking-count { flex: 1; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
+.picking button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
+.picking .secondary { background: var(--card); }
+
+/* People: a page of rows, no cards. */
+.people-tab { display: flex; flex-direction: column; gap: 4px; }
+.people-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 10px;
+}
+.people-head h2 { font-size: 19px; font-weight: 700; margin: 0; }
+.people-head p { margin: 4px 0 0; font-size: 13.5px; max-width: 460px; }
+.roster { list-style: none; margin: 0; padding: 0; }
+.roster li {
+  display: flex; align-items: center; gap: 12px; padding: 13px 4px;
+  border-bottom: 1px solid var(--row-line);
+}
+.roster-face {
+  width: 44px; height: 44px; border-radius: 50%; flex: none; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; object-fit: cover;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 17px; font-weight: 600;
+}
+.roster-who { flex: 1; min-width: 0; }
+.roster-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.roster-name a, .roster-name > span:first-child {
+  font-size: 15.5px; font-weight: 600; color: inherit; text-decoration: none;
+}
+.roster-name a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.roster-handle {
+  font-size: 12.5px; color: var(--dim-warm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.roster-did { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+/* Asked and not arrived: the row is quieter and its circle is a dashed
+   outline, which is what "nothing here yet" looks like everywhere else. */
+.roster-waiting .roster-face {
+  background: none; border: 1px dashed var(--line-dashed); color: var(--dim-warm);
+}
+.roster-waiting .roster-name a, .roster-waiting .roster-name > span:first-child {
+  color: var(--dim);
+}
+.role {
+  flex: none; padding: 4px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+}
+.role-creator { background: #f5ece2; color: #7d5230; }
+.role-contributor { background: #eaf5ef; color: #3d6a55; }
+.role-viewer { background: #eef1f4; color: var(--dim); }
+.role-invited { background: #fbf3e8; color: #8a6a3a; }
+.people-foot {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 18px; padding: 16px 18px; border-radius: 14px;
+  background: rgba(255, 255, 255, .66);
+}
+.people-foot p { margin: 0; flex: 1; min-width: 200px; font-size: 13.5px; color: var(--dim); }
 
 /* A disclosure rather than a popover: no script, no focus trap to get wrong,
    and it closes the way every other `<details>` in the product closes. */
@@ -1470,79 +1675,15 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    what decides which — not a resize listener, which would flash the wrong
    shape on first paint and then need keeping in step with these numbers.
    --------------------------------------------------------------------------- */
-.event-split { display: flex; align-items: stretch; flex: 1; min-height: 0; }
-.event-split > .event-body { flex: 1; min-width: 0; }
-
-.thread {
-  width: 360px; flex: none;
-  border-left: 1px solid var(--line); background: var(--card);
-  display: flex; flex-direction: column;
-  /* Its own scroll container, under the sticky head. `100dvh` because on iOS
-     the address bar makes `vh` a promise the browser does not keep, and a
-     composer pinned below the fold is a composer nobody can reach. */
-  position: sticky; top: var(--head-h);
-  height: calc(100dvh - var(--head-h));
+/* A row of overlapping circles: a photograph where somebody has one, a lens
+   where they do not. */
+.faces { display: inline-flex; flex: none; }
+.faces > * {
+  border-radius: 50%; display: block; object-fit: cover;
+  box-shadow: 0 0 0 1.5px var(--bg);
 }
-.thread-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 18px; border-bottom: 1px solid var(--line);
-}
-.thread-head strong { flex: 1; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-/* Folds the column away, and the head grows a Thread button to bring it back.
-   A chevron pointing at the edge it leaves towards, rather than an ×: it is
-   put away, not dismissed, and the choice is remembered. */
-/* Two tabs where a heading used to be. Underline rather than pills: the column
-   is narrow and a pair of filled pills at the top of it reads as two buttons
-   competing with the conversation. */
-.thread-tabs { display: flex; gap: 4px; flex: 1; min-width: 0; }
-.thread-tabs button {
-  padding: 4px 2px; background: none; border: 0; border-bottom: 2px solid transparent;
-  border-radius: 0; margin-right: 12px;
-  font-size: 14px; font-weight: 600; color: var(--dim); cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.thread-tabs button.is-on { color: var(--fg); border-bottom-color: var(--accent); }
-.thread-count {
-  padding: 1px 6px; border-radius: 999px; background: var(--track);
-  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
-}
-/* The roster. One row per person, and nothing to press: this is an answer to
-   "who else is here", not a place to manage anybody — that is Manage, and
-   only the host has it. */
-.thread-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.thread-members li {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 2px; font-size: 14px;
-}
-.thread-face {
-  flex: none; width: 30px; height: 30px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  overflow: hidden; object-fit: cover;
-  background: var(--track); color: var(--dim);
-  font-size: 12px; font-weight: 700;
-}
-.thread-member-name {
-  min-width: 0; display: flex; align-items: baseline; gap: 7px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.thread-host {
-  flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--dim);
-}
-.thread-fold {
-  flex: none; width: 28px; height: 28px; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: 0; border-radius: 8px;
-  color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer;
-}
-.thread-fold:hover { background: var(--track); color: var(--fg); }
-.thread-list {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 16px 18px; display: flex; flex-direction: column; gap: 16px;
-}
-.thread-empty { font-size: 13.5px; line-height: 1.5; margin: 0; }
-
-.message { display: flex; gap: 10px; }
+.faces > * + * { margin-left: -6px; }
+.face-lens { display: block; border-radius: 50%; }
 /* Yours on the right, everybody else's on the left — the arrangement every
    message list has, and the reason it is worth having is that you can tell
    whose a message is before reading a word of it.
@@ -1562,42 +1703,13 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    typing into is somebody else's idea of helpful. */
 .message-mine .message-edit { text-align: left; }
 .message-mine .message-edit .row { justify-content: flex-end; }
-/* The same construction as `.chip-face` at 20 and `.you-face` at 64: a letter
-   until there is a picture, and there is never a picture here — a column of
-   28px avatars beside 14.5px text is a column of thumbnails of faces, which is
-   not what a thread is for. */
-.message-face {
-  flex: none; width: 28px; height: 28px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 12px; font-weight: 600; user-select: none;
-}
-.message-body { flex: 1; min-width: 0; }
- /* A `<div>`, not a `<p>`. It holds the options menu, and a `<div>` inside a
-    `<p>` is invalid nesting — which the browser silently repairs by closing
-    the paragraph early, so the server's HTML and the client's disagree and
-    React throws the whole tree away and rebuilds it. Nothing looks wrong; the
-    page just quietly stops being server-rendered. */
-.message-meta {
-  margin: 0 0 2px; font-size: 13px;
-  display: flex; align-items: baseline; gap: 6px;
-}
-.message-meta strong { font-weight: 600; }
-.message-meta > span { color: var(--dim); font-size: 12.5px; }
-/* Pushed to the end of the meta line rather than floated over the message: the
-   actions belong to the row, and a control that appears on hover is a control
-   that does not exist on a phone.
-
-   One glyph rather than two links. "Edit" and "Delete" sat on every message you
-   had written — a standing invitation to delete, competing with the name and
-   the time for a 360px line. */
- /* Three dots and the panel they open. Two of these — the options on your own
+/* Three dots and the panel they open. Two of these — the options on your own
     message, and the event's settings in the head — so one set of rules. */
 .dots { position: relative; flex: none; }
 /* In a message's meta line it goes to the end of the row; in the event head it
    is one control among several and sits where it is put. */
 .message-meta .dots { margin-left: auto; }
- /* Bolder than a message's own menu. Three light grey dots at 13px beside a
+/* Bolder than a message's own menu. Three light grey dots at 13px beside a
     filled blue button read as a rendering artefact rather than a control — in
     the head they carry the event's whole settings menu and have to look like
     something you can press. */
@@ -1607,26 +1719,18 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   line-height: 1;
 }
 .dots-go:hover { color: var(--fg); }
-/* In the head the control sits among 36px buttons and needs the height to be
-   pressable, rather than being six pixels of glyph — and the weight to be
-   seen, which is why it is darker and heavier here than on a message.
-
-   Shared with `.head-action`, the share button beside it: three controls in a
-   row have to be the same object at three different jobs, and the way that
-   stops being true is two rules that drift by a pixel. */
-.event-head .dots-go,
-.event-head .head-action {
+/* In the header, a menu is a 36px outlined square beside two word buttons —
+   the download and the more menu, which are the two things that do not fit in
+   a word without saying less than the glyph does. */
+.dots-quiet {
   display: inline-flex; align-items: center; justify-content: center;
   flex: none;
-  width: 36px; height: 36px; padding: 0; border-radius: 8px;
+  width: 36px; height: 36px; padding: 0; border-radius: 10px;
   background: none; border: 1px solid var(--line);
-  font-size: 19px; font-weight: 700; letter-spacing: .02em;
-  color: var(--fg);
+  font-size: 16px; font-weight: 500; letter-spacing: .04em;
+  color: var(--dim);
 }
-.event-head .dots-go:hover,
-.event-head .head-action:hover { background: var(--track); border-color: var(--line-dashed); }
-.event-head .head-action:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.event-head .dots-primary { border-color: var(--accent); }
+.dots-quiet:hover { border-color: var(--accent); color: var(--accent-ink); }
 /* Something waiting behind the menu. On the corner of a 36px button, so the
    glyph stays centred — the same arrangement the folded thread's chevron
    uses. */
@@ -1641,13 +1745,13 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 /* Inside a menu item, the count sits at the end of the row instead. */
 .dots-body .badge { margin-left: 8px; }
-/* The `+`, which is the page's main action and so the filled one. Sized to
-   match the buttons it replaced rather than to the glyph, or it becomes a
-   small blue square beside a 36px control. */
-.event-head .dots-primary {
-  background: var(--accent); color: #fff; font-size: 20px; font-weight: 400;
+/* Still the filled one wherever a menu *is* the main action — the home
+   screen's, and anything that grows one later. On the album page nothing does:
+   the words carry it. */
+.dots-primary {
+  background: var(--accent); color: #fff; border-radius: 10px;
+  padding: 10px 14px; font-weight: 600;
 }
-.event-head .dots-primary:hover { background: var(--accent); filter: brightness(1.06); }
 /* The download menu's popover, reused. */
 .dots-body { width: 210px; padding: 6px; gap: 2px; }
 .dots-left { right: auto; left: 0; }
@@ -1665,145 +1769,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
 .dots-body .menu-danger { color: #b3261e; }
-
-/* The reaction picker opens in place, and closes the same way — the `+`
-   becomes a `×`, and a click anywhere else or Escape also shuts it. A picker
-   that can only be dismissed by choosing something is a picker that makes you
-   react to get rid of it. */
-.picker { display: contents; }
-.message-text {
-  margin: 0; font-size: 14.5px; line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.message-edit { display: grid; gap: 8px; }
-/* A message that was taken back. The row stays so the conversation keeps its
-   shape — the messages either side of a hole appear to be answering each
-   other. */
-.thread-gone { margin: 0; font-size: 13px; font-style: italic; }
-
-/* What somebody typed, marked as a mention. Not a link and not looked up: it
-   says what was written, it does not assert that the person exists. */
-.mention {
-  background: var(--accent-soft); color: var(--accent);
-  border-radius: 4px; padding: 0 3px; font-weight: 600;
-}
-
-.reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-/* The same pressed state as `.chip` and `.pill`, because it is the same idea:
-   something you have picked out of a set. */
-.reaction {
-  padding: 3px 9px; border-radius: 999px;
-  border: 1px solid var(--line); background: transparent; color: var(--fg);
-  font-size: 13px; font-weight: 400; cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-.reaction[aria-pressed='true'] {
-  border: 1.5px solid var(--accent); background: var(--accent-soft);
-  color: var(--accent); font-weight: 600;
-}
-.reaction:disabled { cursor: default; opacity: 1; }
-/* Dashed, which already means "nothing here yet" everywhere else in this
-   design — the empty grid cell, the empty-event card's third lens. */
-.reaction-add {
-  width: 26px; height: 24px; padding: 0;
-  border: 1px dashed var(--line-dashed); color: var(--dim);
-}
-
-.thread-composer {
-  border-top: 1px solid var(--line);
-  padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 9px;
-}
-/* Styled as the global input rather than inheriting it: a textarea does not
-   match `input[type="text"]`, and the one control in the product that did not
-   look like the others is a mistake this stylesheet has made before. */
-.thread-field {
-  width: 100%; resize: none; overflow-y: auto;
-  border: 1px solid var(--line); border-radius: 12px;
-  padding: 11px 13px; font: inherit; font-size: 15px;
-  background: var(--card); color: var(--fg);
-  -webkit-appearance: none; appearance: none;
-  transition: border-color .12s ease, box-shadow .12s ease;
-}
-.thread-field:focus-visible {
-  outline: none; border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.thread-actions { display: flex; align-items: center; gap: 8px; }
-.thread-note { flex: 1; font-size: 12px; line-height: 1.4; color: var(--dim); margin: 0; }
-.thread-actions button { padding: 8px 15px; font-size: 14px; border-radius: 10px; }
-/* The composer's sign-in card has a page's worth of padding by default. */
-.thread-composer .panel { margin: 0; padding: 0; border: 0; }
-
-/* Only ever this event's contributors — a picker that reaches further is a way
-   to find out who exists by typing letters at it. */
-.mention-list {
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-.mention-list button {
-  padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  border: 1px solid var(--line); background: var(--card); color: var(--fg);
-}
-.mention-list button:hover { border-color: var(--accent); color: var(--accent); }
-
-/* The sheet, on a phone. Hidden above the breakpoint along with its button. */
-.thread-open { display: none; }
-.sheet-scrim {
-  position: fixed; inset: 0; z-index: 20;
-  background: rgba(20, 23, 28, .28);
-  display: flex; align-items: flex-end;
-}
-.sheet {
-  width: 100%; height: min(82vh, 620px);
-  background: var(--card); border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 24px rgba(20, 23, 28, .12);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.sheet:focus-visible { outline: none; }
-.sheet-grip {
-  flex: none; width: 36px; height: 4px; border-radius: 999px;
-  background: var(--line-dashed); margin: 8px auto 4px;
-}
-/* Bigger type and bigger targets in the hand, and room under the composer for
-   the home indicator. */
-.sheet .message-text { font-size: 15px; }
-.sheet .thread-composer { padding-bottom: 20px; }
-.sheet .thread-actions button { padding: 11px 18px; }
-
- /* The way back, in the spot the fold button left.
-
-    Same 28px box, the same 18px from the right edge of the page and the same
-    14px below the head — because the thread head's padding is `14px 18px` and
-    this sits where its button did. The two are one switch in one place; a
-    control that moves when you press it makes you look for it again. */
-.thread-unfold {
-  flex: none; align-self: flex-start; position: relative;
-  width: 28px; height: 28px; padding: 0; margin: 14px 18px 0 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 0; border-radius: 8px;
-  color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer;
-}
-.thread-unfold:hover { background: var(--track); color: var(--fg); }
-/* The count, on a 28px button. Absolute so the glyph stays centred — a badge
-   in the flow would shove the chevron off its own axis. */
-.thread-unread {
-  position: absolute; top: -4px; right: -6px;
-  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #fff;
-  font-size: 10px; font-weight: 700; line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 900px) {
-  /* The column goes before the grid does. At this width 360px of thread is
-     most of the page, and the photographs are what the page is for. */
-  .thread { display: none; }
-  .thread-open { display: inline-flex; align-items: center; gap: 7px; }
-  /* Below here the sheet is the thread, so a second Thread button offering to
-     unfold a column that is not rendered would be two of the same word. */
-  .thread-unfold { display: none; }
-}
-
 /* Comments on one photograph, inside the lightbox. The same rows as the
    thread, because they are the same records — a photo comment carries a
    `photoId` and appears in both places. */
@@ -1814,13 +1779,83 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-thread .message-text { font-size: 14px; }
 .photo-thread-note { margin: 0; font-size: 12.5px; color: var(--dim); }
 
-/* On a phone the head keeps the name and the picker; the download drops into
-   the body, where there is room for a 300px panel to open under it. */
-@media (max-width: 620px) {
-  .event-head { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
-  .event-head-text { flex-basis: 100%; }
-  .menu-body { right: auto; left: 0; width: min(300px, calc(100vw - 32px)); }
-  .event-body { padding: 16px 16px 24px; }
+/* The conversation, as a pane rather than a column beside the photographs.
+
+   It was 360px of thread on every screen whether anybody was talking or not,
+   plus a portalled sheet on a phone: one thread, two shapes, two ways in and
+   two ways out. A tab is one shape at every width. */
+.thread { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+.thread-list { display: flex; flex-direction: column; gap: 16px; }
+/* An invitation rather than a report of emptiness. */
+.thread-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 40px 0;
+}
+.thread-empty h2 { font-size: 21px; font-weight: 700; margin: 0; }
+.thread-empty p {
+  margin: 0; font-size: 14.5px; color: var(--dim); max-width: 480px; line-height: 1.5;
+}
+.thread-composer {
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  border-radius: 14px; padding: 13px 15px;
+}
+.thread-field {
+  border: 0; padding: 0; font-size: 14.5px; resize: none; background: none;
+  max-height: 160px; font-family: inherit; color: inherit;
+}
+.thread-field:focus { outline: none; }
+.thread-actions { display: flex; align-items: center; gap: 12px; }
+.thread-note { flex: 1; font-size: 12.5px; color: var(--dim-warm); }
+.thread-actions button { padding: 9px 16px; font-size: 14px; border-radius: 10px; }
+/* One message, and the pieces of it. */
+.message { display: flex; gap: 10px; align-items: flex-start; }
+.message-face {
+  width: 32px; height: 32px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 13px; font-weight: 600;
+}
+.message-body { flex: 1; min-width: 0; }
+.message-meta {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12.5px; color: var(--dim-warm);
+}
+.message-meta strong { color: var(--fg); font-weight: 600; }
+.message-text {
+  margin: 3px 0 0; font-size: 14.5px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.message-edit { display: grid; gap: 8px; margin-top: 4px; }
+.thread-gone { font-size: 13px; font-style: italic; margin: 0; }
+.mention { color: var(--accent-ink); font-weight: 600; }
+/* Reactions live on messages and never on photographs: a photograph of
+   somebody's evening that can be scored is a post, and this is not a feed. */
+.reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.reaction {
+  padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); font-size: 13px; cursor: pointer;
+}
+.reaction-on { border-color: var(--accent); background: var(--accent-soft); }
+.reaction-add { color: var(--dim); }
+.picker {
+  position: relative; display: inline-flex; gap: 6px; flex-wrap: wrap;
+}
+.mention-list {
+  display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+.mention-list button {
+  padding: 5px 10px; border-radius: 999px; font-size: 13px;
+  background: var(--accent-soft); color: var(--accent-ink); border: 0;
+}
+
+.thread-mentions {
+  display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+.thread-mentions button {
+  padding: 5px 10px; border-radius: 999px; font-size: 13px;
+  background: var(--accent-soft); color: var(--accent-ink); border: 0;
 }
 
 /* ---------------------------------------------------------------------------

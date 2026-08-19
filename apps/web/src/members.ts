@@ -16,7 +16,7 @@
  */
 
 import { schema } from '@parea/core';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
@@ -78,4 +78,95 @@ export async function membersOf(db: Db, eventId: string): Promise<Member[]> {
   // it because "is the creator" is a comparison against another table's column
   // and an ORDER BY expression for it reads far worse than one line here.
   return members.sort((a, b) => Number(b.isCreator) - Number(a.isCreator));
+}
+
+/**
+ * The People tab: everybody in the album, and everybody who was asked and has
+ * not arrived.
+ *
+ * `membersOf` answers "who is in here", which is what the header's faces need.
+ * This is the fuller question a page devoted to people asks — how much each
+ * person has put in, and who is still outstanding — and it is one query more
+ * rather than one per row.
+ *
+ * What it deliberately does not do is invent a hierarchy. A role here is a
+ * description of what somebody has done, not a rank: the host, the people who
+ * have added photographs, the people who have only looked. Management is on
+ * the manage screen and stays there.
+ */
+export type Roster = {
+  actorId: string | null;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  /** How many of the photographs on this page are theirs. */
+  photoCount: number;
+  role: 'creator' | 'contributor' | 'viewer' | 'invited';
+  /** For somebody invited and not yet arrived: when the invitation was sent. */
+  invitedAt: string | null;
+};
+
+export async function rosterFor(
+  db: Db,
+  eventId: string,
+  counts: Map<string, number>,
+): Promise<Roster[]> {
+  const members = await membersOf(db, eventId);
+
+  const joined: Roster[] = members.map((member) => ({
+    actorId: member.actorId,
+    name: member.name,
+    handle: member.handle,
+    avatarUrl: member.avatarUrl,
+    photoCount: counts.get(member.actorId) ?? 0,
+    role: member.isCreator
+      ? ('creator' as const)
+      : (counts.get(member.actorId) ?? 0) > 0
+        ? ('contributor' as const)
+        : ('viewer' as const),
+    invitedAt: null,
+  }));
+
+  /*
+   * Asked and not here yet.
+   *
+   * Open invitations only: a declined one is a person's answer, and repeating
+   * it on a roster every time somebody opens the tab would be the product
+   * relaying a no on their behalf. Accepted ones are already above, as members.
+   */
+  const inside = new Set(members.map((member) => member.actorId));
+  const invited = await db
+    .select({
+      actorId: schema.actors.id,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+      createdAt: schema.eventInvites.createdAt,
+    })
+    .from(schema.eventInvites)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.eventInvites.actorId))
+    .where(
+      and(
+        eq(schema.eventInvites.eventId, eventId),
+        eq(schema.eventInvites.status, 'open'),
+      ),
+    )
+    .orderBy(asc(schema.eventInvites.createdAt))
+    .limit(MEMBER_LIMIT);
+
+  const waiting: Roster[] = await Promise.all(
+    invited
+      .filter((row) => !inside.has(row.actorId))
+      .map(async (row) => ({
+        actorId: row.actorId,
+        name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+        handle: row.handle,
+        avatarUrl: await avatarUrl(row.avatarKey),
+        photoCount: 0,
+        role: 'invited' as const,
+        invitedAt: row.createdAt.toISOString(),
+      })),
+  );
+
+  return [...joined, ...waiting];
 }

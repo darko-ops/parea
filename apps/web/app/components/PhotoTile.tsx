@@ -1,83 +1,155 @@
 'use client';
 
+import { ago } from '@parea/cards';
+
 import { useImageFailure } from './useImageFailure';
 
 /**
- * One photo in the event's grid, which holds its place rather than breaking.
+ * One photograph in the gallery, at its own shape, with its chrome on top.
  *
- * The opposite call to `MosaicTile`, for the opposite reason. On a card the
- * mosaic is decoration and vanishing costs nothing. Here the photo *is* the
- * content, and dropping it would leave the header saying twelve photos above a
- * grid of eleven — a quiet lie about what is in the event, and one that would
- * look exactly like somebody's photo having been deleted. So the slot stays,
- * empty and obviously empty.
+ * It holds its place rather than breaking. The opposite call to `CoverImage`,
+ * for the opposite reason: on a card the picture is decoration and vanishing
+ * costs nothing. Here the photograph *is* the content, and dropping it would
+ * leave the header saying twelve photos above a gallery of eleven — a quiet
+ * lie, and one that looks exactly like somebody's photograph having been
+ * deleted. So the slot stays, empty and obviously empty, and keeps a 3:2 box
+ * so the column does not close up around the gap.
  *
- * It also stays a button. Every photo is a route to the reporting and takedown
- * actions in the lightbox (App Store guideline 1.2 wants those reachable, not
- * merely implemented), and a photo that will not render for *you* is not a
- * photo nobody else can see — it may be exactly the one someone means to
- * report. Losing the way in because a thumbnail 403'd would be a worse bug
- * than the glyph this replaces.
+ * It also stays a button. Every photograph is the route to the reporting and
+ * takedown actions in the lightbox (App Store guideline 1.2 wants those
+ * reachable, not merely implemented), and a photograph that will not render
+ * for *you* is not one nobody else can see — it may be exactly the one
+ * somebody means to report.
+ *
+ * ## The overlay
+ *
+ * On hover and on focus-within, and it carries what belongs to this one
+ * picture: a checkbox to pick it, a download, a menu, and whose it is. Not a
+ * count, not a reaction — a photograph of somebody's evening is not a post,
+ * and the moment it can be scored the album is a feed.
+ *
+ * On touch there is no hover, so the first tap shows the chrome and the second
+ * opens the picture; that falls out of `:focus-within` rather than a tap
+ * handler, because a button takes focus when it is tapped.
  */
 export function PhotoTile({
-  src,
-  sources,
-  className,
-  selected,
+  photo,
+  ratio,
+  by,
+  picking,
+  picked,
+  onPick,
   onOpen,
 }: {
-  src: string;
-  sources?: { type: string; src: string }[];
-  /** Extra treatment for the tile itself — the ring on a just-arrived photo. */
-  className?: string;
-  /**
-   * Whether this tile is picked, while the grid is in selection mode.
-   * `undefined` means the grid is not selecting, and the tile is a way in to
-   * the photo rather than a checkbox — which is what `aria-pressed` would
-   * otherwise claim it always was.
-   */
-  selected?: boolean;
+  photo: {
+    id: string;
+    src: string;
+    sources?: { type: string; src: string }[];
+    full: string;
+    takenAt: string;
+  };
+  /** Height as a fraction of width, so the tile reserves its space up front. */
+  ratio: number;
+  /** Whose photograph it is. Null for somebody who arrived by link unnamed. */
+  by: string | null;
+  /** The gallery is in selection mode: a tile picks rather than opens. */
+  picking: boolean;
+  picked: boolean;
+  onPick: () => void;
   onOpen: () => void;
 }) {
-  const { ref, failed, onError } = useImageFailure(src);
+  const { ref, failed, onError } = useImageFailure(photo.src);
 
   return (
-    <button
-      className={className ? `tile ${className}` : 'tile'}
-      onClick={onOpen}
-      aria-pressed={selected}
-      aria-label={
-        selected !== undefined
-          ? selected
-            ? 'Selected — press to unselect'
-            : 'Select this photo'
-          : failed
-            ? 'Photo could not be loaded — open for options'
-            : 'Open photo'
-      }
-    >
-      {failed ? (
-        // Dashed, because dashed already means "nothing here" everywhere else
-        // in this design — the empty grid cell, the add-contact circle. A
-        // plain grey square would read as a very dark photo.
-        <span className="tile-empty">Not available</span>
-      ) : (
-        /*
-          The browser picks the encoding, because it is the only party that
-          knows what it can decode. The `<img>` is the JPEG and it is not
-          optional — a `<picture>` whose sources a browser all rejects renders
-          nothing at all.
-        */
-        <picture>
-          {(sources ?? [])
-            .filter((source) => source.type !== 'image/jpeg')
-            .map((source) => (
-              <source key={source.type} srcSet={source.src} type={source.type} />
-            ))}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img ref={ref} src={src} alt="" loading="lazy" onError={onError} />
-        </picture>
+    <div className={`tile${picked ? ' tile-picked' : ''}`}>
+      <button
+        className="tile-open"
+        // The whole tile is one control while picking, so a tap anywhere on it
+        // does the thing the mode is for rather than opening what you were
+        // trying to tick.
+        onClick={picking ? onPick : onOpen}
+        aria-pressed={picking ? picked : undefined}
+        aria-label={
+          picking
+            ? picked
+              ? 'Selected — press to unselect'
+              : 'Select this photo'
+            : failed
+              ? 'Photo could not be loaded — open for options'
+              : 'Open photo'
+        }
+        style={{ aspectRatio: `1 / ${failed ? 0.667 : ratio}` }}
+      >
+        {failed ? (
+          // Dashed, because dashed already means "nothing here" everywhere
+          // else in this design. A plain grey square would read as a very dark
+          // photograph.
+          <span className="tile-empty">Not available</span>
+        ) : (
+          /*
+            The browser picks the encoding, because it is the only party that
+            knows what it can decode. The `<img>` is the JPEG and it is not
+            optional — a `<picture>` whose sources a browser all rejects
+            renders nothing at all.
+          */
+          <picture>
+            {(photo.sources ?? [])
+              .filter((source) => source.type !== 'image/jpeg')
+              .map((source) => (
+                <source key={source.type} srcSet={source.src} type={source.type} />
+              ))}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={ref} src={photo.src} alt="" loading="lazy" onError={onError} />
+          </picture>
+        )}
+      </button>
+
+      <span className="tile-scrim" aria-hidden="true" />
+
+      {/*
+        The checkbox is always there rather than only in selection mode: it is
+        how the mode *starts*, which was previously only reachable from a menu
+        two presses away.
+      */}
+      <button
+        type="button"
+        className={`tile-pick${picked ? ' tile-pick-on' : ''}`}
+        aria-pressed={picked}
+        aria-label={picked ? 'Unselect this photo' : 'Select this photo'}
+        onClick={onPick}
+      >
+        {picked ? '✓' : ''}
+      </button>
+
+      <span className="tile-chips">
+        <a
+          className="tile-chip"
+          href={photo.full}
+          download
+          aria-label="Download this photo"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {'↓'}
+        </a>
+        <button
+          type="button"
+          className="tile-chip"
+          aria-label="More about this photo"
+          onClick={onOpen}
+        >
+          ···
+        </button>
+      </span>
+
+      {by && (
+        <span className="tile-by">
+          <span className="tile-by-face" aria-hidden="true">
+            {by.replace('@', '').slice(0, 1).toUpperCase()}
+          </span>
+          <span className="tile-by-name">{by}</span>
+          <span className="tile-by-when">Added {ago(new Date(photo.takenAt), new Date())}</span>
+        </span>
       )}
-    </button>
+    </div>
   );
 }

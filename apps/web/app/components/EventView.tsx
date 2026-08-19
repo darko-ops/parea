@@ -33,17 +33,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
 import { Menu } from './Menu';
-import { Thread, ThreadSheet } from './Thread';
+import { Thread } from './Thread';
 import { PhotoLightbox } from './PhotoLightbox';
 import { ShareEvent } from './ShareEvent';
 import { PhotoTile } from './PhotoTile';
-import type { Member } from '@/members';
+import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
+import { Mark } from './Mark';
 import { useUploads } from './useUploads';
 
 /** Faces in the head before the count takes over. Three, as on the cards. */
-const HEAD_FACES = 3;
+const HEAD_FACES = 4;
 import { SiteFooter } from './SiteFooter';
 
 type Photo = {
@@ -55,6 +56,9 @@ type Photo = {
   /** Larger rendition, for the lightbox. */
   full: string;
   takenAt: string;
+  /** Pixels, as the deriver read them. Null before it has. See the page. */
+  width: number | null;
+  height: number | null;
   mine: boolean;
   /** Which contributor chip this belongs to. Opaque — see `contributors.ts`. */
   by: string | null;
@@ -94,8 +98,10 @@ type Feed = {
     added: string;
   };
   contributors: number;
-  /** Everybody in it: the faces in the head, and the Members tab. */
+  /** Everybody in it: the faces in the header. */
   members: Member[];
+  /** The People tab: everybody, with what they put in, plus who was asked. */
+  roster: Roster[];
   people: Person[];
   /** The event's thread, seeded server-side like the photos. */
   messages: Message[];
@@ -115,15 +121,63 @@ type Feed = {
  */
 const INGEST_POLLS = 30;
 
-export function EventView({ eventId, initial }: { eventId: string; initial: Feed }) {
+/** The three panes, in the order the header draws them. */
+const TABS = [
+  ['photos', 'Photos'],
+  ['conversation', 'Conversation'],
+  ['people', 'People'],
+] as const;
+
+export type EventTab = (typeof TABS)[number][0];
+
+/**
+ * One line of facts about the evening.
+ *
+ * The date first, and it is the album's own: `startsAt` when the host said
+ * when it was, else the earliest photograph, else nothing. It used to be a
+ * relative time — "3 days ago" — which answers when it was last *added to*,
+ * a fact about the upload rather than about the night.
+ *
+ * The place reads as a phrase rather than a tag: "At home" rather than a pin
+ * glyph and a word, because it is free text a host typed and the sentence it
+ * belongs in is this one.
+ */
+function metaLine(feed: Feed): string {
+  const parts: string[] = [];
+  const day = feed.event.startsAt ?? feed.photos[0]?.takenAt ?? null;
+  if (day) {
+    parts.push(
+      new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(day)),
+    );
+  }
+  if (feed.event.place) parts.push(`At ${feed.event.place}`);
+  const people = feed.members.length;
+  parts.push(`${people} ${people === 1 ? 'person' : 'people'}`);
+  parts.push(`${feed.count} ${feed.count === 1 ? 'photo' : 'photos'}`);
+  return parts.join(' · ');
+}
+
+export function EventView({
+  eventId,
+  tab,
+  initial,
+}: {
+  eventId: string;
+  /** Which pane, from the URL — so a link to the roster is a link. */
+  tab: EventTab;
+  initial: Feed;
+}) {
   const [feed, setFeed] = useState<Feed>(initial);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
   /** How many of the last selection were not photos. */
   const [skipped, setSkipped] = useState(0);
-  /** Which contributor's photos to show. Null is everyone. Client-only. */
-  const [only, setOnly] = useState<string | null>(null);
   /**
    * Picking photos, and which ones.
    *
@@ -137,31 +191,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
   /** The share panel, which is what somebody who cannot manage gets instead. */
   const [sharing, setSharing] = useState(false);
 
-  /*
-   * Whether the thread column is showing, remembered per browser.
-   *
-   * Somebody who folds it away wants the photographs wider, and wanting that
-   * once is wanting it on the next event too — so the choice outlives the
-   * page. Default open, and read after mount rather than during render:
-   * touching `localStorage` while rendering makes the server's HTML and the
-   * client's disagree, which throws the whole tree away.
-   *
-   * Nothing to do with the sheet. Below the breakpoint the column is hidden by
-   * the stylesheet regardless, and the head's Thread button opens the sheet.
-   */
-  const [threadOpen, setThreadOpen] = useState(true);
-  useEffect(() => {
-    try {
-      setThreadOpen(localStorage.getItem('pa_thread_folded') !== '1');
-    } catch {}
-  }, []);
-
-  const foldThread = useCallback((open: boolean) => {
-    setThreadOpen(open);
-    try {
-      localStorage.setItem('pa_thread_folded', open ? '0' : '1');
-    } catch {}
-  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
 
@@ -229,8 +258,19 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
    * person twice on one bar reads as two people.
    */
   const host = feed.members.find((m) => m.isCreator);
-  const guests = feed.members.filter((m) => !m.isCreator);
-  const faces = guests.slice(0, HEAD_FACES).map((m) => m.avatarUrl);
+  /*
+   * Everybody, host first — not "the guests".
+   *
+   * The row used to draw the people *other than* the host, because the host's
+   * own picture was a 38px circle beside the title. That circle is gone: the
+   * header names them in words instead ("Created by Demetri"), so a row that
+   * still skipped them was an album of four people showing three faces.
+   */
+  const faces = [
+    ...(host ? [host] : []),
+    ...feed.members.filter((m) => !m.isCreator),
+  ];
+  const shown = faces.slice(0, HEAD_FACES).map((m) => m.avatarUrl);
 
   /*
    * Photos appear as ingest finishes, which is seconds behind the upload.
@@ -314,16 +354,7 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     [eventId],
   );
 
-  /*
-   * Filtering is subtractive, always. It narrows what is drawn out of what the
-   * server already decided this person may see — it never asks for more, and
-   * an unknown key shows nothing rather than everything.
-   */
-  const visible = useMemo(
-    () => (only === null ? feed.photos : feed.photos.filter((p) => p.by === only)),
-    [feed.photos, only],
-  );
-
+  const visible = feed.photos;
   const fresh = visible.filter((photo) => !atArrival.current.has(photo.id));
   const earlier = visible.filter((photo) => atArrival.current.has(photo.id));
 
@@ -337,8 +368,6 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
     });
   }, []);
 
-  const mine = feed.people.find((person) => person.mine) ?? null;
-  const others = feed.people.filter((person) => !person.mine);
 
   return (
     /*
@@ -355,254 +384,187 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         above them — which is to say, gone. Translucent with a blur behind it
         so the photographs scrolling under it are still visibly photographs.
       */}
+      {/*
+        The header, and what it stopped being.
+
+        It was a sticky bar with the host's picture beside the name, `@handle ·
+        caption` on its own line, a row of faces with the place and a relative
+        time, and three glyphs. Two of those were doing the album's job badly:
+        the relative time answered "when was this added to" where somebody
+        wants to know when the evening *was*, and the handle belongs to a
+        person rather than to their album — it lives on People and on profiles.
+
+        Now: the name, one line of facts about the evening, who is in it, and
+        the host's own line if they wrote one. The actions say what they do in
+        words rather than in glyphs, because a filled `+` and a `···` at the
+        top of a page make somebody guess twice.
+      */}
       <header className="event-head">
-        {/*
-          Whose album this is, beside its name — the same pair the cards use,
-          and the same reason: it answers "is this mine or was I asked into it"
-          before the name is read.
-        */}
-        <Face
-          src={host?.avatarUrl ?? null}
-          size={38}
-          className="event-face"
-          fallback={
-            <span aria-hidden="true">
-              {(host?.name ?? feed.event.name).slice(0, 1).toUpperCase()}
-            </span>
-          }
-        />
+        <div className="event-head-row">
+          {/* The way back, as a glyph and a hit area rather than a word: it is
+              the one control here that is about the page rather than about the
+              album. */}
+          <a href="/albums" className="event-back" aria-label="Back to your albums">
+            {'\u2039'}
+          </a>
 
-        <div className="event-head-text">
-          <h1>{feed.event.name}</h1>
-          {/*
-            Whose album it is, and their own line about it — the same row as on
-            the cards, and for the same reason: a caption means something
-            different depending on who wrote it. "The balcony flat" from
-            somebody you know is a different sentence from the same words from
-            a stranger.
+          <div className="event-head-text">
+            <h1>{feed.event.name}</h1>
 
-            One line, ellipsised. The head is a bar, not a paragraph.
-          */}
-          {(host?.handle || feed.event.caption) && (
-            <p className="event-caption">
-              {host?.handle && <span className="event-handle">@{host.handle}</span>}
-              {feed.event.caption && <span className="event-said">{feed.event.caption}</span>}
-            </p>
-          )}
-          {/*
-            Who is in it, where a count of photographs used to be.
-
-            "12 photos from 3 people" was a fact about the grid directly
-            underneath, which is the one place it did not need saying. Faces
-            answer the question somebody in an album actually has — who else
-            can see this — and the number after them is the rest of the answer.
-          */}
-          <p className="event-people">
-            <Faces avatars={faces} size={20} />
-            {guests.length > faces.length && (
-              <span className="event-more">+{guests.length - faces.length} more</span>
-            )}
             {/*
-              Where and when, after who. All three are facts about the evening
-              rather than about the grid underneath, which is what the line
-              they replaced was — and they are in the order somebody asks them:
-              who was there, where were we, how long ago.
+              One line of facts about the evening, in the order somebody asks
+              them: when it was, where, who, how much. The date is the album's
+              own — `startsAt`, or the first photograph — never "3 days ago",
+              which is a fact about the upload.
+
+              This is the only place the photograph count appears on screen.
+              It used to sit above the grid, which is the one place it did not
+              need saying.
             */}
-            {feed.event.place && (
-              <span className="event-where">
-                <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
-                  <path
-                    d="M8 14.5s5-4.35 5-8a5 5 0 0 0-10 0c0 3.65 5 8 5 8Z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-                  <circle cx="8" cy="6.4" r="1.7" fill="currentColor" />
-                </svg>
-                {feed.event.place}
-              </span>
+            <p className="event-meta">{metaLine(feed)}</p>
+
+            <p className="event-who">
+              <Faces avatars={shown} size={24} />
+              {faces.length > shown.length && (
+                <span className="event-more">+{faces.length - shown.length}</span>
+              )}
+              {host && (
+                <span className="event-by">
+                  Created by <span className="event-by-name">{host.name}</span>
+                </span>
+              )}
+              {feed.event.groupId && (
+                <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
+              )}
+            </p>
+
+            {/* The host's own line. A description of the evening, on a line of
+                its own — never appended to the title, where it read as part of
+                the name. */}
+            {feed.event.caption && (
+              <p className="event-said">{feed.event.caption}</p>
             )}
-            <span className="event-when">{feed.event.added}</span>
-            {feed.event.groupId && (
-              <a href={`/group/${feed.event.groupId}`}>{feed.event.groupName}</a>
+          </div>
+
+          <div className="event-actions">
+            {feed.event.uploadsOpen && session.account && (
+              /*
+                A label, not a button that calls `.click()`. A label *is* the
+                control for the input it names, so keyboard, pointer and screen
+                reader all work with nothing scripted. `aria-disabled` rather
+                than `disabled`, which a label does not have: the real
+                disabling is on the input, and this is so it does not look
+                pressable while a batch is running.
+              */
+              <label
+                htmlFor="add-photos"
+                className="button-like primary event-add"
+                aria-disabled={uploads.running || undefined}
+              >
+                {uploads.running ? 'Adding…' : 'Add photos'}
+              </label>
             )}
-          </p>
+
+            <button type="button" className="event-invite" onClick={() => setSharing(true)}>
+              Invite
+            </button>
+
+            {feed.photos.length > 0 && (
+              <Menu label="Download" glyph={'\u2193'} tone="quiet">
+                {(close) => (
+                  <>
+                    <button
+                      disabled={downloading}
+                      onClick={() => {
+                        close();
+                        void download('original');
+                      }}
+                    >
+                      {downloading ? 'Preparing…' : 'Download all'}
+                    </button>
+                    <button
+                      disabled={downloading}
+                      onClick={() => {
+                        close();
+                        void download('jpeg');
+                      }}
+                    >
+                      Download all as JPEG
+                    </button>
+                    <button
+                      onClick={() => {
+                        close();
+                        setPicked(new Set());
+                      }}
+                    >
+                      Select images
+                    </button>
+                  </>
+                )}
+              </Menu>
+            )}
+
+            {/*
+              A count on the menu itself, because what is behind it is the only
+              place these can be answered — and somebody waiting to be let into
+              an evening is waiting on a host who has no other reason to open
+              Manage.
+            */}
+            <Menu
+              label={
+                feed.event.waiting > 0
+                  ? `This album — ${feed.event.waiting} waiting`
+                  : 'This album'
+              }
+              glyph="···"
+              tone="quiet"
+              badge={feed.event.waiting}
+            >
+              {(close) => (
+                <>
+                  {feed.event.canAdminister ? (
+                    <a href={`/event/${eventId}/manage`} onClick={close}>
+                      Manage album
+                      {feed.event.waiting > 0 && (
+                        <span className="badge">{feed.event.waiting}</span>
+                      )}
+                    </a>
+                  ) : (
+                    <a href="/safety" onClick={close}>
+                      Safety and reporting
+                    </a>
+                  )}
+                </>
+              )}
+            </Menu>
+          </div>
         </div>
 
         {/*
-          Everybody's uploads, not this tab's. The number that matters to
-          somebody looking at a half-full grid is how much more is coming, and
-          most of it is usually not theirs.
+          Three tabs, and the state is the URL.
+
+          It was a column of conversation beside the photographs, taking a
+          third of the width on every screen whether anybody was talking or
+          not, plus a sheet on a phone — one thread in two shapes. A tab is one
+          shape, and `?tab=` means a link to the roster is a link somebody can
+          send and Back is the way out of it.
         */}
-        {feed.arriving > 0 && (
-          <span className="arriving">
-            <span className="arriving-dot" aria-hidden="true" />
-            {feed.arriving} arriving
-          </span>
-        )}
-
-        {/*
-          The thread, on a phone. The column beside the grid is hidden below
-          the breakpoint, so this is how the same conversation is reached — and
-          it carries the unread count, which the column does not need because
-          the column is already on screen.
-
-          It went missing when the head was rebuilt as two menus, which left a
-          phone with no route to the thread at all. Nothing failed; the control
-          simply was not there, and the desktop layout it was tested on hides
-          it anyway.
-        */}
-        <ThreadSheet
-          eventId={eventId}
-          messages={feed.messages}
-          canPost={feed.canPost}
-          people={feed.people}
-          members={feed.members}
-          onChanged={refresh}
-          unread={unread}
-          onOpened={markSeen}
-        />
-
-        {/*
-          Share, add, everything else.
-
-          The head used to be a pill, a Download button and a filled Add photos
-          button, which is three things competing at the top of a page whose
-          subject is underneath them. It became a `+` and a `···`, and this is
-          the one thing worth lifting back out of the menu: sending the link is
-          what an album is *for*, and it was two presses behind a glyph that
-          means "other". It draws for everybody, because everybody who can see
-          an event can pass it on — the same rule the menu item had.
-        */}
-        <button
-          type="button"
-          className="head-action"
-          aria-label="Share this event"
-          onClick={() => setSharing(true)}
-        >
-          {/*
-            A box with something leaving it. The three-dots-and-two-lines
-            share glyph is Android's and reads as a diagram; this one is what
-            the phone in most people's hand draws.
-          */}
-          <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden="true">
-            <path
-              d="M10 13V3.5M10 3.5 6.75 6.75M10 3.5l3.25 3.25"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M5 9.5H4.25a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 .75.75h11.5a.75.75 0 0 0 .75-.75v-5.5a.75.75 0 0 0-.75-.75H15"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-
-        {feed.event.uploadsOpen && session.account && (
-          <Menu label="Add to this event" glyph="+" tone="primary">
-            {(close) => (
-              <>
-                {/*
-                  A label, not a button that calls `.click()`. A label *is* the
-                  control for the input it names, so keyboard, pointer and
-                  screen reader all work with nothing scripted — and the input
-                  itself lives outside the menu, because a menu that unmounts
-                  on choose would take the file dialog's own input with it.
-                */}
-                {/*
-                  `aria-disabled`, never `disabled` — a label has no such
-                  attribute and setting one is inert. The real disabling is on
-                  the input; this is so the item does not look pressable while a
-                  batch is running, which it would otherwise do while quietly
-                  doing nothing.
-                */}
-                <label
-                  htmlFor="add-photos"
-                  aria-disabled={uploads.running || undefined}
-                  onClick={close}
-                >
-                  {uploads.running ? 'Adding…' : 'Add photos'}
-                </label>
-                {feed.event.groupId && (
-                  <a href={`/?group=${feed.event.groupId}`}>
-                    New event in {feed.event.groupName}
-                  </a>
-                )}
-              </>
-            )}
-          </Menu>
-        )}
-
-        {/*
-          A count on the menu itself, because what is behind it is the only
-          place these can be answered — and somebody waiting to be let into an
-          evening is waiting on a host who has no other reason to open Manage.
-        */}
-        <Menu
-          label={
-            feed.event.waiting > 0
-              ? `This event — ${feed.event.waiting} waiting`
-              : 'This event'
-          }
-          glyph="···"
-          badge={feed.event.waiting}
-        >
-          {(close) => (
-            <>
-              {/*
-                Settings, for the people who have any. Sharing used to live at
-                the bottom of this menu and is now its own button in the head,
-                so this list is only the things that are not sharing.
-              */}
-              {feed.event.canAdminister && (
-                <a href={`/event/${eventId}/manage`}>
-                  Manage event
-                  {feed.event.waiting > 0 && (
-                    <span className="badge">{feed.event.waiting}</span>
-                  )}
-                </a>
+        <nav className="event-tabs" aria-label="This album">
+          {TABS.map(([id, label]) => (
+            <a
+              key={id}
+              href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
+              className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
+              aria-current={tab === id ? 'page' : undefined}
+            >
+              {label}
+              {id === 'conversation' && unread > 0 && (
+                <span className="event-tab-count">{unread}</span>
               )}
-              {feed.photos.length > 0 && (
-                <>
-                  <button
-                    onClick={() => {
-                      close();
-                      setPicked(new Set());
-                    }}
-                  >
-                    Select images
-                  </button>
-                  <button
-                    disabled={downloading}
-                    onClick={() => {
-                      close();
-                      void download('original');
-                    }}
-                  >
-                    {downloading ? 'Preparing…' : 'Download all'}
-                  </button>
-                  <button
-                    disabled={downloading}
-                    onClick={() => {
-                      close();
-                      void download('jpeg');
-                    }}
-                  >
-                    Download all as JPEG
-                  </button>
-                </>
-              )}
-            </>
-          )}
-        </Menu>
+            </a>
+          ))}
+        </nav>
+
         {feed.event.uploadsOpen && session.account && (
           <input
             id="add-photos"
@@ -626,185 +588,138 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
         )}
       </header>
 
-      <div className="event-split">
+      {tab === 'photos' && (
         <div className="event-body">
-        {feed.event.uploadsOpen && session.known && !session.account && (
-          // Adding names who added. Shown here rather than behind a link to
-          // /account, because being sent away mid-task loses the picker they
-          // were about to use — and on a phone, the photos they had chosen.
-          <SignIn
-            why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
-            onSignedIn={session.refresh}
-          />
-        )}
-
-        {/*
-          Said out loud, because the alternative is a count that silently does
-          not match what was chosen. Photos only is a real limitation and worth
-          naming as one rather than letting someone conclude the upload dropped
-          their video.
-        */}
-        {skipped > 0 && (
-          <p className="muted">
-            {skipped === 1 ? '1 file was' : `${skipped} files were`} not added —
-            Parea takes photos, not video or other files.
-          </p>
-        )}
-
-        {/*
-          One chip per contributor. Only over photographs this person can
-          already see: the feed was filtered before it left the server, so
-          somebody blocked has no chip and no total — they are not hidden from
-          the list, they were never in it.
-        */}
-        {feed.people.length > 1 && (
-          <div className="chips" role="group" aria-label="Whose photos to show">
-            <Chip
-              label="Everyone"
-              count={feed.count}
-              on={only === null}
-              onPick={() => setOnly(null)}
+          {feed.event.uploadsOpen && session.known && !session.account && (
+            // Adding names who added. Shown here rather than behind a link to
+            // /account, because being sent away mid-task loses the picker they
+            // were about to use — and on a phone, the photos they had chosen.
+            <SignIn
+              why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
+              onSignedIn={session.refresh}
             />
-            {others.map((person) => (
-              <Chip
-                key={person.key}
-                label={person.name}
-                count={person.photoCount}
-                face={person.name}
-                on={only === person.key}
-                onPick={() => setOnly(person.key)}
-              />
-            ))}
-            {mine && (
-              // Last, and called "Mine" rather than by name: on your own
-              // screen you are not one of the six people, you are the one
-              // looking at them.
-              <Chip
-                label="Mine"
-                count={mine.photoCount}
-                on={only === mine.key}
-                onPick={() => setOnly(mine.key)}
-              />
-            )}
-          </div>
-        )}
+          )}
 
-        {visible.length === 0 ? (
-          <p className="muted empty">
-            {feed.photos.length === 0
-              ? 'Nothing here yet. Add yours and everyone else will see there is something to add to.'
-              : 'None of theirs are here.'}
-          </p>
-        ) : (
-          <>
-            {/*
-              Only when there is something in it. A section head reading "JUST
-              ADDED" over an empty grid, or an "EARLIER" label on a page where
-              nothing is recent, is furniture describing a state that is not
-              happening — so when nothing has arrived since you got here, this
-              is one plain grid, as it always was.
-            */}
-            {fresh.length > 0 && (
-              <Section
-                label="JUST ADDED"
+          {/*
+            Said out loud, because the alternative is a count that silently
+            does not match what was chosen. Photos only is a real limitation
+            and worth naming as one rather than letting somebody conclude the
+            upload dropped their video.
+          */}
+          {skipped > 0 && (
+            <p className="muted">
+              {skipped === 1 ? '1 file was' : `${skipped} files were`} not added
+              — Parea takes photos, not video or other files.
+            </p>
+          )}
+
+          {/*
+            Only when there is something in it. A section head reading "JUST
+            ADDED" over an empty gallery is furniture describing a state that
+            is not happening, so when nothing has arrived since you got here
+            this is one gallery, as it always was.
+          */}
+          {fresh.length > 0 && (
+            <>
+              <SectionHead
+                label="Just added"
                 caption={freshCaption(fresh, feed.people)}
+                arriving={feed.arriving}
+              />
+              <Masonry
                 photos={fresh}
-                highlight
                 picked={picked}
                 onPick={togglePick}
                 onOpen={setOpenPhoto}
+                people={feed.people}
+                lead={null}
               />
-            )}
-            {earlier.length > 0 &&
-              (fresh.length > 0 ? (
-                <Section
-                  label="EARLIER"
-                  caption={earlierCaption(feed.event.startsAt, earlier)}
-                  photos={earlier}
-                  picked={picked}
-                  onPick={togglePick}
-                  onOpen={setOpenPhoto}
-                />
-              ) : (
-                <Grid
-                  photos={earlier}
-                  picked={picked}
-                  onPick={togglePick}
-                  onOpen={setOpenPhoto}
-                />
-              ))}
-          </>
-        )}
+              <SectionHead label="Earlier" caption={earlierCaption(feed.event.startsAt, earlier)} />
+            </>
+          )}
 
-        {/*
-          The bar for a selection, at the foot of the body rather than floating
-          over the grid: it appears when the mode starts and it says how to
-          leave, because while it is up a tile picks instead of opening — and
-          the lightbox is where the reporting actions are.
-        */}
-        {picked && (
-          <div className="picking">
-            <span className="picking-count">
-              {picked.size === 0
-                ? 'Pick the ones you want'
-                : `${picked.size} selected`}
-            </span>
-            <button
-              disabled={picked.size === 0 || downloading}
-              onClick={() => download('original', [...picked])}
-            >
-              {downloading ? 'Preparing…' : 'Download these'}
-            </button>
-            <button
-              className="secondary"
-              disabled={picked.size === 0 || downloading}
-              onClick={() => download('jpeg', [...picked])}
-            >
-              As JPEG
-            </button>
-            <button className="secondary" onClick={() => setPicked(null)}>
-              Done
-            </button>
-          </div>
-        )}
+          {/*
+            The gallery, with the contribute tile first.
 
-        {downloadError && <p className="muted">{downloadError}</p>}
+            First even when the album is full: it is the affordance, not a
+            result, and an album that fills up is exactly the one whose next
+            photograph is easiest to forget to add. It is the same control as
+            the header button — a label over the same input — so there is one
+            file dialog and one disabled state.
+          */}
+          <Masonry
+            photos={fresh.length > 0 ? earlier : visible}
+            picked={picked}
+            onPick={togglePick}
+            onOpen={setOpenPhoto}
+            people={feed.people}
+            lead={
+              feed.event.uploadsOpen && session.account && !picked ? (
+                <label htmlFor="add-photos" className="tile-add">
+                  <span className="tile-add-lenses" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <strong>{uploads.running ? 'Adding…' : 'Add your photos'}</strong>
+                  <span className="muted">Everyone here can contribute.</span>
+                </label>
+              ) : null
+            }
+          />
 
-        {/*
-          At the foot, and folded away. It is a progress report: worth being
-          able to open, never worth sitting between somebody and the pictures.
-        */}
-        <Uploads uploads={uploads} onPick={() => inputRef.current?.click()} />
+          {visible.length === 0 && (
+            <p className="muted empty">
+              Nothing here yet. Add yours and everyone else will see there is
+              something to add to.
+            </p>
+          )}
 
+          {/*
+            The bar for a selection, at the foot of the body rather than
+            floating over the gallery: it appears when the mode starts and it
+            says how to leave, because while it is up a tile picks instead of
+            opening — and the lightbox is where the reporting actions are.
+          */}
+          {picked && (
+            <div className="picking">
+              <span className="picking-count">
+                {picked.size === 0
+                  ? 'Pick the ones you want'
+                  : `${picked.size} selected`}
+              </span>
+              <button
+                disabled={picked.size === 0 || downloading}
+                onClick={() => download('original', [...picked])}
+              >
+                {downloading ? 'Preparing…' : 'Download these'}
+              </button>
+              <button
+                className="secondary"
+                disabled={picked.size === 0 || downloading}
+                onClick={() => download('jpeg', [...picked])}
+              >
+                As JPEG
+              </button>
+              <button className="secondary" onClick={() => setPicked(null)}>
+                Done
+              </button>
+            </div>
+          )}
+
+          {downloadError && <p className="muted">{downloadError}</p>}
+
+          {/*
+            At the foot, and folded away. It is a progress report: worth being
+            able to open, never worth sitting between somebody and the pictures.
+          */}
+          <Uploads uploads={uploads} onPick={() => inputRef.current?.click()} />
           <SiteFooter />
         </div>
+      )}
 
-        {/*
-          The column, beside the grid. Below the breakpoint the stylesheet
-          hides it and the head's `ThreadSheet` takes over — one thread, two
-          shapes, no resize listener deciding which.
-        */}
-        {/*
-          The way back, in the place it left from.
-
-          It was a chip in the head, three controls away — so folding the
-          column and unfolding it were two different gestures in two different
-          corners. Here it lands under the same finger: same distance from the
-          right edge, same distance below the head, so the pair reads as one
-          switch rather than two buttons that happen to be opposites.
-        */}
-        {!threadOpen && (
-          <button
-            className="thread-unfold"
-            aria-label="Show the thread"
-            onClick={() => foldThread(true)}
-          >
-            {'\u2039'}
-            {unread > 0 && <span className="thread-unread">{unread}</span>}
-          </button>
-        )}
-
-        {threadOpen && (
+      {tab === 'conversation' && (
+        <div className="event-body event-column">
           <Thread
             eventId={eventId}
             messages={feed.messages}
@@ -813,10 +728,21 @@ export function EventView({ eventId, initial }: { eventId: string; initial: Feed
             members={feed.members}
             onChanged={refresh}
             onSeen={markSeen}
-            onCollapse={() => foldThread(false)}
           />
-        )}
-      </div>
+          <SiteFooter />
+        </div>
+      )}
+
+      {tab === 'people' && (
+        <div className="event-body event-column">
+          <People
+            roster={feed.roster}
+            linkToken={feed.event.linkToken}
+            onInvite={() => setSharing(true)}
+          />
+          <SiteFooter />
+        </div>
+      )}
 
       {/*
         In front of everything, not in the flow. It was a panel at the foot of
@@ -872,95 +798,241 @@ function Chip({
   );
 }
 
-function Section({
+/**
+ * The line above a run of photographs.
+ *
+ * A label, what it is (`Maya, 8 minutes ago`), a rule filling whatever is
+ * left, and — on the live one — how many are still coming. The rule is what
+ * makes it a section rather than a heading: it separates without taking a line
+ * of its own.
+ */
+function SectionHead({
   label,
   caption,
-  photos,
-  highlight,
-  picked,
-  onPick,
-  onOpen,
+  arriving = 0,
 }: {
   label: string;
   caption: string | null;
-  photos: Photo[];
-  highlight?: boolean;
-  picked: Set<string> | null;
-  onPick: (id: string) => void;
-  onOpen: (photo: Photo) => void;
+  arriving?: number;
 }) {
   return (
-    <section>
-      <div className="section-head">
-        <strong>{label}</strong>
-        {caption && <span>{caption}</span>}
-      </div>
-      <Grid
-        photos={photos}
-        highlight={highlight}
-        picked={picked}
-        onPick={onPick}
-        onOpen={onOpen}
-      />
-    </section>
+    <div className="section-head">
+      <span className="section-label">{label}</span>
+      {caption && <span className="section-caption">{caption}</span>}
+      <span className="section-rule" aria-hidden="true" />
+      {arriving > 0 && (
+        <span className="arriving">
+          <span className="arriving-dot" aria-hidden="true" />
+          {arriving} arriving
+        </span>
+      )}
+    </div>
   );
 }
 
-function Grid({
+/**
+ * The gallery: photographs at their own shape, in columns.
+ *
+ * They were 150px squares in a fixed grid, which is a contact sheet — every
+ * picture cropped to the same box regardless of what is in it, and a portrait
+ * of somebody reduced to their middle third. Here each one keeps its aspect
+ * ratio and the columns take up the slack.
+ *
+ * ## Laid out here rather than by the browser
+ *
+ * CSS columns would do this in one line and would order the photographs down
+ * column one, then down column two — so the newest picture is at the top left
+ * and the second newest is a screen below it. Filling the shortest column
+ * next keeps the reading order the feed's order across the row, which is what
+ * somebody scanning for "the one from the end of the night" is doing.
+ *
+ * The shapes come from the server, so the layout is final on the first paint.
+ * Measuring after load means the whole gallery reflows under the reader's hand
+ * as each photograph arrives.
+ */
+const COLUMN_COUNTS = 4;
+
+function Masonry({
   photos,
-  highlight,
   picked,
   onPick,
   onOpen,
+  people,
+  lead,
 }: {
   photos: Photo[];
-  highlight?: boolean;
-  /** Null when not selecting. A tile opens the lightbox; otherwise it picks. */
   picked: Set<string> | null;
   onPick: (id: string) => void;
   onOpen: (photo: Photo) => void;
+  /** For the name on a tile's overlay. Keyed by the contributor digest. */
+  people: Person[];
+  /** The contribute tile, which is first in the first column. */
+  lead: React.ReactNode;
 }) {
+  const columns = useMemo(() => {
+    const out: { photo: Photo; ratio: number }[][] = Array.from(
+      { length: COLUMN_COUNTS },
+      () => [],
+    );
+    // Heights in units of column width. The lead tile is a fixed 210px in a
+    // ~290px column, so it starts its column part-filled.
+    const heights = Array.from({ length: COLUMN_COUNTS }, (_, i) =>
+      i === 0 && lead ? 0.72 : 0,
+    );
+    for (const photo of photos) {
+      // 3:2 for anything the deriver has not measured yet — right often
+      // enough, and wrong by a few pixels of column height when it is not.
+      const ratio = photo.width && photo.height ? photo.height / photo.width : 2 / 3;
+      let shortest = 0;
+      for (let i = 1; i < heights.length; i++) {
+        if (heights[i]! < heights[shortest]!) shortest = i;
+      }
+      out[shortest]!.push({ photo, ratio });
+      heights[shortest]! += ratio;
+    }
+    return out;
+  }, [photos, lead]);
+
+  if (photos.length === 0 && !lead) return null;
+
   return (
-    <div className="grid">
-      {/*
-        Every photo is a way in to the safety actions, which is why the tile
-        stays a button even when its thumbnail will not load — guideline 1.2
-        wants reporting reachable, not merely implemented.
-      */}
-      {photos.map((photo) => (
-        <PhotoTile
-          key={photo.id}
-          src={photo.src}
-          sources={photo.sources}
-          className={[
-            highlight ? 'tile-new' : '',
-            picked?.has(photo.id) ? 'tile-picked' : '',
-          ]
-            .filter(Boolean)
-            .join(' ') || undefined}
-          // While selecting, a tile picks rather than opens. The lightbox is
-          // where the safety actions live, so this is the one mode in which
-          // they are a mode away — which is why the bar at the foot says how
-          // to leave it.
-          selected={picked ? picked.has(photo.id) : undefined}
-          onOpen={() => (picked ? onPick(photo.id) : onOpen(photo))}
-        />
+    <div className="masonry">
+      {columns.map((column, i) => (
+        <div className="masonry-column" key={i}>
+          {i === 0 && lead}
+          {column.map(({ photo, ratio }) => (
+            <PhotoTile
+              key={photo.id}
+              photo={photo}
+              ratio={ratio}
+              by={people.find((person) => person.key === photo.by)?.name ?? null}
+              picking={picked !== null}
+              picked={picked?.has(photo.id) ?? false}
+              onPick={() => onPick(photo.id)}
+              onOpen={() => onOpen(photo)}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );
 }
 
 /**
- * The upload block: what is happening, per file, folded away.
+ * Everybody in the album, and everybody who was asked.
  *
- * One honest omission. The design asks for a percentage against each file, and
- * the queue does not have one — `Deps.upload` is a single `fetch` PUT with the
- * `File` as its body, and `fetch` reports nothing about a request body as it
- * goes. So each row shows the state the queue actually knows, and the bar that
- * does move is the one across the whole batch, which is a real fraction of
- * real files. Inventing per-file percentages would mean animating a number
- * nothing measured.
+ * A page of rows rather than a list of faces: the point of it is what each
+ * person has put in, which is the one number that turns "who is here" into
+ * "who has not added theirs yet". The role beside a name describes what
+ * somebody has done, never a rank — management is on the manage screen.
  */
+function People({
+  roster,
+  linkToken,
+  onInvite,
+}: {
+  roster: Roster[];
+  linkToken: string;
+  onInvite: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const joined = roster.filter((person) => person.role !== 'invited');
+
+  return (
+    <div className="people-tab">
+      <div className="people-head">
+        <div>
+          <h2>
+            {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
+          </h2>
+          <p className="muted">
+            Invite everyone who was there so the album has every perspective.
+          </p>
+        </div>
+        <button type="button" onClick={onInvite}>
+          Invite
+        </button>
+      </div>
+
+      <ul className="roster">
+        {roster.map((person) => (
+          <li
+            key={`${person.actorId}-${person.role}`}
+            className={person.role === 'invited' ? 'roster-waiting' : undefined}
+          >
+            <Face
+              src={person.role === 'invited' ? null : person.avatarUrl}
+              size={44}
+              className="roster-face"
+              fallback={
+                <span aria-hidden="true">
+                  {person.name.replace('@', '').slice(0, 1).toUpperCase()}
+                </span>
+              }
+            />
+            <div className="roster-who">
+              <div className="roster-name">
+                {person.handle ? (
+                  <a href={`/u/${encodeURIComponent(person.handle)}`}>{person.name}</a>
+                ) : (
+                  <span>{person.name}</span>
+                )}
+                {person.handle && <span className="roster-handle">@{person.handle}</span>}
+              </div>
+              <div className="roster-did">
+                {person.role === 'invited'
+                  ? `Invited ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
+                  : person.photoCount > 0
+                    ? `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'} added`
+                    : 'Nothing added yet'}
+              </div>
+            </div>
+            <span className={`role role-${person.role}`}>{ROLE_WORDS[person.role]}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/*
+        The link, at the foot, said plainly. The Invite button above opens the
+        panel with the choices in it; this is for somebody who has already
+        decided and wants the thing to paste.
+      */}
+      <div className="people-foot">
+        <Mark size={26} />
+        <p>Anyone with the link can add photos — no account needed to look.</p>
+        <button
+          type="button"
+          className="secondary"
+          onClick={async () => {
+            await navigator.clipboard
+              .writeText(`${window.location.origin}/e/${linkToken}`)
+              .catch(() => {});
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+        >
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const ROLE_WORDS: Record<Roster['role'], string> = {
+  creator: 'Creator',
+  contributor: 'Contributor',
+  viewer: 'Viewer',
+  invited: 'Invited',
+};
+
+/** "2 days ago", for an invitation that has been sitting there. */
+function relativeDay(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+}
+
 function Uploads({
   uploads,
   onPick,

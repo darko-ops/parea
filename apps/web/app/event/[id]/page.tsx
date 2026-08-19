@@ -9,7 +9,8 @@ import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
-import { membersOf } from '@/members';
+import { membersOf, rosterFor } from '@/members';
+import type { EventTab } from '@/../app/components/EventView';
 import { hasDerivatives, imageSrc } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
@@ -36,8 +37,11 @@ export const metadata = { robots: { index: false, follow: false } };
  */
 export default async function EventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /** `?tab=conversation|people`. Photos is the bare URL. */
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
 
@@ -67,6 +71,18 @@ export default async function EventPage({
     rows.map(async (photo) => ({
       id: photo.id,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
+      /*
+       * The shape of the picture, so the gallery can lay it out without
+       * waiting to measure it. A masonry that measures after load reflows
+       * under the reader's hand as each photograph arrives; one that knows
+       * the ratios up front draws the final layout on the first paint.
+       *
+       * Null for anything the deriver has not read yet, which the client
+       * treats as 3:2 — a guess that is right often enough and wrong by a
+       * few pixels of column height when it is not.
+       */
+      width: photo.width,
+      height: photo.height,
       mine: viewerId != null && photo.uploaderId === viewerId,
       by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
@@ -137,6 +153,7 @@ export default async function EventPage({
     <Shell>
       <EventView
         eventId={event.id}
+        tab={tabOf((await searchParams).tab)}
         initial={{
           event: {
             id: event.id,
@@ -169,6 +186,9 @@ export default async function EventPage({
           // in one and not the other is a head that changes a second after it
           // draws.
           members: await membersOf(db, event.id),
+          // The People tab's fuller answer: everybody in it with what they
+          // have put in, plus whoever was asked and has not arrived.
+          roster: await rosterFor(db, event.id, photoCounts(rows)),
           messages,
           // `contribute` and an account, matching what the POST actually enforces.
     // Computed from the same helper rather than from `viewerId != null`, which
@@ -184,4 +204,32 @@ export default async function EventPage({
       />
     </Shell>
   );
+}
+
+/**
+ * Whose photographs these are, counted once.
+ *
+ * By actor id rather than by the per-event contributor key: the roster is a
+ * list of people the viewer can already see in the Members list, so it is
+ * keyed by who they are. The key exists for the *photo* feed, where an
+ * uploader id must not cross the boundary — see `contributors.ts`.
+ */
+function photoCounts(rows: { uploaderId: string | null }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.uploaderId) continue;
+    counts.set(row.uploaderId, (counts.get(row.uploaderId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Which pane, from the query string.
+ *
+ * Anything unrecognised is Photos rather than a 404: a tab name is not a
+ * credential, and a stale link from before a rename should land somebody on
+ * the album rather than on an error.
+ */
+function tabOf(value: string | undefined): EventTab {
+  return value === 'conversation' || value === 'people' ? value : 'photos';
 }

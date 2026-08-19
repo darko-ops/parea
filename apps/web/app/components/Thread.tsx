@@ -23,12 +23,12 @@
 
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 
 import type { Member } from '@/members';
 import { REACTIONS, type Message } from '@/messages';
 
 import { Face } from './Faces';
+import { Mark } from './Mark';
 import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
 
@@ -41,7 +41,7 @@ export type ThreadProps = {
   canPost: boolean;
   /** The event's contributors, for the mention list. Never anybody else. */
   people: Person[];
-  /** Everybody in the event, for the Members tab. A different list to `people`. */
+  /** Everybody in the event. Kept for the mention list's fallback names. */
   members: Member[];
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
@@ -54,151 +54,22 @@ export type ThreadProps = {
    * is a number describing a moment that has passed.
    */
   onSeen?: () => void;
-  /** Folds the column away. Absent in the sheet, which closes differently. */
-  onCollapse?: () => void;
 };
 
-export function Thread(props: ThreadProps) {
-  return (
-    // The column. Hidden below the breakpoint by CSS rather than by a media
-    // query in JavaScript, so there is no flash of the wrong shape and no
-    // resize listener to keep in step with the stylesheet.
-    <aside className="thread">
-      <ThreadBody {...props} />
-    </aside>
-  );
-}
-
 /**
- * The control that opens the sheet, and the sheet.
+ * The album's conversation, as a pane of its own.
  *
- * Lives in the event head, so it is exported separately — the head is a flex
- * row of controls and this is one of them, not something that can be dropped
- * in from the column's side of the page.
- */
-export function ThreadSheet({
-  unread,
-  onOpened,
-  ...props
-}: ThreadProps & { unread: number; onOpened?: () => void }) {
-  const [open, setOpen] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
-  const sheet = useRef<HTMLDivElement>(null);
-
-  // Escape closes, and focus goes back to the button that opened it —
-  // otherwise dismissing the sheet drops focus on `<body>` and the next Tab
-  // starts again from the top of the page.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        opener.current?.focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open]);
-
-  useEffect(() => {
-    if (open) sheet.current?.focus();
-  }, [open]);
-
-  /*
-   * The sheet is portalled to `<body>`, and that is not tidiness.
-   *
-   * This control lives in the event head, and the head has `backdrop-filter`
-   * on it so the photographs stay visible sliding underneath. A filter makes
-   * an element the containing block for `position: fixed` descendants — so the
-   * scrim, which asks for the whole viewport, got the header instead: a
-   * full-width sheet pinned across the top of the page with its composer where
-   * the title should be. Nothing in the markup looks wrong, which is what makes
-   * this one worth a paragraph.
-   *
-   * Only after mount, because `document` does not exist while this renders on
-   * the server.
-   */
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  return (
-    <>
-      <button
-        ref={opener}
-        type="button"
-        className="chip thread-open"
-        aria-expanded={open}
-        onClick={() => {
-          setOpen(true);
-          onOpened?.();
-        }}
-      >
-        Thread
-        {unread > 0 && <span className="badge">{unread}</span>}
-      </button>
-
-      {open && mounted && createPortal(
-        <div
-          className="sheet-scrim"
-          // A click on the scrim is a dismissal; a click inside the sheet is
-          // not, and the sheet stops it rather than the scrim guessing from
-          // coordinates.
-          onClick={() => {
-            setOpen(false);
-            opener.current?.focus();
-          }}
-        >
-          <div
-            ref={sheet}
-            className="sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Thread"
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sheet-grip" aria-hidden="true" />
-            <ThreadBody {...props} />
-          </div>
-        </div>,
-        document.body,
-      )}
-    </>
-  );
-}
-
-/**
- * Closes the reaction picker on a click away or Escape.
+ * It was a column beside the photographs — a third of the width on every
+ * screen, whether anybody was talking or not — and a sheet on a phone, which
+ * is one thread in two shapes with two ways to open and two ways to close.
+ * Now it is a tab: full width when you are in it, and out of the way of the
+ * pictures when you are not.
  *
- * The same three rules `Menu` applies to its panel, and for the same reason —
- * a picker whose only exit is choosing something is a picker that makes you
- * react to get rid of it. Not shared with `Menu` itself because the picker is
- * not a popover: its buttons sit in the row of reactions rather than in a
- * panel over them, so there is nothing to hand a `children` function.
+ * Its own two tabs went with the column. "Chats" named the thing you were
+ * looking at, and "Members" is now a pane of the page with room to say what
+ * each person has put in.
  */
-function useDismiss(open: boolean, close: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) close();
-    };
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open, close]);
-
-  return ref;
-}
-
-function ThreadBody({
+export function Thread({
   eventId,
   messages,
   canPost,
@@ -206,7 +77,6 @@ function ThreadBody({
   members,
   onChanged,
   onSeen,
-  onCollapse,
 }: ThreadProps) {
   const session = useSession();
   /*
@@ -217,7 +87,6 @@ function ThreadBody({
    * column beside the photographs that comes back to the conversation the next
    * time the page loads. Nobody wants an album's link to open on its roster.
    */
-  const [tab, setTab] = useState<'chats' | 'members'>('chats');
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -304,75 +173,6 @@ function ThreadBody({
 
   return (
     <>
-      <div className="thread-head">
-        {/*
-          Tabs rather than a heading. "Thread" named the column for somebody
-          who could already see it was a thread; these name the two things in
-          it, and the second one is the answer to "who else is here" that the
-          head's row of faces can only gesture at.
-        */}
-        <div className="thread-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === 'chats'}
-            className={tab === 'chats' ? 'is-on' : undefined}
-            onClick={() => setTab('chats')}
-          >
-            Chats
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'members'}
-            className={tab === 'members' ? 'is-on' : undefined}
-            onClick={() => setTab('members')}
-          >
-            Members
-            <span className="thread-count">{members.length}</span>
-          </button>
-        </div>
-        {/*
-          Only on the column. The sheet has a scrim, a grab handle and Escape;
-          a fourth way to shut it would be a button that does what tapping
-          anywhere else already does.
-        */}
-        {onCollapse && (
-          <button
-            className="thread-fold"
-            aria-label="Hide the thread"
-            onClick={onCollapse}
-          >
-            {'\u203a'}
-          </button>
-        )}
-      </div>
-
-      {tab === 'members' && (
-        <div className="thread-list" role="tabpanel">
-          <ul className="thread-members">
-            {members.map((member) => (
-              <li key={member.actorId}>
-                <Face
-                  src={member.avatarUrl}
-                  size={30}
-                  className="thread-face"
-                  fallback={
-                    <span aria-hidden="true">
-                      {member.name.replace('@', '').slice(0, 1).toUpperCase()}
-                    </span>
-                  }
-                />
-                <span className="thread-member-name">
-                  {member.name}
-                  {/* The host, said once. Everybody else is just here. */}
-                  {member.isCreator && <span className="thread-host">host</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {tab === 'chats' && (
       <div
         className="thread-list"
         role="tabpanel"
@@ -384,10 +184,20 @@ function ThreadBody({
         }}
       >
         {live.length === 0 && (
-          <p className="muted thread-empty">
-            Nothing said yet. This is for the people who were there — the photos
-            are the point, and this is where you say something about them.
-          </p>
+          /*
+            An invitation rather than a report of emptiness. "Nothing said yet"
+            describes the state somebody can already see; this says what the
+            space is for, which is the only thing that turns an empty box into
+            a first message.
+          */
+          <div className="thread-empty">
+            <Mark size={48} />
+            <h2>Talk about the moment</h2>
+            <p>
+              Ask for a missing photo, share what happened or let everyone know
+              when you’ve added yours.
+            </p>
+          </div>
         )}
 
         {live.map((message) => (
@@ -404,10 +214,7 @@ function ThreadBody({
           />
         ))}
       </div>
-      )}
 
-      {/* The composer belongs to the conversation, not to the roster. */}
-      {tab === 'chats' && (
       <div className="thread-composer">
         {canPost ? (
           <Composer
@@ -429,7 +236,6 @@ function ThreadBody({
           <p className="muted thread-note">Only people who can add photos can post.</p>
         )}
       </div>
-      )}
     </>
   );
 }
@@ -503,7 +309,7 @@ function Composer({
         className="thread-field"
         rows={1}
         value={draft}
-        placeholder="Say something about these…"
+        placeholder="Message everyone in this album…"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           // Enter posts, Shift+Enter is a new line. The opposite of a document
@@ -517,18 +323,57 @@ function Composer({
 
       <div className="thread-actions">
         {/*
-          Empty unless something went wrong. It used to carry a standing line
-          about who can read the thread, which is a sentence people read once
-          and then have under every message they ever write. The span stays so
-          the button keeps its place at the end of the row.
+          Who reads it, and how to send it.
+
+          This line was taken out once, on the grounds that a standing note is
+          a sentence people read once and then have under every message they
+          ever write. It comes back because half of it is not a note but an
+          instruction: Enter sends, and a composer that posts on Enter without
+          saying so is one somebody sends half a sentence from. An error
+          replaces it rather than joining it — two lines under a box is the
+          state this was originally objecting to.
         */}
-        <span className="thread-note">{error}</span>
+        <span className="thread-note">
+          {error ??
+            'Everyone in this album can read it. Enter sends, Shift + Enter is a new line.'}
+        </span>
         <button onClick={onPost} disabled={posting || draft.trim() === ''}>
           {posting ? 'Posting…' : 'Post'}
         </button>
       </div>
     </>
   );
+}
+
+/**
+ * Closes the reaction picker on a click away or Escape.
+ *
+ * The same three rules `Menu` applies to its panel, and for the same reason —
+ * a picker whose only exit is choosing something is a picker that makes you
+ * react to get rid of it. Not shared with `Menu` itself because the picker is
+ * not a popover: its buttons sit in the row of reactions rather than in a
+ * panel over them, so there is nothing to hand a `children` function.
+ */
+function useDismiss(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open, close]);
+
+  return ref;
 }
 
 function Row({
