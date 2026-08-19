@@ -20,6 +20,7 @@ import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { coverSrc } from '@/cards';
 import { imageSrc } from '@/images';
 import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
@@ -96,10 +97,20 @@ export async function GET() {
          * the client can actually use. `creator` is rebuilt rather than
          * spread, so a column added to it cannot leak by default.
          */
-        const { creator, ...rest } = listing;
+        const cover = await coverSrc(listing.coverKey);
+        const { creator, coverKey, ...rest } = listing;
         return {
           ...rest,
-          mosaic,
+          /*
+           * The cover leads, here as on the web's own cards.
+           *
+           * Prepended to the mosaic rather than sent as its own field, so the
+           * native client draws the album the same way without being taught a
+           * second rule about which image wins. `coverKey` is destructured out
+           * above and never reaches the response: it is a storage key, and the
+           * paragraph above about photo keys applies to it word for word.
+           */
+          mosaic: [...(cover ? [cover] : []), ...mosaic],
           creator: {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),

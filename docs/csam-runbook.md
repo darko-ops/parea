@@ -57,6 +57,16 @@ the incident.
 
 **It does not ban anyone automatically.** A human decides.
 
+**It does not see two kinds of image at all.** The scanner is reached from the
+deriver's pipeline, which runs on photographs. Two small images are written
+outside it, both re-encoded through sharp on the way in and neither ever
+derived: a profile picture (`avatars/<actorId>.jpg`) and an album cover
+(`ev/<eventId>/cover.jpg`). A cover is almost always one of the album's own
+photographs sent twice — once here, once up the ordinary path, where it *is*
+scanned — so what this really leaves open is a cover whose photograph was
+later quarantined, and which is still the album's face on somebody's home
+screen. Step 2 below closes it by hand.
+
 ## The review SLA
 
 `PAREA_MODERATION=manual` is a promise that a person looks. This is the
@@ -97,8 +107,21 @@ preservation — do not wait for anyone.
    itself restricted in most jurisdictions, and there is no product reason to:
    the incident row carries the hash, the provider's classification and its
    reference, which is what a report needs.
-2. **Confirm the quarantine held.** The photo should be `quarantined` and
-   invisible everywhere. If it is not, stop and fix that first.
+2. **Confirm the quarantine held, and clear the copies the scanner cannot
+   see.** The photo should be `quarantined` and invisible everywhere. If it is
+   not, stop and fix that first. Then check the two paths the deriver does not
+   run on, because a quarantined photograph can still be somebody's album cover
+   or profile picture:
+
+   ```sql
+   -- Covers on any album this uploader contributed to, and their own picture.
+   select id, name, cover_key from "event" where cover_key is not null
+     and id in (select event_id from "photo" where uploader_id = :actor);
+   select id, avatar_key from "actor" where id = :actor and avatar_key is not null;
+   ```
+
+   Null the column and delete the object for each one. Do not open either
+   image to decide — step 1 applies to these as much as to the photograph.
 3. **Contact counsel and file.** Whatever your counsel directs, through
    whatever channel you have established in advance. The alert is the start of
    a clock you do not control.

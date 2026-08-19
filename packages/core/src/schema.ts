@@ -284,6 +284,27 @@ export const events = pgTable(
      * that has photographs for the purpose.
      */
     caption: text('caption'),
+    /**
+     * The picture the album leads with, chosen by whoever made it.
+     *
+     * A key into storage rather than a photo id, and that is the decision worth
+     * recording. A cover *could* be "one of the album's photographs", which
+     * costs no bytes and inherits deletion for free — but at the moment
+     * somebody is making an album, its photographs do not exist yet: they are
+     * `File` handles on a phone, queued to go up over the next few minutes.
+     * Pointing at one would mean the cover arrives some time after the album
+     * does, which is not what choosing a cover feels like.
+     *
+     * So it is its own small object, re-encoded on the way in exactly as an
+     * avatar is — one wide JPEG under the album's own prefix, written before
+     * the album page opens. What that inherits from `avatars/` is the same gap:
+     * the child-safety scanner is reached from the deriver's pipeline, which
+     * is photo-shaped, and this does not go round it. The bytes almost always
+     * *also* go up as an ordinary photograph, which is scanned — so what the
+     * gap really covers is a cover whose photograph was later quarantined.
+     * docs/csam-runbook.md carries the step that closes it.
+     */
+    coverKey: text('cover_key'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),

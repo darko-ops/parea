@@ -10,11 +10,12 @@
  * divergence a second copy produces.
  */
 
-import { ago } from '@parea/cards';
+import { ago } from "@parea/cards";
 
-import { avatarUrl } from './accounts';
-import { imageSrc } from './images';
-import type { EventListing } from './events';
+import { avatarUrl } from "./accounts";
+import { imageSrc } from "./images";
+import { getStorage } from "./storage";
+import type { EventListing } from "./events";
 
 export type CardEvent = {
   id: string;
@@ -62,40 +63,97 @@ export type CardEvent = {
   href?: string;
 };
 
+/**
+ * The cover's URL, presigned for an hour.
+ *
+ * The same treatment an avatar gets, and for the same reason: a cover has no
+ * derivatives for the image Worker to address — it was re-encoded once, on the
+ * way in, and there is nothing smaller to serve. See `/api/events/[id]/cover`.
+ */
+export async function coverSrc(key: string | null): Promise<string | null> {
+  if (!key) return null;
+  return getStorage().presignGet(key, 3600);
+}
+
+/**
+ * The one image that stands for an album: its cover, or its newest photograph.
+ *
+ * Used by every surface that draws a single thumbnail for an album — search
+ * results, the albums two people share — so that "the picture the album leads
+ * with" means the same thing in all of them and in the card, which leads with
+ * the same image because `toCards` puts it first in the mosaic.
+ */
+export async function leadImage(
+  listing: EventListing,
+  capEpoch = listing.capEpoch,
+): Promise<string | null> {
+  const cover = await coverSrc(listing.coverKey);
+  if (cover) return cover;
+  const first = listing.mosaic[0];
+  if (!first) return null;
+  return imageSrc(
+    {
+      eventId: listing.id,
+      storageKey: first.storageKey,
+      contentHash: first.hash ? Buffer.from(first.hash, "hex") : null,
+    },
+    "thumb",
+    capEpoch,
+  );
+}
+
 /** Signs every mosaic thumbnail and builds the meta line. */
 export async function toCards(
   listings: EventListing[],
   now: Date = new Date(),
 ): Promise<CardEvent[]> {
   return Promise.all(
-    listings.map(async (listing) => ({
-      id: listing.id,
-      name: listing.name,
-      photoCount: listing.photoCount,
-      mosaic: await Promise.all(
-        listing.mosaic.map((photo) =>
-          imageSrc(
-            {
-              eventId: listing.id,
-              storageKey: photo.storageKey,
-              contentHash: photo.hash ? Buffer.from(photo.hash, 'hex') : null,
-            },
-            'thumb',
-            listing.capEpoch,
-          ),
-        ),
-      ),
-      added: ago(new Date(listing.lastActiveAt), now),
-      // Presigned here, one per key. Local HMAC rather than a round trip, so
-      // a page of six cards is not six round trips to storage.
-      creatorAvatar: await avatarUrl(listing.creator.avatarKey),
-      creatorHandle: listing.creator.handle,
-      caption: listing.caption,
-      contributorCount: listing.contributorCount,
-      memberCount: listing.memberCount,
-      arrivingCount: listing.arrivingCount,
-      lastActiveAt: listing.lastActiveAt,
-      linkToken: listing.linkToken,
-    })),
+    listings.map(async (listing) => {
+      const cover = await coverSrc(listing.coverKey);
+      return {
+        id: listing.id,
+        name: listing.name,
+        photoCount: listing.photoCount,
+        /*
+         * The cover first, then the photographs.
+         *
+         * Prepended rather than given a field of its own, because "the picture
+         * the album leads with" is exactly what the first mosaic tile already
+         * is: the layout draws it largest, the blurred bleed under the text is
+         * taken from it, and the search rows use it as their thumbnail. A
+         * separate `cover` prop would mean four surfaces each deciding again
+         * which image wins.
+         */
+        mosaic: [
+          ...(cover ? [cover] : []),
+          ...(await Promise.all(
+            listing.mosaic.map((photo) =>
+              imageSrc(
+                {
+                  eventId: listing.id,
+                  storageKey: photo.storageKey,
+                  contentHash: photo.hash
+                    ? Buffer.from(photo.hash, "hex")
+                    : null,
+                },
+                "thumb",
+                listing.capEpoch,
+              ),
+            ),
+          )),
+        ],
+        added: ago(new Date(listing.lastActiveAt), now),
+        // Presigned here, one per key. Local HMAC rather than a round trip, so
+        // a page of six cards is not six round trips to storage.
+        creatorAvatar: await avatarUrl(listing.creator.avatarKey),
+        creatorHandle: listing.creator.handle,
+        caption: listing.caption,
+        contributorCount: listing.contributorCount,
+        memberCount: listing.memberCount,
+        arrivingCount: listing.arrivingCount,
+        lastActiveAt: listing.lastActiveAt,
+        linkToken: listing.linkToken,
+      };
+    }),
   );
 }

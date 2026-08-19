@@ -107,10 +107,48 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
   });
 
   it('presigns on the API path, and rebuilds rather than spreads', () => {
-    // Spreading the listing would ship `avatarKey` the moment anybody adds a
-    // field, which is the failure this shape exists to prevent.
-    expect(API).toMatch(/const \{ creator, \.\.\.rest \} = listing/);
+    /*
+     * Spreading the listing would ship a storage key the moment anybody adds a
+     * field, which is the failure this shape exists to prevent — and it nearly
+     * happened the first time somebody did: `coverKey` went onto the listing
+     * for the cards to read, and `...rest` would have published it.
+     */
+    expect(API).toMatch(/const \{ creator, coverKey, \.\.\.rest \} = listing/);
     expect(API).toMatch(/avatarUrl: await avatarUrl\(creator\.avatarKey\)/);
     expect(API).not.toMatch(/avatarKey,/);
+    expect(API).not.toMatch(/coverKey:/);
+  });
+
+  it('sends the cover as a URL, at the front of the mosaic', () => {
+    // Both clients draw an album by its mosaic, so the cover leads by being
+    // first in it rather than by a second field each of them has to learn.
+    expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
+    expect(API).toMatch(/mosaic: \[\.\.\.\(cover \? \[cover\] : \[\]\), \.\.\.mosaic\]/);
+  });
+});
+
+describe('the picture an album leads with', () => {
+  it('is the cover when there is one, and the newest photo otherwise', () => {
+    // One rule, in one place: search rows, the albums two people share, and
+    // the card all ask the same function which image an album is.
+    expect(CARDS).toMatch(/export async function leadImage/);
+    expect(CARDS).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
+    expect(CARDS).toMatch(/if \(cover\) return cover/);
+  });
+
+  it('leaves the empty card to the album with no photographs', () => {
+    /*
+     * The mosaic and the photograph count stopped being the same number when
+     * covers arrived: an album with a cover and nothing in it has a tile to
+     * draw. Drawing it would replace the one card in the product whose job is
+     * to get the first photograph out of somebody.
+     */
+    expect(CARD).toMatch(/if \(event\.photoCount === 0\)/);
+    expect(CARD).not.toMatch(/if \(photos\.length === 0\)/);
+  });
+
+  it('never lets the key itself out of the server', () => {
+    expect(EVENTS).toMatch(/coverKey: schema\.events\.coverKey/);
+    expect(CARDS).toMatch(/presignGet\(key, 3600\)/);
   });
 });

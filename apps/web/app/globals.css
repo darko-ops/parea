@@ -1054,6 +1054,28 @@ button.secondary {
   background: rgb(0 0 0 / 0.55); color: #fff; border: 0; cursor: pointer;
 }
 .picked li button:hover { background: rgb(0 0 0 / 0.75); }
+/* The same strip, choosing rather than removing.
+
+   The whole tile is the control here, so the corner button's rules are undone
+   for it: it fills the cell, has no fill of its own, and carries the picture
+   instead of sitting on top of one. Chosen is a ring in the accent colour and
+   a word, because a ring alone is the kind of difference somebody has to go
+   looking for on a phone in daylight. */
+.picked-cover li button {
+  position: static; width: 100%; height: 100%; padding: 0;
+  border-radius: 10px; background: none; border: 0; cursor: pointer;
+  display: block;
+}
+.picked-cover li button:hover { background: none; }
+.cover-choice { position: relative; }
+.cover-chosen img { outline: 3px solid var(--accent); outline-offset: -3px; }
+.cover-badge {
+  position: absolute; left: 6px; bottom: 6px;
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+}
+
 /* The name, when the picture will not draw. A broken-image glyph describes
    nothing, and the next thing this person does is decide whether they still
    want that one in. */

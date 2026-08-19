@@ -52,6 +52,15 @@ export type EventListing = {
   place: string | null;
   /** The host's line under the name. Drawn on the card, under the title. */
   caption: string | null;
+  /**
+   * The picture the album leads with, as a storage key.
+   *
+   * A key rather than a URL because this type is read by the server, and every
+   * boundary that hands it to a client signs it there — see `/api/events`,
+   * which strips this field and emits a presigned `coverUrl` in its place. A
+   * key crossing that line is an internal address published.
+   */
+  coverKey: string | null;
   eventDate: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -113,6 +122,7 @@ export async function eventsFor(
       linkToken: schema.events.linkToken,
       place: schema.events.place,
       caption: schema.events.caption,
+      coverKey: schema.events.coverKey,
       eventDate: schema.events.eventDate,
       startsAt: schema.events.startsAt,
       endsAt: schema.events.endsAt,

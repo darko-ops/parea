@@ -83,6 +83,15 @@ export default function CreatePage() {
   const [place, setPlace] = useState('');
   const [members, setMembers] = useState<Person[]>([]);
   /*
+   * The picture the album leads with, if they chose one.
+   *
+   * A `File` and not a URL: it is sent the moment the album exists, before the
+   * photographs are staged, so that an album has a face the first time anyone
+   * sees it rather than whenever a queue of two hundred pictures reaches the
+   * one that was going to be its cover.
+   */
+  const [cover, setCover] = useState<File | null>(null);
+  /*
    * Four switches, and only two of them are the access policy.
    *
    * `policyFor` turns "private" and "I approve each person" into the one
@@ -167,6 +176,25 @@ export default function CreatePage() {
         if (!res.ok) throw new Error(await explain(res));
         const created = (await res.json()) as { id: string };
 
+        /*
+         * Before the invitations and before the photographs, because it is the
+         * only one of the three that changes what the album looks like when it
+         * opens a second from now.
+         *
+         * Failing does not fail the album, on the same reasoning as a failed
+         * invitation: the album is made, and a cover is the easiest of the
+         * three things to do again. It is scaled down in the browser first —
+         * see `coverBytes` — so this is one small request rather than the
+         * twelve megabytes that came off the camera.
+         */
+        if (cover) {
+          await fetch(`/api/events/${created.id}/cover`, {
+            method: 'POST',
+            headers: { 'content-type': 'image/jpeg' },
+            body: await coverBytes(cover),
+          }).catch(() => {});
+        }
+
         if (members.length > 0) {
           await fetch(`/api/events/${created.id}/invites`, {
             method: 'POST',
@@ -195,6 +223,7 @@ export default function CreatePage() {
       groupId,
       members,
       picked,
+      cover,
       uploads,
     ],
   );
@@ -324,6 +353,21 @@ export default function CreatePage() {
                   {/* One line. The name says which evening, this says what it
                       was, and anything longer is what the photographs are for. */}
                   <p className="field-help">Optional, and it shows on the card.</p>
+                </div>
+
+                <div className="field">
+                  <div className="field-head">
+                    <label className="field-label">ALBUM COVER</label>
+                    <span className="field-note">Optional</span>
+                  </div>
+                  {/*
+                    Chosen from the photographs already picked, because that is
+                    what a cover is here — one of the album's own pictures,
+                    promoted. Anything else would be a second kind of image
+                    living in an album, visible on everybody's home screen and
+                    in none of its own grids.
+                  */}
+                  <CoverPicker files={picked} cover={cover} onChoose={setCover} />
                 </div>
 
                 <div className="field">
@@ -462,6 +506,118 @@ export default function CreatePage() {
  * than a `src` computed inline — inline, every render would leak one URL per
  * photo and nothing would ever release them.
  */
+/**
+ * Choosing which of the picked photographs the album leads with.
+ *
+ * The same strip as `Thumbs`, doing the opposite job: there the button on each
+ * tile takes a photograph out, here pressing a tile promotes it. They are not
+ * one component with a mode — the two screens are a step apart, and a strip
+ * where tapping means "remove" on one page and "choose" on the next is how
+ * somebody deletes a photograph they meant to feature.
+ *
+ * Pressing the chosen one again clears it, which is the only way back to no
+ * cover once there is one, and is what pressing a selected thing does
+ * everywhere else in this product.
+ *
+ * With nothing picked there is nothing to choose from, and the line says so
+ * rather than offering a file input of its own: a cover that is not in the
+ * album would be an image nobody in the album can find.
+ */
+function CoverPicker({
+  files,
+  cover,
+  onChoose,
+}: {
+  files: File[];
+  cover: File | null;
+  onChoose: (file: File | null) => void;
+}) {
+  const [urls, setUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    const made = files.map((file) => URL.createObjectURL(file));
+    setUrls(made);
+    return () => made.forEach((url) => URL.revokeObjectURL(url));
+  }, [files]);
+
+  if (files.length === 0) {
+    return (
+      <p className="field-help">
+        Pick some photos first — a cover is one of them, promoted to the front.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <ul className="picked picked-cover">
+        {files.map((file, i) => {
+          const chosen = cover === file;
+          return (
+            <li key={signature(file)}>
+              <button
+                type="button"
+                className={`cover-choice${chosen ? ' cover-chosen' : ''}`}
+                aria-pressed={chosen}
+                aria-label={
+                  chosen ? `${file.name} is the cover` : `Use ${file.name} as the cover`
+                }
+                onClick={() => onChoose(chosen ? null : file)}
+              >
+                <Thumb src={urls[i] ?? ''} name={file.name} />
+                {chosen && <span className="cover-badge">Cover</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="field-help">
+        {cover
+          ? 'This one leads, wherever the album is shown.'
+          : 'Optional. Without one the album leads with its newest photo.'}
+      </p>
+    </>
+  );
+}
+
+/**
+ * The bytes to send for a cover.
+ *
+ * Drawn through a canvas at a sane size first, which does three things at
+ * once: the request is a couple of hundred kilobytes instead of twelve
+ * megabytes — and it is made while somebody is waiting to land in their new
+ * album — the re-encode drops whatever the camera wrote into the file before
+ * it leaves the device at all, and the server is handed a JPEG rather than
+ * whatever the phone calls a photograph. `createImageBitmap` decodes HEIC on
+ * the platforms that have a decoder, which is the same set of platforms whose
+ * users would otherwise be told their photograph is not an image.
+ *
+ * Falls back to the original file if any of that is unavailable. The server
+ * re-encodes regardless, so the fallback is slower and not wrong.
+ */
+async function coverBytes(file: File): Promise<Blob> {
+  const EDGE = 1600;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('no 2d context');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.9),
+    );
+    if (blob) return blob;
+  } catch {
+    // A format this browser cannot decode, a tainted canvas, a File whose
+    // handle died between picking and creating. All three want the original.
+  }
+  return file;
+}
+
 function Thumbs({ files, onRemove }: { files: File[]; onRemove: (file: File) => void }) {
   const [urls, setUrls] = useState<string[]>([]);
 

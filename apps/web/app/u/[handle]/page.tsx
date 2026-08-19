@@ -21,7 +21,7 @@ import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { ago } from '@parea/cards';
 import { getDb } from '@/db';
-import { imageSrc } from '@/images';
+import { leadImage } from '@/cards';
 import { albumsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -91,19 +91,8 @@ export default async function PersonPage({
               // the browser makes the first render disagree with the HTML it
               // replaced, and React throws the tree away when it does.
               when: ago(new Date(listing.lastActiveAt), now),
-              thumb: listing.mosaic[0]
-                ? await imageSrc(
-                    {
-                      eventId: listing.id,
-                      storageKey: listing.mosaic[0].storageKey,
-                      contentHash: listing.mosaic[0].hash
-                        ? Buffer.from(listing.mosaic[0].hash, 'hex')
-                        : null,
-                    },
-                    'thumb',
-                    listing.capEpoch,
-                  )
-                : null,
+              // Cover first, newest photograph otherwise. See `leadImage`.
+              thumb: await leadImage(listing),
             })),
           )}
         />

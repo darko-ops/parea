@@ -19,7 +19,7 @@ import { NextResponse } from 'next/server';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { imageSrc } from '@/images';
+import { leadImage } from '@/cards';
 import { albumsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -65,19 +65,7 @@ export async function GET(
         name: listing.name,
         caption: listing.caption,
         lastActiveAt: listing.lastActiveAt,
-        thumb: listing.mosaic[0]
-          ? await imageSrc(
-              {
-                eventId: listing.id,
-                storageKey: listing.mosaic[0].storageKey,
-                contentHash: listing.mosaic[0].hash
-                  ? Buffer.from(listing.mosaic[0].hash, 'hex')
-                  : null,
-              },
-              'thumb',
-              listing.capEpoch,
-            )
-          : null,
+        thumb: await leadImage(listing),
       })),
     ),
   });

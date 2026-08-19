@@ -1,0 +1,1 @@
+ALTER TABLE "event" ADD COLUMN "cover_key" text;

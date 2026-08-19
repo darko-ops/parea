@@ -27,7 +27,7 @@ import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { friendsOf, suggestionsFor } from '@/friends';
 import { groupsFor } from '@/groups';
-import { imageSrc } from '@/images';
+import { leadImage } from '@/cards';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
 
@@ -64,19 +64,10 @@ export default async function FindPage() {
       name: listing.name,
       place: listing.place,
       caption: listing.caption,
-      thumb: listing.mosaic[0]
-        ? await imageSrc(
-            {
-              eventId: listing.id,
-              storageKey: listing.mosaic[0].storageKey,
-              contentHash: listing.mosaic[0].hash
-                ? Buffer.from(listing.mosaic[0].hash, 'hex')
-                : null,
-            },
-            'thumb',
-            listing.capEpoch,
-          )
-        : null,
+      // The cover if the album has one, else its newest photograph — the same
+      // question the cards ask, asked through the same function so that an
+      // album does not lead with one picture here and another there.
+      thumb: await leadImage(listing),
       haystack: searchable(listing),
     })),
   );

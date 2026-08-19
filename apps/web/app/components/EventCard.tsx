@@ -57,7 +57,16 @@ export function EventCard({ event }: { event: CardEvent }) {
    * pressing it: two people's circles filled in and the third one dashed and
    * empty, the empty one being you.
    */
-  if (photos.length === 0) {
+  /*
+   * On the photograph count, not on the mosaic.
+   *
+   * They were the same number until albums could have a cover. A cover is
+   * prepended to the mosaic, so an album with a cover and nothing in it yet
+   * has one tile to draw — and drawing it would replace the only card in the
+   * product whose job is to get the first photograph out of somebody with a
+   * card that says nothing. The cover waits until there is something to lead.
+   */
+  if (event.photoCount === 0) {
     return (
       <a
         href={event.href ?? `/event/${event.id}`}
