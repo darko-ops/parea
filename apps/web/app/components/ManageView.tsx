@@ -14,9 +14,11 @@
  */
 
 import { LINK_OPEN, REQUEST_ACCESS } from '@parea/core';
-import { useCallback, useEffect, useState } from 'react';
+import { ACCEPT_ATTRIBUTE } from '@parea/upload';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ACCESS_OPTIONS, AccessChoice, type AccessPolicy } from './AccessChoice';
+import { coverBytes } from './coverBytes';
 import { useImageFailure } from './useImageFailure';
 
 type PendingReport = {
@@ -53,6 +55,8 @@ export function ManageView({
     code: string | null;
     url: string;
     groupId: string | null;
+    /** The picture the album leads with, presigned. Null if it has none. */
+    coverUrl: string | null;
   };
 }) {
   const [joinsOpen, setJoinsOpen] = useState(initial.joinsOpen);
@@ -83,6 +87,16 @@ export function ManageView({
   const [caption, setCaption] = useState(initial.caption ?? '');
   /** What was last saved, so the button knows whether there is anything to do. */
   const [saved, setSaved] = useState({ name: initial.name, caption: initial.caption ?? '' });
+  /*
+   * The cover, and the file that is about to replace it.
+   *
+   * `cover` is what the album currently leads with — from the server on the
+   * first render, and from the browser's own copy of the chosen file after a
+   * change, so the section shows what was just set without a round trip for a
+   * picture this page already has.
+   */
+  const [cover, setCover] = useState<string | null>(initial.coverUrl);
+  const coverInput = useRef<HTMLInputElement>(null);
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
 
@@ -214,6 +228,73 @@ export function ManageView({
       });
       if (!res.ok) throw new Error('Could not save that.');
       await loadReports();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Change the picture the album leads with.
+   *
+   * The same endpoint the create screen posts to, which is the whole reason
+   * this section is a few lines rather than a feature: a cover was always one
+   * wide JPEG under the album's prefix, and setting it again replaces that
+   * object. Nothing else about the album moves.
+   *
+   * Scaled in the browser first, exactly as on the way in — and the two do
+   * that work for different reasons. There it is so nobody is kept waiting to
+   * land in an album they just made; here it is so a twelve-megabyte
+   * photograph is not sent across a phone connection to change a thumbnail.
+   */
+  async function changeCover(file: File) {
+    setBusy('cover');
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/cover`, {
+        method: 'POST',
+        headers: { 'content-type': 'image/jpeg' },
+        body: await coverBytes(file),
+      });
+      if (!res.ok) {
+        throw new Error(
+          res.status === 400
+            ? 'That file could not be read as a picture.'
+            : 'Could not set the cover.',
+        );
+      }
+      /*
+       * Drawn from the browser's own copy of what was just sent.
+       *
+       * The server holds the re-encoded one and would hand back a URL for it,
+       * but asking for a picture that is already on this machine is a round
+       * trip to see something you are looking at. The old object URL is
+       * revoked as it goes, or changing the cover four times leaves four
+       * decoded images alive for as long as the tab is.
+       */
+      setCover((old) => {
+        if (old?.startsWith('blob:')) URL.revokeObjectURL(old);
+        return URL.createObjectURL(file);
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+      if (coverInput.current) coverInput.current.value = '';
+    }
+  }
+
+  async function removeCover() {
+    setBusy('cover');
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/cover`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Could not remove the cover.');
+      setCover((old) => {
+        if (old?.startsWith('blob:')) URL.revokeObjectURL(old);
+        return null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -535,6 +616,55 @@ export function ManageView({
 
       {tab === 'manage' && (
         <section className="panel">
+          <h2>The cover</h2>
+          <p className="panel-note">
+            The picture the album leads with, wherever it is shown. Without one
+            it leads with its newest photo.
+          </p>
+          {/*
+            A file rather than a grid of the album's own photographs, which is
+            what the create screen offers and what this screen cannot: the
+            bytes of a photograph live in storage and never pass through this
+            server — that is the rule the whole upload path is built on — so
+            "use this one" would mean either reading an object back through a
+            boundary that deliberately has no read, or the browser fetching a
+            photograph in order to post it straight back. Neither is worth it
+            for a picture somebody still has on the device they took it on.
+          */}
+          <div className="cover-row">
+            <CoverPreview src={cover} />
+            <div className="cover-actions">
+              <input
+                id="cover-file"
+                ref={coverInput}
+                className="visually-hidden"
+                type="file"
+                accept={ACCEPT_ATTRIBUTE}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void changeCover(file);
+                }}
+              />
+              <label className="button-like secondary small" htmlFor="cover-file">
+                {cover ? 'Change' : 'Choose a photo'}
+              </label>
+              {cover && (
+                <button
+                  className="secondary small"
+                  onClick={removeCover}
+                  disabled={busy === 'cover'}
+                >
+                  Remove
+                </button>
+              )}
+              {busy === 'cover' && <span className="panel-note">Saving…</span>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'manage' && (
+        <section className="panel">
           <h2>
             Requests to take a photo down
             {reports.length > 0 && ` (${reports.length})`}
@@ -790,6 +920,33 @@ function PendingThumb({ src }: { src: string }) {
 
   // eslint-disable-next-line @next/next/no-img-element
   return <img ref={ref} src={src} alt="" onError={onError} />;
+}
+
+/**
+ * The cover as it stands, or the space where one would go.
+ *
+ * Three states and they are three different sentences. No cover is a dashed
+ * square with a plus — an invitation. A cover is the picture. A cover whose
+ * URL has stopped resolving is the frame and nothing in it: these URLs are
+ * presigned for an hour, so a manage screen left open over lunch will have
+ * one, and drawing the plus then would tell somebody their album has no cover
+ * when it has one. The Remove button beside it stays, which is the honest
+ * signal that something is still there.
+ */
+function CoverPreview({ src }: { src: string | null }) {
+  const { ref, failed, onError } = useImageFailure(src ?? '');
+
+  if (!src) {
+    return (
+      <span className="cover-preview cover-none" aria-hidden="true">
+        ＋
+      </span>
+    );
+  }
+  if (failed) return <span className="cover-preview cover-none" aria-hidden="true" />;
+
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img ref={ref} src={src} alt="" className="cover-preview" onError={onError} />;
 }
 
 /** "in about 3 hours" / "shortly", without pulling in a date library. */

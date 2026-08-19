@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { ManageView } from '@/../app/components/ManageView';
 import { decide, findEventById } from '@/access';
+import { coverSrc } from '@/cards';
 import { getDb } from '@/db';
 import { requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
@@ -62,6 +63,9 @@ export default async function ManagePage({
           code: code?.words ?? null,
           url: `/e/${event.linkToken}`,
           groupId: event.groupId,
+          // Presigned, an hour, like every other cover URL. The key stays on
+          // this side of the boundary — see `coverSrc`.
+          coverUrl: await coverSrc(event.coverKey),
         }}
       />
     </Shell>

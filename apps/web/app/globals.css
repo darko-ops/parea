@@ -1054,6 +1054,25 @@ button.secondary {
   background: rgb(0 0 0 / 0.55); color: #fff; border: 0; cursor: pointer;
 }
 .picked li button:hover { background: rgb(0 0 0 / 0.75); }
+/* Changing the cover, on the manage screen.
+
+   A preview beside its two controls, the same row shape the profile picture
+   uses on the account screen: the picture is the thing being changed, so it is
+   the thing you look at while changing it. The empty state is a dashed square
+   with a plus rather than a grey rectangle — the difference between "there is
+   nothing here" and "something failed to load". */
+.cover-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cover-preview {
+  width: 96px; height: 64px; border-radius: 10px; object-fit: cover;
+  border: 1px solid var(--line); flex: none; display: block;
+}
+.cover-none {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--line-dashed); background: var(--card);
+  color: var(--dim); font-size: 20px;
+}
+.cover-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 /* The same strip, choosing rather than removing.
 
    The whole tile is the control here, so the corner button's rules are undone

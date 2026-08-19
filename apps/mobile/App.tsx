@@ -75,6 +75,7 @@ import {
   saveActorToken,
   saveQueue,
   saveToCameraRoll,
+  uploadCover,
   uploadItem,
   type SavedEvent,
 } from './src/platform';
@@ -1006,6 +1007,55 @@ function EventScreen({
    * Only the host sees it, and only once: an event belongs to at most one
    * group, and the server refuses a second.
    */
+  /**
+   * The album's cover, for whoever runs it.
+   *
+   * One button and a choice, rather than a row that has to know whether there
+   * is a cover already: the feed does not carry that — the card's mosaic
+   * simply leads with it — and asking the server so a label can read "Change"
+   * instead of "Add" is a request to answer a question the sheet answers
+   * anyway. Both actions are offered every time; picking "Remove it" on an
+   * album that has none is a no-op the endpoint already handles.
+   */
+  const editCover = useCallback(() => {
+    Alert.alert('Album cover', 'The picture the album leads with, wherever it is shown.', [
+      {
+        text: 'Choose a photo',
+        onPress: async () => {
+          const picked = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: false,
+            // Re-encoded out of the picker, which is most of the difference
+            // between a two-megabyte request and a twelve-megabyte one. The
+            // server re-encodes again, to the size it actually draws.
+            quality: 0.8,
+            exif: false,
+          });
+          if (picked.canceled || !picked.assets[0]) return;
+          const target = api.coverTarget(event.id);
+          try {
+            await uploadCover(target.url, target.headers, picked.assets[0].uri);
+          } catch {
+            // Worth saying here, unlike on the create screen: there is no
+            // share sheet to get on with, and somebody who just chose a
+            // picture is watching for it to take.
+            Alert.alert('Could not set the cover', 'Try again in a moment.');
+          }
+        },
+      },
+      {
+        text: 'Remove it',
+        style: 'destructive',
+        onPress: async () => {
+          await api.removeCover(event.id).catch(() => {
+            Alert.alert('Could not remove the cover', 'Try again in a moment.');
+          });
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [api, event.id]);
+
   const createGroup = useCallback(async () => {
     const name = groupName.trim();
     if (!name) return;
@@ -1177,6 +1227,15 @@ function EventScreen({
               The pitch is the recurrence, not the feature: nobody wants "a
               group", they want to stop sending the link every time.
             */}
+            {/*
+              Host only. It changes what everybody else sees on their home
+              screen, which is the same reason the web keeps it on the manage
+              screen rather than on the album.
+            */}
+            {feed?.event.canAdminister && (
+              <Button label="Album cover" onPress={editCover} t={t} />
+            )}
+
             {feed?.event.canAdminister && !feed.event.groupId && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
                 {namingGroup ? (

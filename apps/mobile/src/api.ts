@@ -458,6 +458,11 @@ export class Api {
    * sending; this owns the one thing it must not get wrong, which is who the
    * request says it is from.
    */
+  /** Take the cover off. The object goes with it — see the route. */
+  removeCover(eventId: string): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/cover`, { method: 'DELETE' });
+  }
+
   coverTarget(eventId: string): { url: string; headers: Record<string, string> } {
     const headers: Record<string, string> = {
       'content-type': 'image/jpeg',

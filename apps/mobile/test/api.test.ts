@@ -275,6 +275,19 @@ describe('an album cover, on the wire', () => {
     expect(target.headers['content-type']).toBe('image/jpeg');
   });
 
+  it('is taken off with a DELETE to the same place', async () => {
+    // One endpoint owns covers, so there is one place that decides who may
+    // change an album's face — and it is `administer`, not "can add photos".
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    await new Api('https://api.test', 'tok').removeCover('e1');
+    expect(calls[0]!.url).toBe('https://api.test/api/events/e1/cover');
+    expect(calls[0]!.init.method).toBe('DELETE');
+  });
+
   it('carries no bearer when there is nobody to be', () => {
     // The endpoint answers 404 to anyone who cannot administer the album, and
     // a header saying `Bearer null` would be a request claiming to be somebody.

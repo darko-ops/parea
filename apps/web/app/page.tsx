@@ -10,6 +10,7 @@ import { Shell } from './components/Shell';
 import { Toggle } from './components/Toggle';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
+import { coverBytes } from './components/coverBytes';
 import { useUploads } from './components/useUploads';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 
@@ -578,44 +579,6 @@ function CoverPicker({
       </p>
     </>
   );
-}
-
-/**
- * The bytes to send for a cover.
- *
- * Drawn through a canvas at a sane size first, which does three things at
- * once: the request is a couple of hundred kilobytes instead of twelve
- * megabytes — and it is made while somebody is waiting to land in their new
- * album — the re-encode drops whatever the camera wrote into the file before
- * it leaves the device at all, and the server is handed a JPEG rather than
- * whatever the phone calls a photograph. `createImageBitmap` decodes HEIC on
- * the platforms that have a decoder, which is the same set of platforms whose
- * users would otherwise be told their photograph is not an image.
- *
- * Falls back to the original file if any of that is unavailable. The server
- * re-encodes regardless, so the fallback is slower and not wrong.
- */
-async function coverBytes(file: File): Promise<Blob> {
-  const EDGE = 1600;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, EDGE / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('no 2d context');
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.9),
-    );
-    if (blob) return blob;
-  } catch {
-    // A format this browser cannot decode, a tainted canvas, a File whose
-    // handle died between picking and creating. All three want the original.
-  }
-  return file;
 }
 
 function Thumbs({ files, onRemove }: { files: File[]; onRemove: (file: File) => void }) {

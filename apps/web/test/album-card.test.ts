@@ -152,3 +152,41 @@ describe('the picture an album leads with', () => {
     expect(CARDS).toMatch(/presignGet\(key, 3600\)/);
   });
 });
+describe('changing the cover afterwards', () => {
+  const MANAGE = read('../app/components/ManageView.tsx');
+  const MANAGE_PAGE = read('../app/event/[id]/manage/page.tsx');
+
+  it('sets and clears through the one endpoint that owns covers', () => {
+    // The same route the create screen posts to. A second way to write a
+    // cover would be a second place for "who may change this album's face" to
+    // be decided, and that decision is `administer`.
+    expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{\s*method: 'POST'/);
+    expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{ method: 'DELETE' \}\)/);
+  });
+
+  it('scales the picture the same way the create screen does', () => {
+    // One helper, imported by both. Two copies would drift, and the drift
+    // would be a cover that came out different depending on which screen set
+    // it — a difference nobody could see and nobody could explain.
+    expect(MANAGE).toMatch(/import \{ coverBytes \} from '\.\/coverBytes'/);
+    expect(read('../app/page.tsx')).toMatch(
+      /import \{ coverBytes \} from '\.\/components\/coverBytes'/,
+    );
+  });
+
+  it('is handed a URL and never the key', () => {
+    expect(MANAGE_PAGE).toMatch(/coverUrl: await coverSrc\(event\.coverKey\)/);
+    expect(MANAGE_PAGE).not.toMatch(/coverKey:/);
+  });
+
+  it('draws an expired cover as an empty frame, not as no cover', () => {
+    /*
+     * These URLs are presigned for an hour, so a manage screen left open over
+     * lunch has one that no longer resolves. Falling back to the "add one"
+     * plus would tell somebody their album has no cover when it has one.
+     */
+    expect(MANAGE).toMatch(/function CoverPreview/);
+    expect(MANAGE).toMatch(/if \(failed\) return <span className="cover-preview cover-none"/);
+  });
+});
+
