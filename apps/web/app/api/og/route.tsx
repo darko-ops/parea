@@ -7,37 +7,48 @@
  * is the thing this product exists to keep between the people who were there.
  * Same image for every link, so there is nothing in it to leak.
  *
- * Drawn rather than served from a file. There is a PNG of this mark in the
- * native app's assets and copying it here would be the same artwork committed
- * twice, drifting the first time somebody edits one — the geometry is six
- * numbers and they are the same six as `app/icon.svg`.
+ * ## It was a fourth drawing of the mark, and it disagreed with the other three
+ *
+ * The file said the geometry was "the same six numbers as `app/icon.svg`", and
+ * the *geometry* was. Everything else was its own: three flat circles at 72%
+ * alpha in colours appearing nowhere else in the product, letting the browser
+ * composite the overlaps. That is exactly what `icon.svg` argues against —
+ * alpha decides those four regions for us, and the one place the design wants
+ * warmth comes out muddy. It also softened every edge, which is the thing that
+ * made the mark look fragile.
+ *
+ * So it is the real drawing now: one SVG, built from `Mark.tsx`'s own numbers
+ * and fills, with the seven regions painted explicitly and no transparency
+ * anywhere. `brand.test.ts` checks this file against the others, which it
+ * never did — which is how three copies drifted into four.
  *
  * Cached hard: it never changes, and every unfurl of every link asks for it.
  */
 
 import { ImageResponse } from 'next/og';
 
+import { markSvg } from '@/../app/components/Mark';
+
 export const runtime = 'nodejs';
 
-/*
- * `icon.svg` draws circles of radius 184 with centres 134 from the middle, so
- * the artwork is 636 across. Scaled to 400 here to leave the wordmark room and
- * the frame a margin; the ratio between the two numbers is the design and is
- * what is preserved.
+/**
+ * How big the mark is drawn, in a 640px square.
+ *
+ * The artwork carries its own margin inside the 1024 viewBox, so this is the
+ * whole box rather than the circles — 400 leaves the wordmark room underneath
+ * and the frame a margin around both.
  */
-const SCALE = 400 / (2 * (184 + 134));
-const R = 184 * SCALE;
-const OFFSET = 134 * SCALE;
-/** The square the three circles are laid out in. */
-const BOX = 2 * (R + OFFSET);
+const SIZE = 400;
 
-/** Straight up, then 120° apart. The three people who were there. */
-const CENTRES = [0, 120, 240].map((degrees) => {
-  const radians = ((degrees - 90) * Math.PI) / 180;
-  return { x: Math.cos(radians) * OFFSET, y: Math.sin(radians) * OFFSET };
-});
-
-const COLOURS = ['rgba(244,114,140,.72)', 'rgba(124,150,255,.72)', 'rgba(110,214,169,.72)'];
+/**
+ * The mark as a data URI, because Satori has no `clipPath`.
+ *
+ * `next/og` lays out a subset of CSS and rasterises SVG through resvg, which
+ * does support clipping — so handing it the finished SVG gets the real mark,
+ * where drawing it as positioned `<div>`s could only ever get three circles
+ * and whatever alpha compositing made of them.
+ */
+const MARK = `data:image/svg+xml;utf8,${encodeURIComponent(markSvg(SIZE))}`;
 
 export function GET() {
   return new ImageResponse(
@@ -55,23 +66,16 @@ export function GET() {
           fontFamily: 'sans-serif',
         }}
       >
-        <div style={{ position: 'relative', display: 'flex', width: BOX, height: BOX }}>
-          {CENTRES.map((centre, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: BOX / 2 + centre.x - R,
-                top: BOX / 2 + centre.y - R,
-                width: 2 * R,
-                height: 2 * R,
-                borderRadius: '50%',
-                background: COLOURS[i],
-              }}
-            />
-          ))}
-        </div>
-        <div style={{ fontSize: 84, letterSpacing: 12, color: '#14171c' }}>PAREA</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={MARK} width={SIZE} height={SIZE} alt="" />
+        {/*
+          Lowercase, and tracked in rather than out. `PAREA` at +12 read as an
+          institution — an architecture practice, or something with a quarterly
+          report — and spacing the letters apart is the opposite of what the
+          mark beside it means. Negative tracking at this size, matching the
+          `.wordmark` rule the site uses.
+        */}
+        <div style={{ fontSize: 84, letterSpacing: -1.7, color: '#14171c' }}>parea</div>
       </div>
     ),
     // Square. iMessage crops a wide image to a square thumbnail and the mark

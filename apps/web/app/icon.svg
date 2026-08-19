@@ -10,39 +10,51 @@
   turns the pink-over-mint lens into a muddy neutral — the one region where the
   design wants warmth. Each region is its own fill, so each is a choice.
 
-  Geometry: three circles of radius 184, centres 134 from a point at 120°
+  Geometry: three circles of radius 200, centres 132 from a point at 120°
   apart, first one straight up. That is the whole design.
 
   The ratio of those two numbers is the only thing here worth being careful
-  about. At 0.73 the three circles meet in a curved triangle big enough to be
+  about. At 0.66 the three circles meet in a curved triangle big enough to be
   a shape in its own right — which is the subject, everyone who was there.
   Spread them and it collapses to a sliver; the icon still reads as three
   circles and stops meaning anything.
+
+  It was 184 over 134, a ratio of 0.73, and both numbers moved for the same
+  complaint: at 16 and 24px the mark nearly disappeared. Bigger circles and a
+  tighter overlap put more colour on the screen and make the centre triangle —
+  the part that carries the meaning — a shape you can still see at the size a
+  sidebar draws it.
+
+  The palette moved with it: every one of the seven fills gained 18% chroma in
+  OKLCH, hue and lightness held, so this is the same drawing turned up rather
+  than a different set of colours. The pink was the exception and is worth
+  recording — it already sat on the sRGB boundary at its old lightness, so the
+  only way for it to become more colourful was to become slightly less pale.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <clipPath id="pink"><circle cx="512" cy="398" r="184"/></clipPath>
-    <clipPath id="blue"><circle cx="396" cy="599" r="184"/></clipPath>
-    <clipPath id="mint"><circle cx="628" cy="599" r="184"/></clipPath>
+    <clipPath id="pink"><circle cx="512" cy="400" r="200"/></clipPath>
+    <clipPath id="blue"><circle cx="398" cy="598" r="200"/></clipPath>
+    <clipPath id="mint"><circle cx="626" cy="598" r="200"/></clipPath>
   </defs>
 
   <!-- Full bleed and fully opaque: iOS rounds the corners itself, and App
        Store Connect rejects an icon with an alpha channel. -->
   <rect width="1024" height="1024" fill="#ffffff"/>
 
-  <circle cx="512" cy="398" r="184" fill="#ffb3b8"/>
-  <circle cx="396" cy="599" r="184" fill="#9db2f0"/>
-  <circle cx="628" cy="599" r="184" fill="#a5dcc6"/>
+  <circle cx="512" cy="400" r="200" fill="#ffa6ad"/>
+  <circle cx="398" cy="598" r="200" fill="#99b1fa"/>
+  <circle cx="626" cy="598" r="200" fill="#9cdec5"/>
 
-  <g clip-path="url(#blue)"><circle cx="512" cy="398" r="184" fill="#c79ad9"/></g>
-  <g clip-path="url(#mint)"><circle cx="512" cy="398" r="184" fill="#f3b584"/></g>
-  <g clip-path="url(#mint)"><circle cx="396" cy="599" r="184" fill="#6fb6c4"/></g>
+  <g clip-path="url(#blue)"><circle cx="512" cy="400" r="200" fill="#cb96e1"/></g>
+  <g clip-path="url(#mint)"><circle cx="512" cy="400" r="200" fill="#fbb277"/></g>
+  <g clip-path="url(#mint)"><circle cx="398" cy="598" r="200" fill="#61b8c9"/></g>
 
   <!-- Everyone was there. Drawn last because the three lenses above each
        cover this region on their way past. -->
   <g clip-path="url(#blue)">
     <g clip-path="url(#mint)">
-      <circle cx="512" cy="398" r="184" fill="#8c93c6"/>
+      <circle cx="512" cy="400" r="200" fill="#a16eb9"/>
     </g>
   </g>
 </svg>

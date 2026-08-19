@@ -79,6 +79,21 @@ describe('images that will not load', () => {
     const offenders = (await components())
       .filter(({ source }) => /<img[\s/>]/.test(source))
       .filter(({ source }) => !source.includes('useImageFailure'))
+      /*
+       * Except where there is no browser to fail in.
+       *
+       * `ImageResponse` JSX is not rendered to a DOM — Satori lays it out and
+       * resvg rasterises it, on the server, once. `useImageFailure` is a React
+       * hook watching an `<img>` element that will never exist, so requiring
+       * it there would be requiring dead code to satisfy a rule about live
+       * pages.
+       *
+       * Narrowed by a property of the file rather than by naming it. An
+       * allow-list would have to be maintained by whoever adds the next
+       * screen, which is exactly the person who does not yet know this rule
+       * exists; this way a route either produces an image or it does not.
+       */
+      .filter(({ source }) => !source.includes('ImageResponse'))
       .map(({ path }) => path);
 
     expect(offenders).toEqual([]);
