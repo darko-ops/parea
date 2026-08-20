@@ -2146,6 +2146,30 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   display: flex; flex-direction: column; gap: 8px;
   border: 1px solid var(--line); background: var(--card);
   border-radius: 14px; padding: 13px 15px;
+  /*
+   * Held at the bottom of the screen rather than after the last message.
+   *
+   * It was the end of the page, so on a thread longer than the viewport the
+   * box you type in was somewhere below the fold — you scrolled to the bottom
+   * to write, which is where a chat already puts you, and scrolled again to
+   * read what you were answering. Sticky keeps it in the flow (so the footer
+   * still follows it) and pins it while there is anything underneath.
+   *
+   * The gap below is the page's own padding showing through, so the composer
+   * needs its own ground: a translucent box over scrolling text reads as two
+   * things overlapping rather than one thing on top.
+   */
+  position: sticky; bottom: 14px; z-index: 2;
+  /*
+   * Two shadows doing two different jobs. The first is a solid block of the
+   * page's own colour filling the 14px below the box — without it, messages
+   * scroll through the gap between the composer and the bottom of the window
+   * and a stray half-line of somebody's sentence sits under the thing you are
+   * typing in. The second lifts it off the thread above.
+   */
+  box-shadow:
+    0 14px 0 0 var(--page),
+    0 -8px 16px -8px rgba(20, 23, 28, .07);
 }
 .thread-field {
   border: 0; padding: 0; font-size: 14.5px; resize: none; background: none;
@@ -2169,6 +2193,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .message-face {
   width: 32px; height: 32px; border-radius: 50%; flex: none;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
   background: var(--accent-soft); color: var(--accent-ink);
   font-size: 13px; font-weight: 600;
   /* Beside the bubble's first line, which is what this offset buys: the name
@@ -2213,7 +2238,18 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   background: var(--card); font-size: 13px; cursor: pointer;
 }
 .reaction-on { border-color: var(--accent); background: var(--accent-soft); }
-.reaction-add { color: var(--dim); }
+.reaction-add {
+  /* Smaller than a reaction and lighter than one. It was the same pill as an
+     emoji somebody had actually chosen, which gave an empty offer the same
+     weight as a real answer — and put a bordered button under every message.
+     Now it is a small disc that grows a little when reached for. */
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-color: transparent; background: none;
+  color: var(--dim-soft); font-size: 15px; line-height: 1;
+}
+.reaction-add:hover { background: var(--track); color: var(--fg); }
+.reactions:has(.reaction) .reaction-add { align-self: center; }
 .picker {
   position: relative; display: inline-flex; gap: 6px; flex-wrap: wrap;
 }

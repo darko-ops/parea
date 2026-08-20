@@ -16,32 +16,35 @@
 import { schema } from '@parea/core';
 import { and, asc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 
+import { avatarUrl } from './accounts';
 import type { Db } from './db';
 
 /** Longest message the database will take. Kept in step with the CHECK. */
 export const MAX_BODY = 2000;
 
-/**
- * What the client may react with.
- *
- * A closed set offered by the interface, not enforced by the column — see the
- * schema note. Six, because a row of reaction pills is a row and not a
- * keyboard: the point is to say something in one tap, and a picker with two
- * hundred faces in it is a second decision to make about a photograph of a
- * dinner.
+/*
+ * The reaction set moved to `reactions.ts`, and this module must not import it
+ * back. This file reaches the database and presigns avatars, so it reaches
+ * storage and therefore `node:fs`; the thread that draws the picker is a
+ * client component, and one value import across that line puts all of this in
+ * the browser bundle.
  */
-export const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🙏'] as const;
-export type Reaction = (typeof REACTIONS)[number];
-
-export function isReaction(value: unknown): value is Reaction {
-  return typeof value === 'string' && (REACTIONS as readonly string[]).includes(value);
-}
 
 export type MessageAuthor = {
   /** Opaque per-event key, the same one the contributor chips use. */
   key: string;
   name: string;
   mine: boolean;
+  /**
+   * Their picture, presigned. Null for somebody who has not set one.
+   *
+   * No new disclosure: anybody who can read this thread can already open the
+   * album's People tab, which lists everyone in it by name with the same
+   * faces. What stays true is the rule the `key` above exists for — an actor
+   * id does not cross this boundary, and neither does an avatar *key*; this is
+   * an address that expires, like every other picture the product hands out.
+   */
+  avatarUrl: string | null;
 };
 
 export type Message = {
@@ -88,6 +91,7 @@ export async function messagesFor(
       authorId: schema.eventMessages.authorActorId,
       displayName: schema.actors.displayName,
       handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.eventMessages)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.eventMessages.authorActorId))
@@ -146,6 +150,20 @@ export async function messagesFor(
     byMessage.set(reaction.messageId, forMessage);
   }
 
+  /*
+   * One presign per author, not per message.
+   *
+   * A busy thread is twenty messages from four people, and signing the same
+   * avatar twenty times is twenty HMACs and twenty different URLs for one
+   * picture — which also defeats the browser's cache, so the same face is
+   * fetched once per message.
+   */
+  const faces = new Map<string, string | null>();
+  for (const row of rows) {
+    if (faces.has(row.authorId)) continue;
+    faces.set(row.authorId, await avatarUrl(row.avatarKey));
+  }
+
   return rows.map((row) => {
     const deleted = row.deletedAt != null;
     return {
@@ -162,6 +180,7 @@ export async function messagesFor(
         key: key(row.authorId),
         name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
         mine: viewerId != null && row.authorId === viewerId,
+        avatarUrl: faces.get(row.authorId) ?? null,
       },
       reactions: [...(byMessage.get(row.id) ?? new Map())]
         .map(([emoji, tally]) => ({ emoji, ...tally }))

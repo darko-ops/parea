@@ -16,7 +16,8 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
-import { eventOfMessage, isReaction, toggleReaction } from '@/messages';
+import { eventOfMessage, toggleReaction } from '@/messages';
+import { isReaction } from '@/reactions';
 import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';

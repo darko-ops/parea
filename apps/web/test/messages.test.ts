@@ -20,12 +20,11 @@ import {
   deleteMessage,
   editMessage,
   eventOfMessage,
-  isReaction,
   messagesFor,
   postMessage,
-  REACTIONS,
   toggleReaction,
 } from '@/messages';
+import { isReaction, REACTIONS } from '@/reactions';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),

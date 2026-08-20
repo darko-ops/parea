@@ -25,7 +25,10 @@ import { ago } from '@parea/cards';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Member } from '@/members';
-import { REACTIONS, type Message } from '@/messages';
+import type { Message } from '@/messages';
+// From `reactions.ts`, not `messages.ts`: this is a client component, and that
+// module reads the database.
+import { REACTIONS } from '@/reactions';
 
 import { Face } from './Faces';
 import { Mark } from './Mark';
@@ -408,9 +411,23 @@ function Row({
 
   return (
     <div className={`message${message.author.mine ? ' message-mine' : ''}`}>
-      <span className="message-face" aria-hidden="true">
-        {message.author.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
-      </span>
+      {/*
+        Their actual picture. `Face` rather than a bare `<img>` for the reason
+        it exists: an avatar URL is presigned for an hour, so a tab left open
+        on a thread outlives it, and the browser's answer to that is a broken
+        glyph beside somebody's message. The letter is what that becomes —
+        which is also what somebody with no picture has always had.
+      */}
+      <Face
+        src={message.author.avatarUrl}
+        size={32}
+        className="message-face"
+        fallback={
+          <span aria-hidden="true">
+            {message.author.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
+          </span>
+        }
+      />
 
       <div className="message-body">
         <div className="message-meta">
