@@ -13,7 +13,7 @@
  */
 
 import { recordModeration, REASON, schema } from '@parea/core';
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -389,4 +389,100 @@ async function classify(
       err instanceof ModerationUnavailable || err instanceof Error ? err.message : err,
     );
   }
+}
+
+/**
+ * Photographs that predate a derivative size, oldest first.
+ *
+ * `card` was added after the product had albums in it, so every photograph
+ * ingested before then has thumb, grid and full and nothing between. The web
+ * app asks the `derivative` table before offering a `card` URL, so nothing is
+ * broken in the meantime — this is what makes the answer yes for the ones
+ * already there.
+ *
+ * Only `ready` photographs. A pending one is about to be derived anyway and
+ * will get every size the current list names; a quarantined one is not
+ * something to go back and make more copies of.
+ */
+export async function photosMissingDerivative(
+  db: any,
+  kind: DerivativeKind,
+  limit = 100,
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: schema.photos.id })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.status, 'ready'),
+        isNull(schema.photos.deletedAt),
+        isNotNull(schema.photos.contentHash),
+        sql`not exists (
+          select 1 from "derivative" d
+          where d.photo_id = ${schema.photos.id} and d.kind = ${kind}
+        )`,
+      ),
+    )
+    .orderBy(schema.photos.uploadedAt)
+    .limit(limit);
+  return rows.map((r: { id: string }) => r.id);
+}
+
+/**
+ * Encode one missing size for one photograph that already has the others.
+ *
+ * Deliberately not `processPhoto`. That one strips metadata, hashes, dedupes,
+ * scans and republishes — the whole ingest — and running it again over a photo
+ * that is already `ready` would re-scan content that has been scanned and
+ * re-hash bytes whose hash is the object's own name. This reads the object
+ * that is already stored, encodes the one size that is missing, and writes it.
+ *
+ * The original is the *stored* object, which is the stripped one: ingest
+ * replaced the upload with it and `storage_key` points at it. So this produces
+ * exactly what ingest would have, and never re-derives from something with
+ * metadata still on it.
+ *
+ * Idempotent. `onConflictDoNothing` on the derivative row means two runs, or a
+ * run that overlaps a re-ingest, cannot make a duplicate — the primary key is
+ * (photo, kind, format).
+ */
+export async function backfillDerivative(
+  { db, objects }: { db: any; objects: ObjectStore },
+  photoId: string,
+  kind: DerivativeKind,
+): Promise<'done' | 'skipped' | 'failed'> {
+  const [photo] = await db
+    .select()
+    .from(schema.photos)
+    .where(eq(schema.photos.id, photoId))
+    .limit(1);
+
+  if (!photo || photo.status !== 'ready' || !photo.contentHash) return 'skipped';
+
+  const original = await objects.get(photo.storageKey);
+  if (!original) return 'failed';
+
+  const hex = photo.contentHash.toString('hex');
+  const made = await buildDerivatives(original, [kind]).catch(() => null);
+  if (!made || made.length === 0) return 'failed';
+
+  for (const derivative of made) {
+    const key = derivativeKey(photo.eventId, hex, derivative.kind, derivative.format);
+    await objects.put(key, derivative.bytes, derivative.mime);
+    await db
+      .insert(schema.derivatives)
+      .values({
+        photoId: photo.id,
+        kind: derivative.kind,
+        format: derivative.format,
+        storageKey: key,
+        width: derivative.width,
+        height: derivative.height,
+        mime: derivative.mime,
+        byteSize: derivative.bytes.length,
+      })
+      .onConflictDoNothing();
+  }
+
+  return 'done';
 }

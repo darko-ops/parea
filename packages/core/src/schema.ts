@@ -532,7 +532,13 @@ export const derivatives = pgTable(
     photoId: uuid('photo_id')
       .notNull()
       .references(() => photos.id, { onDelete: 'cascade' }),
-    kind: text('kind', { enum: ['thumb', 'grid', 'full'] }).notNull(),
+    /*
+     * `card` arrived after the other three and is not backfilled by its
+     * existence here: a photograph ingested before it exists has no row for it
+     * and the client must not offer one. See `hasCard` in the web app, which
+     * asks this table rather than assuming.
+     */
+    kind: text('kind', { enum: ['thumb', 'card', 'grid', 'full'] }).notNull(),
     /**
      * A size can exist in two encodings — §11. AVIF is smaller and JPEG is
      * the fallback for the viewers who cannot decode it, so both are stored

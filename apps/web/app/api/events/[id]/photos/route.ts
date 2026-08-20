@@ -21,7 +21,7 @@ import { getDb } from '@/db';
 import { membersOf, rosterFor } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
-import { hasDerivatives, imageSources, imageSrc, imageSrcSet } from '@/images';
+import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
@@ -61,6 +61,9 @@ export async function GET(
 
   const viewerId = await currentActorId();
 
+  // Asked once for the page rather than per row — see `photosWithCard`.
+  const hasCard = await photosWithCard(db, rows.map((row) => row.id));
+
   const photos = await Promise.all(
     rows.map(async (photo) => ({
       id: photo.id,
@@ -84,8 +87,8 @@ export async function GET(
        * photograph still mid-ingest, which has no derivatives to choose
        * between.
        */
-      srcSet: await imageSrcSet(photo, event.capEpoch),
-      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif'),
+      srcSet: await imageSrcSet(photo, event.capEpoch, 'jpeg', hasCard.has(photo.id)),
+      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif', hasCard.has(photo.id)),
       // The same thumbnail in every encoding that exists, best first, so the
       // browser can take the AVIF if it can decode one (§11). Empty before
       // ingest, in which case `src` is the original and there is no choice.

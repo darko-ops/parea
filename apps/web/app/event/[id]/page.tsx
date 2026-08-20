@@ -11,7 +11,7 @@ import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { membersOf, rosterFor } from '@/members';
 import type { EventTab } from '@/../app/components/EventView';
-import { hasDerivatives, imageSources, imageSrc, imageSrcSet } from '@/images';
+import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
@@ -67,6 +67,9 @@ export default async function EventPage({
 
   const viewerId = await currentActorId();
 
+  // Asked once for the page rather than per row — see `photosWithCard`.
+  const hasCard = await photosWithCard(db, rows.map((row) => row.id));
+
   const photos = await Promise.all(
     rows.map(async (photo) => ({
       id: photo.id,
@@ -93,8 +96,8 @@ export default async function EventPage({
        * photograph still mid-ingest, which has no derivatives to choose
        * between.
        */
-      srcSet: await imageSrcSet(photo, event.capEpoch),
-      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif'),
+      srcSet: await imageSrcSet(photo, event.capEpoch, 'jpeg', hasCard.has(photo.id)),
+      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif', hasCard.has(photo.id)),
       /*
        * Present here as well as in the route that replaces this frame.
        *

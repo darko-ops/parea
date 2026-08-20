@@ -326,20 +326,19 @@ function Composer({
 
       <div className="thread-actions">
         {/*
-          Who reads it, and how to send it.
+          Only when something went wrong.
 
-          This line was taken out once, on the grounds that a standing note is
-          a sentence people read once and then have under every message they
-          ever write. It comes back because half of it is not a note but an
-          instruction: Enter sends, and a composer that posts on Enter without
-          saying so is one somebody sends half a sentence from. An error
-          replaces it rather than joining it — two lines under a box is the
-          state this was originally objecting to.
+          There was a standing line here — who can read it, and that Enter
+          sends. It is gone, and the argument it lost to is that a sentence
+          under every message anybody ever writes is a sentence nobody reads
+          after the first day. What it was buying is now bought elsewhere: who
+          can read it is what the placeholder says, and Enter-sends is a
+          convention the box behaves like anyway.
+
+          The slot stays for errors, which are the one thing worth a line here
+          — and they are the reason this is not simply deleted.
         */}
-        <span className="thread-note">
-          {error ??
-            'Everyone in this album can read it. Enter sends, Shift + Enter is a new line.'}
-        </span>
+        <span className="thread-note">{error}</span>
         <button onClick={onPost} disabled={posting || draft.trim() === ''}>
           {posting ? 'Posting…' : 'Post'}
         </button>

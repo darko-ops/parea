@@ -10,7 +10,14 @@
  * A private copy in the deriver would be a 404 nobody could explain.
  */
 
-export const IMAGE_KINDS = ['thumb', 'grid', 'full', 'orig'] as const;
+/*
+ * `card` sits between `thumb` and `grid`, and it exists because of the gap
+ * between them. A gallery tile is drawn around 240–290 CSS pixels, which on a
+ * 2× screen is 480–580 device pixels: too big for the 320 and a quarter of the
+ * 1280. Every album was fetching a 1280 to fill 540, or a 320 upscaled half
+ * again, and neither is the picture at the size it is being shown.
+ */
+export const IMAGE_KINDS = ['thumb', 'card', 'grid', 'full', 'orig'] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 
 /**
@@ -43,8 +50,11 @@ export const MIME: Record<ImageFormat, string> = {
  * `full` deliberately does not. It is the member of the "download as JPEG"
  * archive (§7.7), so it has to be a JPEG — and it is a lightbox image seen one
  * at a time, where the bytes saved matter far less than in a 200-image grid.
+ *
+ * `card` does, and it is the one that matters most: it is what a gallery of
+ * two hundred photographs actually serves.
  */
-export const AVIF_KINDS: readonly ImageKind[] = ['thumb', 'grid'];
+export const AVIF_KINDS: readonly ImageKind[] = ['thumb', 'card', 'grid'];
 
 export function formatsFor(kind: ImageKind): readonly ImageFormat[] {
   return AVIF_KINDS.includes(kind) ? (['avif', 'jpeg'] as const) : (['jpeg'] as const);

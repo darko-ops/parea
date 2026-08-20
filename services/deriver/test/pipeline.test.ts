@@ -22,6 +22,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { crc32 } from '../src/crc32';
+import { backfillDerivative, photosMissingDerivative } from '../src/pipeline';
 import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/derivatives';
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
@@ -206,10 +207,17 @@ describe('pipeline results', () => {
       .from(schema.derivatives)
       .where(eq(schema.derivatives.photoId, photo.id));
 
-    // The grid sizes exist twice — AVIF for the browsers that can decode it,
-    // JPEG for the ~6% that cannot. `full` does not: it is the member of the
-    // "download as JPEG" archive and has to stay a JPEG.
+    // The three viewing sizes exist twice — AVIF for the browsers that can
+    // decode it, JPEG for the ~6% that cannot. `full` does not: it is the
+    // member of the "download as JPEG" archive and has to stay a JPEG.
+    //
+    // Written out rather than derived from DERIVATIVES on purpose. This is the
+    // list the storage bill and the purge path both depend on, so adding a
+    // size should fail here and be answered deliberately — which is what
+    // happened when `card` arrived.
     expect(rows.map((r: any) => `${r.kind}.${r.format}`).sort()).toEqual([
+      'card.avif',
+      'card.jpeg',
       'full.jpeg',
       'grid.avif',
       'grid.jpeg',
@@ -219,7 +227,7 @@ describe('pipeline results', () => {
 
     for (const row of rows) {
       expect(await objects.get(row.storageKey), row.storageKey).not.toBeNull();
-      const bound = { thumb: 320, grid: 1280, full: 2560 }[row.kind as string]!;
+      const bound = { thumb: 320, card: 640, grid: 1280, full: 2560 }[row.kind as string]!;
       expect(Math.max(row.width, row.height)).toBeLessThanOrEqual(bound);
       // The key must be the one the Worker will ask for, extension included.
       expect(row.storageKey.endsWith(row.format === 'avif' ? '.avif' : '.jpg')).toBe(true);
@@ -374,6 +382,75 @@ describe('HEIC', () => {
     expect(direct || fallback).toBe(true);
   });
 
+  it('fills in a size that arrived after the photograph did', async () => {
+    /*
+     * `card` was added once the product already had albums in it, and the web
+     * app asks the `derivative` table before offering one — so nothing breaks
+     * without this, and nothing improves either. This is what makes the answer
+     * yes for photographs that were already there.
+     *
+     * The setup is the real situation rather than a mock of it: ingest the
+     * photo normally, then delete the `card` rows and objects to make it look
+     * like one from before the size existed.
+     */
+    const { photo } = await seedPhoto(await geotaggedJpeg(6));
+    await processPhoto({ db, objects, scanner }, photo.id);
+
+    const cards = await db
+      .select()
+      .from(schema.derivatives)
+      .where(
+        and(eq(schema.derivatives.photoId, photo.id), eq(schema.derivatives.kind, 'card')),
+      );
+    expect(cards).toHaveLength(2);
+    for (const row of cards) await objects.delete(row.storageKey);
+    await db
+      .delete(schema.derivatives)
+      .where(
+        and(eq(schema.derivatives.photoId, photo.id), eq(schema.derivatives.kind, 'card')),
+      );
+
+    expect(await photosMissingDerivative(db, 'card')).toEqual([photo.id]);
+
+    expect(await backfillDerivative({ db, objects }, photo.id, 'card')).toBe('done');
+    expect(await photosMissingDerivative(db, 'card')).toEqual([]);
+
+    const after = await db
+      .select()
+      .from(schema.derivatives)
+      .where(
+        and(eq(schema.derivatives.photoId, photo.id), eq(schema.derivatives.kind, 'card')),
+      );
+    expect(after.map((r: any) => r.format).sort()).toEqual(['avif', 'jpeg']);
+    for (const row of after) {
+      expect(await objects.get(row.storageKey), row.storageKey).not.toBeNull();
+      expect(Math.max(row.width, row.height)).toBeLessThanOrEqual(640);
+    }
+  });
+
+  it('does not touch the sizes a photograph already has', async () => {
+    // The backfill encodes one size. Re-running the whole pipeline would
+    // re-scan content already scanned and rewrite objects whose names are
+    // their own hashes.
+    const { photo } = await seedPhoto(await geotaggedJpeg(7));
+    await processPhoto({ db, objects, scanner }, photo.id);
+
+    const before = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+
+    // Nothing is missing, so there is nothing to do — and asking again is safe.
+    expect(await photosMissingDerivative(db, 'card')).toEqual([]);
+    expect(await backfillDerivative({ db, objects }, photo.id, 'card')).toBe('done');
+
+    const after = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+    expect(after).toHaveLength(before.length);
+  });
+
   it('ingests a HEIC end to end', async () => {
     const { photo } = await seedPhoto(HEVC_HEIC_SAMPLE, 'image/heic');
     const outcome = await processPhoto({ db, objects, scanner }, photo.id);
@@ -382,8 +459,8 @@ describe('HEIC', () => {
       .select()
       .from(schema.derivatives)
       .where(eq(schema.derivatives.photoId, photo.id));
-    // Three sizes, two encodings for the two grid ones.
-    expect(rows).toHaveLength(5);
+    // Four sizes, two encodings for the three that are looked at on a screen.
+    expect(rows).toHaveLength(7);
   });
 });
 

@@ -7,6 +7,11 @@
  *           if it cannot
  *   once    drain the pending queue and stop
  *   watch   poll for pending photos forever
+ *   backfill <kind>
+ *           encode one derivative size for photographs that predate it, and
+ *           stop. Needed once per size added after the product had albums in
+ *           it — `card` is the first. Safe to run repeatedly and safe to stop
+ *           part-way: it selects on the absence of the row it writes.
  *
  * `watch` polls Postgres rather than consuming a Cloudflare Queue. The design
  * (§7.5) has R2 event notifications driving a queue, which is better: it
@@ -27,6 +32,8 @@ import {
   canDecodeViaHeifConvert,
   canEncodeAvif,
   decodeCapabilities,
+  DERIVATIVES,
+  type DerivativeKind,
 } from './derivatives';
 import { HEVC_HEIC_SAMPLE } from './fixture';
 import { objectStoreFromEnv } from './objects';
@@ -36,7 +43,12 @@ import {
   type ContentModerator,
 } from './moderation';
 import { type CsamScanner, scannerFromEnv } from './safety';
-import { pendingPhotoIds, processPhoto } from './pipeline';
+import {
+  backfillDerivative,
+  pendingPhotoIds,
+  photosMissingDerivative,
+  processPhoto,
+} from './pipeline';
 
 const run = promisify(execFile);
 const POLL_INTERVAL_MS = Number(process.env.DERIVER_POLL_MS ?? 5000);
@@ -208,9 +220,9 @@ async function main(): Promise<void> {
     process.exit(await probe(scanner, moderator));
   }
 
-  if (command !== 'once' && command !== 'watch') {
+  if (command !== 'once' && command !== 'watch' && command !== 'backfill') {
     console.error(`unknown command: ${command}`);
-    console.error('usage: deriver <probe|once|watch>');
+    console.error('usage: deriver <probe|once|watch|backfill <kind>>');
     process.exit(2);
   }
 
@@ -225,6 +237,36 @@ async function main(): Promise<void> {
     const handled = await drain(500, ingest());
     console.log(`${handled} photo(s) processed`);
     process.exit(0);
+  }
+
+  if (command === 'backfill') {
+    const kind = process.argv[3] as DerivativeKind | undefined;
+    if (!kind || !DERIVATIVES.some((d) => d.kind === kind)) {
+      console.error(`usage: deriver backfill <${DERIVATIVES.map((d) => d.kind).join('|')}>`);
+      process.exit(2);
+    }
+
+    const deps = ingest();
+    let done = 0;
+    let failed = 0;
+    /*
+     * In batches, because the selection is "photographs without this row" and
+     * each pass writes exactly those rows — so the same query run again
+     * returns what is left. Stopping half way is a smaller backfill, never a
+     * broken one.
+     */
+    for (;;) {
+      const ids = await photosMissingDerivative(deps.db, kind, 50);
+      if (ids.length === 0) break;
+      for (const id of ids) {
+        const result = await backfillDerivative(deps, id, kind);
+        if (result === 'done') done += 1;
+        else if (result === 'failed') failed += 1;
+      }
+      console.log(`${done} encoded, ${failed} failed`);
+    }
+    console.log(`backfill of ${kind} finished: ${done} encoded, ${failed} failed`);
+    process.exit(failed > 0 ? 1 : 0);
   }
 
   // Refuse to start rather than fail one photo at a time.

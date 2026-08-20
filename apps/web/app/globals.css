@@ -68,7 +68,10 @@
      only colours this product claims. Pastels, so each carries the darkened
      same-hue ink the lens tiles use; white on either is unreadable and black
      on either reads as a highlighter. */
-  --bubble-mine: #99b1fa;
+  /* A shade lighter than the mark's blue itself. On a bubble the colour is a
+     surface rather than a mark, and the mark's own weight reads as heavy
+     against the mint opposite it. */
+  --bubble-mine: #aec2fc;
   --bubble-mine-ink: #21335f;
   --bubble-them: #9cdec5;
   --bubble-them-ink: #24503f;

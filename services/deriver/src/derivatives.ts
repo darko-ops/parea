@@ -2,14 +2,18 @@
  * Derivative generation — docs/design.md §7.7.
  *
  * Unlike the original, derivatives are re-encoded — that is what they are for.
- * Three sizes, and the largest one earns its place twice: it backs the lightbox
+ * Four sizes, and the largest one earns its place twice: it backs the lightbox
  * *and* it is the "download as JPEG" option, so an Android recipient handed a
  * folder of iPhone HEICs has something their gallery can open.
  *
- * The two grid sizes are encoded twice, AVIF and JPEG. Both are stored and the
- * browser picks with `<picture>`; see §11 for why that beats negotiating on
+ * The three smaller sizes are encoded twice, AVIF and JPEG. Both are stored and
+ * the browser picks with `<picture>`; see §11 for why that beats negotiating on
  * `Accept`. `full` stays JPEG-only — it is an archive member, and it has to
  * stay one.
+ *
+ * `card` is the newest and the one the gallery actually serves. Adding it cost
+ * two encodes per photograph at ingest; what it saved is every album fetching
+ * a 1280 to fill a 540-pixel slot.
  */
 
 import { execFile } from 'node:child_process';
@@ -25,6 +29,16 @@ const run = promisify(execFile);
 
 export const DERIVATIVES = [
   { kind: 'thumb', edge: 320, quality: 72 },
+  /*
+   * The gallery's own size. A tile is 240–290 CSS pixels, so a 2× screen wants
+   * 480–580 and a 3× phone in a two-column grid wants about 570 — 640 covers
+   * all of them without the 1280 they were being sent instead.
+   *
+   * Quality a notch above `thumb`: this one is looked at rather than glanced
+   * at, and it is the size at which most people ever see most photographs in
+   * this product.
+   */
+  { kind: 'card', edge: 640, quality: 76 },
   { kind: 'grid', edge: 1280, quality: 78 },
   { kind: 'full', edge: 2560, quality: 85 },
 ] as const;
@@ -83,9 +97,19 @@ export type Derivative = {
   mime: string;
 };
 
-export async function buildDerivatives(input: Buffer): Promise<Derivative[]> {
+export async function buildDerivatives(
+  input: Buffer,
+  /**
+   * Which sizes to make. Every one by default, which is what ingest wants.
+   *
+   * Narrowed only by the backfill, which is filling a gap in a photograph that
+   * already has the others — re-encoding the three it has would rewrite three
+   * objects to change nothing.
+   */
+  only?: readonly DerivativeKind[],
+): Promise<Derivative[]> {
   try {
-    return await encodeAll(input);
+    return await encodeAll(input, only);
   } catch (err) {
     // sharp's prebuilt libvips parses the HEIF container but has no HEVC
     // decoder, so `metadata()` succeeds on an iPhone photo and decoding it
@@ -93,14 +117,18 @@ export async function buildDerivatives(input: Buffer): Promise<Derivative[]> {
     // to a raster sharp can definitely read and retry once.
     const raster = await heifConvert(input).catch(() => null);
     if (!raster) throw err;
-    return encodeAll(raster);
+    return encodeAll(raster, only);
   }
 }
 
-async function encodeAll(input: Buffer): Promise<Derivative[]> {
+async function encodeAll(
+  input: Buffer,
+  only?: readonly DerivativeKind[],
+): Promise<Derivative[]> {
   const out: Derivative[] = [];
 
   for (const spec of DERIVATIVES) {
+    if (only && !only.includes(spec.kind)) continue;
     for (const format of formatsFor(spec.kind)) {
       const resized = sharp(input, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
         // Bakes in EXIF orientation, so viewers do not have to honour it, and
