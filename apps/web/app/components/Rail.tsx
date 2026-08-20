@@ -14,20 +14,32 @@
  * row because the product treats a group as persistent identity while the web
  * gave it no address of its own.
  *
- * Below tablet it becomes a bar across the top, because a 212px column on a
- * phone-width browser is most of the screen.
+ * ## Below tablet it is a wordmark and a hamburger
  *
- * No directive either way, so it renders wherever it is used: on the server
- * for the pages that are server components, and in the client bundle for the
- * account view, which has to decide between this and the sign-in screen from
- * state only it has. The rail itself is links and an active state, and renders
- * the same either way; the one thing that has to run on the client — the
- * count beside Invites — is its own component and carries its own directive,
- * so it works identically whichever side the rail was drawn on.
+ * It was the same rows laid out sideways, which fitted while there were four
+ * of them and stopped at six: the bar scrolled horizontally, so Profile hung
+ * half off the screen and Settings and Create Album were past the edge with
+ * nothing to say they were there. A row of destinations you cannot see is not
+ * navigation.
+ *
+ * So the rows go behind a button, in the corner a thumb reaches. The panel is
+ * the same list in the same order, drawn as the column it already is on a wide
+ * screen — one set of markup rather than a phone copy of it.
+ *
+ * `'use client'` for that one piece of state, which is a change: this used to
+ * render on whichever side it was used from. A `<details>` would have avoided
+ * it and cannot, because the same element has to be a dropdown on a phone and
+ * an always-open column on a laptop, and CSS cannot force a closed disclosure
+ * back open. The cost is a few hundred bytes on a component that was already
+ * on every page.
  *
  * Reached through `Shell` rather than used directly — a rail without the flex
  * parent it expects renders as a full-width band above the content.
  */
+
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
@@ -85,8 +97,41 @@ const ROWS: {
 ];
 
 export function Rail({ current }: { current: RailPage }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useRef<HTMLElement>(null);
+
+  /*
+   * Closes on a tap away and on Escape — the two rules `Menu` applies to its
+   * panel, for the same reason: a panel whose only exit is choosing something
+   * makes you navigate to be rid of it.
+   *
+   * `mousedown` rather than `click`, again as `Menu` does. Listening for the
+   * later event closes the panel between a link being pressed and the
+   * navigation starting, so the link never fires.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open, close]);
+
   return (
-    <nav className="rail" aria-label="Sections">
+    <nav
+      className={`rail${open ? ' rail-open' : ''}`}
+      aria-label="Sections"
+      ref={ref}
+    >
       <div className="rail-mark">
         {/* Sized at the call site rather than by the default: this is the
             one lockup it appears in, and the number is a relationship to the
@@ -94,6 +139,33 @@ export function Rail({ current }: { current: RailPage }) {
         <Mark size={30} />
         <span className="wordmark">Parea</span>
       </div>
+
+      {/*
+        Only on a phone, and only there: on a wide screen the rows are already
+        the page's left-hand edge, and a button that hides visible navigation
+        adds a step to everything.
+
+        The unread count rides on the closed button, because what it hides
+        includes the one row that ever carries a number — a menu that conceals
+        it is a menu somebody opens to find out there was nothing to find.
+      */}
+      <button
+        type="button"
+        className="rail-burger"
+        aria-expanded={open}
+        aria-controls="rail-nav"
+        aria-label={open ? 'Close the menu' : 'Menu'}
+        onClick={() => setOpen((was) => !was)}
+      >
+        <span className="rail-burger-lines" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+        {!open && current !== 'invites' && <InvitesBadge />}
+      </button>
+
+      <div className="rail-nav" id="rail-nav">
 
       {ROWS.map((row) => (
         <a
@@ -139,6 +211,7 @@ export function Rail({ current }: { current: RailPage }) {
           <RailIcon glyph="settings" />
           <span className="rail-label">Settings</span>
         </a>
+        </div>
       </div>
     </nav>
   );
