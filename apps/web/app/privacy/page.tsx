@@ -127,13 +127,14 @@ export default function PrivacyPage() {
 
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
-            Only in the app, only after you allow it, and only used for the six
-            notifications this product sends: one reminder about an event you
-            joined and have not added anything to, a new event in a group you
-            are in, the host&rsquo;s answer when you have asked for a photo of
-            you to be taken down, that somebody is asking to come into a private
-            event you made, that somebody wants to be friends, and that somebody
-            has asked you into an event.
+            Only in the app, only after you allow it, and only used for the
+            seven notifications this product sends: one reminder about an event
+            you joined and have not added anything to, a new event in a group
+            you are in, the host&rsquo;s answer when you have asked for a photo
+            of you to be taken down, that somebody is asking to come into a private
+            event you made, that somebody wants to be friends, that somebody
+            has asked you into an event, and that somebody has asked you into a
+            group.
           </p>
 
           <h3>Five facts about how the product is used</h3>
@@ -171,9 +172,10 @@ export default function PrivacyPage() {
             and groups you are in. That you made an event. That you asked to
             join a private event or a group, what was decided, and by whom. That
             you asked for a photo of you to be taken down, along with whatever
-            you wrote in the note. That somebody invited you into an event,
-            who it was, and whether you accepted &mdash; kept so that being
-            asked twice is not two questions, and so a decline stays declined. That you blocked somebody &mdash; kept so it
+            you wrote in the note. That somebody invited you into an event, or
+            into a group, who it was, and whether you accepted &mdash; kept so
+            that being asked twice is not two questions, and so a decline stays
+            declined. That you blocked somebody &mdash; kept so it
             keeps working, and never shown to them.
           </p>
           <p className="muted">

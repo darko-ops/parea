@@ -194,3 +194,26 @@ export async function notifyEventInvite(
     /* see the module header */
   }
 }
+
+/**
+ * An admin asked you into a group.
+ *
+ * The group twin of `notifyEventInvite`, and it names the person for the same
+ * reason: a group name arriving unprompted is a puzzle, and "Sam asked you"
+ * is an answer.
+ */
+export async function notifyGroupInvite(
+  db: Db,
+  input: { actorIds: string[]; groupId: string; groupName: string; who: string },
+): Promise<void> {
+  try {
+    await deliver(db, input.actorIds, {
+      kind: 'group_invited',
+      groupId: input.groupId,
+      groupName: input.groupName,
+      who: input.who,
+    });
+  } catch {
+    /* see the module header */
+  }
+}

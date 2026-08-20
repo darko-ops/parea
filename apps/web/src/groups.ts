@@ -17,6 +17,7 @@ import { and, asc, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
+import { invitable } from './friends';
 import { imageSrc } from './images';
 import { getStorage } from './storage';
 
@@ -691,4 +692,172 @@ export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[
   );
 
   return people.sort((a, b) => Number(b.role === 'admin') - Number(a.role === 'admin'));
+}
+
+/**
+ * Asking somebody into a group, rather than waiting to be asked.
+ *
+ * Shaped after the album invite in `app/api/events/[id]/invites`, because it
+ * is the same act about a different room, and the two answer to the same
+ * screen. Three properties carry over and each is load-bearing:
+ *
+ *   - **Only an admin may ask.** The group's equivalent of `administer`. This
+ *     is not a way for anybody in a group to pull people into it — which
+ *     matters more here than for an album, because otherwise the approval on
+ *     `group_join_request` is trivially bypassed by asking a friend inside to
+ *     invite you.
+ *   - **Being invited is an offer, not a fact.** It would be one line to write
+ *     the membership outright and it would mean one person's guest list
+ *     writing itself into another person's account. The row is `open` until
+ *     answered, and accepting is what makes somebody a member.
+ *   - **Blocks are the consent gate.** `invitable` refuses a guest device, a
+ *     merged actor, and either direction of a block. It is the same check the
+ *     album path makes and the only thing standing between somebody and being
+ *     added by a person they have cut off.
+ *
+ * The bypass question this raises is worth answering out loud: an invitation
+ * *does* skip the join request, and it has to, because the person who would
+ * approve that request is the person who sent this. One rule taken in two
+ * directions — an admin decides who is in the group.
+ */
+export async function inviteToGroup(
+  db: Db,
+  groupId: string,
+  invitedBy: string,
+  targets: string[],
+): Promise<string[]> {
+  const invited: string[] = [];
+
+  for (const target of targets) {
+    if (target === invitedBy) continue;
+    if (!(await invitable(db, invitedBy, target))) continue;
+    // Somebody already in it is not somebody to ask.
+    if (await membershipOf(db, groupId, target)) continue;
+
+    /*
+     * Asking again does not overwrite an answer. `onConflictDoNothing` rather
+     * than an upsert: re-inviting somebody who declined would turn "no" back
+     * into "waiting", which is an admin overruling a decision that was not
+     * theirs to make.
+     */
+    const [row] = await db
+      .insert(schema.groupInvites)
+      .values({ groupId, actorId: target, invitedByActorId: invitedBy })
+      .onConflictDoNothing()
+      .returning({ id: schema.groupInvites.id });
+    if (row) invited.push(target);
+  }
+
+  return invited;
+}
+
+/**
+ * Answering one. Returns false for an invitation that is not this person's to
+ * answer, or that has already been answered.
+ *
+ * Scoped by actor in the statement rather than checked first and written
+ * second: two statements is a window, and the window is "may I answer this"
+ * asked about a row something else could have changed. The same shape
+ * `editMessage` uses, for the same reason.
+ *
+ * Accepting writes the membership inside the same call, so there is no state
+ * where an invitation is accepted and the person is not in the group.
+ */
+export async function answerGroupInvite(
+  db: Db,
+  inviteId: string,
+  actorId: string,
+  accept: boolean,
+): Promise<boolean> {
+  const [row] = await db
+    .update(schema.groupInvites)
+    .set({
+      status: accept ? 'accepted' : 'declined',
+      respondedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.groupInvites.id, inviteId),
+        eq(schema.groupInvites.actorId, actorId),
+        eq(schema.groupInvites.status, 'open'),
+      ),
+    )
+    .returning({ groupId: schema.groupInvites.groupId });
+
+  if (!row) return false;
+  if (accept) await addMember(db, row.groupId, actorId);
+  return true;
+}
+
+/** An open invitation, as the screen that answers it needs it. */
+export type PendingGroupInvite = {
+  id: string;
+  groupId: string;
+  groupName: string;
+  /** Who asked. Deciding needs to know from whom. */
+  from: string;
+  createdAt: string;
+};
+
+/**
+ * Group invitations waiting on an answer from this person.
+ *
+ * Only `open` ones. A declined invitation stays in the table so the same admin
+ * cannot ask again by accident and so the record survives, but it is not a
+ * thing anybody is waiting on — the same rule `pendingInvites` follows for
+ * albums, and the reason the two read alike.
+ */
+export async function pendingGroupInvites(
+  db: Db,
+  actorId: string | null,
+): Promise<PendingGroupInvite[]> {
+  if (!actorId) return [];
+
+  const rows = await db
+    .select({
+      id: schema.groupInvites.id,
+      groupId: schema.groups.id,
+      groupName: schema.groups.name,
+      createdAt: schema.groupInvites.createdAt,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+    })
+    .from(schema.groupInvites)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupInvites.groupId))
+    .innerJoin(
+      schema.actors,
+      eq(schema.actors.id, schema.groupInvites.invitedByActorId),
+    )
+    .where(
+      and(
+        eq(schema.groupInvites.actorId, actorId),
+        eq(schema.groupInvites.status, 'open'),
+        // An invitation to a group that has since been deleted is not an
+        // invitation; it is a row pointing at nothing.
+        isNull(schema.groups.deletedAt),
+      ),
+    )
+    .orderBy(desc(schema.groupInvites.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    groupId: row.groupId,
+    groupName: row.groupName,
+    from: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+/** Who has already been asked and not answered, so the picker can say so. */
+export async function invitedTo(db: Db, groupId: string): Promise<string[]> {
+  const rows = await db
+    .select({ actorId: schema.groupInvites.actorId })
+    .from(schema.groupInvites)
+    .where(
+      and(
+        eq(schema.groupInvites.groupId, groupId),
+        eq(schema.groupInvites.status, 'open'),
+      ),
+    );
+  return rows.map((row) => row.actorId);
 }

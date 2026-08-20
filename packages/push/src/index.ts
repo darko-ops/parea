@@ -44,7 +44,16 @@ export type Notification =
   /** Somebody asked to be your friend. Nothing else tells you. */
   | { kind: 'friend_requested'; who: string }
   /** A friend put you in an event, rather than sending you a link. */
-  | { kind: 'event_invited'; eventId: string; eventName: string; who: string };
+  | { kind: 'event_invited'; eventId: string; eventName: string; who: string }
+  /**
+   * An admin asked you into a group.
+   *
+   * Its own kind rather than reusing `event_invited` with a group's name in
+   * it: tapping one should open an album and tapping the other a group, and a
+   * notification whose target depends on guessing which id it carries is one
+   * that eventually opens the wrong thing.
+   */
+  | { kind: 'group_invited'; groupId: string; groupName: string; who: string };
 
 /**
  * The set, enumerable at runtime.
@@ -63,6 +72,7 @@ const KINDS: Record<Notification['kind'], true> = {
   access_requested: true,
   friend_requested: true,
   event_invited: true,
+  group_invited: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -126,6 +136,14 @@ export function render(notification: Notification): { title: string; body: strin
         // "Asked you" rather than "added you", because that is now what
         // happened — an invitation waits for an answer, and telling somebody
         // they were added would be describing access they do not yet have.
+        body: `${notification.who} asked you into this.`,
+      };
+    case 'group_invited':
+      return {
+        title: notification.groupName,
+        // The same sentence as the album's, for the same reason — the person
+        // is the explanation for a name arriving out of nowhere. "Into this"
+        // rather than "into this group": the title says which it is.
         body: `${notification.who} asked you into this.`,
       };
   }

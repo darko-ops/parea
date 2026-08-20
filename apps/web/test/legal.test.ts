@@ -109,8 +109,8 @@ describe('the closed list of what is collected', () => {
      * Counted against the union rather than the word "three", so a fourth kind
      * fails here instead of quietly making the sentence wrong again.
      */
-    expect(NOTIFICATION_KINDS).toHaveLength(6);
-    expect(PRIVACY).toMatch(/six\s+notifications/);
+    expect(NOTIFICATION_KINDS).toHaveLength(7);
+    expect(PRIVACY).toMatch(/seven\s+notifications/);
 
     // One phrase per kind, each distinguishing it from the others. The fourth
     // arrived after this test did, and the test is what made the page follow.
@@ -120,6 +120,7 @@ describe('the closed list of what is collected', () => {
     expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come into a private/);
     expect(PROSE, 'friend_requested').toMatch(/somebody wants to be friends/);
     expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an event/);
+    expect(PROSE, 'group_invited').toMatch(/somebody has asked you into a group/);
   });
 
   it('discloses everything an account row holds about a person', () => {
@@ -214,6 +215,7 @@ describe('the closed list of what is collected', () => {
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
       event_invite: /somebody invited you into an event/,
+      group_invite: /invited you into an event, or\s+into a group/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
       hidden_activity: /identifier of that line and nothing/,

@@ -2497,6 +2497,31 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   font-size: 11.5px; color: var(--dim); max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* The last slot, and only for an admin. A dashed circle, which is what "there
+   could be somebody here" already looks like everywhere else. */
+.strip-add { background: none; border: 0; padding: 0; cursor: pointer; }
+.strip-invite {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--line-dashed); color: var(--dim-warm); font-size: 17px;
+}
+.strip-add:hover .strip-invite { border-color: var(--accent); color: var(--accent-ink); }
+.strip-add:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.strip-add .strip-name { color: var(--dim-warm); }
+
+/* The panel the ＋ opens. Under the strip it belongs to rather than over it:
+   picking people is a list, and a popover holding a list is a list you cannot
+   see the top of. */
+.group-invite {
+  margin-top: 16px; padding: 16px;
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.group-invite-go { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* What being invited does, said where the decision is made. */
+.group-invite-note { flex: 1; min-width: 220px; font-size: 12.5px; color: var(--dim-warm); }
+.group-invite-go button { flex: none; padding: 10px 16px; border-radius: 10px; font-size: 14px; }
+.group-invite-said { margin: 0; font-size: 13px; color: var(--dim); }
 
 .group-month { margin-top: 26px; }
 .group-month .day-head { margin-bottom: 12px; }

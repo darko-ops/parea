@@ -216,6 +216,56 @@ export const groupMembers = pgTable(
  * event they were already in do not go through this — they had access to the
  * photos already, and joining the group is just saying "keep me in the loop".
  */
+/**
+ * An admin asking somebody into a group, rather than waiting to be asked.
+ *
+ * The mirror of `group_join_request`, and the pair answers the question this
+ * table exists to raise: does an invitation bypass the approval? It does, and
+ * it has to — the person who would be approving is the person who sent it.
+ * A join request is a stranger asking an admin; an invitation is that admin
+ * asking first. One rule, taken in two directions: an admin decides who is in
+ * the group.
+ *
+ * Being invited is an offer and never a fact, exactly as `event_invite` is.
+ * Writing the membership outright would let one person's guest list write
+ * itself into another person's account — so this is `open` until answered, and
+ * accepting is what makes somebody a member.
+ *
+ * Shaped after `event_invite` deliberately, down to the index names: they are
+ * the same act about a different room, and the surface that answers them —
+ * "waiting on you" — reads both.
+ */
+export const groupInvites = pgTable(
+  'group_invite',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /** Who did the asking. Shown to the person deciding. */
+    invitedByActorId: uuid('invited_by_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'accepted', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+  },
+  (t) => [
+    // One row per group and person. Asking again does not overwrite an answer:
+    // re-inviting somebody who declined would turn "no" back into "waiting",
+    // which is an admin overruling a decision that was not theirs to make.
+    uniqueIndex('group_invite_pair_idx').on(t.groupId, t.actorId),
+    // "What am I being asked?" — the only read this table has from the side of
+    // the person deciding.
+    index('group_invite_inbox_idx').on(t.actorId, t.status),
+  ],
+);
+
 export const groupJoinRequests = pgTable(
   'group_join_request',
   {

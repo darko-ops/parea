@@ -3,7 +3,7 @@
  *
  * The push payload has always carried a target. `@parea/push` says so in a
  * comment — *the payload is a deep link target, not a data channel* — and
- * nothing has ever read it, so all three notifications arrived and did
+ * nothing has ever read it, so every notification arrived and did
  * nothing but bring the app forward on whatever screen it was already on. §12
  * allows exactly one reminder per event; spending it on something that does
  * not take the person anywhere is the whole feature wasted.
@@ -67,6 +67,19 @@ export function notificationTarget(
       // web one is not somewhere a tap should leave the app for. Opening to
       // the tab bar is the honest outcome until there is a screen.
       return null;
+    case 'group_invited':
+      /*
+       * An admin asked them into a group they have never seen.
+       *
+       * The group screen, which for somebody not yet in it is the door: the
+       * name, the size, and a way in. That is the right landing — the whole
+       * of what was offered is "this room exists and you may come in", and
+       * the door says exactly that.
+       *
+       * Not the tab bar. Unlike `friend_requested`, there *is* a screen for
+       * this one, and it is reachable with only the id the payload carries.
+       */
+      return groupId ? { screen: 'group', groupId } : null;
     case 'access_requested':
       /*
        * The host, told somebody is at the door.

@@ -39,6 +39,9 @@ const ANSWERS: Record<
 > = {
   invite: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
   friend: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
+  // Same words as an album's. Being asked into a group is the same shape of
+  // question, and giving it its own verb would imply a different answer.
+  group_invite: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
   // Not "Accept": this one is a door being opened onto photographs of an
   // evening, and the word for that is not the word for agreeing to something.
   join: { yes: 'approve', no: 'decline', yesLabel: 'Let in', noLabel: 'Not now' },
@@ -55,6 +58,8 @@ function endpoint(request: PendingRequest): { url: string; body: Record<string, 
         url: `/api/events/${request.eventId}/access-requests`,
         body: { requestId: request.id },
       };
+    case 'group_invite':
+      return { url: `/api/group-invites/${request.id}`, body: {} };
   }
 }
 
@@ -98,6 +103,12 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
         // the place to rebuild it is the album that just opened.
         if (yes && request.kind === 'invite') {
           window.location.href = `/event/${request.eventId}`;
+        }
+        // The same reasoning for a group: accepting is the only answer that
+        // changes what is reachable, and the place to rebuild the page is the
+        // room that just opened.
+        if (yes && request.kind === 'group_invite' && request.groupId) {
+          window.location.href = `/group/${request.groupId}`;
         }
       } catch (err) {
         setOpen(before);

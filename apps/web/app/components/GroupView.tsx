@@ -31,6 +31,7 @@ import { useCallback, useState } from 'react';
 import type { GroupAlbum, GroupPerson } from '@/groups';
 
 import { Face } from './Faces';
+import { MemberPicker, nameOf, type Person } from './MemberPicker';
 import { Menu } from './Menu';
 import { SiteFooter } from './SiteFooter';
 import { useImageFailure } from './useImageFailure';
@@ -60,6 +61,42 @@ export function GroupView({ group }: { group: GroupData }) {
   const [requested, setRequested] = useState(false);
   /** The create form, which is a panel under the header rather than the page. */
   const [creating, setCreating] = useState(false);
+  /** The invite panel, and who is picked in it. Admins only — see the route. */
+  const [inviting, setInviting] = useState(false);
+  const [picked, setPicked] = useState<Person[]>([]);
+  const [asked, setAsked] = useState<number | null>(null);
+
+  /**
+   * Sending the guest list.
+   *
+   * One call for the whole selection rather than one per person, matching the
+   * album path — and the answer is a count rather than a per-person result,
+   * because a per-person answer would report whether each one has blocked you.
+   *
+   * The panel stays open and says how many went. It does not optimistically
+   * add anybody to the strip above: nobody is in the group yet, and drawing
+   * them there would be the screen asserting a membership the server has
+   * deliberately not written.
+   */
+  const invite = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/invites`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorIds: picked.map((person) => person.actorId) }),
+      });
+      if (!res.ok) throw new Error('Could not ask them.');
+      const { invited } = (await res.json()) as { invited: number };
+      setAsked(invited);
+      setPicked([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [group.id, picked]);
 
   const join = useCallback(async () => {
     setBusy(true);
@@ -268,17 +305,61 @@ export function GroupView({ group }: { group: GroupData }) {
             </span>
           ))}
           {/*
-            No Invite slot, and the reason is the product rather than the
-            screen. There is no way to invite somebody to a group: membership
-            is opt-in and has exactly two doors — you join from an album you
-            were already in, or you find the group and ask. A dashed circle
-            with a ＋ on it would be an affordance for a flow that does not
-            exist, and inventing one here would quietly answer a question the
-            design has not asked: whether an invitation bypasses the approval
-            `group_join_request` exists to require.
+            Only for an admin, because only an admin may ask.
+
+            That is the same power `group_join_request` gives them, pointed the
+            other way: a stranger asking to come in, or the person who would
+            answer that asking first. If any member could invite, the approval
+            could be routed around by asking a friend on the inside — so the
+            slot is simply absent for everybody else rather than present and
+            refused.
           */}
+          {group.role === 'admin' && (
+            <button
+              type="button"
+              className="strip-person strip-add"
+              aria-expanded={inviting}
+              onClick={() => setInviting((was) => !was)}
+            >
+              <span className="strip-invite" aria-hidden="true">
+                {'＋'}
+              </span>
+              <span className="strip-name">Invite</span>
+            </button>
+          )}
         </div>
       </section>
+
+      {inviting && group.role === 'admin' && (
+        <div className="group-invite">
+          <MemberPicker picked={picked} onChange={setPicked} />
+          <div className="group-invite-go">
+            <span className="group-invite-note">
+              {/*
+                What being invited actually does, said where the decision is
+                made. An admin pressing this is skipping the approval step —
+                because they are the person who would have done the approving —
+                and that is worth stating rather than leaving them to infer.
+              */}
+              They are asked, not added. Accepting is what puts somebody in.
+            </span>
+            <button type="button" onClick={invite} disabled={busy || picked.length === 0}>
+              {busy
+                ? 'Asking…'
+                : picked.length === 0
+                  ? 'Ask them'
+                  : `Ask ${picked.length === 1 ? nameOf(picked[0]!) : `${picked.length} people`}`}
+            </button>
+          </div>
+          {asked !== null && (
+            <p className="group-invite-said">
+              {asked === 0
+                ? 'Nobody new to ask — they are already in, or already asked.'
+                : `Asked ${asked} ${asked === 1 ? 'person' : 'people'}. They decide.`}
+            </p>
+          )}
+        </div>
+      )}
 
       {group.albums.length === 0 ? (
         /* With no archive, making one *is* the page — so the action comes to

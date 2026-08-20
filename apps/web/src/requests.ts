@@ -7,9 +7,10 @@
  * These are the other kind: somebody is on the other end waiting, and nothing
  * resolves until you say yes or no.
  *
- * Three sources, because there are three ways somebody can be waiting on you:
+ * Four sources, because there are four ways somebody can be waiting on you:
  *
  *   - an invitation to an album, which is `event_invite`
+ *   - an invitation to a group, which is `group_invite`
  *   - a friend request
  *   - somebody asking into an album *you* run, which is `event_access_request`
  *
@@ -19,10 +20,12 @@
  * about is a request that gets answered late or not at all, which reads to the
  * person waiting as a refusal — a silent one they cannot even ask about.
  *
- * Group join requests are deliberately not here. They are answered on the group
- * page, and a group is a place you are already in rather than something you are
- * being let into; folding them in would make this a list of two different
- * questions wearing the same buttons.
+ * Group join requests are deliberately not here, and a group *invitation* is —
+ * which looks inconsistent and is not. A join request is answered on the group
+ * page, by somebody already in the room, about a person asking to enter it. An
+ * invitation is the opposite: it is addressed to somebody who has never seen
+ * the group, so a screen they would have to already know about is exactly the
+ * wrong place to put it.
  */
 
 import { schema } from '@parea/core';
@@ -31,10 +34,11 @@ import { and, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
 import { requestsFor } from './friends';
+import { pendingGroupInvites } from './groups';
 import { imageSrc } from './images';
 import { pendingInvites } from './invites';
 
-export type PendingRequestKind = 'invite' | 'friend' | 'join';
+export type PendingRequestKind = 'invite' | 'friend' | 'join' | 'group_invite';
 
 export type PendingRequest = {
   /** Unique across kinds: two tables can hand out the same uuid. */
@@ -44,6 +48,8 @@ export type PendingRequest = {
   id: string;
   /** Which album, for the kinds that have one. Part of the join endpoint's URL. */
   eventId: string | null;
+  /** Which group, for the kind that has one. Null for the other three. */
+  groupId?: string | null;
   /** The headline — an album name, or a person's name. */
   title: string;
   /** The line underneath: who is asking, and about what. */
@@ -158,11 +164,15 @@ export async function otherRequestsWaiting(
   actorId: string | null,
 ): Promise<number> {
   if (!actorId) return 0;
-  const [friends, joins] = await Promise.all([
+  const [friends, joins, groupInvites] = await Promise.all([
     requestsFor(db, actorId),
     joinRequestsFor(db, actorId),
+    // Counted here too, or the badge reads zero while the page it points at
+    // holds an unanswered invitation — which is the badge quietly training
+    // somebody not to trust it, the exact failure this function exists for.
+    pendingGroupInvites(db, actorId),
   ]);
-  return friends.length + joins.length;
+  return friends.length + joins.length + groupInvites.length;
 }
 
 /**
@@ -179,13 +189,22 @@ export async function pendingRequestsFor(
 ): Promise<PendingRequest[]> {
   if (!actorId) return [];
 
-  const [invites, friends, joins] = await Promise.all([
+  const [invites, friends, joins, groupInvites] = await Promise.all([
     pendingInvites(db, actorId),
     // The same query the Friends page runs, rather than a second one shaped
     // slightly differently: two surfaces showing one queue have to agree about
     // what is in it, and the cheapest way to guarantee that is one query.
     requestsFor(db, actorId),
     joinRequestsFor(db, actorId),
+    /*
+     * The fourth way somebody can be waiting on you, and the newest.
+     *
+     * An admin asked you into a group. It belongs here rather than on the
+     * group's own screen for the reason the other three do: "is there anything
+     * for me to do" should be answerable in one place, and a screen you have
+     * to already know about is not that place — you have never seen this group.
+     */
+    pendingGroupInvites(db, actorId),
   ]);
 
   const all: PendingRequest[] = [
@@ -212,6 +231,20 @@ export async function pendingRequestsFor(
       title: nameOf(friend.displayName, friend.handle),
       detail: 'would like to be friends',
       at: friend.askedAt,
+      image: null as string | null,
+    })),
+    ...groupInvites.map((invite) => ({
+      key: `group-invite:${invite.id}`,
+      kind: 'group_invite' as const,
+      id: invite.id,
+      eventId: null,
+      groupId: invite.groupId,
+      title: invite.groupName,
+      // The group is the headline and this is who asked — the same two lines
+      // an album invitation uses, because it is the same question about a
+      // different room.
+      detail: `${invite.from} asked you into this group`,
+      at: invite.createdAt,
       image: null as string | null,
     })),
     ...joins,
