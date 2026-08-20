@@ -11,7 +11,7 @@ import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { membersOf, rosterFor } from '@/members';
 import type { EventTab } from '@/../app/components/EventView';
-import { hasDerivatives, imageSrc } from '@/images';
+import { hasDerivatives, imageSources, imageSrc, imageSrcSet } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
@@ -86,6 +86,25 @@ export default async function EventPage({
       mine: viewerId != null && photo.uploaderId === viewerId,
       by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      /*
+       * Two sizes, so the browser can pick one that matches the slot.
+       *
+       * `src` stays the 320 for anything that ignores `srcset`, and for a
+       * photograph still mid-ingest, which has no derivatives to choose
+       * between.
+       */
+      srcSet: await imageSrcSet(photo, event.capEpoch),
+      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif'),
+      /*
+       * Present here as well as in the route that replaces this frame.
+       *
+       * It was missing, so the first paint of every album offered no AVIF at
+       * all and only gained it if something happened to re-poll the feed —
+       * which only happens while an upload is running. A field in one frame
+       * and not the other is exactly what the notes on `accessPolicy` and
+       * `added` warn about, and this one cost bytes on every photograph.
+       */
+      sources: await imageSources(photo, 'thumb', event.capEpoch),
       full: await imageSrc(photo, hasDerivatives(photo) ? 'full' : 'orig', event.capEpoch),
     })),
   );

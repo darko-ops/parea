@@ -24,6 +24,7 @@ export function Menu({
   tone,
   badge = 0,
   align = 'right',
+  className,
   children,
 }: {
   /** What a screen reader announces. The glyph itself says nothing. */
@@ -37,6 +38,8 @@ export function Menu({
   badge?: number;
   /** Which edge the panel hangs from. `left` for a control near the page edge. */
   align?: 'left' | 'right';
+  /** On the wrapper, so a caller can drop the whole control at a breakpoint. */
+  className?: string;
   /** Rendered inside the panel, and given `close` so an item can dismiss it. */
   children: (close: () => void) => React.ReactNode;
 }) {
@@ -67,7 +70,7 @@ export function Menu({
   }, [open, close]);
 
   return (
-    <div className="dots" ref={ref}>
+    <div className={`dots${className ? ` ${className}` : ''}`} ref={ref}>
       <button
         className={`dots-go${tone === 'primary' ? ' dots-primary' : ''}${
           tone === 'quiet' ? ' dots-quiet' : ''

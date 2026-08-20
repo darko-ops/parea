@@ -21,7 +21,7 @@ import { getDb } from '@/db';
 import { membersOf, rosterFor } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
-import { hasDerivatives, imageSources, imageSrc } from '@/images';
+import { hasDerivatives, imageSources, imageSrc, imageSrcSet } from '@/images';
 import { viewerContext } from '@/moderation';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
@@ -77,6 +77,15 @@ export async function GET(
       // A 320px thumbnail rather than a multi-megabyte original: a 200-photo
       // grid of originals is ~800MB of pointless transfer.
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      /*
+       * Two sizes, so the browser can pick one that matches the slot.
+       *
+       * `src` stays the 320 for anything that ignores `srcset`, and for a
+       * photograph still mid-ingest, which has no derivatives to choose
+       * between.
+       */
+      srcSet: await imageSrcSet(photo, event.capEpoch),
+      srcSetAvif: await imageSrcSet(photo, event.capEpoch, 'avif'),
       // The same thumbnail in every encoding that exists, best first, so the
       // browser can take the AVIF if it can decode one (§11). Empty before
       // ingest, in which case `src` is the original and there is no choice.

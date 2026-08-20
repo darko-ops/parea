@@ -52,6 +52,9 @@ type Photo = {
   src: string;
   /** The same thumbnail in every encoding that exists, best first (§11). */
   sources?: { type: string; src: string }[];
+  /** 320 and 1280 as one `srcset`, so a tile is not drawn from a 320. */
+  srcSet?: string | null;
+  srcSetAvif?: string | null;
   /** Larger rendition, for the photo page and the download chip. */
   full: string;
   takenAt: string;
@@ -463,12 +466,22 @@ export function EventView({
               </label>
             )}
 
-            <button type="button" className="event-invite" onClick={() => setSharing(true)}>
+            {/*
+              Words on a wide screen, and folded into the `···` on a phone —
+              see the pair of `wide-only` / `narrow-only` classes. Four controls
+              beside a title on a 390px screen leaves the title nowhere to go,
+              and the one that has to stay visible is the one this page is for.
+            */}
+            <button
+              type="button"
+              className="event-invite wide-only"
+              onClick={() => setSharing(true)}
+            >
               Invite
             </button>
 
             {feed.photos.length > 0 && (
-              <Menu label="Download" glyph={'\u2193'} tone="quiet">
+              <Menu label="Download" glyph={'\u2193'} tone="quiet" className="wide-only">
                 {(close) => (
                   <>
                     <button
@@ -520,6 +533,55 @@ export function EventView({
             >
               {(close) => (
                 <>
+                  {/*
+                    The two controls the header stops showing on a phone. Both
+                    are `display: none` above the breakpoint, which takes them
+                    out of the accessibility tree as well — so a wide screen has
+                    them as buttons and a narrow one has them here, and neither
+                    has both.
+                  */}
+                  <button
+                    className="narrow-only"
+                    onClick={() => {
+                      close();
+                      setSharing(true);
+                    }}
+                  >
+                    Invite
+                  </button>
+                  {feed.photos.length > 0 && (
+                    <>
+                      <button
+                        className="narrow-only"
+                        disabled={downloading}
+                        onClick={() => {
+                          close();
+                          void download('original');
+                        }}
+                      >
+                        {downloading ? 'Preparing…' : 'Download all'}
+                      </button>
+                      <button
+                        className="narrow-only"
+                        disabled={downloading}
+                        onClick={() => {
+                          close();
+                          void download('jpeg');
+                        }}
+                      >
+                        Download all as JPEG
+                      </button>
+                      <button
+                        className="narrow-only"
+                        onClick={() => {
+                          close();
+                          setPicked(new Set());
+                        }}
+                      >
+                        Select images
+                      </button>
+                    </>
+                  )}
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
                       Manage album

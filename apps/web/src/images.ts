@@ -95,6 +95,45 @@ export async function imageSources(
   );
 }
 
+/**
+ * One `srcset` across two sizes, so the browser can pick by how big the slot
+ * actually is.
+ *
+ * The gallery was handed a single 320px thumbnail and drew it into a column
+ * roughly 240 CSS pixels wide — which on a 2× screen is 480 device pixels, so
+ * every photograph in an album was upscaled half again and looked it. On a 3×
+ * phone it was worse. The tile is the product's subject at the size most
+ * people see it, and it was the softest image on the page.
+ *
+ * Two entries rather than one because the right answer depends on the screen:
+ * a 1× laptop genuinely wants the 320, and asking it to fetch 1280 to draw 240
+ * is four times the bytes for nothing. `sizes` at the call site is what tells
+ * the browser which case it is in.
+ *
+ * The gap between them is the real cost and worth naming: the sizes are 320
+ * and 1280 with nothing between, so a 2× screen fetches 1280 to fill 480. A
+ * `card` derivative around 640 is the proper fix and it is not a small one —
+ * every photograph already ingested would need re-deriving before it could be
+ * relied on. Until then the choice is soft or heavy, and heavy is the one that
+ * can be undone later.
+ */
+export async function imageSrcSet(
+  photo: PhotoRef,
+  capEpoch: number,
+  format: ImageFormat = 'jpeg',
+): Promise<string | null> {
+  if (!hasDerivatives(photo)) return null;
+  if (!formatsFor('thumb').includes(format)) return null;
+
+  const [thumb, grid] = await Promise.all([
+    imageSrc(photo, 'thumb', capEpoch, format),
+    imageSrc(photo, 'grid', capEpoch, format),
+  ]);
+  // The widths are the derivative's own longest edge, which is what `srcset`
+  // means by `w` — not the width of any slot on any page.
+  return `${thumb} 320w, ${grid} 1280w`;
+}
+
 /** True when derivatives exist, so callers know a thumbnail is available. */
 export function hasDerivatives(photo: PhotoRef): boolean {
   return photo.contentHash !== null;

@@ -386,6 +386,13 @@ button.secondary {
 /* The button that is not there on a wide screen. */
 .rail-burger { display: none; }
 
+/* A pair, and they are always opposites: a control is a button in the header
+   on a wide screen or an item in a menu on a narrow one, never both. `display:
+   none` rather than visual hiding, so the one that is not showing is out of
+   the accessibility tree too — two Invites, one of them invisible, is two
+   Invites to a screen reader. */
+.narrow-only { display: none; }
+
 /* Below tablet the rail is a wordmark and a hamburger.
 
    It used to be the same rows laid out sideways, which worked at four and
@@ -2699,6 +2706,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   }
   /* The one thing the page is for takes the room the others do not need. */
   .event-actions .event-add { flex: 1; text-align: center; }
+  /* Invite and the download menu fold into the `···`, which is where the
+     album's other settings already are. */
+  .wide-only { display: none; }
+  .dots-body .narrow-only { display: block; }
   .event-actions .button-like, .event-invite { padding: 10px 14px; font-size: 14px; }
   .event-tabs { margin-top: 14px; gap: 20px; }
 }

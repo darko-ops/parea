@@ -5,6 +5,20 @@ import { ago } from '@parea/cards';
 import { useImageFailure } from './useImageFailure';
 
 /**
+ * How wide a tile actually is, so `srcset` can be answered rather than guessed.
+ *
+ * These track the column counts in `.masonry` and nothing else — four columns
+ * above 1200, then three, two and one. Approximate on purpose: a browser uses
+ * this to choose between two candidates, not to lay anything out, and the
+ * layout is the stylesheet's job. `vw` rather than exact pixels because the
+ * rail takes a fixed 212 off the left on a wide screen and the arithmetic for
+ * that would be a second copy of the layout, kept in step by hand.
+ */
+const TILE_SIZES =
+  '(max-width: 600px) 100vw, (max-width: 900px) 45vw, (max-width: 1200px) 30vw, 22vw';
+
+
+/**
  * One photograph in the gallery, at its own shape, with its chrome on top.
  *
  * It holds its place rather than breaking. The opposite call to `CoverImage`,
@@ -53,6 +67,9 @@ export function PhotoTile({
     id: string;
     src: string;
     sources?: { type: string; src: string }[];
+    /** 320 and 1280, so the browser can pick by slot. Null before ingest. */
+    srcSet?: string | null;
+    srcSetAvif?: string | null;
     full: string;
     takenAt: string;
   };
@@ -110,13 +127,33 @@ export function PhotoTile({
             renders nothing at all.
           */
           <picture>
-            {(photo.sources ?? [])
-              .filter((source) => source.type !== 'image/jpeg')
-              .map((source) => (
-                <source key={source.type} srcSet={source.src} type={source.type} />
-              ))}
+            {/*
+              AVIF first with both sizes on it, then the JPEG below carrying
+              the same two. A browser that can decode AVIF never reads the
+              `<img>`; one that cannot never sees this line.
+
+              `sources` is still the fallback for a photograph part-way through
+              ingest, which has one encoding and no size to choose between.
+            */}
+            {photo.srcSetAvif ? (
+              <source srcSet={photo.srcSetAvif} sizes={TILE_SIZES} type="image/avif" />
+            ) : (
+              (photo.sources ?? [])
+                .filter((source) => source.type !== 'image/jpeg')
+                .map((source) => (
+                  <source key={source.type} srcSet={source.src} type={source.type} />
+                ))
+            )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={ref} src={photo.src} alt="" loading="lazy" onError={onError} />
+            <img
+              ref={ref}
+              src={photo.src}
+              srcSet={photo.srcSet ?? undefined}
+              sizes={photo.srcSet ? TILE_SIZES : undefined}
+              alt=""
+              loading="lazy"
+              onError={onError}
+            />
           </picture>
         )}
       </a>
