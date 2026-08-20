@@ -13,9 +13,12 @@
  */
 
 import { schema } from '@parea/core';
-import { and, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
 
+import { avatarUrl } from './accounts';
 import type { Db } from './db';
+import { imageSrc } from './images';
+import { getStorage } from './storage';
 
 export type GroupRow = typeof schema.groups.$inferSelect;
 
@@ -197,6 +200,31 @@ export async function searchGroups(db: Db, query: string, limit = 20) {
 export const SUGGESTED_GROUP_LIMIT = 4;
 export const MUTUALS_NAMED = 2;
 
+/**
+ * The lens a group's tile is drawn in.
+ *
+ * By a stable hash of the id, so a group keeps its colour between visits — a
+ * list whose colours reshuffle on every load is decoration rather than a way
+ * of telling two rooms apart. Here rather than in a page because three screens
+ * draw the same tile now, and the whole point is that the room you clicked is
+ * recognisably the one you arrive in.
+ *
+ * The tile is always a letter and never a photograph, on every one of them.
+ */
+const LENSES = [
+  { fill: '#ffb3b8', ink: '#7a4f52' },
+  { fill: '#9db2f0', ink: '#33477f' },
+  { fill: '#a5dcc6', ink: '#3f6b57' },
+  { fill: '#f3b584', ink: '#7d5230' },
+  { fill: '#c79ad9', ink: '#5f3f70' },
+] as const;
+
+export function lensFor(id: string): { fill: string; ink: string } {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return LENSES[hash % LENSES.length]!;
+}
+
 /** A findable group somebody could ask to be let into, and why they might. */
 export type SuggestedGroup = {
   id: string;
@@ -335,6 +363,64 @@ export type MyGroup = {
   lastActiveAt: string | null;
 };
 
+/**
+ * The same list, plus what the group screen's rows draw.
+ *
+ * Kept as a second function rather than a flag on `myGroups`, because the
+ * extra work is not a column or two: it is three albums with a signed cover
+ * each and three presigned faces, per group. The native client and the
+ * endpoint's default still ask the cheap question.
+ *
+ * ## The covers are allowed here, and the tile is still a letter
+ *
+ * `.group-tile` says a group's tile must never carry a photograph, because
+ * borrowing one from inside would put a picture from a room on a screen that
+ * is only the door to it. That reasoning is about *the door* — the search
+ * page's card, where the viewer may not be a member — and it stands there
+ * untouched. This list is `myGroups`: the viewer is in every group on it, the
+ * page is `force-dynamic`, and a removed member's next load has no row and so
+ * no covers. The tile itself is unchanged in both places.
+ */
+export type MyGroupDetailed = MyGroup & {
+  /** Up to three, newest first. Fewer when the group has fewer. */
+  albums: GroupAlbum[];
+  /** Up to three member pictures, admins first. Null draws a letter. */
+  faces: { name: string; avatarUrl: string | null }[];
+  /** Everybody the three faces do not show. Zero draws no chip. */
+  moreFaces: number;
+};
+
+/** How many albums a group's row previews before "View all N" takes over. */
+export const GROUP_STRIP = 3;
+/** How many faces the stack beside a group's name shows. */
+export const GROUP_FACES = 3;
+
+export async function myGroupsDetailed(
+  db: Db,
+  actorId: string | null,
+  since: Date,
+): Promise<MyGroupDetailed[]> {
+  const groups = await myGroups(db, actorId);
+
+  return Promise.all(
+    groups.map(async (group) => {
+      const [albums, people] = await Promise.all([
+        groupArchive(db, group.id, actorId, since, GROUP_STRIP),
+        groupPeople(db, group.id),
+      ]);
+      return {
+        ...group,
+        albums,
+        faces: people.slice(0, GROUP_FACES).map((person) => ({
+          name: person.name,
+          avatarUrl: person.avatarUrl,
+        })),
+        moreFaces: Math.max(0, people.length - GROUP_FACES),
+      };
+    }),
+  );
+}
+
 export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[]> {
   if (!actorId) return [];
 
@@ -381,4 +467,228 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
      * the one with least to show.
      */
     .sort((a, b) => (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''));
+}
+
+/**
+ * The newest ready photograph in an album, as the album's picture.
+ *
+ * The cover if the host set one, else this. Same rule `leadImage` follows, so
+ * "the picture the album leads with" means one thing everywhere — a group's
+ * strip and the album's own card should not disagree about which photograph
+ * stands for it.
+ */
+const ALBUM_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
+  select json_build_object(
+    'storageKey', p.storage_key,
+    'hash', encode(p.content_hash, 'hex')
+  )
+  from "photo" p
+  where p.event_id = "event".id
+    and p.status = 'ready' and p.deleted_at is null
+  order by p.uploaded_at desc
+  limit 1
+)`;
+
+/**
+ * How many photographs have arrived in an album since this person last looked.
+ *
+ * A deliberate substitution, and worth stating plainly: the design asks for
+ * "added to since you last opened it", and there is no such timestamp. Nothing
+ * in the schema records when somebody opened an album — `event_participant`
+ * holds `first_seen_at` and nothing else — and adding one means writing a read
+ * receipt on every album view, which is a record of when a person looked at
+ * something that this product has no other reason to keep. `activity.ts`
+ * already turns that trade down for the thread, for the same reason.
+ *
+ * So the boundary is the one the product already keeps: `invites_seen_at`,
+ * which is what Activity means by "since you last looked". It clears when you
+ * check Activity rather than when you open the album — a coarser promise than
+ * the design's, made out of a fact that already exists rather than a new one
+ * kept about somebody.
+ *
+ * Never your own photographs: something you added is not news to you.
+ */
+const FRESH = (actorId: string, since: Date) => sql<number>`(
+  select count(*)::int from "photo" p
+  where p.event_id = "event".id
+    and p.status = 'ready' and p.deleted_at is null
+    and p.uploader_id is distinct from ${actorId}
+    -- Bound as text and cast, not as a Date. The driver hands a Date straight
+    -- to its binary encoder here and it arrives at a path expecting a string,
+    -- which fails at bind time rather than in SQL — an error that reads like a
+    -- broken query and is not one.
+    and p.uploaded_at > ${since.toISOString()}::timestamptz
+)`;
+
+/** An album as a group screen draws it. */
+export type GroupAlbum = {
+  id: string;
+  name: string;
+  /** Presigned, or null for an album with nothing in it yet. */
+  cover: string | null;
+  photoCount: number;
+  /** Contributor pictures, at most three, plus how many people in total. */
+  faces: (string | null)[];
+  people: number;
+  /** ISO date the album is filed under. `eventDate`, else its first activity. */
+  at: string;
+  /** Arrived since this person last looked. Zero draws no pip. */
+  fresh: number;
+};
+
+/**
+ * The albums in a group, newest first.
+ *
+ * Replaces the four bare links `groupEvents` fed the group screen: a product
+ * whose subject is photographs was drawing its archive as a list of blue words
+ * and a raw ISO date. Everything here is what makes a row recognisable — the
+ * picture, who is in it, how much of it there is, and when.
+ *
+ * Members only, exactly as `groupEvents` was: this is the room, not the door.
+ * Still events and never photos, so a per-album rule stays expressible.
+ */
+export async function groupArchive(
+  db: Db,
+  groupId: string,
+  actorId: string | null,
+  since: Date,
+  limit?: number,
+): Promise<GroupAlbum[]> {
+  const rows = await db
+    .select({
+      id: schema.events.id,
+      name: schema.events.name,
+      capEpoch: schema.events.capEpoch,
+      coverKey: schema.events.coverKey,
+      eventDate: schema.events.eventDate,
+      lastActiveAt: schema.events.lastActiveAt,
+      createdAt: schema.events.createdAt,
+      shot: ALBUM_SHOT,
+      photoCount: sql<number>`(
+        select count(*)::int from "photo" p
+        where p.event_id = "event".id
+          and p.status = 'ready' and p.deleted_at is null
+      )`,
+      people: sql<number>`(
+        select count(*)::int from "event_participant" ep
+        where ep.event_id = "event".id
+      )`,
+      /*
+       * Three contributor avatars, as keys, in arrival order.
+       *
+       * `array_agg` over a lateral rather than a join, for the reason every
+       * other count on this row is a subselect: joining participants would
+       * multiply the photo count by the number of people.
+       */
+      faceKeys: sql<(string | null)[]>`coalesce((
+        select array_agg(a.avatar_key)
+        from (
+          select ep2.actor_id
+          from "event_participant" ep2
+          where ep2.event_id = "event".id
+          order by ep2.first_seen_at asc
+          limit 3
+        ) picked
+        join "actor" a on a.id = picked.actor_id
+      ), '{}')`,
+      fresh: actorId ? FRESH(actorId, since) : sql<number>`0`,
+    })
+    .from(schema.events)
+    .where(and(eq(schema.events.groupId, groupId), isNull(schema.events.deletedAt)))
+    .orderBy(desc(schema.events.lastActiveAt))
+    .limit(limit ?? 200);
+
+  return Promise.all(
+    rows.map(async (row) => ({
+      id: row.id,
+      name: row.name,
+      cover: await albumCover(row),
+      photoCount: row.photoCount,
+      faces: await Promise.all((row.faceKeys ?? []).map((key) => avatarUrl(key))),
+      people: row.people,
+      // The album's own date when the host gave it one, else when it was last
+      // added to — never `created_at`, which is when somebody made the page.
+      at: (row.eventDate
+        ? new Date(`${row.eventDate}T00:00:00Z`)
+        : row.lastActiveAt
+      ).toISOString(),
+      fresh: row.fresh,
+    })),
+  );
+}
+
+/** The cover the host chose, else the newest photograph, else nothing. */
+async function albumCover(row: {
+  id: string;
+  capEpoch: number;
+  coverKey: string | null;
+  shot: { storageKey: string; hash: string | null } | null;
+}): Promise<string | null> {
+  if (row.coverKey) return getStorage().presignGet(row.coverKey, 3600);
+  if (!row.shot) return null;
+  // `grid` rather than `thumb`. These are drawn at 180px and at a third of an
+  // 820px column, which on a 2× screen is 360 and 520 device pixels — a 320px
+  // thumbnail is soft at both, which is the mistake the album cards already
+  // made once.
+  return imageSrc(
+    {
+      eventId: row.id,
+      storageKey: row.shot.storageKey,
+      contentHash: row.shot.hash ? Buffer.from(row.shot.hash, 'hex') : null,
+    },
+    'grid',
+    row.capEpoch,
+  );
+}
+
+/** Somebody in a group, for the faces on both screens. */
+export type GroupPerson = {
+  actorId: string;
+  name: string;
+  /** The first name only, for the label under a face. */
+  firstName: string;
+  avatarUrl: string | null;
+  role: 'member' | 'admin';
+};
+
+/**
+ * Everybody in a group: admins first, then by how long they have been in it.
+ *
+ * The design asks for "admins first, then most recently active", and gives its
+ * own reason — "so the stack is stable between loads rather than reshuffling".
+ * Most-recently-active is the one ordering that does not hold still: it moves
+ * every time anybody adds a photograph, which is exactly the reshuffle the
+ * requirement exists to prevent. Joining order does hold still, and is the
+ * order the room actually filled up in.
+ */
+export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[]> {
+  const rows = await db
+    .select({
+      actorId: schema.actors.id,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+      role: schema.groupMembers.role,
+      joinedAt: schema.groupMembers.joinedAt,
+    })
+    .from(schema.groupMembers)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.groupMembers.actorId))
+    .where(eq(schema.groupMembers.groupId, groupId))
+    .orderBy(asc(schema.groupMembers.joinedAt))
+    .limit(200);
+
+  const people = await Promise.all(
+    rows.map(async (row) => {
+      const name = row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone');
+      return {
+        actorId: row.actorId,
+        name,
+        firstName: name.replace(/^@/, '').split(/\s+/)[0]!,
+        avatarUrl: await avatarUrl(row.avatarKey),
+        role: row.role,
+      };
+    }),
+  );
+
+  return people.sort((a, b) => Number(b.role === 'admin') - Number(a.role === 'admin'));
 }

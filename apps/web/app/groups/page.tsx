@@ -29,8 +29,11 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { greetingFor } from '@/greeting';
-import { myGroups } from '@/groups';
+import { GROUP_STRIP, lensFor, myGroupsDetailed } from '@/groups';
+import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
+import { Face } from '@/../app/components/Faces';
+import { GroupCover } from '@/../app/components/GroupCover';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,32 +41,6 @@ export const metadata = {
   title: 'Groups',
   robots: { index: false, follow: false },
 };
-
-/**
- * The lens a group's tile is drawn in.
- *
- * By a stable hash of the id, so a group keeps its colour between visits — a
- * list whose colours reshuffle on every load is decoration rather than a way
- * of telling two rooms apart. The same four-colour palette and the same rule
- * the search page's door cards use.
- *
- * Never a photograph. A group has no cover, and borrowing one from an album
- * inside it would put a picture from a room on a screen that is only the door
- * to it — visible, eventually, to somebody who has been removed.
- */
-const LENSES = [
-  { fill: '#ffb3b8', ink: '#7a4f52' },
-  { fill: '#9db2f0', ink: '#33477f' },
-  { fill: '#a5dcc6', ink: '#3f6b57' },
-  { fill: '#f3b584', ink: '#7d5230' },
-  { fill: '#c79ad9', ink: '#5f3f70' },
-] as const;
-
-function lensFor(id: string) {
-  let hash = 0;
-  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return LENSES[hash % LENSES.length]!;
-}
 
 const AGO = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
@@ -101,8 +78,11 @@ function metaFor(
 export default async function GroupsPage() {
   const db = getDb();
   const actorId = await currentActorId();
+  // Read before anything uses it. Null means never looked, which has to mean
+  // everything is new rather than nothing.
+  const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);
   const [groups, account] = await Promise.all([
-    myGroups(db, actorId),
+    myGroupsDetailed(db, actorId, since),
     // For the greeting only, as on Home, Activity and Find.
     actorId ? accountFor(db, actorId) : Promise.resolve(null),
   ]);
@@ -144,25 +124,114 @@ export default async function GroupsPage() {
               const lens = lensFor(group.id);
               return (
                 <li key={group.id}>
-                  <a href={`/group/${group.id}`} className="group-row">
-                    <span
-                      className="group-tile"
-                      style={{ background: lens.fill, color: lens.ink }}
-                      aria-hidden="true"
-                    >
-                      {group.name.trim().slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="group-what">
-                      <span className="group-name">{group.name}</span>
-                      <span className="group-meta">{metaFor(group, now)}</span>
-                    </span>
+                  {/*
+                    A row and a `View all` beside it, which is why this is a
+                    flex container holding two links rather than one link
+                    wrapping everything: an anchor inside an anchor is markup a
+                    browser refuses to nest.
+                  */}
+                  <div className="group-head-row">
+                    <a href={`/group/${group.id}`} className="group-row">
+                      <span
+                        className="group-tile"
+                        style={{ background: lens.fill, color: lens.ink }}
+                        aria-hidden="true"
+                      >
+                        {group.name.trim().slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="group-what">
+                        <span className="group-line">
+                          <span className="group-name">{group.name}</span>
+                          {/*
+                            Who is in it, beside the name. The count stays in
+                            the meta line underneath and is not made redundant
+                            by this: the stack shows *who*, the number says
+                            *how many*, and three faces cannot say eleven.
+                          */}
+                          <span className="group-faces">
+                            {group.faces.map((person, i) => (
+                              <Face
+                                key={i}
+                                src={person.avatarUrl}
+                                size={22}
+                                className="group-face"
+                                fallback={
+                                  <span aria-hidden="true">
+                                    {person.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
+                                  </span>
+                                }
+                              />
+                            ))}
+                            {group.moreFaces > 0 && (
+                              <span className="group-face group-face-more">
+                                +{group.moreFaces}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        <span className="group-meta">{metaFor(group, now)}</span>
+                      </span>
+                      {/*
+                        Admin only. "Member" on every other row is a word that
+                        appears so often it stops being read, and the rows it
+                        would appear on are the ones where it changes nothing.
+                      */}
+                      {group.role === 'admin' && <span className="group-role">Admin</span>}
+                    </a>
                     {/*
-                      Admin only. "Member" on every other row is a word that
-                      appears so often it stops being read, and the rows it
-                      would appear on are the ones where it changes nothing.
+                      Only when the strip below is not already all of them. A
+                      group with three albums or fewer has nothing further to
+                      show, and "View all 3" over three covers is a link to
+                      what you are looking at.
                     */}
-                    {group.role === 'admin' && <span className="group-role">Admin</span>}
-                  </a>
+                    {group.albumCount > GROUP_STRIP && (
+                      <a href={`/group/${group.id}`} className="group-all">
+                        View all {group.albumCount}
+                      </a>
+                    )}
+                  </div>
+
+                  {/*
+                    The three most recent albums, each linking straight to
+                    itself rather than to the group — the point of the strip is
+                    one click instead of two.
+
+                    There is no `+N` tile: it would be a fourth cover-shaped
+                    object that is not a cover, and `View all` says the same
+                    thing in words, in the place people look for a way onward.
+                  */}
+                  <div
+                    className={`group-strip${
+                      group.albums.length < GROUP_STRIP ? ' group-strip-few' : ''
+                    }`}
+                  >
+                    {group.albums.length === 0 ? (
+                      <span className="cover-none cover-empty">No albums yet</span>
+                    ) : (
+                      group.albums.map((album) => (
+                        <a
+                          href={`/event/${album.id}`}
+                          className="strip-album"
+                          key={album.id}
+                        >
+                          <span className="strip-cover">
+                            {album.cover ? (
+                              <GroupCover src={album.cover} />
+                            ) : (
+                              <span className="cover-none" aria-hidden="true" />
+                            )}
+                            {album.fresh > 0 && (
+                              <span className="fresh">
+                                <span className="fresh-dot" aria-hidden="true" />
+                                {album.fresh} new
+                              </span>
+                            )}
+                          </span>
+                          <span className="strip-album-name">{album.name}</span>
+                        </a>
+                      ))
+                    )}
+                  </div>
                 </li>
               );
             })}

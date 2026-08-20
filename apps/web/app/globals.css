@@ -2304,9 +2304,18 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .group-row:hover { background: rgba(255, 255, 255, .6); }
 .group-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* A letter in a lens colour, never a photograph — see the note on the page.
-   The same 12px square the search page's door cards use, so a group looks
-   like a group wherever it appears. */
+/* A letter in a lens colour, never a photograph — on every screen a group
+   appears on, which is now three.
+
+   The rule this used to state was broader than its reason. "Borrowing a
+   picture from an album inside would put it on a screen that is only the door"
+   is about *the door*: the search page's card, where the viewer may not be a
+   member, and where it still holds exactly. It is not about this list, which
+   is `myGroups` — the viewer is in every group on it, the page is
+   `force-dynamic`, and somebody removed gets no row and therefore no covers on
+   their next load. So the strip below a row may carry album covers; the tile
+   itself may not, anywhere, because it stands for the group rather than for
+   anything inside it. */
 .group-tile {
   flex: none; width: 44px; height: 44px; border-radius: 12px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -2340,6 +2349,229 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 
 @media (max-width: 720px) {
   .groups-page { padding: 22px 16px 28px; }
+}
+
+/* Each group is a block with its own structure now — a header row and a strip
+   of covers — so the hairline that separated rows in a list would be drawing a
+   boundary in the wrong place. Space does it instead. */
+.groups-list li + li { border-top: 0; margin-top: 24px; }
+.group-head-row { display: flex; align-items: center; gap: 14px; padding: 0 8px 11px; }
+.group-head-row .group-row { flex: 1; min-width: 0; padding: 0; }
+.group-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.group-line .group-name { flex: none; }
+/* Overlapping, ringed in the surface behind them so the overlap reads as depth
+   rather than as one shape with bites out of it. */
+.group-faces { display: inline-flex; flex: none; }
+.group-face {
+  width: 22px; height: 22px; border-radius: 50%; flex: none; object-fit: cover;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px var(--page-warm);
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 10px; font-weight: 600;
+}
+.group-face + .group-face { margin-left: -8px; }
+.group-face-more {
+  background: var(--photo-bed); color: var(--dim); font-size: 9.5px;
+}
+.group-all {
+  flex: none; font-size: 13px; font-weight: 500;
+  color: var(--accent-ink); text-decoration: none;
+}
+.group-all:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* The three most recent albums. Equal widths, because they are three of a
+   kind; a group with fewer gets fixed-width tiles instead, so one album does
+   not stretch across the page pretending to be a hero. */
+.group-strip { display: flex; gap: 10px; padding: 0 8px; }
+.group-strip > * { flex: 1; min-width: 0; }
+.group-strip-few > * { flex: none; width: 170px; }
+.strip-album { text-decoration: none; color: inherit; }
+.strip-cover {
+  position: relative; display: block; height: 104px;
+  border-radius: 12px; overflow: hidden; background: var(--photo-bed);
+}
+.strip-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Inside `overflow: hidden`, so the picture grows into its own corners rather
+   than out of them — the same move the album cards make. */
+.strip-album:hover .strip-cover img { transform: scale(1.02); }
+.strip-cover img { transition: transform 160ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .strip-cover img { transition: none; }
+  .strip-album:hover .strip-cover img { transform: none; }
+}
+.strip-album:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.strip-album-name {
+  display: block; margin-top: 7px; font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Where a photograph is not. Warm rather than grey, and never a broken glyph:
+   an album with nothing in it and an album whose cover expired look the same
+   from here, and both are "no picture" rather than "something went wrong". */
+.cover-none {
+  display: block; width: 100%; height: 104px;
+  border-radius: 12px; background: var(--photo-bed);
+}
+.cover-empty {
+  flex: none; width: 170px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--dim-warm);
+}
+/* Arrived since you last looked. The same badge on both screens. */
+.fresh {
+  position: absolute; left: 8px; top: 8px;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, .93); color: #3d6a55;
+  font-size: 11px; font-weight: 600;
+}
+.fresh-dot { width: 5px; height: 5px; border-radius: 50%; background: #a5dcc6; }
+
+/* ---------------------------------------------------------------------------
+   Inside a group — the running archive.
+
+   It opened with a create form, so a room whose premise is that something has
+   already happened here began by asking you to type. Then four bare links with
+   a raw ISO date beside each, in a product about photographs. Then the people,
+   as a number, on the screen whose entire argument is that they are the same
+   ones every time.
+   --------------------------------------------------------------------------- */
+.group-page {
+  flex: 1; min-width: 0; max-width: 820px;
+  padding: 28px 30px 34px; background: var(--page-warm);
+}
+.crumbs { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--dim-warm); }
+.crumbs a { color: var(--dim-warm); text-decoration: none; }
+.crumbs a:hover { color: var(--fg); }
+.crumbs-here { color: var(--fg); }
+
+.group-head { display: flex; align-items: flex-start; gap: 16px; margin-top: 12px; }
+.group-head-tile { width: 52px; height: 52px; border-radius: 14px; font-size: 21px; }
+.group-head-text { flex: 1; min-width: 0; }
+.group-head-text h1 { font-size: 27px; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
+.group-head-meta { margin: 4px 0 0; font-size: 13.5px; color: var(--dim-warm); }
+.group-actions { flex: none; display: flex; align-items: center; gap: 8px; }
+.group-new {
+  padding: 10px 16px; border-radius: 10px; border: 0;
+  background: var(--accent); color: #fff; font-size: 14.5px; font-weight: 600;
+}
+/* The form the header button opens. One field, as it always was — it has been
+   demoted, not redesigned. */
+.group-create {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding: 14px 16px;
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 14px;
+}
+.group-create input { flex: 1; min-width: 200px; margin: 0; }
+.group-create button { flex: none; padding: 10px 16px; border-radius: 10px; font-size: 14.5px; }
+.group-create-note { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--dim-warm); }
+.group-error { margin: 10px 0 0; font-size: 13px; color: #b3261e; }
+
+/* The premise, said once, where the count used to be. */
+.people-strip {
+  display: flex; gap: 16px; align-items: center;
+  margin-top: 20px; padding: 16px 0;
+  border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+}
+.people-strip-label {
+  flex: none; width: 104px; font-size: 12.5px; color: var(--dim-warm); line-height: 1.35;
+}
+/* Scrolls rather than wrapping: one row of faces is a group, two rows is a
+   directory. */
+.people-strip-row {
+  flex: 1; display: flex; gap: 15px; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.people-strip-row::-webkit-scrollbar { display: none; }
+.strip-person {
+  flex: none; width: 60px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-decoration: none;
+}
+.strip-face {
+  width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 15px; font-weight: 600;
+}
+.strip-name {
+  font-size: 11.5px; color: var(--dim); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.group-month { margin-top: 26px; }
+.group-month .day-head { margin-bottom: 12px; }
+.group-month .day-head h2 { font-weight: 700; }
+.archive { display: flex; flex-direction: column; gap: 12px; }
+.archive-row {
+  display: flex; align-items: center; gap: 16px;
+  text-decoration: none; color: inherit; border-radius: 13px;
+}
+.archive-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.archive-cover {
+  position: relative; flex: none; width: 180px; height: 112px;
+  border-radius: 13px; overflow: hidden; background: var(--photo-bed);
+}
+.archive-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 160ms ease; }
+.archive-row:hover .archive-cover img { transform: scale(1.02); }
+@media (prefers-reduced-motion: reduce) {
+  .archive-cover img { transition: none; }
+  .archive-row:hover .archive-cover img { transform: none; }
+}
+.archive-none { display: block; width: 100%; height: 100%; background: var(--photo-bed); }
+.archive-what { flex: 1; min-width: 0; }
+.archive-line { display: flex; align-items: baseline; gap: 9px; }
+.archive-name {
+  flex: 1; min-width: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.archive-when { flex: none; font-size: 12.5px; color: var(--dim-warm); }
+.archive-meta {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 7px; font-size: 12.5px; color: var(--dim);
+}
+.archive-faces { display: inline-flex; flex: none; }
+.archive-face {
+  width: 20px; height: 20px; border-radius: 50%; object-fit: cover; display: block;
+  background: var(--accent-soft); box-shadow: 0 0 0 1.5px var(--page-warm);
+}
+.archive-face + .archive-face { margin-left: -6px; }
+
+/* With no archive, making one *is* the page. */
+.group-empty { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 26px; }
+.group-empty p { margin: 0; font-size: 15px; color: var(--dim); }
+
+.group-note {
+  margin: 30px 0 0; padding-top: 18px; border-top: 1px solid var(--hairline);
+  font-size: 12.5px; line-height: 1.55; color: var(--dim-warm); max-width: 560px;
+}
+
+/* The door: a non-member learns the name and the size and nothing else. */
+.door {
+  max-width: 520px; margin-top: 24px; padding: 20px;
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 16px;
+}
+.door-tile { width: 44px; height: 44px; border-radius: 12px; font-size: 18px; }
+.door h1 { font-size: 19px; font-weight: 700; margin: 14px 0 0; }
+.door-size { margin: 2px 0 0; font-size: 13px; color: var(--dim-warm); }
+.door-said { margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: var(--dim); }
+.door-go { margin-top: 14px; padding: 10px 16px; border-radius: 10px; font-size: 14.5px; }
+
+@media (max-width: 900px) {
+  .archive-cover { width: 140px; height: 88px; }
+}
+@media (max-width: 720px) {
+  .group-page { padding: 22px 16px 28px; }
+  /* Scrolls rather than shrinking: three covers squeezed into a phone width
+     are three thumbnails nobody can see anything in. */
+  .group-strip { overflow-x: auto; scrollbar-width: none; }
+  .group-strip::-webkit-scrollbar { display: none; }
+  .group-strip > * { flex: none; width: 150px; }
+  /* Two faces and the chip. A stack of four at this width pushes the name
+     into an ellipsis. */
+  .group-faces .group-face:nth-child(3) { display: none; }
+  .people-strip { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .people-strip-label { width: auto; }
+  .archive-row { gap: 12px; }
 }
 
 /* ---------------------------------------------------------------------------
