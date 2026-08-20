@@ -64,6 +64,14 @@
      made on their behalf, and a portrait in a landscape frame should not
      arrive matted differently from a landscape one. */
   --photo-bed: #ebebef;
+  /* The two message bubbles, taken from the mark — its blue and its mint, the
+     only colours this product claims. Pastels, so each carries the darkened
+     same-hue ink the lens tiles use; white on either is unreadable and black
+     on either reads as a highlighter. */
+  --bubble-mine: #99b1fa;
+  --bubble-mine-ink: #21335f;
+  --bubble-them: #9cdec5;
+  --bubble-them-ink: #24503f;
   /* A line on Activity that arrived since the last look. White at 70% over the
      page: enough to read as a block of new things without becoming a highlight
      colour, which is what a tint would be — and there is no per-item read
@@ -2023,11 +2031,31 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    yours — alignment alone is a weak signal when the text is three words. */
 .message-mine { flex-direction: row-reverse; }
 .message-mine .message-body { text-align: right; }
+/* Yours in the mark's blue, everybody else's in its mint. Which way round is
+   not arbitrary: blue is the colour this product already uses for the thing
+   you are doing — every filled button on every screen — so the bubble you
+   wrote matches the button you pressed to write it. */
+.message-mine .message-text {
+  background: var(--bubble-mine); color: var(--bubble-mine-ink);
+  border-bottom-left-radius: 16px; border-bottom-right-radius: 5px;
+  margin-left: auto;
+}
 /* The meta line and the reactions have to turn round too, or the name, the
    time and the menu stay pinned to an edge the message is no longer on. */
 .message-mine .message-meta { flex-direction: row-reverse; }
-.message-mine .message-meta .dots { margin-left: 0; margin-right: auto; }
+
 .message-mine .reactions { justify-content: flex-end; }
+/* The way to add one is on hover and on focus, like the `···` beside it. A
+   quiet thread was a column of `+` buttons, one under every bubble, each
+   offering to react to a sentence nobody had reacted to. Reactions that exist
+   stay visible always — they are what somebody said. */
+.reactions .picker { opacity: 0; transition: opacity 120ms; }
+.message:hover .picker, .message:focus-within .picker { opacity: 1; }
+@media (hover: none) { .reactions .picker { opacity: 1; } }
+/* Beside the time rather than pushed to the far edge of the column. `auto`
+   put it at the opposite end of an 820px row from the message it belongs to. */
+.message-meta .dots { margin-left: 6px; }
+.message-mine .message-meta .dots { margin-left: 0; margin-right: 6px; }
 /* The edit box is a form, not prose: right-aligned text in a textarea you are
    typing into is somebody else's idea of helpful. */
 .message-mine .message-edit { text-align: left; }
@@ -2037,7 +2065,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .dots { position: relative; flex: none; }
 /* In a message's meta line it goes to the end of the row; in the event head it
    is one control among several and sits where it is put. */
-.message-meta .dots { margin-left: auto; }
+
 /* Bolder than a message's own menu. Three light grey dots at 13px beside a
     filled blue button read as a rendering artefact rather than a control — in
     the head they carry the event's whole settings menu and have to look like
@@ -2104,7 +2132,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    plus a portalled sheet on a phone: one thread, two shapes, two ways in and
    two ways out. A tab is one shape at every width. */
 .thread { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
-.thread-list { display: flex; flex-direction: column; gap: 16px; }
+.thread-list { display: flex; flex-direction: column; gap: 10px; }
 /* An invitation rather than a report of emptiness. */
 .thread-empty {
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
@@ -2127,26 +2155,56 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .thread-actions { display: flex; align-items: center; gap: 12px; }
 .thread-note { flex: 1; font-size: 12.5px; color: var(--dim-soft); }
 .thread-actions button { padding: 9px 16px; font-size: 14px; border-radius: 10px; }
-/* One message, and the pieces of it. */
+/* One message, as a bubble.
+
+   It was a row of plain text under a name, which reads as a comment section —
+   a list of statements about the album. A thread is people talking to each
+   other, and the shape everybody already knows for that is a bubble on a side.
+
+   The two fills are the mark's own blue and mint, which is the only place this
+   product takes colour from. They are pastels, so the ink on them is the same
+   darkened same-hue pair the lens tiles use — a pastel with white text on it
+   is unreadable, and a pastel with black text on it looks like a highlighter. */
 .message { display: flex; gap: 10px; align-items: flex-start; }
 .message-face {
   width: 32px; height: 32px; border-radius: 50%; flex: none;
   display: flex; align-items: center; justify-content: center;
   background: var(--accent-soft); color: var(--accent-ink);
   font-size: 13px; font-weight: 600;
+  /* Beside the bubble's first line, which is what this offset buys: the name
+     and time sit above the bubble, so a face aligned to the top of the *body*
+     would be level with the name and a face aligned to its bottom would be
+     under the reactions. Neither is beside the message. */
+  margin-top: 19px;
 }
-.message-body { flex: 1; min-width: 0; }
+/* Bounded, so a long message does not run the width of an 820px column and
+   stop reading as a bubble at all. `fit-content` so a three-word one is three
+   words wide. */
+.message-body { min-width: 0; max-width: min(78%, 520px); }
 .message-meta {
   display: flex; align-items: baseline; gap: 8px;
   font-size: 12.5px; color: var(--dim-soft);
+  /* Outside the bubble, above it: the name and the time are about the message
+     rather than part of what was said. */
+  padding: 0 4px 3px;
 }
 .message-meta strong { color: var(--fg); font-weight: 600; }
 .message-text {
-  margin: 3px 0 0; font-size: 14.5px; line-height: 1.5; overflow-wrap: anywhere;
+  margin: 0; padding: 9px 13px; font-size: 14.5px; line-height: 1.45;
+  overflow-wrap: anywhere; border-radius: 16px;
+  background: var(--bubble-them); color: var(--bubble-them-ink);
+  /* The corner nearest the face, squared off. One corner is the whole of what
+     makes a bubble point at somebody. */
+  border-bottom-left-radius: 5px;
+  width: fit-content;
 }
 .message-edit { display: grid; gap: 8px; margin-top: 4px; }
 .thread-gone { font-size: 13px; font-style: italic; margin: 0; }
-.mention { color: var(--accent-ink); font-weight: 600; }
+.mention { font-weight: 600; }
+/* Weight rather than colour inside a bubble: accent ink on the mark's blue is
+   two blues arguing, and the bubble already carries the colour. */
+.message-text .mention { color: inherit; text-decoration: underline;
+  text-decoration-thickness: 1px; text-underline-offset: 2px; }
 /* Reactions live on messages and never on photographs: a photograph of
    somebody's evening that can be scored is a post, and this is not a feed. */
 .reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

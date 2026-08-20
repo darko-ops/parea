@@ -126,7 +126,16 @@ const INGEST_POLLS = 30;
 /** The three panes, in the order the header draws them. */
 const TABS = [
   ['photos', 'Photos'],
-  ['conversation', 'Conversation'],
+  /*
+   * "Thread", and the route is still `?tab=conversation`.
+   *
+   * The same split the rail makes between what a row is called and where it
+   * goes: renaming the id would break every link anybody has already sent to
+   * an album's conversation, and the word on screen is free to change without
+   * that. Thread is what people call this — a run of messages about one thing
+   * — and it is a shorter word in a row of three.
+   */
+  ['conversation', 'Thread'],
   ['people', 'People'],
 ] as const;
 

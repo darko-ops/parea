@@ -16,7 +16,7 @@
  * many small threads as there are photographs — so the album's actual
  * conversation is a hundred dead ends. These people are already one group
  * talking to each other. The column is that conversation, in full, the same
- * one the album's Conversation tab shows; something typed here is said to the
+ * one the album's Thread tab shows; something typed here is said to the
  * album, and its context is that you can both see what is on screen.
  *
  * Photo-anchored messages still exist as records and still appear, because
@@ -257,7 +257,7 @@ export function PhotoView({
             with the room a long one needs.
           */}
           <a className="photo-chat-label" href={`${album}?tab=conversation`}>
-            Album conversation
+            Album thread
           </a>
           <div className="photo-chat">
             <Thread
