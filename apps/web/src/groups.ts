@@ -307,3 +307,78 @@ function sqlIlike(term: string) {
   const escaped = term.replace(/[\\%_]/g, (c) => `\\${c}`);
   return ilike(schema.groups.name, `%${escaped}%`);
 }
+
+/**
+ * The groups you are in, with enough to tell them apart.
+ *
+ * `groupsFor` answers the same question in one line each and is what the
+ * native client reads on launch — a name, a role and nothing to pay for. This
+ * is the page's version: the same list, plus the two numbers that make a group
+ * recognisable at a glance and the last time anything happened in one.
+ *
+ * Kept separate rather than widening `groupsFor`, because that call happens on
+ * every app launch before anybody has asked for a group screen, and these are
+ * two more aggregates per row for a list nobody has opened.
+ *
+ * Ordered by what happened most recently, not by when you joined. A list of
+ * rooms should be in the order they are worth looking in; `joined_at` puts the
+ * group you were added to yesterday above the one you have been posting in for
+ * a year.
+ */
+export type MyGroup = {
+  id: string;
+  name: string;
+  role: 'member' | 'admin';
+  memberCount: number;
+  albumCount: number;
+  /** ISO, from the newest album in it. Null for a group with no albums yet. */
+  lastActiveAt: string | null;
+};
+
+export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[]> {
+  if (!actorId) return [];
+
+  const rows = await db
+    .select({
+      id: schema.groups.id,
+      name: schema.groups.name,
+      role: schema.groupMembers.role,
+      /*
+       * Correlated subselects rather than joins.
+       *
+       * Joining members and events at once multiplies the rows against each
+       * other — three members and four albums is twelve, and both counts come
+       * back as twelve. `count(distinct)` would paper over it and hide the
+       * shape of the mistake from whoever adds a third join.
+       */
+      memberCount: sql<number>`(
+        select count(*)::int from "group_member" m
+        where m.group_id = ${schema.groups.id}
+      )`,
+      albumCount: sql<number>`(
+        select count(*)::int from "event" e
+        where e.group_id = ${schema.groups.id} and e.deleted_at is null
+      )`,
+      lastActiveAt: sql<Date | null>`(
+        select max(e.last_active_at) from "event" e
+        where e.group_id = ${schema.groups.id} and e.deleted_at is null
+      )`,
+    })
+    .from(schema.groupMembers)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
+    .where(
+      and(eq(schema.groupMembers.actorId, actorId), isNull(schema.groups.deletedAt)),
+    );
+
+  return rows
+    .map((row) => ({
+      ...row,
+      lastActiveAt: row.lastActiveAt ? new Date(row.lastActiveAt).toISOString() : null,
+    }))
+    /*
+     * Newest activity first, and a group with nothing in it last rather than
+     * first. Sorting nulls naively puts the empty group at the top, which is
+     * the one with least to show.
+     */
+    .sort((a, b) => (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''));
+}

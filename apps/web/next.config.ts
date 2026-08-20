@@ -81,7 +81,13 @@ const config: NextConfig = {
        * also names their email address — which is exactly the thing the link
        * model exists to keep out of an index.
        */
-      ...['account', 'albums', 'find', 'activity'].map((root) => ({
+      /*
+       * `groups` is not covered by the `group` alternative above — that one
+       * requires a segment after the prefix, so it matches `/group/<id>` and
+       * nothing else. `/groups` is a different path listing what one person
+       * belongs to, and it needs its own entry.
+       */
+      ...['account', 'albums', 'find', 'activity', 'groups'].map((root) => ({
         source: `/${root}/:path*`,
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       })),

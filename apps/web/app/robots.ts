@@ -27,7 +27,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/e/', '/event/', '/group/', '/account', '/albums', '/find', '/activity', '/api/'],
+        // `/groups` as well as `/group/`: robots.txt matching is literal, and
+        // the prefix for one group does not cover the page listing yours.
+        disallow: [
+          '/e/', '/event/', '/group/', '/groups',
+          '/account', '/albums', '/find', '/activity', '/api/',
+        ],
       },
     ],
   };

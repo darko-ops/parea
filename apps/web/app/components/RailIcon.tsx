@@ -17,7 +17,7 @@
  * the rail already says which row you are on with a background and a colour.
  */
 
-export type RailGlyph = 'home' | 'invites' | 'search' | 'profile' | 'settings';
+export type RailGlyph = 'home' | 'invites' | 'groups' | 'search' | 'profile' | 'settings';
 
 export function RailIcon({ glyph }: { glyph: RailGlyph }) {
   return (
@@ -48,6 +48,28 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
         <>
           <rect x="3" y="5.5" width="18" height="13" rx="2" />
           <path d="m3.8 7 8.2 6 8.2-6" />
+        </>
+      )}
+      {glyph === 'groups' && (
+        /*
+         * Two people, drawn as the profile glyph with a second one behind it.
+         * Deliberately built from that shape rather than invented: a group is
+         * more of the same thing a profile is one of, and two unrelated
+         * drawings of a person in one rail is what makes an icon set look
+         * assembled.
+         *
+         * Not three overlapping circles. That is the logo, and a nav row
+         * wearing the mark reads as "go to Parea" rather than as a section.
+         *
+         * The one behind is clipped by the front figure's own outline rather
+         * than being a whole second head — at 18px two complete heads side by
+         * side are two grey blobs, and the overlap is what says "together".
+         */
+        <>
+          <circle cx="9.5" cy="8.5" r="3.5" />
+          <path d="M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5" />
+          <path d="M16 5.4a3.5 3.5 0 0 1 0 6.2" />
+          <path d="M17.5 14.9c2.2.5 3.5 1.9 3.5 4.6" />
         </>
       )}
       {glyph === 'search' && (

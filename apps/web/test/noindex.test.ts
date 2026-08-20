@@ -71,6 +71,9 @@ const PRIVATE = [
   // being a page — and a URL people send each other is a URL a crawler finds.
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/p/8c2b7d10-1a2b-4c3d-9e8f-7a6b5c4d3e2f',
   '/group/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
+  // Its own entry, not covered by `/group/:path*` — that pattern needs a
+  // segment after the prefix, and this page has none.
+  '/groups',
   '/api/events/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b/photos',
 ];
 
@@ -111,7 +114,10 @@ describe('robots.txt', () => {
     const [rule] = robots().rules as { allow?: string; disallow?: string[] }[];
     expect(rule!.allow).toBe('/');
     expect(rule!.disallow).toEqual(
-      expect.arrayContaining(['/e/', '/event/', '/group/', '/account', '/albums', '/find', '/api/']),
+      expect.arrayContaining([
+        '/e/', '/event/', '/group/', '/groups',
+        '/account', '/albums', '/find', '/api/',
+      ]),
     );
   });
 
@@ -129,6 +135,7 @@ describe('the pages say so themselves', () => {
   // necessarily by whatever else might front it. The page-level directive
   // survives that.
   it.each([
+    'app/groups/page.tsx',
     'app/event/[id]/page.tsx',
     'app/event/[id]/manage/page.tsx',
     'app/event/[id]/p/[photoId]/page.tsx',

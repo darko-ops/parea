@@ -2281,6 +2281,68 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 
 /* ---------------------------------------------------------------------------
+   Groups — the rooms you are in.
+
+   Rows rather than cards, and the difference is what each shape promises. The
+   search page draws groups as bordered cards because each one is a decision:
+   a door, with a button on it. These are rooms you are already in, so the row
+   is a way through rather than a thing to weigh up, and a stack of bordered
+   boxes would make going into your own group look like an application.
+   --------------------------------------------------------------------------- */
+.groups-page {
+  flex: 1; min-width: 0; max-width: 820px;
+  padding: 28px 30px 34px; background: var(--page-warm);
+}
+.groups-head { margin-bottom: 22px; }
+
+.groups-list { list-style: none; margin: 0; padding: 0; }
+.groups-list li + li { border-top: 1px solid var(--row-line); }
+.group-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 8px; border-radius: 12px;
+  color: inherit; text-decoration: none;
+}
+.group-row:hover { background: rgba(255, 255, 255, .6); }
+.group-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* A letter in a lens colour, never a photograph — see the note on the page.
+   The same 12px square the search page's door cards use, so a group looks
+   like a group wherever it appears. */
+.group-tile {
+  flex: none; width: 44px; height: 44px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 600;
+}
+.group-what { flex: 1; min-width: 0; }
+.group-name {
+  display: block; font-size: 16px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.group-meta { display: block; margin-top: 2px; font-size: 12.5px; color: var(--dim-warm); }
+/* Only on the rows where it is true. A pill reading "Member" on every other
+   row is a word that stops being read. */
+.group-role {
+  flex: none; padding: 4px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 11.5px; font-weight: 600;
+}
+
+/* Where groups come from, for somebody in none. Not a disabled button: a
+   group is made from an album and there is nothing to press here. */
+.groups-none { max-width: 520px; padding: 8px 0 4px; }
+.groups-none-lead { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+.groups-none p { margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: var(--dim); }
+.groups-none .button-like { display: inline-block; }
+
+.groups-foot {
+  margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hairline);
+}
+.groups-foot p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--dim-warm); max-width: 560px; }
+
+@media (max-width: 720px) {
+  .groups-page { padding: 22px 16px 28px; }
+}
+
+/* ---------------------------------------------------------------------------
    The sign-in page.
 
    Centred rather than top-aligned, and the only page in the product that is.

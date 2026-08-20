@@ -7,10 +7,12 @@
  * client grew three tabs for this and the web never got the equivalent, which
  * made "two clients, one protocol" true of the API and false of the product.
  *
- * Four rows, where the app's tab bar still has three. Invites is the
- * difference, and it is here first because this is the client somebody arrives
- * at from a link they were sent — the one where "what came of that?" is a
- * question worth having a screen for.
+ * Five rows, where the app's tab bar still has three. Activity is one of the
+ * differences, and it is near the top because this is the client somebody
+ * arrives at from a link they were sent — the one where "what came of that?"
+ * is a question worth having a screen for. Groups is the other, and it is a
+ * row because the product treats a group as persistent identity while the web
+ * gave it no address of its own.
  *
  * Below tablet it becomes a bar across the top, because a 212px column on a
  * phone-width browser is most of the screen.
@@ -31,7 +33,15 @@ import { InvitesBadge } from './InvitesBadge';
 import { Mark } from './Mark';
 import { RailIcon, type RailGlyph } from './RailIcon';
 
-export type RailPage = 'events' | 'invites' | 'friends' | 'find' | 'you' | 'settings' | null;
+export type RailPage =
+  | 'events'
+  | 'invites'
+  | 'groups'
+  | 'friends'
+  | 'find'
+  | 'you'
+  | 'settings'
+  | null;
 
 const ROWS: {
   href: string;
@@ -49,10 +59,23 @@ const ROWS: {
   // Still `invites` as an id and still the envelope: what lands here is
   // mostly somebody asking you to something, and the rest is what came of it.
   { href: '/activity', label: 'Activity', page: 'invites', glyph: 'invites' },
+  /*
+   * Above Search, and below Activity, because that is the order these are
+   * true in. Home and Activity are what has already happened to you; Groups is
+   * the rooms you are already in; Search is the only row that goes looking for
+   * something you are not part of yet. Putting Groups under Search would file
+   * the places you belong under the heading for finding places you do not.
+   *
+   * Groups had no page at all until now — you reached one from a chip on
+   * Search, from an album that belonged to it, or from a link somebody sent.
+   * That is fine for something you visit occasionally and wrong for the thing
+   * the product treats as persistent identity.
+   */
+  { href: '/groups', label: 'Groups', page: 'groups', glyph: 'groups' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
   // on Profile, which is where somebody looks for their friends anyway. A rail
-  // is the four places the product is, and friends is a thing about you.
+  // is the places the product is, and friends is a thing about you.
   //
   // The labels say what the rows do; the ids still say where they go. `find`
   // and `you` name the routes, which have not moved — renaming those would
