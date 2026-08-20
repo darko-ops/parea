@@ -47,7 +47,7 @@ import {
   type Feed,
   type FeedPhoto,
 } from './src/api';
-import { AccountCard, HomeTab, ProfileTab, SearchTab } from './src/Events';
+import { AccountCard, GroupsTab, HomeTab, ProfileTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { PersonScreen } from './src/Person';
@@ -91,15 +91,21 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
  * parts than the product has screens.
  */
 /**
- * Three tabs, and the screens that open on top of them.
+ * Four tabs, and the screens that open on top of them.
  *
- * The tabs are where someone lives — events, finding things, themselves — and
- * everything else is pushed over the top and dismissed back to whichever tab
- * they came from. No history stack and no navigation library: there are six
- * destinations in this product and a library would be more moving parts than
- * screens.
+ * The tabs are where someone lives — events, the rooms they are in, finding
+ * things, themselves — and everything else is pushed over the top and
+ * dismissed back to whichever tab they came from. No history stack and no
+ * navigation library: there are a handful of destinations in this product and
+ * a library would be more moving parts than screens.
+ *
+ * Groups is between Events and Find, in the order those are true in: Events is
+ * what has already happened, Groups is the rooms you are already in, and Find
+ * is the only tab that goes looking for something you are not part of yet. It
+ * was a card inside You, under the name field — which put the thing the
+ * product treats as persistent identity in a drawer with the settings.
  */
-type Tab = 'home' | 'search' | 'profile';
+type Tab = 'home' | 'groups' | 'search' | 'profile';
 
 type Route =
   | { screen: 'tabs' }
@@ -458,6 +464,14 @@ export default function App() {
               Button={Button}
             />
           )}
+          {tab === 'groups' && (
+            <GroupsTab
+              api={api}
+              t={t}
+              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+              onGoToEvents={() => setTab('home')}
+            />
+          )}
           {tab === 'search' && (
             <SearchTab
               api={api}
@@ -472,11 +486,9 @@ export default function App() {
             <ProfileTab
               api={api}
               events={events}
-              groups={groups}
               displayName={displayName}
               t={t}
               onOpen={openListing}
-              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
               onRename={(next) => {
                 setDisplayName(next);
                 if (next) void api.setDisplayName(next).catch(() => {});
@@ -512,6 +524,7 @@ export default function App() {
             {(
               [
                 ['home', 'Events'],
+                ['groups', 'Groups'],
                 ['search', 'Find'],
                 ['profile', 'You'],
               ] as [Tab, string][]

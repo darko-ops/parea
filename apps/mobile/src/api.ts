@@ -55,6 +55,27 @@ export type Feed = {
  * What a card on the home screen needs and nothing more: no photos, because
  * a list of events is not a place to serve two hundred thumbnails.
  */
+/**
+ * A group, with enough to recognise it in a list.
+ *
+ * `albumCount` is every album in the group, not only the ones this actor has
+ * opened — which discloses nothing new, because `groupEvents` already lists
+ * all of them by name to every member. A group is the room; being in it is
+ * what lets you see what is in it. Photos are still only ever reachable
+ * through an album, which is the line that actually matters.
+ *
+ * `lastActiveAt` is null for a group nobody has put an album in yet, which the
+ * screen says nothing about rather than rendering "never".
+ */
+export type MyGroupDetail = {
+  id: string;
+  name: string;
+  role: 'member' | 'admin';
+  memberCount: number;
+  albumCount: number;
+  lastActiveAt: string | null;
+};
+
 export type EventListing = {
   id: string;
   name: string;
@@ -524,6 +545,8 @@ export class Api {
   }
 
   // --- groups ----------------------------------------------------------
+  //
+  // See `MyGroupDetail` below for the shape the Groups tab reads.
 
   /**
    * The groups this actor is in.
@@ -535,6 +558,22 @@ export class Api {
     const { groups } = await this.call<{
       groups: { id: string; name: string; role: 'member' | 'admin' }[];
     }>('/api/groups');
+    return groups;
+  }
+
+  /**
+   * The same list, with what a group screen needs to tell two rooms apart.
+   *
+   * A second call rather than making `myGroups` heavier, because that one
+   * happens on every launch — before anybody has opened the Groups tab, and
+   * possibly before they are in any groups at all. Three aggregates per row is
+   * nothing for a screen somebody asked for and is work nobody asked for at
+   * startup.
+   */
+  async myGroupsDetailed(): Promise<MyGroupDetail[]> {
+    const { groups } = await this.call<{ groups: MyGroupDetail[] }>(
+      '/api/groups?detail=1',
+    );
     return groups;
   }
 

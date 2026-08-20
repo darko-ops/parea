@@ -29,7 +29,7 @@ import {
   View,
 } from 'react-native';
 
-import type { Api, EventListing } from './api';
+import type { Api, EventListing, MyGroupDetail } from './api';
 import type { GroupTheme } from './Groups';
 import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
@@ -323,6 +323,196 @@ export function HomeTab({
  * in, arranged by where they were. Nothing is discovered, and nothing is
  * exposed that they could not already see.
  */
+/**
+ * The lens a group's tile is drawn in, and the letter on it.
+ *
+ * By a stable hash of the id so a group keeps its colour between launches — a
+ * list whose colours reshuffle every time it loads is decoration rather than a
+ * way of telling two rooms apart. The same four-lens palette the mark is drawn
+ * from, and the same rule the web's Groups page follows.
+ *
+ * Never a photograph. A group has no cover of its own, and the only pictures
+ * available are inside albums that belong to it — putting one on the door
+ * shows something from a room on the screen that is merely the way in.
+ */
+const GROUP_LENSES = [
+  { fill: '#ffb3b8', ink: '#7a4f52' },
+  { fill: '#9db2f0', ink: '#33477f' },
+  { fill: '#a5dcc6', ink: '#3f6b57' },
+  { fill: '#f3b584', ink: '#7d5230' },
+  { fill: '#c79ad9', ink: '#5f3f70' },
+] as const;
+
+function lensFor(id: string) {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return GROUP_LENSES[hash % GROUP_LENSES.length]!;
+}
+
+/**
+ * The rooms you are in — the same screen the web grew, on a phone.
+ *
+ * Groups were a card inside You, under the name field and above the album
+ * lists, which put the thing the product treats as persistent identity in a
+ * drawer with the settings. They are a tab now, between Events and Find, in
+ * the order those are true in: Events is what has already happened, Groups is
+ * the rooms you are already in, Find is the only tab that goes looking for
+ * something you are not part of yet.
+ *
+ * ## There is no Create group button, and that is the design
+ *
+ * `POST /api/groups` requires a `fromEventId` and refuses without one: a group
+ * is something you notice afterwards, when the same people keep turning up, so
+ * you roll one of your albums into a group. An empty group you then have to
+ * fill is a distribution problem with no photographs in it, and the people you
+ * would invite have no reason to accept yet. The empty state says where groups
+ * come from instead of offering a button that would have to be disabled.
+ */
+export function GroupsTab({
+  api,
+  t,
+  onOpenGroup,
+  onGoToEvents,
+}: {
+  api: Api;
+  t: TabTheme;
+  onOpenGroup: (groupId: string) => void;
+  /** The empty state's one action: a group is made from an album. */
+  onGoToEvents: () => void;
+}) {
+  const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    setGroups(await api.myGroupsDetailed().catch(() => []));
+  }, [api]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
+      }
+    >
+      <Text style={[styles.h1, { color: t.fg }]}>Groups</Text>
+
+      {groups === null ? (
+        <ActivityIndicator color={t.accent} />
+      ) : groups.length === 0 ? (
+        /*
+          Where groups come from, rather than a control that cannot work.
+          Somebody here with none has not failed at anything — they have not
+          yet had the second evening with the same people, which is the moment
+          a group is for.
+        */
+        <View style={{ gap: 12 }}>
+          <Text style={[styles.label, { color: t.fg }]}>
+            You are not in any groups yet.
+          </Text>
+          <Text style={[styles.body, { color: t.dim }]}>
+            A group is made from an album, not from nothing — when the same
+            people keep turning up, you roll one of your albums into a group and
+            everybody in it stays in the loop for the next one. Open an album
+            you made and look for Make a group.
+          </Text>
+          <Pressable
+            onPress={onGoToEvents}
+            accessibilityRole="button"
+            accessibilityLabel="Go to your albums"
+          >
+            <Text style={[styles.headAction, { color: t.accent }]}>Your albums</Text>
+          </Pressable>
+        </View>
+      ) : (
+        groups.map((group) => {
+          const lens = lensFor(group.id);
+          return (
+            <Pressable
+              key={group.id}
+              style={styles.groupRow}
+              onPress={() => onOpenGroup(group.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${group.name}, ${groupMeta(group)}`}
+            >
+              <View style={[styles.groupTile, { backgroundColor: lens.fill }]}>
+                <Text style={[styles.groupInitial, { color: lens.ink }]}>
+                  {group.name.trim().slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.groupName, { color: t.fg }]} numberOfLines={1}>
+                  {group.name}
+                </Text>
+                <Text style={[styles.small, { color: t.dim }]}>{groupMeta(group)}</Text>
+              </View>
+              {/* Admin only. "Member" on every other row is a word that
+                  appears so often it stops being read. */}
+              {group.role === 'admin' && (
+                <Text style={[styles.small, { color: t.dim }]}>Admin</Text>
+              )}
+            </Pressable>
+          );
+        })
+      )}
+
+      {/*
+        Where the other kind of group is. Discovery lives on Find and stays
+        there — this tab is the rooms you are in, and a second list of rooms
+        you are not would make it two screens wearing one title.
+      */}
+      {groups !== null && groups.length > 0 && (
+        <Text style={[styles.small, { color: t.dim, paddingTop: 6 }]}>
+          Looking for one you are not in? Find searches groups that have chosen
+          to be findable — you would still be asking to be let in.
+        </Text>
+      )}
+    </ScrollView>
+  );
+}
+
+/** "3 albums · 12 people · added to 2 days ago". */
+function groupMeta(group: MyGroupDetail): string {
+  const parts = [plural(group.albumCount, 'album'), plural(group.memberCount, 'person', 'people')];
+  // Only when there is something to have been active about. "added to never"
+  // is a sentence about an absence the count before it already states.
+  if (group.lastActiveAt) parts.push(`added to ${ago(group.lastActiveAt)}`);
+  return parts.join(' · ');
+}
+
+/**
+ * How long ago, roughly.
+ *
+ * Computed on the device, unlike the web's, and that is the right call here
+ * rather than an inconsistency: there is no server-rendered HTML to disagree
+ * with, so nothing can mismatch — and a screen somebody leaves open should
+ * update when they pull to refresh rather than showing the age it had when the
+ * response was written.
+ */
+function ago(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) {
+    const hours = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    if (hours < 1) return 'just now';
+    return `${hours}h ago`;
+  }
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return plural(weeks, 'week') + ' ago';
+  const months = Math.floor(days / 30);
+  return plural(months, 'month') + ' ago';
+}
+
 export function SearchTab({
   api,
   events,
@@ -778,11 +968,9 @@ export function AccountCard({
 export function ProfileTab({
   api,
   events,
-  groups,
   displayName,
   t,
   onOpen,
-  onOpenGroup,
   onRename,
   onSignedIn,
   onSignedOut,
@@ -790,11 +978,9 @@ export function ProfileTab({
 }: {
   api: Api;
   events: EventListing[];
-  groups: { id: string; name: string; role: 'member' | 'admin' }[];
   displayName: string | null;
   t: TabTheme;
   onOpen: (event: EventListing) => void;
-  onOpenGroup: (groupId: string) => void;
   onRename: (name: string) => void;
   onSignedIn: () => void;
   onSignedOut: () => void;
@@ -827,30 +1013,12 @@ export function ProfileTab({
         </Text>
       </View>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>
-          Groups {groups.length > 0 && `(${groups.length})`}
-        </Text>
-        {groups.length === 0 ? (
-          <Text style={[styles.body, { color: t.dim }]}>
-            None yet. A group is what an event becomes when the same people keep
-            doing things together.
-          </Text>
-        ) : (
-          groups.map((group) => (
-            <Pressable
-              key={group.id}
-              style={styles.row}
-              onPress={() => onOpenGroup(group.id)}
-            >
-              <Text style={[styles.body, { color: t.accent, flex: 1 }]}>{group.name}</Text>
-              {group.role === 'admin' && (
-                <Text style={[styles.small, { color: t.dim }]}>admin</Text>
-              )}
-            </Pressable>
-          ))
-        )}
-      </View>
+      {/*
+        No Groups card here any more. It listed the same rooms the Groups tab
+        now holds, one tap away and under the name field — the drawer version
+        of the thing the product treats as persistent identity. What stays is
+        the two album lists below, which are about albums rather than groups.
+      */}
 
       {grouped.length > 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
@@ -942,5 +1110,16 @@ const styles = StyleSheet.create({
   small: { fontSize: 13, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  /* A row rather than a card. The Find tab draws a group as a bordered card
+     because each one there is a decision — a door, with a button on it. These
+     are rooms you are already in, so the row is a way through, and a stack of
+     boxes would make walking into your own group look like an application. */
+  groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  groupTile: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  groupInitial: { fontSize: 18, fontWeight: '600' },
+  groupName: { fontSize: 17, fontWeight: '600' },
   placeBlock: { gap: 2, paddingTop: 4 },
 });

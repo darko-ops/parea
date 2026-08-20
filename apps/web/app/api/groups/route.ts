@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
-import { addMember, groupsFor } from '@/groups';
+import { addMember, groupsFor, myGroups } from '@/groups';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -25,10 +25,27 @@ export const runtime = 'nodejs';
  * Answers an empty list rather than 403 for someone with no actor yet: having
  * no groups and not existing look the same from here, and they should — the
  * app asks this on launch, before anyone has contributed anything.
+ *
+ * ## Two shapes, and why the cheap one is the default
+ *
+ * `?detail=1` adds what a group screen needs to tell two rooms apart: how many
+ * albums are in it, how many people, and when anything last happened. Those
+ * are three aggregates per group, and the caller that asks this question most
+ * often is the native client at launch — before anybody has opened a group
+ * screen, and possibly before they have any groups at all.
+ *
+ * So the default stays a name and a role, and the screen that draws the fuller
+ * line asks for it when somebody opens it. A flag rather than a second route
+ * because it is the same question about the same rows; a second route would be
+ * two places for the membership rule to be written.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const db = getDb();
+  const actorId = await currentActorId();
+  const detail = new URL(request.url).searchParams.get('detail') === '1';
+
   return NextResponse.json({
-    groups: await groupsFor(getDb(), await currentActorId()),
+    groups: detail ? await myGroups(db, actorId) : await groupsFor(db, actorId),
   });
 }
 
