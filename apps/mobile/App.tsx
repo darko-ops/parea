@@ -1013,27 +1013,25 @@ function EventScreen({
   }, [feed]);
 
   /**
-   * Roll this event into a group — design §3.
-   *
-   * Offered from an event rather than as "create a group", because "the same
-   * people keep doing things together" is something you notice afterwards.
-   * Only the host sees it, and only once: an event belongs to at most one
-   * group, and the server refuses a second.
-   */
-  /**
    * The album's cover, for whoever runs it.
    *
-   * One button and a choice, rather than a row that has to know whether there
-   * is a cover already: the feed does not carry that — the card's mosaic
-   * simply leads with it — and asking the server so a label can read "Change"
-   * instead of "Add" is a request to answer a question the sheet answers
-   * anyway. Both actions are offered every time; picking "Remove it" on an
-   * album that has none is a no-op the endpoint already handles.
+   * This was one bare button that offered both actions unconditionally, because
+   * the feed did not say whether a cover existed — so "Album cover" meant "there
+   * may or may not be one, press to find out", and "Remove it" was offered on
+   * albums with nothing to remove. The feed carries `coverUrl` now, so the row
+   * shows the picture and the sheet only offers removal when there is something
+   * to take away.
+   *
+   * Still a sheet rather than two buttons on the screen: replacing a cover is
+   * the common case and removing one is rare, and the rare destructive action
+   * is better one press further away than sitting next to the ordinary one.
    */
+  const cover = feed?.event.coverUrl ?? null;
+
   const editCover = useCallback(() => {
-    Alert.alert('Album cover', 'The picture the album leads with, wherever it is shown.', [
+    const actions: Parameters<typeof Alert.alert>[2] = [
       {
-        text: 'Choose a photo',
+        text: cover ? 'Choose a different photo' : 'Choose a photo',
         onPress: async () => {
           const picked = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
@@ -1048,6 +1046,10 @@ function EventScreen({
           const target = api.coverTarget(event.id);
           try {
             await uploadCover(target.url, target.headers, picked.assets[0].uri);
+            // The screen draws the cover now, so it has to be re-read: without
+            // this you chose a photograph, nothing moved, and the only way to
+            // find out whether it took was to leave and come back.
+            await refresh();
           } catch {
             // Worth saying here, unlike on the create screen: there is no
             // share sheet to get on with, and somebody who just chose a
@@ -1056,19 +1058,42 @@ function EventScreen({
           }
         },
       },
-      {
+    ];
+
+    if (cover) {
+      actions.push({
         text: 'Remove it',
         style: 'destructive',
         onPress: async () => {
-          await api.removeCover(event.id).catch(() => {
+          try {
+            await api.removeCover(event.id);
+            await refresh();
+          } catch {
             Alert.alert('Could not remove the cover', 'Try again in a moment.');
-          });
+          }
         },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [api, event.id]);
+      });
+    }
 
+    actions.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert(
+      'Album cover',
+      cover
+        ? 'The picture the album leads with, wherever it is shown.'
+        : 'Choose the picture the album leads with. Without one it leads with its newest photograph.',
+      actions,
+    );
+  }, [api, cover, event.id, refresh]);
+
+  /**
+   * Roll this event into a group — design §3.
+   *
+   * Offered from an event rather than as "create a group", because "the same
+   * people keep doing things together" is something you notice afterwards.
+   * Only the host sees it, and only once: an event belongs to at most one
+   * group, and the server refuses a second.
+   */
   const createGroup = useCallback(async () => {
     const name = groupName.trim();
     if (!name) return;
@@ -1244,9 +1269,41 @@ function EventScreen({
               Host only. It changes what everybody else sees on their home
               screen, which is the same reason the web keeps it on the manage
               screen rather than on the album.
+
+              The picture is here rather than only behind the press, matching
+              the web's manage screen: the cover is the one setting on this
+              screen whose value is an image, and an image described in words
+              is a setting you have to remember rather than read.
             */}
             {feed?.event.canAdminister && (
-              <Button label="Album cover" onPress={editCover} t={t} />
+              <Pressable
+                onPress={editCover}
+                // Same press feedback as `Button`, because it sits in a column
+                // of them and a row that does not dim under a finger reads as
+                // the one thing on the screen that did not take the press.
+                style={({ pressed }) => [
+                  styles.coverRow,
+                  { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={cover ? 'Change the album cover' : 'Choose an album cover'}
+              >
+                {cover ? (
+                  <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
+                ) : (
+                  // Dashed, which means "nothing here" rather than "a very dark
+                  // photograph" — the same call the web's empty tile makes.
+                  <View style={[styles.coverEmpty, { borderColor: t.line }]} />
+                )}
+                <View style={styles.coverWords}>
+                  <Text style={[styles.coverTitle, { color: t.fg }]}>Album cover</Text>
+                  <Text style={[styles.coverNote, { color: t.dim }]}>
+                    {cover
+                      ? 'What this album leads with everywhere.'
+                      : 'Leading with its newest photograph.'}
+                  </Text>
+                </View>
+              </Pressable>
             )}
 
             {feed?.event.canAdminister && !feed.event.groupId && (
@@ -1534,6 +1591,15 @@ const styles = StyleSheet.create({
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   sheet: { padding: 16, paddingBottom: 40, gap: 10, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   sheetImage: { width: '100%', height: 240, borderRadius: 10, backgroundColor: '#8883' },
+  // A card in the same family as `card`, laid out sideways: the picture reads
+  // first, the words explain it. 3:2 rather than square, because that is the
+  // shape a cover is drawn in on the home screen.
+  coverRow: { borderRadius: 14, borderWidth: 1, padding: 12, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  coverShot: { width: 66, height: 44, borderRadius: 8, backgroundColor: '#8883' },
+  coverEmpty: { width: 66, height: 44, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
+  coverWords: { flex: 1, gap: 2 },
+  coverTitle: { fontSize: 16, fontWeight: '600' },
+  coverNote: { fontSize: 13 },
 });
 
 /** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */

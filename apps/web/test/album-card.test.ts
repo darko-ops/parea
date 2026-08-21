@@ -158,6 +158,24 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
     expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
     expect(API).toMatch(/mosaic: \[\.\.\.\(cover \? \[cover\] : \[\]\), \.\.\.mosaic\]/);
   });
+
+  it('answers whether a cover is set, on the album feed', () => {
+    /*
+     * A different question from the one the mosaic answers.
+     *
+     * Leading the mosaic with the cover is enough to *draw* an album, which is
+     * all a card does — but from the mosaic alone the first entry is
+     * indistinguishable from the newest upload, so a client cannot tell whether
+     * a cover exists. Whoever runs the album needs to know, because the screen
+     * that offers to change one should show the one there is and should not
+     * offer to remove a cover that was never set.
+     *
+     * Presigned, by the same rule as everywhere else: the key never leaves.
+     */
+    const FEED = read('../app/api/events/[id]/photos/route.ts');
+    expect(FEED).toMatch(/coverUrl: await coverSrc\(event\.coverKey\)/);
+    expect(FEED).not.toMatch(/coverKey: /);
+  });
 });
 
 describe('the size a cover is drawn at', () => {

@@ -43,6 +43,14 @@ export type Feed = {
     /** The group this event belongs to, if it was rolled into one. */
     groupId: string | null;
     groupName: string | null;
+    /**
+     * The picture the album leads with, presigned for an hour, or null.
+     *
+     * Only the host can change it, but everybody is sent it: it costs one
+     * presign, and the alternative is a field that appears and disappears
+     * depending on who is asking, which is a second thing to get wrong.
+     */
+    coverUrl: string | null;
   };
   contributors: number;
   count: number;

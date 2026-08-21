@@ -16,6 +16,7 @@ import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
+import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { membersOf, rosterFor } from '@/members';
@@ -197,6 +198,20 @@ export async function GET(
       accessPolicy: event.accessPolicy,
       joinsOpen: event.joinsOpen,
       place: event.place,
+      /*
+       * The cover as it stands, presigned for an hour like everywhere else.
+       *
+       * Here so a client can *show* what the album currently leads with rather
+       * than only offer to change it. The web has this on the manage screen,
+       * where the picture sits above the two buttons; mobile had the buttons
+       * and no picture, which left "Album cover" meaning "there may or may not
+       * be one, press to find out".
+       *
+       * Null covers two different things on purpose — no cover set, and a
+       * cover whose object has gone — and both want the same answer from a
+       * client: draw the empty state and offer to choose one.
+       */
+      coverUrl: await coverSrc(event.coverKey),
       /*
        * Worded here rather than in the browser.
        *
