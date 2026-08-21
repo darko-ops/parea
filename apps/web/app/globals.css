@@ -54,7 +54,7 @@
      dims. Neutral, with the surface: brown-grey text on a grey page reads as
      two mistakes rather than one decision. */
   --dim-soft: #82828c;
-  /* The album page's own surface. Photographs at their own shapes leave a lot
+  /* The event page's own surface. Photographs at their own shapes leave a lot
      of page showing between them, and white between prints reads as a light
      box rather than as a wall. */
   --page: #f5f5f7;
@@ -88,7 +88,7 @@
   /* Lifts the card text off the blurred photo bleeding up behind it. Two of
      them, because the card and the hero want different amounts of it: the
      card is 20px of name over a blurred strip and can afford to let the
-     album's colour through, the hero has four lines and a button over the
+     event's colour through, the hero has four lines and a button over the
      same effect at a larger size and cannot. */
   --scrim: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .78));
   --scrim-deep: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .9));
@@ -408,7 +408,7 @@ button.secondary {
 
    It used to be the same rows laid out sideways, which worked at four and
    stopped at six: the bar scrolled horizontally, so Profile hung half off the
-   screen and Settings and Create Album were past the edge with nothing to say
+   screen and Settings and Create Event were past the edge with nothing to say
    they were there. A row of destinations you cannot see is not navigation.
 
    The mobile client has a bottom tab bar for this, and a 212px column on a
@@ -557,7 +557,7 @@ button.secondary {
   border-radius: 14px; padding: 14px 16px;
 }
 /* 11px rather than a circle, matching the feed's squares: half of these are
-   albums, and an album is a stack of photographs rather than a person. */
+   events, and an event is a stack of photographs rather than a person. */
 .waiting-face {
   flex: none; width: 44px; height: 44px; border-radius: 11px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -568,7 +568,7 @@ button.secondary {
 .waiting-what { flex: 1; min-width: 0; }
 .waiting-title { display: block; font-size: 15.5px; font-weight: 600; }
 /* Wraps rather than truncates. The line carries a caption somebody wrote and
-   an album's name, and an ellipsis in the middle of "invited you" tells you
+   an event's name, and an ellipsis in the middle of "invited you" tells you
    less than a second line does. */
 .waiting-detail {
   display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--dim);
@@ -616,7 +616,7 @@ button.secondary {
 }
 .pip-open { background: var(--accent-soft); color: var(--accent-ink); }
 /* Grey rather than red. A host who said no has not done something wrong, and
-   an alarm colour beside their album's name reads as one. */
+   an alarm colour beside their event's name reads as one. */
 .pip-declined { background: #eef0f3; color: var(--dim); }
 
 /* The feed. */
@@ -626,7 +626,7 @@ button.secondary {
 .activity-day + .activity-day { margin-top: 20px; }
 /* The day, and a rule filling whatever is left of the line. The rule is what
    makes it a divider rather than a heading: it separates without taking a line
-   of its own, which is the same device the album page's sections use. */
+   of its own, which is the same device the event page's sections use. */
 .day-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .day-head h2 {
   margin: 0; font-size: 12px; font-weight: 600;
@@ -667,8 +667,8 @@ button.secondary {
 .activity-row:hover { background: rgba(255, 255, 255, .55); }
 .activity-new:hover { background: var(--unread); }
 .activity a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* A rounded square rather than a circle: half of these are albums, and an
-   album is a stack of photographs rather than a person. The people get the
+/* A rounded square rather than a circle: half of these are events, and an
+   event is a stack of photographs rather than a person. The people get the
    same shape — a row of alternating circles and squares reads as two lists. */
 .activity-thumb {
   flex: none; width: 34px; height: 34px; border-radius: 9px;
@@ -719,7 +719,7 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------------
-   Home — a greeting, your people, then your albums.
+   Home — a greeting, your people, then your events.
 
    The page led with the word "Home" over a grid. It was accurate and it was
    nobody's: the first thing on a page you return to should be the people you
@@ -732,7 +732,7 @@ button.secondary {
 .home-greeting { font-size: 13px; color: var(--dim-soft); }
 .home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
 
-/* The people you are in albums with. Scrolls on a narrow screen rather than
+/* The people you are in events with. Scrolls on a narrow screen rather than
    wrapping to a second row: it is one row of faces, and two rows of them is a
    directory. */
 .people-row {
@@ -784,7 +784,7 @@ button.secondary {
 }
 
 /* The grid, under a rule. The rule is what separates the people from the
-   albums without a heading having to say so. */
+   events without a heading having to say so. */
 .cards { border-top: 1px solid var(--hairline); padding-top: 22px; }
 
 @media (max-width: 700px) {
@@ -795,7 +795,7 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------------
-   Album cards — the photograph is the card.
+   Event cards — the photograph is the card.
 
    What was here was a bordered panel: a mosaic of three or four thumbnails
    over a metadata strip, the strip lit from underneath by a blurred, mirrored
@@ -894,7 +894,7 @@ button.secondary {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: color 120ms;
 }
-/* Whose album it is, between the title and the people.
+/* Whose event it is, between the title and the people.
 
    The name at text weight and the handle a size down and lighter: they are one
    line about one person, so the second half recedes rather than repeating the
@@ -910,7 +910,7 @@ button.secondary {
 }
 .card-meta { font-size: 13px; line-height: 1.35; color: var(--dim); margin-top: 2px; }
 
-/* An album with no photographs gets none of the above — cropping nothing
+/* An event with no photographs gets none of the above — cropping nothing
    produces a grey rectangle that reads as a loading state that never
    finishes. So it is a different card: a name, a sentence, and the argument. */
 .card-empty {
@@ -1063,13 +1063,13 @@ button.secondary {
 }
 .pill.small { padding: 8px 13px; font-size: 14px; }
 /* The number on a filter. Quiet, and tabular so the row does not shuffle as
-   albums are made. */
+   events are made. */
 .pill-count { color: var(--dim); font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------------------
    Search results: four kinds of answer, one row shape.
 
-   The same row for an album, a friend, a stranger and a group, because what
+   The same row for an event, a friend, a stranger and a group, because what
    is known about each of them at this point is the same amount: a picture or
    a letter, a name, and one line under it. Four differently shaped rows would
    suggest the page knows more about some of them than it does.
@@ -1088,7 +1088,7 @@ button.secondary {
    picture, and a control centred against it floats beside nothing. */
 .you-act { align-self: flex-start; flex: none; display: flex; gap: 8px; }
 
-/* The two ways of having no albums in common. Given room rather than tucked
+/* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
 .person-empty { margin: 0; padding: 28px 0; font-size: 15px; }
 
@@ -1106,7 +1106,7 @@ button.secondary {
    Find — the box, and what the page holds before anybody uses it.
 
    This was four stacked bordered panels: the box, "People you may know",
-   "Your albums", "Your groups", each a list of identical 38px rows. It read as
+   "Your events", "Your groups", each a list of identical 38px rows. It read as
    a form, and the field somebody came here to type in had the same weight as
    the rules link underneath it.
 
@@ -1117,7 +1117,7 @@ button.secondary {
    things and the old page drew them identically.
    --------------------------------------------------------------------------- */
 .main-find {
-  /* The album page's surface, for the same reason: a column of white cards on
+  /* The event page's surface, for the same reason: a column of white cards on
      a white page is a set of outlines drawn on nothing. */
   background: var(--page);
   padding: 28px 30px 34px;
@@ -1281,7 +1281,7 @@ button.secondary {
 /* The foot: the rules behind a link, and beside them the one rule that has to
    be readable without being asked for.
 
-   An absence cannot explain itself. "Your albums" was on this page and is not
+   An absence cannot explain itself. "Your events" was on this page and is not
    any more, and without this sentence where the list was, the missing heading
    reads as something broken rather than as the policy it is. */
 .find-foot {
@@ -1513,7 +1513,7 @@ button.secondary {
 }
 
 /* Kept for the share panel, which is the only place a link is copied now that
-   the create form sends you straight into the album. */
+   the create form sends you straight into the event. */
 .aside-row {
   background: var(--card); border: 1px solid var(--line); border-radius: 12px;
   padding: 12px 14px; display: flex; align-items: center; gap: 10px;
@@ -1548,7 +1548,7 @@ button.secondary {
    floating in the middle of a short event. */
 .event {
   flex: 1; min-width: 0; display: flex; flex-direction: column;
-  /* The album's own surface, a shade off the white it sat on. Photographs at
+  /* The event's own surface, a shade off the white it sat on. Photographs at
      their own shapes leave a lot of page showing between them, and white
      between prints reads as a light box rather than as a wall. */
   background: var(--page);
@@ -1750,7 +1750,7 @@ button.secondary {
 }
 
 /* The first cell: the way to add, in the gallery rather than only in the
-   header. It stays first even when the album is full — an album that fills up
+   header. It stays first even when the event is full — an event that fills up
    is the one whose next photograph is easiest to forget to add. */
 .tile-add {
   height: 210px; border-radius: 14px;
@@ -1907,7 +1907,7 @@ button.secondary {
    when the conversation became a tab — so this is a `z-index` with nothing
    left to be above, kept high because it is opened from a sticky header.
 
-   Light, at 28%: it frames a link. Blacking out the album to show somebody a
+   Light, at 28%: it frames a link. Blacking out the event to show somebody a
    URL is heavier than the moment deserves. */
 .share-scrim {
   position: fixed; inset: 0; z-index: 30;
@@ -1915,7 +1915,7 @@ button.secondary {
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 /* The rows that used to live in the create screen's aside, which is gone —
-   creating an album now drops you inside it, and this panel is the one place
+   creating an event now drops you inside it, and this panel is the one place
    left where a link gets passed on. */
 .share-card {
   width: 100%; max-width: 420px;
@@ -2106,7 +2106,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* Inside a menu item, the count sits at the end of the row instead. */
 .dots-body .badge { margin-left: 8px; }
 /* Still the filled one wherever a menu *is* the main action — the home
-   screen's, and anything that grows one later. On the album page nothing does:
+   screen's, and anything that grows one later. On the event page nothing does:
    the words carry it. */
 .dots-primary {
   background: var(--accent); color: #fff; border-radius: 10px;
@@ -2185,7 +2185,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* One message, as a bubble.
 
    It was a row of plain text under a name, which reads as a comment section —
-   a list of statements about the album. A thread is people talking to each
+   a list of statements about the event. A thread is people talking to each
    other, and the shape everybody already knows for that is a bubble on a side.
 
    The two fills are the mark's own blue and mint, which is the only place this
@@ -2284,8 +2284,8 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    one, and the safety actions had to sit in the open under it because there
    was no second surface to put them on.
 
-   So this is the album's own page with the photograph on it. The picture
-   is the largest thing here and is never cropped; the album's conversation is
+   So this is the event's own page with the photograph on it. The picture
+   is the largest thing here and is never cropped; the event's conversation is
    beside it, not a comment section under it.
    --------------------------------------------------------------------------- */
 .photo-page {
@@ -2318,7 +2318,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   color: var(--fg); text-decoration: none; font-size: 15px;
 }
 .photo-step:hover { border-color: var(--accent); color: var(--accent-ink); }
-/* The end of the album. Faded rather than removed: a row of controls that
+/* The end of the event. Faded rather than removed: a row of controls that
    loses a button at the last photograph is a row that moves under the hand. */
 .photo-step-end { opacity: .4; }
 
@@ -2378,7 +2378,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border-left: 2px solid var(--accent); padding-left: 10px;
 }
 
-/* Where you are in the album. A window around this photograph rather than all
+/* Where you are in the event. A window around this photograph rather than all
    of it — see the route. */
 .photo-strip {
   display: flex; gap: 8px; overflow-x: auto; padding-top: 4px;
@@ -2394,7 +2394,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-strip-on { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
 .photo-strip-one:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* The album's conversation, in full — not this photograph's comments. See the
+/* The event's conversation, in full — not this photograph's comments. See the
    note on `PhotoView`. */
 .photo-aside {
   width: 352px; flex: none; display: flex; flex-direction: column; gap: 12px;
@@ -2408,7 +2408,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-chat { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 /* Bounded and scrolling, so the composer stays where it was put. A column that
    grows with the conversation pushes the box you type in off the bottom of a
-   busy album. */
+   busy event. */
 .photo-chat .thread-list { max-height: 452px; overflow-y: auto; }
 .photo-chat .thread-empty { padding: 24px 0; }
 .photo-chat .thread-empty h2 { font-size: 17px; }
@@ -2468,12 +2468,12 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    appears on, which is now three.
 
    The rule this used to state was broader than its reason. "Borrowing a
-   picture from an album inside would put it on a screen that is only the door"
+   picture from an event inside would put it on a screen that is only the door"
    is about *the door*: the search page's card, where the viewer may not be a
    member, and where it still holds exactly. It is not about this list, which
    is `myGroups` — the viewer is in every group on it, the page is
    `force-dynamic`, and somebody removed gets no row and therefore no covers on
-   their next load. So the strip below a row may carry album covers; the tile
+   their next load. So the strip below a row may carry event covers; the tile
    itself may not, anywhere, because it stands for the group rather than for
    anything inside it. */
 .group-tile {
@@ -2496,7 +2496,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 
 /* Where groups come from, for somebody in none. Not a disabled button: a
-   group is made from an album and there is nothing to press here. */
+   group is made from an event and there is nothing to press here. */
 .groups-none { max-width: 520px; padding: 8px 0 4px; }
 .groups-none-lead { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
 .groups-none p { margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: var(--dim); }
@@ -2539,33 +2539,33 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .group-all:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-/* The three most recent albums. Equal widths, because they are three of a
-   kind; a group with fewer gets fixed-width tiles instead, so one album does
+/* The three most recent events. Equal widths, because they are three of a
+   kind; a group with fewer gets fixed-width tiles instead, so one event does
    not stretch across the page pretending to be a hero. */
 .group-strip { display: flex; gap: 10px; padding: 0 8px; }
 .group-strip > * { flex: 1; min-width: 0; }
 .group-strip-few > * { flex: none; width: 170px; }
-.strip-album { text-decoration: none; color: inherit; }
+.strip-event { text-decoration: none; color: inherit; }
 .strip-cover {
   position: relative; display: block; height: 104px;
   border-radius: 12px; overflow: hidden; background: var(--photo-bed);
 }
 .strip-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* Inside `overflow: hidden`, so the picture grows into its own corners rather
-   than out of them — the same move the album cards make. */
-.strip-album:hover .strip-cover img { transform: scale(1.02); }
+   than out of them — the same move the event cards make. */
+.strip-event:hover .strip-cover img { transform: scale(1.02); }
 .strip-cover img { transition: transform 160ms ease; }
 @media (prefers-reduced-motion: reduce) {
   .strip-cover img { transition: none; }
-  .strip-album:hover .strip-cover img { transform: none; }
+  .strip-event:hover .strip-cover img { transform: none; }
 }
-.strip-album:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
-.strip-album-name {
+.strip-event:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.strip-event-name {
   display: block; margin-top: 7px; font-size: 13px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Where a photograph is not. A shade off the page, and never a broken glyph:
-   an album with nothing in it and an album whose cover expired look the same
+   an event with nothing in it and an event whose cover expired look the same
    from here, and both are "no picture" rather than "something went wrong". */
 .cover-none {
   display: block; width: 100%; height: 104px;
@@ -2745,7 +2745,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   .archive-cover { width: 140px; height: 88px; }
 }
 
-/* The album's header on a phone.
+/* The event's header on a phone.
 
    It was the desktop arrangement at a narrower measure, which meant the four
    actions sat beside the title and took half of it — so the name wrapped, the
@@ -2804,7 +2804,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   /* The one thing the page is for takes the room the others do not need. */
   .event-actions .event-add { flex: 1; text-align: center; }
   /* Invite and the download menu fold into the `···`, which is where the
-     album's other settings already are. */
+     event's other settings already are. */
   .wide-only { display: none; }
   .dots-body .narrow-only { display: block; }
   .event-actions .button-like, .event-invite { padding: 10px 14px; font-size: 14px; }
@@ -2958,7 +2958,7 @@ img.you-face { object-fit: cover; }
  /* Quiet, in the corner of the header, aligned with the name rather than the
     bottom of the picture. A word and a hairline — the loud version was a
     bordered button on its own row, which is the shape this product uses for
-    the thing a page is *for*, and this page is for the albums below. */
+    the thing a page is *for*, and this page is for the events below. */
 .you-edit {
   align-self: flex-start; flex: none;
   padding: 5px 11px; border-radius: 999px;
@@ -3084,7 +3084,7 @@ button.link {
    number beside a name reads as a notification. */
 /* The friends count, which goes to the friends page.
 
-   It sits beside the album count and reads as part of the same line, so it is
+   It sits beside the event count and reads as part of the same line, so it is
    drawn as that line and not as a link: same grey, no underline, and hovering
    it thickens the text rather than turning it blue and underlining it. Colour
    and a rule are what a link uses to announce itself among prose; this one is

@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
  * handle, and what it offers is the ask — the answer to somebody you do not
  * want to hear from is to decline, which is said once and cannot be pressed
  * past. Blocking is the heavier tool and belongs where the heavier problem is:
- * a photograph of you, in an album you are both in, put there by somebody you
+ * a photograph of you, in an event you are both in, put there by somebody you
  * cannot simply stop asking. That is the handle a viewer has on a person, and
  * it is the one this takes.
  */

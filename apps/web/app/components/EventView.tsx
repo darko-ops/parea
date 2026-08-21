@@ -131,7 +131,7 @@ const TABS = [
    *
    * The same split the rail makes between what a row is called and where it
    * goes: renaming the id would break every link anybody has already sent to
-   * an album's conversation, and the word on screen is free to change without
+   * an event's conversation, and the word on screen is free to change without
    * that. Thread is what people call this — a run of messages about one thing
    * — and it is a shorter word in a row of three.
    */
@@ -144,7 +144,7 @@ export type EventTab = (typeof TABS)[number][0];
 /**
  * One line of facts about the evening.
  *
- * The date first, and it is the album's own: `startsAt` when the host said
+ * The date first, and it is the event's own: `startsAt` when the host said
  * when it was, else the earliest photograph, else nothing. It used to be a
  * relative time — "3 days ago" — which answers when it was last *added to*,
  * a fact about the upload rather than about the night.
@@ -274,7 +274,7 @@ export function EventView({
    * The row used to draw the people *other than* the host, because the host's
    * own picture was a 38px circle beside the title. That circle is gone: the
    * header names them in words instead ("Created by Demetri"), so a row that
-   * still skipped them was an album of four people showing three faces.
+   * still skipped them was an event with four people in it showing three faces.
    */
   const faces = [
     ...(host ? [host] : []),
@@ -399,10 +399,10 @@ export function EventView({
 
         It was a sticky bar with the host's picture beside the name, `@handle ·
         caption` on its own line, a row of faces with the place and a relative
-        time, and three glyphs. Two of those were doing the album's job badly:
+        time, and three glyphs. Two of those were doing the event's job badly:
         the relative time answered "when was this added to" where somebody
         wants to know when the evening *was*, and the handle belongs to a
-        person rather than to their album — it lives on People and on profiles.
+        person rather than to their event — it lives on People and on profiles.
 
         Now: the name, one line of facts about the evening, who is in it, and
         the host's own line if they wrote one. The actions say what they do in
@@ -413,8 +413,8 @@ export function EventView({
         <div className="event-head-row">
           {/* The way back, as a glyph and a hit area rather than a word: it is
               the one control here that is about the page rather than about the
-              album. */}
-          <a href="/albums" className="event-back" aria-label="Back to your albums">
+              event. */}
+          <a href="/events" className="event-back" aria-label="Back to your events">
             {'\u2039'}
           </a>
 
@@ -423,7 +423,7 @@ export function EventView({
 
             {/*
               One line of facts about the evening, in the order somebody asks
-              them: when it was, where, who, how much. The date is the album's
+              them: when it was, where, who, how much. The date is the event's
               own — `startsAt`, or the first photograph — never "3 days ago",
               which is a fact about the upload.
 
@@ -533,8 +533,8 @@ export function EventView({
             <Menu
               label={
                 feed.event.waiting > 0
-                  ? `This album — ${feed.event.waiting} waiting`
-                  : 'This album'
+                  ? `This event — ${feed.event.waiting} waiting`
+                  : 'This event'
               }
               glyph="···"
               tone="quiet"
@@ -593,7 +593,7 @@ export function EventView({
                   )}
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
-                      Manage album
+                      Manage event
                       {feed.event.waiting > 0 && (
                         <span className="badge">{feed.event.waiting}</span>
                       )}
@@ -618,7 +618,7 @@ export function EventView({
           shape, and `?tab=` means a link to the roster is a link somebody can
           send and Back is the way out of it.
         */}
-        <nav className="event-tabs" aria-label="This album">
+        <nav className="event-tabs" aria-label="This event">
           {TABS.map(([id, label]) => (
             <a
               key={id}
@@ -710,8 +710,8 @@ export function EventView({
           {/*
             The gallery, with the contribute tile first.
 
-            First even when the album is full: it is the affordance, not a
-            result, and an album that fills up is exactly the one whose next
+            First even when the event is full: it is the affordance, not a
+            result, and an event that fills up is exactly the one whose next
             photograph is easiest to forget to add. It is the same control as
             the header button — a label over the same input — so there is one
             file dialog and one disabled state.
@@ -980,7 +980,7 @@ function Masonry({
 }
 
 /**
- * Everybody in the album, and everybody who was asked.
+ * Everybody in the event, and everybody who was asked.
  *
  * A page of rows rather than a list of faces: the point of it is what each
  * person has put in, which is the one number that turns "who is here" into
@@ -1007,7 +1007,7 @@ function People({
             {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
           </h2>
           <p className="muted">
-            Invite everyone who was there so the album has every perspective.
+            Invite everyone who was there so the event has every perspective.
           </p>
         </div>
         <button type="button" onClick={onInvite}>

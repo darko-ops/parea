@@ -604,8 +604,8 @@ describe('the session outlives the visit', () => {
  *
  * Identity is one cookie; access to the photographs is a different set of
  * them, one per event this browser has ever opened a link to. Clearing only
- * the first looks completely correct — the name goes, the albums list empties,
- * the page says signed out — and leaves every album this person opened still
+ * the first looks completely correct — the name goes, the events list empties,
+ * the page says signed out — and leaves every event this person opened still
  * openable by whoever sits down next. On a shared computer that is the exact
  * situation the button was pressed to avoid.
  */

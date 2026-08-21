@@ -44,12 +44,12 @@ export type ActivityRow = {
   what: string;
   when: string;
   href: string | null;
-  /** A person's picture, or the album's newest photograph. Null draws a letter. */
+  /** A person's picture, or the event's newest photograph. Null draws a letter. */
   image: string | null;
   /**
    * The photographs the line is about. Only `photos_added` has any.
    *
-   * Decorative, and marked so: the row is one link to the album, not four, and
+   * Decorative, and marked so: the row is one link to the event, not four, and
    * three thumbnails announcing themselves before the sentence is three things
    * read out before the thing that says what happened.
    */
@@ -87,7 +87,7 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="activity-empty">
-        Nothing yet. When somebody adds photos to an album you are in, says
+        Nothing yet. When somebody adds photos to an event you are in, says
         something about yours, or opens one to you, it turns up here.
       </p>
     );
@@ -119,7 +119,7 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
 
                     `Face` rather than a bare `<img>` because these expire: an
                     avatar URL is presigned for an hour and a photograph is
-                    signed against its album's epoch, so a tab left open long
+                    signed against its event's epoch, so a tab left open long
                     enough holds a row whose picture is gone. The letter is what
                     that becomes, rather than the broken-image glyph.
                   */}
@@ -194,7 +194,7 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
  * One of the three thumbnails on a `photos_added` row.
  *
  * Its own component for the `Face` reason: these are signed against the
- * album's epoch and a tab left open outlives the signature, so a failure has
+ * event's epoch and a tab left open outlives the signature, so a failure has
  * to be a flat square rather than the browser's broken-image glyph. Nothing
  * stands in for it — unlike the row's own picture there is no letter that
  * would mean anything, and two of three photographs is still a strip.

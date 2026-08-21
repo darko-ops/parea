@@ -10,7 +10,7 @@
  * So a sign-out that clears identity and leaves that list behind looks
  * completely finished — the name goes, the tabs empty, the account card offers
  * to sign in again — and leaves the next person holding this phone one tap
- * from every album the last person had opened. That is the exact situation the
+ * from every event the last person had opened. That is the exact situation the
  * button is pressed for, and it is invisible in a screenshot of the result.
  *
  * Asserted against the source rather than by running it: `platform.ts` imports

@@ -60,11 +60,11 @@ the incident.
 **It does not see two kinds of image at all.** The scanner is reached from the
 deriver's pipeline, which runs on photographs. Two small images are written
 outside it, both re-encoded through sharp on the way in and neither ever
-derived: a profile picture (`avatars/<actorId>.jpg`) and an album cover
-(`ev/<eventId>/cover.jpg`). A cover is almost always one of the album's own
+derived: a profile picture (`avatars/<actorId>.jpg`) and an event cover
+(`ev/<eventId>/cover.jpg`). A cover is almost always one of the event's own
 photographs sent twice — once here, once up the ordinary path, where it *is*
 scanned — so what this really leaves open is a cover whose photograph was
-later quarantined, and which is still the album's face on somebody's home
+later quarantined, and which is still the event's face on somebody's home
 screen. Step 2 below closes it by hand.
 
 ## The review SLA
@@ -110,11 +110,11 @@ preservation — do not wait for anyone.
 2. **Confirm the quarantine held, and clear the copies the scanner cannot
    see.** The photo should be `quarantined` and invisible everywhere. If it is
    not, stop and fix that first. Then check the two paths the deriver does not
-   run on, because a quarantined photograph can still be somebody's album cover
+   run on, because a quarantined photograph can still be somebody's event cover
    or profile picture:
 
    ```sql
-   -- Covers on any album this uploader contributed to, and their own picture.
+   -- Covers on any event this uploader contributed to, and their own picture.
    select id, name, cover_key from "event" where cover_key is not null
      and id in (select event_id from "photo" where uploader_id = :actor);
    select id, avatar_key from "actor" where id = :actor and avatar_key is not null;

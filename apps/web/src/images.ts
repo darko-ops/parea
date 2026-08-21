@@ -105,7 +105,7 @@ export async function imageSources(
  *
  * The gallery was handed a single 320px thumbnail and drew it into a column
  * roughly 240 CSS pixels wide — which on a 2× screen is 480 device pixels, so
- * every photograph in an album was upscaled half again and looked it. On a 3×
+ * every photograph in an event was upscaled half again and looked it. On a 3×
  * phone it was worse. The tile is the product's subject at the size most
  * people see it, and it was the softest image on the page.
  *
@@ -117,7 +117,7 @@ export async function imageSources(
  * The gap between 320 and 1280 was the real cost, and `card` at 640 closed it:
  * a 2× screen filling a 540-pixel slot now fetches 640 rather than a 1280 it
  * throws most of away. It is offered only for photographs that actually have
- * one — see `hasCard` — because the size arrived after the product had albums
+ * one — see `hasCard` — because the size arrived after the product had events
  * in it, and a signed URL for an object nobody encoded is a broken tile.
  */
 export async function imageSrcSet(
@@ -162,7 +162,7 @@ export function hasDerivatives(photo: PhotoRef): boolean {
  * One query rather than a correlated subselect per row: a gallery is up to
  * fifty rows and this is a set membership test, not a column of the photo.
  *
- * It exists at all because `card` was added after the product had albums in
+ * It exists at all because `card` was added after the product had events in
  * it. Everything ingested before then has thumb, grid and full and nothing
  * between, and there is no flag on the photo saying so — the `derivative`
  * table is the only thing that knows. Once every photograph has been

@@ -416,9 +416,9 @@ describe('a private event where the host decides', () => {
  * Changing it afterwards.
  *
  * It was write-once, which looks like a safety property and is not one: the
- * choice is made in the first thirty seconds of an album's life, before
+ * choice is made in the first thirty seconds of an event's life, before
  * anybody has been sent anything, and the difference between the three only
- * becomes visible once somebody has been. Five albums here were permanently
+ * becomes visible once somebody has been. Five events here were permanently
  * making invited people queue at the door with no way back.
  *
  * The interesting half is what tightening does *not* do.
@@ -451,7 +451,7 @@ describe('who can see it, changed after the fact', () => {
   it('does not evict the people already in when it is tightened', async () => {
     // The screen says so, and this is why it can: participation is read before
     // the policy, so approval mode stops new people rather than removing
-    // everyone who arrived while the album was open.
+    // everyone who arrived while the event was open.
     const event = await makeEvent({ accessPolicy: 'link_open' });
     const guest = await makeSignedInActor();
     await recordParticipant(db, event.id, guest);

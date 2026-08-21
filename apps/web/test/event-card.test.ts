@@ -1,8 +1,8 @@
 /**
- * What an album card has to say.
+ * What an event card has to say.
  *
  * A card is the whole product on a wall — most people will see far more of
- * these than album pages — and every line on it was argued about separately.
+ * these than event pages — and every line on it was argued about separately.
  * This pins the arguments that are easy to undo by accident: which count the
  * circles stand for, when the number beside them appears, and that the two
  * derived facts are derived rather than written out again in a component.
@@ -35,7 +35,7 @@ describe('what a card says now that the photograph is the card', () => {
   it('says who and when, in that order', () => {
     /*
      * "8 people · Fri 14 Mar". The people first because that is what somebody
-     * recognises an evening by, and the date is the album's own evening rather
+     * recognises an evening by, and the date is the event's own evening rather
      * than the last upload — except while it is being added to, where the
      * recent thing *is* the news.
      */
@@ -43,11 +43,11 @@ describe('what a card says now that the photograph is the card', () => {
     expect(CARD).toMatch(/event\.live \? `added to \$\{event\.added\}` : event\.date/);
   });
 
-  it('says whose album it is, in both of their names', () => {
+  it('says whose event it is, in both of their names', () => {
     /*
      * The name is what somebody recognises and the handle is what is unique,
      * so a card that printed one of them made the reader guess which. On your
-     * own albums the name is "You" — your own name read back at you on a wall
+     * own events the name is "You" — your own name read back at you on a wall
      * of your own evenings is the page describing you to yourself.
      */
     expect(CARD).toMatch(/event\.mine \? 'You' : event\.creatorName/);
@@ -63,7 +63,7 @@ describe('what a card says now that the photograph is the card', () => {
      * the component holds nothing it does not draw.
      */
     expect(CARD).not.toMatch(/card-said/);
-    // Not below the cover, which is the card this test is about. The album
+    // Not below the cover, which is the card this test is about. The event
     // with no photographs keeps its caption: that card is text, and the
     // sentence is most of what it has.
     const photoCard = CARD.slice(CARD.indexOf('card-cover'));
@@ -97,7 +97,7 @@ describe('the people on a card', () => {
   });
 
   it('fetches them with the listing rather than a query per card', () => {
-    // This is the screen with the most rows on it; a round trip per album is a
+    // This is the screen with the most rows on it; a round trip per event is a
     // page that gets slower the more somebody uses the product.
     expect(EVENTS).toMatch(/faces: sql<FaceRow\[\]>/);
     expect(EVENTS).toMatch(/limit \$\{CARD_FACES \+ 1\}/);
@@ -153,20 +153,20 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
   });
 
   it('sends the cover as a URL, at the front of the mosaic', () => {
-    // Both clients draw an album by its mosaic, so the cover leads by being
+    // Both clients draw an event by its mosaic, so the cover leads by being
     // first in it rather than by a second field each of them has to learn.
     expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
     expect(API).toMatch(/mosaic: \[\.\.\.\(cover \? \[cover\] : \[\]\), \.\.\.mosaic\]/);
   });
 
-  it('answers whether a cover is set, on the album feed', () => {
+  it('answers whether a cover is set, on the event feed', () => {
     /*
      * A different question from the one the mosaic answers.
      *
-     * Leading the mosaic with the cover is enough to *draw* an album, which is
+     * Leading the mosaic with the cover is enough to *draw* an event, which is
      * all a card does — but from the mosaic alone the first entry is
      * indistinguishable from the newest upload, so a client cannot tell whether
-     * a cover exists. Whoever runs the album needs to know, because the screen
+     * a cover exists. Whoever runs the event needs to know, because the screen
      * that offers to change one should show the one there is and should not
      * offer to remove a cover that was never set.
      *
@@ -209,19 +209,19 @@ describe('the size a cover is drawn at', () => {
   });
 });
 
-describe('the picture an album leads with', () => {
+describe('the picture an event leads with', () => {
   it('is the cover when there is one, and the newest photo otherwise', () => {
-    // One rule, in one place: search rows, the albums two people share, and
-    // the card all ask the same function which image an album is.
+    // One rule, in one place: search rows, the events two people share, and
+    // the card all ask the same function which image an event is.
     expect(CARDS).toMatch(/export async function leadImage/);
     expect(CARDS).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
     expect(CARDS).toMatch(/if \(cover\) return cover/);
   });
 
-  it('leaves the empty card to the album with no photographs', () => {
+  it('leaves the empty card to the event with no photographs', () => {
     /*
      * The mosaic and the photograph count stopped being the same number when
-     * covers arrived: an album with a cover and nothing in it has a tile to
+     * covers arrived: an event with a cover and nothing in it has a tile to
      * draw. Drawing it would replace the one card in the product whose job is
      * to get the first photograph out of somebody.
      */
@@ -240,7 +240,7 @@ describe('changing the cover afterwards', () => {
 
   it('sets and clears through the one endpoint that owns covers', () => {
     // The same route the create screen posts to. A second way to write a
-    // cover would be a second place for "who may change this album's face" to
+    // cover would be a second place for "who may change this event's face" to
     // be decided, and that decision is `administer`.
     expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{\s*method: 'POST'/);
     expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{ method: 'DELETE' \}\)/);
@@ -265,7 +265,7 @@ describe('changing the cover afterwards', () => {
     /*
      * These URLs are presigned for an hour, so a manage screen left open over
      * lunch has one that no longer resolves. Falling back to the "add one"
-     * plus would tell somebody their album has no cover when it has one.
+     * plus would tell somebody their event has no cover when it has one.
      */
     expect(MANAGE).toMatch(/function CoverPreview/);
     expect(MANAGE).toMatch(/if \(failed\) return <span className="cover-preview cover-none"/);

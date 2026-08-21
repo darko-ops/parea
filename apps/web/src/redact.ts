@@ -5,7 +5,7 @@
  * a URL. In this product a URL is not a description of a page — it is
  * sometimes the key to one. `/e/<token>` *is* the credential (design §3): the
  * whole access model is that holding that link is what lets you in. A stack
- * trace carrying it into a third-party dashboard would put the album behind it
+ * trace carrying it into a third-party dashboard would put the event behind it
  * within reach of everyone who can read that dashboard, and it would do so
  * quietly, on the one path most likely to be throwing errors in the first
  * place — the one strangers arrive on.

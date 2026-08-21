@@ -176,7 +176,7 @@ describe('the clients that send one', () => {
   it('the web form still refuses to submit without a name', () => {
     // What the guard rule was really protecting: a submit control that cannot
     // be pressed past an unanswered required question. On the web that is now
-    // the title, which is the only thing an album cannot be made without.
+    // the title, which is the only thing an event cannot be made without.
     const web = read('../app/page.tsx');
     const submit = web.slice(web.indexOf('type="submit"'));
     expect(submit.slice(0, 200)).toMatch(/disabled=\{[^}]*!name\.trim\(\)/);

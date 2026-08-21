@@ -3,7 +3,7 @@
  *
  * **There is no Create group button.** `POST /api/groups` requires a
  * `fromEventId` and refuses without one, because a group is something you
- * notice afterwards — the same people kept turning up, so you roll that album
+ * notice afterwards — the same people kept turning up, so you roll that event
  * into a group. An empty group you then have to fill is a distribution problem
  * with no photographs in it, and the people you would invite have no reason to
  * accept yet. A page listing groups is exactly where somebody will reasonably
@@ -11,7 +11,7 @@
  * from nothing. So the absence is asserted.
  *
  * **A group never shows a photograph.** It has no cover of its own, and the
- * only pictures available are inside albums that belong to it — putting one on
+ * only pictures available are inside events that belong to it — putting one on
  * the door means a photograph from a room appears on the screen that is merely
  * the way into it, including for somebody who has since been removed. The tile
  * is a letter in a lens colour, as it is on the search page.
@@ -45,7 +45,7 @@ const CSS = await readFile(
 );
 
 describe('where a group comes from', () => {
-  it('is still an album, enforced by the endpoint', () => {
+  it('is still an event, enforced by the endpoint', () => {
     // The rule this page is shaped around. If this ever stops being true the
     // page's empty state is telling people something false.
     expect(API).toMatch(/fromEventId/);
@@ -55,12 +55,12 @@ describe('where a group comes from', () => {
   it('is not offered as a button on the page', () => {
     /*
      * No create form, and no POST to the groups endpoint. The page says where
-     * groups come from and sends somebody to their albums, which is the only
+     * groups come from and sends somebody to their events, which is the only
      * place the action can be taken.
      */
     expect(PAGE).not.toMatch(/method: 'POST'|fetch\(/);
     // "Make a group" does appear, as the name of the control to look for on
-    // an album — the sentence pointing somewhere else, not a control here.
+    // an event — the sentence pointing somewhere else, not a control here.
     expect(PAGE).not.toMatch(/Create group|New group/);
     expect(PAGE).not.toMatch(/<button/);
   });
@@ -70,7 +70,7 @@ describe('where a group comes from', () => {
     // person most likely to be new.
     expect(PAGE).toMatch(/You are not in any groups yet/);
     expect(PAGE).toMatch(/Make a group/);
-    expect(PAGE).toMatch(/href="\/albums"/);
+    expect(PAGE).toMatch(/href="\/events"/);
   });
 });
 
@@ -141,10 +141,10 @@ describe('what a non-member is handed', () => {
     expect(GROUP).toMatch(/canJoinDirectly \? 'Join' : 'Ask to join'/);
   });
 
-  it('draws no faces, covers or album count on the door', () => {
+  it('draws no faces, covers or event count on the door', () => {
     const door = GROUP.slice(GROUP.indexOf('if (!group.member)'), GROUP.indexOf('const byId'));
     expect(door).not.toBe('');
-    expect(door).not.toMatch(/<Face|archive|AlbumCover|albums\.length/);
+    expect(door).not.toMatch(/<Face|archive|EventCover|events\.length/);
   });
 });
 
@@ -167,7 +167,7 @@ describe('inside a group', () => {
   });
 
   it('says what leaving costs, which is what makes hiding it safe', () => {
-    expect(GROUP).toContain('Photos live in the albums, not in the group.');
+    expect(GROUP).toContain('Photos live in the events, not in the group.');
   });
 
   it('words its months and dates on the server', () => {
@@ -178,8 +178,8 @@ describe('inside a group', () => {
   });
 
   it('never prints a raw date string', () => {
-    // What it did: `2025-09-12` beside an album name.
-    expect(GROUP).not.toMatch(/event\.eventDate|album\.eventDate/);
+    // What it did: `2025-09-12` beside an event name.
+    expect(GROUP).not.toMatch(/event\.eventDate|event\.eventDate/);
   });
 });
 

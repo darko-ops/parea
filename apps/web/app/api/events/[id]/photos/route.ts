@@ -192,7 +192,7 @@ export async function GET(
       code: spoken?.words ?? null,
       // What the link actually does, so the share panel can say. It used to
       // claim "anybody with this can open the event and add their photos" on
-      // every album, which is false on two of the three policies and false
+      // every event, which is false on two of the three policies and false
       // again once joins are closed — and it is the sentence somebody reads
       // immediately before sending the link to six people.
       accessPolicy: event.accessPolicy,
@@ -201,10 +201,10 @@ export async function GET(
       /*
        * The cover as it stands, presigned for an hour like everywhere else.
        *
-       * Here so a client can *show* what the album currently leads with rather
+       * Here so a client can *show* what the event currently leads with rather
        * than only offer to change it. The web has this on the manage screen,
        * where the picture sits above the two buttons; mobile had the buttons
-       * and no picture, which left "Album cover" meaning "there may or may not
+       * and no picture, which left "Event cover" meaning "there may or may not
        * be one, press to find out".
        *
        * Null covers two different things on purpose — no cover set, and a
@@ -225,7 +225,7 @@ export async function GET(
     },
     contributors,
     people,
-    // Everybody in the album, for the faces in the head and the Members tab.
+    // Everybody in the event, for the faces in the head and the Members tab.
     // Not the same list as `people`, which is whose photographs these are.
     members: await membersOf(db, event.id),
     // The People tab's fuller answer: everybody in it with what they have put

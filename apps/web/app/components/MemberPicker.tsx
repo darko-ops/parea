@@ -1,18 +1,18 @@
 'use client';
 
 /**
- * Who is in it, chosen while the album is being made.
+ * Who is in it, chosen while the event is being made.
  *
  * The same two lists the Members tab shows — your friends, and anybody by
  * handle — and the same rule: picking somebody writes an invitation, not a
- * membership. Nothing here puts a person into an album; they are asked, and
+ * membership. Nothing here puts a person into an event; they are asked, and
  * they answer in Activity. A host who could add people outright would be
  * writing their guest list into somebody else's account.
  *
- * It holds the choice rather than sending it. There is no album yet while this
+ * It holds the choice rather than sending it. There is no event yet while this
  * is on screen, so the invitations go out in one call the moment there is one
  * — which also means backing out of the form invites nobody, where a picker
- * that sent as it went would leave a trail of asks for an album that was never
+ * that sent as it went would leave a trail of asks for an event that was never
  * made.
  */
 

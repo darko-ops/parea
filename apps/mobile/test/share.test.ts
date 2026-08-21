@@ -1,10 +1,10 @@
 /**
- * Sending the link from inside an album.
+ * Sending the link from inside an event.
  *
  * It was not possible: the link appeared once, on the screen that made the
- * album, and after that the only way to get it in front of somebody was to
- * make another album. Everything else about an album is reachable from the
- * album; this was the exception, and it is the one thing an album is for.
+ * event, and after that the only way to get it in front of somebody was to
+ * make another event. Everything else about an event is reachable from the
+ * event; this was the exception, and it is the one thing an event is for.
  *
  * Asserted against the source — the screen imports Expo modules at module
  * scope and needs a device, which is the boundary `api.test.ts` documents.
@@ -19,7 +19,7 @@ const app = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 
 
 const screen = app.slice(app.indexOf('function EventScreen('));
 
-describe('sharing an album from the album', () => {
+describe('sharing an event from the event', () => {
   it('hands it to the system sheet rather than drawing one', () => {
     // The sheet knows which group chat these people use, and picking somebody
     // in it tells this app nothing about who they are — which is why there is
@@ -30,7 +30,7 @@ describe('sharing an album from the album', () => {
   it('sends the link and nothing else', () => {
     /*
      * No name in the message body: a shared link unfurls into a card carrying
-     * the album's title, so putting it in the text as well says it twice. And
+     * the event's title, so putting it in the text as well says it twice. And
      * no spoken phrase — that is the other door, for somebody in the room.
      */
     const call = screen.slice(screen.indexOf('Share.share('), screen.indexOf('Share.share(') + 200);
@@ -46,11 +46,11 @@ describe('sharing an album from the album', () => {
 });
 
 /**
- * And the screen that makes an album.
+ * And the screen that makes an event.
  *
  * The phrase used to be offered here behind a button, on the one screen whose
  * job is sending a link. Two doors shown as one act again, and this one had a
- * second problem coming: the server stopped minting a phrase unless an album
+ * second problem coming: the server stopped minting a phrase unless an event
  * asks for one, so it was on its way to being a button that revealed nothing.
  */
 describe('the create screen sends a link and offers nothing else', () => {

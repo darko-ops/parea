@@ -99,7 +99,7 @@ describe('what is switched off', () => {
 describe('a report cannot carry the credential', () => {
   it('reduces a share link to its shape', () => {
     // The whole point. Anybody who can read the crash dashboard would
-    // otherwise be able to open the album.
+    // otherwise be able to open the event.
     expect(redactUrl('https://www.parea.photos/e/abc123secret')).toBe(
       'https://www.parea.photos/e/[token]',
     );
@@ -120,7 +120,7 @@ describe('a report cannot carry the credential', () => {
      */
     expect(redactUrl('https://img.example/photo.jpg?X-Amz-Signature=deadbeef&X-Amz-Expires=3600'))
       .toBe('https://img.example/photo.jpg');
-    expect(redactUrl('/albums?q=whose+wedding')).toBe('/albums');
+    expect(redactUrl('/events?q=whose+wedding')).toBe('/events');
   });
 
   it('refuses to guess at something it cannot parse', () => {

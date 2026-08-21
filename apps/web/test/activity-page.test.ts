@@ -71,9 +71,9 @@ describe('what is waiting on you', () => {
     expect(WAITING).toMatch(/setError\(/);
   });
 
-  it('still goes to the album when an invitation is accepted', () => {
+  it('still goes to the event when an invitation is accepted', () => {
     // The only answer that changes what is reachable, so the only one that
-    // needs the page rebuilt — in the album that just opened.
+    // needs the page rebuilt — in the event that just opened.
     expect(WAITING).toMatch(/kind === 'invite'/);
     expect(WAITING).toMatch(/window\.location\.href = `\/event\/\$\{request\.eventId\}`/);
   });
@@ -132,7 +132,7 @@ describe('the feed', () => {
   });
 
   it('keeps the strip out of the way of the sentence', () => {
-    // The row is one link to the album, not four, and three thumbnails
+    // The row is one link to the event, not four, and three thumbnails
     // announcing themselves before the sentence is three things read out
     // before the thing that says what happened.
     const strip = LIST.match(/<span className="activity-strip"[^>]*>/)?.[0] ?? '';
@@ -144,7 +144,7 @@ describe('the feed', () => {
     // Verbatim. It is the one sentence on this page that explains what the
     // page is for, and it is read by people who have nothing to look at.
     expect(LIST).toContain(
-      'Nothing yet. When somebody adds photos to an album you are in, says',
+      'Nothing yet. When somebody adds photos to an event you are in, says',
     );
   });
 

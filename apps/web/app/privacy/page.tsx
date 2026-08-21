@@ -222,7 +222,7 @@ export default function PrivacyPage() {
           <h3>Notifications you have hidden</h3>
           <p className="muted">
             The Activity page is worked out when you open it, from things that
-            already happened &mdash; a reaction, a mention, an album you were
+            already happened &mdash; a reaction, a mention, an event you were
             let into. Nothing is stored to make that list. When you hide a line
             from it, what is kept is the identifier of that line and nothing
             else, so it can be left out next time. It is not a record of what

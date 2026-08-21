@@ -12,7 +12,7 @@
  * stay one.
  *
  * `card` is the newest and the one the gallery actually serves. Adding it cost
- * two encodes per photograph at ingest; what it saved is every album fetching
+ * two encodes per photograph at ingest; what it saved is every event fetching
  * a 1280 to fill a 540-pixel slot.
  */
 

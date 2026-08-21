@@ -1,7 +1,7 @@
 /**
  * The three tabs' contents: home, search, profile.
  *
- * One word for one thing: an event. These tabs briefly said "album" while the
+ * One word for one thing: an event. These tabs briefly said "event" while the
  * schema said `event`, which meant every file that touched them opened with a
  * paragraph explaining that the two were the same. That paragraph was the cost
  * of the second word, and it bought nothing.
@@ -332,7 +332,7 @@ export function HomeTab({
  * from, and the same rule the web's Groups page follows.
  *
  * Never a photograph. A group has no cover of its own, and the only pictures
- * available are inside albums that belong to it — putting one on the door
+ * available are inside events that belong to it — putting one on the door
  * shows something from a room on the screen that is merely the way in.
  */
 const GROUP_LENSES = [
@@ -352,7 +352,7 @@ function lensFor(id: string) {
 /**
  * The rooms you are in — the same screen the web grew, on a phone.
  *
- * Groups were a card inside You, under the name field and above the album
+ * Groups were a card inside You, under the name field and above the event
  * lists, which put the thing the product treats as persistent identity in a
  * drawer with the settings. They are a tab now, between Events and Find, in
  * the order those are true in: Events is what has already happened, Groups is
@@ -363,7 +363,7 @@ function lensFor(id: string) {
  *
  * `POST /api/groups` requires a `fromEventId` and refuses without one: a group
  * is something you notice afterwards, when the same people keep turning up, so
- * you roll one of your albums into a group. An empty group you then have to
+ * you roll one of your events into a group. An empty group you then have to
  * fill is a distribution problem with no photographs in it, and the people you
  * would invite have no reason to accept yet. The empty state says where groups
  * come from instead of offering a button that would have to be disabled.
@@ -377,7 +377,7 @@ export function GroupsTab({
   api: Api;
   t: TabTheme;
   onOpenGroup: (groupId: string) => void;
-  /** The empty state's one action: a group is made from an album. */
+  /** The empty state's one action: a group is made from an event. */
   onGoToEvents: () => void;
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
@@ -420,17 +420,17 @@ export function GroupsTab({
             You are not in any groups yet.
           </Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            A group is made from an album, not from nothing — when the same
-            people keep turning up, you roll one of your albums into a group and
-            everybody in it stays in the loop for the next one. Open an album
+            A group is made from an event, not from nothing — when the same
+            people keep turning up, you roll one of your events into a group and
+            everybody in it stays in the loop for the next one. Open an event
             you made and look for Make a group.
           </Text>
           <Pressable
             onPress={onGoToEvents}
             accessibilityRole="button"
-            accessibilityLabel="Go to your albums"
+            accessibilityLabel="Go to your events"
           >
-            <Text style={[styles.headAction, { color: t.accent }]}>Your albums</Text>
+            <Text style={[styles.headAction, { color: t.accent }]}>Your events</Text>
           </Pressable>
         </View>
       ) : (
@@ -480,9 +480,9 @@ export function GroupsTab({
   );
 }
 
-/** "3 albums · 12 people · added to 2 days ago". */
+/** "3 events · 12 people · added to 2 days ago". */
 function groupMeta(group: MyGroupDetail): string {
-  const parts = [plural(group.albumCount, 'album'), plural(group.memberCount, 'person', 'people')];
+  const parts = [plural(group.eventCount, 'event'), plural(group.memberCount, 'person', 'people')];
   // Only when there is something to have been active about. "added to never"
   // is a sentence about an absence the count before it already states.
   if (group.lastActiveAt) parts.push(`added to ${ago(group.lastActiveAt)}`);
@@ -831,10 +831,10 @@ export function AccountCard({
     Alert.alert(
       'Sign out?',
       waiting > 0
-        ? `This phone forgets you and the albums it is holding links to. ${waiting} ${
+        ? `This phone forgets you and the events it is holding links to. ${waiting} ${
             waiting === 1 ? 'photo' : 'photos'
           } waiting to upload will be dropped — they stay in your camera roll. Nothing else is deleted.`
-        : 'This phone forgets you and the albums it is holding links to. Nothing is deleted, and the same address signs back in.',
+        : 'This phone forgets you and the events it is holding links to. Nothing is deleted, and the same address signs back in.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -899,7 +899,7 @@ export function AccountCard({
         </Text>
         {/* Sign out above delete, and only one of them is permanent. Both are
             plain buttons — a filled one here would be the loudest thing on a
-            tab whose point is the albums. */}
+            tab whose point is the events. */}
         {onSignedOut && <Button label="Sign out" onPress={signOut} t={t} />}
         <Button label="Delete account" onPress={remove} t={t} />
       </View>
@@ -1017,7 +1017,7 @@ export function ProfileTab({
         No Groups card here any more. It listed the same rooms the Groups tab
         now holds, one tap away and under the name field — the drawer version
         of the thing the product treats as persistent identity. What stays is
-        the two album lists below, which are about albums rather than groups.
+        the two event lists below, which are about events rather than groups.
       */}
 
       {grouped.length > 0 && (

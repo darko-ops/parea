@@ -249,8 +249,8 @@ export type SuggestedGroup = {
  * product makes about a place rather than about a person.
  *
  * The rule it lives under is worth stating because it is the rule the whole
- * product is built on: **albums are never recommended.** Possession of the link
- * is the access model, so an album surfaced to somebody who was not sent one is
+ * product is built on: **events are never recommended.** Possession of the link
+ * is the access model, so an event surfaced to somebody who was not sent one is
  * a door nobody opened. A group is the exception and only barely — what comes
  * back is a name, a count and nothing from inside, and the person still has to
  * ask to be let in. This is a suggestion of somewhere to knock.
@@ -359,8 +359,8 @@ export type MyGroup = {
   name: string;
   role: 'member' | 'admin';
   memberCount: number;
-  albumCount: number;
-  /** ISO, from the newest album in it. Null for a group with no albums yet. */
+  eventCount: number;
+  /** ISO, from the newest event in it. Null for a group with no events yet. */
   lastActiveAt: string | null;
 };
 
@@ -368,7 +368,7 @@ export type MyGroup = {
  * The same list, plus what the group screen's rows draw.
  *
  * Kept as a second function rather than a flag on `myGroups`, because the
- * extra work is not a column or two: it is three albums with a signed cover
+ * extra work is not a column or two: it is three events with a signed cover
  * each and three presigned faces, per group. The native client and the
  * endpoint's default still ask the cheap question.
  *
@@ -384,14 +384,14 @@ export type MyGroup = {
  */
 export type MyGroupDetailed = MyGroup & {
   /** Up to three, newest first. Fewer when the group has fewer. */
-  albums: GroupAlbum[];
+  events: GroupEvent[];
   /** Up to three member pictures, admins first. Null draws a letter. */
   faces: { name: string; avatarUrl: string | null }[];
   /** Everybody the three faces do not show. Zero draws no chip. */
   moreFaces: number;
 };
 
-/** How many albums a group's row previews before "View all N" takes over. */
+/** How many events a group's row previews before "View all N" takes over. */
 export const GROUP_STRIP = 3;
 /** How many faces the stack beside a group's name shows. */
 export const GROUP_FACES = 3;
@@ -405,13 +405,13 @@ export async function myGroupsDetailed(
 
   return Promise.all(
     groups.map(async (group) => {
-      const [albums, people] = await Promise.all([
+      const [events, people] = await Promise.all([
         groupArchive(db, group.id, actorId, since, GROUP_STRIP),
         groupPeople(db, group.id),
       ]);
       return {
         ...group,
-        albums,
+        events,
         faces: people.slice(0, GROUP_FACES).map((person) => ({
           name: person.name,
           avatarUrl: person.avatarUrl,
@@ -434,7 +434,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
        * Correlated subselects rather than joins.
        *
        * Joining members and events at once multiplies the rows against each
-       * other — three members and four albums is twelve, and both counts come
+       * other — three members and four events is twelve, and both counts come
        * back as twelve. `count(distinct)` would paper over it and hide the
        * shape of the mistake from whoever adds a third join.
        */
@@ -442,7 +442,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
         select count(*)::int from "group_member" m
         where m.group_id = ${schema.groups.id}
       )`,
-      albumCount: sql<number>`(
+      eventCount: sql<number>`(
         select count(*)::int from "event" e
         where e.group_id = ${schema.groups.id} and e.deleted_at is null
       )`,
@@ -471,14 +471,14 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
 }
 
 /**
- * The newest ready photograph in an album, as the album's picture.
+ * The newest ready photograph in an event, as the event's picture.
  *
  * The cover if the host set one, else this. Same rule `leadImage` follows, so
- * "the picture the album leads with" means one thing everywhere — a group's
- * strip and the album's own card should not disagree about which photograph
+ * "the picture the event leads with" means one thing everywhere — a group's
+ * strip and the event's own card should not disagree about which photograph
  * stands for it.
  */
-const ALBUM_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
+const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
   select json_build_object(
     'storageKey', p.storage_key,
     'hash', encode(p.content_hash, 'hex')
@@ -491,19 +491,19 @@ const ALBUM_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
 )`;
 
 /**
- * How many photographs have arrived in an album since this person last looked.
+ * How many photographs have arrived in an event since this person last looked.
  *
  * A deliberate substitution, and worth stating plainly: the design asks for
  * "added to since you last opened it", and there is no such timestamp. Nothing
- * in the schema records when somebody opened an album — `event_participant`
+ * in the schema records when somebody opened an event — `event_participant`
  * holds `first_seen_at` and nothing else — and adding one means writing a read
- * receipt on every album view, which is a record of when a person looked at
+ * receipt on every event view, which is a record of when a person looked at
  * something that this product has no other reason to keep. `activity.ts`
  * already turns that trade down for the thread, for the same reason.
  *
  * So the boundary is the one the product already keeps: `invites_seen_at`,
  * which is what Activity means by "since you last looked". It clears when you
- * check Activity rather than when you open the album — a coarser promise than
+ * check Activity rather than when you open the event — a coarser promise than
  * the design's, made out of a fact that already exists rather than a new one
  * kept about somebody.
  *
@@ -521,24 +521,24 @@ const FRESH = (actorId: string, since: Date) => sql<number>`(
     and p.uploaded_at > ${since.toISOString()}::timestamptz
 )`;
 
-/** An album as a group screen draws it. */
-export type GroupAlbum = {
+/** An event as a group screen draws it. */
+export type GroupEvent = {
   id: string;
   name: string;
-  /** Presigned, or null for an album with nothing in it yet. */
+  /** Presigned, or null for an event with nothing in it yet. */
   cover: string | null;
   photoCount: number;
   /** Contributor pictures, at most three, plus how many people in total. */
   faces: (string | null)[];
   people: number;
-  /** ISO date the album is filed under. `eventDate`, else its first activity. */
+  /** ISO date the event is filed under. `eventDate`, else its first activity. */
   at: string;
   /** Arrived since this person last looked. Zero draws no pip. */
   fresh: number;
 };
 
 /**
- * The albums in a group, newest first.
+ * The events in a group, newest first.
  *
  * Replaces the four bare links `groupEvents` fed the group screen: a product
  * whose subject is photographs was drawing its archive as a list of blue words
@@ -546,7 +546,7 @@ export type GroupAlbum = {
  * picture, who is in it, how much of it there is, and when.
  *
  * Members only, exactly as `groupEvents` was: this is the room, not the door.
- * Still events and never photos, so a per-album rule stays expressible.
+ * Still events and never photos, so a per-event rule stays expressible.
  */
 export async function groupArchive(
   db: Db,
@@ -554,7 +554,7 @@ export async function groupArchive(
   actorId: string | null,
   since: Date,
   limit?: number,
-): Promise<GroupAlbum[]> {
+): Promise<GroupEvent[]> {
   const rows = await db
     .select({
       id: schema.events.id,
@@ -564,7 +564,7 @@ export async function groupArchive(
       eventDate: schema.events.eventDate,
       lastActiveAt: schema.events.lastActiveAt,
       createdAt: schema.events.createdAt,
-      shot: ALBUM_SHOT,
+      shot: EVENT_SHOT,
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
         where p.event_id = "event".id
@@ -603,11 +603,11 @@ export async function groupArchive(
     rows.map(async (row) => ({
       id: row.id,
       name: row.name,
-      cover: await albumCover(row),
+      cover: await eventCover(row),
       photoCount: row.photoCount,
       faces: await Promise.all((row.faceKeys ?? []).map((key) => avatarUrl(key))),
       people: row.people,
-      // The album's own date when the host gave it one, else when it was last
+      // The event's own date when the host gave it one, else when it was last
       // added to — never `created_at`, which is when somebody made the page.
       at: (row.eventDate
         ? new Date(`${row.eventDate}T00:00:00Z`)
@@ -619,7 +619,7 @@ export async function groupArchive(
 }
 
 /** The cover the host chose, else the newest photograph, else nothing. */
-async function albumCover(row: {
+async function eventCover(row: {
   id: string;
   capEpoch: number;
   coverKey: string | null;
@@ -629,7 +629,7 @@ async function albumCover(row: {
   if (!row.shot) return null;
   // `grid` rather than `thumb`. These are drawn at 180px and at a third of an
   // 820px column, which on a 2× screen is 360 and 520 device pixels — a 320px
-  // thumbnail is soft at both, which is the mistake the album cards already
+  // thumbnail is soft at both, which is the mistake the event cards already
   // made once.
   return imageSrc(
     {
@@ -697,13 +697,13 @@ export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[
 /**
  * Asking somebody into a group, rather than waiting to be asked.
  *
- * Shaped after the album invite in `app/api/events/[id]/invites`, because it
+ * Shaped after the event invite in `app/api/events/[id]/invites`, because it
  * is the same act about a different room, and the two answer to the same
  * screen. Three properties carry over and each is load-bearing:
  *
  *   - **Only an admin may ask.** The group's equivalent of `administer`. This
  *     is not a way for anybody in a group to pull people into it — which
- *     matters more here than for an album, because otherwise the approval on
+ *     matters more here than for an event, because otherwise the approval on
  *     `group_join_request` is trivially bypassed by asking a friend inside to
  *     invite you.
  *   - **Being invited is an offer, not a fact.** It would be one line to write
@@ -712,7 +712,7 @@ export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[
  *     answered, and accepting is what makes somebody a member.
  *   - **Blocks are the consent gate.** `invitable` refuses a guest device, a
  *     merged actor, and either direction of a block. It is the same check the
- *     album path makes and the only thing standing between somebody and being
+ *     event path makes and the only thing standing between somebody and being
  *     added by a person they have cut off.
  *
  * The bypass question this raises is worth answering out loud: an invitation
@@ -805,7 +805,7 @@ export type PendingGroupInvite = {
  * Only `open` ones. A declined invitation stays in the table so the same admin
  * cannot ask again by accident and so the record survives, but it is not a
  * thing anybody is waiting on — the same rule `pendingInvites` follows for
- * albums, and the reason the two read alike.
+ * events, and the reason the two read alike.
  */
 export async function pendingGroupInvites(
   db: Db,

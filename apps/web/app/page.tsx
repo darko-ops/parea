@@ -84,10 +84,10 @@ export default function CreatePage() {
   const [place, setPlace] = useState('');
   const [members, setMembers] = useState<Person[]>([]);
   /*
-   * The picture the album leads with, if they chose one.
+   * The picture the event leads with, if they chose one.
    *
-   * A `File` and not a URL: it is sent the moment the album exists, before the
-   * photographs are staged, so that an album has a face the first time anyone
+   * A `File` and not a URL: it is sent the moment the event exists, before the
+   * photographs are staged, so that an event has a face the first time anyone
    * sees it rather than whenever a queue of two hundred pictures reaches the
    * one that was going to be its cover.
    */
@@ -115,7 +115,7 @@ export default function CreatePage() {
   /*
    * Mounted with no event on purpose. Nothing uploads from this page any more;
    * the only thing wanted from the hook here is `stage` — somewhere to leave
-   * the photos for the album page to pick up and send.
+   * the photos for the event page to pick up and send.
    */
   const uploads = useUploads('');
 
@@ -141,16 +141,16 @@ export default function CreatePage() {
    * Make it, ask the people, hand over the photos, and go there.
    *
    * The order is forced: invitations and photos both need an id, so neither
-   * can happen before the album exists, and the navigation has to be last
-   * because until the queue is written there is nothing for the album page to
+   * can happen before the event exists, and the navigation has to be last
+   * because until the queue is written there is nothing for the event page to
    * pick up.
    *
    * The photos are *staged*, not uploaded. Uploading here is what the old
-   * "your album is ready" screen was for — somewhere to stand while a hundred
-   * photographs went up. They go into IndexedDB under the new album's id
-   * instead, and the album page resumes them while you look at what arrives.
+   * "your event is ready" screen was for — somewhere to stand while a hundred
+   * photographs went up. They go into IndexedDB under the new event's id
+   * instead, and the event page resumes them while you look at what arrives.
    *
-   * A failed invitation does not fail the album: it is the easiest thing here
+   * A failed invitation does not fail the event: it is the easiest thing here
    * to do again, and the link works whether or not anybody accepted.
    */
   const create = useCallback(
@@ -179,11 +179,11 @@ export default function CreatePage() {
 
         /*
          * Before the invitations and before the photographs, because it is the
-         * only one of the three that changes what the album looks like when it
+         * only one of the three that changes what the event looks like when it
          * opens a second from now.
          *
-         * Failing does not fail the album, on the same reasoning as a failed
-         * invitation: the album is made, and a cover is the easiest of the
+         * Failing does not fail the event, on the same reasoning as a failed
+         * invitation: the event is made, and a cover is the easiest of the
          * three things to do again. It is scaled down in the browser first —
          * see `coverBytes` — so this is one small request rather than the
          * twelve megabytes that came off the camera.
@@ -206,7 +206,7 @@ export default function CreatePage() {
 
         await uploads.stage(picked, created.id);
         // A full load rather than a client navigation: this response set the
-        // capability cookie, and the album page is what starts the uploads.
+        // capability cookie, and the event page is what starts the uploads.
         globalThis.location.href = `/event/${created.id}`;
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -237,7 +237,7 @@ export default function CreatePage() {
           <div className="create">
             <form className="create-form" onSubmit={(e) => e.preventDefault()}>
               <div>
-                <h1>Create Album</h1>
+                <h1>Create Event</h1>
                 <p className="muted" style={{ margin: 0 }}>
                   Everyone who was there puts their photos in one place, and
                   everyone gets the full set.
@@ -261,7 +261,7 @@ export default function CreatePage() {
         <div className="create">
           <form className="create-form" onSubmit={create}>
             <div>
-              <h1>Create Album</h1>
+              <h1>Create Event</h1>
               <p className="muted" style={{ margin: 0 }}>
                 {step === 'photos'
                   ? 'Start with the photos. The questions are easier to answer with them on the screen.'
@@ -325,7 +325,7 @@ export default function CreatePage() {
               <>
                 <div className="field">
                   <label className="field-label" htmlFor="name">
-                    ALBUM TITLE
+                    EVENT TITLE
                   </label>
                   <input
                     id="name"
@@ -358,14 +358,14 @@ export default function CreatePage() {
 
                 <div className="field">
                   <div className="field-head">
-                    <label className="field-label">ALBUM COVER</label>
+                    <label className="field-label">EVENT COVER</label>
                     <span className="field-note">Optional</span>
                   </div>
                   {/*
                     Chosen from the photographs already picked, because that is
-                    what a cover is here — one of the album's own pictures,
+                    what a cover is here — one of the event's own pictures,
                     promoted. Anything else would be a second kind of image
-                    living in an album, visible on everybody's home screen and
+                    living in an event, visible on everybody's home screen and
                     in none of its own grids.
                   */}
                   <CoverPicker files={picked} cover={cover} onChoose={setCover} />
@@ -382,12 +382,12 @@ export default function CreatePage() {
                     Type it and pick, or just type it. The lookup is a spelling
                     aid and nothing more: what is stored is the label, never a
                     pin — §7.6 strips GPS from every photo at ingest, and an
-                    album that recorded coordinates would undo that for the
+                    event that recorded coordinates would undo that for the
                     sake of an autocomplete. See `api/places`.
                   */}
                   <PlaceField value={place} onChange={setPlace} />
                   <p className="field-help">
-                    Only ever shown to people already in the album.
+                    Only ever shown to people already in the event.
                   </p>
                 </div>
 
@@ -397,8 +397,8 @@ export default function CreatePage() {
                     <span className="field-note">Optional</span>
                   </div>
                   {/*
-                    Chosen here, asked once the album exists. Nobody is put into
-                    an album by somebody else: this writes invitations, and they
+                    Chosen here, asked once the event exists. Nobody is put into
+                    an event by somebody else: this writes invitations, and they
                     answer in Activity.
                   */}
                   <MemberPicker picked={members} onChange={setMembers} />
@@ -473,7 +473,7 @@ export default function CreatePage() {
                     className="create-go"
                     disabled={busy || !name.trim()}
                   >
-                    {busy ? 'Creating…' : 'Create Album'}
+                    {busy ? 'Creating…' : 'Create Event'}
                   </button>
                   <button
                     type="button"
@@ -508,7 +508,7 @@ export default function CreatePage() {
  * photo and nothing would ever release them.
  */
 /**
- * Choosing which of the picked photographs the album leads with.
+ * Choosing which of the picked photographs the event leads with.
  *
  * The same strip as `Thumbs`, doing the opposite job: there the button on each
  * tile takes a photograph out, here pressing a tile promotes it. They are not
@@ -522,7 +522,7 @@ export default function CreatePage() {
  *
  * With nothing picked there is nothing to choose from, and the line says so
  * rather than offering a file input of its own: a cover that is not in the
- * album would be an image nobody in the album can find.
+ * event would be an image nobody in the event can find.
  */
 function CoverPicker({
   files,
@@ -574,8 +574,8 @@ function CoverPicker({
       </ul>
       <p className="field-help">
         {cover
-          ? 'This one leads, wherever the album is shown.'
-          : 'Optional. Without one the album leads with its newest photo.'}
+          ? 'This one leads, wherever the event is shown.'
+          : 'Optional. Without one the event leads with its newest photo.'}
       </p>
     </>
   );

@@ -14,7 +14,7 @@
  * `card` sits between `thumb` and `grid`, and it exists because of the gap
  * between them. A gallery tile is drawn around 240–290 CSS pixels, which on a
  * 2× screen is 480–580 device pixels: too big for the 320 and a quarter of the
- * 1280. Every album was fetching a 1280 to fill 540, or a 320 upscaled half
+ * 1280. Every event was fetching a 1280 to fill 540, or a 320 upscaled half
  * again, and neither is the picture at the size it is being shown.
  */
 export const IMAGE_KINDS = ['thumb', 'card', 'grid', 'full', 'orig'] as const;

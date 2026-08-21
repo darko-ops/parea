@@ -39,7 +39,7 @@ export type MessageAuthor = {
    * Their picture, presigned. Null for somebody who has not set one.
    *
    * No new disclosure: anybody who can read this thread can already open the
-   * album's People tab, which lists everyone in it by name with the same
+   * event's People tab, which lists everyone in it by name with the same
    * faces. What stays true is the rule the `key` above exists for — an actor
    * id does not cross this boundary, and neither does an avatar *key*; this is
    * an address that expires, like every other picture the product hands out.

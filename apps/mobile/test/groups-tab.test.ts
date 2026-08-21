@@ -3,7 +3,7 @@
  *
  * **There is no Create group button.** `POST /api/groups` requires a
  * `fromEventId` and refuses without one, because a group is something you
- * notice afterwards — the same people kept turning up, so you roll that album
+ * notice afterwards — the same people kept turning up, so you roll that event
  * into a group. An empty group you then have to fill is a distribution problem
  * with no photographs in it, and the people you would invite have no reason to
  * accept yet. A tab listing groups is exactly where somebody will reasonably
@@ -11,7 +11,7 @@
  * one from nothing.
  *
  * **A group never shows a photograph.** It has no cover of its own, and the
- * only pictures available are inside albums that belong to it — putting one on
+ * only pictures available are inside events that belong to it — putting one on
  * the door means a photograph from a room appears on the screen that is merely
  * the way into it. The tile is a letter in a lens colour, as on the web.
  *
@@ -79,7 +79,7 @@ describe('what the screen may do', () => {
 
   it('says where groups come from instead', () => {
     expect(EVENTS).toMatch(/You are not in any groups yet/);
-    expect(EVENTS).toMatch(/A group is made from an album, not from nothing/);
+    expect(EVENTS).toMatch(/A group is made from an event, not from nothing/);
   });
 
   it('draws a letter, never a photograph', () => {

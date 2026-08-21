@@ -2,7 +2,7 @@
  * Everything waiting on an answer from you, as one bubble at the top of home.
  *
  * The web's Activity page owns the same three questions — an invitation to an
- * album, a friend request, somebody asking into an album you run — and this is
+ * event, a friend request, somebody asking into an event you run — and this is
  * the same object with the same rules, because "two clients, one protocol"
  * has to mean the same thing is being said in both places and not only the
  * same bytes moving.
@@ -123,7 +123,7 @@ export function RequestBubble({
             "Invites", the same word the web bubble uses. The old label
             described the product's job rather than the person's: it is a queue
             from the software's point of view and an invitation from theirs.
-            Somebody asking into an album you run stretches the word slightly,
+            Somebody asking into an event you run stretches the word slightly,
             and that is the right way round — the rows underneath say exactly
             who wants what.
           */}
@@ -153,7 +153,7 @@ export function RequestBubble({
                 wide enough for a name, a sentence and two buttons on one row,
                 and the version that fits makes both buttons small enough to
                 mis-tap — which on this list means letting somebody into an
-                album you meant to refuse.
+                event you meant to refuse.
               */}
               <View style={styles.answers}>
                 <Pressable

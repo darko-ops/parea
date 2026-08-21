@@ -1,7 +1,7 @@
 /**
  * The picture on a shared link's card.
  *
- * The mark and the wordmark, and deliberately nothing about the album — no
+ * The mark and the wordmark, and deliberately nothing about the event — no
  * name, no caption, no photograph. Whatever is in this image is handed to
  * anything that fetches the URL, and unlike the title it is a *picture*, which
  * is the thing this product exists to keep between the people who were there.

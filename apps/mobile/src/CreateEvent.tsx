@@ -110,12 +110,12 @@ export function CreateEvent({
   /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
   const [picked, setPicked] = useState<Bundle | null>(null);
   /*
-   * The picture the album leads with, if they choose one.
+   * The picture the event leads with, if they choose one.
    *
    * From the camera roll rather than from photographs already picked, which is
    * what the web offers — because this screen has none to offer. Nothing is
    * chosen here yet: a run of photographs is detected, and the choosing
-   * happens on the album afterwards. So the cover is asked for the only way it
+   * happens on the event afterwards. So the cover is asked for the only way it
    * can be, and it is the one image this screen sends anywhere.
    */
   const [cover, setCover] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -128,7 +128,7 @@ export function CreateEvent({
    * No spoken phrase. It used to be offered here behind a "Say a code" button
    * — the other door, for somebody across a room whose phone you are not
    * holding — and it does not belong on the screen whose job is sending a
-   * link. The server no longer mints one unless an album asks for it, so this
+   * link. The server no longer mints one unless an event asks for it, so this
    * was also on its way to being a button that revealed nothing.
    */
   const [made, setMade] = useState<{
@@ -162,7 +162,7 @@ export function CreateEvent({
    */
   const chooseCover = useCallback(async () => {
     const picked = await ImagePicker.launchImageLibraryAsync({
-      // Photographs only, for the same reason the album's picker says so: no
+      // Photographs only, for the same reason the event's picker says so: no
       // part of this can do anything with a video.
       mediaTypes: ['images'],
       allowsMultipleSelection: false,
@@ -209,7 +209,7 @@ export function CreateEvent({
        * The share step is the most important moment in this product and the
        * one thing that must not be behind a progress bar — so the cover goes
        * up while the sheet is being read, on a background session that
-       * survives the app being left. A failure leaves the album exactly as it
+       * survives the app being left. A failure leaves the event exactly as it
        * would have looked without a cover, which is why nothing here surfaces
        * one.
        */
@@ -434,7 +434,7 @@ export function CreateEvent({
 
       <View style={styles.field}>
         <View style={styles.fieldHead}>
-          <Text style={[styles.fieldLabel, { color: t.dim }]}>ALBUM COVER</Text>
+          <Text style={[styles.fieldLabel, { color: t.dim }]}>EVENT COVER</Text>
           <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
         </View>
         <View style={styles.coverRow}>
@@ -453,8 +453,8 @@ export function CreateEvent({
             </Pressable>
             <Text style={[styles.small, { color: t.dim }]}>
               {cover
-                ? 'This one leads, wherever the album is shown.'
-                : 'Without one the album leads with its newest photo.'}
+                ? 'This one leads, wherever the event is shown.'
+                : 'Without one the event leads with its newest photo.'}
             </Text>
           </View>
           {cover && (

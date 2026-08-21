@@ -2,7 +2,7 @@
  * The events someone can reach — the data behind the app's home and profile.
  *
  * The product says "event", the schema says `event`, and this file says
- * `EventListing` for one row of the list. It briefly said "album" everywhere —
+ * `EventListing` for one row of the list. It briefly said "event" everywhere —
  * a second word for one thing, which cost a sentence of explanation in every
  * file that touched it and bought nothing.
  *
@@ -76,7 +76,7 @@ export type EventListing = {
   /** The host's line under the name. Drawn on the card, under the title. */
   caption: string | null;
   /**
-   * The picture the album leads with, as a storage key.
+   * The picture the event leads with, as a storage key.
    *
    * A key rather than a URL because this type is read by the server, and every
    * boundary that hands it to a client signs it there — see `/api/events`,
@@ -104,14 +104,14 @@ export type EventListing = {
    */
   contributorCount: number;
   /**
-   * Whose album it is: the handle, and their picture if they have one.
+   * Whose event it is: the handle, and their picture if they have one.
    *
    * A key rather than a URL, and it stays a key until something presigns it —
    * the bucket is private, so a URL is a short-lived capability and one stored
    * or shipped raw is a credential with an expiry attached.
    */
   /**
-   * Whose album it is: the name the card prints, the handle beside it, and the
+   * Whose event it is: the name the card prints, the handle beside it, and the
    * picture in the first circle. The name may be absent — an account is
    * optional here — in which case the handle stands alone.
    */
@@ -136,7 +136,7 @@ export type EventListing = {
   arrivingCount: number;
   lastActiveAt: string;
   /**
-   * The earliest photograph in it, ISO, or null for an album with none.
+   * The earliest photograph in it, ISO, or null for an event with none.
    *
    * What the card dates an evening by when the host never said — see the query
    * for why the earliest and not the latest.
@@ -193,7 +193,7 @@ export async function eventsFor(
        *
        * A lateral four rather than a query per card, for the same reason the
        * mosaic is one: this is the screen with the most rows on it, and a
-       * round trip per album is a page that gets slower the more somebody
+       * round trip per event is a page that gets slower the more somebody
        * uses the product. The name is coalesced here rather than in
        * JavaScript so that the ordering and the label agree about who this
        * is.
@@ -214,13 +214,13 @@ export async function eventsFor(
        * The evening itself, as the photographs remember it.
        *
        * `event_date` is what the host typed and is the best answer when there
-       * is one — but the web's create form stopped asking when, so most albums
+       * is one — but the web's create form stopped asking when, so most events
        * do not have one, and a card that says "8 people" and then nothing has
        * lost half its line. The earliest photograph is the honest fallback:
        * `captured_at` is when the shutter went, and `uploaded_at` stands in
        * for the ones whose EXIF said nothing.
        *
-       * The earliest rather than the latest, because an album is about the
+       * The earliest rather than the latest, because an event is about the
        * evening it happened, not about somebody adding four more photographs
        * to it a fortnight later.
        */
@@ -262,7 +262,7 @@ export async function eventsFor(
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
     // Left, not inner: an actor row is never missing, but an inner join here
-    // would silently drop an album if one ever were.
+    // would silently drop an event if one ever were.
     .leftJoin(schema.actors, eq(schema.actors.id, schema.events.createdBy))
     .where(
       and(
@@ -292,7 +292,7 @@ export async function eventsFor(
     // `encode()` on a null bytea is null, and json_agg keeps the key, so a
     // photo mid-ingest arrives as {hash: null} rather than being dropped.
     mosaic: (row.mosaic ?? []).filter((p) => p.hash !== null),
-    // `json_agg` over no rows is null rather than an empty array, and an album
+    // `json_agg` over no rows is null rather than an empty array, and an event
     // with no participants is not a contradiction — it is one nobody has
     // opened yet.
     faces: row.faces ?? [],

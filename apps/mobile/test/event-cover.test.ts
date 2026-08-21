@@ -1,13 +1,13 @@
 /**
- * The album cover on mobile, which existed but could not be seen.
+ * The event cover on mobile, which existed but could not be seen.
  *
  * Setting one and removing one were both already wired: the create screen
- * uploads a cover with the album, and the album screen had a button that
+ * uploads a cover with the event, and the event screen had a button that
  * offered "Choose a photo" and "Remove it". What it did not do was *show* the
- * cover. So "Album cover" meant "there may or may not be one, press to find
- * out", "Remove it" was offered on albums with nothing to remove, and after
+ * cover. So "Event cover" meant "there may or may not be one, press to find
+ * out", "Remove it" was offered on events with nothing to remove, and after
  * choosing a picture nothing on the screen moved — the only way to learn
- * whether it took was to leave the album and come back.
+ * whether it took was to leave the event and come back.
  *
  * The three rules below are the fix, and each of them is the sort of thing a
  * later edit removes without noticing, because the screen still looks right in
@@ -33,19 +33,19 @@ const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('const creat
 /** The row that opens it, which lives a couple of hundred lines further down. */
 const ROW = APP.slice(APP.indexOf('Host only. It changes'), APP.indexOf('!feed.event.groupId'));
 
-describe('the cover the album already has', () => {
+describe('the cover the event already has', () => {
   it('arrives on the feed, so the screen can draw it', () => {
     /*
      * The card's mosaic leads with the cover, which is how it reaches the home
      * screen — but a mosaic entry is a photograph that happens to be first,
-     * indistinguishable from the newest upload. The album screen needs to know
+     * indistinguishable from the newest upload. The event screen needs to know
      * whether a cover is *set*, which is a different question, so the feed
      * answers it directly.
      */
     expect(API).toMatch(/coverUrl: string \| null/);
   });
 
-  it('is drawn on the album screen, not only described', () => {
+  it('is drawn on the event screen, not only described', () => {
     // The one setting on this screen whose value is an image. Described in
     // words it is a setting you have to remember rather than read.
     expect(ROW).toMatch(/source=\{\{ uri: cover \}\}/);
@@ -54,7 +54,7 @@ describe('the cover the album already has', () => {
 
   it('offers removal only when there is something to remove', () => {
     /*
-     * The endpoint treats a DELETE against an album with no cover as a no-op,
+     * The endpoint treats a DELETE against an event with no cover as a no-op,
      * so the old unconditional "Remove it" was harmless — and still wrong. A
      * destructive-styled button that does nothing teaches people that the red
      * text on this screen is decorative.
@@ -80,7 +80,7 @@ describe('after the change', () => {
 
   it('leaves the home screen to `onBack`', () => {
     // The cards there are stale the moment a cover changes, and re-reading the
-    // whole event list from inside the album to fix a thumbnail nobody is
+    // whole event list from inside the event to fix a thumbnail nobody is
     // looking at is a request for the sake of tidiness. Going back already
     // reloads it.
     expect(APP).toMatch(/onBack=\{\(\) => \{\s*void refreshEvents\(\);/);
@@ -90,7 +90,7 @@ describe('after the change', () => {
 describe('who sees it', () => {
   it('is the host and nobody else', () => {
     // It changes what everybody else's home screen shows, which is the same
-    // reason the web keeps it on the manage screen rather than on the album.
+    // reason the web keeps it on the manage screen rather than on the event.
     expect(ROW).toMatch(/feed\?\.event\.canAdminister && \(\s*<Pressable/);
   });
 });

@@ -63,6 +63,10 @@ function matches(source: string, pathname: string): boolean {
 const PRIVATE = [
   '/e/AbCdEfGhIjKlMnOpQrStUv',
   '/account',
+  '/events',
+  // The old home path still answers rather than redirecting — see
+  // `app/albums/page.tsx`. While it serves the same page it needs the same
+  // header, and it is the entry most likely to be forgotten when the shim goes.
   '/albums',
   '/find',
   '/event/3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b',
@@ -116,7 +120,7 @@ describe('robots.txt', () => {
     expect(rule!.disallow).toEqual(
       expect.arrayContaining([
         '/e/', '/event/', '/group/', '/groups',
-        '/account', '/albums', '/find', '/api/',
+        '/account', '/events', '/albums', '/find', '/api/',
       ]),
     );
   });
@@ -141,7 +145,7 @@ describe('the pages say so themselves', () => {
     'app/event/[id]/p/[photoId]/page.tsx',
     'app/group/[id]/page.tsx',
     'app/account/page.tsx',
-    'app/albums/page.tsx',
+    'app/events/page.tsx',
     'app/find/page.tsx',
   ])('%s exports robots metadata', async (path) => {
     expect(await read(`../${path}`)).toMatch(/robots:\s*\{\s*index:\s*false/);

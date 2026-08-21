@@ -7,7 +7,7 @@
  * would be two things to learn about one act.
  *
  * The gate here is being an **admin** of the group, which is the group's
- * `administer`. It is stricter than the album's in one way that matters:
+ * `administer`. It is stricter than the event's in one way that matters:
  * `group_join_request` exists so an admin decides who comes in, and if any
  * member could invite, that decision could be routed around by asking a friend
  * on the inside. The approval and the invitation are the same power pointed in

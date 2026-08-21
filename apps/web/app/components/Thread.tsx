@@ -60,7 +60,7 @@ export type ThreadProps = {
 };
 
 /**
- * The album's conversation, as a pane of its own.
+ * The event's conversation, as a pane of its own.
  *
  * It was a column beside the photographs — a third of the width on every
  * screen, whether anybody was talking or not — and a sheet on a phone, which
@@ -88,7 +88,7 @@ export function Thread({
    * Client state rather than a URL, unlike the Manage screen's tabs: those are
    * two pages of settings somebody might send to themselves, and this is a
    * column beside the photographs that comes back to the conversation the next
-   * time the page loads. Nobody wants an album's link to open on its roster.
+   * time the page loads. Nobody wants an event's link to open on its roster.
    */
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
@@ -312,7 +312,7 @@ function Composer({
         className="thread-field"
         rows={1}
         value={draft}
-        placeholder="Message everyone in this album…"
+        placeholder="Message everyone in this event…"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           // Enter posts, Shift+Enter is a new line. The opposite of a document

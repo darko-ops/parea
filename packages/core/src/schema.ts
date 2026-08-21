@@ -335,19 +335,19 @@ export const events = pgTable(
      */
     caption: text('caption'),
     /**
-     * The picture the album leads with, chosen by whoever made it.
+     * The picture the event leads with, chosen by whoever made it.
      *
      * A key into storage rather than a photo id, and that is the decision worth
-     * recording. A cover *could* be "one of the album's photographs", which
+     * recording. A cover *could* be "one of the event's photographs", which
      * costs no bytes and inherits deletion for free — but at the moment
-     * somebody is making an album, its photographs do not exist yet: they are
+     * somebody is making an event, its photographs do not exist yet: they are
      * `File` handles on a phone, queued to go up over the next few minutes.
-     * Pointing at one would mean the cover arrives some time after the album
+     * Pointing at one would mean the cover arrives some time after the event
      * does, which is not what choosing a cover feels like.
      *
      * So it is its own small object, re-encoded on the way in exactly as an
-     * avatar is — one wide JPEG under the album's own prefix, written before
-     * the album page opens. What that inherits from `avatars/` is the same gap:
+     * avatar is — one wide JPEG under the event's own prefix, written before
+     * the event page opens. What that inherits from `avatars/` is the same gap:
      * the child-safety scanner is reached from the deriver's pipeline, which
      * is photo-shaped, and this does not go round it. The bytes almost always
      * *also* go up as an ordinary photograph, which is scanned — so what the
@@ -589,7 +589,7 @@ export const reports = pgTable(
      * being slow is categorically different from the cost of being wrong, and
      * a false one is undone by a reviewer releasing the hold. Every other kind
      * deliberately leaves the photo up: one report is not a verdict, and a
-     * kind that hid on sight would hand any guest a way to empty an album a
+     * kind that hid on sight would hand any guest a way to empty an event a
      * photo at a time.
      */
     kind: text('kind', {

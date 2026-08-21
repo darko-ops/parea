@@ -1,8 +1,8 @@
 /**
- * The shape of making an album, as the screen now asks it.
+ * The shape of making an event, as the screen now asks it.
  *
  * Four switches where there used to be a choice between two named modes, a
- * guest list, and an ending that is the album rather than a page about it.
+ * guest list, and an ending that is the event rather than a page about it.
  * Every one of those is a decision somebody can get wrong on the way back
  * through, and the ones worth pinning are the ones where the screen and the
  * database can disagree without anything looking broken.
@@ -72,9 +72,9 @@ describe('the other two switches are their own facts', () => {
 
   it('the phrase is claimed only when it is asked for', () => {
     /*
-     * The pool is finite and shared. Every album used to take a phrase whether
+     * The pool is finite and shared. Every event used to take a phrase whether
      * or not anybody would ever say it out loud, which is a phrase no other
-     * album can have — and the panel that displayed it is gone, so nobody
+     * event can have — and the panel that displayed it is gone, so nobody
      * would even have seen it.
      */
     expect(CREATE).toMatch(/const \[passPhrase, setPassPhrase\] = useState\(false\)/);
@@ -83,8 +83,8 @@ describe('the other two switches are their own facts', () => {
 });
 
 describe('the questions it asks, and the one it stopped asking', () => {
-  it('labels the two text fields as the album says them', () => {
-    expect(CREATE).toContain('ALBUM TITLE');
+  it('labels the two text fields as the event says them', () => {
+    expect(CREATE).toContain('EVENT TITLE');
     expect(CREATE).toContain('CAPTION');
     expect(CREATE).not.toContain('WHAT WAS IT?');
   });
@@ -94,17 +94,17 @@ describe('the questions it asks, and the one it stopped asking', () => {
   });
 
   it('picks members without adding them to anything', () => {
-    // The picker holds a choice; the invitations go out once there is an album
+    // The picker holds a choice; the invitations go out once there is an event
     // to be invited to, and they are invitations — being added to somebody
-    // else's album is an offer, not a fact.
+    // else's event is an offer, not a fact.
     expect(CREATE).toMatch(/\/invites`/);
     const invite = CREATE.indexOf('/invites`');
     const created = CREATE.indexOf('const created = (await res.json())');
     expect(created).toBeLessThan(invite);
   });
 
-  it('does not fail the album when the invitations fail', () => {
-    // The album is the thing that was asked for. A guest list is one tap away
+  it('does not fail the event when the invitations fail', () => {
+    // The event is the thing that was asked for. A guest list is one tap away
     // afterwards, on the Members tab.
     const invite = CREATE.slice(CREATE.indexOf('/invites`'));
     expect(invite.slice(0, 320)).toMatch(/\.catch\(\(\) => \{\}\)/);
@@ -115,11 +115,11 @@ describe('what the share panel promises the person receiving the link', () => {
   /*
    * The sentence under a link somebody is about to paste into a group chat.
    * It said "anybody with this can open the event and add their photos" on
-   * every album, which is true of exactly one of the three policies — and the
+   * every event, which is true of exactly one of the three policies — and the
    * person reading it is deciding, on the strength of it, who to send it to.
    */
-  it('is the plain truth for a public album', () => {
-    expect(promise(LINK_OPEN, true)).toMatch(/Anybody with this can open the album/);
+  it('is the plain truth for a public event', () => {
+    expect(promise(LINK_OPEN, true)).toMatch(/Anybody with this can open the event/);
   });
 
   it('says what private actually costs the recipient', () => {
@@ -133,10 +133,10 @@ describe('what the share panel promises the person receiving the link', () => {
   });
 
   it('lets the link switch override all three, because it does', () => {
-    // Joins closed means nobody new gets in however the album is set, so this
+    // Joins closed means nobody new gets in however the event is set, so this
     // is checked before the policy rather than after.
     for (const policy of [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS]) {
-      expect(promise(policy, false), policy).toMatch(/The link is off for this album/);
+      expect(promise(policy, false), policy).toMatch(/The link is off for this event/);
     }
   });
 
@@ -145,7 +145,7 @@ describe('what the share panel promises the person receiving the link', () => {
      * They are two different doors and were being shown as one act. A phrase
      * is for somebody across a room whose phone you are not holding; printing
      * it under a URL somebody is about to paste into a chat offers a second
-     * secret nobody asked for, on the album's weakest one. It lives on the
+     * secret nobody asked for, on the event's weakest one. It lives on the
      * manage screen, beside the switch that decides whether there is one.
      */
     const panel = read('../app/components/ShareEvent.tsx');

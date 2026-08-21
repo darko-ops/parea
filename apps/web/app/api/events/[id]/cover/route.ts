@@ -1,10 +1,10 @@
 /**
- * The picture an album leads with.
+ * The picture an event leads with.
  *
  * Raw bytes in, one wide JPEG out, and the key on the event. The shape is
  * `/api/account/avatar` rather than the photo pipeline, and the reasons are the
  * same three: it is one small image, it has one size and no lightbox, and it
- * has to exist *now* — a cover chosen while making an album cannot wait for a
+ * has to exist *now* — a cover chosen while making an event cannot wait for a
  * queue of two hundred photographs to reach it.
  *
  * So it re-encodes rather than storing what arrived. sharp decodes to pixels
@@ -19,9 +19,9 @@
  * always go up as an ordinary photograph too, and that copy is scanned; what
  * is left uncovered is a cover whose photograph was later quarantined.
  * docs/csam-runbook.md carries the step that closes it, and this route keeps
- * the object under the album's own prefix so that step is one delete.
+ * the object under the event's own prefix so that step is one delete.
  *
- * Administer, not contribute. The cover is the album's face on somebody else's
+ * Administer, not contribute. The cover is the event's face on somebody else's
  * home screen, and everyone who can add a photograph should not be able to
  * change it.
  */
@@ -51,7 +51,7 @@ const HEIGHT = 800;
 /** A generous phone photograph. Past this it is not a cover. */
 const MAX_BYTES = 25 * 1024 * 1024;
 
-/** One per album, replaced rather than accumulated. Under its own prefix. */
+/** One per event, replaced rather than accumulated. Under its own prefix. */
 const keyFor = (eventId: string) => `ev/${eventId}/cover.jpg`;
 
 async function mayAdminister(id: string) {
@@ -96,7 +96,7 @@ export async function POST(
     /*
      * Anything sharp cannot decode: a file that is not an image, a
      * decompression bomb — and HEIC, on a build of libvips without libheif.
-     * The caller treats this as "no cover" rather than as a failed album,
+     * The caller treats this as "no cover" rather than as a failed event,
      * which is why it is worth answering precisely rather than 500ing.
      */
     return NextResponse.json({ error: 'not_an_image' }, { status: 400 });

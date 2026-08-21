@@ -8,12 +8,12 @@
  * said in both places, not the same fields arriving.
  *
  * What it holds is a handle, whatever name they chose to show, their picture,
- * the one thing you can do about them, and the albums you are both in. The
- * omissions are the design: no friend count, no album count, no list of what
+ * the one thing you can do about them, and the events you are both in. The
+ * omissions are the design: no friend count, no event count, no list of what
  * they have made, no mutuals. Being findable leads to being able to ask and to
  * nothing further.
  *
- * The albums are the *viewer's* own, filtered to the ones this person is also
+ * The events are the *viewer's* own, filtered to the ones this person is also
  * in. Every row was already in this app's own list a second ago, which is why
  * tapping one can open it: the link token is here already, and it is here
  * already because it was always yours.
@@ -34,7 +34,7 @@ import {
   View,
 } from 'react-native';
 
-import type { Api, EventListing, Person, SharedAlbum, Standing } from './api';
+import type { Api, EventListing, Person, SharedEvent, Standing } from './api';
 import type { GroupTheme } from './Groups';
 
 /** What we call somebody: their name if they gave one, else the handle. */
@@ -54,9 +54,9 @@ export function PersonScreen({
   api: Api;
   handle: string;
   /**
-   * This app's own list of albums, for opening a shared one.
+   * This app's own list of events, for opening a shared one.
    *
-   * The server says which albums you are both in; it does not hand over a way
+   * The server says which events you are both in; it does not hand over a way
    * in, because it does not need to — every one of them is already in the list
    * this app loaded for the home tab, link token and all.
    */
@@ -73,7 +73,7 @@ export function PersonScreen({
   }) => React.ReactElement;
 }) {
   const [person, setPerson] = useState<Person | null>(null);
-  const [shared, setShared] = useState<SharedAlbum[]>([]);
+  const [shared, setShared] = useState<SharedEvent[]>([]);
   const [standing, setStanding] = useState<Standing>('none');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -209,7 +209,7 @@ export function PersonScreen({
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Albums</Text>
+        <Text style={[styles.label, { color: t.fg }]}>Events</Text>
         {shared.length === 0 ? (
           /*
            * Two ways of having none, and they are different sentences.
@@ -219,37 +219,37 @@ export function PersonScreen({
            * is told the account is private, which is the honest answer to "why
            * is this empty": not that they have nothing, but that what somebody
            * has made is theirs to send you a link to. Neither says how much is
-           * behind the door — over four hundred albums and over none, it reads
+           * behind the door — over four hundred events and over none, it reads
            * the same.
            */
           <Text style={[styles.body, { color: t.dim }]}>
-            {standing === 'friends' ? 'No Albums Available Yet' : 'Account Private'}
+            {standing === 'friends' ? 'No Events Available Yet' : 'Account Private'}
           </Text>
         ) : (
-          shared.map((album) => {
-            const mine = events.find((e) => e.id === album.id);
+          shared.map((event) => {
+            const mine = events.find((e) => e.id === event.id);
             return (
               <Pressable
-                key={album.id}
-                style={styles.albumRow}
+                key={event.id}
+                style={styles.eventRow}
                 disabled={!mine}
                 onPress={() => mine && onOpenEvent(mine)}
               >
-                {album.thumb ? (
-                  <Image source={{ uri: album.thumb }} style={styles.thumb} />
+                {event.thumb ? (
+                  <Image source={{ uri: event.thumb }} style={styles.thumb} />
                 ) : (
                   <View style={[styles.thumb, styles.faceBlank, { backgroundColor: t.line }]}>
                     <Text style={[styles.small, { color: t.dim }]}>
-                      {album.name.slice(0, 1).toUpperCase()}
+                      {event.name.slice(0, 1).toUpperCase()}
                     </Text>
                   </View>
                 )}
-                <View style={styles.albumText}>
+                <View style={styles.eventText}>
                   <Text style={[styles.body, { color: mine ? t.accent : t.fg }]}>
-                    {album.name}
+                    {event.name}
                   </Text>
-                  {album.caption && (
-                    <Text style={[styles.small, { color: t.dim }]}>{album.caption}</Text>
+                  {event.caption && (
+                    <Text style={[styles.small, { color: t.dim }]}>{event.caption}</Text>
                   )}
                 </View>
               </Pressable>
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   face: { width: 64, height: 64, borderRadius: 32 },
   faceBlank: { alignItems: 'center', justifyContent: 'center' },
   answerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  albumRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  albumText: { flex: 1, gap: 2 },
+  eventRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  eventText: { flex: 1, gap: 2 },
   thumb: { width: 44, height: 44, borderRadius: 10 },
 });

@@ -6,13 +6,13 @@
  * right for a person and wrong for the fetcher that runs when the link is
  * pasted into iMessage, because a fetcher holds no cookie — so it was
  * redirected to the sign-in page, and the card in the chat took that page's
- * title. Every private album anybody sent read "Profile".
+ * title. Every private event anybody sent read "Profile".
  *
- * The second half of the same bug is quieter and worse. On a public album the
+ * The second half of the same bug is quieter and worse. On a public event the
  * redirect does not happen; the fetcher gets the exchange instead, which means
  * `ensureActor` mints an actor for Apple's crawler and `recordParticipant`
  * writes it in. Pasting a link into a group chat added a participant to the
- * album. The counts on the card — "6 people" — are the product's own claim
+ * event. The counts on the card — "6 people" — are the product's own claim
  * about who was there.
  *
  * So the fetchers are answered before anything happens: a small HTML document,
@@ -68,7 +68,7 @@ export function isLinkUnfurler(userAgent: string | null): boolean {
 /**
  * HTML entities, on the way into a page and into an attribute at once.
  *
- * An album's name is whatever somebody typed, and it goes into both the title
+ * An event's name is whatever somebody typed, and it goes into both the title
  * element and a `content="…"` attribute. Both quote characters are escaped so
  * one function covers both positions rather than two that can be used in the
  * wrong place.
@@ -94,7 +94,7 @@ export function escapeHtml(value: string): string {
  * whoever happens to touch the URL.
  *
  * `noindex` as well, because a preview fetcher and a search crawler are the
- * same shape and only one of them is welcome. The album pages carry it too;
+ * same shape and only one of them is welcome. The event pages carry it too;
  * this is the one page a crawler can reach without a credential.
  */
 export function previewHtml(event: { name: string; url: string }): string {

@@ -48,7 +48,7 @@ const TILE_SIZES =
  * On hover and on focus-within, and it carries what belongs to this one
  * picture: a checkbox to pick it, a download, a menu, and whose it is. Not a
  * count, not a reaction — a photograph of somebody's evening is not a post,
- * and the moment it can be scored the album is a feed.
+ * and the moment it can be scored the event is a feed.
  *
  * On touch there is no hover, so the first tap shows the chrome and the second
  * opens the picture; that falls out of `:focus-within` rather than a tap

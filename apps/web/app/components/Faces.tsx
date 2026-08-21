@@ -3,7 +3,7 @@
 /**
  * Somebody's picture, in a circle, with something to fall back to.
  *
- * There was a row of these for an album's members and there is not any more —
+ * There was a row of these for an event's members and there is not any more —
  * the card draws the creator and nothing else. What is left is the one circle
  * and the reason it is a component at all:
  *
@@ -65,7 +65,7 @@ export function Face({
 const LENSES = ['#ffb3b8', '#9db2f0', '#a5dcc6', '#f3b584'];
 
 /**
- * A row of them, overlapped — the people in an album.
+ * A row of them, overlapped — the people in an event.
  *
  * A photograph where somebody has one, a lens where they do not. Not a grey
  * letter-circle in the gap: a row of initials is a list of names, which is a

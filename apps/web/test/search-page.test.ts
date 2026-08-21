@@ -3,7 +3,7 @@
  *
  * This is the page where §3's rule is most easily broken by accident, because
  * every kind of thing somebody might look for now shares one input: your
- * albums, your friends, anybody by handle, findable groups. Three of those are
+ * events, your friends, anybody by handle, findable groups. Three of those are
  * lists this person already holds; one is a lookup against everybody.
  *
  * The test is a source scan and the reason is worth stating: what has to hold
@@ -30,21 +30,21 @@ describe('the box searches four things and no more', () => {
     expect(VIEW).toMatch(/\/api\/groups\/search\?q=/);
   });
 
-  it('never asks anything for albums or photos', () => {
+  it('never asks anything for events or photos', () => {
     /*
-     * The line the product is built on. An album search endpoint would turn
+     * The line the product is built on. An event search endpoint would turn
      * "possession of the link is the access model" into "type a word and see
      * whose wedding comes up", and there is deliberately nothing to call.
      */
     expect(VIEW).not.toMatch(/\/api\/events\?|\/api\/photos|search\?q=[^)]*event/i);
   });
 
-  it('matches albums against a list the server chose, in the browser', () => {
+  it('matches events against a list the server chose, in the browser', () => {
     // Substring matching is safe here and only here: every row was on the home
     // screen a second ago, so nothing can be found that was hidden.
     expect(PAGE).toMatch(/eventsFor\(db, actorId\)/);
     expect(PAGE).toMatch(/haystack: searchable\(listing\)/);
-    expect(VIEW).toMatch(/albums\.filter\(\(a\) => matches\(a\.haystack, term\)\)/);
+    expect(VIEW).toMatch(/events\.filter\(\(a\) => matches\(a\.haystack, term\)\)/);
   });
 });
 
@@ -52,7 +52,7 @@ describe('one matcher, not two', () => {
   it('uses the home screen’s, rather than a second copy', () => {
     /*
      * Two implementations of "every term appears somewhere" drift on the first
-     * bug, and the drift is one screen finding an album the other cannot.
+     * bug, and the drift is one screen finding an event the other cannot.
      */
     expect(VIEW).toMatch(/import \{ matches \} from '@\/search'/);
     expect(VIEW).not.toMatch(/split\(\/\\s\+\//);
@@ -71,7 +71,7 @@ describe('what the page offers before anybody types', () => {
   it('names the three things it finds', () => {
     // The page's answer to "what can I find here". It used to be a paragraph
     // of rules, which describes the page instead of being it.
-    for (const scope of ['All', 'People', 'Albums', 'Groups']) {
+    for (const scope of ['All', 'People', 'Events', 'Groups']) {
       expect(VIEW).toMatch(new RegExp(`\\['\\w+', '${scope}'\\]`));
     }
   });
@@ -90,22 +90,22 @@ describe('what the page offers before anybody types', () => {
     expect(PAGE).toMatch(/suggestedGroupsFor\(db, actorId\)/);
   });
 
-  it('does not list albums back, and says why not', () => {
+  it('does not list events back, and says why not', () => {
     /*
-     * The one heading that was removed rather than redrawn. "Your albums" was
+     * The one heading that was removed rather than redrawn. "Your events" was
      * a worse copy of the home screen one tap away — and, more to the point, a
-     * list of albums under a heading on a search page is one ticket away from
+     * list of events under a heading on a search page is one ticket away from
      * a list of somebody else's.
      *
      * The sentence is the other half. An absence cannot explain itself: with
      * the heading simply gone, the page reads as broken rather than as a
      * product that will not do this.
      */
-    // `albums` survives as a prop because typing still matches against it.
+    // `events` survives as a prop because typing still matches against it.
     // What went is every use of it that draws a list nobody asked for.
-    expect(VIEW).not.toMatch(/!asking && wantsAlbums/);
-    expect(VIEW).not.toMatch(/IDLE_ALBUMS|albums\.slice/);
-    expect(VIEW).toMatch(/Albums are never recommended/);
+    expect(VIEW).not.toMatch(/!asking && wantsEvents/);
+    expect(VIEW).not.toMatch(/IDLE_EVENTS|events\.slice/);
+    expect(VIEW).toMatch(/Events are never recommended/);
   });
 
   it('offers groups as a door and never as a way in', () => {
@@ -132,10 +132,10 @@ describe('what the page offers before anybody types', () => {
 });
 
 describe('narrowing the scope narrows what is asked', () => {
-  it('makes no lookup at all when the box is pointed at your own albums', () => {
+  it('makes no lookup at all when the box is pointed at your own events', () => {
     /*
-     * The scope is not a filter over one result set. Albums are matched in
-     * the browser, so pressing Albums means `/api/people` and
+     * The scope is not a filter over one result set. Events are matched in
+     * the browser, so pressing Events means `/api/people` and
      * `/api/groups/search` are not called — narrowing the search also narrows
      * what the page tells the server about what you are looking for.
      */
@@ -146,7 +146,7 @@ describe('narrowing the scope narrows what is asked', () => {
   });
 
   it('asks again when the scope changes, not only when the text does', () => {
-    // Otherwise widening from Albums to All shows the two lookups' last
+    // Otherwise widening from Events to All shows the two lookups' last
     // answer, which is nothing.
     expect(VIEW).toMatch(/search\(query, scope\)/);
     expect(VIEW).toMatch(/\}, \[query, scope, search\]\)/);
@@ -167,7 +167,7 @@ describe('where a result leads', () => {
     // Every row used to lead to `/friends` — an answer to "who do I know" for
     // somebody who had just asked "who is this".
     expect(VIEW).toMatch(/`\/u\/\$\{encodeURIComponent\(person\.handle\)\}`/);
-    expect(VIEW).toMatch(/`\/event\/\$\{album\.id\}`/);
+    expect(VIEW).toMatch(/`\/event\/\$\{event\.id\}`/);
     expect(VIEW).toMatch(/`\/group\/\$\{door\.id\}`/);
   });
 
@@ -189,7 +189,7 @@ describe('who a suggestion may be', () => {
     /*
      * The weakest suggestion available, and that is the point: somebody you
      * could already reach by asking the friend you have in common. Anything
-     * broader — people in your albums, people who share a group — would be a
+     * broader — people in your events, people who share a group — would be a
      * relationship the product invented rather than one that exists.
      */
     expect(SUGGEST).toMatch(/from "friendship" mine/);

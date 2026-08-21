@@ -3,7 +3,7 @@
 /**
  * Who can see it — the one control, in the two places it is asked.
  *
- * It is asked when an album is made and again when one is managed, and those
+ * It is asked when an event is made and again when one is managed, and those
  * were two different questions until now: the create form offered "anyone with
  * the link" or "you approve each person", the phone offered "anyone with the
  * link" or "sign in", and Manage offered nothing at all because the column was
@@ -55,7 +55,7 @@ export const ACCESS_OPTIONS: {
 /**
  * The same three, asked as switches rather than as a row of names.
  *
- * The create screen asks it this way because somebody making an album is
+ * The create screen asks it this way because somebody making an event is
  * deciding several things at once — who can see it, whether the link admits,
  * whether there is a phrase — and a list of switches is how that reads. Manage
  * asks it as three names because by then it is one settled fact being changed.
@@ -80,7 +80,7 @@ export function AccessChoice({
   value,
   onChange,
   disabled = false,
-  /** Shown under the options when this is an album that already exists. */
+  /** Shown under the options when this is an event that already exists. */
   note,
 }: {
   value: AccessPolicy;

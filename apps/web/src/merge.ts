@@ -95,7 +95,7 @@ const OWNED: {
   { table: 'event_invite', column: 'invited_by_actor_id' },
   // The same for a group. An invitation addressed to an actor nothing points
   // at is unanswerable and invisible on the screen that lists it, and this one
-  // is worse to lose than an album's: a group is the thing that survives, so
+  // is worse to lose than an event's: a group is the thing that survives, so
   // the invitation is the only route into a room somebody meant you to be in.
   { table: 'group_invite', column: 'actor_id', uniqueWith: ['group_id'] },
   { table: 'group_invite', column: 'invited_by_actor_id' },

@@ -24,21 +24,29 @@ const config: NextConfig = {
       ? ['ts', 'tsx']
       : ['dev.ts', 'ts', 'tsx'],
   /*
-   * `/events` moved to `/albums`.
+   * `/albums` is back to `/events`, and there is deliberately no redirect.
    *
-   * A permanent redirect rather than a page that renders one, because links to
-   * the old path are in browser histories and bookmarks and there is nothing
-   * to render for them — and 308 lets a browser stop asking.
+   * The home route was `/events`, moved to `/albums` on 14 Aug as a permanent
+   * 308, and has now moved back — the interface calls these events again, so
+   * the path does too.
    *
-   * The route is the only thing that moved. Every table, type and identifier
-   * still says `event`, which is what the thing is called in the model; this
-   * is the interface's word for it.
+   * **A 308 is the reason `/albums` may not redirect here.** For six days this
+   * config told browsers, permanently, that `/events` is `/albums`. A browser
+   * that heard it has cached that with no expiry, and a `/albums → /events`
+   * rule would complete a circle it cannot get out of: `/events` → cached 308
+   * → `/albums` → 307 → `/events` → cached 308, forever, with no request
+   * reaching us to break it. Clearing the site's storage would be the only fix
+   * and nobody knows to do that.
+   *
+   * So `/albums` keeps *serving the page* instead — see `app/albums/page.tsx`.
+   * Anybody carrying the stale redirect lands on their home screen rather than
+   * in a loop, and everybody else gets `/events` directly. That shim can go
+   * once enough time has passed that no live browser holds the old 308.
+   *
+   * `/invites` stays: it was a 308 to a path that has not moved since.
    */
   async redirects() {
-    return [
-      { source: '/events', destination: '/albums', permanent: true },
-      { source: '/invites', destination: '/activity', permanent: true },
-    ];
+    return [{ source: '/invites', destination: '/activity', permanent: true }];
   },
 
   async headers() {
@@ -87,7 +95,10 @@ const config: NextConfig = {
        * nothing else. `/groups` is a different path listing what one person
        * belongs to, and it needs its own entry.
        */
-      ...['account', 'albums', 'find', 'activity', 'groups'].map((root) => ({
+      // `albums` is the old home path, still serving the page rather than
+      // redirecting — see `app/albums/page.tsx`. Both need the header while
+      // both answer.
+      ...['account', 'events', 'albums', 'find', 'activity', 'groups'].map((root) => ({
         source: `/${root}/:path*`,
         headers: [{ key: 'X-Robots-Tag', value: NOINDEX }],
       })),

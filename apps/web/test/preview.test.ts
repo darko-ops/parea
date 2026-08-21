@@ -5,7 +5,7 @@
  * an actor, writes a participant row and sets a capability cookie. All three
  * are right for a person and wrong for the fetcher that runs the moment a link
  * is pasted into a chat — which is not a hypothetical, it is what was
- * happening: on a public album the crawler was recorded as somebody who was
+ * happening: on a public event the crawler was recorded as somebody who was
  * there, and on a private one it was redirected to the sign-in page, so every
  * card in every chat read "Profile".
  */
@@ -69,12 +69,12 @@ describe('what the card says', () => {
     url: 'https://www.parea.photos/e/8LJqdbeCbvsTQvHmTbcdMQ',
   });
 
-  it('is the album’s name, so the card is worth having', () => {
+  it('is the event’s name, so the card is worth having', () => {
     expect(card).toContain('<title>mayflower</title>');
     expect(card).toContain('property="og:title" content="mayflower"');
   });
 
-  it('carries an image that is the same for every album', () => {
+  it('carries an image that is the same for every event', () => {
     // The mark, not a photograph. Whatever is in the image is handed to every
     // scanner that touches the URL, and a photograph is the one thing this
     // product exists to keep among the people who were there.

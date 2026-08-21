@@ -44,7 +44,7 @@ export type Feed = {
     groupId: string | null;
     groupName: string | null;
     /**
-     * The picture the album leads with, presigned for an hour, or null.
+     * The picture the event leads with, presigned for an hour, or null.
      *
      * Only the host can change it, but everybody is sent it: it costs one
      * presign, and the alternative is a field that appears and disappears
@@ -66,13 +66,13 @@ export type Feed = {
 /**
  * A group, with enough to recognise it in a list.
  *
- * `albumCount` is every album in the group, not only the ones this actor has
+ * `eventCount` is every event in the group, not only the ones this actor has
  * opened — which discloses nothing new, because `groupEvents` already lists
  * all of them by name to every member. A group is the room; being in it is
  * what lets you see what is in it. Photos are still only ever reachable
- * through an album, which is the line that actually matters.
+ * through an event, which is the line that actually matters.
  *
- * `lastActiveAt` is null for a group nobody has put an album in yet, which the
+ * `lastActiveAt` is null for a group nobody has put an event in yet, which the
  * screen says nothing about rather than rendering "never".
  */
 export type MyGroupDetail = {
@@ -80,7 +80,7 @@ export type MyGroupDetail = {
   name: string;
   role: 'member' | 'admin';
   memberCount: number;
-  albumCount: number;
+  eventCount: number;
   lastActiveAt: string | null;
 };
 
@@ -184,13 +184,13 @@ export type Person = {
 };
 
 /**
- * An album you are both in.
+ * An event you are both in.
  *
  * Taken out of the *viewer's* list on the server and filtered down to the
  * ones this person is in — never the other way round. See `people.ts` on the
  * web for why the direction of that sentence is the safety property.
  */
-export type SharedAlbum = {
+export type SharedEvent = {
   id: string;
   name: string;
   caption: string | null;
@@ -372,7 +372,7 @@ export class Api {
   // --- things waiting on you ---------------------------------------------
 
   /**
-   * Invitations, friend requests, and people asking into an album you run.
+   * Invitations, friend requests, and people asking into an event you run.
    *
    * Empty for a device that has never signed in, which is the common case on
    * first launch and not an error — the endpoint answers a list rather than a
@@ -387,7 +387,7 @@ export class Api {
    * Answer one, wherever it is answered.
    *
    * The three routes disagree about the word for yes — a host *approves*
-   * somebody into an album, where an invitation is *accepted* — and that
+   * somebody into an event, where an invitation is *accepted* — and that
    * difference belongs here rather than in the screen, which should only know
    * that somebody pressed the left button or the right one.
    */
@@ -478,7 +478,7 @@ export class Api {
   }
 
   /**
-   * Where an album's cover is sent, and with what.
+   * Where an event's cover is sent, and with what.
    *
    * A target rather than a method, because the bytes do not go through
    * `fetch` here: a cover is a photograph off the camera roll, and the native
@@ -526,7 +526,7 @@ export class Api {
    * device that never signed in, a merged actor, either side of a block — so
    * this cannot be used to ask whether somebody exists.
    */
-  person(handle: string): Promise<{ person: Person; shared: SharedAlbum[] }> {
+  person(handle: string): Promise<{ person: Person; shared: SharedEvent[] }> {
     return this.call(`/api/people/${encodeURIComponent(handle)}`);
   }
 

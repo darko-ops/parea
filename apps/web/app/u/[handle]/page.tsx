@@ -5,7 +5,7 @@
  * anywhere a name is drawn. Before this, all of those went to `/friends`,
  * which answers "who do I know" when the question was "who is this".
  *
- * Laid out as your own profile is, minus Edit and with the albums narrowed to
+ * Laid out as your own profile is, minus Edit and with the events narrowed to
  * the ones you can both see. See `PersonView` for what the two empty states
  * mean, and `people.ts` for who has no page at all.
  *
@@ -24,7 +24,7 @@ import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
-import { albumsWithBoth, profileFor } from '@/people';
+import { eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +60,7 @@ export default async function PersonPage({
   const actorId = await currentActorId();
 
   /*
-   * A guest with a link to one album is not somebody who gets to look people
+   * A guest with a link to one event is not somebody who gets to look people
    * up. The same test `/api/people` applies, so the two doors agree.
    */
   if (!actorId || !(await isSignedIn(db, actorId))) notFound();
@@ -72,14 +72,14 @@ export default async function PersonPage({
    * Your own handle is your own profile.
    *
    * This page is the other-person version of `/account`, and the two would
-   * disagree about you: the album list here is "albums we are both in", which
+   * disagree about you: the event list here is "events we are both in", which
    * for yourself is empty, so your own page would say Account Private about
    * you. Sending you to the real one is the only answer that is not a worse
    * version of a page you already have.
    */
   if (person.standing === 'self') redirect('/account');
 
-  const shared = await albumsWithBoth(db, actorId, person.actorId);
+  const shared = await eventsWithBoth(db, actorId, person.actorId);
 
   return (
     <Shell>
@@ -95,9 +95,9 @@ export default async function PersonPage({
             requestId: person.requestId,
           }}
           // The same cards the home screen and your own profile draw, from the
-          // same builder: an album should not look like a different kind of
+          // same builder: an event should not look like a different kind of
           // thing depending on which page it is on.
-          albums={await toCards(shared)}
+          events={await toCards(shared)}
         />
       </main>
     </Shell>

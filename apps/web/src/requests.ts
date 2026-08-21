@@ -9,13 +9,13 @@
  *
  * Four sources, because there are four ways somebody can be waiting on you:
  *
- *   - an invitation to an album, which is `event_invite`
+ *   - an invitation to an event, which is `event_invite`
  *   - an invitation to a group, which is `group_invite`
  *   - a friend request
- *   - somebody asking into an album *you* run, which is `event_access_request`
+ *   - somebody asking into an event *you* run, which is `event_access_request`
  *
  * The third is the one that was missing. It has always been answerable from an
- * album's Members tab and nowhere else, so a host with four albums had four
+ * event's Members tab and nowhere else, so a host with four events had four
  * places to look and no reason to look at any of them. A request nobody is told
  * about is a request that gets answered late or not at all, which reads to the
  * person waiting as a refusal — a silent one they cannot even ask about.
@@ -46,11 +46,11 @@ export type PendingRequest = {
   kind: PendingRequestKind;
   /** The id the answering endpoint wants. */
   id: string;
-  /** Which album, for the kinds that have one. Part of the join endpoint's URL. */
+  /** Which event, for the kinds that have one. Part of the join endpoint's URL. */
   eventId: string | null;
   /** Which group, for the kind that has one. Null for the other three. */
   groupId?: string | null;
-  /** The headline — an album name, or a person's name. */
+  /** The headline — an event name, or a person's name. */
   title: string;
   /** The line underneath: who is asking, and about what. */
   detail: string;
@@ -60,10 +60,10 @@ export type PendingRequest = {
    * The picture on the card. Null draws the title's first letter.
    *
    * Whichever thing the card is *about*, which is the same rule the feed's
-   * squares follow: an invitation and a request to come in are about an album,
+   * squares follow: an invitation and a request to come in are about an event,
    * so they get its newest photograph; a friend request is about a person, so
    * it gets their face. Deciding between yes and no is easier when you can see
-   * what you are deciding about, and an album you have been invited to is one
+   * what you are deciding about, and an event you have been invited to is one
    * you have never seen.
    *
    * Presigned here rather than handed over as a key. Neither an avatar key nor
@@ -78,10 +78,10 @@ function nameOf(displayName: string | null, handle: string | null): string {
 }
 
 /**
- * Open asks to get into albums this actor administers.
+ * Open asks to get into events this actor administers.
  *
  * `administer` is `isCreator || isGroupAdmin`, and both halves are here — an
- * admin of the group an album belongs to can answer these from the Members tab,
+ * admin of the group an event belongs to can answer these from the Members tab,
  * so a list that showed only the ones they created would be telling them about
  * a subset of what they are able to act on, which is worse than telling them
  * about none.
@@ -151,7 +151,7 @@ export async function joinRequestsFor(
  *
  * `invitesWaiting` counts open invitations along with what is new — so the two
  * kinds it has never known about are friend requests and people asking into an
- * album you run. Without these the badge could read zero while the page it
+ * event you run. Without these the badge could read zero while the page it
  * points at says one request is waiting, which is the badge quietly training
  * somebody not to trust it.
  *
@@ -214,7 +214,7 @@ export async function pendingRequestsFor(
       id: invite.id,
       eventId: invite.eventId,
       title: invite.eventName,
-      // "Marcus invited you to Beach Weekend", said in two lines: the album is
+      // "Marcus invited you to Beach Weekend", said in two lines: the event is
       // the headline and this is who asked. Warmer than "asked you", which
       // reads like a form somebody filled in about you.
       detail: invite.caption
@@ -241,7 +241,7 @@ export async function pendingRequestsFor(
       groupId: invite.groupId,
       title: invite.groupName,
       // The group is the headline and this is who asked — the same two lines
-      // an album invitation uses, because it is the same question about a
+      // an event invitation uses, because it is the same question about a
       // different room.
       detail: `${invite.from} asked you into this group`,
       at: invite.createdAt,
@@ -255,7 +255,7 @@ export async function pendingRequestsFor(
   /*
    * Every card's picture, in two queries rather than one per card.
    *
-   * Album covers for the kinds about albums, faces for the kind about a
+   * Event covers for the kinds about events, faces for the kind about a
    * person, and both resolved after the merge so a card gets one lookup
    * whichever list it came from.
    */
@@ -278,13 +278,13 @@ export async function pendingRequestsFor(
 }
 
 /**
- * The newest photograph in each of these albums, presigned.
+ * The newest photograph in each of these events, presigned.
  *
  * `distinct on` rather than a correlated subselect per row: this is asked
- * about a handful of albums at once, and one pass over the photo table
+ * about a handful of events at once, and one pass over the photo table
  * indexed by event is cheaper than one subselect per card.
  *
- * An album nobody has added to yet is simply absent from the map, which the
+ * An event nobody has added to yet is simply absent from the map, which the
  * caller draws as a letter — the same fallback the cards use.
  */
 async function coversFor(db: Db, eventIds: string[]): Promise<Map<string, string>> {
@@ -310,7 +310,7 @@ async function coversFor(db: Db, eventIds: string[]): Promise<Map<string, string
     .orderBy(schema.photos.eventId, desc(schema.photos.uploadedAt));
 
   for (const row of rows) {
-    // First per album wins, which the ordering makes the newest. Cheaper than
+    // First per event wins, which the ordering makes the newest. Cheaper than
     // `distinct on` through the query builder and identical in effect for a
     // list this size.
     if (out.has(row.eventId)) continue;

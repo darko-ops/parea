@@ -14,22 +14,22 @@
  * has typed, and it used to be four stacked bordered panels: the box, then
  * three lists of identical 38px rows. Three things were wrong with that. The
  * box you type in had the same visual weight as the rules link under it; an
- * album, a person and a group were indistinguishable at a glance; and "Your
- * albums" was a worse copy of the home screen, one tap away.
+ * event, a person and a group were indistinguishable at a glance; and "Your
+ * events" was a worse copy of the home screen, one tap away.
  *
  * The argument survives — *each heading holds an example of what the page
  * finds, rather than a paragraph explaining it* — and what is held has
- * changed. "Your albums" is gone, and in its place is **Groups you could
+ * changed. "Your events" is gone, and in its place is **Groups you could
  * join**: findable groups a friend of yours is already in.
  *
- * ## Why a group may be offered and an album may never be
+ * ## Why a group may be offered and an event may never be
  *
  * There is exactly one thing in this product that may be recommended, and it
- * is a findable group. An album must never be suggested, ranked or surfaced to
+ * is a findable group. An event must never be suggested, ranked or surfaced to
  * somebody who does not already have it — possession of the link *is* the
- * access model, and a recommended album is a door nobody sent you. That is why
+ * access model, and a recommended event is a door nobody sent you. That is why
  * the foot of this page says so out loud: without that sentence the missing
- * album list reads as a gap rather than as a policy.
+ * event list reads as a gap rather than as a policy.
  *
  * A group is only barely an exception, and the sub-line is what keeps it
  * honest: what comes back is a name and a member count and nothing from
@@ -40,7 +40,7 @@
  *
  * ## The three of them are not the same search, and must not be
  *
- * **Your albums** are matched here, in the browser, over a list the server
+ * **Your events** are matched here, in the browser, over a list the server
  * already decided this person may see. Nothing is discovered: every row was
  * on the home screen a second ago. That is why matching anywhere inside the
  * string is safe here and is not safe below.
@@ -56,9 +56,9 @@
  * member count, never what is inside. Kept because this is the only surface in
  * the product where a findable group can be found at all.
  *
- * Albums and photos are never searched beyond the viewer's own. That is the
+ * Events and photos are never searched beyond the viewer's own. That is the
  * line the whole product is built on: possession of the link is the access
- * model, and a global album search would turn it into "type a word and see
+ * model, and a global event search would turn it into "type a word and see
  * whose wedding comes up".
  */
 
@@ -94,12 +94,12 @@ export type SuggestedGroup = {
   asked: boolean;
 };
 
-export type AlbumHit = {
+export type EventHit = {
   id: string;
   name: string;
   place: string | null;
   caption: string | null;
-  /** Signed thumbnail, or null for an album with nothing in it yet. */
+  /** Signed thumbnail, or null for an event with nothing in it yet. */
   thumb: string | null;
   /** Name and place, lowercased on the server. See `search.ts`. */
   haystack: string;
@@ -142,22 +142,22 @@ function initial(name: string): string {
 /**
  * Which of the three the box is pointed at.
  *
- * A scope rather than a filter over one result set: pressing Albums means the
+ * A scope rather than a filter over one result set: pressing Events means the
  * two lookups are not made at all, so narrowing the search also narrows what
  * the page asks the server about you.
  */
-type Scope = 'all' | 'people' | 'albums' | 'groups';
+type Scope = 'all' | 'people' | 'events' | 'groups';
 
 const SCOPES = [
   ['all', 'All'],
   ['people', 'People'],
-  ['albums', 'Albums'],
+  ['events', 'Events'],
   ['groups', 'Groups'],
 ] as const;
 
 export function FindView({
   greeting,
-  albums,
+  events,
   friends,
   suggested,
   suggestedGroups,
@@ -169,11 +169,11 @@ export function FindView({
    * Still a prop, and no longer a list.
    *
    * These are matched when somebody types, which is the only thing they were
-   * ever safe to be used for on this page. What went is the idle "Your albums"
+   * ever safe to be used for on this page. What went is the idle "Your events"
    * heading — a second copy of the home screen, and a shape the next ticket
    * would have been tempted to fill with somebody else's.
    */
-  albums: AlbumHit[];
+  events: EventHit[];
   friends: Person[];
   /** Friends of your friends. Shown when nothing is typed. */
   suggested: Suggestion[];
@@ -195,7 +195,7 @@ export function FindView({
   const asking = term.length >= MIN;
 
   const wantsPeople = scope === 'all' || scope === 'people';
-  const wantsAlbums = scope === 'all' || scope === 'albums';
+  const wantsEvents = scope === 'all' || scope === 'events';
   const wantsGroups = scope === 'all' || scope === 'groups';
 
   /*
@@ -204,9 +204,9 @@ export function FindView({
    * `matches` is the home screen's, not a second copy: every term has to
    * appear somewhere in any order, so "roast anchor" finds the Sunday roast at
    * The Anchor. Two implementations of that would drift on the first bug, and
-   * the drift would be one screen finding an album the other could not.
+   * the drift would be one screen finding an event the other could not.
    */
-  const foundAlbums = asking ? albums.filter((a) => matches(a.haystack, term)) : [];
+  const foundEvents = asking ? events.filter((a) => matches(a.haystack, term)) : [];
   const foundFriends = asking
     ? friends.filter((f) =>
         matches(`${f.displayName ?? ''} ${f.handle ?? ''}`.toLowerCase(), term),
@@ -269,7 +269,7 @@ export function FindView({
     asking &&
     !searching &&
     (!wantsPeople || (foundFriends.length === 0 && strangers.length === 0)) &&
-    (!wantsAlbums || foundAlbums.length === 0) &&
+    (!wantsEvents || foundEvents.length === 0) &&
     (!wantsGroups || doors.length === 0);
 
   /*
@@ -303,14 +303,14 @@ export function FindView({
       <div className="find-box">
         <SearchIcon size={20} />
         <label htmlFor="q" className="visually-hidden">
-          Search people, albums and groups
+          Search people, events and groups
         </label>
         <input
           id="q"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="A person, an album, a group"
+          placeholder="A person, an event, a group"
           autoComplete="off"
           autoFocus
         />
@@ -351,10 +351,10 @@ export function FindView({
         </Answers>
       )}
 
-      {wantsAlbums && foundAlbums.length > 0 && (
-        <Answers title="Albums">
-          {foundAlbums.map((album) => (
-            <AlbumRow key={album.id} album={album} />
+      {wantsEvents && foundEvents.length > 0 && (
+        <Answers title="Events">
+          {foundEvents.map((event) => (
+            <EventRow key={event.id} event={event} />
           ))}
         </Answers>
       )}
@@ -381,7 +381,7 @@ export function FindView({
 
       {nothing && (
         <p className="find-empty">
-          Nothing by that name. Albums are only yours to find — if somebody
+          Nothing by that name. Events are only yours to find — if somebody
           has not sent you the link, there is nothing here to type at.
         </p>
       )}
@@ -470,16 +470,16 @@ export function FindView({
       )}
 
       {/*
-        Albums have no idle list any more, so this scope is the box and this
+        Events have no idle list any more, so this scope is the box and this
         sentence. The second wording is new and has to exist: without it,
-        pressing Albums shows a page with nothing on it, which reads as a
+        pressing Events shows a page with nothing on it, which reads as a
         failure rather than as "these are matched, not browsed".
       */}
-      {!asking && scope === 'albums' && (
+      {!asking && scope === 'events' && (
         <p className="find-empty">
-          {albums.length === 0
-            ? 'No albums yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
-            : 'Albums are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
+          {events.length === 0
+            ? 'No events yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
+            : 'Events are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
         </p>
       )}
 
@@ -494,8 +494,8 @@ export function FindView({
         The rules, one click away, and beside them the one rule that has to be
         visible without being asked for.
 
-        The absence of an album list is a decision, and an absence cannot say
-        so by itself: a page that used to have "Your albums" on it and now does
+        The absence of an event list is a decision, and an absence cannot say
+        so by itself: a page that used to have "Your events" on it and now does
         not reads as something broken unless the reason is written down where
         the list was.
       */}
@@ -503,16 +503,16 @@ export function FindView({
         <details className="how">
           <summary>How search works</summary>
           <p className="field-help">
-            Your albums and your friends are matched here on this page, over
+            Your events and your friends are matched here on this page, over
             what you can already see — nothing is looked up. Handles are
             searched by prefix, so somebody is findable enough to be asked and
             no further, and groups return a name and a member count and never
             what is inside. Photos are never searched, and the only way into
-            somebody else’s album is a link they sent you.
+            somebody else’s event is a link they sent you.
           </p>
         </details>
         <span className="find-foot-note">
-          Albums are never recommended — only ones you have the link to are here
+          Events are never recommended — only ones you have the link to are here
           at all.
         </span>
       </div>
@@ -674,21 +674,21 @@ function Answers({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** An album somebody typed for. */
-function AlbumRow({ album }: { album: AlbumHit }) {
+/** An event somebody typed for. */
+function EventRow({ event }: { event: EventHit }) {
   return (
     <li>
-      <a href={`/event/${album.id}`} className="hit">
+      <a href={`/event/${event.id}`} className="hit">
         <Face
-          src={album.thumb}
+          src={event.thumb}
           size={38}
           className="hit-thumb"
-          fallback={<span aria-hidden="true">{initial(album.name)}</span>}
+          fallback={<span aria-hidden="true">{initial(event.name)}</span>}
         />
         <span className="hit-text">
-          <strong>{album.name}</strong>
-          {(album.place || album.caption) && (
-            <span className="muted">{album.place ?? album.caption}</span>
+          <strong>{event.name}</strong>
+          {(event.place || event.caption) && (
+            <span className="muted">{event.place ?? event.caption}</span>
           )}
         </span>
       </a>

@@ -12,7 +12,7 @@
  * it, and being wrong is undone by a reviewer releasing the hold.
  *
  * Every other kind leaves the photo up. A report is not a verdict, and a
- * channel that hid on sight would hand any guest a way to empty an album one
+ * channel that hid on sight would hand any guest a way to empty an event one
  * report at a time — which is a censorship tool wearing a safety label.
  *
  * No SLA is promised in the response, because none can currently be kept.

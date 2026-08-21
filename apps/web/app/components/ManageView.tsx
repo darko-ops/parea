@@ -55,7 +55,7 @@ export function ManageView({
     code: string | null;
     url: string;
     groupId: string | null;
-    /** The picture the album leads with, presigned. Null if it has none. */
+    /** The picture the event leads with, presigned. Null if it has none. */
     coverUrl: string | null;
   };
 }) {
@@ -90,7 +90,7 @@ export function ManageView({
   /*
    * The cover, and the file that is about to replace it.
    *
-   * `cover` is what the album currently leads with — from the server on the
+   * `cover` is what the event currently leads with — from the server on the
    * first render, and from the browser's own copy of the chosen file after a
    * change, so the section shows what was just set without a round trip for a
    * picture this page already has.
@@ -236,16 +236,16 @@ export function ManageView({
   }
 
   /**
-   * Change the picture the album leads with.
+   * Change the picture the event leads with.
    *
    * The same endpoint the create screen posts to, which is the whole reason
    * this section is a few lines rather than a feature: a cover was always one
-   * wide JPEG under the album's prefix, and setting it again replaces that
-   * object. Nothing else about the album moves.
+   * wide JPEG under the event's prefix, and setting it again replaces that
+   * object. Nothing else about the event moves.
    *
    * Scaled in the browser first, exactly as on the way in — and the two do
    * that work for different reasons. There it is so nobody is kept waiting to
-   * land in an album they just made; here it is so a twelve-megabyte
+   * land in an event they just made; here it is so a twelve-megabyte
    * photograph is not sent across a phone connection to change a thumbnail.
    */
   async function changeCover(file: File) {
@@ -618,11 +618,11 @@ export function ManageView({
         <section className="panel">
           <h2>The cover</h2>
           <p className="panel-note">
-            The picture the album leads with, wherever it is shown. Without one
+            The picture the event leads with, wherever it is shown. Without one
             it leads with its newest photo.
           </p>
           {/*
-            A file rather than a grid of the album's own photographs, which is
+            A file rather than a grid of the event's own photographs, which is
             what the create screen offers and what this screen cannot: the
             bytes of a photograph live in storage and never pass through this
             server — that is the rule the whole upload path is built on — so
@@ -711,7 +711,7 @@ export function ManageView({
           <h2>Who can see it</h2>
           {/*
             Changeable now. It was set in the first thirty seconds of an
-            album's life and fixed forever after, which is the wrong way round:
+            event's life and fixed forever after, which is the wrong way round:
             nobody has been sent anything yet at that moment, and what you want
             is obvious only once they have.
           */}
@@ -929,7 +929,7 @@ function PendingThumb({ src }: { src: string }) {
  * square with a plus — an invitation. A cover is the picture. A cover whose
  * URL has stopped resolving is the frame and nothing in it: these URLs are
  * presigned for an hour, so a manage screen left open over lunch will have
- * one, and drawing the plus then would tell somebody their album has no cover
+ * one, and drawing the plus then would tell somebody their event has no cover
  * when it has one. The Remove button beside it stays, which is the honest
  * signal that something is still there.
  */

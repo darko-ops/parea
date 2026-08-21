@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * Home: your people, then your albums.
+ * Home: your people, then your events.
  *
  * The page used to be the word "Home" over a grid. It was accurate and it was
  * nobody's — the design's first complaint was that returning to it did not
  * feel like returning to your people, and the answer is that the people are
- * now the first thing on it. A row of faces above the albums, and pressing one
+ * now the first thing on it. A row of faces above the events, and pressing one
  * narrows the grid to the evenings that person was at.
  *
  * ## Everything here narrows; nothing here fetches
@@ -43,7 +43,7 @@ export type RowPerson = {
   handle: string | null;
   name: string;
   avatar: string | null;
-  /** The viewer's albums this person is in. */
+  /** The viewer's events this person is in. */
   eventIds: string[];
 };
 
@@ -128,7 +128,7 @@ export function HomeView({
             type="button"
             className="search-go"
             aria-expanded={open}
-            aria-label="Search your albums"
+            aria-label="Search your events"
             onClick={() => {
               if (open && query.trim() === '') setOpen(false);
               else setOpen(true);
@@ -141,8 +141,8 @@ export function HomeView({
             type="search"
             className="search-field"
             value={query}
-            placeholder="Search your albums"
-            aria-label="Search your albums"
+            placeholder="Search your events"
+            aria-label="Search your events"
             tabIndex={open ? 0 : -1}
             onChange={(e) => setQuery(e.target.value)}
             onBlur={collapse}
@@ -193,7 +193,7 @@ export function HomeView({
 
           {/*
             The last slot, and it is a door rather than a face: the row is the
-            people you already share albums with, so the way to add to it is to
+            people you already share events with, so the way to add to it is to
             share one — which is what the friends screen is for.
           */}
           <a className="person person-invite" href="/friends">
@@ -205,7 +205,7 @@ export function HomeView({
 
           {person && (
             <span className="people-filter">
-              Showing albums with <b>{first(person.name)}</b> ·{' '}
+              Showing events with <b>{first(person.name)}</b> ·{' '}
               <button type="button" className="link-button" onClick={() => setSelected(null)}>
                 clear
               </button>
@@ -217,14 +217,14 @@ export function HomeView({
       <div className="cards">
         {shown}
         {/* Always rendered: it is the affordance, not a result. Except under a
-            person filter, where "create an album" is not an album Priya was
+            person filter, where "create an event" is not an event Priya was
             at, and the grid is answering that question. */}
         {!person && footer}
       </div>
 
       {/*
         Said, rather than left as an empty grid. An empty grid with a create
-        cell in it looks identical to having no albums at all, and would send
+        cell in it looks identical to having no events at all, and would send
         somebody off to make a second copy of the one they were looking for.
       */}
       {searching && shown.length === 0 && (

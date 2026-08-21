@@ -53,19 +53,19 @@ export function ago(from: Date, now: Date): string {
  * the phone — and this function has no business knowing which.
  */
 /**
- * The evening an album is about, as "Fri 14 Mar".
+ * The evening an event is about, as "Fri 14 Mar".
  *
  * Shared because two clients format it: the web signs its cards on the server,
  * and the profile page builds them in the browser from `/api/events`. Two
- * copies of a date format is two ways for the same album to be dated on two
+ * copies of a date format is two ways for the same event to be dated on two
  * screens of one product.
  *
  * The year is left off deliberately — these are recent evenings, and "Fri 14
- * Mar 2026" on a card is a filing reference. UTC because the album's own date
+ * Mar 2026" on a card is a filing reference. UTC because the event's own date
  * is a day, not a moment: rendering it in the reader's zone is how a Saturday
  * night becomes Sunday for somebody reading in Auckland.
  */
-export function albumDate(iso: string | null): string | null {
+export function dateLabel(iso: string | null): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
@@ -91,7 +91,7 @@ export const CARD_FACES = 3;
 export const LIVE_MS = 60 * 60 * 1000;
 
 /**
- * Whether an album is being added to right now.
+ * Whether an event is being added to right now.
  *
  * An hour rather than a day, because the badge says *now*: it is false about
  * something that stopped forty minutes ago in a way that "today" would not be.

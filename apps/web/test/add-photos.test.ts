@@ -85,16 +85,16 @@ describe('after an event is created', () => {
    *
    * The old rule was that creating must *not* navigate: the page ended on a
    * panel holding the link, on the reasoning that the second after making an
-   * album is when somebody sends it. What that actually produced was a screen
-   * between a person and the album they had just made — with a button on it
+   * event is when somebody sends it. What that actually produced was a screen
+   * between a person and the event they had just made — with a button on it
    * saying "Add your photos", for photos that were already uploading.
    *
-   * So the album is where it ends now, and the share panel lives inside it,
+   * So the event is where it ends now, and the share panel lives inside it,
    * one press from the same second. What still has to hold is that the photos
    * are not abandoned at the door: they are written to the queue before the
-   * navigation, and the album page picks them up.
+   * navigation, and the event page picks them up.
    */
-  it('goes to the album it just made', () => {
+  it('goes to the event it just made', () => {
     expect(CREATE).toMatch(/location\.href = `\/event\/\$\{created\.id\}`/);
   });
 

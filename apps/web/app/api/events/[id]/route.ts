@@ -89,15 +89,15 @@ export async function PATCH(
    * Who can see it, changed after the fact.
    *
    * It was write-once until now, which reads as a safety property and is not
-   * one: the choice is made in the first thirty seconds of an album's life,
+   * one: the choice is made in the first thirty seconds of an event's life,
    * before anybody has been sent anything, and being unable to loosen it left
-   * five albums here permanently making people ask to get in. Nothing about
+   * five events here permanently making people ask to get in. Nothing about
    * the model needs it fixed — `authorize` reads the column on every request,
    * so a change takes effect at once in both directions.
    *
    * The list is checked against the three known values rather than passed
    * through: `authorize` denies any policy it does not recognise, so a typo
-   * written here would lock everybody out of an album including its host, with
+   * written here would lock everybody out of an event including its host, with
    * no way back because the only way back is this endpoint.
    *
    * Tightening does not evict anyone. Whoever is already a participant stays

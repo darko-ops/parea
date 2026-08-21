@@ -49,13 +49,13 @@ export async function GET(
    * Ahead of everything below because everything below is a side effect: the
    * capability cookie, the actor, the participant row. A link pasted into a
    * group chat was minting an actor for the preview fetcher and writing it
-   * into the album as somebody who was there — and on a private album the
+   * into the event as somebody who was there — and on a private event the
    * fetcher was redirected to the sign-in page instead, which is where the
    * card's "Profile" came from.
    *
    * No credential is checked, and that is the point rather than an oversight:
    * this answers the same for any well-formed token, so it cannot be used to
-   * ask whether a token is real. What it says — an album's name — is the least
+   * ask whether a token is real. What it says — an event's name — is the least
    * that makes a card worth showing, and it goes only to the fetchers on the
    * list in `preview.ts`.
    */

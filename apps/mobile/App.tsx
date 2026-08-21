@@ -238,7 +238,7 @@ export default function App() {
    * just left, and React has no reason to drop any of it. Photos on the home
    * tab, their groups, the name beside their uploads: all still rendered,
    * correct for nobody. The route goes back to the tabs as well, because
-   * signing out from inside an album would leave that album open.
+   * signing out from inside an event would leave that event open.
    */
   const signOut = useCallback(() => {
     setRemembered([]);
@@ -413,7 +413,7 @@ export default function App() {
 
       {/*
         Somebody's page, pushed over whichever tab found them. The app's own
-        event list goes with it: the albums you are both in are all albums this
+        event list goes with it: the events you are both in are all events this
         device already holds a link token for, so opening one from here is the
         same act as opening it from home.
       */}
@@ -1013,12 +1013,12 @@ function EventScreen({
   }, [feed]);
 
   /**
-   * The album's cover, for whoever runs it.
+   * The event's cover, for whoever runs it.
    *
    * This was one bare button that offered both actions unconditionally, because
-   * the feed did not say whether a cover existed — so "Album cover" meant "there
+   * the feed did not say whether a cover existed — so "Event cover" meant "there
    * may or may not be one, press to find out", and "Remove it" was offered on
-   * albums with nothing to remove. The feed carries `coverUrl` now, so the row
+   * events with nothing to remove. The feed carries `coverUrl` now, so the row
    * shows the picture and the sheet only offers removal when there is something
    * to take away.
    *
@@ -1078,10 +1078,10 @@ function EventScreen({
     actions.push({ text: 'Cancel', style: 'cancel' });
 
     Alert.alert(
-      'Album cover',
+      'Event cover',
       cover
-        ? 'The picture the album leads with, wherever it is shown.'
-        : 'Choose the picture the album leads with. Without one it leads with its newest photograph.',
+        ? 'The picture the event leads with, wherever it is shown.'
+        : 'Choose the picture the event leads with. Without one it leads with its newest photograph.',
       actions,
     );
   }, [api, cover, event.id, refresh]);
@@ -1164,10 +1164,10 @@ function EventScreen({
               <Text style={[styles.body, { color: t.accent }]}>‹ All events</Text>
             </Pressable>
             {/*
-              The name, and the one thing an album is for.
+              The name, and the one thing an event is for.
 
               Sharing was not reachable from this screen at all — the link
-              appeared once, on the screen that made the album, and after that
+              appeared once, on the screen that made the event, and after that
               the only way to send it to somebody was to make another. It is
               the system sheet rather than a panel of our own: it already knows
               which group chat these people use, and picking somebody in it
@@ -1178,12 +1178,12 @@ function EventScreen({
               <Pressable
                 onPress={() => {
                   // The link alone. The name arrives with it — a shared link
-                  // unfurls into a card carrying the album's title, so putting
+                  // unfurls into a card carrying the event's title, so putting
                   // it in the message body as well says it twice.
                   void Share.share({ message: `${webBase}/e/${event.linkToken}` });
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Share this album"
+                accessibilityLabel="Share this event"
                 style={({ pressed }) => [
                   styles.eventShare,
                   { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
@@ -1268,7 +1268,7 @@ function EventScreen({
             {/*
               Host only. It changes what everybody else sees on their home
               screen, which is the same reason the web keeps it on the manage
-              screen rather than on the album.
+              screen rather than on the event.
 
               The picture is here rather than only behind the press, matching
               the web's manage screen: the cover is the one setting on this
@@ -1286,7 +1286,7 @@ function EventScreen({
                   { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={cover ? 'Change the album cover' : 'Choose an album cover'}
+                accessibilityLabel={cover ? 'Change the event cover' : 'Choose an event cover'}
               >
                 {cover ? (
                   <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
@@ -1296,10 +1296,10 @@ function EventScreen({
                   <View style={[styles.coverEmpty, { borderColor: t.line }]} />
                 )}
                 <View style={styles.coverWords}>
-                  <Text style={[styles.coverTitle, { color: t.fg }]}>Album cover</Text>
+                  <Text style={[styles.coverTitle, { color: t.fg }]}>Event cover</Text>
                   <Text style={[styles.coverNote, { color: t.dim }]}>
                     {cover
-                      ? 'What this album leads with everywhere.'
+                      ? 'What this event leads with everywhere.'
                       : 'Leading with its newest photograph.'}
                   </Text>
                 </View>
@@ -1528,7 +1528,7 @@ function theme(dark: boolean) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  /* The album's name, and Share on the same line as it. A full-width button
+  /* The event's name, and Share on the same line as it. A full-width button
      under the title would be the third stacked slab on this screen and would
      read as the thing to do, which is adding photos. */
   eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

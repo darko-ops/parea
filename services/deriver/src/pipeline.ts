@@ -394,7 +394,7 @@ async function classify(
 /**
  * Photographs that predate a derivative size, oldest first.
  *
- * `card` was added after the product had albums in it, so every photograph
+ * `card` was added after the product had events in it, so every photograph
  * ingested before then has thumb, grid and full and nothing between. The web
  * app asks the `derivative` table before offering a `card` URL, so nothing is
  * broken in the meantime — this is what makes the answer yes for the ones

@@ -1,5 +1,5 @@
 /**
- * A photograph is a page, and the column beside it is the album's chat.
+ * A photograph is a page, and the column beside it is the event's chat.
  *
  * Two separate things are being defended here and both are the kind that
  * typecheck, render, and are wrong.
@@ -11,7 +11,7 @@
  * link: the picture still opens.
  *
  * The second is what the conversation *is*. The design this was built from
- * asked for per-photo comments; the product asks for the album's group chat,
+ * asked for per-photo comments; the product asks for the event's group chat,
  * on the reasoning that comments-under-a-picture is the shape of a feed and
  * splits one group of people into a hundred dead ends. The difference between
  * the two is one `photoId` in a POST body, invisible in a screenshot, and it
@@ -73,7 +73,7 @@ describe('the photo is a page', () => {
 });
 
 describe('the column beside it', () => {
-  it('is the album thread, whole', () => {
+  it('is the event thread, whole', () => {
     // The same component the Conversation tab draws, handed the same
     // messages. Not a list narrowed to this picture.
     expect(VIEW).toMatch(/<Thread/);
@@ -92,7 +92,7 @@ describe('the column beside it', () => {
     expect(thread).not.toMatch(/photoId/);
   });
 
-  it('posts to the album rather than anchoring to the picture', async () => {
+  it('posts to the event rather than anchoring to the picture', async () => {
     // `Thread` sends `{ body }` and nothing else. A `photoId` in that request
     // is what files a message under one photograph — the whole difference
     // between a group chat and a comment section, and one word wide.
@@ -107,7 +107,7 @@ describe('the column beside it', () => {
   });
 
   it('re-reads the thread from the messages route, not the whole feed', () => {
-    // The feed signs a URL for every photograph in the album. Polling it to
+    // The feed signs a URL for every photograph in the event. Polling it to
     // find out what somebody typed is two hundred signatures for one line of
     // text, on the page that is showing one photo.
     expect(VIEW).toMatch(/\/api\/events\/\$\{event\.id\}\/messages/);
@@ -151,7 +151,7 @@ describe('the safety actions', () => {
   });
 });
 
-describe('paging through the album', () => {
+describe('paging through the event', () => {
   it('does not hijack the arrow keys out of the composer', () => {
     // The conversation is a text box on the same screen. Without this, a left
     // arrow while editing a message navigates to another photograph

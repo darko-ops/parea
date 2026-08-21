@@ -2,7 +2,7 @@
  * Groups — the rooms you are in.
  *
  * Groups existed before this page did and had nowhere of their own: you
- * reached one from a chip on Search, from an album that belonged to it, or
+ * reached one from a chip on Search, from an event that belonged to it, or
  * from a link. That is fine for a thing you visit occasionally and wrong for
  * one the product treats as persistent identity — "the same people keep doing
  * things together" is the whole reason groups exist, and there was no screen
@@ -10,7 +10,7 @@
  *
  * ## There is no Create group button, and that is the design
  *
- * A group is made *from an album* — `POST /api/groups` requires a
+ * A group is made *from an event* — `POST /api/groups` requires a
  * `fromEventId` and refuses without one, and the reason is at the top of that
  * file: noticing that the same people keep turning up is something that
  * happens afterwards. An empty group you then have to fill is a distribution
@@ -19,7 +19,7 @@
  *
  * So the empty state says where groups come from rather than offering a button
  * that would have to be disabled or would create something hollow. The action
- * lives on an album you host, which is the only place it can be taken.
+ * lives on an event you host, which is the only place it can be taken.
  *
  * Not indexable: it lists what one person belongs to.
  */
@@ -60,13 +60,13 @@ function ago(iso: string, now: Date): string {
   return AGO.format(Math.round(seconds / size), unit);
 }
 
-/** "4 albums · 12 people · added to 2 days ago" — what the room is, in a line. */
+/** "4 events · 12 people · added to 2 days ago" — what the room is, in a line. */
 function metaFor(
-  group: { albumCount: number; memberCount: number; lastActiveAt: string | null },
+  group: { eventCount: number; memberCount: number; lastActiveAt: string | null },
   now: Date,
 ): string {
   const parts = [
-    `${group.albumCount} ${group.albumCount === 1 ? 'album' : 'albums'}`,
+    `${group.eventCount} ${group.eventCount === 1 ? 'event' : 'events'}`,
     `${group.memberCount} ${group.memberCount === 1 ? 'person' : 'people'}`,
   ];
   // Only when there is something to have been active about. "added to never"
@@ -109,13 +109,13 @@ export default async function GroupsPage() {
               You are not in any groups yet.
             </p>
             <p>
-              A group is made from an album, not from nothing — when the same
-              people keep turning up, you roll one of your albums into a group
+              A group is made from an event, not from nothing — when the same
+              people keep turning up, you roll one of your events into a group
               and everybody in it stays in the loop for the next one. Open an
-              album you made and look for <strong>Make a group</strong>.
+              event you made and look for <strong>Make a group</strong>.
             </p>
-            <a href="/albums" className="button-like primary">
-              Your albums
+            <a href="/events" className="button-like primary">
+              Your events
             </a>
           </div>
         ) : (
@@ -180,19 +180,19 @@ export default async function GroupsPage() {
                     </a>
                     {/*
                       Only when the strip below is not already all of them. A
-                      group with three albums or fewer has nothing further to
+                      group with three events or fewer has nothing further to
                       show, and "View all 3" over three covers is a link to
                       what you are looking at.
                     */}
-                    {group.albumCount > GROUP_STRIP && (
+                    {group.eventCount > GROUP_STRIP && (
                       <a href={`/group/${group.id}`} className="group-all">
-                        View all {group.albumCount}
+                        View all {group.eventCount}
                       </a>
                     )}
                   </div>
 
                   {/*
-                    The three most recent albums, each linking straight to
+                    The three most recent events, each linking straight to
                     itself rather than to the group — the point of the strip is
                     one click instead of two.
 
@@ -202,32 +202,32 @@ export default async function GroupsPage() {
                   */}
                   <div
                     className={`group-strip${
-                      group.albums.length < GROUP_STRIP ? ' group-strip-few' : ''
+                      group.events.length < GROUP_STRIP ? ' group-strip-few' : ''
                     }`}
                   >
-                    {group.albums.length === 0 ? (
-                      <span className="cover-none cover-empty">No albums yet</span>
+                    {group.events.length === 0 ? (
+                      <span className="cover-none cover-empty">No events yet</span>
                     ) : (
-                      group.albums.map((album) => (
+                      group.events.map((event) => (
                         <a
-                          href={`/event/${album.id}`}
-                          className="strip-album"
-                          key={album.id}
+                          href={`/event/${event.id}`}
+                          className="strip-event"
+                          key={event.id}
                         >
                           <span className="strip-cover">
-                            {album.cover ? (
-                              <GroupCover src={album.cover} />
+                            {event.cover ? (
+                              <GroupCover src={event.cover} />
                             ) : (
                               <span className="cover-none" aria-hidden="true" />
                             )}
-                            {album.fresh > 0 && (
+                            {event.fresh > 0 && (
                               <span className="fresh">
                                 <span className="fresh-dot" aria-hidden="true" />
-                                {album.fresh} new
+                                {event.fresh} new
                               </span>
                             )}
                           </span>
-                          <span className="strip-album-name">{album.name}</span>
+                          <span className="strip-event-name">{event.name}</span>
                         </a>
                       ))
                     )}

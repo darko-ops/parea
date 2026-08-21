@@ -1,5 +1,5 @@
 /**
- * One album, led by its photograph.
+ * One event, led by its photograph.
  *
  * The photograph *is* the card: a tall cover, the faces of the people in it
  * overlapping its bottom edge, and two lines underneath. No border, no panel,
@@ -11,7 +11,7 @@
  * or four tiles is gone, and with it the argument that a card should show a
  * sample of what is inside: one picture chosen as the cover says more, and the
  * sample was four thumbnails too small to recognise anybody in. The caption is
- * gone from this screen — it is on the album itself, and on a card a second
+ * gone from this screen — it is on the event itself, and on a card a second
  * sentence under the name is the listing impression.
  *
  * What replaced them is people. Three faces and "8 people · Fri 14 Mar", which
@@ -20,7 +20,7 @@
  * photographs" is a fact somebody navigating by screen reader has no other way
  * to get.
  *
- * An album with no photographs gets none of this. Blurring or cropping nothing
+ * An event with no photographs gets none of this. Blurring or cropping nothing
  * produces a grey rectangle that reads as a loading state which never
  * finishes, so it stays the separate card below whose job is to get the first
  * photograph out of somebody.
@@ -58,8 +58,8 @@ export function EventCard({ event }: { event: CardEvent }) {
   /*
    * On the photograph count, not on the mosaic.
    *
-   * They were the same number until albums could have a cover. A cover is
-   * prepended to the mosaic, so an album with a cover and nothing in it yet
+   * They were the same number until events could have a cover. A cover is
+   * prepended to the mosaic, so an event with a cover and nothing in it yet
    * has one tile to draw — and drawing it would replace the only card in the
    * product whose job is to get the first photograph out of somebody with a
    * card that says nothing. The cover waits until there is something to lead.
@@ -97,7 +97,7 @@ export function EventCard({ event }: { event: CardEvent }) {
       {/*
         The photograph is the card. No border, no panel, no strip of chrome
         under it — a tall cover with the name beneath, which is what a shelf of
-        albums looks like when it is not trying to look like a listing.
+        events looks like when it is not trying to look like a listing.
       */}
       <div className="card-cover">
         {cover && <CoverImage src={cover.src} sources={cover.sources} />}
@@ -145,12 +145,12 @@ export function EventCard({ event }: { event: CardEvent }) {
       <div className="card-under">
         <div className="card-name">{event.name}</div>
         {/*
-          Whose album it is, in their own two names.
+          Whose event it is, in their own two names.
 
           Both, always. The name is what somebody recognises — it is how they
           are spoken about — and the handle is what is unique, so printing one
           of them makes the reader guess which they are looking at. On your own
-          albums the name is "You": your own name read back at you on a wall of
+          events the name is "You": your own name read back at you on a wall of
           your own evenings is the page describing you to yourself.
 
           Either can be missing on its own — an account is optional here, and
@@ -171,10 +171,10 @@ export function EventCard({ event }: { event: CardEvent }) {
         )}
         {/*
           Who and when, in that order, and the when is the evening rather than
-          the upload — except on an album being added to now, where the recent
+          the upload — except on an event being added to now, where the recent
           thing *is* the news. No caption on this line and none above it: a
           second sentence under the name is what made a photograph look like a
-          listing. The album with no photographs still has one, because that
+          listing. The event with no photographs still has one, because that
           card is text and the sentence is most of what it has.
         */}
         <div className="card-meta">

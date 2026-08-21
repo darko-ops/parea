@@ -10,7 +10,7 @@
  * Deliberately visible to everybody in the event rather than to the host
  * alone. That is a change in what an event discloses: it was possible to be in
  * one without knowing who else was, and it is not any more. The reasoning is
- * that a thread already prints the name of anybody who speaks in it, an album
+ * that a thread already prints the name of anybody who speaks in it, an event
  * is a room rather than a broadcast, and "who else can see this photograph of
  * me" is a question the people in it are entitled to an answer to.
  */
@@ -36,7 +36,7 @@ export type Member = {
  * Everyone, oldest first, with the creator lifted to the front.
  *
  * Bounded, and the bound is high rather than tight: this is one query per
- * event page and an album with more than this many people in it is not a thing
+ * event page and an event with more than this many people in it is not a thing
  * the product has yet. It exists so that a runaway — a link pasted somewhere
  * public — cannot turn one page render into a thousand presigned URLs.
  */
@@ -81,7 +81,7 @@ export async function membersOf(db: Db, eventId: string): Promise<Member[]> {
 }
 
 /**
- * The People tab: everybody in the album, and everybody who was asked and has
+ * The People tab: everybody in the event, and everybody who was asked and has
  * not arrived.
  *
  * `membersOf` answers "who is in here", which is what the header's faces need.

@@ -21,8 +21,8 @@
  * This panel is opened to send a link, and the phrase is for the other door
  * entirely — somebody across a room whose phone you are not holding. Printing
  * it beside a URL made it look like part of the same act, and it is not: a
- * phrase is short, said out loud, and recycled once an album goes quiet. It
- * lives on the manage screen, beside the switch that decides whether the album
+ * phrase is short, said out loud, and recycled once an event goes quiet. It
+ * lives on the manage screen, beside the switch that decides whether the event
  * has one at all.
  */
 
@@ -34,18 +34,18 @@ import { createPortal } from 'react-dom';
  * What happens to the person who receives this.
  *
  * Said in terms of them rather than of the setting, and said accurately: the
- * panel used to promise that anybody holding the link could open the album and
+ * panel used to promise that anybody holding the link could open the event and
  * add photos, which is true of exactly one of the three policies. On a private
- * album it oversells, and on an approval one it promises something the host
+ * event it oversells, and on an approval one it promises something the host
  * has to grant by hand — to somebody about to paste the link into a group chat
  * on the strength of that sentence.
  *
  * `joinsOpen` is checked first because it overrides all three: with the link
- * switched off nobody new gets in however the album is set.
+ * switched off nobody new gets in however the event is set.
  */
 export function promise(accessPolicy: string | undefined, joinsOpen: boolean): string {
   if (!joinsOpen) {
-    return 'The link is off for this album — only the people you add can get in.';
+    return 'The link is off for this event — only the people you add can get in.';
   }
   if (accessPolicy === REQUEST_ACCESS) {
     return 'Whoever you send this to can ask to come in. You let them in, under Members.';
@@ -53,7 +53,7 @@ export function promise(accessPolicy: string | undefined, joinsOpen: boolean): s
   if (accessPolicy === ACCOUNT_REQUIRED) {
     return 'Whoever you send this to signs in and is straight in. Adding photos needs an account too.';
   }
-  return 'Anybody with this can open the album and add their photos.';
+  return 'Anybody with this can open the event and add their photos.';
 }
 
 export function ShareEvent({

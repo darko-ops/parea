@@ -39,7 +39,7 @@ const ANSWERS: Record<
 > = {
   invite: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
   friend: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
-  // Same words as an album's. Being asked into a group is the same shape of
+  // Same words as an event's. Being asked into a group is the same shape of
   // question, and giving it its own verb would imply a different answer.
   group_invite: { yes: 'accept', no: 'decline', yesLabel: 'Accept', noLabel: 'Decline' },
   // Not "Accept": this one is a door being opened onto photographs of an
@@ -100,7 +100,7 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
         if (!res.ok) throw new Error('Could not answer that.');
         // Accepting an invitation is the only answer that changes what is
         // reachable, so it is the only one that needs the page rebuilt — and
-        // the place to rebuild it is the album that just opened.
+        // the place to rebuild it is the event that just opened.
         if (yes && request.kind === 'invite') {
           window.location.href = `/event/${request.eventId}`;
         }
@@ -143,7 +143,7 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
           <div className="waiting-card" key={request.key}>
             {/*
               `Face` rather than a bare `<img>`, for the reason it exists: an
-              avatar is presigned for an hour and an album's photograph is
+              avatar is presigned for an hour and an event's photograph is
               signed against its `cap_epoch`, so a tab left open long enough
               holds a card whose picture has expired. The letter is what that
               becomes, rather than the broken-image glyph — on a card whose

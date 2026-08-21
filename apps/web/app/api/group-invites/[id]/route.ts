@@ -1,7 +1,7 @@
 /**
  * Answering a group invitation.
  *
- * The mirror of `app/api/invites/[id]`, which answers the album kind. Same
+ * The mirror of `app/api/invites/[id]`, which answers the event kind. Same
  * shape and the same reasoning: the write is scoped to the invitation's own
  * actor and to `open` in a single statement, so answering twice from two tabs
  * cannot turn a decline back into an accept, and "is this mine" is not asked
@@ -43,10 +43,10 @@ export async function PATCH(
   if (!answered) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   /*
-   * No capability cookie to grant, unlike the album kind.
+   * No capability cookie to grant, unlike the event kind.
    *
-   * An album's invitation ends in `grantCapability`, because access to an
-   * album is a credential this browser holds. Group membership is a row about
+   * An event's invitation ends in `grantCapability`, because access to an
+   * event is a credential this browser holds. Group membership is a row about
    * the actor, so it is true on every device they sign in on, and nothing has
    * to be handed to this one.
    */

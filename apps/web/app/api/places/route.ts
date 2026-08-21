@@ -15,7 +15,7 @@
  * would quietly reverse that decision for the sake of an autocomplete.
  *
  * So this makes the field easier to fill in and changes nothing about what the
- * album knows. "The Mayflower, Rotherhithe" is what a person would have typed;
+ * event knows. "The Mayflower, Rotherhithe" is what a person would have typed;
  * it is just spelled correctly now.
  *
  * ## No key, no lookup
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { places },
       // A minute. Two people typing the same place while deciding what to call
-      // an album is common, and the answer does not change.
+      // an event is common, and the answer does not change.
       { headers: { 'cache-control': 'private, max-age=60' } },
     );
   } catch {

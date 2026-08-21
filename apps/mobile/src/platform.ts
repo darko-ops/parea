@@ -57,7 +57,7 @@ export async function forgetActor(): Promise<void> {
  * token *is* the credential — it is what the join endpoint exchanges for
  * access. Clearing the keychain and leaving the list behind would sign
  * somebody out and leave the next person holding the app able to walk into
- * every album this one had opened. It is the same rule the web follows for
+ * every event this one had opened. It is the same rule the web follows for
  * capability cookies, and it bites harder here because the token is the secret
  * itself rather than a claim about one.
  *
@@ -165,7 +165,7 @@ export async function uploadItem(item: QueueItem): Promise<void> {
 }
 
 /**
- * POST an album cover, straight from the camera roll.
+ * POST an event cover, straight from the camera roll.
  *
  * The same `UploadTask` the photographs use, pointed at this product's own
  * endpoint rather than at storage — which is the difference between a cover
@@ -175,7 +175,7 @@ export async function uploadItem(item: QueueItem): Promise<void> {
  *
  * Not awaited by the screen that starts it. `sessionType: 'background'` means
  * iOS carries it on after the sheet has been dismissed and after the app has
- * been left, and there is nothing for anybody to wait in front of: the album
+ * been left, and there is nothing for anybody to wait in front of: the event
  * exists, and a cover that does not arrive leaves it looking exactly as it
  * would have looked without one.
  */
@@ -189,7 +189,7 @@ export async function uploadCover(
     // The file as the request body and nothing else. It is the default, and
     // it is written down because the endpoint reads `arrayBuffer()` — a
     // multipart body would arrive as a form with a JPEG somewhere inside it,
-    // which sharp answers "not an image" to, and the album would quietly have
+    // which sharp answers "not an image" to, and the event would quietly have
     // no cover.
     uploadType: UploadType.BINARY_CONTENT,
     headers,

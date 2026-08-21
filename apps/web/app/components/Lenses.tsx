@@ -39,7 +39,7 @@ export const CREATE_LENSES = ['#a5dcc6', '#c79ad9'];
  * writes "+2 more" beside them, which is a change of mind worth recording: the
  * circles were a sense of scale rather than a count, and the argument against
  * appending a number was that it turns a texture into arithmetic. It does. It
- * also answers the question people actually have about an album they are
+ * also answers the question people actually have about an event they are
  * scanning, which is how many of them are in it.
  *
  * The overflow text is the caller's, not this component's, because it belongs

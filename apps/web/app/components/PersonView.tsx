@@ -4,7 +4,7 @@
  * A person, laid out the way your own profile is.
  *
  * Deliberately the same page with two things taken out and one put in: no
- * Edit, because it is not yours to edit, and the albums are the ones you can
+ * Edit, because it is not yours to edit, and the events are the ones you can
  * both see rather than everything they have. Where Edit sits, the one thing
  * you can do about somebody sits instead — ask to be friends, or answer their
  * asking.
@@ -13,21 +13,21 @@
  * their own profile already, and a second layout for the same kind of object
  * means reading the screen before reading the person.
  *
- * ## The albums, and the two ways of having none
+ * ## The events, and the two ways of having none
  *
  * The list is the viewer's own, filtered to the ones this person is also in —
- * see `albumsWithBoth`, where the direction of that sentence is the whole
+ * see `eventsWithBoth`, where the direction of that sentence is the whole
  * safety property. So an empty list means two quite different things, and it
  * says which:
  *
- *   - **a friend with nothing shared** gets "No Albums Available Yet", which
+ *   - **a friend with nothing shared** gets "No Events Available Yet", which
  *     is about the two of you and is likely to change;
  *   - **anybody else** gets "Account Private", which is the honest answer to
  *     "why can I not see anything": not that they have nothing, but that what
  *     somebody has made is theirs to send you a link to.
  *
  * Neither says how much is behind the door. "Account Private" over four
- * hundred albums and over none reads identically, which is the point.
+ * hundred events and over none reads identically, which is the point.
  *
  * ## Why "Asked" is what a refusal says too
  *
@@ -59,11 +59,11 @@ type Person = {
 
 export function PersonView({
   person,
-  albums,
+  events,
 }: {
   person: Person;
-  /** Albums the viewer can see that this person is also in. */
-  albums: CardEvent[];
+  /** Events the viewer can see that this person is also in. */
+  events: CardEvent[];
 }) {
   const [standing, setStanding] = useState<Standing>(person.standing);
   const [busy, setBusy] = useState(false);
@@ -130,14 +130,14 @@ export function PersonView({
           {person.bio && <p className="you-bio">{person.bio}</p>}
           {/*
             One number, and it counts the viewer's own shelf: how many of your
-            albums this person is also in. Their totals are not on this page —
-            a profile that said "41 albums" would make search a way to measure
+            events this person is also in. Their totals are not on this page —
+            a profile that said "41 events" would make search a way to measure
             strangers.
           */}
-          {albums.length > 0 && (
+          {events.length > 0 && (
             <p className="you-counts">
               <span>
-                {albums.length} {albums.length === 1 ? 'album' : 'albums'} with you
+                {events.length} {events.length === 1 ? 'event' : 'events'} with you
               </span>
             </p>
           )}
@@ -180,13 +180,13 @@ export function PersonView({
 
       <section className="you-events">
         <div className="you-events-head">
-          <h2>Albums</h2>
+          <h2>Events</h2>
         </div>
 
-        {albums.length > 0 ? (
+        {events.length > 0 ? (
           <div className="cards">
-            {albums.map((album) => (
-              <EventCard key={album.id} event={album} />
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} />
             ))}
           </div>
         ) : (
@@ -198,7 +198,7 @@ export function PersonView({
             to "why is this page empty" for somebody who is not a friend.
           */
           <p className="muted person-empty">
-            {standing === 'friends' ? 'No Albums Available Yet' : 'Account Private'}
+            {standing === 'friends' ? 'No Events Available Yet' : 'Account Private'}
           </p>
         )}
       </section>

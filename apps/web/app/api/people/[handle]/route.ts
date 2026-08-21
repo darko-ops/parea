@@ -20,7 +20,7 @@ import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { leadImage } from '@/cards';
-import { albumsWithBoth, profileFor } from '@/people';
+import { eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -40,7 +40,7 @@ export async function GET(
   const person = await profileFor(db, actorId, decodeURIComponent(handle));
   if (!person) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const shared = await albumsWithBoth(db, actorId, person.actorId);
+  const shared = await eventsWithBoth(db, actorId, person.actorId);
 
   return NextResponse.json({
     person: {
@@ -54,7 +54,7 @@ export async function GET(
       requestId: person.requestId,
     },
     /*
-     * The albums you are both in — the viewer's own list, filtered. The `when`
+     * The events you are both in — the viewer's own list, filtered. The `when`
      * is an ISO timestamp rather than the rounded string the web page passes
      * down: that one exists to stop the browser's clock disagreeing with the
      * server's mid-hydration, and a native screen has no hydration to break.

@@ -9,17 +9,17 @@
  *
  * Exactly what a search result already says — a handle, whatever name they
  * chose to show, and their picture — plus the two things that are about *you
- * and them* rather than about them: whether you are friends, and which albums
+ * and them* rather than about them: whether you are friends, and which events
  * you are both in.
  *
  * Nothing else, and the omissions are the design. No friend count, no count of
  * what they have made, no list of it, no mutual friends. §3's rule is that a
  * person is findable enough to be *asked* and no further; a profile that grew
  * a number would make the search box a way to measure strangers. The one
- * number on the page counts the albums *you* are in with them, which is a fact
+ * number on the page counts the events *you* are in with them, which is a fact
  * about the viewer's own shelf.
  *
- * The albums are safe for a reason worth stating rather than assuming: the
+ * The events are safe for a reason worth stating rather than assuming: the
  * list is the *viewer's* own — `eventsFor(db, viewer)`, the home screen —
  * filtered down to the ones this person is also in. Every row was already on
  * the viewer's screen a second ago, and every one of them already lists its
@@ -193,14 +193,14 @@ export async function profileFor(
 }
 
 /**
- * Albums you are both in, taken out of the viewer's own list.
+ * Events you are both in, taken out of the viewer's own list.
  *
- * The order is deliberate: the viewer's albums first, then the filter. Written
- * the other way round — their albums, then "may the viewer see it" — it would
- * be one forgotten clause away from listing somebody's albums to a stranger,
+ * The order is deliberate: the viewer's events first, then the filter. Written
+ * the other way round — their events, then "may the viewer see it" — it would
+ * be one forgotten clause away from listing somebody's events to a stranger,
  * and the forgotten clause would look like an optimisation.
  */
-export async function albumsWithBoth(
+export async function eventsWithBoth(
   db: Db,
   viewerId: string | null,
   theirActorId: string,
@@ -231,20 +231,20 @@ export type PersonNearby = {
   handle: string | null;
   name: string;
   avatarKey: string | null;
-  /** Which of the viewer's albums they are in. The row filters the grid. */
+  /** Which of the viewer's events they are in. The row filters the grid. */
   eventIds: string[];
 };
 
 /**
- * The people you are in albums with, most recently active first.
+ * The people you are in events with, most recently active first.
  *
  * The first thing on Home, and it is the same intersection the profile page
- * does, widened: rather than "which albums am I in with this person", it is
- * "who is in the albums I am in". Nothing is disclosed by it — every person
- * here is somebody the viewer could find by opening any of those albums and
+ * does, widened: rather than "which events am I in with this person", it is
+ * "who is in the events I am in". Nothing is disclosed by it — every person
+ * here is somebody the viewer could find by opening any of those events and
  * reading its Members tab.
  *
- * Ordered by the most recent activity of any album they share with the viewer,
+ * Ordered by the most recent activity of any event they share with the viewer,
  * so the row is about who you are seeing rather than who you have known
  * longest. Guests are included: somebody who opened a link and put twenty
  * photographs in was at the party, whether or not they made an account.

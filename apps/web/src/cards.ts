@@ -10,7 +10,7 @@
  * divergence a second copy produces.
  */
 
-import { ago, albumDate, CARD_FACES, isLive } from "@parea/cards";
+import { ago, dateLabel, CARD_FACES, isLive } from "@parea/cards";
 
 import { avatarUrl } from "./accounts";
 import { imageSources, imageSrc } from "./images";
@@ -37,7 +37,7 @@ export type CardEvent = {
    * the only party that knows what it can decode — and at 1280px the AVIF is
    * most of what keeps the bigger picture from being a bigger download.
    *
-   * Null for an album with no photographs and no cover, which draws the empty
+   * Null for an event with no photographs and no cover, which draws the empty
    * card instead.
    */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
@@ -55,7 +55,7 @@ export type CardEvent = {
    */
   added: string;
   /**
-   * Whose album it is, as the line under the title says it.
+   * Whose event it is, as the line under the title says it.
    *
    * Both, always: the name is what somebody recognises and the handle is what
    * is unique, and a card that printed one of them made you guess which. Each
@@ -78,7 +78,7 @@ export type CardEvent = {
   /** ISO. Used to decide whether an event is live enough to lead the page. */
   lastActiveAt: string;
   /**
-   * The album's own day, as "Fri 14 Mar", or null for one that never said.
+   * The event's own day, as "Fri 14 Mar", or null for one that never said.
    *
    * Formatted here rather than in the component for the reason `added` is:
    * `Intl` on the server and `Intl` in the browser can disagree about a
@@ -127,10 +127,10 @@ export async function coverSrc(key: string | null): Promise<string | null> {
 }
 
 /**
- * The one image that stands for an album: its cover, or its newest photograph.
+ * The one image that stands for an event: its cover, or its newest photograph.
  *
- * Used by every surface that draws a single thumbnail for an album — search
- * results, the albums two people share — so that "the picture the album leads
+ * Used by every surface that draws a single thumbnail for an event — search
+ * results, the events two people share — so that "the picture the event leads
  * with" means the same thing in all of them and in the card, which leads with
  * the same image because `toCards` puts it first in the mosaic.
  */
@@ -175,11 +175,11 @@ export async function toCards(
         name: listing.name,
         photoCount: listing.photoCount,
         /*
-         * The cover if the album has one, else its newest photograph.
+         * The cover if the event has one, else its newest photograph.
          *
          * One image now, where this used to hand over four: the mosaic is gone
          * from the web card, and this is the same question `leadImage` answers
-         * for the search rows and the albums-in-common list. A cover object is
+         * for the search rows and the events-in-common list. A cover object is
          * one presigned URL with no derivatives — it was re-encoded once, on
          * the way in, to the size it is drawn at — so it arrives with an empty
          * `sources` and the browser takes the JPEG.
@@ -193,7 +193,7 @@ export async function toCards(
               }
             : null,
         added: ago(new Date(listing.lastActiveAt), now),
-        date: albumDate(listing.eventDate ?? listing.startsAt ?? listing.firstPhotoAt),
+        date: dateLabel(listing.eventDate ?? listing.startsAt ?? listing.firstPhotoAt),
         live: isLive(listing.lastActiveAt, now),
         /*
          * Three faces and a number, both decided here.

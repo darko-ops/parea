@@ -9,7 +9,7 @@
  * apart from a refusal, and cannot ask about.
  *
  * The half worth testing hardest is the one that is new: asks to get into
- * albums *you* run. They were previously visible only inside each album's
+ * events *you* run. They were previously visible only inside each event's
  * Members tab, so nothing has ever had an opinion about which of them are
  * yours to answer.
  */
@@ -73,8 +73,8 @@ async function group(name = 'The group') {
   return row!;
 }
 
-describe('people asking into albums you run', () => {
-  it('reaches the host, who previously had to open the album to find out', async () => {
+describe('people asking into events you run', () => {
+  it('reaches the host, who previously had to open the event to find out', async () => {
     const host = await actor();
     const stranger = await actor('stranger');
     const party = await event(host, { name: 'Barcelona' });
@@ -90,7 +90,7 @@ describe('people asking into albums you run', () => {
     });
   });
 
-  it('reaches an admin of the group the album belongs to', async () => {
+  it('reaches an admin of the group the event belongs to', async () => {
     // `administer` is creator-or-group-admin, and the Members tab lets both
     // answer. A list that showed only what you created would be telling one of
     // them about a subset of what they can act on.
@@ -140,7 +140,7 @@ describe('people asking into albums you run', () => {
     expect(await joinRequestsFor(db, host)).toHaveLength(1);
   });
 
-  it('drops the ones already answered, and the ones pointing at a deleted album', async () => {
+  it('drops the ones already answered, and the ones pointing at a deleted event', async () => {
     const host = await actor();
     const a = await actor('a');
     const b = await actor('b');

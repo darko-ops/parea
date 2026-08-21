@@ -29,9 +29,12 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         // `/groups` as well as `/group/`: robots.txt matching is literal, and
         // the prefix for one group does not cover the page listing yours.
+        //
+        // `/albums` is still here because it still serves the home page rather
+        // than redirecting — see `app/albums/page.tsx`. It goes when that does.
         disallow: [
           '/e/', '/event/', '/group/', '/groups',
-          '/account', '/albums', '/find', '/activity', '/api/',
+          '/account', '/events', '/albums', '/find', '/activity', '/api/',
         ],
       },
     ],

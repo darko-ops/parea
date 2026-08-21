@@ -15,7 +15,7 @@
  * approach `invitesWaiting` already takes for the badge.
  *
  * This file is only half the page. What is still being asked — invitations,
- * friend requests, people wanting into an album you run — is `requests.ts`,
+ * friend requests, people wanting into an event you run — is `requests.ts`,
  * and the two are kept apart on purpose: one is read, the other is answered.
  *
  * The cost is real and worth naming: there is no per-item read state.
@@ -72,7 +72,7 @@ export type ActivityItem = {
   /** Where it happened, if there is somewhere to go. */
   href: string | null;
   /**
-   * The picture on the row: a person's, or the album's newest photograph.
+   * The picture on the row: a person's, or the event's newest photograph.
    *
    * Which one depends on what the line is about, and that is the whole rule —
    * "Wren reacted to something you wrote" is about Wren, and "Barcelona is
@@ -116,10 +116,10 @@ export type ActivityItem = {
 const LIMIT = 50;
 
 /**
- * The album's newest photograph, for the square on rows that are about albums.
+ * The event's newest photograph, for the square on rows that are about events.
  *
  * A subselect rather than a join for the usual reason: joining the photo table
- * multiplies the rows the query is counting. Null for an album nobody has
+ * multiplies the rows the query is counting. Null for an event nobody has
  * added to yet, which draws a letter instead — the same fallback the cards use
  * when there is nothing to show.
  */
@@ -140,7 +140,7 @@ const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
  *
  * An aggregate over the rows already being grouped rather than a second query
  * or a subselect: the group *is* "these photographs, by this person, in this
- * album, on this day", so the strip has to come from the same rows as the
+ * event, on this day", so the strip has to come from the same rows as the
  * count or the two can disagree about what they describe.
  *
  * Sliced in SQL rather than in TypeScript. `json_agg` of the whole group would
@@ -264,7 +264,7 @@ export async function activityFor(
           .limit(LIMIT)
       : Promise.resolve([]),
 
-    // You were let into somebody else's album.
+    // You were let into somebody else's event.
     db
       .select({
         id: schema.eventParticipants.eventId,
@@ -287,15 +287,15 @@ export async function activityFor(
       .limit(LIMIT),
 
     /*
-     * Somebody added photographs to an album you are in.
+     * Somebody added photographs to an event you are in.
      *
      * The line people actually want from a page like this, and the one that
-     * was missing: an album is a thing that fills up after the evening, and
-     * nothing told you it had. Grouped by album, person and day, because
+     * was missing: an event is a thing that fills up after the evening, and
+     * nothing told you it had. Grouped by event, person and day, because
      * fifteen photographs arriving together is one event — fifteen rows saying
      * "Sarah added a photo" is a page nobody reads twice.
      *
-     * Bounded to a month. Older than that and the album is finished; the
+     * Bounded to a month. Older than that and the event is finished; the
      * bound also keeps this query from widening as somebody uses the product.
      */
     db
@@ -350,7 +350,7 @@ export async function activityFor(
      * Only yes. A no is already on this page, in the panel above: `askedToJoin`
      * keeps a declined request permanently and shows it as "Not this time",
      * deliberately, because a request that vanished would read as one that was
-     * never sent. A line down here saying the same album is still private is
+     * never sent. A line down here saying the same event is still private is
      * the second copy of that fact, three inches lower.
      *
      * Which leaves the two halves of the page with one job each: the panel
@@ -412,7 +412,7 @@ export async function activityFor(
       .limit(LIMIT),
 
     /*
-     * Somebody arrived in an album you made.
+     * Somebody arrived in an event you made.
      *
      * The other half of `let_in`, which has always told you when *you* were
      * let into somebody else's. A host invites four people and hears nothing
@@ -424,7 +424,7 @@ export async function activityFor(
      * host's side — somebody is in — and `event_participant` is where that
      * fact lives whichever door it came through.
      *
-     * Not yourself, and not albums somebody else made.
+     * Not yourself, and not events somebody else made.
      */
     db
       .select({
@@ -466,7 +466,7 @@ export async function activityFor(
   ]);
 
   /*
-   * Albums an approved request already speaks for.
+   * Events an approved request already speaks for.
    *
    * Built before the lines are worded, because it decides whether one of them
    * exists at all.
@@ -478,7 +478,7 @@ export async function activityFor(
    *
    * Two different signatures for two different kinds of image: an avatar is
    * presigned against private storage for an hour, a photograph is signed
-   * against its album's `cap_epoch` so rotating the album's link stops it
+   * against its event's `cap_epoch` so rotating the event's link stops it
    * resolving. Both are addresses handed to the browser; neither is a byte
    * this process ever touches.
    */
@@ -535,7 +535,7 @@ export async function activityFor(
     })),
     ...letIn
       /*
-       * You were let into somebody's album.
+       * You were let into somebody's event.
        *
        * Skipped when an approved request already says so. Being approved
        * writes the participant row, so one act produced two lines — "Ultra let
@@ -564,8 +564,8 @@ export async function activityFor(
       href: `/event/${row.eventId}`,
       image: await avatarUrl(row.avatarKey),
       // The photographs themselves, signed the way every photograph is: against
-      // the album's `cap_epoch`, so rotating its link stops these resolving
-      // along with everything else that album ever handed out.
+      // the event's `cap_epoch`, so rotating its link stops these resolving
+      // along with everything else that event ever handed out.
       images: await Promise.all(
         row.strip.map((one) =>
           imageSrc(

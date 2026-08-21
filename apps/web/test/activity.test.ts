@@ -59,7 +59,7 @@ async function event(createdBy: string, name = 'Party') {
   return row!;
 }
 
-/** Two albums somebody else made, which this actor was let into. */
+/** Two events somebody else made, which this actor was let into. */
 async function twoLines(me: string) {
   const host = await actor('host');
   for (const name of ['One', 'Two']) {
@@ -102,7 +102,7 @@ describe('hiding a line', () => {
 
   it('is one person’s decision, not everybody’s', async () => {
     // The key names a line, and two people can be shown the same line — being
-    // let into the same album, on the same day, by the same host.
+    // let into the same event, on the same day, by the same host.
     const me = await actor('me');
     const you = await actor('you');
     const host = await actor('host');
@@ -175,7 +175,7 @@ describe('one act, one line', () => {
     });
   });
 
-  it('still says you joined an album nobody had to approve you into', async () => {
+  it('still says you joined an event nobody had to approve you into', async () => {
     // The link-open case, which is most of them: no request was ever made, so
     // there is nothing else to speak for it.
     const me = await actor('me');
@@ -220,9 +220,9 @@ describe('photographs arriving', () => {
 
   it('is one line for the fifteen somebody added, not fifteen', async () => {
     /*
-     * An album fills up after the evening, in bursts. A row per photograph is
+     * An event fills up after the evening, in bursts. A row per photograph is
      * a page that has to be scrolled past rather than read, and it buries the
-     * other kinds of line under whichever album was busiest.
+     * other kinds of line under whichever event was busiest.
      */
     const me = await actor('me');
     const sarah = await actor('sarah');
@@ -325,7 +325,7 @@ describe('photographs arriving', () => {
     expect(new Set(lines.map((l) => l.id)).size).toBe(3);
   });
 
-  it('says nothing about your own photographs, or an album you are not in', async () => {
+  it('says nothing about your own photographs, or an event you are not in', async () => {
     const me = await actor('me');
     const stranger = await actor('stranger');
     const mine = await event(me, 'Mine');
@@ -416,7 +416,7 @@ describe('being said yes to', () => {
   });
 });
 
-describe('somebody arriving in an album you made', () => {
+describe('somebody arriving in an event you made', () => {
   it('tells the host, who otherwise hears nothing back', async () => {
     /*
      * The other half of `let_in`, which has always said when *you* were let
@@ -456,7 +456,7 @@ describe('somebody arriving in an album you made', () => {
     expect(await activityFor(db, me)).toEqual([]);
   });
 
-  it('says nothing about your own arrival, or about somebody else’s album', async () => {
+  it('says nothing about your own arrival, or about somebody else’s event', async () => {
     const me = await actor('me');
     const host = await actor('host');
     const mine = await event(me, 'Mine');
@@ -475,7 +475,7 @@ describe('somebody arriving in an album you made', () => {
 describe('how much of the past is shown', () => {
   it('stops at fifty, newest first', async () => {
     /*
-     * A list somebody scans, not an archive they read. Fifty-one albums is a
+     * A list somebody scans, not an archive they read. Fifty-one events is a
      * contrived number and the test is not: the bound is the only thing
      * standing between this page and a query whose cost grows with how long
      * somebody has used the product.
@@ -483,7 +483,7 @@ describe('how much of the past is shown', () => {
     const me = await actor('me');
     const host = await actor('host');
     for (let i = 0; i < 55; i++) {
-      const made = await event(host, `Album ${i}`);
+      const made = await event(host, `Event ${i}`);
       await db
         .insert(schema.eventParticipants)
         .values({ eventId: made.id, actorId: me });

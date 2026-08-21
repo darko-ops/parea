@@ -101,7 +101,7 @@ export default async function EventPage({
       /*
        * Present here as well as in the route that replaces this frame.
        *
-       * It was missing, so the first paint of every album offered no AVIF at
+       * It was missing, so the first paint of every event offered no AVIF at
        * all and only gained it if something happened to re-poll the feed —
        * which only happens while an upload is running. A field in one frame
        * and not the other is exactly what the notes on `accessPolicy` and
@@ -250,7 +250,7 @@ function photoCounts(rows: { uploaderId: string | null }[]): Map<string, number>
  *
  * Anything unrecognised is Photos rather than a 404: a tab name is not a
  * credential, and a stale link from before a rename should land somebody on
- * the album rather than on an error.
+ * the event rather than on an error.
  */
 function tabOf(value: string | undefined): EventTab {
   return value === 'conversation' || value === 'people' ? value : 'photos';

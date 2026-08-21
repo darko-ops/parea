@@ -10,7 +10,7 @@
  * cover's own flat rectangle, and the card still has its name, its people and
  * its date.
  *
- * These URLs expire for ordinary reasons: they are signed against the album's
+ * These URLs expire for ordinary reasons: they are signed against the event's
  * `cap_epoch`, so rotating a link stops every one of them at once, and a tab
  * left open overnight gets there on its own.
  *

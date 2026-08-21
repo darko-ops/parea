@@ -9,7 +9,7 @@
  *   watch   poll for pending photos forever
  *   backfill <kind>
  *           encode one derivative size for photographs that predate it, and
- *           stop. Needed once per size added after the product had albums in
+ *           stop. Needed once per size added after the product had events in
  *           it — `card` is the first. Safe to run repeatedly and safe to stop
  *           part-way: it selects on the absence of the row it writes.
  *

@@ -6,21 +6,21 @@
  * Three things are laid out here and the order of them is the argument. The
  * picture is the largest thing on the page and nothing is cropped out of it.
  * Under it, in words, whose it is and when — the two facts a dialog with a
- * `Close` button never said. Beside it, the album's conversation.
+ * `Close` button never said. Beside it, the event's conversation.
  *
- * ## The column is the album's chat
+ * ## The column is the event's chat
  *
  * Not this photograph's comments. Comments-under-a-photo is a comment section,
  * and a comment section is the shape of a feed: it invites a reply *about the
  * picture* from whoever is looking, and it splits one group of people into as
- * many small threads as there are photographs — so the album's actual
+ * many small threads as there are photographs — so the event's actual
  * conversation is a hundred dead ends. These people are already one group
  * talking to each other. The column is that conversation, in full, the same
- * one the album's Thread tab shows; something typed here is said to the
- * album, and its context is that you can both see what is on screen.
+ * one the event's Thread tab shows; something typed here is said to the
+ * event, and its context is that you can both see what is on screen.
  *
  * Photo-anchored messages still exist as records and still appear, because
- * they always appeared in the album thread too — a photo comment was only ever
+ * they always appeared in the event thread too — a photo comment was only ever
  * a message with a `photoId` on it. Nothing new writes one.
  */
 
@@ -67,15 +67,15 @@ export function PhotoView({
   position: { index: number; total: number };
   previous: Neighbour | null;
   next: Neighbour | null;
-  /** A window of the album's order around this one, oldest first. */
+  /** A window of the event's order around this one, oldest first. */
   strip: { id: string; src: string }[];
   messages: Message[];
   people: { key: string; name: string; photoCount: number; mine: boolean }[];
   members: Member[];
   canPost: boolean;
 }) {
-  const album = `/event/${event.id}`;
-  const href = useCallback((id: string) => `${album}/p/${id}`, [album]);
+  const eventHref = `/event/${event.id}`;
+  const href = useCallback((id: string) => `${eventHref}/p/${id}`, [eventHref]);
 
   const [thread, setThread] = useState(messages);
   const frame = useRef<HTMLDivElement>(null);
@@ -83,8 +83,8 @@ export function PhotoView({
   /*
    * The conversation, re-read after somebody posts.
    *
-   * From the messages endpoint rather than the feed the album page polls: that
-   * one signs a URL for every photograph in the album, which on a page showing
+   * From the messages endpoint rather than the feed the event page polls: that
+   * one signs a URL for every photograph in the event, which on a page showing
    * one of them is two hundred signatures to find out what somebody typed.
    */
   const refresh = useCallback(async () => {
@@ -148,12 +148,12 @@ export function PhotoView({
          * out of what I just opened" backing out of everything at once.
          */
         if (document.querySelector('[role="menu"]')) return;
-        location.assign(album);
+        location.assign(eventHref);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [previous, next, href, album]);
+  }, [previous, next, href, eventHref]);
 
   /*
    * Swipe, on the frame only.
@@ -184,12 +184,12 @@ export function PhotoView({
         {/* A link, not a history call. Somebody arriving from a URL somebody
             sent them has nothing behind them to go back to, and this is
             exactly the page they arrive at that way. */}
-        <a href={album} className="photo-back" aria-label={`Back to ${event.name}`}>
+        <a href={eventHref} className="photo-back" aria-label={`Back to ${event.name}`}>
           {'‹'}
         </a>
         <span className="photo-back-text">
           Back to{' '}
-          <a href={album} className="photo-back-name">
+          <a href={eventHref} className="photo-back-name">
             {event.name}
           </a>
         </span>
@@ -241,7 +241,7 @@ export function PhotoView({
               photoId={photo.id}
               mine={photo.mine}
               full={photo.full}
-              onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : album)}
+              onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
             />
           </div>
 
@@ -252,12 +252,12 @@ export function PhotoView({
           {/*
             Named, and the name is a link.
 
-            It says what the column is — the album's conversation rather than
+            It says what the column is — the event's conversation rather than
             this photograph's comments — and going to it opens the same thread
             with the room a long one needs.
           */}
-          <a className="photo-chat-label" href={`${album}?tab=conversation`}>
-            Album thread
+          <a className="photo-chat-label" href={`${eventHref}?tab=conversation`}>
+            Event thread
           </a>
           <div className="photo-chat">
             <Thread
@@ -276,7 +276,7 @@ export function PhotoView({
 }
 
 /**
- * One step through the album, or the end of it.
+ * One step through the event, or the end of it.
  *
  * A `<span>` at either end rather than a disabled link, because a link with no
  * destination is not a thing HTML has: an `<a>` without `href` is not
@@ -341,7 +341,7 @@ function Subject({ photo }: { photo: PhotoSubject }) {
 }
 
 /**
- * Where you are in the album, and one press either side of it.
+ * Where you are in the event, and one press either side of it.
  *
  * Centred by arithmetic rather than by `scrollIntoView`, which scrolls every
  * scrollable ancestor to suit itself — on this page that means the window
@@ -376,7 +376,7 @@ function Filmstrip({
           data-current={one.id === current}
           className={`photo-strip-one${one.id === current ? ' photo-strip-on' : ''}`}
           aria-current={one.id === current ? 'true' : undefined}
-          aria-label={one.id === current ? 'This photo' : 'Another photo in this album'}
+          aria-label={one.id === current ? 'This photo' : 'Another photo in this event'}
         >
           {/* Decorative: the strip is a position, and eight alt texts reading
               "another photo" is eight things read out before the one that
@@ -451,7 +451,7 @@ function PhotoActions({
       // The message stays and the page stays, including after a block — where
       // what is on screen is now one of the photographs you will not be shown
       // again. Leaving immediately would take away the only account somebody
-      // gets of what just happened; the album drops their photographs the next
+      // gets of what just happened; the event drops their photographs the next
       // time it renders, which is when Back gets there.
       setDone(DONE[action]);
     } catch (err) {

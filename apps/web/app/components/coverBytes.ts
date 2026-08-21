@@ -4,7 +4,7 @@
  * The bytes a cover is sent as, from either screen that sends one.
  *
  * Shared rather than copied, because the two callers are the two moments an
- * album's cover is decided — when it is made, and when somebody changes their
+ * event's cover is decided — when it is made, and when somebody changes their
  * mind — and a picture that came out different depending on which one you used
  * would be a bug nobody could see.
  */
@@ -15,7 +15,7 @@
  * Drawn through a canvas at a sane size first, which does three things at
  * once: the request becomes a couple of hundred kilobytes instead of twelve
  * megabytes — and on the create screen it is made while somebody waits to land
- * in the album — the re-encode drops whatever the camera wrote into the file
+ * in the event — the re-encode drops whatever the camera wrote into the file
  * before it leaves the device at all, and the server is handed a JPEG rather
  * than whatever the phone calls a photograph. `createImageBitmap` decodes HEIC on
  * the platforms that have a decoder, which is the same set of platforms whose

@@ -16,7 +16,7 @@
  * no persistent place to put it, and this is that place.
  */
 
-import { ago, albumDate, CARD_FACES, isLive } from '@parea/cards';
+import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
@@ -51,7 +51,7 @@ type EventListing = {
   cover: { src: string; sources: { type: string; src: string }[] } | null;
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
-  /** The album's own day, for the card's date. Any of the three may be absent. */
+  /** The event's own day, for the card's date. Any of the three may be absent. */
   eventDate: string | null;
   startsAt: string | null;
   firstPhotoAt: string | null;
@@ -59,7 +59,7 @@ type EventListing = {
   faces: { actorId: string; name: string; avatarUrl: string | null }[];
   /** Whether this person made it, decided by the server. Drives the filter. */
   mine: boolean;
-  /** Whose album it is. The URL is presigned by the route; null is normal. */
+  /** Whose event it is. The URL is presigned by the route; null is normal. */
   creator: { name: string | null; handle: string | null; avatarUrl: string | null };
 };
 
@@ -92,7 +92,7 @@ export function AccountView() {
   }, []);
   const [events, setEvents] = useState<EventListing[]>([]);
   /*
-   * Which albums to show. Client state rather than a URL: it is a way of
+   * Which events to show. Client state rather than a URL: it is a way of
    * looking at one list, not a second page, and somebody sending their profile
    * to themselves should not be sending a filter with it.
    */
@@ -133,7 +133,7 @@ export function AccountView() {
    * Signing out is a full page load, not a re-render.
    *
    * Everything server-rendered on this site is rendered *for* the actor in the
-   * cookie — the rail's badge, the albums, the thread. Clearing the cookie and
+   * cookie — the rail's badge, the events, the thread. Clearing the cookie and
    * calling `load()` would leave every one of those still on screen, correct
    * for somebody who is no longer here. Sending the browser to the front page
    * is the only way to be sure nothing of theirs is still drawn.
@@ -233,7 +233,7 @@ export function AccountView() {
               Sign out
             </button>
             <p className="muted">
-              This browser forgets you and the albums you opened by link.
+              This browser forgets you and the events you opened by link.
               Nothing is deleted, and the same address signs back in.
             </p>
           </div>
@@ -301,12 +301,12 @@ export function AccountView() {
           */}
           {/*
             Two counts on one line: what you have made, and who you know. The
-            albums number is not a link — you are looking at the list of them,
+            events number is not a link — you are looking at the list of them,
             three inches below.
           */}
           <p className="you-counts">
             <span>
-              {events.length} {events.length === 1 ? 'album' : 'albums'}
+              {events.length} {events.length === 1 ? 'event' : 'events'}
             </span>
             {friends !== null && (
               <a className="you-friends" href="/friends">
@@ -320,7 +320,7 @@ export function AccountView() {
           Inside the header and above the rule, rather than a bordered button
           on its own row below it — it belongs to the name and picture it
           changes, and a slab under the divider read as the page's main action
-          when the page's main action is the albums underneath.
+          when the page's main action is the events underneath.
         */}
         <button className="you-edit" onClick={() => setView('profile')}>
           Edit
@@ -346,20 +346,20 @@ export function AccountView() {
       */}
       <section className="you-events">
         {/*
-          "Albums" here and "event" everywhere else, which is a second word for
+          "Events" here and "event" everywhere else, which is a second word for
           one thing — the model note in `events.ts` records that the product
           deliberately stopped doing that. Asked for, so it is here, but it is
           the only place it says it.
         */}
         <div className="you-events-head">
-          <h2>Your Albums</h2>
+          <h2>Your Events</h2>
           {/*
             Three ways of reading one list. The counts are on the buttons
             because the difference between them is the answer somebody wants —
             "how many of these did I actually make" — and a filter that has to
             be pressed to find out is a filter you press three times.
 
-            Only when there is a mix. With every album made by the same person
+            Only when there is a mix. With every event made by the same person
             these are three buttons, two of which empty the screen.
           */}
           {mine.length > 0 && joined.length > 0 && (
@@ -408,7 +408,7 @@ export function AccountView() {
                  * formatted differently on two screens of one product is the
                  * failure a second copy produces.
                  */
-                date: albumDate(event.eventDate ?? event.startsAt ?? event.firstPhotoAt ?? null),
+                date: dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt ?? null),
                 live: isLive(event.lastActiveAt, new Date()),
                 faces: (event.faces ?? [])
                   .slice(0, CARD_FACES)
@@ -427,13 +427,13 @@ export function AccountView() {
             copy here had already fallen a version behind once.
 
             Only under All and Created. Under Joined it would be offering to
-            make an album on the screen that is deliberately showing the ones
+            make an event on the screen that is deliberately showing the ones
             somebody else made.
           */}
           {lens !== 'joined' && <CreateCard />}
           {lens === 'joined' && shown.length === 0 && (
             <p className="field-help">
-              Nothing yet. Albums other people ask you into show up here.
+              Nothing yet. Events other people ask you into show up here.
             </p>
           )}
         </div>

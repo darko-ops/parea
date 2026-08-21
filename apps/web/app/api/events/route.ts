@@ -59,7 +59,7 @@ type Body = {
  * the web account page.
  *
  * Lives here rather than at its own path because it is a list of the resource
- * this route already creates. It was `GET /api/albums` while the product had a
+ * this route already creates. It was `GET /api/events` while the product had a
  * second word for an event; the word is gone, and so is the second path.
  *
  * Answers an empty list rather than 403 for someone with no actor: the app
@@ -117,7 +117,7 @@ export async function GET() {
            * The cover leads, here as on the web's own cards.
            *
            * Prepended to the mosaic rather than sent as its own field, so the
-           * native client draws the album the same way without being taught a
+           * native client draws the event the same way without being taught a
            * second rule about which image wins. `coverKey` is destructured out
            * above and never reaches the response: it is a storage key, and the
            * paragraph above about photo keys applies to it word for word.
@@ -260,7 +260,7 @@ export async function POST(request: Request) {
       // and expiring it is what the group is bought to prevent.
       expiresAt: groupId ? null : new Date(Date.now() + 60 * 24 * 3600 * 1000),
       // The link is the product's front door and it is open unless somebody
-      // says otherwise. Off is for an album whose members are all being added
+      // says otherwise. Off is for an event whose members are all being added
       // by name: the link then opens nothing for anyone new, which is the only
       // way to say "not by link" that `authorize` can actually enforce.
       joinsOpen: body.linkJoins === false ? false : true,
@@ -291,7 +291,7 @@ export async function POST(request: Request) {
    *
    * It used to be claimed for every event and shown in a panel beside the
    * form. The panel is gone and the pool is finite — a phrase claimed for an
-   * album nobody says it out loud for is a phrase no other album can have —
+   * event nobody says it out loud for is a phrase no other event can have —
    * so it is taken only when somebody turns it on.
    */
   const code = body.passPhrase === true ? await claimCode(db, event!.id) : null;

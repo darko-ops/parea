@@ -43,6 +43,10 @@ function routes(dir = APP): string[] {
  */
 const DELEGATED: Record<string, string> = {
   'account/page.tsx': '../app/components/AccountView.tsx',
+  // The old home path, which re-exports the new one rather than redirecting —
+  // see `app/albums/page.tsx` for the 308 that makes a redirect unsafe. It is
+  // the same page by definition, so it is the same rail.
+  'albums/page.tsx': '../app/events/page.tsx',
 };
 
 describe('the rail reaches every page', () => {
@@ -123,7 +127,7 @@ describe('an event looks like an event wherever it is listed', () => {
     // page would only prove the grid had not moved, which is not the property
     // worth holding.
     const screens = [
-      { name: 'events', cards: '../app/albums/page.tsx', grid: '../app/components/HomeView.tsx' },
+      { name: 'events', cards: '../app/events/page.tsx', grid: '../app/components/HomeView.tsx' },
       { name: 'account', cards: '../app/components/AccountView.tsx', grid: '../app/components/AccountView.tsx' },
     ];
     for (const screen of screens) {
@@ -143,7 +147,7 @@ describe('an event looks like an event wherever it is listed', () => {
      * agree. Two copies and a comment is not a mechanism.
      *
      * The web card no longer draws a mosaic at all: Home leads with one cover
-     * per album, so there is one image and nothing to arrange. That leaves the
+     * per event, so there is one image and nothing to arrange. That leaves the
      * phone as the only drawer, and this keeps the rule pointed at whoever is
      * drawing rather than deleting it — the day the web grows a mosaic back,
      * it imports the shared one like everybody else.

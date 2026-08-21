@@ -18,7 +18,7 @@
  *
  * It was the same rows laid out sideways, which fitted while there were four
  * of them and stopped at six: the bar scrolled horizontally, so Profile hung
- * half off the screen and Settings and Create Album were past the edge with
+ * half off the screen and Settings and Create Event were past the edge with
  * nothing to say they were there. A row of destinations you cannot see is not
  * navigation.
  *
@@ -61,10 +61,10 @@ const ROWS: {
   page: Exclude<RailPage, null>;
   glyph: RailGlyph;
 }[] = [
-  // The label is Home, the route is `/albums`, and the id stays `events`: the
+  // The label is Home, the route is `/events`, and the id stays `events`: the
   // id names the row for the code, and every table underneath still says
   // `event`.
-  { href: '/albums', label: 'Home', page: 'events', glyph: 'home' },
+  { href: '/events', label: 'Home', page: 'events', glyph: 'home' },
   // Under Home because it is the same kind of thing — events you are in —
   // separated only by whose they are. Search is the odd one out: the only row
   // that goes looking for something you are not already part of.
@@ -79,7 +79,7 @@ const ROWS: {
    * the places you belong under the heading for finding places you do not.
    *
    * Groups had no page at all until now — you reached one from a chip on
-   * Search, from an album that belonged to it, or from a link somebody sent.
+   * Search, from an event that belonged to it, or from a link somebody sent.
    * That is fine for something you visit occasionally and wrong for the thing
    * the product treats as persistent identity.
    */
@@ -193,7 +193,7 @@ export function Rail({ current }: { current: RailPage }) {
 
       <div className="rail-foot">
         <a href="/">
-          <button type="button">Create Album</button>
+          <button type="button">Create Event</button>
         </a>
         {/*
           Settings, under the thing people actually come here to press.

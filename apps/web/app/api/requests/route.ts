@@ -4,8 +4,8 @@
  * Read-only, and the second client is why it exists: the web page composes
  * this list on the server, and the native app cannot. Answering is
  * deliberately *not* here — an invitation is answered at `/api/invites/[id]`,
- * a friend request at `/api/friends`, and somebody asking into an album at
- * that album's `access-requests`. Each of those already decides who may say
+ * a friend request at `/api/friends`, and somebody asking into an event at
+ * that event's `access-requests`. Each of those already decides who may say
  * yes, and a single "answer anything" endpoint would be a second place where
  * that has to be got right.
  *

@@ -49,7 +49,7 @@ export type Notification =
    * An admin asked you into a group.
    *
    * Its own kind rather than reusing `event_invited` with a group's name in
-   * it: tapping one should open an album and tapping the other a group, and a
+   * it: tapping one should open an event and tapping the other a group, and a
    * notification whose target depends on guessing which id it carries is one
    * that eventually opens the wrong thing.
    */
@@ -141,7 +141,7 @@ export function render(notification: Notification): { title: string; body: strin
     case 'group_invited':
       return {
         title: notification.groupName,
-        // The same sentence as the album's, for the same reason — the person
+        // The same sentence as the event's, for the same reason — the person
         // is the explanation for a name arriving out of nowhere. "Into this"
         // rather than "into this group": the title says which it is.
         body: `${notification.who} asked you into this.`,

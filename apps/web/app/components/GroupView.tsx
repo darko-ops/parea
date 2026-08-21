@@ -12,7 +12,7 @@
  * now, and the form it opens is the same one field it always was.
  *
  * The archive was a list of words in a product whose subject is photographs.
- * Each album is a row with its picture, who is in it, how much of it there is
+ * Each event is a row with its picture, who is in it, how much of it there is
  * and when — under month headings, because an archive is read by when.
  *
  * And the people were a number. `11 members` on the screen whose entire
@@ -22,13 +22,13 @@
  * ## The non-member door
  *
  * Unchanged in substance and deliberately so. Somebody who is not in the group
- * learns its name and its size and nothing else — no faces, no album count, no
+ * learns its name and its size and nothing else — no faces, no event count, no
  * covers — because that is what `findable` means. The copy is verbatim.
  */
 
 import { useCallback, useState } from 'react';
 
-import type { GroupAlbum, GroupPerson } from '@/groups';
+import type { GroupEvent, GroupPerson } from '@/groups';
 
 import { Face } from './Faces';
 import { MemberPicker, nameOf, type Person } from './MemberPicker';
@@ -44,13 +44,13 @@ type GroupData = {
   role: 'member' | 'admin' | null;
   canJoinDirectly: boolean;
   /** Empty for a non-member — the door is handed nothing from inside. */
-  albums: GroupAlbum[];
+  events: GroupEvent[];
   people: GroupPerson[];
   /** The tile's colour, decided on the server so both screens agree. */
   lens: { fill: string; ink: string };
-  /** Albums grouped by month, worded server-side. See the page. */
+  /** Events grouped by month, worded server-side. See the page. */
   months: { label: string; ids: string[] }[];
-  /** "Fri 14 Mar" per album id, formatted on the server for the same reason. */
+  /** "Fri 14 Mar" per event id, formatted on the server for the same reason. */
   dates: Record<string, string>;
 };
 
@@ -70,7 +70,7 @@ export function GroupView({ group }: { group: GroupData }) {
    * Sending the guest list.
    *
    * One call for the whole selection rather than one per person, matching the
-   * album path — and the answer is a count rather than a per-person result,
+   * event path — and the answer is a count rather than a per-person result,
    * because a per-person answer would report whether each one has blocked you.
    *
    * The panel stays open and says how many went. It does not optimistically
@@ -141,7 +141,7 @@ export function GroupView({ group }: { group: GroupData }) {
   if (!group.member) {
     /*
      * The door. A card with the name and the size on it, and nothing from
-     * inside — no faces, no albums, no covers. That is not a styling
+     * inside — no faces, no events, no covers. That is not a styling
      * restriction, it is what `findable` promises: a findable group discloses
      * that it exists and how big it is so somebody can ask to come in.
      */
@@ -181,7 +181,7 @@ export function GroupView({ group }: { group: GroupData }) {
     );
   }
 
-  const byId = new Map(group.albums.map((album) => [album.id, album]));
+  const byId = new Map(group.events.map((event) => [event.id, event]));
 
   return (
     <main className="group-page">
@@ -205,7 +205,7 @@ export function GroupView({ group }: { group: GroupData }) {
           <h1>{group.name}</h1>
           <p className="group-head-meta">
             {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'} ·{' '}
-            {group.albums.length} {group.albums.length === 1 ? 'album' : 'albums'}
+            {group.events.length} {group.events.length === 1 ? 'event' : 'events'}
             {group.role === 'admin' && ' · you run this'}
           </p>
         </div>
@@ -216,7 +216,7 @@ export function GroupView({ group }: { group: GroupData }) {
             aria-expanded={creating}
             onClick={() => setCreating((was) => !was)}
           >
-            New album here
+            New event here
           </button>
           {/*
             One item, and no "Manage group" beside it.
@@ -361,13 +361,13 @@ export function GroupView({ group }: { group: GroupData }) {
         </div>
       )}
 
-      {group.albums.length === 0 ? (
+      {group.events.length === 0 ? (
         /* With no archive, making one *is* the page — so the action comes to
            the front rather than staying behind the header button. */
         <div className="group-empty">
           <p>Nothing yet.</p>
           <button type="button" className="group-new" onClick={() => setCreating(true)}>
-            New album here
+            New event here
           </button>
         </div>
       ) : (
@@ -379,31 +379,31 @@ export function GroupView({ group }: { group: GroupData }) {
             </div>
             <div className="archive">
               {month.ids.map((id) => {
-                const album = byId.get(id);
-                if (!album) return null;
+                const event = byId.get(id);
+                if (!event) return null;
                 return (
-                  <a className="archive-row" href={`/event/${album.id}`} key={album.id}>
+                  <a className="archive-row" href={`/event/${event.id}`} key={event.id}>
                     <span className="archive-cover">
-                      {album.cover ? (
-                        <AlbumCover src={album.cover} />
+                      {event.cover ? (
+                        <EventCover src={event.cover} />
                       ) : (
                         <span className="archive-none" aria-hidden="true" />
                       )}
-                      {album.fresh > 0 && (
+                      {event.fresh > 0 && (
                         <span className="fresh">
                           <span className="fresh-dot" aria-hidden="true" />
-                          {album.fresh} new
+                          {event.fresh} new
                         </span>
                       )}
                     </span>
                     <span className="archive-what">
                       <span className="archive-line">
-                        <span className="archive-name">{album.name}</span>
-                        <span className="archive-when">{group.dates[album.id]}</span>
+                        <span className="archive-name">{event.name}</span>
+                        <span className="archive-when">{group.dates[event.id]}</span>
                       </span>
                       <span className="archive-meta">
                         <span className="archive-faces">
-                          {album.faces.map((src, i) => (
+                          {event.faces.map((src, i) => (
                             <Face
                               key={i}
                               src={src}
@@ -413,8 +413,8 @@ export function GroupView({ group }: { group: GroupData }) {
                             />
                           ))}
                         </span>
-                        {album.people} {album.people === 1 ? 'person' : 'people'} ·{' '}
-                        {album.photoCount} {album.photoCount === 1 ? 'photo' : 'photos'}
+                        {event.people} {event.people === 1 ? 'person' : 'people'} ·{' '}
+                        {event.photoCount} {event.photoCount === 1 ? 'photo' : 'photos'}
                       </span>
                     </span>
                   </a>
@@ -432,8 +432,8 @@ export function GroupView({ group }: { group: GroupData }) {
         it and be frightened.
       */}
       <p className="group-note">
-        Photos live in the albums, not in the group. Leaving stops the next one
-        reaching you — it takes nothing away from the albums you were in.
+        Photos live in the events, not in the group. Leaving stops the next one
+        reaching you — it takes nothing away from the events you were in.
       </p>
 
       <SiteFooter />
@@ -442,13 +442,13 @@ export function GroupView({ group }: { group: GroupData }) {
 }
 
 /**
- * An album's picture, which is presigned and therefore expires.
+ * An event's picture, which is presigned and therefore expires.
  *
  * A tab left open outlives the signature, and the browser's answer to that is
  * the broken-image glyph on a row whose whole job is to be recognisable. The
  * box keeps its size and falls back to the warm bed instead.
  */
-function AlbumCover({ src }: { src: string }) {
+function EventCover({ src }: { src: string }) {
   const { ref, failed, onError } = useImageFailure(src);
   if (failed) return <span className="archive-none" aria-hidden="true" />;
   // eslint-disable-next-line @next/next/no-img-element

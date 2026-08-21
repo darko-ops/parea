@@ -244,7 +244,7 @@ describe('removal requests', () => {
  * about suspected CSAM is categorically worse than being wrong and a false one
  * is undone by releasing the hold. Every other kind has to leave the photo
  * alone, because a channel that hid on sight is a way for any guest to empty
- * an album one report at a time.
+ * an event one report at a time.
  */
 describe('what a report does on its own', () => {
   const report = async (photoId: string, kind: 'abuse' | 'other' | 'child_safety') => {

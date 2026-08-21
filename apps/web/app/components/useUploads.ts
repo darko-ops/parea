@@ -118,11 +118,11 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
   }, [running]);
 
   /**
-   * Hand the photos to the album and leave.
+   * Hand the photos to the event and leave.
    *
    * The same enqueue as `add` and deliberately not the same finish: it writes
    * the queue and the file handles into IndexedDB and returns, without
-   * uploading anything. The album page opens, finds the queue under its own
+   * uploading anything. The event page opens, finds the queue under its own
    * id, and sends them — which is what makes "create it and you are looking at
    * it" possible at all. `add` would upload here and then navigate away from
    * the tab doing the work.
@@ -136,7 +136,7 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       if (picked.length === 0) return;
 
       // Opened here rather than waited for. The store effect above is keyed on
-      // the event id, and at this moment the id is one render old — the album
+      // the event id, and at this moment the id is one render old — the event
       // was created a line ago.
       const opened = store.current ?? (await UploadStore.open().catch(() => null));
       store.current = opened;

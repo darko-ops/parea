@@ -12,7 +12,7 @@
  * browser's own history does the work `onClose` was doing.
  *
  * Everything the page needs is resolved here, on the server, for the same
- * reason the album page seeds its own grid: the photograph is what somebody
+ * reason the event page seeds its own grid: the photograph is what somebody
  * came for, and putting a client fetch in front of it puts a spinner there
  * instead.
  */
@@ -39,8 +39,8 @@ export const dynamic = 'force-dynamic';
 /**
  * How many neighbours the filmstrip carries either side of this one.
  *
- * The strip is the album's order and it scrolls, but it is not the whole
- * album: presigning 214 thumbnails to draw eight of them is 214 signatures
+ * The strip is the event's order and it scrolls, but it is not the whole
+ * event: presigning 214 thumbnails to draw eight of them is 214 signatures
  * and 214 URLs on the wire for a strip somebody will move one step along.
  * Every step is a page load, so the window re-centres itself as you go and
  * the strip never runs out under the hand.
@@ -67,7 +67,7 @@ export async function generateMetadata({
 }) {
   /*
    * Belt and braces with the `X-Robots-Tag` in `next.config.ts`, exactly as
-   * the album page does it: the header is a deployment property and this
+   * the event page does it: the header is a deployment property and this
    * survives it not being applied. Written out here rather than shared,
    * because a page that grows a `generateMetadata` and forgets this is a page
    * that quietly stops saying it — and a photograph is the one thing on this
@@ -99,7 +99,7 @@ export default async function PhotoPage({
 
   const requester = await requesterFor(id);
   const decision = await decide(db, event, 'view', requester);
-  // The album's own gate, not a 404 of its own: a page that answered
+  // The event's own gate, not a 404 of its own: a page that answered
   // differently for a real photo id than for a made-up one would be a way to
   // test whether a photograph exists.
   if (!decision.allow) notFound();
@@ -107,10 +107,10 @@ export default async function PhotoPage({
   const viewerId = await currentActorId();
 
   /*
-   * The album's order, which is the order the gallery is in.
+   * The event's order, which is the order the gallery is in.
    *
    * The whole list rather than one row, because this page's other job is to
-   * say where you are in the album and what is either side of you — and
+   * say where you are in the event and what is either side of you — and
    * "photo 7 of 214" is not answerable from the photograph alone.
    */
   const rows = await db
@@ -183,14 +183,14 @@ export default async function PhotoPage({
         next={next ? { id: next.id, full: await full(next) } : null}
         strip={strip}
         /*
-         * The album's conversation, not this photograph's.
+         * The event's conversation, not this photograph's.
          *
          * A per-photo comment thread is a comment section, and a comment
-         * section on a photograph of somebody's evening turns an album into a
+         * section on a photograph of somebody's evening turns an event into a
          * feed. The people here are already one group talking to each other,
          * so the column beside the picture is that group's chat — the same
          * messages as the Conversation tab, and anything said here is said to
-         * the album rather than filed under one picture.
+         * the event rather than filed under one picture.
          */
         messages={await messagesFor(db, event.id, viewerId, (actorId) =>
           contributorKey(event.id, actorId),
@@ -219,7 +219,7 @@ export default async function PhotoPage({
  * Safari strips EXIF on upload, so a web-contributed photo often has only the
  * second one (design §8). Printing an upload time in the shape of a capture
  * time would state, in a caption, that a photograph was taken at the moment it
- * was posted — which for most of somebody's album is false.
+ * was posted — which for most of somebody's event is false.
  */
 function when(
   capturedAt: Date | null,

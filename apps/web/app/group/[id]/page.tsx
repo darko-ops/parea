@@ -38,7 +38,7 @@ const DAY = new Intl.DateTimeFormat('en-GB', {
 });
 
 /**
- * Which month heading an album sits under.
+ * Which month heading an event sits under.
  *
  * Computed here, in the same pass that formats the dates, for the reason
  * `activity.ts` gives about its day buckets: a boundary worked out in the
@@ -85,7 +85,7 @@ export default async function GroupPage({
   // Null means never looked, which has to mean everything is new rather than
   // nothing — the epoch, not `now`.
   const since = membership ? ((await invitesSeenAtFor(db, actorId)) ?? new Date(0)) : null;
-  const [albums, people] =
+  const [events, people] =
     membership && since
       ? await Promise.all([
           groupArchive(db, group.id, actorId, since),
@@ -96,20 +96,20 @@ export default async function GroupPage({
   const now = new Date();
 
   /*
-   * Contiguous runs of one month, in the order the albums already have.
+   * Contiguous runs of one month, in the order the events already have.
    *
    * Contiguous rather than collected, like the activity feed's days: the list
-   * is sorted newest-first by the query, so a month's albums are already
+   * is sorted newest-first by the query, so a month's events are already
    * together. Grouping into a map would quietly reorder them if that stopped
    * being true; this way a mis-sorted list draws the same heading twice, which
    * is visibly wrong rather than silently rearranged.
    */
   const months: { label: string; ids: string[] }[] = [];
-  for (const album of albums) {
-    const label = monthOf(album.at, now);
+  for (const event of events) {
+    const label = monthOf(event.at, now);
     const last = months[months.length - 1];
-    if (last && last.label === label) last.ids.push(album.id);
-    else months.push({ label, ids: [album.id] });
+    if (last && last.label === label) last.ids.push(event.id);
+    else months.push({ label, ids: [event.id] });
   }
 
   return (
@@ -125,14 +125,14 @@ export default async function GroupPage({
             membership === null && actorId
               ? await participatedInGroup(db, group.id, actorId)
               : false,
-          albums,
+          events,
           people,
           lens: lensFor(group.id),
           months,
           // Formatted here rather than in the browser, for the reason the
           // month headings are: two clocks, one of them somebody's laptop.
           dates: Object.fromEntries(
-            albums.map((album) => [album.id, DAY.format(new Date(album.at))]),
+            events.map((event) => [event.id, DAY.format(new Date(event.at))]),
           ),
         }}
       />

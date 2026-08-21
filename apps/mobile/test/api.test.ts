@@ -219,7 +219,7 @@ describe('the things waiting on you, on the wire', () => {
    * Each kind goes to the route that already decides who may answer it, and
    * they disagree about the word for yes. Getting this wrong is silent in the
    * worst way: `approve` sent to the friends route is a 400 the person reads
-   * as "it did not work", and `accept` sent to an album's access requests is
+   * as "it did not work", and `accept` sent to an event's access requests is
    * the same. There is no shared constant to lean on — the words are the
    * routes' own — so the mapping is pinned here.
    */
@@ -244,9 +244,9 @@ describe('the things waiting on you, on the wire', () => {
     });
   });
 
-  it('approves somebody into the album they asked about, not into any other', async () => {
+  it('approves somebody into the event they asked about, not into any other', async () => {
     // The event id in the path is what scopes it. A host administering two
-    // albums has a request id that is only answerable through one of them.
+    // events has a request id that is only answerable through one of them.
     const calls = respond({ ok: true });
     await new Api('https://api.test').answerRequest(
       request({ kind: 'join', key: 'join:j1', id: 'j1', eventId: 'ev9' }),
@@ -260,7 +260,7 @@ describe('the things waiting on you, on the wire', () => {
   });
 });
 
-describe('an album cover, on the wire', () => {
+describe('an event cover, on the wire', () => {
   it('is a target rather than a call, because the bytes never touch JS', () => {
     /*
      * A cover is a photograph off the camera roll. Reading a few megabytes
@@ -277,7 +277,7 @@ describe('an album cover, on the wire', () => {
 
   it('is taken off with a DELETE to the same place', async () => {
     // One endpoint owns covers, so there is one place that decides who may
-    // change an album's face — and it is `administer`, not "can add photos".
+    // change an event's face — and it is `administer`, not "can add photos".
     const calls: { url: string; init: RequestInit }[] = [];
     vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
       calls.push({ url, init });
@@ -289,7 +289,7 @@ describe('an album cover, on the wire', () => {
   });
 
   it('carries no bearer when there is nobody to be', () => {
-    // The endpoint answers 404 to anyone who cannot administer the album, and
+    // The endpoint answers 404 to anyone who cannot administer the event, and
     // a header saying `Bearer null` would be a request claiming to be somebody.
     const target = new Api('https://api.test').coverTarget('e1');
     expect(target.headers.authorization).toBeUndefined();
@@ -316,7 +316,7 @@ describe('a person, on the wire', () => {
 
   it('hands back the page whole, envelope and all', async () => {
     // Both halves come from one call because they are one decision: who this
-    // is, and which albums you are both in.
+    // is, and which events you are both in.
     respond({
       person: {
         actorId: 'a1',

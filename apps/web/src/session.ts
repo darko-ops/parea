@@ -157,7 +157,7 @@ export async function issueActorCookie(actorId: string): Promise<void> {
  * browser holds an event's credential, and they are what actually open the
  * photographs — clearing identity while leaving them behind would sign
  * somebody out of their account and leave the next person at the same computer
- * looking at the albums they had opened. On a shared machine that is the whole
+ * looking at the events they had opened. On a shared machine that is the whole
  * point of the button.
  *
  * Nothing is revoked server-side, because there is nothing to revoke: an actor

@@ -3,10 +3,10 @@
  *
  * A profile is the first surface in this product that is *about a person*, so
  * the two things worth testing hardest are the two that are easy to widen by
- * accident: who has no page at all, and where the album list comes from.
+ * accident: who has no page at all, and where the event list comes from.
  *
- * The second one is the whole safety property. "The viewer's albums, filtered
- * to the ones this person is also in" and "this person's albums, filtered to
+ * The second one is the whole safety property. "The viewer's events, filtered
+ * to the ones this person is also in" and "this person's events, filtered to
  * the ones the viewer may see" describe the same list on a good day and
  * different lists on the day somebody forgets a clause — and the second one
  * fails open. These tests pin the direction by constructing exactly that day.
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
-import { albumsWithBoth, profileFor } from '@/people';
+import { eventsWithBoth, profileFor } from '@/people';
 import { stripComments } from './support/source';
 
 const MIGRATIONS = fileURLToPath(
@@ -67,7 +67,7 @@ async function guest(handle: string | null = null) {
   return row!.id;
 }
 
-async function album(createdBy: string, name = 'Party') {
+async function event(createdBy: string, name = 'Party') {
   const [row] = await db
     .insert(schema.events)
     .values({ name, linkToken: newLinkToken(), createdBy })
@@ -246,14 +246,14 @@ describe('what the page looks like', () => {
     expect(VIEW).toMatch(/className="you-head"/);
     expect(VIEW).toMatch(/<Avatar url=\{person\.avatar\}/);
     expect(VIEW).toMatch(/className="you-name"/);
-    expect(VIEW).toMatch(/<EventCard key=\{album\.id\} event=\{album\} \/>/);
+    expect(VIEW).toMatch(/<EventCard key=\{event\.id\} event=\{event\} \/>/);
     expect(VIEW).not.toMatch(/Edit profile|you-edit/);
   });
 
-  it('draws the albums with the builder every other screen uses', () => {
-    // An album should not look like a different kind of thing depending on
+  it('draws the events with the builder every other screen uses', () => {
+    // An event should not look like a different kind of thing depending on
     // which page it is on.
-    expect(PAGE).toMatch(/albums=\{await toCards\(shared\)\}/);
+    expect(PAGE).toMatch(/events=\{await toCards\(shared\)\}/);
   });
 
   it('says which kind of nothing it is', () => {
@@ -264,12 +264,12 @@ describe('what the page looks like', () => {
      * anybody else — and neither says how much is behind the door.
      */
     expect(VIEW).toMatch(
-      /standing === 'friends' \? 'No Albums Available Yet' : 'Account Private'/,
+      /standing === 'friends' \? 'No Events Available Yet' : 'Account Private'/,
     );
   });
 
   it('sends you to your own profile rather than showing you a worse one', () => {
-    // The album list here is "albums we are both in", which for yourself is
+    // The event list here is "events we are both in", which for yourself is
     // empty — so your own page would tell you your account is private.
     expect(PAGE).toMatch(/if \(person\.standing === 'self'\) redirect\('\/account'\)/);
   });
@@ -282,51 +282,51 @@ describe('what the page looks like', () => {
       ),
     );
     expect(NATIVE).toMatch(
-      /standing === 'friends' \? 'No Albums Available Yet' : 'Account Private'/,
+      /standing === 'friends' \? 'No Events Available Yet' : 'Account Private'/,
     );
   });
 });
 
-describe('the albums on somebody’s page', () => {
+describe('the events on somebody’s page', () => {
   it('are the ones you are both in', async () => {
     const me = await person('me');
     const them = await person('wren');
-    const together = await album(me, 'Barcelona');
+    const together = await event(me, 'Barcelona');
     await joins(together.id, me);
     await joins(together.id, them);
 
-    const shared = await albumsWithBoth(db, me, them);
+    const shared = await eventsWithBoth(db, me, them);
     expect(shared.map((a) => a.name)).toEqual(['Barcelona']);
   });
 
   it('never include one of theirs you are not in', async () => {
     /*
-     * The failure this file exists for. Their album, with them in it, and the
+     * The failure this file exists for. Their event, with them in it, and the
      * viewer nowhere near it — a list built from their side would show its
      * name, which is the product telling somebody what a stranger has been
      * doing.
      */
     const me = await person('me');
     const them = await person('wren');
-    const theirs = await album(them, 'Their weekend');
+    const theirs = await event(them, 'Their weekend');
     await joins(theirs.id, them);
 
-    expect(await albumsWithBoth(db, me, them)).toEqual([]);
+    expect(await eventsWithBoth(db, me, them)).toEqual([]);
   });
 
   it('never include one of yours they are not in', async () => {
     const me = await person('me');
     const them = await person('wren');
-    const mine = await album(me, 'Mine');
+    const mine = await event(me, 'Mine');
     await joins(mine.id, me);
 
-    expect(await albumsWithBoth(db, me, them)).toEqual([]);
+    expect(await eventsWithBoth(db, me, them)).toEqual([]);
   });
 
-  it('drop a deleted album, which is gone for both of you', async () => {
+  it('drop a deleted event, which is gone for both of you', async () => {
     const me = await person('me');
     const them = await person('wren');
-    const gone = await album(me, 'Gone');
+    const gone = await event(me, 'Gone');
     await joins(gone.id, me);
     await joins(gone.id, them);
     await db
@@ -334,16 +334,16 @@ describe('the albums on somebody’s page', () => {
       .set({ deletedAt: new Date() })
       .where((await import('drizzle-orm')).eq(schema.events.id, gone.id));
 
-    expect(await albumsWithBoth(db, me, them)).toEqual([]);
+    expect(await eventsWithBoth(db, me, them)).toEqual([]);
   });
 
   it('are nothing on your own page', async () => {
-    // Every album you are in is one you are both in, which would make your own
+    // Every event you are in is one you are both in, which would make your own
     // page a second home screen.
     const me = await person('me');
-    const mine = await album(me, 'Mine');
+    const mine = await event(me, 'Mine');
     await joins(mine.id, me);
 
-    expect(await albumsWithBoth(db, me, me)).toEqual([]);
+    expect(await eventsWithBoth(db, me, me)).toEqual([]);
   });
 });

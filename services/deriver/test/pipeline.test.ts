@@ -384,7 +384,7 @@ describe('HEIC', () => {
 
   it('fills in a size that arrived after the photograph did', async () => {
     /*
-     * `card` was added once the product already had albums in it, and the web
+     * `card` was added once the product already had events in it, and the web
      * app asks the `derivative` table before offering one — so nothing breaks
      * without this, and nothing improves either. This is what makes the answer
      * yes for photographs that were already there.

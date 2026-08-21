@@ -32,7 +32,7 @@ export function Menu({
   /** What is drawn on the button. */
   glyph?: string;
   /** `primary` fills it, for the one menu that is the page's main action. */
-  /** `quiet` is the album header's outlined square; `primary` the filled one. */
+  /** `quiet` is the event header's outlined square; `primary` the filled one. */
   tone?: 'primary' | 'quiet';
   /** A count on the button, for something waiting behind it. Zero draws none. */
   badge?: number;

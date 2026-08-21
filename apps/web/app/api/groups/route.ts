@@ -29,7 +29,7 @@ export const runtime = 'nodejs';
  * ## Two shapes, and why the cheap one is the default
  *
  * `?detail=1` adds what a group screen needs to tell two rooms apart: how many
- * albums are in it, how many people, and when anything last happened. Those
+ * events are in it, how many people, and when anything last happened. Those
  * are three aggregates per group, and the caller that asks this question most
  * often is the native client at launch — before anybody has opened a group
  * screen, and possibly before they have any groups at all.
