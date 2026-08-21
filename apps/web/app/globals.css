@@ -2453,7 +2453,14 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   flex: 1; min-width: 0; max-width: 820px;
   padding: 28px 30px 34px; background: var(--page);
 }
-.groups-head { margin-bottom: 22px; }
+/* A row once `New group` is in it: the greeting and title stack on the left,
+   the button sits on the h1's baseline at the right. `wrap` so the button
+   drops under the title on a narrow screen rather than squeezing it. */
+.groups-head {
+  margin-bottom: 22px; display: flex; align-items: baseline;
+  flex-wrap: wrap; gap: 12px;
+}
+.groups-head .home-greeting { flex-basis: 100%; }
 
 .groups-list { list-style: none; margin: 0; padding: 0; }
 .groups-list li + li { border-top: 1px solid var(--row-line); }
@@ -2495,12 +2502,181 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   font-size: 11.5px; font-weight: 600;
 }
 
-/* Where groups come from, for somebody in none. Not a disabled button: a
-   group is made from an event and there is nothing to press here. */
+/* For somebody with no groups *and* nothing to recognise — a new account, or
+   nobody they have shared a second event with yet.
+
+   This used to be the only empty state, and it said there was nothing to press
+   here because a group could only be made from an event. Groups are made on
+   this page now; what makes that safe is the cluster cards below, which offer
+   a set of people who already exist rather than an empty room to name. When
+   there are no clusters there is genuinely nothing to recognise, which is what
+   this block is for — plus the quiet link, so the page is never a dead end. */
 .groups-none { max-width: 520px; padding: 8px 0 4px; }
 .groups-none-lead { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
 .groups-none p { margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: var(--dim); }
 .groups-none .button-like { display: inline-block; }
+
+/* ---------------------------------------------------------------------------
+   Clusters — the people who keep turning up, and the group they could become.
+
+   Deliberately not a `.group-row`: these are not rooms and must not be drawn
+   as if they were. Bigger radius, bigger faces, a button of their own, and no
+   hover on the card — the card is inert, only its button is pressable, so the
+   whole object never reads as a link to somewhere that does not exist yet.
+   --------------------------------------------------------------------------- */
+.clusters { max-width: 660px; }
+.clusters-lead { max-width: 600px; margin-bottom: 24px; }
+.clusters-lead h2 {
+  margin: 0 0 8px; font-size: 21px; font-weight: 600;
+  letter-spacing: -.015em; text-wrap: pretty;
+}
+.clusters-lead p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--dim); }
+
+.cluster-list { display: flex; flex-direction: column; gap: 12px; }
+
+.cluster {
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 16px;
+  padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+}
+
+/* The face stack. `margin-left` on all but the first, and a ring in the
+   surface behind them so overlapping circles stay countable. */
+.cluster-faces { flex: none; display: flex; align-items: center; }
+.cluster-face {
+  border-radius: 999px; box-shadow: 0 0 0 2px var(--card);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; background: var(--photo-bed); color: var(--dim);
+  overflow: hidden;
+}
+.cluster-faces > .cluster-face + .cluster-face { margin-left: -12px; }
+.cluster-face-more {
+  width: 36px; height: 36px; flex: none;
+  background: var(--photo-bed); color: var(--dim); font-size: 12px;
+}
+
+.cluster-what { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cluster-names { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.cluster-meta { font-size: 12.5px; color: var(--dim-warm); }
+
+/* One filled button per page: the first card. The rest are outlined, so the
+   page has a single primary action rather than a column of equal shouts. */
+.cluster-make {
+  flex: none; padding: 10px 16px; border-radius: 10px; white-space: nowrap;
+  font-size: 14.5px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent-ink);
+}
+.cluster-make:hover { background: var(--accent-soft); }
+.cluster-make-primary { background: var(--accent); color: #fff; }
+.cluster-make-primary:hover { background: #45588f; }
+
+/* The escape hatch. A text link and not a button, because there is one primary
+   path on this page and creating from nobody is not it. */
+.cluster-anyone {
+  margin: 18px 0 0; max-width: 600px;
+  font-size: 13px; line-height: 1.6; color: var(--dim-warm);
+}
+.link-like {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--accent-ink); font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* The same card, after `Make a group`. Replaced in place — no modal, no route
+   change — so the border is the only thing that says the state moved. */
+.cluster-form {
+  display: block; padding: 20px; border-color: var(--accent);
+}
+.cluster-label {
+  display: block; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--dim-warm);
+}
+.cluster-label-row { display: flex; align-items: baseline; gap: 8px; }
+.cluster-count { font-size: 12.5px; color: var(--dim-warm); }
+.cluster-name {
+  width: 100%; margin-top: 8px; padding: 12px 15px; font-size: 16px;
+  border-radius: 11px; border: 1px solid var(--line); background: var(--card);
+}
+.cluster-hint { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--dim-warm); }
+.cluster-who { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--hairline); }
+.cluster-add-lead { margin-top: 18px; }
+
+.cluster-chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+/* `nowrap` is required: a chip that wraps mid-name is the defect this fixed
+   once already. */
+.cluster-chip {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 6px 12px 6px 6px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--dim);
+  font-size: 13.5px; font-weight: 600;
+}
+.cluster-chip-on {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink);
+}
+.cluster-chip-face { border-radius: 999px; overflow: hidden; flex: none; }
+.cluster-chip-x { font-size: 14px; opacity: .7; }
+.cluster-chip-more { padding: 6px 12px; font-size: 13px; }
+
+.cluster-actions {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--hairline);
+}
+.cluster-create {
+  padding: 12px 20px; border-radius: 10px; border: 0; cursor: pointer;
+  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+}
+.cluster-create:hover { background: #45588f; }
+.cluster-create:disabled { opacity: .5; cursor: default; }
+.cluster-cancel {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: 14.5px; color: var(--dim);
+}
+.cluster-live { margin-left: auto; font-size: 12.5px; color: var(--dim-warm); }
+.cluster-error { flex-basis: 100%; margin: 0; font-size: 13px; color: #b3261e; }
+
+/* Demoted, below a list that already has rooms in it. */
+.clusters-also { margin-top: 26px; }
+.clusters-also-head {
+  margin: 0 0 12px; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--dim-warm);
+}
+.cluster-small { padding: 14px 16px; gap: 12px; }
+.cluster-small .cluster-face-more { width: 30px; height: 30px; }
+.cluster-small .cluster-faces > .cluster-face + .cluster-face { margin-left: -10px; }
+.cluster-small .cluster-names { font-size: 14.5px; }
+.cluster-small .cluster-make { padding: 8px 14px; font-size: 13.5px; }
+
+/* `New group` in the header, once there is a list. Outlined: on a page with
+   rooms in it, entering a room is the primary action. */
+.groups-new {
+  margin-left: auto; align-self: baseline; padding: 9px 15px; border-radius: 10px;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent-ink);
+  font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.groups-new:hover { background: var(--accent-soft); }
+
+/* Every chip, input and button here is reachable by keyboard, and has to look
+   it — the whole selection is otherwise a mouse-only control. */
+.cluster-chip:focus-visible,
+.cluster-make:focus-visible,
+.cluster-create:focus-visible,
+.cluster-cancel:focus-visible,
+.cluster-name:focus-visible,
+.groups-new:focus-visible,
+.link-like:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* The three-column row cannot hold at this width, so the button drops
+   full-width beneath the names.
+
+   The handoff also caps the stack at two faces here, and that is not built:
+   the button leaving the row frees the whole width for the faces and the
+   names, so there is nothing to reclaim — and hiding the third face would
+   make the `+N` chip beside it wrong. The chip counts the people the stack
+   does not show, and CSS that hides a face without changing that number is a
+   card that quietly miscounts the group it is describing. */
+@media (max-width: 720px) {
+  .cluster { flex-wrap: wrap; }
+  .cluster-make { flex: 1 1 100%; }
+}
 
 .groups-foot {
   margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hairline);

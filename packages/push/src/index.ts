@@ -53,7 +53,19 @@ export type Notification =
    * notification whose target depends on guessing which id it carries is one
    * that eventually opens the wrong thing.
    */
-  | { kind: 'group_invited'; groupId: string; groupName: string; who: string };
+  | { kind: 'group_invited'; groupId: string; groupName: string; who: string }
+  /**
+   * Somebody made a group and put you in it.
+   *
+   * Not `group_invited`, and the difference is not cosmetic: there is nothing
+   * to answer here. A group made from the people who were already at the same
+   * events adds them outright — they had the photographs already, and asking
+   * eleven people to accept a room they are already effectively in is a
+   * formality that reads as eleven chores. So the wording tells rather than
+   * asks, because a notification that says "asked you" beside no Accept button
+   * is a notification about a control that is not there.
+   */
+  | { kind: 'group_added'; groupId: string; groupName: string; who: string };
 
 /**
  * The set, enumerable at runtime.
@@ -73,6 +85,7 @@ const KINDS: Record<Notification['kind'], true> = {
   friend_requested: true,
   event_invited: true,
   group_invited: true,
+  group_added: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -145,6 +158,15 @@ export function render(notification: Notification): { title: string; body: strin
         // is the explanation for a name arriving out of nowhere. "Into this"
         // rather than "into this group": the title says which it is.
         body: `${notification.who} asked you into this.`,
+      };
+    case 'group_added':
+      return {
+        title: notification.groupName,
+        // "Put you in", not "asked you into": this one is already done, and
+        // there is no Accept waiting anywhere for it. Saying it plainly is
+        // also the only warning somebody gets that a room now exists with
+        // their name in it, so it must not be softened into an invitation.
+        body: `${notification.who} put you in this.`,
       };
   }
 }

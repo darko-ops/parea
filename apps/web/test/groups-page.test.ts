@@ -1,14 +1,20 @@
 /**
- * Groups has a page, and two rules about it that look like omissions.
+ * Groups has a page, and the rules about it that look like omissions.
  *
- * **There is no Create group button.** `POST /api/groups` requires a
- * `fromEventId` and refuses without one, because a group is something you
- * notice afterwards — the same people kept turning up, so you roll that event
- * into a group. An empty group you then have to fill is a distribution problem
- * with no photographs in it, and the people you would invite have no reason to
- * accept yet. A page listing groups is exactly where somebody will reasonably
- * add a create button, and the API would then have to grow a way to make one
- * from nothing. So the absence is asserted.
+ * **Groups are created here now, and the guard changed shape rather than
+ * going away.** This page used to assert that no create button existed, and
+ * the reasoning was that a group is noticed afterwards: an empty group you
+ * then have to fill is a distribution problem with no photographs in it. What
+ * reversed it is not a change of mind about that but the clusters — the people
+ * the actor already keeps ending up in the same events as. So what is asserted
+ * now is the thing that makes creation safe: the page may not offer creation
+ * *without* showing who it would be with, the cluster cards must write nothing
+ * until Create, and a cluster must never reach somebody who was not there.
+ *
+ * That last one is the privacy boundary and is tested against a real database
+ * in `clusters.test.ts`, where it can be proven rather than pattern-matched.
+ * What is here is the page-level half: the data only ever comes from the
+ * server's own per-actor query.
  *
  * **A group never shows a photograph.** It has no cover of its own, and the
  * only pictures available are inside events that belong to it — putting one on
@@ -33,6 +39,7 @@ const PAGE = await read('../app/groups/page.tsx');
 const RAIL = await read('../app/components/Rail.tsx');
 const API = await read('../app/api/groups/route.ts');
 const GROUP = await read('../app/components/GroupView.tsx');
+const CARD = await read('../app/components/CreateGroupCard.tsx');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
 /*
  * Raw, not comment-stripped, because the thing being asserted *is* a comment:
@@ -45,32 +52,78 @@ const CSS = await readFile(
 );
 
 describe('where a group comes from', () => {
-  it('is still an event, enforced by the endpoint', () => {
-    // The rule this page is shaped around. If this ever stops being true the
-    // page's empty state is telling people something false.
+  it('can still be an event, and can now be people', () => {
+    // Both paths, because the roll-up is what the event screen and the native
+    // client still call. Losing it would break creation everywhere else.
     expect(API).toMatch(/fromEventId/);
     expect(API).toMatch(/event_required/);
+    expect(API).toMatch(/memberIds/);
   });
 
-  it('is not offered as a button on the page', () => {
+  it('leads with who, before it offers to make anything', () => {
     /*
-     * No create form, and no POST to the groups endpoint. The page says where
-     * groups come from and sends somebody to their events, which is the only
-     * place the action can be taken.
+     * The whole argument of this screen in one assertion. A create control
+     * that appears without the people it would be made from is the empty-room
+     * failure the old design refused outright — so the page must read the
+     * clusters, and the primary card must be one of them.
      */
-    expect(PAGE).not.toMatch(/method: 'POST'|fetch\(/);
-    // "Make a group" does appear, as the name of the control to look for on
-    // an event — the sentence pointing somewhere else, not a control here.
-    expect(PAGE).not.toMatch(/Create group|New group/);
-    expect(PAGE).not.toMatch(/<button/);
+    expect(PAGE).toMatch(/recurringClusters\(db, actorId\)/);
+    expect(PAGE).toMatch(/The same people keep turning up\./);
+    expect(PAGE).toMatch(/<CreateGroupCard/);
   });
 
-  it('tells somebody with none where to go', () => {
-    // An empty list with nothing said is a page that looks broken to the
-    // person most likely to be new.
+  it('never says the clusters are groups', () => {
+    /*
+     * They are recurring sets of people until somebody presses something.
+     * Asserting the rejected copy stays rejected: counting them, or calling
+     * them groups the person already has, is presumptuous about a relationship
+     * the product inferred rather than was told about.
+     */
+    expect(PAGE).not.toMatch(/you already have|unnamed groups|your groups are/i);
+    // And the vocabulary the ticket dropped entirely: nobody has to learn a
+    // second word for making a group with these people.
+    expect(PAGE).not.toMatch(/roll (one |a |an )?(of your )?events? (up|into)/i);
+  });
+
+  it('asks the server for clusters and never derives them in the browser', () => {
+    // They are computed per actor from events that actor was in. A client that
+    // assembled them would need everybody else's participation to do it.
+    expect(CARD).not.toMatch(/event_participant|participants|recurringClusters/);
+  });
+
+  it('writes nothing until Create', () => {
+    /*
+     * The property that makes suggesting a set of people acceptable rather
+     * than presumptuous: opening the form, removing a chip and walking away
+     * must all be free. Exactly one call in the component, and it is the one
+     * behind the button.
+     */
+    const calls = CARD.match(/fetch\(/g) ?? [];
+    expect(calls).toHaveLength(1);
+    expect(CARD).toMatch(/fetch\('\/api\/groups', \{[\s\S]*?method: 'POST'/);
+  });
+
+  it('says what pressing Create does to other people, above the button', () => {
+    /*
+     * Creating from people writes memberships rather than invitations, which
+     * is a real thing to do to somebody. The sentence saying so has to be read
+     * before the decision — so it is in the instruction above the chips, and
+     * the order is what is asserted.
+     */
+    const consent = CARD.indexOf('They are told when the group is made');
+    const button = CARD.indexOf('Create group');
+    expect(consent).toBeGreaterThan(-1);
+    expect(consent).toBeLessThan(button);
+  });
+
+  it('is never a dead end, even with nothing to recognise', () => {
+    // The old empty state survives for a new account — it is still true that
+    // there is nothing to recognise — but it gains the quiet link, because
+    // creation exists now and this page is where it lives.
     expect(PAGE).toMatch(/You are not in any groups yet/);
-    expect(PAGE).toMatch(/Make a group/);
     expect(PAGE).toMatch(/href="\/events"/);
+    expect(PAGE).toMatch(/<MakeFromAnyone/);
+    expect(CARD).toMatch(/Make a group from anyone/);
   });
 });
 

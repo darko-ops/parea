@@ -80,6 +80,18 @@ export function notificationTarget(
        * this one, and it is reachable with only the id the payload carries.
        */
       return groupId ? { screen: 'group', groupId } : null;
+    case 'group_added':
+      /*
+       * The same destination as an invitation, for a different reason.
+       *
+       * They are already in this one — a group made from the people who were
+       * at the same events adds rather than asks — so the group screen is not
+       * a door here, it is the room. That makes landing there more obviously
+       * right than for `group_invited`, not less: the notification is the
+       * first they have heard of a room they are a member of, and the only
+       * useful answer to "what is this" is the thing itself.
+       */
+      return groupId ? { screen: 'group', groupId } : null;
     case 'access_requested':
       /*
        * The host, told somebody is at the door.

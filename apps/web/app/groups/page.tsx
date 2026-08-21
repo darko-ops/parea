@@ -1,5 +1,5 @@
 /**
- * Groups — the rooms you are in.
+ * Groups — the rooms you are in, and the ones you have not named yet.
  *
  * Groups existed before this page did and had nowhere of their own: you
  * reached one from a chip on Search, from an event that belonged to it, or
@@ -8,18 +8,21 @@
  * things together" is the whole reason groups exist, and there was no screen
  * answering "which people, and what have they been doing".
  *
- * ## There is no Create group button, and that is the design
+ * ## Groups are made here now, and what makes that safe
  *
- * A group is made *from an event* — `POST /api/groups` requires a
- * `fromEventId` and refuses without one, and the reason is at the top of that
- * file: noticing that the same people keep turning up is something that
- * happens afterwards. An empty group you then have to fill is a distribution
- * problem with no photographs in it, and the people you would invite have no
- * reason to accept yet.
+ * This page used to refuse a create action outright, and the argument was
+ * good: a group is noticed afterwards, and a bare `New group` produces a named
+ * room with nobody in it — a distribution problem with no photographs in it.
  *
- * So the empty state says where groups come from rather than offering a button
- * that would have to be disabled or would create something hollow. The action
- * lives on an event you host, which is the only place it can be taken.
+ * What changed is not the argument but what sits beside the button. The page
+ * leads with something the product already knew and had never shown: the
+ * people this actor keeps ending up in the same events as. Creating is then
+ * confirming a set of people who already exist rather than inventing one, and
+ * the empty room the old comment warned about cannot be the common case.
+ *
+ * The clusters are an observation and never a claim — see `recurringClusters`,
+ * and `CreateGroupCard` for why pressing the button still writes nothing.
+ * Above the list when there are no groups, demoted below it when there are.
  *
  * Not indexable: it lists what one person belongs to.
  */
@@ -29,11 +32,18 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { greetingFor } from '@/greeting';
-import { GROUP_STRIP, lensFor, myGroupsDetailed } from '@/groups';
+import {
+  GROUP_STRIP,
+  lensFor,
+  myGroupsDetailed,
+  recurringClusters,
+  sharedOnceWith,
+} from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 import { Face } from '@/../app/components/Faces';
 import { GroupCover } from '@/../app/components/GroupCover';
+import { CreateGroupCard, MakeFromAnyone } from '@/../app/components/CreateGroupCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,11 +91,19 @@ export default async function GroupsPage() {
   // Read before anything uses it. Null means never looked, which has to mean
   // everything is new rather than nothing.
   const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);
-  const [groups, account] = await Promise.all([
+  const [groups, account, clusters] = await Promise.all([
     myGroupsDetailed(db, actorId, since),
     // For the greeting only, as on Home, Activity and Find.
     actorId ? accountFor(db, actorId) : Promise.resolve(null),
+    recurringClusters(db, actorId),
   ]);
+  /*
+   * The add row's suggestions, fetched once for the page rather than once per
+   * card. Anybody already in a cluster is excluded here, so the "add somebody
+   * who was not at those events" row never offers a person who is standing in
+   * the chips above it.
+   */
+  const also = await sharedOnceWith(db, actorId, clusters.flatMap((c) => c.personIds));
   const now = new Date();
   const greeting = greetingFor(account?.displayName ?? null, now);
 
@@ -95,29 +113,71 @@ export default async function GroupsPage() {
         <div className="groups-head">
           {greeting && <div className="home-greeting">{greeting}</div>}
           <h1 className="home-title">Groups</h1>
+          {/*
+            Outlined, not filled, and only once there is a list. On a page with
+            rooms in it the primary action is entering one; the filled button
+            belongs to the first cluster card, on the page that has no rooms.
+          */}
+          {groups.length > 0 && <MakeFromAnyone also={also} compact />}
         </div>
 
         {groups.length === 0 ? (
-          /*
-            Where groups come from, rather than a button that cannot work.
-            Somebody landing here with none has not failed at anything — they
-            have not yet had the second evening with the same people, which is
-            the moment a group is for.
-          */
-          <div className="groups-none">
-            <p className="groups-none-lead">
-              You are not in any groups yet.
-            </p>
-            <p>
-              A group is made from an event, not from nothing — when the same
-              people keep turning up, you roll one of your events into a group
-              and everybody in it stays in the loop for the next one. Open an
-              event you made and look for <strong>Make a group</strong>.
-            </p>
-            <a href="/events" className="button-like primary">
-              Your events
-            </a>
-          </div>
+          clusters.length > 0 ? (
+            /*
+              What the product noticed, offered as something to confirm.
+
+              Two sentences and nothing else — no illustration, no badge, no
+              empty-state graphic. The heading is an observation about the
+              past; the body is the one thing a group does that nothing else
+              here does.
+            */
+            <div className="clusters">
+              <div className="clusters-lead">
+                <h2>The same people keep turning up.</h2>
+                <p>
+                  You have shared several events with these people. Keep everyone
+                  together for next time — the next event includes all of them
+                  without a single invite.
+                </p>
+              </div>
+
+              <div className="cluster-list">
+                {clusters.map((cluster, i) => (
+                  <CreateGroupCard
+                    key={cluster.key}
+                    cluster={cluster}
+                    people={cluster.people}
+                    also={also}
+                    primary={i === 0}
+                  />
+                ))}
+              </div>
+
+              <MakeFromAnyone also={also} />
+            </div>
+          ) : (
+            /*
+              Nothing to recognise yet, which is still true and still not a
+              failure — somebody here has not had the second evening with the
+              same people, which is the moment a group is for.
+
+              The copy is unchanged from when this was the only empty state.
+              What is added is the link beneath it: now that groups can be made
+              here, a page with no clusters must not be a dead end.
+            */
+            <div className="groups-none">
+              <p className="groups-none-lead">You are not in any groups yet.</p>
+              <p>
+                Groups are for the people who keep turning up — once you have
+                shared a couple of events with the same faces, they show up here
+                ready to keep together. Nothing to go on yet.
+              </p>
+              <a href="/events" className="button-like primary">
+                Your events
+              </a>
+              <MakeFromAnyone also={also} />
+            </div>
+          )
         ) : (
           <ul className="groups-list">
             {groups.map((group) => {
@@ -236,6 +296,32 @@ export default async function GroupsPage() {
               );
             })}
           </ul>
+        )}
+
+        {/*
+          Demoted, once there are rooms to enter.
+
+          Same card one size down, under a label that keeps it an observation
+          rather than a prompt: "too" only makes sense as a remark about the
+          list above it. Never more than two, and a cluster whose people are
+          already gathered in one of these groups is dropped upstream — which
+          is what lets this section stay without needing a way to dismiss it.
+        */}
+        {groups.length > 0 && clusters.length > 0 && (
+          <div className="clusters clusters-also">
+            <h2 className="clusters-also-head">These people keep turning up too</h2>
+            <div className="cluster-list">
+              {clusters.map((cluster) => (
+                <CreateGroupCard
+                  key={cluster.key}
+                  cluster={cluster}
+                  people={cluster.people}
+                  also={also}
+                  small
+                />
+              ))}
+            </div>
+          </div>
         )}
 
         {/*

@@ -217,3 +217,31 @@ export async function notifyGroupInvite(
     /* see the module header */
   }
 }
+
+/**
+ * Told once, when the group is made, and never again.
+ *
+ * Separate from `notifyGroupInvite` because the two describe different things
+ * happening to the recipient: one is a question waiting in Activity, this one
+ * is a room that now exists with them in it. Sending the invitation copy for
+ * an add would point somebody at an Accept button that is not there.
+ *
+ * Fired after the members are written, not before — see the route. A person
+ * told about a group that failed to be created has been told a lie, and the
+ * reverse is a notification that never arrives, which is recoverable.
+ */
+export async function notifyGroupAdded(
+  db: Db,
+  input: { actorIds: string[]; groupId: string; groupName: string; who: string },
+): Promise<void> {
+  try {
+    await deliver(db, input.actorIds, {
+      kind: 'group_added',
+      groupId: input.groupId,
+      groupName: input.groupName,
+      who: input.who,
+    });
+  } catch {
+    /* see the module header */
+  }
+}

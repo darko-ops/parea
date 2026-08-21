@@ -193,7 +193,13 @@ export function Rail({ current }: { current: RailPage }) {
 
       <div className="rail-foot">
         <a href="/">
-          <button type="button">Create Event</button>
+          {/*
+            Just "Create". The rail is a column of one-word destinations and
+            this was the only two-word label in it; the noun was carrying no
+            information a person standing on Home needed, because the thing
+            this product creates is the only thing it creates.
+          */}
+          <button type="button">Create</button>
         </a>
         {/*
           Settings, under the thing people actually come here to press.

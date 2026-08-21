@@ -861,3 +861,361 @@ export async function invitedTo(db: Db, groupId: string): Promise<string[]> {
     );
   return rows.map((row) => row.actorId);
 }
+
+/**
+ * How many clusters a screen may show. Two, and the cap is the argument.
+ *
+ * Past two this stops reading as "I recognise these people" and starts reading
+ * as a list of suggestions — which is the thing this product does not do to
+ * people. A third waits until one of the first two is acted on.
+ */
+export const CLUSTER_LIMIT = 2;
+
+/** Faces drawn on a cluster card before the overflow chip takes over. */
+export const CLUSTER_FACES = 3;
+
+/**
+ * A set of people you keep ending up in the same events as.
+ *
+ * Never a group, and the copy must never call it one: it is an observation
+ * about events the actor was already in, not a thing that exists. Nobody is
+ * told about it, nothing is written when it is shown, and it is only ever
+ * computed for the person it is about.
+ */
+export type Cluster = {
+  /** Stable across loads, so React keys and "which card" survive a refresh. */
+  key: string;
+  /**
+   * Everybody in it, named and faced.
+   *
+   * All of them, not the three the card draws: the form turns each into a
+   * removable chip, and fetching the rest when somebody presses the button
+   * would put a request in the one path that is meant to write and fetch
+   * nothing at all.
+   */
+  people: { actorId: string; name: string; avatarUrl: string | null }[];
+  personIds: string[];
+  faces: { name: string; avatarUrl: string | null }[];
+  /** Everybody past `CLUSTER_FACES`, as a number for the overflow chip. */
+  moreFaces: number;
+  /** "Priya, Tomás, Maya + 8 others" — worded here, drawn as one string. */
+  names: string;
+  sharedEventCount: number;
+  /** Borrowed from the most recent shared event, or null when none fits. */
+  suggestedName: string | null;
+};
+
+/**
+ * Event names that say *that* something happened and not *which*.
+ *
+ * Borrowed as a group name they are worse than nothing: "Photos" names every
+ * group the same, and a name you have to fix is more work than a name you have
+ * to write. The form drops its suggestion and its hint line for these.
+ */
+const GENERIC = new Set([
+  'photos',
+  'pics',
+  'pictures',
+  'event',
+  'party',
+  'trip',
+  'weekend',
+  'dinner',
+  'holiday',
+  'vacation',
+  'birthday',
+  'wedding',
+  'untitled',
+]);
+
+const MONTHS =
+  /,?\s+(january|february|march|april|may|june|july|august|september|october|november|december)$/i;
+
+/**
+ * The name to offer for a group made from a cluster.
+ *
+ * The most recent shared event's name, dated. "Naxos, September" becomes
+ * "Naxos 2025": the month goes because the year is about to be added and
+ * "Naxos, September 2025" is a filing reference, and the year goes on because
+ * these are recurring — a group named "Naxos" alongside next year's is two
+ * rooms with one name.
+ *
+ * A name that already carries a year is left exactly as it is. A generic one
+ * is refused rather than improved, and the form asks for a name instead.
+ */
+export function suggestedNameFrom(name: string | null, when: Date | null): string | null {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return null;
+  const bare = trimmed.replace(MONTHS, '').trim();
+  if (!bare || GENERIC.has(bare.toLowerCase())) return null;
+  if (/\b\d{4}\b/.test(bare)) return bare;
+  return when ? `${bare} ${when.getUTCFullYear()}` : bare;
+}
+
+/**
+ * The people who keep turning up in the same events as this actor.
+ *
+ * ## What makes this safe to show
+ *
+ * Every row behind it is an event the actor is a participant of, so it reveals
+ * nothing they could not already read. It is computed per request for one
+ * person, never stored, never sent to anybody, and pressing the button it sits
+ * beside still writes nothing — see `CreateGroupCard`.
+ *
+ * ## Why the cluster is the exact set of shared events
+ *
+ * People are grouped by the *set* of events they share with the actor, so a
+ * cluster is "the four of us who were at these three evenings" rather than a
+ * bag of people with something loosely in common. Exact equality rather than
+ * overlap because overlap has no natural stopping point: two people sharing
+ * one event with a third pull in everybody within two hops, and the card ends
+ * up naming somebody the actor met once. The cost is that one person missing
+ * from one evening splits the cluster, which is the failure that shows nothing
+ * rather than the failure that shows the wrong people.
+ *
+ * ## The shape of the query
+ *
+ * One statement. This runs on every `/groups` load, so the thing it must not
+ * be is a lookup per candidate: the co-presence join is done in the database
+ * against `event_participant`'s primary key, and only the clustering — over a
+ * result set bounded by the actor's own events — happens here.
+ */
+export async function recurringClusters(
+  db: Db,
+  actorId: string | null,
+): Promise<Cluster[]> {
+  if (!actorId) return [];
+
+  const rows = (await db.execute(sql`
+    with mine as (
+      select p.event_id
+      from event_participant p
+      join event e on e.id = p.event_id and e.deleted_at is null
+      where p.actor_id = ${actorId}
+    ),
+    shared as (
+      select p.actor_id, p.event_id
+      from event_participant p
+      join mine on mine.event_id = p.event_id
+      where p.actor_id <> ${actorId}
+    ),
+    recurring as (
+      select actor_id from shared group by actor_id having count(*) >= 2
+    )
+    select
+      s.actor_id      as actor_id,
+      a.display_name  as display_name,
+      a.handle        as handle,
+      a.avatar_key    as avatar_key,
+      s.event_id      as event_id,
+      e.name          as event_name,
+      coalesce(e.event_date::timestamptz, e.starts_at, e.created_at) as event_at
+    from shared s
+    join recurring r on r.actor_id = s.actor_id
+    join actor a on a.id = s.actor_id
+    join event e on e.id = s.event_id
+    -- A guest device is not somebody to put in a group: being added has to
+    -- mean something that survives the browser it happened in. The same rule
+    -- invitable() applies, which the create route applies again on the way in.
+    where a.account_id is not null and a.merged_into_id is null
+    order by s.actor_id, s.event_id
+    limit 2000
+  `)) as unknown as Record<string, unknown>[] | { rows: Record<string, unknown>[] };
+
+  // `db.execute` answers a `{ rows }` object on postgres.js and a bare array on
+  // PGlite. Both appear in this codebase — production and the test suite — so
+  // neither shape may be assumed.
+  const all: Record<string, unknown>[] = Array.isArray(rows) ? rows : (rows.rows ?? []);
+  if (all.length === 0) return [];
+
+  type Person = { id: string; name: string; avatarKey: string | null; events: Set<string> };
+  const people = new Map<string, Person>();
+  const events = new Map<string, { name: string; at: Date | null }>();
+
+  for (const row of all) {
+    const id = String(row.actor_id);
+    const eventId = String(row.event_id);
+    let person = people.get(id);
+    if (!person) {
+      const display = (row.display_name as string | null)?.trim();
+      const handle = row.handle as string | null;
+      person = {
+        id,
+        name: display || (handle ? `@${handle}` : 'Someone'),
+        avatarKey: (row.avatar_key as string | null) ?? null,
+        events: new Set(),
+      };
+      people.set(id, person);
+    }
+    person.events.add(eventId);
+    if (!events.has(eventId)) {
+      const at = row.event_at ? new Date(row.event_at as string) : null;
+      events.set(eventId, {
+        name: String(row.event_name ?? ''),
+        at: at && !Number.isNaN(at.getTime()) ? at : null,
+      });
+    }
+  }
+
+  const byShape = new Map<string, Person[]>();
+  for (const person of people.values()) {
+    const shape = [...person.events].sort().join(',');
+    const bucket = byShape.get(shape);
+    if (bucket) bucket.push(person);
+    else byShape.set(shape, [person]);
+  }
+
+  /*
+   * Everybody the actor is already in a group with, per group.
+   *
+   * A cluster whose people are all together in one room already is not a
+   * recognition, it is the product telling somebody about something they did
+   * last week. This is the check that stops the section nagging, which is why
+   * dismissal is not built.
+   */
+  const grouped = await db
+    .select({ groupId: schema.groupMembers.groupId, actorId: schema.groupMembers.actorId })
+    .from(schema.groupMembers)
+    .where(
+      sql`${schema.groupMembers.groupId} in (
+        select group_id from group_member where actor_id = ${actorId}
+      )`,
+    );
+  const rooms = new Map<string, Set<string>>();
+  for (const row of grouped) {
+    const room = rooms.get(row.groupId) ?? new Set<string>();
+    room.add(row.actorId);
+    rooms.set(row.groupId, room);
+  }
+
+  const clusters = [...byShape.entries()]
+    .map(([shape, members]) => {
+      const eventIds = shape.split(',');
+      const newest = eventIds
+        .map((id) => events.get(id))
+        .reduce<{ name: string; at: Date | null } | null>(
+          (best, one) =>
+            !one ? best : !best || (one.at?.getTime() ?? 0) > (best.at?.getTime() ?? 0) ? one : best,
+          null,
+        );
+      return { shape, members, sharedEventCount: eventIds.length, newest };
+    })
+    // Already all in one room together. The actor is in every one of their own
+    // groups, so only the other members have to be checked.
+    .filter(
+      ({ members }) =>
+        ![...rooms.values()].some((room) => members.every((person) => room.has(person.id))),
+    )
+    /*
+     * Most events shared first, then the most recent. Deterministic all the way
+     * down — a card that changes places between two loads reads as a feed, and
+     * the face stack has to be stable for the same reason.
+     */
+    .sort(
+      (a, b) =>
+        b.sharedEventCount - a.sharedEventCount ||
+        (b.newest?.at?.getTime() ?? 0) - (a.newest?.at?.getTime() ?? 0) ||
+        a.shape.localeCompare(b.shape),
+    )
+    .slice(0, CLUSTER_LIMIT);
+
+  return Promise.all(
+    clusters.map(async ({ shape, members, sharedEventCount, newest }) => {
+      const ordered = [...members].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+      const shown = ordered.slice(0, CLUSTER_FACES);
+      const firstNames = shown.map((person) => person.name.replace(/^@/, '').split(/\s+/)[0]!);
+      const more = ordered.length - shown.length;
+      const withFaces = await Promise.all(
+        ordered.map(async (person) => ({
+          actorId: person.id,
+          name: person.name,
+          avatarUrl: await avatarUrl(person.avatarKey),
+        })),
+      );
+      return {
+        key: shape,
+        people: withFaces,
+        personIds: ordered.map((person) => person.id),
+        faces: withFaces
+          .slice(0, CLUSTER_FACES)
+          .map(({ name, avatarUrl: src }) => ({ name, avatarUrl: src })),
+        moreFaces: more,
+        // "+ N others", not "and": a set, not a sentence. The names are first
+        // names because that is how somebody refers to the people they keep
+        // seeing, and the surname adds length without adding recognition.
+        names: more > 0 ? `${firstNames.join(', ')} + ${more} others` : firstNames.join(', '),
+        sharedEventCount,
+        suggestedName: suggestedNameFrom(newest?.name ?? null, newest?.at ?? null),
+      };
+    }),
+  );
+}
+
+/** How many near-misses the create form offers. Four, per the handoff. */
+export const ALSO_THERE_LIMIT = 4;
+
+/**
+ * People you have been at exactly one event with, most recent first.
+ *
+ * The create form's "add somebody who was not at those events" row. One event
+ * is deliberately the whole rule: two or more and they are a cluster of their
+ * own, which the page has already offered above; zero and they are a stranger,
+ * who belongs in the member search rather than in a row of suggestions.
+ *
+ * Same guard as everywhere else — an account, not a passing device — so what
+ * is offered here is what the create route will accept.
+ */
+export async function sharedOnceWith(
+  db: Db,
+  actorId: string | null,
+  exclude: string[] = [],
+): Promise<{ actorId: string; name: string; avatarUrl: string | null }[]> {
+  if (!actorId) return [];
+
+  const rows = (await db.execute(sql`
+    with mine as (
+      select p.event_id
+      from event_participant p
+      join event e on e.id = p.event_id and e.deleted_at is null
+      where p.actor_id = ${actorId}
+    ),
+    shared as (
+      select p.actor_id, p.event_id
+      from event_participant p
+      join mine on mine.event_id = p.event_id
+      where p.actor_id <> ${actorId}
+    )
+    select
+      s.actor_id     as actor_id,
+      a.display_name as display_name,
+      a.handle       as handle,
+      a.avatar_key   as avatar_key,
+      max(coalesce(e.event_date::timestamptz, e.starts_at, e.created_at)) as newest
+    from shared s
+    join actor a on a.id = s.actor_id
+    join event e on e.id = s.event_id
+    where a.account_id is not null and a.merged_into_id is null
+    group by s.actor_id, a.display_name, a.handle, a.avatar_key
+    having count(*) = 1
+    order by newest desc nulls last
+    limit ${ALSO_THERE_LIMIT + exclude.length}
+  `)) as unknown as Record<string, unknown>[] | { rows: Record<string, unknown>[] };
+
+  const all: Record<string, unknown>[] = Array.isArray(rows) ? rows : (rows.rows ?? []);
+  const skip = new Set(exclude);
+
+  return Promise.all(
+    all
+      .filter((row) => !skip.has(String(row.actor_id)))
+      .slice(0, ALSO_THERE_LIMIT)
+      .map(async (row) => {
+        const display = (row.display_name as string | null)?.trim();
+        const handle = row.handle as string | null;
+        return {
+          actorId: String(row.actor_id),
+          name: display || (handle ? `@${handle}` : 'Someone'),
+          avatarUrl: await avatarUrl((row.avatar_key as string | null) ?? null),
+        };
+      }),
+  );
+}
