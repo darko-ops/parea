@@ -43,7 +43,7 @@ import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 import { Face } from '@/../app/components/Faces';
 import { GroupCover } from '@/../app/components/GroupCover';
-import { CreateGroupCard, MakeFromAnyone } from '@/../app/components/CreateGroupCard';
+import { CreateGroupCard, NewGroupPanel } from '@/../app/components/CreateGroupCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,16 +110,13 @@ export default async function GroupsPage() {
   return (
     <Shell current="groups">
       <main className="groups-page">
-        <div className="groups-head">
-          {greeting && <div className="home-greeting">{greeting}</div>}
-          <h1 className="home-title">Groups</h1>
-          {/*
-            Outlined, not filled, and only once there is a list. On a page with
-            rooms in it the primary action is entering one; the filled button
-            belongs to the first cluster card, on the page that has no rooms.
-          */}
-          {groups.length > 0 && <MakeFromAnyone also={also} compact />}
-        </div>
+        {/*
+          The header and the create form, together — see `NewGroupPanel`. The
+          button is here in every state, including the empty one: outlined, so
+          the filled `Make a group` on the first cluster card is still the
+          page's single primary action.
+        */}
+        <NewGroupPanel greeting={greeting} also={also} />
 
         {groups.length === 0 ? (
           clusters.length > 0 ? (
@@ -153,7 +150,6 @@ export default async function GroupsPage() {
                 ))}
               </div>
 
-              <MakeFromAnyone also={also} />
             </div>
           ) : (
             /*
@@ -161,21 +157,22 @@ export default async function GroupsPage() {
               failure — somebody here has not had the second evening with the
               same people, which is the moment a group is for.
 
-              The copy is unchanged from when this was the only empty state.
-              What is added is the link beneath it: now that groups can be made
-              here, a page with no clusters must not be a dead end.
+              Creation is not offered again here — `New group` is in the
+              header above, in every state — but the copy names it, because a
+              page whose only visible control sends you somewhere else reads
+              as a dead end to the person most likely to be new.
             */
             <div className="groups-none">
               <p className="groups-none-lead">You are not in any groups yet.</p>
               <p>
                 Groups are for the people who keep turning up — once you have
                 shared a couple of events with the same faces, they show up here
-                ready to keep together. Nothing to go on yet.
+                ready to keep together. Nothing to go on yet, so{' '}
+                <strong>New group</strong> above is the way to start one.
               </p>
               <a href="/events" className="button-like primary">
                 Your events
               </a>
-              <MakeFromAnyone also={also} />
             </div>
           )
         ) : (

@@ -205,9 +205,22 @@ export function CreateGroupCard({
             <span className="cluster-count">— {picked.length} preselected</span>
           )}
         </div>
+        {/*
+          Three sentences for three situations, because one covered only the
+          first. Opened from a cluster there are chips to remove; opened from
+          `New group` there are none, and "tap to take somebody out" was an
+          instruction about controls that were not on screen.
+
+          The consent half — that this *adds* people rather than asking them —
+          survives in both cases where somebody can end up in the group, and is
+          above the button in both. Dropping it is the one edit not to make.
+        */}
         <p className="cluster-hint">
-          Tap to take somebody out. They are told when the group is made, and can
-          add photos without being invited again.
+          {picked.length > 0
+            ? 'Tap to take somebody out. They are told when the group is made, and can add photos without being invited again.'
+            : offered.length > 0
+              ? 'Anybody you add is told when the group is made, and can add photos without being invited again.'
+              : 'Just you, for now. You can add people from the group once it exists.'}
         </p>
 
         <div className="cluster-chips">
@@ -317,54 +330,64 @@ export function CreateGroupCard({
 }
 
 /**
- * The quiet way in: the same form, with nobody preselected.
+ * `New group`, and the form it opens.
  *
- * A text link rather than a second button, and deliberately below the cards.
- * There is one primary path on this page — confirming a set of people who
- * already exist — and a create-from-nothing control given equal weight would
- * turn a one-tap recognition back into a form somebody has to fill in.
+ * The header row and the form are one component because they are one control
+ * in two places: the button sits on the `h1`'s baseline and the form has to
+ * open *below* the header, full width, where there is room for chips. Two
+ * components would mean lifting this state into a third.
  *
- * It exists at all because the page must not be a dead end now that creation
- * is possible: somebody with a person in mind who is not in either cluster
- * would otherwise have nowhere to go.
+ * ## It is always here, including on a page with nothing on it
+ *
+ * The handoff made creating-from-nobody a quiet text link at the foot of the
+ * clusters, on the reasoning that there is one primary path and this is not
+ * it. Half of that survives — this button is outlined and the cluster's is
+ * filled, so the page still has a single primary action.
+ *
+ * What did not survive is the quietness. A sentence is not a control, and the
+ * button only appearing once you already had groups was exactly backwards:
+ * somebody with no groups is the person who most needs to know that making one
+ * is possible, and they were the only person not shown a button. Reported from
+ * use — the page read as offering a suggestion and nothing else.
  */
-export function MakeFromAnyone({
+export function NewGroupPanel({
+  greeting,
   also,
-  compact = false,
 }: {
+  /** Worded on the server, like every greeting in this product. */
+  greeting: string | null;
   also: ClusterPerson[];
-  /** The header's `New group` on a page that already has a list. */
-  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
-  if (open) {
-    return (
-      <CreateGroupCard
-        cluster={null}
-        people={[]}
-        also={also}
-        startOpen
-        onCancel={() => setOpen(false)}
-      />
-    );
-  }
-
-  if (compact) {
-    return (
-      <button type="button" className="groups-new" onClick={() => setOpen(true)}>
-        New group
-      </button>
-    );
-  }
-
   return (
-    <p className="cluster-anyone">
-      Somebody else in mind?{' '}
-      <button type="button" className="link-like" onClick={() => setOpen(true)}>
-        Make a group from anyone
-      </button>{' '}
-      — same form, nobody preselected.
-    </p>
+    <>
+      <div className="groups-head">
+        {greeting && <div className="home-greeting">{greeting}</div>}
+        <h1 className="home-title">Groups</h1>
+        {/*
+          Hidden while the form is open rather than left to toggle it: the form
+          is directly beneath, so a button that closed it would be a second
+          Cancel eighteen pixels above the real one.
+        */}
+        {!open && (
+          <button type="button" className="groups-new" onClick={() => setOpen(true)}>
+            New group
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="groups-new-panel">
+          <CreateGroupCard
+            cluster={null}
+            people={[]}
+            also={also}
+            startOpen
+            onCancel={() => setOpen(false)}
+          />
+        </div>
+      )}
+    </>
   );
 }

@@ -2569,17 +2569,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .cluster-make-primary { background: var(--accent); color: #fff; }
 .cluster-make-primary:hover { background: #45588f; }
 
-/* The escape hatch. A text link and not a button, because there is one primary
-   path on this page and creating from nobody is not it. */
-.cluster-anyone {
-  margin: 18px 0 0; max-width: 600px;
-  font-size: 13px; line-height: 1.6; color: var(--dim-warm);
-}
-.link-like {
-  background: none; border: 0; padding: 0; cursor: pointer;
-  font: inherit; color: var(--accent-ink); font-weight: 600;
-  text-decoration: underline; text-underline-offset: 2px;
-}
+/* The create form, opened from `New group` in the header. Sits directly
+   beneath it and above whatever the page's main content is, full width, so
+   there is room for a row of chips. */
+.groups-new-panel { max-width: 660px; margin-bottom: 26px; }
 
 /* The same card, after `Make a group`. Replaced in place — no modal, no route
    change — so the border is the only thing that says the state moved. */
@@ -2661,8 +2654,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .cluster-create:focus-visible,
 .cluster-cancel:focus-visible,
 .cluster-name:focus-visible,
-.groups-new:focus-visible,
-.link-like:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.groups-new:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* The three-column row cannot hold at this width, so the button drops
    full-width beneath the names.

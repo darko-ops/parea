@@ -116,14 +116,25 @@ describe('where a group comes from', () => {
     expect(consent).toBeLessThan(button);
   });
 
-  it('is never a dead end, even with nothing to recognise', () => {
-    // The old empty state survives for a new account — it is still true that
-    // there is nothing to recognise — but it gains the quiet link, because
-    // creation exists now and this page is where it lives.
+  it('offers creation from scratch in every state, including the empty one', () => {
+    /*
+     * This was a sentence with a link in it, below the clusters, and only on
+     * the empty page — while the actual button appeared once you already had
+     * groups. That is backwards, and the page read as offering a suggestion
+     * and no way to make anything: reported from use.
+     *
+     * So the panel is unconditional, which is the assertion. A regression here
+     * looks like the button being moved back inside a branch.
+     */
+    expect(PAGE).toMatch(/<NewGroupPanel greeting=\{greeting\} also=\{also\} \/>/);
+    expect(PAGE).not.toMatch(/groups\.length > 0 && <NewGroupPanel/);
+    expect(CARD).toMatch(/New group/);
+  });
+
+  it('still says where groups come from when there is nothing to recognise', () => {
+    // A new account sees no clusters, and the page must not read as broken.
     expect(PAGE).toMatch(/You are not in any groups yet/);
     expect(PAGE).toMatch(/href="\/events"/);
-    expect(PAGE).toMatch(/<MakeFromAnyone/);
-    expect(CARD).toMatch(/Make a group from anyone/);
   });
 });
 
