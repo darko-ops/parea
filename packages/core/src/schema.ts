@@ -493,9 +493,30 @@ export const photos = pgTable(
     /** Untrusted, and sometimes absent — see design §4 and §8. */
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     capturedOffsetMinutes: integer('captured_offset_minutes'),
+    /**
+     * When the row was created, which is when the upload was *presigned* —
+     * not when any byte arrived. The distinction is the whole reason
+     * `bytesAt` exists below.
+     */
     uploadedAt: timestamp('uploaded_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * When storage was confirmed to hold the object, written by
+     * `/api/uploads/<id>/complete`.
+     *
+     * A row is `pending` from the moment it is presigned, and `pending` is the
+     * queue the deriver drains — so without this the deriver claims rows whose
+     * bytes are still being sent, finds nothing, and marks them `failed`,
+     * which is terminal. The upload then lands into a row nothing will ever
+     * look at again: every photo uploaded, and none of them appeared.
+     *
+     * So this is the deriver's gate. Null means "not yet", not "never" — see
+     * `pendingPhotoIds`, which waits for it and then stops waiting, because a
+     * client that uploaded and never got to say so must not strand the photo
+     * either.
+     */
+    bytesAt: timestamp('bytes_at', { withTimezone: true }),
     /**
      * `quarantined` is terminal and unlike every other state: the object is
      * retained rather than purged, because destroying it would destroy

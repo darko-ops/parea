@@ -20,6 +20,11 @@
  * leaves a 'pending' row pointing at nothing, and the deriver would rediscover
  * that on its own — but slower, and after retries that cannot succeed.
  *
+ * That confirmation is also what releases the photo to the deriver at all.
+ * `bytesAt` is written here and nowhere else, and the deriver will not claim a
+ * row without it — because a row is 'pending' from the instant it is
+ * presigned, seconds before the first byte is sent.
+ *
  * `status` is still the gate: only 'ready' photos are listed, and now nothing
  * reaches 'ready' without going through the deriver.
  */
@@ -81,12 +86,18 @@ export async function POST(
     return NextResponse.json({ error: 'object_missing' }, { status: 409 });
   }
 
-  // Size only. The status stays 'pending' so the deriver has something to
-  // claim; byteSize is corrected from what storage actually holds, because the
-  // number recorded at presign came from the client and is a claim, not a fact.
+  // The status stays 'pending' so the deriver has something to claim, but
+  // `bytesAt` is what actually lets it claim this row — the deriver waits for
+  // this timestamp before looking in storage. Without it a row is claimable
+  // from the moment it was presigned, so the deriver reads an object that is
+  // still being uploaded, finds nothing, and marks the photo `failed` for
+  // good. See `pendingPhotoIds`.
+  //
+  // byteSize is corrected at the same time, because the number recorded at
+  // presign came from the client and is a claim, not a fact.
   await db
     .update(schema.photos)
-    .set({ byteSize: head.size })
+    .set({ byteSize: head.size, bytesAt: new Date() })
     .where(eq(schema.photos.id, photo.id));
 
   await db

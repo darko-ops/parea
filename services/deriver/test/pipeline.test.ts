@@ -22,7 +22,11 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { crc32 } from '../src/crc32';
-import { backfillDerivative, photosMissingDerivative } from '../src/pipeline';
+import {
+  backfillDerivative,
+  pendingPhotoIds,
+  photosMissingDerivative,
+} from '../src/pipeline';
 import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/derivatives';
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
 import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
@@ -344,6 +348,50 @@ describe('dedup', () => {
     const two = await processPhoto({ db, objects, scanner }, b.photo.id);
     if (one.status !== 'ready' || two.status !== 'ready') throw new Error('not ready');
     expect(one.contentHash).toBe(two.contentHash);
+  });
+});
+
+/**
+ * The queue the watcher drains, and the bug that made every upload disappear.
+ *
+ * A photo row is `pending` from the moment its upload is presigned — before a
+ * byte has been sent — so a watcher that treats `pending` as "ready to ingest"
+ * reads an object mid-upload, finds nothing, and fails the photo permanently.
+ */
+describe('what the deriver is allowed to claim', () => {
+  it('leaves a presigned photo alone until its bytes are confirmed', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(20));
+    // Presigned a moment ago, bytes still on their way up: `bytesAt` is null.
+    expect(await pendingPhotoIds(db)).not.toContain(photo.id);
+
+    await db
+      .update(schema.photos)
+      .set({ bytesAt: new Date() })
+      .where(eq(schema.photos.id, photo.id));
+    expect(await pendingPhotoIds(db)).toContain(photo.id);
+  });
+
+  it('claims a photo whose upload was never confirmed, eventually', async () => {
+    // The tab was closed between the PUT and `complete`. The bytes are there
+    // and nobody said so; waiting forever would lose the photo just as surely.
+    const { photo } = await seedPhoto(await geotaggedJpeg(21));
+    await db
+      .update(schema.photos)
+      .set({ uploadedAt: new Date(Date.now() - 31 * 60 * 1000) })
+      .where(eq(schema.photos.id, photo.id));
+
+    expect(await pendingPhotoIds(db)).toContain(photo.id);
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
+    expect(outcome.status).toBe('ready');
+  });
+
+  it('does not claim a photo that is deleted, whatever its bytes did', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(22));
+    await db
+      .update(schema.photos)
+      .set({ bytesAt: new Date(), deletedAt: new Date() })
+      .where(eq(schema.photos.id, photo.id));
+    expect(await pendingPhotoIds(db)).not.toContain(photo.id);
   });
 });
 

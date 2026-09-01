@@ -169,6 +169,13 @@
       "when": 1787193227062,
       "tag": "0023_group_invite",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788302054241,
+      "tag": "0024_photo_bytes_at",
+      "breakpoints": true
     }
   ]
 }

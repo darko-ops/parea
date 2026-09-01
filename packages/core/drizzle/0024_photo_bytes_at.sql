@@ -1,0 +1,1 @@
+ALTER TABLE "photo" ADD COLUMN "bytes_at" timestamp with time zone;

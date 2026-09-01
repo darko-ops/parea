@@ -13,7 +13,7 @@
  */
 
 import { recordModeration, REASON, schema } from '@parea/core';
-import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -85,6 +85,11 @@ export async function processPhoto(
     };
   }
 
+  // Terminal, and only safe to be terminal because of the gate in
+  // `pendingPhotoIds`: nothing reaches here until storage has confirmed the
+  // object or until long enough has passed that nothing is still coming. A
+  // caller that reaches past that gate and hands over a freshly presigned id
+  // will fail a photo that was about to arrive.
   const original = await objects.get(photo.storageKey);
   if (!original) return fail(db, photoId, 'object_missing');
 
@@ -266,12 +271,56 @@ export async function processPhoto(
   }
 }
 
-/** Photos awaiting ingest, oldest first. */
-export async function pendingPhotoIds(db: any, limit = 50): Promise<string[]> {
+/**
+ * How long a photo may sit with its bytes unaccounted for before this looks
+ * anyway.
+ *
+ * Presigned grants last 15 minutes, so nothing can still be arriving on the
+ * original grant after that; a client that outlives its grant re-presigns,
+ * which writes a new row and leaves this one orphaned. The extra margin is for
+ * a client that uploaded successfully and then never got to call `complete` —
+ * the tab was closed between the PUT and the confirmation, which is a second
+ * or two of exposure per photo and therefore happens. Those rows are claimed
+ * late rather than never, and the photo appears.
+ */
+const ARRIVAL_GRACE_MS = 30 * 60 * 1000;
+
+/**
+ * Photos awaiting ingest, oldest first — and only once their bytes are there.
+ *
+ * The gate is `bytesAt`, and it is the whole point of this function. A photo
+ * row is created `pending` when the upload is *presigned*, which is before the
+ * client has sent a single byte; `pending` is also this queue. So a watcher
+ * polling every few seconds would claim rows mid-upload, find no object, and
+ * `fail()` them — and failed is terminal. The bytes then land in storage, the
+ * row is never looked at again, and the event shows nothing. Every photo
+ * uploaded on this deployment between 19 and 23 August failed exactly that
+ * way, with the objects sitting in R2 the whole time.
+ *
+ * `bytesAt` is written by `/api/uploads/<id>/complete` once storage has been
+ * asked and has confirmed it holds the object, so a row carrying one is safe
+ * to read. A row without one is not skipped forever, only until
+ * `ARRIVAL_GRACE_MS` has passed — after that nothing is still coming, and
+ * whatever is or is not in storage is the truth about this photo.
+ */
+export async function pendingPhotoIds(
+  db: any,
+  limit = 50,
+  now: Date = new Date(),
+): Promise<string[]> {
   const rows = await db
     .select({ id: schema.photos.id })
     .from(schema.photos)
-    .where(and(eq(schema.photos.status, 'pending'), isNull(schema.photos.deletedAt)))
+    .where(
+      and(
+        eq(schema.photos.status, 'pending'),
+        isNull(schema.photos.deletedAt),
+        or(
+          isNotNull(schema.photos.bytesAt),
+          lt(schema.photos.uploadedAt, new Date(now.getTime() - ARRIVAL_GRACE_MS)),
+        ),
+      ),
+    )
     .orderBy(schema.photos.uploadedAt)
     .limit(limit);
   return rows.map((r: { id: string }) => r.id);
