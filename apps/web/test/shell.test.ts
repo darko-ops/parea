@@ -183,3 +183,49 @@ describe('an event looks like an event wherever it is listed', () => {
     expect(ACCOUNT).not.toMatch(/days ago`|hours ago`|minutes ago`/);
   });
 });
+
+/**
+ * Making an event, on a phone.
+ *
+ * The rows go behind a hamburger below tablet, which is right for
+ * destinations and was wrong for the create button that went with them: it
+ * left the one action the product exists for two taps down, at the bottom of
+ * a panel as tall as the screen. It is a pill in the bar now, beside the menu
+ * rather than inside it.
+ */
+describe('the create button on a narrow screen', () => {
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const CSS = read(join(APP, 'globals.css'));
+  /** The rules that only apply below tablet. */
+  const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
+
+  it('is in the bar, not inside the panel the hamburger opens', () => {
+    // Before `.rail-nav`, which is the block that becomes the dropdown — a
+    // create button inside it is one the menu hides.
+    const create = RAIL.indexOf('className="rail-create"');
+    const panel = RAIL.indexOf('className="rail-nav"');
+    expect(create).toBeGreaterThan(-1);
+    expect(create).toBeLessThan(panel);
+  });
+
+  it('says what it makes, for anyone who cannot see the pill', () => {
+    // The `+` is decorative and the word carries the meaning, so the label has
+    // to name the thing rather than leave a screen reader reading "plus".
+    expect(RAIL).toMatch(/aria-label="Create an event"/);
+    expect(RAIL).toMatch(/aria-hidden="true">\+</);
+  });
+
+  it('exists only below tablet, where the rows are hidden', () => {
+    // On a laptop the rows are the page's left edge and the create button is
+    // already among them; a second one in the corner would be two.
+    expect(CSS).toMatch(/\.rail-create \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-create \{[^}]*display: flex/);
+  });
+
+  it('is the only one of itself at that width', () => {
+    // The full-width button in the panel goes when the pill arrives. Two links
+    // to the same place is two tab stops and two announcements, and the one in
+    // the panel is the one nobody reaches.
+    expect(MOBILE).toMatch(/\.rail-foot > a:first-child \{ display: none; \}/);
+  });
+});

@@ -141,6 +141,27 @@ export function Rail({ current }: { current: RailPage }) {
       </div>
 
       {/*
+        Create, in the bar, on a phone only.
+
+        The rows go behind the button beside this one and that is right for
+        destinations — but it was right for the create button too, which put
+        the one thing this product makes two taps away and at the far end of a
+        panel as tall as the screen. A menu is for the places you might go;
+        making an event is not a place, and it is the reason anybody opened
+        the app.
+
+        Condensed to a pill because it shares a 375px bar with the wordmark
+        and the menu: the word alone, at rail weight, left no room for either.
+        The full-width one in the panel is hidden at this width — the same
+        link twice is two tab stops and two things for a screen reader to
+        announce, so only one of them exists at a time.
+      */}
+      <a href="/" className="rail-create" aria-label="Create an event">
+        <span aria-hidden="true">+</span>
+        <span>Create</span>
+      </a>
+
+      {/*
         Only on a phone, and only there: on a wide screen the rows are already
         the page's left-hand edge, and a button that hides visible navigation
         adds a step to everything.

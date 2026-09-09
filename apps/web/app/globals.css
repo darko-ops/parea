@@ -394,8 +394,11 @@ button.secondary {
 }
 .main-head h1 { font-size: 28px; letter-spacing: -.02em; margin: 0; }
 
-/* The button that is not there on a wide screen. */
+/* The two that are not there on a wide screen: the menu button, and the
+   create pill that shares the bar with it. On a laptop the rows are the
+   page's left edge and the create button is already among them. */
 .rail-burger { display: none; }
+.rail-create { display: none; }
 
 /* A pair, and they are always opposites: a control is a button in the header
    on a wide screen or an item in a menu on a narrow one, never both. `display:
@@ -466,9 +469,31 @@ button.secondary {
   }
   .rail-open .rail-nav .rail-row { padding: 11px 12px; }
   .rail-foot { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hairline); }
-  /* Full width in the panel. In the rail it is a button in a 212px column and
-     already fills it; here the column is the screen. */
-  .rail-foot > a:first-child, .rail-foot > a:first-child button { display: block; width: 100%; }
+  /* Create, in the bar rather than at the end of the panel.
+
+     It was the full-width button below six rows of destinations, which is two
+     taps and a reach to the bottom of a panel the height of the screen — for
+     the one action the whole product is for. Here it sits beside the menu,
+     always visible, one tap, in the half of the bar a thumb already covers.
+
+     A pill: it shares 375px with the wordmark and the burger, so it carries
+     the `+` that says what it does and the word that says what it makes,
+     and nothing else. `flex: none` so a narrow screen shortens the wordmark
+     rather than this. */
+  .rail-create {
+    display: flex; align-items: center; gap: 5px; flex: none;
+    margin-right: 4px; padding: 0 12px; height: 34px;
+    border-radius: 999px; background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 600; line-height: 1; text-decoration: none;
+    white-space: nowrap;
+  }
+  .rail-create > [aria-hidden] { font-size: 17px; font-weight: 500; }
+  .rail-create:hover { background: var(--accent-ink); }
+
+  /* And gone from the panel, so there is one of it. Two links to the same
+     place is two tab stops and two announcements, and the one still in the
+     panel would be the one nobody reaches. */
+  .rail-foot > a:first-child { display: none; }
   .rail-settings { display: flex; }
   .main { padding: 20px; }
 }
