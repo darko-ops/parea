@@ -95,16 +95,37 @@ describe('after an event is created', () => {
    * navigation, and the event page picks them up.
    */
   it('goes to the event it just made', () => {
-    expect(CREATE).toMatch(/location\.href = `\/event\/\$\{created\.id\}`/);
+    expect(CREATE).toMatch(/router\.push\(`\/event\/\$\{created\.id\}`\)/);
   });
 
   it('hands the photos over before it goes', () => {
     // Order, not presence: navigating first leaves the queue unwritten and the
     // photographs on the floor.
     const stage = CREATE.indexOf('uploads.stage(');
-    const leave = CREATE.indexOf('location.href = `/event/');
+    const leave = CREATE.indexOf('router.push(`/event/');
     expect(stage).toBeGreaterThan(-1);
     expect(stage).toBeLessThan(leave);
+  });
+
+  /**
+   * And it must not be a full load, which is a stronger claim than the one
+   * above and the one that actually cost photographs.
+   *
+   * This was `location.href`, justified by the capability cookie the create
+   * response had just set. `/event/[id]` is `force-dynamic`, so a client
+   * navigation is served by the server too and carries that cookie either way
+   * — the reload bought nothing and ended the document, and ending the
+   * document ends the browser's loan of every picked `File`. On iOS the temp
+   * copy behind a library photo goes with it, so the event page restored
+   * handles that could not produce bytes, marked all of them `stale`, and
+   * asked the server for nothing at all. An event created with forty photos
+   * attached, holding none.
+   */
+  it('stays in the same document, so the picked files stay lent to it', () => {
+    // The assignment, not the word — the comment above it in `page.tsx`
+    // explains what `location.href` used to do here and why it stopped.
+    expect(CREATE).not.toMatch(/location\.href\s*=/);
+    expect(CREATE).toMatch(/useRouter\(\)/);
   });
 });
 

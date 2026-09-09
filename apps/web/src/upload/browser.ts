@@ -159,11 +159,26 @@ export type Restored = {
  * four presign round trips per photo discovering one at a time that the tab it
  * came from is gone — and reports "failed", which reads as "try again" when
  * the only thing that helps is picking the file again.
+ *
+ * `lent` is the arrival from the create page: handles still on loan to this
+ * document, which have not been through a navigation that could end the loan.
+ * They are preferred over the stored copy rather than used as a fallback,
+ * because the stored copy is a clone of the same reference and is the one that
+ * dies first — on iOS it is reliably dead by the time anything reads it back.
+ * See `upload/handoff.ts`.
  */
 export async function restore(
   eventId: string,
   store: StateSource & SaveTarget,
-  { now = Date.now(), fetch }: { now?: number; fetch?: typeof globalThis.fetch } = {},
+  {
+    now = Date.now(),
+    fetch,
+    lent = new Map<string, File>(),
+  }: {
+    now?: number;
+    fetch?: typeof globalThis.fetch;
+    lent?: Map<string, File>;
+  } = {},
 ): Promise<Restored | null> {
   const state = await store.loadState(eventId, now);
   if (!state) return null;
@@ -178,7 +193,7 @@ export async function restore(
   }
 
   for (const item of outstanding) {
-    const file = await store.getFile(item.id);
+    const file = lent.get(item.id) ?? (await store.getFile(item.id));
     if (file && (await readable(file))) {
       files.set(item.id, file);
     } else {

@@ -1,6 +1,7 @@
 'use client';
 
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { policyFor } from './components/AccessChoice';
@@ -118,6 +119,7 @@ export default function CreatePage() {
    * the photos for the event page to pick up and send.
    */
   const uploads = useUploads('');
+  const router = useRouter();
 
   const pick = useCallback((files: File[]) => {
     // Same filter as the event page: `accept` is advice that a drop or "All
@@ -147,11 +149,9 @@ export default function CreatePage() {
    *
    * The photos are *staged*, not uploaded. Uploading here is what the old
    * "your event is ready" screen was for — somewhere to stand while a hundred
-   * photographs went up. They go into IndexedDB under the new event's id
-   * instead, and the event page resumes them while you look at what arrives.
-   *
-   * A failed invitation does not fail the event: it is the easiest thing here
-   * to do again, and the link works whether or not anybody accepted.
+   * photographs went up. The queue goes into IndexedDB under the new event's
+   * id and the handles stay in memory, and the event page resumes them while
+   * you look at what arrives.
    */
   const create = useCallback(
     async (e: React.FormEvent) => {
@@ -205,9 +205,24 @@ export default function CreatePage() {
         }
 
         await uploads.stage(picked, created.id);
-        // A full load rather than a client navigation: this response set the
-        // capability cookie, and the event page is what starts the uploads.
-        globalThis.location.href = `/event/${created.id}`;
+        /*
+         * A client navigation, and it is load-bearing rather than a nicety.
+         *
+         * This was `location.href`, on the grounds that the create response set
+         * the capability cookie and a full load was the way to pick it up. But
+         * `/event/[id]` is `force-dynamic`, so a client navigation fetches it
+         * from the server too and sends that cookie exactly the same — the
+         * reload bought nothing there.
+         *
+         * What it cost was the photographs. Tearing the document down ends the
+         * loan on every picked `File`, and on iOS the temp copy behind an
+         * asset picked from the library goes with it; the event page then read
+         * back handles that could no longer produce bytes, marked all of them
+         * `stale`, and presigned nothing. Staying in the same document keeps
+         * the loan alive, which is the same reason the two steps above this one
+         * are one page rather than two routes.
+         */
+        router.push(`/event/${created.id}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setBusy(false);
@@ -226,6 +241,7 @@ export default function CreatePage() {
       picked,
       cover,
       uploads,
+      router,
     ],
   );
 

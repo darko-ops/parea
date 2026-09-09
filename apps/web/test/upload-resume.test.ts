@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { browserDeps, describe as describeFile, restore, sourceKey } from '../src/upload/browser';
+import { __resetHandoff, lend, peek, release } from '../src/upload/handoff';
 
 const live = (name: string) =>
   new File([new Uint8Array([1, 2, 3, 4])], name, {
@@ -96,6 +97,61 @@ let handles: Record<string, File>;
 
 beforeEach(() => {
   handles = {};
+  __resetHandoff();
+});
+
+/**
+ * The shelf the create page leaves photos on, and the reason reading it does
+ * not empty it.
+ *
+ * These are unit tests for a two-line module because the one-line version of
+ * it shipped, passed every test, passed a manual check in a desktop browser,
+ * and went on losing every photo attached to a new event on a phone. What it
+ * got wrong was not the storing — it was who is allowed to take.
+ */
+describe('handing photos from the page that picked them', () => {
+  const eventId = 'ev';
+  const file = live('a.jpg');
+  const parked = () => new Map([['ev:a', file]]);
+
+  it('gives the handles to whoever asks', () => {
+    lend(eventId, parked());
+    expect(peek(eventId).get('ev:a')).toBe(file);
+  });
+
+  it('has nothing for an event nobody staged', () => {
+    expect(peek('other').size).toBe(0);
+  });
+
+  /**
+   * Strict Mode runs an effect, tears it down, and runs it again, and only the
+   * second run's work is kept. A read that emptied the shelf meant the first
+   * run took the photographs and the second — the one that matters — found
+   * nothing and fell back to handles the phone had already reclaimed.
+   */
+  it('survives a first reader whose work is thrown away', () => {
+    lend(eventId, parked());
+
+    const discarded = peek(eventId); // the mount that gets cancelled
+    expect(discarded.size).toBe(1);
+
+    const kept = peek(eventId); // the mount that keeps what it builds
+    expect(kept.get('ev:a'), 'still there for the run that counts').toBe(file);
+
+    release(eventId);
+    expect(peek(eventId).size, 'and only then let go').toBe(0);
+  });
+
+  it('does not hold somebody photographs for ever', () => {
+    lend(eventId, parked());
+    release(eventId);
+    expect(peek(eventId).size).toBe(0);
+  });
+
+  it('ignores an empty hand-over rather than parking nothing', () => {
+    lend('empty', new Map());
+    expect(peek('empty').size).toBe(0);
+  });
 });
 
 describe('source identity', () => {
@@ -299,6 +355,53 @@ describe('restoring after a reload', () => {
     expect(restored!.queue.pendingCount, 'the good one still runs').toBe(1);
   });
 
+  /**
+   * The create page's handoff — the bug that lost every photo attached to a
+   * new event.
+   *
+   * `stage` writes the handles to IndexedDB and the event page reads them
+   * back, which is sound on a browser that keeps lending the bytes and useless
+   * on one that does not. An iOS photo picked from the library is a temp copy
+   * the OS keeps for the document that asked; the stored clone points at the
+   * same loan, so it dies with the document that made it. The live handle is
+   * carried in memory instead — see `upload/handoff.ts` — and preferred here.
+   */
+  it('prefers a handle still on loan over the copy read back from storage', async () => {
+    const a = live('a.jpg');
+    const state = stateFor([a]);
+    // What the database gives back after the document that picked it is gone.
+    handles[state.items[0]!.id] = dead('a.jpg');
+
+    const lent = new Map([[state.items[0]!.id, a]]);
+    const restored = await restore('ev', fakeStore(handles, state), { lent });
+
+    expect(restored!.stale, 'nothing to pick again').toHaveLength(0);
+    expect(restored!.files.get(state.items[0]!.id)).toBe(a);
+    expect(restored!.queue.pendingCount).toBe(1);
+  });
+
+  it('carries the photos even when storage never held them', async () => {
+    // Private browsing: the state record survived, the file records were never
+    // written. Before the handoff this was a stale item and a lost photo.
+    const a = live('a.jpg');
+    const state = stateFor([a]);
+    const lent = new Map([[state.items[0]!.id, a]]);
+
+    const restored = await restore('ev', fakeStore({}, state), { lent });
+    expect(restored!.stale).toHaveLength(0);
+    expect(restored!.queue.pendingCount).toBe(1);
+  });
+
+  it('still gives up on a lent handle that is itself dead', async () => {
+    // The loan can end before the next page reads it — a real reload rather
+    // than a client navigation. Being in memory is not proof of being alive.
+    const state = stateFor([live('a.jpg')]);
+    const lent = new Map([[state.items[0]!.id, dead('a.jpg')]]);
+
+    const restored = await restore('ev', fakeStore({}, state), { lent });
+    expect(restored!.stale).toHaveLength(1);
+  });
+
   it('treats a handle that vanished from the store the same way', async () => {
     // Storage eviction takes the file records; the state record is small
     // enough to survive, so the two can disagree.
@@ -382,7 +485,22 @@ describe('resuming survives an effect that runs twice', () => {
     // The flag being released is only safe because the cancelled invocation
     // checks before it touches anything.
     expect(hook).toMatch(/if \(cancelled\) return;/);
-    expect(hook).toMatch(/if \(cancelled \|\| !restored\) return;/);
+    expect(hook).toMatch(/if \(!restored\) return;/);
+  });
+
+  /**
+   * The handles are read before that check and let go after it.
+   *
+   * Reading is safe for a run that will be cancelled; letting go is not. This
+   * used to be one call that did both, so the cancelled invocation walked off
+   * with the photographs and the surviving one restored from a database full
+   * of handles the phone had already reclaimed.
+   */
+  it('lets go of the handed-over photos only once past the cancel check', () => {
+    expect(hook).toMatch(/const lent = peek\(eventId\);/);
+    const guard = hook.indexOf('if (cancelled) return;');
+    expect(hook.indexOf('const lent = peek(eventId);')).toBeLessThan(guard);
+    expect(hook.indexOf('release(eventId);')).toBeGreaterThan(guard);
   });
 });
 

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QueueItem, QueueState, UploadQueue } from '@parea/upload';
 
 import { browserDeps, describe, restore } from '@/upload/browser';
+import { lend, peek, release } from '@/upload/handoff';
 import { UploadStore } from '@/upload/store';
 
 export type UploadsView = {
@@ -78,6 +79,18 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
     if (started.current) return;
     started.current = true;
 
+    /*
+     * Read before the store is even opened, and deliberately not taken.
+     *
+     * These are the handles the create page was still holding when it handed
+     * over. Taking them here is what the first version did, and it broke under
+     * the double-invoked effect above: this run may be the one whose work gets
+     * thrown away at the `cancelled` check, and it must not walk off with the
+     * photographs on its way out. `release` happens below, once there is a
+     * queue worth keeping. See `upload/handoff.ts`.
+     */
+    const lent = peek(eventId);
+
     let cancelled = false;
     (async () => {
       // Everything below is best-effort. Private browsing, a blocked upgrade
@@ -89,8 +102,13 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       store.current = opened;
       if (!opened) return;
 
-      const restored = await restore(eventId, opened).catch(() => null);
-      if (cancelled || !restored) return;
+      const restored = await restore(eventId, opened, { lent }).catch(() => null);
+      if (cancelled) return;
+      // Past the last point this run can be discarded, so the handles have
+      // reached the queue that will actually send them — including when there
+      // was nothing to restore, which means no queue is coming for them.
+      release(eventId);
+      if (!restored) return;
 
       queue.current = restored.queue;
       files.current = restored.files;
@@ -121,19 +139,41 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
    * Hand the photos to the event and leave.
    *
    * The same enqueue as `add` and deliberately not the same finish: it writes
-   * the queue and the file handles into IndexedDB and returns, without
-   * uploading anything. The event page opens, finds the queue under its own
-   * id, and sends them — which is what makes "create it and you are looking at
-   * it" possible at all. `add` would upload here and then navigate away from
-   * the tab doing the work.
+   * the queue into IndexedDB and returns, without uploading anything. The
+   * event page opens, finds the queue under its own id, and sends them — which
+   * is what makes "create it and you are looking at it" possible at all. `add`
+   * would upload here and then navigate away from the tab doing the work.
    *
-   * The handles survive the navigation because they were never copies: a
-   * `File` structured-cloned into IndexedDB is a reference to something
-   * already on disk. See `upload/store.ts`.
+   * **The handles go through memory, not through the database.** They used to
+   * go only through IndexedDB, on the reasoning that a `File` cloned into it is
+   * a reference to something already on disk and therefore survives. The
+   * reference survives; the loan behind it does not. An iOS photo picked from
+   * the library is a temp copy the OS keeps alive for the document that asked,
+   * and `location.href` ended both the document and the copy — so every photo
+   * arrived at the event page unreadable, went `stale`, and was never sent.
+   *
+   * So `lend` parks the live handles for the next page, and the create page
+   * navigates client-side so there is a next page holding the same loan. The
+   * database write stays, because it is what survives a real reload — the case
+   * where the bytes genuinely are gone and the honest answer is to ask again.
    */
   const stage = useCallback(
     async (picked: File[], forEventId: string) => {
       if (picked.length === 0) return;
+
+      const described = picked.map((file) => describe(forEventId, file));
+
+      /*
+       * First, and before anything that can fail.
+       *
+       * The database is optional here and the handoff is not: private
+       * browsing, a blocked upgrade from another tab, or storage switched off
+       * all end with no store, and an early return on that used to mean
+       * leaving with the photos held by nobody. iOS Safari in private mode is
+       * both the browser most likely to refuse the database and the one whose
+       * handles most need carrying, so the order matters more than it looks.
+       */
+      lend(forEventId, new Map(described.map((d) => [d.item.id, d.file])));
 
       // Opened here rather than waited for. The store effect above is keyed on
       // the event id, and at this moment the id is one render old — the event
@@ -142,7 +182,6 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       store.current = opened;
       if (!opened) return;
 
-      const described = picked.map((file) => describe(forEventId, file));
       const { UploadQueue: Ctor } = await import('@parea/upload');
       const q = new Ctor(
         browserDeps({ eventId: forEventId, store: opened, files: new Map() }),
