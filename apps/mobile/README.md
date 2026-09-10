@@ -93,6 +93,21 @@ system maps app rather than embedding one — a map view is a native module
 nothing here can test, and handing the place to the maps app someone already
 uses gets them directions as well as a pin.
 
+Adding people to an album is here now, and it was the half of "private" the
+app could not do: you could make one, send the link and wait to be asked, but
+you could not ask anybody. `InvitePeople.tsx` is the picker — friends, plus
+anybody by handle — used twice, and the two callers do opposite things with
+what it holds. The create screen keeps the choice until there is an album to
+attach it to, because backing out of that form has to ask nobody. The event
+screen sends immediately, because the album is already there.
+
+Picking somebody asks them. The route writes an `open` invitation and nothing
+else, so the copy says asked rather than added: a host who could add people
+outright would be writing their guest list into somebody else's account. The
+count on screen is the one the server returned, not the number that was sent
+— it drops anybody it will not write and refuses to say which, because that
+would report whether each of them has blocked you.
+
 Finding people is not built, and is marked as such rather than left blank. It
 needs accounts, which §3 deliberately does not have: identity is a credential
 on a device, so there is nobody to look up. Building it is a decision about

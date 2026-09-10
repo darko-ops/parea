@@ -141,3 +141,75 @@ describe('somebody else’s albums, on their page', () => {
     expect(PERSON).toMatch(/album\.locked\s*\n?\s*\? 'Private'/);
   });
 });
+
+/**
+ * Asking people in, which is the half of "private" the app could not do.
+ *
+ * Private means added or let in, and only the second existed here: send the
+ * link, wait to be asked, answer. So an app-only account could make a private
+ * album that nobody could get into except by knocking on it.
+ */
+describe('adding people to an album', () => {
+  const PICKER = read('src/InvitePeople.tsx');
+
+  it('says that picking somebody asks them rather than adds them', () => {
+    /*
+     * The rule the screen has to say out loud, because "Add" reads as done:
+     * the route writes an `open` invitation and accepting is what grants
+     * access. A host who could add people outright would be writing their
+     * guest list into somebody else's account.
+     */
+    expect(PICKER).toMatch(/Nobody is put into an album by somebody else/);
+    expect(PICKER).toMatch(/They are asked, and they answer/);
+  });
+
+  it('reports the count the server returned, not the number it sent', () => {
+    // The route drops anybody it will not write and refuses to say which.
+    expect(PICKER).toMatch(/const \{ invited \} = await api\.invite\(/);
+    expect(PICKER).toMatch(/Asked \$\{invited\}/);
+  });
+
+  it('leaves who may be asked to the server', () => {
+    /*
+     * `/api/people` already hides each of two people from the other after a
+     * block, and the route checks again per person before it writes anything.
+     * A list assembled in the client would be a second copy of that decision,
+     * in the one place that cannot enforce it.
+     *
+     * Asserted as the api surface this file touches rather than by searching
+     * for the word: the header explains why blocks are not filtered here, and
+     * a test that cannot tell the explanation from the mistake fails on its
+     * own documentation.
+     */
+    // `api\n  .friends()` is one call written across two lines, so the
+    // whitespace has to be part of the pattern.
+    const used = [...PICKER.matchAll(/\bapi\s*\.\s*([a-zA-Z]+)\(/g)].map((m) => m[1]);
+    expect(used.length).toBeGreaterThan(0);
+    expect(new Set(used)).toEqual(new Set(['friends', 'findPeople', 'invite']));
+  });
+
+  it('debounces the search rather than spending a request per keystroke', () => {
+    // What is behind it walks the account table.
+    expect(PICKER).toMatch(/SEARCH_DELAY_MS/);
+    expect(PICKER).toMatch(/q\.length < 2/);
+  });
+
+  it('holds the choice on the create screen and sends it on the event screen', () => {
+    /*
+     * The same picker, opposite behaviour, and that is why `picked` is the
+     * caller's: backing out of the create form asks nobody, where a picker
+     * that sent as it went would leave a trail of invitations to an event that
+     * was never made.
+     */
+    expect(CREATE).toMatch(/<InvitePicker[\s\S]{0,120}picked=\{invitees\}/);
+    expect(CREATE).toMatch(/api\s*\n?\s*\.invite\(/);
+    expect(PICKER).toMatch(/export function InviteCard/);
+    expect(APP).toMatch(/<InviteCard api=\{api\} t=\{t\} eventId=\{event\.id\}/);
+  });
+
+  it('offers it on the event screen only to somebody who can administer', () => {
+    // A host's guest list, not a way for anybody in an album to pull people
+    // into it — the same gate the route applies.
+    expect(APP).toMatch(/feed\?\.event\.canAdminister && \(\s*\n\s*<InviteCard/);
+  });
+});

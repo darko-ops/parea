@@ -421,6 +421,43 @@ describe('a private album, on the wire', () => {
     expect(calls[0]!.init.body).toBeUndefined();
   });
 
+  it('asks people in by id, and reports what the server accepted', async () => {
+    /*
+     * The count comes back from the route rather than from the length of what
+     * was sent: it drops anybody it will not write — somebody either side of a
+     * block, an actor with no account, a person already asked — and refuses to
+     * say which, because that would report whether each one has blocked you.
+     */
+    const calls = respondTo({ invited: 2 });
+    expect(await new Api('https://api.test').invite('ev7', ['a1', 'a2', 'a3'])).toEqual({
+      invited: 2,
+    });
+    expect(calls[0]!.url).toBe('https://api.test/api/events/ev7/invites');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      actorIds: ['a1', 'a2', 'a3'],
+    });
+  });
+
+  it('drops the friend requests that ride along with the friends', async () => {
+    // `/api/friends` answers both in one payload. A guest list is not the
+    // place for somebody who has not answered whether they know you.
+    const calls = respondTo({
+      friends: [{ actorId: 'a1', handle: 'wren', displayName: null }],
+      requests: [{ actorId: 'a9', handle: 'nope', displayName: null }],
+    });
+    expect(await new Api('https://api.test').friends()).toEqual([
+      { actorId: 'a1', handle: 'wren', displayName: null },
+    ]);
+    expect(calls[0]!.url).toBe('https://api.test/api/friends');
+  });
+
+  it('survives a friends payload with nothing in it', async () => {
+    // The picker opens with this list and must not throw on an empty account.
+    respondTo({});
+    expect(await new Api('https://api.test').friends()).toEqual([]);
+  });
+
   it('changes who can see it through the endpoint the web changes it through', async () => {
     const calls = respondTo({ ok: true });
     await new Api('https://api.test').setAccessPolicy('ev7', 'private');

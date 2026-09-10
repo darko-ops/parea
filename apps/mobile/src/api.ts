@@ -249,6 +249,20 @@ export type ProfileAlbum = {
   thumb: string | null;
 };
 
+/**
+ * Somebody who can be asked into an album.
+ *
+ * The shape `/api/friends` and `/api/people` both answer in, and deliberately
+ * thin: an id, a handle, a name if they chose one. No avatar, because neither
+ * endpoint sends one — a picker draws letters, which is the same fallback the
+ * rest of this app uses when a presigned URL has aged out.
+ */
+export type InvitablePerson = {
+  actorId: string;
+  handle: string | null;
+  displayName: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -581,13 +595,46 @@ export class Api {
    * narrowness the web search has, because it is the same endpoint. Being
    * findable leads to being able to ask and to nothing further.
    */
-  async findPeople(
-    query: string,
-  ): Promise<{ actorId: string; handle: string | null; displayName: string | null }[]> {
-    const { people } = await this.call<{
-      people: { actorId: string; handle: string | null; displayName: string | null }[];
-    }>(`/api/people?q=${encodeURIComponent(query)}`);
+  async findPeople(query: string): Promise<InvitablePerson[]> {
+    const { people } = await this.call<{ people: InvitablePerson[] }>(
+      `/api/people?q=${encodeURIComponent(query)}`,
+    );
     return people;
+  }
+
+  /**
+   * Your friends, which is the list a picker opens with.
+   *
+   * Search finds anybody by handle; this is the half somebody does not have to
+   * type. The endpoint answers pending requests in the same payload and they
+   * are dropped here: this is a guest list, and somebody who has not answered
+   * whether they know you is not on it.
+   */
+  async friends(): Promise<InvitablePerson[]> {
+    const { friends } = await this.call<{ friends: InvitablePerson[] }>('/api/friends');
+    return friends ?? [];
+  }
+
+  /**
+   * Asking people into an album.
+   *
+   * An offer and not a fact: the route writes `open` invitations, and
+   * accepting is what grants access — so this cannot put somebody into an
+   * album, only ask them. They answer in the bubble on Events.
+   *
+   * Fifty at a time, which the server enforces and this does not re-check:
+   * two copies of a limit disagree eventually, and the one that matters is the
+   * one holding the database.
+   *
+   * The answer is a count rather than a list, because the route refuses to say
+   * which of the people you named it accepted — that would report whether each
+   * one has blocked you.
+   */
+  invite(eventId: string, actorIds: string[]): Promise<{ invited: number }> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ actorIds }),
+    });
   }
 
   /**

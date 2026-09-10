@@ -36,7 +36,8 @@ import {
   View,
 } from 'react-native';
 
-import type { Api } from './api';
+import { InvitePicker } from './InvitePeople';
+import type { Api, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
 import { DetectedEvents } from './DetectedEvents';
 import { uploadCover } from './platform';
@@ -149,6 +150,16 @@ export function CreateEvent({
   const chosenOption = WHEN_OPTIONS.find((option) => option.id === when);
   /** Public unless the creator says otherwise — a forwarded link still works. */
   const [isPrivate, setIsPrivate] = useState(false);
+  /**
+   * Who gets asked, held until there is an album to ask them into.
+   *
+   * Nothing is sent from here: backing out of this form asks nobody, where a
+   * picker that sent as it went would leave a trail of invitations to an event
+   * that was never made. See `InvitePeople.tsx`.
+   */
+  const [invitees, setInvitees] = useState<InvitablePerson[]>([]);
+  /** What the server said it did with them, once it has said. */
+  const [asked, setAsked] = useState<number | null>(null);
 
   /**
    * One photograph, from the system picker.
@@ -228,12 +239,31 @@ export function CreateEvent({
         },
         url: `${webBase}/e/${created.linkToken}`,
       });
+
+      /*
+       * The invitations, after the share step is on screen rather than before.
+       *
+       * Sharing is the moment that matters here and it must not wait on a
+       * round trip that is about somebody else's Events tab. The count lands
+       * under the sheet when it lands; a failure says so there and costs the
+       * event nothing, because the event is made and asking again is one
+       * screen away.
+       */
+      if (invitees.length > 0) {
+        void api
+          .invite(
+            created.id,
+            invitees.map((person) => person.actorId),
+          )
+          .then(({ invited }) => setAsked(invited))
+          .catch(() => setAsked(-1));
+      }
     } catch {
       setError('Could not make the event. Try again in a moment.');
     } finally {
       setBusy(false);
     }
-  }, [api, cover, groupId, isPrivate, name, picked, place, webBase, when]);
+  }, [api, cover, groupId, invitees, isPrivate, name, picked, place, webBase, when]);
 
   /**
    * Tapping a run fills the name in rather than creating straight away.
@@ -310,6 +340,22 @@ export function CreateEvent({
               <Text style={[styles.actionText, { color: t.onAccent }]}>Send the link</Text>
             </Pressable>
           </View>
+
+          {/*
+            What happened to the people who were picked, said here because
+            this is the screen somebody is on when it lands. Never a spinner:
+            the invitations are in flight behind a sheet that is already
+            useful, and a pending row would make the share step look busy.
+          */}
+          {asked !== null && (
+            <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>
+              {asked < 0
+                ? 'Could not ask the people you picked. Add them from the event.'
+                : asked === 0
+                  ? 'Nobody new to ask.'
+                  : `Asked ${asked}. It is under their Events now.`}
+            </Text>
+          )}
 
           <Pressable onPress={() => onCreated(made.event)} accessibilityRole="button">
             <Text style={[styles.body, { color: t.accent, textAlign: 'center' }]}>
@@ -516,6 +562,16 @@ export function CreateEvent({
             found for them later, instead of asking them to scroll.
             &ldquo;Not sure yet&rdquo; is a real answer.
           </Text>
+
+          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+            WHO IS IN IT
+          </Text>
+          {/*
+            Above "who can see it" and not below it, because it is the answer
+            for most private albums: the link is the other way in, and this is
+            the one that does not depend on somebody forwarding anything.
+          */}
+          <InvitePicker api={api} t={t} picked={invitees} onChange={setInvitees} />
 
           <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
             WHO CAN SEE IT

@@ -52,6 +52,7 @@ import { AccountCard, GroupsTab, HomeTab, ProfileTab, SearchTab } from './src/Ev
 import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
+import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
@@ -1482,6 +1483,16 @@ function EventScreen({
                   </Text>
                 </View>
               </Pressable>
+            )}
+
+            {/*
+              The other door into a private album, and the one the app did not
+              have: somebody who made one could send the link and wait to be
+              asked, but could not ask anybody. Whoever can administer, on the
+              screen the album is already open on.
+            */}
+            {feed?.event.canAdminister && (
+              <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />
             )}
 
             {feed?.event.canAdminister && !feed.event.groupId && (
