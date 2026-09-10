@@ -13,6 +13,24 @@ can run without a device. The upload queue, which is the part worth testing
 most, is platform-free by design and lives in `@parea/upload` with its tests;
 everything else in `src/` imports Expo at module scope and needs a simulator.
 
+## The chrome
+
+The tab bar and the "have a link?" pill float: two capsules inset from the
+edges, clear of the home indicator, with the photographs running underneath
+them. Both are `BlurView` over `systemChromeMaterial`, which is the system's
+own tab-bar material and follows light and dark without either file asking
+which it is in.
+
+Two views per capsule, and the nesting is load-bearing: iOS clips a layer's
+shadow the moment `overflow: 'hidden'` is set, and the blur needs exactly that
+to be clipped into a capsule — so the outer view carries the shadow and the
+inner one carries the glass. `FLOAT_INSET`, `BUBBLE_BOTTOM` and
+`BUBBLE_HEIGHT` in `App.tsx` are shared by both, because two numbers meaning
+"the same distance from the edge" drift the first time one is nudged.
+
+This is the one place a `BlurView` belongs here — see the note on event cards
+below for the case where it does not.
+
 ## Three tabs
 
 **Events** — photo-led cards: a mosaic of the four most recent photos over a

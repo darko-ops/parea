@@ -1071,7 +1071,11 @@ type ButtonComponent = (props: {
 }) => React.ReactElement;
 
 const styles = StyleSheet.create({
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 40, gap: 14 },
+  /* 40pt of tail was not enough even before the chrome started floating: the
+     join pill and the tab bubble together stand about 135pt off the bottom, so
+     the last card on every tab ended underneath them and the scroll stopped
+     with it half-covered. This is that height plus a card's own margin. */
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: 150, gap: 14 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   headAction: { fontSize: 14, fontWeight: '600' },
   h1: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },

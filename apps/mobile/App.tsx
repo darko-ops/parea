@@ -14,6 +14,7 @@
  *   - QR and spoken codes as ways in.
  */
 
+import { BlurView } from 'expo-blur';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
@@ -560,44 +561,72 @@ export default function App() {
             wherever they happen to be.
           */}
           <Pressable
-            style={[styles.joinBar, { backgroundColor: t.card, borderColor: t.line }]}
+            style={styles.joinShell}
             onPress={() => setRoute({ screen: 'join' })}
             accessibilityRole="button"
             accessibilityLabel="Open an event from a link, a code or a QR code"
           >
-            <Text style={[styles.body, { color: t.accent }]}>
-              Have a link or a code? Open it
-            </Text>
+            <BlurView
+              intensity={BLUR_INTENSITY}
+              tint="systemChromeMaterial"
+              // Android-only, ignored on iOS: without it the platform draws a
+              // flat translucent fill rather than a blur.
+              blurMethod="dimezisBlurView"
+              style={[styles.joinBlur, { borderColor: t.line }]}
+            >
+              <Text style={[styles.body, { color: t.accent }]}>
+                Have a link or a code? Open it
+              </Text>
+            </BlurView>
           </Pressable>
 
-          <View style={[styles.tabBar, { backgroundColor: t.card, borderColor: t.line }]}>
-            {(
-              [
-                ['home', 'Events'],
-                ['groups', 'Groups'],
-                ['search', 'Find'],
-                ['profile', 'You'],
-              ] as [Tab, string][]
-            ).map(([id, label]) => (
-              <Pressable
-                key={id}
-                style={styles.tab}
-                onPress={() => setTab(id)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: tab === id }}
-                accessibilityLabel={label}
-              >
-                <Text
+          {/*
+            Two views for one bubble, and the nesting is not decoration: iOS
+            clips a layer's shadow the moment `overflow: 'hidden'` is set, and
+            the blur needs exactly that to be clipped into a capsule. So the
+            outer view carries the shadow and the inner one carries the blur.
+          */}
+          <View style={styles.tabShell}>
+            <BlurView
+              intensity={BLUR_INTENSITY}
+              tint="systemChromeMaterial"
+              blurMethod="dimezisBlurView"
+              style={[styles.tabBar, { borderColor: t.line }]}
+            >
+              {(
+                [
+                  ['home', 'Events'],
+                  ['groups', 'Groups'],
+                  ['search', 'Find'],
+                  ['profile', 'You'],
+                ] as [Tab, string][]
+              ).map(([id, label]) => (
+                <Pressable
+                  key={id}
                   style={[
-                    styles.tabLabel,
-                    { color: tab === id ? t.accent : t.dim },
-                    tab === id && styles.tabLabelActive,
+                    styles.tab,
+                    // Translucent, not the page colour: over a blur an opaque
+                    // fill reads as a patch stuck on the glass. See the note on
+                    // `tab` in the stylesheet.
+                    tab === id && { backgroundColor: dark ? '#ffffff1f' : '#0000000f' },
                   ]}
+                  onPress={() => setTab(id)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: tab === id }}
+                  accessibilityLabel={label}
                 >
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      { color: tab === id ? t.accent : t.dim },
+                      tab === id && styles.tabLabelActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </BlurView>
           </View>
         </>
       )}
@@ -1697,6 +1726,41 @@ function theme(dark: boolean) {
         dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff' };
 }
 
+/** How far the floating chrome sits from the screen's edges. */
+const FLOAT_INSET = 14;
+/** How far the tab bubble sits above the bottom, clear of the home indicator. */
+const BUBBLE_BOTTOM = 28;
+/**
+ * The bubble's own height, needed because the join pill above it is positioned
+ * from the bottom too and nothing is measuring anything at runtime: 8pt of
+ * padding either side of a 15pt-padded row around an 18pt label.
+ *
+ * Taller than the bar it replaced, which is the point of the shape — a system
+ * tab bar is a control you hit with a thumb without aiming, and 45pt of
+ * hairline-edged strip was a target you had to look at first.
+ */
+const BUBBLE_HEIGHT = 8 * 2 + 15 * 2 + 18;
+
+/**
+ * How much of what is behind the chrome comes through it.
+ *
+ * `systemChromeMaterial` is the system's own tab-bar material, so the tint
+ * follows light and dark without this file knowing which it is in. The
+ * intensity is the one number worth tuning by eye: lower and the photographs
+ * read through as mush, higher and the bubble stops being glass.
+ */
+const BLUR_INTENSITY = 55;
+
+/** Enough elevation to read as floating, not enough to look like a dialog. */
+const FLOAT_SHADOW = {
+  shadowColor: '#000',
+  shadowOpacity: 0.16,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  // Android draws no iOS shadow; this is the same claim in its own units.
+  elevation: 8,
+} as const;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   /* The event's name, and Share on the same line as it. A full-width button
@@ -1724,35 +1788,81 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
-  // Pinned above the tab bar rather than inside a tab: arriving from a link
-  // is how most people get here, and it should never be a tab away.
-  joinBar: {
+  /* The two floating controls, and why they are the same object twice.
+
+     Both used to be edges: the tab bar spanned the screen with a hairline on
+     top, and the join bar was a rounded slab pressed against it. Two different
+     shapes stacked at the bottom of every screen, neither of them the shape
+     iOS itself now uses — the system tab bar floats, clear of the edges and
+     clear of the home indicator, with the photographs running underneath it.
+
+     So they are one idiom now: the same inset, the same full rounding, the
+     same shadow. `FLOAT_INSET` is shared rather than typed twice, because two
+     numbers meaning "the same distance from the edge" drift the first time one
+     of them is nudged.
+
+     The shadow is what makes it read as floating; the blur is what makes it
+     read as glass rather than as a slab hovering over the page.
+
+     That blur is `expo-blur`, and it is the one place a `BlurView` belongs
+     here. The README's rule is about event *cards*, where a BlurView would
+     sample the white card behind it rather than the photographs — which is why
+     those use `blurRadius` on `expo-image` instead. Chrome is the opposite
+     case: sampling what is behind it is the entire job. */
+  /* The outer half of each pair: position and shadow, no clipping. */
+  joinShell: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 76,
-    borderRadius: 12,
+    left: FLOAT_INSET,
+    right: FLOAT_INSET,
+    // Clears the bubble below it. Both are measured from the bottom rather
+    // than stacked in flow, so this is the one place the arithmetic lives.
+    bottom: BUBBLE_BOTTOM + BUBBLE_HEIGHT + 10,
+    borderRadius: 999,
+    ...FLOAT_SHADOW,
+  },
+  /* The inner half: the glass, clipped to the capsule. */
+  joinBlur: {
+    borderRadius: 999,
+    overflow: 'hidden',
     borderWidth: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  tabBar: {
+  tabShell: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    // Room for the home indicator. A safe-area library would be exact; this
-    // is a constant that is right on every phone with one and slightly
-    // generous on the few without.
-    paddingBottom: 24,
-    paddingTop: 10,
+    left: FLOAT_INSET,
+    right: FLOAT_INSET,
+    bottom: BUBBLE_BOTTOM,
+    borderRadius: 999,
+    ...FLOAT_SHADOW,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 6 },
+  tabBar: {
+    /* Above the home indicator rather than padded around it.
+
+       The old bar reached the bottom of the screen and reserved 24pt inside
+       itself for the indicator — a constant standing in for a safe-area
+       library. Floating removes the guess: the whole bubble sits clear of that
+       strip, so a phone without an indicator loses nothing and one with it
+       needs no allowance. */
+    borderRadius: 999,
+    overflow: 'hidden',
+    borderWidth: 1,
+    flexDirection: 'row',
+    padding: 8,
+  },
+  /* Each tab is a capsule inside the capsule, which is what makes the selected
+     one legible without a second colour: the fill is the page's own background
+     showing through the bar, the way the system tab bar seats its selection. */
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 15, borderRadius: 999 },
   tabLabel: { fontSize: 14 },
   tabLabelActive: { fontWeight: '700' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
+  /* The two who-can-see-it pills, the same shape the create screen asks the
+     same question with — one control, one look, wherever it is asked. */
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: { borderWidth: 1, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14 },
+  pillText: { fontSize: 15 },
+  pillTextOn: { fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },
   buttonText: { fontSize: 16, fontWeight: '600' },
