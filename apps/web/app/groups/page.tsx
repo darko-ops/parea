@@ -44,6 +44,7 @@ import { currentActorId } from '@/session';
 import { Face } from '@/../app/components/Faces';
 import { GroupCover } from '@/../app/components/GroupCover';
 import { CreateGroupCard, NewGroupPanel } from '@/../app/components/CreateGroupCard';
+import { LeaveGroup } from '@/../app/components/LeaveGroup';
 
 export const dynamic = 'force-dynamic';
 
@@ -246,6 +247,15 @@ export default async function GroupsPage() {
                         View all {group.eventCount}
                       </a>
                     )}
+                    {/*
+                      Leaving, from the list rather than only from inside.
+
+                      It was in one place: the `···` on `/group/<id>`, which is
+                      the screen somebody is not on when the thought occurs.
+                      The thought arrives while looking at the rooms — so the
+                      answer stopped being "open the one you want out of".
+                    */}
+                    <LeaveGroup groupId={group.id} name={group.name} />
                   </div>
 
                   {/*

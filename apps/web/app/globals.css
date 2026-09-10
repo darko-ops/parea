@@ -1117,6 +1117,38 @@ button.secondary {
    under the heading: on this page it is the answer, not an aside. */
 .person-empty { margin: 0; padding: 28px 0; font-size: 15px; }
 
+/* Somebody's albums, on their profile.
+
+   A list of rows rather than the wall of covers the home screen draws, and
+   that is the point: half of these are albums the viewer cannot open, and a
+   locked row has no photograph in it. Rows make the two kinds the same object
+   with one of them dimmer, where cards would make the locked ones look like
+   pictures that failed to load. */
+.album-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.album-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--hairline);
+  border-radius: 14px; padding: 12px 14px;
+  color: inherit; text-decoration: none;
+}
+.album-card:hover { border-color: var(--accent-soft); }
+.album-cover {
+  flex: none; width: 52px; height: 52px; border-radius: 11px;
+  object-fit: cover; overflow: hidden; background: var(--accent-soft);
+}
+/* The locked one's square. Not a broken image and not a padlock: an empty
+   frame, which is what is actually being said. */
+.album-cover-empty {
+  display: block; width: 100%; height: 100%; border-radius: 11px;
+  background: repeating-linear-gradient(
+    -45deg, var(--hairline), var(--hairline) 2px, transparent 2px, transparent 7px
+  );
+}
+.album-what { flex: 1; min-width: 0; }
+.album-name { display: block; font-size: 15.5px; font-weight: 600; }
+.album-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--dim); }
+.album-locked .album-name { font-weight: 500; }
+
 /* A name that leads to the person.
 
    No styling of its own, and nothing on hover: `.people li:hover` already
@@ -2154,6 +2186,20 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
 .dots-body .menu-danger { color: #b3261e; }
+/* A sentence inside a menu, above the item it is about. Leaving a group reads
+   as though it might take the photographs with it, and somebody who believes
+   that will either never press it or press it and be frightened. */
+.dots-body .menu-note {
+  margin: 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; color: var(--dim);
+}
+/* The row's own menu sits beside `View all`, and only appears once the pointer
+   is on the row — on a touch screen there is no hover, so it is always there. */
+.group-row-menu { flex: none; }
+@media (hover: hover) {
+  .group-head-row .group-row-menu { opacity: 0; transition: opacity .12s ease; }
+  .group-head-row:hover .group-row-menu,
+  .group-head-row:focus-within .group-row-menu { opacity: 1; }
+}
 /* The conversation, as a pane rather than a column beside the photographs.
 
    It was 360px of thread on every screen whether anybody was talking or not,
