@@ -200,15 +200,27 @@ function EventCard({
           </Text>
         )}
         {/*
-          Who and when, and the when is the evening rather than the upload —
+          When first, then who — and at the same size as the host line above
+          it rather than a step larger.
+
+          The order is the change: the date is what tells one evening from
+          another on a wall of them, and a count of people is the same shape of
+          fact on every card, so leading with "6 people" put the interchangeable
+          half first. The when is the evening itself rather than the upload,
           except while it is being added to, where the recent thing *is* the
-          news. No caption here: a second sentence under the name is what made
+          news and takes the slot.
+
+          Sized with the host's name and handle because the three lines are one
+          block: a name, then two quiet facts about it. At `body` this line
+          competed with the title for the second-loudest thing on the card.
+
+          Still no caption here: a second sentence under the name is what made
           a photograph look like a listing.
         */}
-        <Text style={[styles.body, { color: t.dim }]} numberOfLines={1}>
-          {plural(event.memberCount, 'person', 'people')}
-          {live || date ? ' · ' : ''}
+        <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
           {live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : (date ?? '')}
+          {live || date ? ' · ' : ''}
+          {plural(event.memberCount, 'person', 'people')}
         </Text>
       </View>
     </Pressable>
