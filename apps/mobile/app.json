@@ -12,7 +12,8 @@
       "bundleIdentifier": "photos.parea",
       "associatedDomains": ["applinks:parea.photos"],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocalNetworkUsageDescription": "Load the app from the development server running on your own machine. The App Store build talks only to parea.photos and never asks for this."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,

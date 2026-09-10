@@ -8,6 +8,30 @@ npm install
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npm start
 ```
 
+`API_BASE` falls back to `http://localhost:3000`, which resolves from the iOS
+simulator; the LAN address above is for a real device, which cannot see your
+laptop's loopback.
+
+## Running it on a simulator or a phone
+
+`ios/` and `android/` are **generated, not written** — Continuous Native
+Generation, so `app.json` is the single source of the bundle id, the
+entitlements, the permission strings and the privacy manifest. Both are
+gitignored, and a change made in Xcode rather than in `app.json` is a change
+the next prebuild silently reverts.
+
+```
+brew install cocoapods            # system Ruby is too old for the gem
+npx expo prebuild --platform ios  # writes ios/, then runs pod install
+npm run ios                       # or open ios/Parea.xcworkspace and ⌘R
+```
+
+Two servers, or the app opens on a red screen: `npm start` here for Metro, and
+`npm run dev` in `apps/web` for the API. Scheme `Parea`, any simulator. A
+device build additionally needs a `DEVELOPMENT_TEAM` chosen under Signing &
+Capabilities — prebuild leaves it unset, because it is not in `app.json` and
+cannot be.
+
 `npm test` here covers the join path and the API client — the two things that
 can run without a device. The upload queue, which is the part worth testing
 most, is platform-free by design and lives in `@parea/upload` with its tests;

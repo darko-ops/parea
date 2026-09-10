@@ -29,8 +29,8 @@
   "scripts": {
     "start": "expo start",
     "icons": "node scripts/render-icons.mjs",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
