@@ -16,15 +16,16 @@
  * person, which is the last thing in this product that should be in an index.
  */
 
+import { dateLabel } from '@parea/cards';
 import { notFound, redirect } from 'next/navigation';
 
 import { PersonView } from '@/../app/components/PersonView';
 import { Shell } from '@/../app/components/Shell';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
-import { toCards } from '@/cards';
+import { coverSrc, toCards } from '@/cards';
 import { getDb } from '@/db';
-import { eventsWithBoth, profileFor } from '@/people';
+import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +80,30 @@ export default async function PersonPage({
    */
   if (person.standing === 'self') redirect('/account');
 
-  const shared = await eventsWithBoth(db, actorId, person.actorId);
+  const [shared, albums] = await Promise.all([
+    eventsWithBoth(db, actorId, person.actorId),
+    albumsBy(db, actorId, person.actorId),
+  ]);
+
+  /*
+   * Presigned here, where the storage client is. A locked album has no key to
+   * sign — `albumsBy` dropped it — so this loop cannot leak one by accident.
+   */
+  const shownTwice = new Set(shared.map((listing) => listing.id));
+  const albumCards = await Promise.all(
+    // An album they made that the viewer is also in is already a full card in
+    // the section above. Once, in the place that says more about it.
+    albums
+      .filter((album) => !shownTwice.has(album.id))
+      .map(async (album) => ({
+        id: album.id,
+        name: album.name,
+        locked: album.locked,
+        cover: await coverSrc(album.coverKey),
+        photoCount: album.photoCount,
+        date: dateLabel(album.eventDate ?? album.lastActiveAt),
+      })),
+  );
 
   return (
     <Shell>
@@ -98,6 +122,7 @@ export default async function PersonPage({
           // same builder: an event should not look like a different kind of
           // thing depending on which page it is on.
           events={await toCards(shared)}
+          albums={albumCards}
         />
       </main>
     </Shell>

@@ -19,8 +19,8 @@ import { NextResponse } from 'next/server';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { leadImage } from '@/cards';
-import { eventsWithBoth, profileFor } from '@/people';
+import { coverSrc, leadImage } from '@/cards';
+import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -40,7 +40,11 @@ export async function GET(
   const person = await profileFor(db, actorId, decodeURIComponent(handle));
   if (!person) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const shared = await eventsWithBoth(db, actorId, person.actorId);
+  const [shared, albums] = await Promise.all([
+    eventsWithBoth(db, actorId, person.actorId),
+    albumsBy(db, actorId, person.actorId),
+  ]);
+  const alsoShared = new Set(shared.map((listing) => listing.id));
 
   return NextResponse.json({
     person: {
@@ -67,6 +71,26 @@ export async function GET(
         lastActiveAt: listing.lastActiveAt,
         thumb: await leadImage(listing),
       })),
+    ),
+    /*
+     * Everything they made, which is how somebody asks their way into a
+     * private album without a link — see `albumsBy` for how little a locked
+     * row carries, and note that the locked ones have no cover key to sign
+     * rather than a cover this route declines to sign.
+     *
+     * Minus the ones already in `shared`, so the app draws each album once.
+     */
+    albums: await Promise.all(
+      albums
+        .filter((album) => !alsoShared.has(album.id))
+        .map(async (album) => ({
+          id: album.id,
+          name: album.name,
+          locked: album.locked,
+          photoCount: album.photoCount,
+          eventDate: album.eventDate,
+          thumb: await coverSrc(album.coverKey),
+        })),
     ),
   });
 }

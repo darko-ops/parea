@@ -12,8 +12,14 @@
  * and them* rather than about them: whether you are friends, and which events
  * you are both in.
  *
- * Nothing else, and the omissions are the design. No friend count, no count of
- * what they have made, no list of it, no mutual friends. §3's rule is that a
+ * And, since albums became public or private and nothing in between, the
+ * albums they made. This is the change: the page used to list nothing a
+ * stranger was not already in, and "go to their profile and ask" is now how
+ * somebody gets into a private album without a link, so the album has to be on
+ * the profile to be asked about. What is on it is bounded hard — see
+ * `albumsBy`, where a private album is a name and nothing else.
+ *
+ * Still no friend count, no total, no mutual friends. §3's rule is that a
  * person is findable enough to be *asked* and no further; a profile that grew
  * a number would make the search box a way to measure strangers. The one
  * number on the page counts the events *you* are in with them, which is a fact
@@ -36,8 +42,8 @@
  * cannot be found, it cannot be visited.
  */
 
-import { schema } from '@parea/core';
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { PRIVATE, schema } from '@parea/core';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { eventsFor, type EventListing } from './events';
@@ -217,6 +223,104 @@ export async function eventsWithBoth(
 
   const inCommon = new Set(theirs.map((row) => row.eventId));
   return mine.filter((listing) => inCommon.has(listing.id));
+}
+
+/**
+ * One album on somebody's profile, as much of it as the viewer may know.
+ *
+ * Two shapes in one type, and the flag says which. An unlocked album — public,
+ * or private with the viewer already in it — shows its cover and how many
+ * photographs are in it, all of which that viewer could see by opening it. A
+ * locked one is a name, a date and a button, because everything else is what
+ * they are asking for.
+ *
+ * No cover on a locked album, deliberately: a cover is a photograph out of the
+ * album, so drawing one would hand over a piece of the thing being withheld —
+ * and it is usually the best piece, since somebody chose it.
+ */
+export type ProfileAlbum = {
+  id: string;
+  name: string;
+  /** Private, and the viewer is not in it. Decides everything below. */
+  locked: boolean;
+  coverKey: string | null;
+  /** Null when locked. */
+  photoCount: number | null;
+  /** The album's own day, ISO, or null. Safe on a locked one: it is a date. */
+  eventDate: string | null;
+  lastActiveAt: string;
+};
+
+/**
+ * The albums this person made, as somebody else sees them.
+ *
+ * Theirs — `created_by` — rather than everything they are in. Being in
+ * somebody else's private album is that person's fact to disclose, and a
+ * profile that listed it would publish it on their behalf.
+ *
+ * Every album they made is listed, public and private both, which is the point
+ * of the page now: a private album that nobody can see exists is one nobody
+ * can ask to be let into, and asking is one of the two ways in. What differs
+ * is how much of it comes back, and the locked rows carry nothing but a name
+ * and a date.
+ *
+ * Empty for a signed-out viewer, and for either side of a block — the caller
+ * has already 404ed on both by the time this runs, and it returns nothing on
+ * its own account anyway rather than relying on that.
+ */
+export async function albumsBy(
+  db: Db,
+  viewerId: string | null,
+  theirActorId: string,
+): Promise<ProfileAlbum[]> {
+  if (!viewerId) return [];
+
+  const rows = await db
+    .select({
+      id: schema.events.id,
+      name: schema.events.name,
+      accessPolicy: schema.events.accessPolicy,
+      coverKey: schema.events.coverKey,
+      eventDate: schema.events.eventDate,
+      lastActiveAt: schema.events.lastActiveAt,
+      photoCount: sql<number>`(
+        select count(*)::int from "photo" p
+        where p.event_id = ${schema.events.id}
+          and p.status = 'ready' and p.deleted_at is null
+      )`,
+      /*
+       * Whether the viewer is already in. A participant row, or membership of
+       * the group the album belongs to — the same two facts `authorize` reads,
+       * so an album that opens is an album this page draws as open.
+       */
+      joined: sql<boolean>`(
+        exists (
+          select 1 from "event_participant" ep
+          where ep.event_id = ${schema.events.id} and ep.actor_id = ${viewerId}
+        ) or exists (
+          select 1 from "group_member" gm
+          where gm.group_id = ${schema.events.groupId} and gm.actor_id = ${viewerId}
+        )
+      )`,
+    })
+    .from(schema.events)
+    .where(
+      and(eq(schema.events.createdBy, theirActorId), isNull(schema.events.deletedAt)),
+    )
+    .orderBy(desc(schema.events.lastActiveAt));
+
+  return rows.map((row) => {
+    const locked = row.accessPolicy === PRIVATE && !row.joined;
+    return {
+      id: row.id,
+      name: row.name,
+      locked,
+      coverKey: locked ? null : row.coverKey,
+      photoCount: locked ? null : row.photoCount,
+      eventDate: row.eventDate,
+      lastActiveAt: row.lastActiveAt.toISOString(),
+    };
+  });
 }
 
 /**

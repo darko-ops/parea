@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
-import { eventsWithBoth, profileFor } from '@/people';
+import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { stripComments } from './support/source';
 
 const MIGRATIONS = fileURLToPath(
@@ -67,10 +67,10 @@ async function guest(handle: string | null = null) {
   return row!.id;
 }
 
-async function event(createdBy: string, name = 'Party') {
+async function event(createdBy: string, name = 'Party', accessPolicy = 'public') {
   const [row] = await db
     .insert(schema.events)
-    .values({ name, linkToken: newLinkToken(), createdBy })
+    .values({ name, linkToken: newLinkToken(), createdBy, accessPolicy } as never)
     .returning();
   return row!;
 }
@@ -258,14 +258,19 @@ describe('what the page looks like', () => {
 
   it('says which kind of nothing it is', () => {
     /*
-     * The two empty states are different sentences, not one sentence with a
-     * word swapped. "Yet" is a fact about the two of you and is likely to
-     * change; "Account Private" is the true answer to "why is this empty" for
-     * anybody else — and neither says how much is behind the door.
+     * "Account Private" is gone, and it had to go.
+     *
+     * It was the true answer while the page listed nothing a stranger was not
+     * already in: not that they have nothing, but that what somebody has made
+     * is theirs to send you a link to. The page lists their albums now — that
+     * is how somebody asks to be let into a private one — so the sentence
+     * would be a lie told directly under the list that contradicts it. What is
+     * left is the honest one: they have not made anything.
      */
     expect(VIEW).toMatch(
-      /standing === 'friends' \? 'No Events Available Yet' : 'Account Private'/,
+      /standing === 'friends' \? 'No Events Available Yet' : 'Nothing here yet'/,
     );
+    expect(VIEW).not.toMatch(/Account Private/);
   });
 
   it('sends you to your own profile rather than showing you a worse one', () => {
@@ -282,7 +287,7 @@ describe('what the page looks like', () => {
       ),
     );
     expect(NATIVE).toMatch(
-      /standing === 'friends' \? 'No Events Available Yet' : 'Account Private'/,
+      /standing === 'friends' \? 'No Events Available Yet' : 'Nothing here yet'/,
     );
   });
 });
@@ -345,5 +350,95 @@ describe('the events on somebody’s page', () => {
     await joins(mine.id, me);
 
     expect(await eventsWithBoth(db, me, me)).toEqual([]);
+  });
+});
+
+/**
+ * The albums on somebody's page, which is the other half of what private means.
+ *
+ * A private album has two doors: somebody adds you, or you ask and the person
+ * who made it lets you in. The second one needs the album to be findable
+ * without a link, and this list is where it is found — so the interesting
+ * assertions are not that it lists things, they are about how little a locked
+ * row is allowed to carry.
+ */
+describe('the albums on somebody’s page', () => {
+  it('lists what they made, public and private both', async () => {
+    const me = await person('me');
+    const them = await person('wren');
+    await event(them, 'Open weekend', 'public');
+    await event(them, 'Quiet weekend', 'private');
+
+    const albums = await albumsBy(db, me, them);
+    expect(albums.map((a) => a.name).sort()).toEqual(['Open weekend', 'Quiet weekend']);
+  });
+
+  it('hands over nothing but a name for a private one', async () => {
+    /*
+     * The whole risk of listing these. A cover is a photograph out of the
+     * album — usually the best one, since somebody chose it — so a locked row
+     * carrying one would hand over a piece of the thing being asked for.
+     */
+    const me = await person('me');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await db
+      .update(schema.events)
+      .set({ coverKey: 'events/cover.jpg' })
+      .where((await import('drizzle-orm')).eq(schema.events.id, shut.id));
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album).toMatchObject({ locked: true, coverKey: null, photoCount: null });
+  });
+
+  it('unlocks the same album for somebody who is in it', async () => {
+    const me = await person('me');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await joins(shut.id, me);
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album!.locked).toBe(false);
+  });
+
+  it('leaves a public one unlocked for a stranger', async () => {
+    // Public means anyone can see it. A profile that drew a door in front of
+    // one would be a second policy, disagreeing with `authorize`.
+    const me = await person('me');
+    const them = await person('wren');
+    await event(them, 'Open weekend', 'public');
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album!.locked).toBe(false);
+  });
+
+  it('lists only what they made, never what they are in', async () => {
+    // Being in somebody else's album is that person's fact to disclose, and a
+    // profile that listed it would publish it on their behalf.
+    const me = await person('me');
+    const them = await person('wren');
+    const other = await person('kit');
+    const elsewhere = await event(other, 'Not theirs to publish', 'private');
+    await joins(elsewhere.id, them);
+
+    expect(await albumsBy(db, me, them)).toEqual([]);
+  });
+
+  it('drops a deleted album', async () => {
+    const me = await person('me');
+    const them = await person('wren');
+    const gone = await event(them, 'Gone', 'public');
+    await db
+      .update(schema.events)
+      .set({ deletedAt: new Date() })
+      .where((await import('drizzle-orm')).eq(schema.events.id, gone.id));
+
+    expect(await albumsBy(db, me, them)).toEqual([]);
+  });
+
+  it('says nothing at all to a signed-out viewer', async () => {
+    const them = await person('wren');
+    await event(them, 'Open weekend', 'public');
+    expect(await albumsBy(db, null, them)).toEqual([]);
   });
 });

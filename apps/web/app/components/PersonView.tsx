@@ -13,6 +13,18 @@
  * their own profile already, and a second layout for the same kind of object
  * means reading the screen before reading the person.
  *
+ * ## Their albums, and the door on the locked ones
+ *
+ * Under the shared events, everything this person has made. A public one is a
+ * card that opens; a private one the viewer is not in is a name, a date and
+ * "Ask to join" — no cover, because a cover is a photograph out of the album
+ * and usually the best one.
+ *
+ * This is the profile's part of what private means. The other way in is a link
+ * somebody sent you; this is the way that works when nobody sent you anything,
+ * and it is why the album has to be listed at all. What it does *not* do is
+ * say how big it is, who is in it, or when anybody last added to it.
+ *
  * ## The events, and the two ways of having none
  *
  * The list is the viewer's own, filtered to the ones this person is also in —
@@ -46,6 +58,18 @@ import type { Standing } from '@/people';
 
 import { Avatar } from './Avatar';
 import { EventCard } from './EventCard';
+import { Face } from './Faces';
+
+export type ProfileAlbumCard = {
+  id: string;
+  name: string;
+  /** Private, and this viewer is not in it. */
+  locked: boolean;
+  cover: string | null;
+  /** Null on a locked album. */
+  photoCount: number | null;
+  date: string | null;
+};
 
 type Person = {
   actorId: string;
@@ -60,10 +84,13 @@ type Person = {
 export function PersonView({
   person,
   events,
+  albums,
 }: {
   person: Person;
   /** Events the viewer can see that this person is also in. */
   events: CardEvent[];
+  /** Everything this person made, minus the ones already drawn above. */
+  albums: ProfileAlbumCard[];
 }) {
   const [standing, setStanding] = useState<Standing>(person.standing);
   const [busy, setBusy] = useState(false);
@@ -178,30 +205,92 @@ export function PersonView({
 
       {error && <p className="panel-note">{error}</p>}
 
-      <section className="you-events">
-        <div className="you-events-head">
-          <h2>Events</h2>
-        </div>
-
-        {events.length > 0 ? (
+      {events.length > 0 && (
+        <section className="you-events">
+          <div className="you-events-head">
+            <h2>Events</h2>
+          </div>
           <div className="cards">
             {events.map((event) => (
               <EventCard key={event.id} event={event} />
             ))}
           </div>
-        ) : (
-          /*
-            The two empty states, and they are different sentences rather than
-            one sentence with a word swapped. Being told there is nothing *yet*
-            is a fact about the two of you; being told the account is private
-            is a fact about how this product works, and it is the true answer
-            to "why is this page empty" for somebody who is not a friend.
-          */
+        </section>
+      )}
+
+      {albums.length > 0 && (
+        <section className="you-events">
+          <div className="you-events-head">
+            <h2>{events.length > 0 ? 'Their other albums' : 'Albums'}</h2>
+          </div>
+          <ul className="album-list">
+            {albums.map((album) => (
+              <li key={album.id} className="album-row">
+                {/*
+                  A locked album goes to its door rather than to itself. Both
+                  hrefs are plain links: the page on the other end decides, and
+                  a button that POSTed from here would be a second copy of that
+                  decision in a place that cannot see the block.
+                */}
+                <a
+                  className={album.locked ? 'album-card album-locked' : 'album-card'}
+                  href={album.locked ? `/event/${album.id}/request` : `/event/${album.id}`}
+                >
+                  {/*
+                    `Face` rather than a bare `<img>`, for the reason it exists
+                    everywhere else on this page: a cover is presigned for an
+                    hour, so a tab left open long enough is holding a URL that
+                    has expired, and the browser's answer to that is the
+                    broken-image glyph. The empty frame stands in — which is
+                    also exactly what a locked album draws, since it has no
+                    cover to sign.
+                  */}
+                  <Face
+                    src={album.cover}
+                    size={52}
+                    className="album-cover"
+                    fallback={<span className="album-cover-empty" aria-hidden="true" />}
+                  />
+                  <span className="album-what">
+                    <span className="album-name">{album.name}</span>
+                    <span className="album-detail">
+                      {album.locked
+                        ? 'Private · ask to join'
+                        : [
+                            album.date,
+                            album.photoCount === null
+                              ? null
+                              : `${album.photoCount} ${
+                                  album.photoCount === 1 ? 'photo' : 'photos'
+                                }`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                    </span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {events.length === 0 && albums.length === 0 && (
+        /*
+          One empty state now, where there were two.
+
+          "Account Private" was the honest answer when a profile listed nothing
+          a stranger was not already in: not that they have nothing, but that
+          what somebody has made is theirs to send you a link to. Albums are
+          listed now, so that sentence would be a lie — the page has just shown
+          you everything they made, and there was none of it.
+        */
+        <section className="you-events">
           <p className="muted person-empty">
-            {standing === 'friends' ? 'No Events Available Yet' : 'Account Private'}
+            {standing === 'friends' ? 'No Events Available Yet' : 'Nothing here yet'}
           </p>
-        )}
-      </section>
+        </section>
+      )}
     </>
   );
 }

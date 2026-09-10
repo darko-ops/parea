@@ -117,6 +117,21 @@ export default function PrivacyPage() {
             about who just added forty photographs to their evening.
           </p>
 
+          <h3>The names of the albums you make</h3>
+          <p className="muted">
+            Your profile lists the albums you made, and anybody signed in can
+            see that list. A public one is listed the way it would be anywhere
+            &mdash; its cover, and how many photographs are in it. A private one
+            is listed by name only: no cover, no count, nobody who is in it, and
+            nothing about when it happened beyond its own date. What that gets
+            somebody is a button that asks you to let them in, which you answer.
+          </p>
+          <p className="muted">
+            This is how a private album is asked about by somebody you did not
+            send a link to, and it is the reason the name is there at all. If a
+            name is itself the private part, the name is the thing to change.
+          </p>
+
           <h3>A profile picture, if you add one</h3>
           <p className="muted">
             Optional, and shown beside your name. It is re-encoded on the way
