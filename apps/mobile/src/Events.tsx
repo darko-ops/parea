@@ -13,7 +13,7 @@
  * a year ago does not belong on a home screen.
  */
 
-import { metaFor, mosaicLayout } from '@parea/cards';
+import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -40,154 +40,197 @@ const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
 
 /**
- * The scrim over the blurred bleed.
+ * One event, led by the photograph it was given.
  *
- * A stack of bands rather than a gradient, because a gradient means
- * `expo-linear-gradient` and that is a native dependency added, unrendered and
- * untested, for one wash of white. The design's scrim runs from 62% to 88%
- * alpha over roughly sixty points — a narrow enough range that four steps are
- * indistinguishable from the real thing, and this needs no prebuild.
- */
-function Scrim({ tint }: { tint: string }) {
-  const bands = [0.62, 0.71, 0.8, 0.88];
-  return (
-    <View style={styles.fill} pointerEvents="none">
-      {bands.map((alpha) => (
-        <View key={alpha} style={{ flex: 1, backgroundColor: withAlpha(tint, alpha) }} />
-      ))}
-    </View>
-  );
-}
-
-/** `#rrggbb` plus an alpha, as the `#rrggbbaa` React Native accepts. */
-function withAlpha(hex: string, alpha: number): string {
-  const byte = Math.round(Math.min(1, Math.max(0, alpha)) * 255);
-  return `${hex}${byte.toString(16).padStart(2, '0')}`;
-}
-
-/**
- * The tile arrangement for a card's mosaic, as `flex` values.
+ * The same card the web draws, and it took the same route to get here: a
+ * mosaic of the four most recent photos over a strip whose background was
+ * those same photos again, mirrored and blurred, under a scrim. Handsome, and
+ * it made a wall of evenings look like a wall of listings — four thumbnails
+ * too small to recognise anybody in, plus a panel of chrome around them.
  *
- * The shape itself comes from `@parea/cards`, shared with the web card. It
- * used to be a hand-maintained copy here with a comment saying the web one had
- * to agree with it — which is not a mechanism, it is a hope. All that is left
- * on this side is turning column weights into the layout primitive React
- * Native has, and indices into the URLs this client happens to hold.
- */
-function layout(photos: string[]): { flex: number; column: string[] }[] {
-  return mosaicLayout(photos.length).map((col) => ({
-    flex: col.weight,
-    column: col.photos.map((i) => photos[i]!),
-  }));
-}
-
-/**
- * One event, led by its photos.
+ * What replaced them is one picture and the people. A tall cover, the faces of
+ * whoever was there overlapping its bottom edge, and two lines underneath. No
+ * border, no card, no strip: the photograph *is* the card.
  *
- * A name is a poor way to recognise a night out and the photos are a good one,
- * so most of the card is mosaic. Under it the detail strip has no dividing
- * line — the event's own colours bleed upward beneath the text: the same
- * images again, mirrored and blurred, under a scrim.
+ * The faces overlap on purpose. A row of circles floating below a picture
+ * reads as metadata; the same row half over it reads as who was there, which
+ * is how somebody actually recognises an evening.
  *
- * `blurRadius` on `expo-image` rather than a `BlurView` behind it. Blurring
- * the images themselves is what the web card does, it needs no extra native
- * module, and a BlurView here would be sampling a white card rather than the
- * photos — the wrong thing blurred.
+ * The photograph count is gone from the face of it and kept in the
+ * accessibility label, because "how many photographs" is a fact somebody
+ * navigating by screen reader has no other way to get.
  *
- * The counts still carry the card. "6 people, 88 photos" is the recruiting
- * device the concept names (§2), and it reads the same whether you are
- * deciding to open an event or to add to it. It is just no longer the only
- * thing on the card.
+ * `ago`, `dateLabel`, `isLive` and `CARD_FACES` come from `@parea/cards`. The
+ * words around them are this file's, and what is shared is the part that could
+ * ever disagree: two clients rounding "2 days ago" separately drift, and
+ * nothing fails when they do.
  */
 function EventCard({
   event,
-  meta,
+  now,
   t,
   onPress,
 }: {
   event: EventListing;
-  /** Precomputed so every card on screen agrees about what "now" was. */
-  meta: string;
+  /** One clock for every card on screen, so none disagree about the minute. */
+  now: Date;
   t: TabTheme;
   onPress: () => void;
 }) {
-  const columns = layout(event.mosaic);
+  const label = `${event.name}, ${plural(event.photoCount, 'photo')}`;
+
+  /*
+   * Nothing in it is a different card, not this card with the picture missing.
+   *
+   * What it has to do is get the first photograph out of somebody, so it is
+   * mostly a button, and the lens cluster is the argument for pressing it: two
+   * circles filled and the third one dashed and empty, the empty one being
+   * you.
+   *
+   * On the photograph count rather than on the cover. An event can have a
+   * cover and nothing in it yet — the host chose a picture before anybody
+   * added one — and leading with it would replace the only card in the product
+   * whose job is to ask with a card that says nothing.
+   */
+  if (event.photoCount === 0) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={[styles.empty, { backgroundColor: t.card, borderColor: t.line }]}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
+            {event.name}
+          </Text>
+          {event.caption && (
+            <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+              {event.caption}
+            </Text>
+          )}
+          <Text style={[styles.body, { color: t.dim }]}>{emptyLine(event.memberCount)}</Text>
+        </View>
+
+        <View style={styles.emptyLenses} pointerEvents="none">
+          <View style={[styles.emptyLens, { backgroundColor: EMPTY_LENSES[0] }]} />
+          <View style={[styles.emptyLens, { backgroundColor: EMPTY_LENSES[1] }]} />
+          <View style={[styles.emptyLens, styles.emptySlot, { borderColor: t.accent }]}>
+            <Text style={[styles.emptySlotMark, { color: t.accent }]}>＋</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  const live = isLive(event.lastActiveAt, now);
+  const faces = event.faces.slice(0, CARD_FACES);
+  const moreFaces = Math.max(0, event.memberCount - faces.length);
+  const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
+  const host = event.mine ? 'You' : event.creator.name;
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${event.name}, ${plural(event.memberCount, 'member')}, ${plural(event.photoCount, 'photo')}`}
-      style={[styles.event, { backgroundColor: t.card, borderColor: t.line }]}
-    >
-      {columns.length > 0 && (
-        <View style={styles.mosaic}>
-          {columns.map(({ flex, column }, i) => (
-            <View key={i} style={{ flex, gap: 2 }}>
-              {column.map((uri) => (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <View style={styles.cover}>
+        {event.cover && (
+          <Image
+            source={{ uri: event.cover.src }}
+            style={styles.coverShot}
+            contentFit="cover"
+            transition={120}
+          />
+        )}
+        {/*
+          Only while it is true, which is an hour — see `isLive`. A badge that
+          stays up all day is a badge nobody reads, and "being added to now" is
+          the one claim on this screen worth interrupting a photograph for.
+        */}
+        {live && (
+          <View style={[styles.liveTag, { backgroundColor: t.card }]}>
+            <View style={[styles.liveDot, { backgroundColor: t.accent }]} />
+            <Text style={[styles.liveText, { color: t.fg }]}>Being added to now</Text>
+          </View>
+        )}
+      </View>
+
+      {faces.length > 0 && (
+        <View style={styles.faces}>
+          {faces.map((face, i) => (
+            <View
+              key={`${face.actorId}-${i}`}
+              style={[styles.face, { borderColor: t.bg, backgroundColor: t.line }]}
+            >
+              {face.avatarUrl ? (
                 <Image
-                  key={uri}
-                  source={{ uri }}
-                  style={styles.tile}
+                  source={{ uri: face.avatarUrl }}
+                  style={styles.faceShot}
                   contentFit="cover"
-                  transition={120}
                 />
-              ))}
+              ) : (
+                <Text style={[styles.faceLetter, { color: t.dim }]}>
+                  {(face.name || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}
+                </Text>
+              )}
             </View>
           ))}
+          {moreFaces > 0 && (
+            <View style={[styles.face, styles.faceMore, { borderColor: t.bg, backgroundColor: t.line }]}>
+              <Text style={[styles.faceLetter, { color: t.dim }]}>+{moreFaces}</Text>
+            </View>
+          )}
         </View>
       )}
 
-      <View style={styles.eventBody}>
-        {columns.length > 0 && (
-          <>
-            {/*
-              Decorative. Inset past the edges so the blur has bleed and no
-              soft edge shows, and flipped so the colours meeting the text are
-              the ones from the bottom of the photos directly above.
-            */}
-            <View style={styles.bleed} pointerEvents="none">
-              {/*
-                One band per *column*, at the column's own width — not one per
-                photo at equal widths. The point of the effect is that the
-                colour under a piece of text is the colour of the photo
-                directly above it, and equal bands slide the hero's colour off
-                to the left of where it belongs.
-              */}
-              {columns.map(({ flex, column }, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: column[0]! }}
-                  style={{ flex, height: '100%' }}
-                  contentFit="cover"
-                  blurRadius={18}
-                />
-              ))}
-            </View>
-            <Scrim tint={t.card} />
-          </>
+      <View style={styles.under}>
+        <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
+          {event.name}
+        </Text>
+        {/*
+          Whose event it is, in their own two names — both, always. The name is
+          what somebody recognises and the handle is what is unique, so
+          printing one makes the reader guess which they have. On your own
+          events the name is "You": your own name read back at you on a wall of
+          your own evenings is the screen describing you to yourself.
+        */}
+        {(host || event.creator.handle) && (
+          <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+            {host}
+            {host && event.creator.handle ? '  ' : ''}
+            {event.creator.handle ? `@${event.creator.handle}` : ''}
+          </Text>
         )}
-
-        <View style={[styles.eventText, columns.length === 0 && styles.eventTextBare]}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
-              {event.name}
-            </Text>
-            <Text style={[styles.body, { color: t.dim }]} numberOfLines={1}>
-              {meta}
-            </Text>
-          </View>
-          {/*
-            A bare number. "88 photos" in a pill with an icon is three pieces
-            of furniture around one fact, and a column of numbers down the
-            right of the list is easier to read than any of them.
-          */}
-          <Text style={[styles.eventCount, { color: t.dim }]}>{event.photoCount}</Text>
-        </View>
+        {/*
+          Who and when, and the when is the evening rather than the upload —
+          except while it is being added to, where the recent thing *is* the
+          news. No caption here: a second sentence under the name is what made
+          a photograph look like a listing.
+        */}
+        <Text style={[styles.body, { color: t.dim }]} numberOfLines={1}>
+          {plural(event.memberCount, 'person', 'people')}
+          {live || date ? ' · ' : ''}
+          {live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : (date ?? '')}
+        </Text>
       </View>
     </Pressable>
   );
 }
+
+/**
+ * Who is in an event nobody has added to.
+ *
+ * Counted from the other side — "you and one other" rather than "2 people" —
+ * because this card is asking the person reading it to do something, and the
+ * sentence that asks is the one they are in. Same words as the web's.
+ */
+function emptyLine(memberCount: number): string {
+  const others = Math.max(0, memberCount - 1);
+  if (others === 0) return 'Just you so far. Nothing in it yet.';
+  if (others === 1) return 'You and one other. Nothing in it yet.';
+  return `You and ${others} others. Nothing in it yet.`;
+}
+
+/** Two of the mark's lenses, for the cluster on the card that has no photos. */
+const EMPTY_LENSES = ['#ffb3b8', '#9db2f0'] as const;
 
 /**
  * A clock that ticks once a minute, for the "20m ago" on each card.
@@ -307,15 +350,16 @@ export function HomeTab({
         </View>
       )}
 
-      {events.map((event, i) => (
+      {events.map((event) => (
         <EventCard
           key={event.id}
           event={event}
-          // Computed here, once, from a single `now`: formatting inside each
-          // card would let two cards rendered a tick apart disagree about
-          // where the minute boundary was. `newest` on the first only — at the
-          // top of the list "added to 20m ago" is what makes someone open it.
-          meta={metaFor(event, { newest: i === 0, now })}
+          // One clock, handed down: a card that read the time itself would let
+          // two cards rendered a tick apart disagree about where the minute
+          // boundary was. Every card shows the evening it happened on, and
+          // recency only while it is being added to — so there is no longer a
+          // "newest" case, which used to be the only row showing a time.
+          now={now}
           t={t}
           onPress={() => onOpen(event)}
         />
@@ -506,32 +550,20 @@ function groupMeta(group: MyGroupDetail): string {
   const parts = [plural(group.eventCount, 'event'), plural(group.memberCount, 'person', 'people')];
   // Only when there is something to have been active about. "added to never"
   // is a sentence about an absence the count before it already states.
-  if (group.lastActiveAt) parts.push(`added to ${ago(group.lastActiveAt)}`);
-  return parts.join(' · ');
-}
-
-/**
- * How long ago, roughly.
- *
- * Computed on the device, unlike the web's, and that is the right call here
- * rather than an inconsistency: there is no server-rendered HTML to disagree
- * with, so nothing can mismatch — and a screen somebody leaves open should
- * update when they pull to refresh rather than showing the age it had when the
- * response was written.
- */
-function ago(iso: string): string {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (days <= 0) {
-    const hours = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
-    if (hours < 1) return 'just now';
-    return `${hours}h ago`;
+  /*
+   * The shared rounding, not a second one.
+   *
+   * This file had its own `ago` — days, then "yesterday", then weeks — written
+   * before the card imported the shared one, and two of them in one file is
+   * how "3 days ago" comes to mean two different spans in one product. The
+   * strings shift slightly here as a result ("20m ago" where it used to say
+   * "just now" for anything under an hour), which is the shared function being
+   * more precise rather than this line being wrong.
+   */
+  if (group.lastActiveAt) {
+    parts.push(`added to ${ago(new Date(group.lastActiveAt), new Date())}`);
   }
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return plural(weeks, 'week') + ' ago';
-  const months = Math.floor(days / 30);
-  return plural(months, 'month') + ' ago';
+  return parts.join(' · ');
 }
 
 export function SearchTab({
@@ -1125,34 +1157,65 @@ const styles = StyleSheet.create({
   headAction: { fontSize: 14, fontWeight: '600' },
   h1: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
-  // Rounded, tall, one per row: the shape people scroll through.
-  event: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  mosaic: { flexDirection: 'row', gap: 2, height: 132 },
-  tile: { flex: 1, width: '100%', backgroundColor: '#8881' },
-  eventBody: { position: 'relative', overflow: 'hidden' },
-  /* Inset past every edge so the blur has bleed and no soft edge shows. */
-  bleed: {
-    position: 'absolute',
-    top: -24,
-    left: -24,
-    right: -24,
-    bottom: -24,
-    flexDirection: 'row',
-    transform: [{ scaleY: -1 }],
+  /* The photograph is the card: no border, no panel, no strip of chrome. What
+     used to be `event` was a bordered box around a mosaic and a detail strip;
+     what is left is a tall picture, some faces over its edge, and two lines. */
+  cover: { borderRadius: 18, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
+  coverShot: { width: '100%', height: '100%' },
+  /* Over the picture's bottom edge, not under it — see the note on the card.
+     The negative margin is the overlap, and the row sits above the text it
+     shares a column with. */
+  faces: { flexDirection: 'row', marginTop: -18, marginLeft: 14, marginBottom: 2 },
+  face: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    marginRight: -8,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  eventText: {
+  faceShot: { width: '100%', height: '100%' },
+  faceLetter: { fontSize: 12, fontWeight: '700' },
+  faceMore: { paddingHorizontal: 2 },
+  under: { paddingHorizontal: 4, paddingTop: 8, gap: 2 },
+  /* Small, quiet, and on the picture rather than beside the title: it is true
+     for an hour and it is about the photographs, not about the event. */
+  liveTag: {
+    position: 'absolute',
+    left: 12,
+    top: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
+    gap: 7,
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 999,
   },
-  /* No mosaic above it, so the strip carries the whole card and needs the
-     breathing room the photos would otherwise have given it. */
-  eventTextBare: { paddingVertical: 18 },
-  eventCount: { fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  liveDot: { width: 7, height: 7, borderRadius: 4 },
+  liveText: { fontSize: 12.5, fontWeight: '600' },
+  /* The card with nothing in it, which is mostly a button. Bordered, unlike
+     the one that leads with a photograph: there is no picture to give it an
+     edge, and a borderless block of text would not read as something to press. */
+  empty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  emptyLenses: { flexDirection: 'row', flex: 0 },
+  emptyLens: { width: 30, height: 30, borderRadius: 15, marginRight: -8 },
+  emptySlot: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptySlotMark: { fontSize: 13, fontWeight: '700' },
   eventName: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },

@@ -63,16 +63,33 @@ below for the case where it does not.
 
 ## Three tabs
 
-**Events** — photo-led cards: a mosaic of the four most recent photos over a
-detail strip whose background is those same photos again, mirrored and
-blurred, under a scrim. `blurRadius` on `expo-image` rather than a `BlurView`,
-because blurring the images is what the web card does and a BlurView here
-would be sampling the white card rather than the photos. Below that, what you
-can reach, most recently active first, as rounded cards
-carrying the two numbers that matter: how many people are in it and how many
-photos. "6 people, 88 photos" is the recruiting device the concept names (§2),
-and it reads the same whether you are deciding to open an event or to add to
-one.
+**Events** — the same card the web draws, and it took the same route here. It
+was a mosaic of the four most recent photos over a detail strip whose
+background was those photos again, mirrored and blurred, under a scrim:
+handsome, and it made a wall of evenings look like a wall of listings — four
+thumbnails too small to recognise anybody in, inside a panel of chrome.
+
+Now one picture and the people. A tall cover, the faces of whoever was there
+overlapping its bottom edge, and two lines under it: the name, whose it is in
+both their names, then "6 people · Fri 14 Mar". No border and no panel — the
+photograph is the card. The faces overlap deliberately: a row of circles
+floating below a picture reads as metadata, and the same row half over it
+reads as who was there.
+
+An event with no photographs is a different card rather than this one with the
+picture missing — mostly a button, with two filled lenses and a dashed empty
+one, the empty one being you. It is the only card in the product whose job is
+to get the first photograph out of somebody, so a cover chosen before anybody
+contributed does not get to replace it.
+
+The photograph count moved into the accessibility label: "how many
+photographs" is a fact somebody navigating by screen reader has no other way
+to get, and on screen it was a number competing with the picture.
+
+`ago`, `dateLabel`, `isLive` and `CARD_FACES` come from `@parea/cards`. The
+words around them are the app's; what is shared is the part that could ever
+disagree, which is the rounding — this file had a second `ago` of its own, and
+it is gone.
 
 **Find** — two halves that are different in kind. Group search reaches groups
 you are *not* in; it is the only discovery surface in the product and it

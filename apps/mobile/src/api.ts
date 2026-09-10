@@ -130,13 +130,45 @@ export type EventListing = {
   groupName: string | null;
   memberCount: number;
   photoCount: number;
+  /** People who actually put something in, which is a different number. */
+  contributorCount: number;
+  /** Uploaded and not through the deriver yet. */
+  arrivingCount: number;
   lastActiveAt: string;
+  /** The earliest photograph in it, ISO — what a card dates an evening by. */
+  firstPhotoAt: string | null;
+  /** The host's line under the name, or null. */
+  caption: string | null;
+  /** Yours, so the card can say "You" rather than your own name back at you. */
+  mine: boolean;
+  /**
+   * The one image the card leads with: the cover, or its newest photograph.
+   *
+   * `grid`-sized and presigned by the server — this client has no image secret
+   * and must not have one — so it stops resolving when the event's `cap_epoch`
+   * moves, along with everything else signed against it.
+   */
+  cover: { src: string; sources: { type: string; src: string }[] } | null;
+  /**
+   * The people in it, host first: whoever the card draws circles for.
+   *
+   * Four come back where the card draws three, so "and how many more" can be
+   * answered without a second request when two of them turn out to be the
+   * same person under two rows.
+   */
+  faces: { actorId: string; name: string; avatarUrl: string | null }[];
+  /** Whose event it is, in the two names the card prints together. */
+  creator: { name: string | null; handle: string | null; avatarUrl: string | null };
   /**
    * Signed thumbnail URLs, most recent first, at most four.
    *
    * Signed by the server: this client has no image secret and must not have
    * one. They expire with the event's `cap_epoch`, so rotating a link stops
    * the old thumbnails resolving along with everything else.
+   *
+   * The card leads with `cover` now rather than arranging these four, and this
+   * stays because the response still carries it — the field is what the
+   * `/api/events` mosaic was for, and nothing else reads it yet.
    */
   mosaic: string[];
 };

@@ -140,29 +140,42 @@ describe('an event looks like an event wherever it is listed', () => {
     }
   });
 
-  it('gets its mosaic shape from the shared function, wherever one is drawn', () => {
+  it('has nobody drawing a mosaic by hand, now that nobody draws one', () => {
     /*
      * The tile arrangement existed twice — once in the web card, once in the
      * native events tab — each with a comment saying the other one had to
-     * agree. Two copies and a comment is not a mechanism.
+     * agree. Two copies and a comment is not a mechanism, so it became
+     * `mosaicLayout` in `@parea/cards` and this test pointed at whoever drew.
      *
-     * The web card no longer draws a mosaic at all: Home leads with one cover
-     * per event, so there is one image and nothing to arrange. That leaves the
-     * phone as the only drawer, and this keeps the rule pointed at whoever is
-     * drawing rather than deleting it — the day the web grows a mosaic back,
-     * it imports the shared one like everybody else.
+     * Neither client draws one now. The web card led with a single cover
+     * first; the phone's card followed it, for the same reason — four
+     * thumbnails too small to recognise anybody in, under a panel of chrome,
+     * made a wall of evenings look like a wall of listings.
+     *
+     * So the rule inverts rather than being deleted. `mosaicLayout` stays
+     * exported as the one implementation to import, and what is checked is
+     * that neither client has quietly grown a second one: a local arrangement
+     * would compile, render, and disagree with nothing visible until the day
+     * the other client draws tiles again.
      */
-    const drawers = ['../../../apps/mobile/src/Events.tsx'];
-    for (const path of drawers) {
+    const clients = [
+      '../app/components/EventCard.tsx',
+      '../../../apps/mobile/src/Events.tsx',
+    ];
+    for (const path of clients) {
       const source = read2(path);
-      expect(source, `${path} does not use the shared layout`).toMatch(/mosaicLayout\(/);
-      // A locally declared one is the failure mode this is here to catch: it
-      // would compile, render, and silently disagree with the other clients.
       expect(source, `${path} declares its own layout`).not.toMatch(
         /function layout\([^)]*\)\s*:\s*\{\s*groups/,
       );
       expect(source, `${path} declares its own layout`).not.toMatch(
         /switch \(photos\.length\)/,
+      );
+      // And if either does draw tiles again, it is the shared shape or none:
+      // a `mosaic` in a client that never imports the layout is the copy this
+      // test exists to catch.
+      if (/\bmosaicLayout\b/.test(source)) continue;
+      expect(source, `${path} arranges tiles without the shared layout`).not.toMatch(
+        /styles\.mosaic\b|className="card-mosaic"/,
       );
     }
   });
