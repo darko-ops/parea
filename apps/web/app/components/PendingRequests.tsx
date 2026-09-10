@@ -24,8 +24,15 @@
  * goes as soon as the answer is sent, because whichever way it was answered the
  * question is dealt with. A failure puts it back and says so, rather than
  * leaving somebody looking at a list that has quietly not changed.
+ *
+ * And answering leaves you here. Accepting an invitation to an album used to
+ * navigate into it; three invitations meant being carried off after the first
+ * and coming back for the rest. The feed below picks the album up on the
+ * refresh — "You joined <name>", with a link — so it is one tap away rather
+ * than unavoidable.
  */
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 import type { PendingRequest, PendingRequestKind } from '@/requests';
@@ -79,6 +86,7 @@ function endpoint(request: PendingRequest): { url: string; body: Record<string, 
 export type WaitingRequest = PendingRequest & { when: string };
 
 export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(requests);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,12 +106,22 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
           body: JSON.stringify({ ...body, action }),
         });
         if (!res.ok) throw new Error('Could not answer that.');
-        // Accepting an invitation is the only answer that changes what is
-        // reachable, so it is the only one that needs the page rebuilt — and
-        // the place to rebuild it is the event that just opened.
-        if (yes && request.kind === 'invite') {
-          window.location.href = `/event/${request.eventId}`;
-        }
+        /*
+         * Accepting is not opening.
+         *
+         * This used to send you straight into the event, on the reasoning that
+         * accepting is the one answer that changes what is reachable and the
+         * place to rebuild the page is the thing that just opened. That is
+         * true and it is still the wrong move: somebody working down a list of
+         * three invitations was thrown out of the list by the first one, and
+         * had to come back to answer the other two.
+         *
+         * So the card goes and the page stays. Getting in is not lost — the
+         * server wrote the participant row and the capability, which is what
+         * puts the album on Home and puts "You joined <name>" in the feed
+         * below with a link straight to it.
+         */
+        if (yes && request.kind === 'invite') router.refresh();
         // The same reasoning for a group: accepting is the only answer that
         // changes what is reachable, and the place to rebuild the page is the
         // room that just opened.
@@ -117,7 +135,7 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
         setBusy(null);
       }
     },
-    [open],
+    [open, router],
   );
 
   /*

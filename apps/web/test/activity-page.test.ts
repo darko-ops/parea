@@ -71,11 +71,20 @@ describe('what is waiting on you', () => {
     expect(WAITING).toMatch(/setError\(/);
   });
 
-  it('still goes to the event when an invitation is accepted', () => {
-    // The only answer that changes what is reachable, so the only one that
-    // needs the page rebuilt — in the event that just opened.
-    expect(WAITING).toMatch(/kind === 'invite'/);
-    expect(WAITING).toMatch(/window\.location\.href = `\/event\/\$\{request\.eventId\}`/);
+  it('stays on the page when an invitation is accepted', () => {
+    /*
+     * It used to go straight into the event, on the reasoning that accepting
+     * is the one answer that changes what is reachable and the place to
+     * rebuild the page is the thing that just opened. Both halves are true and
+     * the move was still wrong: somebody with three invitations was carried
+     * off by the first and had to come back for the other two.
+     *
+     * The refresh is what replaces it. The server has already written the
+     * participant row and the capability, so rebuilding this page puts the
+     * album on Home and "You joined <name>" in the feed below, with a link.
+     */
+    expect(WAITING).toMatch(/kind === 'invite'\) router\.refresh\(\)/);
+    expect(WAITING).not.toMatch(/window\.location\.href = `\/event\//);
   });
 });
 
