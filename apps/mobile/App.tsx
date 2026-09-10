@@ -48,12 +48,13 @@ import {
   type Feed,
   type FeedPhoto,
 } from './src/api';
-import { AccountCard, GroupsTab, HomeTab, ProfileTab, SearchTab } from './src/Events';
+import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { ProfileScreen } from './src/Profile';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
@@ -141,7 +142,6 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [events, setEvents] = useState<EventListing[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  const [displayName, setDisplayName] = useState<string | null>(null);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -271,7 +271,6 @@ export default function App() {
     setRemembered([]);
     setGroups([]);
     setEvents([]);
-    setDisplayName(null);
     setSignedIn(false);
     setRoute({ screen: 'tabs' });
     setTab('home');
@@ -538,16 +537,11 @@ export default function App() {
             />
           )}
           {tab === 'profile' && (
-            <ProfileTab
+            <ProfileScreen
               api={api}
               events={events}
-              displayName={displayName}
               t={t}
               onOpen={openListing}
-              onRename={(next) => {
-                setDisplayName(next);
-                if (next) void api.setDisplayName(next).catch(() => {});
-              }}
               onSignedIn={() => {
                 // The account may speak for another device's actor, so what
                 // this person can reach has just changed.

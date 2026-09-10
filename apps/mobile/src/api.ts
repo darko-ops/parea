@@ -314,6 +314,23 @@ export type InvitablePerson = {
   avatar: string | null;
 };
 
+/**
+ * You, as your own profile draws you.
+ *
+ * `/api/account/session` has answered with all of this for as long as the web
+ * has had a profile page; the app asked for the same reply and declared only
+ * the address. `avatarUrl` is presigned for an hour — the storage key stays on
+ * the server — so it goes null on its own eventually and the letter is what
+ * takes its place.
+ */
+export type Account = {
+  email: string;
+  displayName: string | null;
+  bio: string | null;
+  handle: string | null;
+  avatarUrl: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -599,11 +616,57 @@ export class Api {
     return result;
   }
 
-  async account(): Promise<{ email: string } | null> {
-    const { account } = await this.call<{ account: { email: string } | null }>(
+  async account(): Promise<Account | null> {
+    const { account } = await this.call<{ account: Account | null }>(
       '/api/account/session',
     );
     return account;
+  }
+
+  /**
+   * The profile, changed.
+   *
+   * One route for all three fields, and each is optional: sending only what
+   * was edited means an empty bio typed by accident cannot clear a handle.
+   *
+   * The handle is the one that can be refused — malformed, reserved, or
+   * somebody else's — and the route answers those with a message written for a
+   * person. It is passed through rather than rewritten here, because the rule
+   * it broke is the route's to explain.
+   */
+  updateProfile(patch: {
+    displayName?: string | null;
+    bio?: string | null;
+    handle?: string | null;
+  }): Promise<{ ok?: boolean }> {
+    return this.call('/api/account', {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  /**
+   * Where a profile picture is sent, and with what.
+   *
+   * A target rather than a method, for the reason `coverTarget` is one: the
+   * bytes are a photograph off the camera roll and the native uploader streams
+   * them from disk instead of reading megabytes into JavaScript to hand back
+   * to the same operating system. The endpoint re-encodes whatever arrives —
+   * so a selfie's coordinates do not survive it — and reads the body as raw
+   * bytes, which is why the uploader must not wrap it in a form.
+   */
+  avatarTarget(): { url: string; headers: Record<string, string> } {
+    const headers: Record<string, string> = {
+      'content-type': 'image/jpeg',
+      'x-parea-client': this.client,
+    };
+    if (this.token) headers.authorization = `Bearer ${this.token}`;
+    return { url: `${this.baseUrl}/api/account/avatar`, headers };
+  }
+
+  /** Back to the letter. The file goes with it. */
+  removeAvatar(): Promise<unknown> {
+    return this.call('/api/account/avatar', { method: 'DELETE' });
   }
 
   /** Guideline 5.1.1(v): an app that makes accounts has to unmake them. */

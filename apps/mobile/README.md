@@ -99,8 +99,34 @@ is searching photos. The map half is the reverse — only events you are already
 in, arranged by where they were, so nothing is discovered and nothing is
 exposed that you could not already see.
 
-**You** — your name, your groups, and everything you are in. The name is the
-whole of a profile here; there is no account to log into.
+**You** — a profile, laid out the way profiles are laid out: the picture and
+three numbers on one line, then the name, the handle and the line somebody
+wrote about themselves, then one button that opens all of it for editing, and
+then a grid.
+
+It was a form until recently — a name field in a card, a paragraph explaining
+what the field was for, and two lists of events under headings — while
+`/api/account/session` had been answering with the picture, the handle and the
+bio all along.
+
+The grid is **albums, not photographs**, which is the one place it departs
+from the shape it borrows: a square of somebody's photographs is a wall of
+images with no way to tell one evening from another, and the unit here is the
+evening. Each tile leads with the cover its card leads with and carries the
+album's name across the bottom.
+
+The three numbers are albums, photographs and friends, and all three are facts
+about this person's own shelf — nothing on the page counts anything about
+anybody else, and the photograph number is the size of the shelf rather than a
+claim about who took what. A number that has not arrived is a dash, because
+"0 friends" is a claim.
+
+Editing sends only the fields that changed, so an empty bio typed by accident
+cannot clear a handle, and a refused handle repeats the route's own sentence:
+it knows whether the problem is the shape, a reserved word, or somebody else
+already having it. A new picture streams from disk through the same uploader a
+cover uses, and the endpoint re-encodes it — so a selfie taken at home does
+not carry the coordinates of the home.
 
 An event's place is typed by whoever starts it, and never derived. The obvious
 source is the photos and it is the one source that must not be used: §7.6
