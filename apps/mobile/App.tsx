@@ -512,6 +512,9 @@ export default function App() {
               onOpen={openListing}
               onRefresh={refreshEvents}
               onCreate={() => setRoute({ screen: 'create' })}
+              // The join screen's only way in, now that the pill above the tab
+              // bar is gone: a link, a QR code or a spoken phrase.
+              onOpenLink={() => setRoute({ screen: 'join' })}
               Button={Button}
             />
           )}
@@ -554,31 +557,6 @@ export default function App() {
               Button={Button}
             />
           )}
-
-          {/*
-            Above the tab bar and on every tab: being sent a link is how most
-            people arrive, and it should never be more than one tap away
-            wherever they happen to be.
-          */}
-          <Pressable
-            style={styles.joinShell}
-            onPress={() => setRoute({ screen: 'join' })}
-            accessibilityRole="button"
-            accessibilityLabel="Open an event from a link, a code or a QR code"
-          >
-            <BlurView
-              intensity={BLUR_INTENSITY}
-              tint="systemChromeMaterial"
-              // Android-only, ignored on iOS: without it the platform draws a
-              // flat translucent fill rather than a blur.
-              blurMethod="dimezisBlurView"
-              style={[styles.joinBlur, { borderColor: t.line }]}
-            >
-              <Text style={[styles.body, { color: t.accent }]}>
-                Have a link or a code? Open it
-              </Text>
-            </BlurView>
-          </Pressable>
 
           {/*
             Two views for one bubble, and the nesting is not decoration: iOS
@@ -1731,17 +1709,6 @@ const FLOAT_INSET = 14;
 /** How far the tab bubble sits above the bottom, clear of the home indicator. */
 const BUBBLE_BOTTOM = 28;
 /**
- * The bubble's own height, needed because the join pill above it is positioned
- * from the bottom too and nothing is measuring anything at runtime: 8pt of
- * padding either side of a 15pt-padded row around an 18pt label.
- *
- * Taller than the bar it replaced, which is the point of the shape — a system
- * tab bar is a control you hit with a thumb without aiming, and 45pt of
- * hairline-edged strip was a target you had to look at first.
- */
-const BUBBLE_HEIGHT = 8 * 2 + 15 * 2 + 18;
-
-/**
  * How much of what is behind the chrome comes through it.
  *
  * `systemChromeMaterial` is the system's own tab-bar material, so the tint
@@ -1788,18 +1755,15 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
-  /* The two floating controls, and why they are the same object twice.
+  /* One floating control, where there were two bars.
 
-     Both used to be edges: the tab bar spanned the screen with a hairline on
-     top, and the join bar was a rounded slab pressed against it. Two different
-     shapes stacked at the bottom of every screen, neither of them the shape
-     iOS itself now uses — the system tab bar floats, clear of the edges and
-     clear of the home indicator, with the photographs running underneath it.
-
-     So they are one idiom now: the same inset, the same full rounding, the
-     same shadow. `FLOAT_INSET` is shared rather than typed twice, because two
-     numbers meaning "the same distance from the edge" drift the first time one
-     of them is nudged.
+     The tab bar spanned the screen with a hairline on top, and a join pill sat
+     as a rounded slab pressed against it — two different shapes stacked at the
+     bottom of every screen, neither of them the shape iOS itself now uses. The
+     pill is gone entirely (its screen is a header action on Events now, where
+     somebody who has just been sent a link is looking), and what is left
+     floats: clear of the edges, clear of the home indicator, with the
+     photographs running underneath it.
 
      The shadow is what makes it read as floating; the blur is what makes it
      read as glass rather than as a slab hovering over the page.
@@ -1809,25 +1773,6 @@ const styles = StyleSheet.create({
      sample the white card behind it rather than the photographs — which is why
      those use `blurRadius` on `expo-image` instead. Chrome is the opposite
      case: sampling what is behind it is the entire job. */
-  /* The outer half of each pair: position and shadow, no clipping. */
-  joinShell: {
-    position: 'absolute',
-    left: FLOAT_INSET,
-    right: FLOAT_INSET,
-    // Clears the bubble below it. Both are measured from the bottom rather
-    // than stacked in flow, so this is the one place the arithmetic lives.
-    bottom: BUBBLE_BOTTOM + BUBBLE_HEIGHT + 10,
-    borderRadius: 999,
-    ...FLOAT_SHADOW,
-  },
-  /* The inner half: the glass, clipped to the capsule. */
-  joinBlur: {
-    borderRadius: 999,
-    overflow: 'hidden',
-    borderWidth: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
   tabShell: {
     position: 'absolute',
     left: FLOAT_INSET,

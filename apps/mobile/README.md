@@ -39,18 +39,24 @@ everything else in `src/` imports Expo at module scope and needs a simulator.
 
 ## The chrome
 
-The tab bar and the "have a link?" pill float: two capsules inset from the
-edges, clear of the home indicator, with the photographs running underneath
-them. Both are `BlurView` over `systemChromeMaterial`, which is the system's
-own tab-bar material and follows light and dark without either file asking
-which it is in.
+The tab bar floats: one capsule inset from the edges, clear of the home
+indicator, with the photographs running underneath it. `BlurView` over
+`systemChromeMaterial`, which is the system's own tab-bar material and follows
+light and dark without this file asking which it is in.
 
-Two views per capsule, and the nesting is load-bearing: iOS clips a layer's
-shadow the moment `overflow: 'hidden'` is set, and the blur needs exactly that
-to be clipped into a capsule — so the outer view carries the shadow and the
-inner one carries the glass. `FLOAT_INSET`, `BUBBLE_BOTTOM` and
-`BUBBLE_HEIGHT` in `App.tsx` are shared by both, because two numbers meaning
-"the same distance from the edge" drift the first time one is nudged.
+Two views for the one capsule, and the nesting is load-bearing: iOS clips a
+layer's shadow the moment `overflow: 'hidden'` is set, and the blur needs
+exactly that to be clipped into a capsule — so the outer view carries the
+shadow and the inner one carries the glass.
+
+There was a second capsule above it, a "have a link or a code?" pill on every
+tab. Being sent a link is how most people arrive, so it was never more than
+one tap away — and the price was a permanent second bar across the bottom of
+every screen for a door most people walk through once. Its screen is now
+`Open a link` in the Events header, beside `Start one`, which is where
+somebody holding a link they were just sent is already looking. That screen is
+still the only way to the QR scanner and the spoken phrase, so it keeps a way
+in rather than losing one.
 
 This is the one place a `BlurView` belongs here — see the note on event cards
 below for the case where it does not.

@@ -216,6 +216,7 @@ export function HomeTab({
   onOpen,
   onRefresh,
   onCreate,
+  onOpenLink,
   Button,
 }: {
   api: Api;
@@ -225,6 +226,8 @@ export function HomeTab({
   onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
+  /** The link, the QR code and the spoken phrase — all three doors, one screen. */
+  onOpenLink: () => void;
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
@@ -257,9 +260,26 @@ export function HomeTab({
       */}
       <View style={styles.headRow}>
         <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
-        <Pressable onPress={onCreate} accessibilityRole="button">
-          <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
-        </Pressable>
+        {/*
+          Two actions, and the order is the argument: most people arrive
+          holding a link somebody sent them, and the second one is the screen
+          that takes it — along with a QR code and a spoken phrase.
+
+          It used to be a pill of its own pinned above the tab bar, on every
+          tab. Being sent a link is how most people arrive, so it was never
+          more than one tap away — but the price was a permanent second bar
+          across the bottom of every screen, announcing a door most people
+          walk through once. It is one tap from here, which is where somebody
+          who has just been sent something is looking.
+        */}
+        <View style={styles.headActions}>
+          <Pressable onPress={onOpenLink} accessibilityRole="button">
+            <Text style={[styles.headAction, { color: t.accent }]}>Open a link</Text>
+          </Pressable>
+          <Pressable onPress={onCreate} accessibilityRole="button">
+            <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/*
@@ -280,7 +300,8 @@ export function HomeTab({
       {!loading && events.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Events you are sent, or make, show up here.
+            Nothing here yet. Events you are sent, or make, show up here — use
+            Open a link above for one somebody has sent you.
           </Text>
           <Button label="Create Event" onPress={onCreate} t={t} primary />
         </View>
@@ -1071,12 +1092,16 @@ type ButtonComponent = (props: {
 }) => React.ReactElement;
 
 const styles = StyleSheet.create({
-  /* 40pt of tail was not enough even before the chrome started floating: the
-     join pill and the tab bubble together stand about 135pt off the bottom, so
-     the last card on every tab ended underneath them and the scroll stopped
-     with it half-covered. This is that height plus a card's own margin. */
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 150, gap: 14 },
+  /* Room for the tab bubble, which floats over this rather than sitting under
+     it: 28pt of gap plus 64pt of bubble, and a card's own margin past that.
+     It was 150 while a second pill floated above the bubble, and 40 before
+     either — which was already too little, so the last card on every tab
+     ended up underneath the chrome. */
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  /* Two of them now, so they need a row of their own rather than each being a
+     child of the space-between. Wide enough apart to be two targets. */
+  headActions: { flexDirection: 'row', alignItems: 'baseline', gap: 18 },
   headAction: { fontSize: 14, fontWeight: '600' },
   h1: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
