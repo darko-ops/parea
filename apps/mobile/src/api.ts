@@ -40,6 +40,17 @@ export type Feed = {
     name: string;
     uploadsOpen: boolean;
     canAdminister: boolean;
+    /**
+     * Who can see it, as it stands: `public` or `private`.
+     *
+     * Sent to everybody rather than only to whoever can change it, on the same
+     * reasoning as the cover below — and because it is not a secret from the
+     * people in it. Somebody about to hand the link on is entitled to know
+     * whether it will work.
+     */
+    accessPolicy: 'public' | 'private';
+    /** People waiting to be let in. Zero for anyone who cannot answer them. */
+    waiting: number;
     /** The group this event belongs to, if it was rolled into one. */
     groupId: string | null;
     groupName: string | null;
@@ -75,6 +86,29 @@ export type Feed = {
  * `lastActiveAt` is null for a group nobody has put an event in yet, which the
  * screen says nothing about rather than rendering "never".
  */
+/** Somebody who can be put in a group: an account, with a face. */
+export type ClusterPerson = { actorId: string; name: string; avatarUrl: string | null };
+
+/**
+ * A set of people the actor keeps ending up in the same events as.
+ *
+ * Never a group, and the copy must never call it one — it is an observation
+ * about events that already happened, and nothing exists until somebody
+ * presses Create. See `recurringClusters` on the server for why the set is the
+ * exact shared-event set rather than an overlap.
+ */
+export type Cluster = {
+  key: string;
+  people: ClusterPerson[];
+  personIds: string[];
+  faces: { name: string; avatarUrl: string | null }[];
+  moreFaces: number;
+  /** "Priya, Tomás, Maya + 8 others" — worded by the server. */
+  names: string;
+  sharedEventCount: number;
+  suggestedName: string | null;
+};
+
 export type MyGroupDetail = {
   id: string;
   name: string;
@@ -198,10 +232,37 @@ export type SharedEvent = {
   thumb: string | null;
 };
 
+/**
+ * One album on somebody's page.
+ *
+ * Two shapes in one type and `locked` says which. Locked means private and
+ * this viewer is not in it: no thumbnail and no count, because those are what
+ * they are asking for. The only thing to do with a locked one is ask.
+ */
+export type ProfileAlbum = {
+  id: string;
+  name: string;
+  locked: boolean;
+  /** Null when locked. */
+  photoCount: number | null;
+  eventDate: string | null;
+  thumb: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    /**
+     * Whatever else came with the refusal.
+     *
+     * Almost every error in this product is a status and a word, and for a
+     * long time that was all this carried. `/api/join` is the exception: a
+     * link to a private album is refused *with* the album — its id and its
+     * name — because the refusal is a door somebody is meant to knock on, and
+     * a door has to say what it is the door to. See `Door.tsx`.
+     */
+    readonly body: Record<string, unknown> = {},
   ) {
     super(`${status} ${code}`);
   }
@@ -240,8 +301,11 @@ export class Api {
       throw new Offline();
     }
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new ApiError(res.status, body.error ?? 'unknown');
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        [key: string]: unknown;
+      };
+      throw new ApiError(res.status, body.error ?? 'unknown', body);
     }
 
     /*
@@ -266,6 +330,13 @@ export class Api {
   /**
    * All three doors, one endpoint: a pasted link, a scanned QR (which yields
    * the same token) and a spoken code.
+   *
+   * Three answers now rather than two. It resolves, or it is refused as
+   * unknown — or it is refused as `approval_required`, which is a real link to
+   * a private album whose creator has not let this person in. That one throws
+   * an `ApiError` carrying `{ event: { id, name } }`, and the app draws the
+   * door instead of the lie it used to tell ("couldn't find that", to somebody
+   * holding the right link).
    */
   join(input: { linkToken?: string; code?: string }): Promise<EventSummary> {
     return this.call<EventSummary>('/api/join', {
@@ -291,8 +362,8 @@ export class Api {
     startsAt?: string | null;
     endsAt?: string | null;
     createdByName?: string;
-    /** 'link_open' (public) or 'account_required' (private). Omitted means public. */
-    accessPolicy?: 'link_open' | 'account_required';
+    /** Two values and no others. Omitted means public. */
+    accessPolicy?: 'public' | 'private';
   }): Promise<{ id: string; name: string; linkToken: string; url: string; code: string | null }> {
     return this.call('/api/events', {
       method: 'POST',
@@ -526,8 +597,45 @@ export class Api {
    * device that never signed in, a merged actor, either side of a block — so
    * this cannot be used to ask whether somebody exists.
    */
-  person(handle: string): Promise<{ person: Person; shared: SharedEvent[] }> {
+  person(
+    handle: string,
+  ): Promise<{ person: Person; shared: SharedEvent[]; albums: ProfileAlbum[] }> {
     return this.call(`/api/people/${encodeURIComponent(handle)}`);
+  }
+
+  /**
+   * Who can see it, changed after the fact.
+   *
+   * The app could ask this once, on the create screen, and never again — which
+   * is the wrong way round: the choice is made in the first thirty seconds,
+   * before anybody has been sent anything, and what you want is obvious only
+   * once they have. Same endpoint the web's manage screen uses.
+   *
+   * Tightening evicts nobody. `authorize` reads participation before the
+   * policy, so switching to private stops new people rather than removing the
+   * ones already in — the screen says so, because "private" sounds like it
+   * should mean the opposite.
+   */
+  setAccessPolicy(eventId: string, accessPolicy: 'public' | 'private'): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ accessPolicy }),
+    });
+  }
+
+  /**
+   * Asking to be let into a private album.
+   *
+   * The other way in is somebody adding you. This is the one that works when
+   * nobody sent you anything: the album is on its creator's page, and this is
+   * the button under it. The answer is the status now standing, so an ask that
+   * repeats one already declined comes back `declined` rather than reopening
+   * it.
+   */
+  askToJoin(eventId: string): Promise<{ status?: string }> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}/access-requests`, {
+      method: 'POST',
+    });
   }
 
   /**
@@ -642,6 +750,34 @@ export class Api {
     return this.call<{ id: string; name: string }>('/api/groups', {
       method: 'POST',
       body: JSON.stringify({ fromEventId, name, findable }),
+    });
+  }
+
+  /**
+   * The people this actor keeps ending up in the same events as.
+   *
+   * Never cached on the device. It is derived from other people's presence at
+   * events, it changes whenever anybody joins one, and a stale copy would
+   * offer to make a group out of a set that has since become two.
+   */
+  clusters() {
+    return this.call<{ clusters: Cluster[]; also: ClusterPerson[] }>('/api/groups/clusters');
+  }
+
+  /**
+   * A group made from people rather than from an event.
+   *
+   * Separate from `createGroup` rather than a widened signature: the two do
+   * different things to other people. That one moves an event under a new
+   * group and leaves its participants to join in their own time; this one adds
+   * everybody in `memberIds` outright and tells them. A single function taking
+   * both would make the more consequential of the two the easier to reach by
+   * accident.
+   */
+  createGroupFrom(name: string, memberIds: string[]) {
+    return this.call<{ id: string; name: string }>('/api/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, memberIds }),
     });
   }
 

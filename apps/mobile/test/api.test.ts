@@ -379,6 +379,68 @@ describe('a person, on the wire', () => {
   });
 });
 
+/**
+ * A link to a private album, which resolves to a door rather than to a room.
+ *
+ * The failure this replaced was a lie the app told confidently: `/api/join`
+ * refused every denial as 404, so a correct link to a private album came back
+ * as "Couldn't find that. Check the link or the code and try again" — to
+ * somebody holding exactly the right link. They check it, find it is right,
+ * and try again.
+ */
+describe('a private album, on the wire', () => {
+  it('carries the album along with the refusal, so a door can name it', async () => {
+    vi.stubGlobal('fetch', async () =>
+      new Response(
+        JSON.stringify({
+          error: 'approval_required',
+          event: { id: 'ev7', name: 'Quiet weekend' },
+        }),
+        { status: 403 },
+      ),
+    );
+
+    const err = await new Api('https://api.test')
+      .join({ linkToken: TOKEN })
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.code).toBe('approval_required');
+    // The whole point of `body`: a door with no name on it is not a door.
+    expect(err.body.event).toEqual({ id: 'ev7', name: 'Quiet weekend' });
+  });
+
+  it('asks by posting to the album, and sends nothing else', async () => {
+    // No body at all. Who is asking is the bearer token, and the server reads
+    // it there — a name in the body would be a second answer to that.
+    const calls = respondTo({ status: 'open' });
+    expect(await new Api('https://api.test').askToJoin('ev7')).toEqual({
+      status: 'open',
+    });
+    expect(calls[0]!.url).toBe('https://api.test/api/events/ev7/access-requests');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(calls[0]!.init.body).toBeUndefined();
+  });
+
+  it('changes who can see it through the endpoint the web changes it through', async () => {
+    const calls = respondTo({ ok: true });
+    await new Api('https://api.test').setAccessPolicy('ev7', 'private');
+    expect(calls[0]!.url).toBe('https://api.test/api/events/ev7');
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      accessPolicy: 'private',
+    });
+  });
+
+  function respondTo(body: unknown, status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), { status });
+    });
+    return calls;
+  }
+});
+
 describe('failures', () => {
   it('keeps the status and the code, because the UI branches on both', async () => {
     // 404 is "no such event"; 403 blocked and 429 quota_exceeded both need

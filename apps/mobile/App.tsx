@@ -49,6 +49,7 @@ import {
 } from './src/api';
 import { AccountCard, GroupsTab, HomeTab, ProfileTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
+import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { PersonScreen } from './src/Person';
 import { arrivalFromUrl } from './src/links';
@@ -111,6 +112,14 @@ type Route =
   | { screen: 'tabs' }
   | { screen: 'join' }
   | { screen: 'event'; event: SavedEvent }
+  /**
+   * The door of a private album — a real link to one that has not let this
+   * person in. A screen rather than an error string on the join screen,
+   * because a deep link can arrive from anywhere: the app may be sitting
+   * inside another event or not running at all, and there would be no join
+   * screen to put the message on.
+   */
+  | { screen: 'door'; eventId: string; name: string }
   | { screen: 'group'; id: string }
   | { screen: 'person'; handle: string }
   | { screen: 'create'; groupId?: string; groupName?: string };
@@ -197,6 +206,22 @@ export default function App() {
         });
         return true;
       } catch (err) {
+        /*
+         * A private album. The link is right, and it is not a way in.
+         *
+         * The refusal carries the album — `{ event: { id, name } }` — because
+         * a door has to say what it is the door to, and the name is not news
+         * to somebody who was sent the link. Anything malformed falls through
+         * to the message below rather than opening a door with no name on it.
+         */
+        if (err instanceof ApiError && err.code === 'approval_required') {
+          const door = err.body.event as { id?: string; name?: string } | undefined;
+          if (door?.id) {
+            setRoute({ screen: 'door', eventId: door.id, name: door.name ?? 'This album' });
+            setJoinError(null);
+            return true;
+          }
+        }
         // A code needs an account, and saying "couldn't find that" would send
         // someone off to check a code that was correct.
         setJoinError(
@@ -425,6 +450,31 @@ export default function App() {
           t={t}
           onBack={() => setRoute({ screen: 'tabs' })}
           onOpenEvent={openListing}
+          Button={Button}
+        />
+      )}
+
+      {/*
+        The door, pushed over whatever was on screen when the link arrived.
+
+        Backing out goes to the tabs rather than to the join screen: somebody
+        who has asked is done here, and the place to wait is the list of
+        albums they are in — which is where the album appears if they are let
+        in.
+      */}
+      {route.screen === 'door' && (
+        <DoorScreen
+          api={api}
+          eventId={route.eventId}
+          name={route.name}
+          t={t}
+          onBack={() => setRoute({ screen: 'tabs' })}
+          // Approved between the link being sent and the button being pressed.
+          // Nothing to wait for, so the list is refreshed and the door closes.
+          onLetIn={() => {
+            void refreshEvents();
+            setRoute({ screen: 'tabs' });
+          }}
           Button={Button}
         />
       )}
@@ -752,6 +802,16 @@ function EventScreen({
   const [offerUpgrade, setOfferUpgrade] = useState(false);
   const [namingGroup, setNamingGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
+  /**
+   * Who can see it, while the change is in the air.
+   *
+   * Held here rather than read straight off the feed so the two pills answer
+   * the press immediately — one round trip is long enough for a tap to feel
+   * ignored — and reconciled by the refresh below. Null means "whatever the
+   * feed says", which is the state on every load.
+   */
+  const [policy, setPolicy] = useState<'public' | 'private' | null>(null);
+  const [policyError, setPolicyError] = useState<string | null>(null);
 
   useEffect(() => {
     void libraryAccess().then(setAccess);
@@ -762,6 +822,9 @@ function EventScreen({
   const refresh = useCallback(async () => {
     try {
       setFeed(await api.feed(event.id, event.linkToken));
+      // The server has spoken, so the local guess is no longer needed. Left
+      // standing, it would outrank a change made on another device.
+      setPolicy(null);
       setFeedError(null);
     } catch (err) {
       // Stale data beats an error screen over photos you already had, so a
@@ -1198,6 +1261,24 @@ function EventScreen({
                 : (feedError ?? 'Loading…')}
             </Text>
 
+            {/*
+              What the link does, beside the button that sends it.
+
+              The web says this inside its share panel; the app hands the link
+              to the system sheet, which has nowhere to put a sentence — so it
+              goes here, where somebody reads it immediately before tapping
+              Share. Only for a private album: on a public one the link does
+              the obvious thing, and a line saying so on every event is a line
+              that stops being read.
+            */}
+            {(policy ?? feed?.event.accessPolicy) === 'private' && (
+              <Text style={[styles.small, { color: t.dim }]}>
+                {feed?.event.canAdminister
+                  ? 'Private — whoever you send the link to can ask, and you answer.'
+                  : 'Private — the link lets somebody ask. Whoever made this album decides.'}
+              </Text>
+            )}
+
             {feed?.event.groupId && (
               <Pressable onPress={() => onOpenGroup(feed.event.groupId!)}>
                 <Text style={[styles.body, { color: t.accent }]}>
@@ -1258,6 +1339,96 @@ function EventScreen({
                 disabled={saving !== null}
                 t={t}
               />
+            )}
+
+            {/*
+              Who can see it, changeable here.
+
+              The app asked this once — two pills on the create screen — and
+              then never again, which is the wrong way round: the choice is
+              made in the first thirty seconds, before anybody has been sent
+              anything, and what you want is obvious only once they have. The
+              web grew a manage screen for it; the app has this screen, so it
+              is here.
+
+              Host only, because it decides what everybody else can reach. The
+              note under it is not decoration: "private" sounds like it should
+              throw people out, and it does not.
+            */}
+            {feed?.event.canAdminister && (
+              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+                <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
+                <View style={styles.pills}>
+                  {(
+                    [
+                      ['public', 'Public'],
+                      ['private', 'Private'],
+                    ] as ['public' | 'private', string][]
+                  ).map(([value, label]) => {
+                    const on = (policy ?? feed.event.accessPolicy) === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        onPress={async () => {
+                          if (on) return;
+                          setPolicy(value);
+                          setPolicyError(null);
+                          try {
+                            await api.setAccessPolicy(event.id, value);
+                            // Not because the pills need it — they answered the
+                            // press already — but because the sentence under
+                            // the link and the number waiting both change with
+                            // this, and they are read off the feed.
+                            await refresh();
+                          } catch {
+                            setPolicy(null);
+                            setPolicyError('Could not change that. Try again in a moment.');
+                          }
+                        }}
+                        style={[
+                          styles.pill,
+                          on
+                            ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
+                            : { borderColor: t.line, backgroundColor: t.card },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.pillText,
+                            on && styles.pillTextOn,
+                            { color: on ? t.accent : t.fg },
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.small, { color: t.dim }]}>
+                  {(policy ?? feed.event.accessPolicy) === 'private'
+                    ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
+                    : 'Anyone can see it, no account needed. Adding photos always needs one.'}
+                </Text>
+                {feed.event.waiting > 0 && (
+                  /*
+                    Said here rather than only in the bubble on Home, because
+                    this is the screen somebody is on when they turn private on
+                    and then wonder where the asking happens. Answered where
+                    they are, on the tab that already lists it.
+                  */
+                  <Text style={[styles.small, { color: t.accent }]}>
+                    {feed.event.waiting}{' '}
+                    {feed.event.waiting === 1 ? 'person is' : 'people are'} waiting to be
+                    let in — answer them on Events.
+                  </Text>
+                )}
+                {policyError && (
+                  <Text style={[styles.small, { color: t.dim }]}>{policyError}</Text>
+                )}
+              </View>
             )}
 
             {/*

@@ -201,7 +201,7 @@ export function CreateEvent({
         eventDate,
         startsAt: span?.startsAt ?? null,
         endsAt: span?.endsAt ?? null,
-        accessPolicy: isPrivate ? 'account_required' : 'link_open',
+        accessPolicy: isPrivate ? 'private' : 'public',
       });
       /*
        * Sent, not waited for.
@@ -523,8 +523,8 @@ export function CreateEvent({
           <View style={styles.pills}>
             {(
               [
-                [false, 'Anyone with the link'],
-                [true, 'Only people signed in'],
+                [false, 'Public'],
+                [true, 'Private'],
               ] as [boolean, string][]
             ).map(([value, label]) => {
               const on = isPrivate === value;
@@ -556,13 +556,14 @@ export function CreateEvent({
           </View>
           {/*
             Said as what it costs rather than as the name of a policy. Nobody
-            picking between two pills at a party is going to reason about
-            "account_required".
+            picking between two pills at a party is going to reason about an
+            access policy — and there are two of them now, which is the whole
+            reason this reads as a plain sentence either way.
           */}
           <Text style={[styles.small, { color: t.dim }]}>
             {isPrivate
-              ? 'The link still has to reach them, and they sign in before they see anything. For when the link may travel further than the guest list.'
-              : 'Whoever holds the link sees the photos, no account needed. Adding photos always needs one.'}
+              ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
+              : 'Anyone can see it, no account needed. Adding photos always needs one.'}
           </Text>
         </View>
       )}

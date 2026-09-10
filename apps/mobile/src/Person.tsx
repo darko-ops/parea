@@ -8,10 +8,14 @@
  * said in both places, not the same fields arriving.
  *
  * What it holds is a handle, whatever name they chose to show, their picture,
- * the one thing you can do about them, and the events you are both in. The
- * omissions are the design: no friend count, no event count, no list of what
- * they have made, no mutuals. Being findable leads to being able to ask and to
- * nothing further.
+ * the one thing you can do about them, the events you are both in, and the
+ * albums they made. The last of those is new and it is what "private" now
+ * rests on: an album nobody can see exists is one nobody can ask to be let
+ * into, and asking is one of the two ways in. A locked row carries a name and
+ * nothing else — see `albumsBy` on the server.
+ *
+ * The rest of the omissions stand: no friend count, no event count, no
+ * mutuals. Being findable leads to being able to ask and to nothing further.
  *
  * The events are the *viewer's* own, filtered to the ones this person is also
  * in. Every row was already in this app's own list a second ago, which is why
@@ -34,7 +38,7 @@ import {
   View,
 } from 'react-native';
 
-import type { Api, EventListing, Person, SharedEvent, Standing } from './api';
+import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import type { GroupTheme } from './Groups';
 
 /** What we call somebody: their name if they gave one, else the handle. */
@@ -74,6 +78,9 @@ export function PersonScreen({
 }) {
   const [person, setPerson] = useState<Person | null>(null);
   const [shared, setShared] = useState<SharedEvent[]>([]);
+  const [albums, setAlbums] = useState<ProfileAlbum[]>([]);
+  /** Album id → what the server said the last ask left standing. */
+  const [asked, setAsked] = useState<Record<string, string>>({});
   const [standing, setStanding] = useState<Standing>('none');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,6 +94,7 @@ export function PersonScreen({
         setPerson(body.person);
         setStanding(body.person.standing);
         setShared(body.shared);
+        setAlbums(body.albums ?? []);
         setError(null);
       })
       .catch(() => {
@@ -112,6 +120,29 @@ export function PersonScreen({
       setBusy(false);
     }
   }, [api, person]);
+
+  /**
+   * Asking to be let into one of their private albums.
+   *
+   * Optimistic about nothing: the row says what the server said, because a
+   * repeat ask on something already declined comes back `declined` rather than
+   * reopening it, and a screen that showed "Asked" over that would be pressing
+   * past somebody's no on their behalf.
+   */
+  const askToJoin = useCallback(
+    async (album: ProfileAlbum) => {
+      setBusy(true);
+      try {
+        const body = await api.askToJoin(album.id);
+        setAsked((was) => ({ ...was, [album.id]: body.status ?? 'open' }));
+      } catch {
+        setError('Could not ask just now. Try again in a moment.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [api],
+  );
 
   const answer = useCallback(
     async (yes: boolean) => {
@@ -216,14 +247,13 @@ export function PersonScreen({
            *
            * A friend with nothing shared is told it is not there *yet*, which
            * is a fact about the two of you and likely to change. Anybody else
-           * is told the account is private, which is the honest answer to "why
-           * is this empty": not that they have nothing, but that what somebody
-           * has made is theirs to send you a link to. Neither says how much is
-           * behind the door — over four hundred events and over none, it reads
-           * the same.
+           * used to be told the account was private — the honest answer while
+           * this screen listed nothing a stranger was not already in. Their
+           * albums are listed below now, so that sentence would contradict the
+           * list under it, and what is left is the plain one.
            */
           <Text style={[styles.body, { color: t.dim }]}>
-            {standing === 'friends' ? 'No Events Available Yet' : 'Account Private'}
+            {standing === 'friends' ? 'No Events Available Yet' : 'Nothing here yet'}
           </Text>
         ) : (
           shared.map((event) => {
@@ -257,6 +287,59 @@ export function PersonScreen({
           })
         )}
       </View>
+
+      {albums.length > 0 && (
+        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+          <Text style={[styles.label, { color: t.fg }]}>
+            {shared.length > 0 ? 'Their other albums' : 'Albums'}
+          </Text>
+          {albums.map((album) => {
+            const status = asked[album.id];
+            return (
+              <View key={album.id} style={styles.eventRow}>
+                {album.thumb ? (
+                  <Image source={{ uri: album.thumb }} style={styles.thumb} />
+                ) : (
+                  /*
+                    A locked album has no thumbnail to draw, and it is not a
+                    picture that failed: an empty square, which is what is
+                    actually being said. The letter stands in for an unlocked
+                    one that simply has no cover yet.
+                  */
+                  <View style={[styles.thumb, styles.faceBlank, { backgroundColor: t.line }]}>
+                    <Text style={[styles.small, { color: t.dim }]}>
+                      {album.locked ? '' : album.name.slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.eventText}>
+                  <Text style={[styles.body, { color: t.fg }]}>{album.name}</Text>
+                  <Text style={[styles.small, { color: t.dim }]}>
+                    {album.locked
+                      ? 'Private'
+                      : album.photoCount === null || album.photoCount === 0
+                        ? 'No photos yet'
+                        : `${album.photoCount} ${album.photoCount === 1 ? 'photo' : 'photos'}`}
+                  </Text>
+                </View>
+                {album.locked &&
+                  (status ? (
+                    <Text style={[styles.small, { color: t.dim }]}>
+                      {status === 'approved' ? 'Let in' : 'Asked'}
+                    </Text>
+                  ) : (
+                    <Button
+                      label="Ask to join"
+                      onPress={() => void askToJoin(album)}
+                      t={t}
+                      disabled={busy}
+                    />
+                  ))}
+              </View>
+            );
+          })}
+        </View>
+      )}
     </ScrollView>
   );
 }
