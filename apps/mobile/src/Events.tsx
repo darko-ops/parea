@@ -515,11 +515,71 @@ export function GroupsTab({
                 </Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.groupName, { color: t.fg }]} numberOfLines={1}>
-                  {group.name}
-                </Text>
+                <View style={styles.groupNameRow}>
+                  {/*
+                    `flexShrink` on the name, not on the stack: a long group
+                    name should ellipsize and leave the faces whole, where the
+                    default would squash three circles into slivers.
+                  */}
+                  <Text
+                    style={[styles.groupName, styles.groupNameText, { color: t.fg }]}
+                    numberOfLines={1}
+                  >
+                    {group.name}
+                  </Text>
+                  {/*
+                    Who is in it, beside the name — the same stack the web row
+                    draws, from the same three-faces-then-a-number rule on the
+                    server.
+
+                    It does not make the count in the line below redundant:
+                    the stack says *who* and the number says *how many*, and
+                    three circles cannot say eleven. People and never
+                    photographs, which is the line that keeps a group's row
+                    from showing anything out of a room it is merely the way
+                    into.
+                  */}
+                  {group.faces.length > 0 && (
+                    <View style={styles.groupFaces}>
+                      {group.faces.map((person, i) => (
+                        <View
+                          key={`${person.name}-${i}`}
+                          style={[
+                            styles.groupFace,
+                            { borderColor: t.bg, backgroundColor: t.line },
+                          ]}
+                        >
+                          {person.avatarUrl ? (
+                            <Image
+                              source={{ uri: person.avatarUrl }}
+                              style={styles.groupFaceShot}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Text style={[styles.groupFaceLetter, { color: t.dim }]}>
+                              {(person.name || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                      ))}
+                      {group.moreFaces > 0 && (
+                        <View
+                          style={[
+                            styles.groupFace,
+                            { borderColor: t.bg, backgroundColor: t.line },
+                          ]}
+                        >
+                          <Text style={[styles.groupFaceLetter, { color: t.dim }]}>
+                            +{group.moreFaces}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
                 <Text style={[styles.small, { color: t.dim }]}>{groupMeta(group)}</Text>
               </View>
+
               {/* Admin only. "Member" on every other row is a word that
                   appears so often it stops being read. */}
               {group.role === 'admin' && (
@@ -1231,6 +1291,25 @@ const styles = StyleSheet.create({
   rowFace: { width: 34, height: 34, borderRadius: 10, marginRight: 12 },
   rowFaceBlank: { alignItems: 'center', justifyContent: 'center' },
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  /* The name and the faces on one line, the name taking what is left. */
+  groupNameRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 0 },
+  groupNameText: { flexShrink: 1, minWidth: 0 },
+  /* Overlapped and ringed in the screen's own background, so the overlap
+     reads as depth rather than as one shape with bites out of it — the same
+     stack the event card draws, at the smaller size a row can carry. */
+  groupFaces: { flexDirection: 'row', flex: 0 },
+  groupFace: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    marginRight: -6,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupFaceShot: { width: '100%', height: '100%' },
+  groupFaceLetter: { fontSize: 9.5, fontWeight: '700' },
   groupTile: {
     width: 44, height: 44, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',

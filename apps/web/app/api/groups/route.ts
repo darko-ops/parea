@@ -16,7 +16,7 @@ import { findEventById, guard, isSignedIn, toResponse } from '@/access';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
-import { addMember, groupsFor, myGroups } from '@/groups';
+import { addMember, facesFor, groupsFor, myGroups } from '@/groups';
 import { notifyGroupAdded } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -47,8 +47,31 @@ export async function GET(request: Request) {
   const actorId = await currentActorId();
   const detail = new URL(request.url).searchParams.get('detail') === '1';
 
+  if (!detail) {
+    return NextResponse.json({ groups: await groupsFor(db, actorId) });
+  }
+
+  /*
+   * The faces, for the client that draws rows from this rather than rendering
+   * them on the server.
+   *
+   * The web's Groups page calls `myGroupsDetailed` directly and gets these
+   * plus an event strip; the app draws a row and needs the people and not the
+   * strip, so this asks for the half it uses. `facesFor` is the same function
+   * behind both, because "three, admins first, the rest as a number" written
+   * twice is a rule that eventually disagrees with itself.
+   *
+   * Only for groups this actor is in — `myGroups` is the list of those — so a
+   * door never carries faces. What a stranger may know about a findable group
+   * is its name and how many people are in it, and a stack of the members'
+   * pictures would be a roster on the outside of a room they have not been
+   * let into.
+   */
+  const groups = await myGroups(db, actorId);
   return NextResponse.json({
-    groups: detail ? await myGroups(db, actorId) : await groupsFor(db, actorId),
+    groups: await Promise.all(
+      groups.map(async (group) => ({ ...group, ...(await facesFor(db, group.id)) })),
+    ),
   });
 }
 

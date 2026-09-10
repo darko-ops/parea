@@ -396,6 +396,37 @@ export const GROUP_STRIP = 3;
 /** How many faces the stack beside a group's name shows. */
 export const GROUP_FACES = 3;
 
+/**
+ * The stack of member pictures beside a group's name, and the count behind it.
+ *
+ * Extracted because two clients draw it and the rule is not obvious: three
+ * faces, admins first — which is `groupPeople`'s own order — and everybody
+ * else as a number rather than a fourth circle. Written twice, the day one of
+ * them shows four is the day nobody notices.
+ *
+ * Pictures of *people*, which is the distinction that keeps this inside the
+ * rule about group tiles: a group has no cover and must never borrow a
+ * photograph from an event inside it, because that would show something from
+ * a room on the screen that is merely the way in. A member's own avatar is
+ * theirs, is already on their profile, and is what makes one room tell itself
+ * apart from another.
+ *
+ * URLs, not keys: `groupPeople` presigns.
+ */
+export async function facesFor(
+  db: Db,
+  groupId: string,
+): Promise<{ faces: { name: string; avatarUrl: string | null }[]; moreFaces: number }> {
+  const people = await groupPeople(db, groupId);
+  return {
+    faces: people.slice(0, GROUP_FACES).map((person) => ({
+      name: person.name,
+      avatarUrl: person.avatarUrl,
+    })),
+    moreFaces: Math.max(0, people.length - GROUP_FACES),
+  };
+}
+
 export async function myGroupsDetailed(
   db: Db,
   actorId: string | null,
@@ -407,17 +438,9 @@ export async function myGroupsDetailed(
     groups.map(async (group) => {
       const [events, people] = await Promise.all([
         groupArchive(db, group.id, actorId, since, GROUP_STRIP),
-        groupPeople(db, group.id),
+        facesFor(db, group.id),
       ]);
-      return {
-        ...group,
-        events,
-        faces: people.slice(0, GROUP_FACES).map((person) => ({
-          name: person.name,
-          avatarUrl: person.avatarUrl,
-        })),
-        moreFaces: Math.max(0, people.length - GROUP_FACES),
-      };
+      return { ...group, events, ...people };
     }),
   );
 }

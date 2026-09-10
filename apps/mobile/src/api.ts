@@ -116,6 +116,21 @@ export type MyGroupDetail = {
   memberCount: number;
   eventCount: number;
   lastActiveAt: string | null;
+  /**
+   * Up to three member pictures, admins first, presigned by the server.
+   *
+   * People, never photographs: a group has no cover of its own, and borrowing
+   * one from an event inside it would put something from a room on the screen
+   * that is only the way in. A member's own picture is theirs and is already
+   * on their profile.
+   *
+   * Only ever present for a group this actor is in, which is the only kind
+   * `/api/groups?detail=1` lists — a door carries a name and a count and
+   * nothing about who is behind it.
+   */
+  faces: { name: string; avatarUrl: string | null }[];
+  /** Everybody the three faces do not show. Zero draws no chip. */
+  moreFaces: number;
 };
 
 export type EventListing = {

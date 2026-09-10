@@ -82,13 +82,33 @@ describe('what the screen may do', () => {
     expect(EVENTS).toMatch(/A group is made from an event, not from nothing/);
   });
 
-  it('draws a letter, never a photograph', () => {
+  it('draws a letter and the members, never a photograph', () => {
+    /*
+     * The rule is about *the door*: a group has no picture of its own, and the
+     * only ones available are inside events that belong to it, so borrowing
+     * one would show a photograph from a room on the screen that is merely the
+     * way in — including to somebody who has since been removed.
+     *
+     * Member faces are not an exception to it. An avatar is a person's own
+     * picture, already on their profile, and it is what makes one room tell
+     * itself apart from another; a photograph out of somebody's evening is the
+     * thing being kept off this screen.
+     *
+     * So the check is not "no image at all" any more, it is "every image is a
+     * person". Written as every `uri:` in the tab, so a photograph smuggled in
+     * under some other field fails here rather than passing because it was not
+     * called `cover`.
+     */
     const tab = EVENTS.slice(
       EVENTS.indexOf('export function GroupsTab'),
       EVENTS.indexOf('export function SearchTab'),
     );
-    expect(tab).not.toMatch(/<Image|mosaic|uri:/);
+    expect(tab).not.toMatch(/mosaic|coverUrl|event\.cover/);
     expect(tab).toMatch(/groupTile/);
+
+    const sources = [...tab.matchAll(/uri:\s*([A-Za-z.]+)/g)].map((m) => m[1]);
+    expect(sources.length).toBeGreaterThan(0);
+    expect(new Set(sources)).toEqual(new Set(['person.avatarUrl']));
   });
 });
 
