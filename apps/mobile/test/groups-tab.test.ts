@@ -65,48 +65,70 @@ describe('the tab', () => {
 });
 
 describe('what the screen may do', () => {
-  it('does not offer to create a group', () => {
-    const tab = EVENTS.slice(
-      EVENTS.indexOf('export function GroupsTab'),
-      EVENTS.indexOf('export function SearchTab'),
-    );
+  const tab = EVENTS.slice(
+    EVENTS.indexOf('export function GroupsTab'),
+    EVENTS.indexOf('export function SearchTab'),
+  );
+
+  it('found the tab at all', () => {
+    // Every assertion below is over this slice, and a rename upstream would
+    // empty it and pass all of them silently.
     expect(tab).not.toBe('');
-    expect(tab).not.toMatch(/Create group|New group/);
-    // No POST of any kind: the only writes a group screen could make are
-    // joining and creating, and neither belongs on a list of rooms you are in.
+  });
+
+  it('offers to create a group, beside the people it would be made with', () => {
+    /*
+     * This assertion used to be the opposite — no create action, because a
+     * group is made from an event. What reversed it is the clusters: creation
+     * is offered next to the people it would gather, so it cannot produce the
+     * empty room the old rule existed to prevent.
+     *
+     * What survives is the *pairing*. A create control on this screen without
+     * the clusters beside it is the thing that was refused, so the guard is
+     * that the screen reads them.
+     */
+    expect(tab).toMatch(/New group/);
+    expect(tab).toMatch(/api\.clusters\(\)/);
+    expect(tab).toMatch(/<ClusterCard/);
+  });
+
+  it('still makes no request of its own to create one', () => {
+    // The call lives in `CreateGroup.tsx` behind the Create button, where
+    // `create-group.test.ts` pins it to exactly one. The tab holds which card
+    // is open and nothing else.
     expect(tab).not.toMatch(/method: 'POST'/);
   });
 
-  it('says where groups come from instead', () => {
+  it('says where groups come from when there is nothing to recognise', () => {
     expect(EVENTS).toMatch(/You are not in any groups yet/);
-    expect(EVENTS).toMatch(/A group is made from an event, not from nothing/);
+    expect(EVENTS).toMatch(/Groups are for the people who keep turning up/);
   });
 
-  it('draws a letter and the members, never a photograph', () => {
+  it('draws a group as a letter, never a photograph', () => {
     /*
      * The rule is about *the door*: a group has no picture of its own, and the
      * only ones available are inside events that belong to it, so borrowing
-     * one would show a photograph from a room on the screen that is merely the
-     * way in — including to somebody who has since been removed.
+     * one shows a photograph from a room on the screen that is merely the way
+     * in — including to somebody who has since been removed.
      *
-     * Member faces are not an exception to it. An avatar is a person's own
-     * picture, already on their profile, and it is what makes one room tell
-     * itself apart from another; a photograph out of somebody's evening is the
-     * thing being kept off this screen.
-     *
-     * So the check is not "no image at all" any more, it is "every image is a
-     * person". Written as every `uri:` in the tab, so a photograph smuggled in
-     * under some other field fails here rather than passing because it was not
-     * called `cover`.
+     * Cluster cards do draw faces, and that is not an exception to this: an
+     * avatar is a person's own picture, not a photograph out of somebody's
+     * evening. They live in `CreateGroup.tsx`, which is why the slice below
+     * stays clean — asserted here so that stays a reason rather than a
+     * coincidence that a later move would quietly undo.
      */
-    const tab = EVENTS.slice(
-      EVENTS.indexOf('export function GroupsTab'),
-      EVENTS.indexOf('export function SearchTab'),
-    );
-    expect(tab).not.toMatch(/mosaic|coverUrl|event\.cover/);
-    expect(tab).toMatch(/groupTile/);
-
-    const sources = [...tab.matchAll(/uri:\s*([A-Za-z.]+)/g)].map((m) => m[1]);
+    const rows = tab.slice(tab.indexOf('groups.map('));
+    expect(rows).toMatch(/groupTile/);
+    // Never anything out of an event: no mosaic, no cover, no event thumb.
+    expect(rows).not.toMatch(/mosaic|coverUrl|event\.cover/);
+    /*
+     * The rows draw member faces now, which is the same exception the cluster
+     * cards have always had and for the same reason — so the check moves from
+     * "no image at all" to "every image is a person's own picture". Written as
+     * every `uri:` in the slice, so a photograph smuggled in under any other
+     * field fails here rather than passing because it was not called `cover`.
+     */
+    const sources = [...rows.matchAll(/uri:\s*([A-Za-z.]+)/g)].map((m) => m[1]);
     expect(sources.length).toBeGreaterThan(0);
     expect(new Set(sources)).toEqual(new Set(['person.avatarUrl']));
   });

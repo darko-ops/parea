@@ -29,7 +29,15 @@ import {
   View,
 } from 'react-native';
 
-import type { Api, EventListing, InvitablePerson, MyGroupDetail } from './api';
+import type {
+  Api,
+  Cluster,
+  ClusterPerson,
+  EventListing,
+  InvitablePerson,
+  MyGroupDetail,
+} from './api';
+import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import type { GroupTheme } from './Groups';
 import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
@@ -436,14 +444,21 @@ function lensFor(id: string) {
  * the rooms you are already in, Find is the only tab that goes looking for
  * something you are not part of yet.
  *
- * ## There is no Create group button, and that is the design
+ * ## Groups are made here now, and what makes that safe
  *
- * `POST /api/groups` requires a `fromEventId` and refuses without one: a group
- * is something you notice afterwards, when the same people keep turning up, so
- * you roll one of your events into a group. An empty group you then have to
- * fill is a distribution problem with no photographs in it, and the people you
- * would invite have no reason to accept yet. The empty state says where groups
- * come from instead of offering a button that would have to be disabled.
+ * This tab used to refuse a create action outright, and the argument was good:
+ * a group is something you notice afterwards, and an empty group you then have
+ * to fill is a distribution problem with no photographs in it.
+ *
+ * What changed is not the argument but what sits beside the button — the
+ * people this actor keeps ending up in the same events as, fetched from
+ * `/api/groups/clusters`. Creating is then confirming a set of people who
+ * already exist rather than inventing one, so the empty room the old comment
+ * warned about cannot be the common case. See `CreateGroup.tsx` for why
+ * pressing the button still writes nothing.
+ *
+ * The roll-up from an event has not gone anywhere; it is still on the event
+ * screen and still the only path that moves an event under a group.
  */
 export function GroupsTab({
   api,
@@ -454,14 +469,28 @@ export function GroupsTab({
   api: Api;
   t: TabTheme;
   onOpenGroup: (groupId: string) => void;
-  /** The empty state's one action: a group is made from an event. */
+  /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [also, setAlso] = useState<ClusterPerson[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  /*
+   * Which card is open as a form, or `'anyone'` for the one `New group` opens
+   * with nobody in it. One at a time: two half-filled forms on one screen is
+   * two things to cancel and a question about which Create belongs to which.
+   */
+  const [making, setMaking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setGroups(await api.myGroupsDetailed().catch(() => []));
+    const [mine, found] = await Promise.all([
+      api.myGroupsDetailed().catch(() => []),
+      api.clusters().catch(() => ({ clusters: [], also: [] })),
+    ]);
+    setGroups(mine);
+    setClusters(found.clusters);
+    setAlso(found.also);
   }, [api]);
 
   useEffect(() => {
@@ -481,10 +510,87 @@ export function GroupsTab({
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
     >
-      <Text style={[styles.h1, { color: t.fg }]}>Groups</Text>
+      <View style={styles.groupsHead}>
+        <Text style={[styles.h1, { color: t.fg }]}>Groups</Text>
+        {/*
+          Here in every state, including the empty one — outlined, so a
+          cluster's filled `Make a group` is still the screen's one primary
+          action. It used to be absent until you already had groups, which was
+          backwards: somebody with none is who most needs to know a group can
+          be made.
+        */}
+        {groups !== null && making !== 'anyone' && (
+          <Pressable
+            onPress={() => setMaking('anyone')}
+            accessibilityRole="button"
+            accessibilityLabel="New group"
+            style={({ pressed }) => [
+              styles.newGroup,
+              { borderColor: t.accent, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[styles.newGroupText, { color: t.accent }]}>New group</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {making === 'anyone' && (
+        <CreateGroupForm
+          api={api}
+          cluster={null}
+          also={also}
+          t={t}
+          onCancel={() => setMaking(null)}
+          onCreated={(id) => {
+            setMaking(null);
+            onOpenGroup(id);
+          }}
+        />
+      )}
 
       {groups === null ? (
         <ActivityIndicator color={t.accent} />
+      ) : groups.length === 0 && clusters.length > 0 ? (
+        /*
+          What the product noticed, offered as something to confirm rather than
+          as a suggestion. Two sentences and nothing else — the heading is an
+          observation about the past, the body is the one thing a group does
+          that nothing else here does.
+        */
+        <View style={{ gap: 12 }}>
+          <Text style={[styles.label, { color: t.fg }]}>
+            The same people keep turning up.
+          </Text>
+          <Text style={[styles.body, { color: t.dim }]}>
+            You have shared several events with these people. Keep everyone
+            together for next time — the next event includes all of them without
+            a single invite.
+          </Text>
+          {clusters.map((cluster, i) =>
+            making === cluster.key ? (
+              <CreateGroupForm
+                key={cluster.key}
+                api={api}
+                cluster={cluster}
+                also={also}
+                t={t}
+                onCancel={() => setMaking(null)}
+                onCreated={(id) => {
+                  setMaking(null);
+                  onOpenGroup(id);
+                }}
+              />
+            ) : (
+              <ClusterCard
+                key={cluster.key}
+                cluster={cluster}
+                primary={i === 0}
+                onMake={() => setMaking(cluster.key)}
+                t={t}
+              />
+            ),
+          )}
+        </View>
       ) : groups.length === 0 ? (
         /*
           Where groups come from, rather than a control that cannot work.
@@ -497,10 +603,10 @@ export function GroupsTab({
             You are not in any groups yet.
           </Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            A group is made from an event, not from nothing — when the same
-            people keep turning up, you roll one of your events into a group and
-            everybody in it stays in the loop for the next one. Open an event
-            you made and look for Make a group.
+            Groups are for the people who keep turning up — once you have shared
+            a couple of events with the same faces, they show up here ready to
+            keep together. Nothing to go on yet, so New group above is the way
+            to start one.
           </Text>
           <Pressable
             onPress={onGoToEvents}
@@ -591,7 +697,6 @@ export function GroupsTab({
                 </View>
                 <Text style={[styles.small, { color: t.dim }]}>{groupMeta(group)}</Text>
               </View>
-
               {/* Admin only. "Member" on every other row is a word that
                   appears so often it stops being read. */}
               {group.role === 'admin' && (
@@ -600,6 +705,49 @@ export function GroupsTab({
             </Pressable>
           );
         })
+      )}
+
+      {/*
+        Demoted, once there are rooms to enter.
+
+        The same card under a label that keeps it an observation rather than a
+        prompt: "too" only makes sense as a remark about the list above it.
+        Never more than two, and a cluster whose people are already gathered in
+        one of these groups is dropped by the server — which is what lets this
+        stay without needing a way to dismiss it.
+      */}
+      {groups !== null && groups.length > 0 && clusters.length > 0 && (
+        <View style={{ gap: 12, paddingTop: 20 }}>
+          <Text style={[styles.small, { color: t.dim, fontWeight: '700', letterSpacing: 0.7 }]}>
+            THESE PEOPLE KEEP TURNING UP TOO
+          </Text>
+          {clusters.map((cluster) =>
+            making === cluster.key ? (
+              <CreateGroupForm
+                key={cluster.key}
+                api={api}
+                cluster={cluster}
+                also={also}
+                t={t}
+                onCancel={() => setMaking(null)}
+                onCreated={(id) => {
+                  setMaking(null);
+                  onOpenGroup(id);
+                }}
+              />
+            ) : (
+              <ClusterCard
+                key={cluster.key}
+                cluster={cluster}
+                // Outlined, all of them: on a screen with rooms in it the
+                // primary action is entering one.
+                primary={false}
+                onMake={() => setMaking(cluster.key)}
+                t={t}
+              />
+            ),
+          )}
+        </View>
       )}
 
       {/*
@@ -1204,6 +1352,9 @@ const styles = StyleSheet.create({
      it, rather than a circle — these rows sit in the same list as events. */
   rowFace: { width: 34, height: 34, borderRadius: 10, marginRight: 12 },
   rowFaceBlank: { alignItems: 'center', justifyContent: 'center' },
+  groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  newGroup: { borderWidth: 1, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 15 },
+  newGroupText: { fontSize: 14, fontWeight: '600' },
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
   /* The name and the faces on one line, the name taking what is left. */
   groupNameRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 0 },
