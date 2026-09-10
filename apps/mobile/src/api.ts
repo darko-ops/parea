@@ -253,14 +253,18 @@ export type ProfileAlbum = {
  * Somebody who can be asked into an album.
  *
  * The shape `/api/friends` and `/api/people` both answer in, and deliberately
- * thin: an id, a handle, a name if they chose one. No avatar, because neither
- * endpoint sends one — a picker draws letters, which is the same fallback the
- * rest of this app uses when a presigned URL has aged out.
+ * thin: an id, a handle, a name if they chose one, and their picture.
+ *
+ * `avatar` is presigned for an hour and the storage key never crosses that
+ * boundary — so it goes null on its own eventually, and the letter is what a
+ * face becomes when it does rather than a broken image. Null also means
+ * somebody who has not added one.
  */
 export type InvitablePerson = {
   actorId: string;
   handle: string | null;
   displayName: string | null;
+  avatar: string | null;
 };
 
 export class ApiError extends Error {

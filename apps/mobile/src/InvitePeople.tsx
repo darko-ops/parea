@@ -28,12 +28,23 @@
  * before it writes anything. A client-side list is a suggestion; the decision
  * belongs where the rows are.
  *
- * Letters rather than faces, because neither endpoint sends an avatar — the
- * same fallback the rest of the app uses when a presigned URL has aged out.
+ * Faces, since both endpoints send one — and the letter underneath it for
+ * somebody who has no picture, or whose URL has aged out. That was the reason
+ * for adding a picture to those two replies: a column of identical letters is
+ * a list you read, where a face is one you pick somebody out of, and this
+ * screen is the one asking "who is this album for".
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import type { Api, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
@@ -76,9 +87,25 @@ function Chip({
         { opacity: pressed ? 0.7 : 1 },
       ]}
     >
-      <View style={[styles.letter, { backgroundColor: t.line }]}>
-        <Text style={[styles.letterText, { color: t.dim }]}>{initialOf(name)}</Text>
-      </View>
+      {/*
+        Their picture, and the letter when there is none.
+
+        No failure handler on the `Image`: an avatar that will not load draws
+        nothing here and the circle stays, which is the honest degradation on a
+        chip 26pt across — the web's `Face` swaps in the letter because its
+        rows are big enough for the swap to be worth the state.
+      */}
+      {person.avatar ? (
+        <Image
+          source={{ uri: person.avatar }}
+          style={[styles.letter, { backgroundColor: t.line }]}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <View style={[styles.letter, { backgroundColor: t.line }]}>
+          <Text style={[styles.letterText, { color: t.dim }]}>{initialOf(name)}</Text>
+        </View>
+      )}
       <Text style={[styles.chipText, { color: chosen ? t.accent : t.fg }]}>{name}</Text>
       {chosen && <Text style={[styles.chipX, { color: t.accent }]}>×</Text>}
     </Pressable>

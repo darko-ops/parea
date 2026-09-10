@@ -70,7 +70,17 @@ import { Face } from './Faces';
 import { SearchIcon } from './SearchIcon';
 
 type Door = { id: string; name: string; memberCount: number };
-type Person = { actorId: string; handle: string | null; displayName: string | null };
+type Person = {
+  actorId: string;
+  handle: string | null;
+  displayName: string | null;
+  /**
+   * Presigned on the server and short-lived — see `Face`, which is why this is
+   * never a bare `<img>`. Null for somebody who has not added one, and for
+   * anybody whose row predates `/api/people` sending it.
+   */
+  avatar: string | null;
+};
 type Suggestion = Person & { mutuals: number };
 type Membership = { id: string; name: string; role: string };
 
@@ -649,13 +659,29 @@ function PersonCard({ person }: { person: Suggestion }) {
   const tint = tintFor(person.actorId);
   return (
     <a href={href} className="face-card">
-      <span
+      {/*
+        The picture where there is one, and the tinted letter where there is
+        not — a suggestion is a stranger, so being able to recognise the face
+        is most of what makes it answerable. The tint stays as the fallback
+        rather than being replaced by a grey circle: it is assigned from the
+        id, so a person keeps the same colour as this list changes around them.
+      */}
+      <Face
+        src={person.avatar}
+        // 48, matching `.face-card-mark`: `Face` writes the size inline, so a
+        // different number here would quietly win over the stylesheet.
+        size={48}
         className="face-card-mark"
-        style={{ background: tint.fill, color: tint.ink }}
-        aria-hidden="true"
-      >
-        {initial(name)}
-      </span>
+        fallback={
+          <span
+            className="face-card-letter"
+            style={{ background: tint.fill, color: tint.ink }}
+            aria-hidden="true"
+          >
+            {initial(name)}
+          </span>
+        }
+      />
       <span className="face-card-name">{name}</span>
       <span className="face-card-note">
         {person.mutuals} {person.mutuals === 1 ? 'mutual friend' : 'mutual friends'}
@@ -718,9 +744,22 @@ function PersonRow({ person }: { person: Person }) {
   return (
     <li>
       <a href={href} className="hit">
-        <span className="hit-thumb" aria-hidden="true">
-          {initial(name)}
-        </span>
+        {/*
+          Their picture, and the letter only when there is none.
+
+          `/api/people` sends it now, which is what makes this row worth
+          looking at rather than reading: a column of identical letter-tiles is
+          a list you parse, and a face is one you recognise. `Face` rather than
+          an `<img>` because the URL is presigned for an hour and a tab left
+          open outlives it — the letter is what an expired one becomes, not the
+          broken-image glyph.
+        */}
+        <Face
+          src={person.avatar}
+          size={38}
+          className="hit-thumb"
+          fallback={<span aria-hidden="true">{initial(name)}</span>}
+        />
         <span className="hit-text">
           <strong>{name}</strong>
           <span className="muted">{person.handle ? `@${person.handle}` : ''}</span>

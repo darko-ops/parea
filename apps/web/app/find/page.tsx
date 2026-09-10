@@ -110,6 +110,24 @@ export default async function FindPage() {
     })),
   );
 
+  /*
+   * The people, presigned and stripped of their keys.
+   *
+   * `friends` and `suggested` are `Person` rows and go straight into a client
+   * component, which serialises every property they carry whether the
+   * receiving type declares it or not — so `avatarKey` is dropped here rather
+   * than trusted to a type that does not mention it.
+   */
+  const face = async <T extends { avatarKey: string | null }>(person: T) => ({
+    ...person,
+    avatarKey: undefined,
+    avatar: await avatarUrl(person.avatarKey),
+  });
+  const [friendFaces, suggestedFaces] = await Promise.all([
+    Promise.all(friends.map(face)),
+    Promise.all(suggested.map(face)),
+  ]);
+
   return (
     <Shell current="find">
       {/*
@@ -123,8 +141,8 @@ export default async function FindPage() {
           <FindView
             greeting={greetingFor(account?.displayName ?? null, new Date())}
             events={events}
-            friends={friends}
-            suggested={suggested}
+            friends={friendFaces}
+            suggested={suggestedFaces}
             suggestedGroups={suggestedGroups}
             groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
           />

@@ -29,7 +29,7 @@ import {
   View,
 } from 'react-native';
 
-import type { Api, EventListing, MyGroupDetail } from './api';
+import type { Api, EventListing, InvitablePerson, MyGroupDetail } from './api';
 import type { GroupTheme } from './Groups';
 import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
@@ -554,9 +554,7 @@ export function SearchTab({
     { id: string; name: string; memberCount: number }[]
   >([]);
   const [handle, setHandle] = useState('');
-  const [people, setPeople] = useState<
-    { actorId: string; handle: string | null; displayName: string | null }[]
-  >([]);
+  const [people, setPeople] = useState<InvitablePerson[]>([]);
 
   const search = useCallback(
     async (next: string) => {
@@ -640,6 +638,28 @@ export function SearchTab({
             disabled={!person.handle}
             onPress={() => person.handle && onOpenPerson(person.handle)}
           >
+            {/*
+              The face `/api/people` sends now, and the letter when somebody
+              has none. A row of handles is a list to read; the picture is what
+              makes it one to recognise, which is the point of a search for a
+              person rather than for a word.
+            */}
+            {person.avatar ? (
+              <Image
+                source={{ uri: person.avatar }}
+                style={[styles.rowFace, { backgroundColor: t.line }]}
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <View style={[styles.rowFace, styles.rowFaceBlank, { backgroundColor: t.line }]}>
+                <Text style={[styles.small, { color: t.dim }]}>
+                  {(person.displayName?.trim() || person.handle || '?')
+                    .replace(/^@/, '')
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
             <Text style={[styles.body, { color: t.accent, flex: 1 }]}>
               {person.displayName?.trim() || `@${person.handle}`}
             </Text>
@@ -1143,6 +1163,10 @@ const styles = StyleSheet.create({
      because each one there is a decision — a door, with a button on it. These
      are rooms you are already in, so the row is a way through, and a stack of
      boxes would make walking into your own group look like an application. */
+  /* The face on a search result: a rounded square, like the event thumbs above
+     it, rather than a circle — these rows sit in the same list as events. */
+  rowFace: { width: 34, height: 34, borderRadius: 10, marginRight: 12 },
+  rowFaceBlank: { alignItems: 'center', justifyContent: 'center' },
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
   groupTile: {
     width: 44, height: 44, borderRadius: 12,

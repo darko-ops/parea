@@ -18,10 +18,18 @@
 
 import { useEffect, useState } from 'react';
 
+import { Face } from './Faces';
+
 export type Person = {
   actorId: string;
   handle: string | null;
   displayName: string | null;
+  /**
+   * Presigned on the server for an hour, or null. Both endpoints behind this
+   * picker send it; the storage key never crosses that boundary. Drawn through
+   * `Face`, because a form left open outlives the signature.
+   */
+  avatar: string | null;
 };
 
 export function nameOf(person: Person): string {
@@ -113,6 +121,23 @@ export function MemberPicker({
         <ul className="people">
           {offered.map((person) => (
             <li key={person.actorId}>
+              {/*
+                A face, and the letter only when there is none. This list is
+                the answer to "who is this album for", and a column of
+                identical letter-tiles is one that has to be read rather than
+                recognised — which is the whole reason the endpoints send a
+                picture now.
+              */}
+              <Face
+                src={person.avatar}
+                size={34}
+                className="member-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {nameOf(person).replace(/^@/, '').slice(0, 1).toUpperCase()}
+                  </span>
+                }
+              />
               <div>
                 <strong>{nameOf(person)}</strong>
                 {person.handle && <p className="muted">@{person.handle}</p>}

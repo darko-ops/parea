@@ -1304,10 +1304,20 @@ button.secondary {
   padding: 14px 8px; border: 1px solid var(--hairline); border-radius: 14px;
   background: var(--card); color: inherit; text-decoration: none;
 }
+/* Holds a photograph now as well as a letter, so it clips and crops like every
+   other face in the product. */
 .face-card-mark {
   width: 48px; height: 48px; border-radius: 50%; flex: none;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
   font-size: 18px; font-weight: 600;
+}
+/* The letter, when there is no photograph. It fills the circle rather than
+   sitting in the middle of it as a small tinted blob: `Face` puts the fallback
+   *inside* the sized element, so the colour has to be told to fill. */
+.face-card-letter {
+  width: 100%; height: 100%; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
 }
 .face-card-name {
   font-size: 14px; font-weight: 600; text-align: center;
@@ -3315,6 +3325,18 @@ button.link {
   transition: border-color 120ms, background 120ms;
 }
 .people li:hover { border-color: var(--line-dashed); background: var(--track); }
+/* The face on a row, and the letter it falls back to. The name beside it grows
+   into the space the button leaves, so the picture is the one fixed-width
+   thing in the row. */
+.member-face {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
+  background: var(--track); color: var(--dim);
+  font-size: 14px; font-weight: 700;
+}
+/* The name takes the middle, so the row is face, name, action. */
+.people li > div { flex: 1; min-width: 0; }
 .people strong { display: block; font-size: 15px; }
 .people p { margin: 2px 0 0; font-size: 13px; }
 

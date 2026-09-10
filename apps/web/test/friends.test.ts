@@ -11,11 +11,14 @@ import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
 import { areFriends, befriend, findPeople, friendsOf, requestsFor, unfriend } from '@/friends';
+
+import { stripComments } from './support/source';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -123,13 +126,71 @@ describe('finding somebody by handle', () => {
     expect(await findPeople(db, them, 'me')).toEqual([]);
   });
 
-  it('returns a handle and a name and nothing else', async () => {
-    // The shape is the promise: no email, no events, no counts. A field added
-    // here is a field published to anybody who can type a handle.
+  it('returns a handle, a name and a picture, and nothing else', async () => {
+    /*
+     * The shape is the promise: no email, no events, no counts. A field added
+     * here is a field published to anybody who can type a handle, so this test
+     * exists to make that addition a decision rather than an accident.
+     *
+     * `avatarKey` is the picture, and it is a *key* — the storage address,
+     * which does not expire. It never leaves the server in that form; the two
+     * routes below presign it and drop the key, which is what the next
+     * describe is about.
+     */
     const me = await person('me');
     await person('AmberQuietLantern', 'Sam');
     const [found] = await findPeople(db, me, 'amber');
-    expect(Object.keys(found!).sort()).toEqual(['actorId', 'displayName', 'handle']);
+    expect(Object.keys(found!).sort()).toEqual([
+      'actorId',
+      'avatarKey',
+      'displayName',
+      'handle',
+    ]);
+  });
+});
+
+/**
+ * The picture, on its way out.
+ *
+ * Faces were added to these two endpoints so a picker could be recognised
+ * rather than read. What must not follow them out is the storage key: a
+ * presigned URL is a permission that expires in an hour, and a key is an
+ * internal address that expires never — the difference between handing
+ * somebody a photograph and handing them the filing cabinet.
+ *
+ * Source checks, because the property is about the shape of a reply rather
+ * than about anything a unit can be handed.
+ */
+describe('what the endpoints publish', () => {
+  const read = (path: string) =>
+    stripComments(
+      readFileSync(fileURLToPath(new URL(`../app/api/${path}`, import.meta.url)), 'utf8'),
+    );
+
+  for (const route of ['friends/route.ts', 'people/route.ts']) {
+    it(`presigns the picture and drops the key in ${route}`, () => {
+      const source = read(route);
+      // Signed through the same hour-long helper every other face uses.
+      expect(source).toMatch(/avatar: await avatarUrl\(/);
+      // And the key overwritten rather than merely not mentioned: both build
+      // the reply by spreading the row, so a field left in place rides out.
+      expect(source).toMatch(/avatarKey: undefined/);
+    });
+  }
+
+  it('does not hand a key to a client component from the find page', () => {
+    /*
+     * The other door out, and the one a type will not catch: `friends` and
+     * `suggested` are `Person` rows passed straight into a client component,
+     * which serialises every property they carry whether the receiving type
+     * declares it or not.
+     */
+    const page = stripComments(
+      readFileSync(fileURLToPath(new URL('../app/find/page.tsx', import.meta.url)), 'utf8'),
+    );
+    expect(page).toMatch(/avatarKey: undefined/);
+    expect(page).toMatch(/friends=\{friendFaces\}/);
+    expect(page).toMatch(/suggested=\{suggestedFaces\}/);
   });
 });
 

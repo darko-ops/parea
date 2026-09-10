@@ -3,9 +3,15 @@
  *
  * The one place accounts are searchable, and it is deliberately narrow: prefix
  * of a handle, ten results, and nothing about anyone comes back except the
- * handle and the name they chose to show. No events, no photos, no counts, no
- * mutual friends — being findable leads to somebody being able to ask, and to
- * nothing else.
+ * handle, the name they chose to show and their picture. No events, no photos,
+ * no counts, no mutual friends — being findable leads to somebody being able
+ * to ask, and to nothing else.
+ *
+ * The picture is new and is the same disclosure the name is: it is what
+ * somebody chose to be seen as, and it is already on their profile to anybody
+ * who can reach it. What it buys is recognition — a row of handles makes
+ * somebody read a list where a face would have been picked out of it — which
+ * matters most in the two pickers that ask "who is this album for".
  *
  * Signed in only. An anonymous caller has no reason to enumerate handles, and
  * the rate limit is the floor under how fast a signed-in one can.
@@ -14,6 +20,7 @@
 import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
+import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { findByPhone, findPeople, looksLikePhone } from '@/friends';
 import { PEOPLE_SEARCH_LIMIT, withinLimit } from '@/ratelimit';
@@ -49,9 +56,23 @@ export async function GET(request: Request) {
    * so a caller cannot tell from the response which door it came through, and
    * a number that matches nobody is simply an empty list.
    */
+  /*
+   * Presigned here, the key dropped rather than sent beside it — the same
+   * boundary every picture in this product crosses. Ten at most, so this is
+   * ten signatures and no round trips.
+   */
+  const seen = async (people: Awaited<ReturnType<typeof findPeople>>) =>
+    Promise.all(
+      people.map(async (person) => ({
+        ...person,
+        avatarKey: undefined,
+        avatar: await avatarUrl(person.avatarKey),
+      })),
+    );
+
   if (looksLikePhone(query)) {
-    return NextResponse.json({ people: await findByPhone(db, actorId, query) });
+    return NextResponse.json({ people: await seen(await findByPhone(db, actorId, query)) });
   }
 
-  return NextResponse.json({ people: await findPeople(db, actorId, query) });
+  return NextResponse.json({ people: await seen(await findPeople(db, actorId, query)) });
 }

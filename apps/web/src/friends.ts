@@ -20,11 +20,24 @@ import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 import type { Db } from './db';
 import { hashPhone, normalisePhone } from './phone';
 
-/** What a person looks like to somebody who is not them. */
+/**
+ * What a person looks like to somebody who is not them.
+ *
+ * `avatarKey` is a storage key and not a URL, like `EventListing.coverKey`:
+ * this type is read on the server, and every boundary that hands it to a
+ * client signs it there — see `/api/friends` and `/api/people`, which emit a
+ * presigned `avatar` and never the key. A key crossing that line is an
+ * internal address published, and it does not expire.
+ *
+ * Which is also why the field is named for what it is. A `Person` handed
+ * straight to a client component serialises every property it has, declared
+ * in the receiving type or not, so the name is the warning.
+ */
 export type Person = {
   actorId: string;
   handle: string | null;
   displayName: string | null;
+  avatarKey: string | null;
 };
 
 /** The most a search will return. Enough to find who you meant, and not a page. */
@@ -57,6 +70,7 @@ export async function findPeople(
       actorId: schema.actors.id,
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.actors)
     .where(
@@ -90,6 +104,7 @@ export async function friendsOf(db: Db, actorId: string | null): Promise<Person[
       actorId: schema.actors.id,
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.friendships)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.friendships.friendActorId))
@@ -137,12 +152,14 @@ export async function suggestionsFor(
     actorId: string;
     handle: string | null;
     displayName: string | null;
+    avatarKey: string | null;
     mutuals: number;
   }>(sql`
     select
       a.id            as "actorId",
       a.handle        as "handle",
       a.display_name  as "displayName",
+      a.avatar_key    as "avatarKey",
       count(*)::int   as "mutuals"
     from "friendship" mine
     join "friendship" theirs on theirs.actor_id = mine.friend_actor_id
@@ -213,6 +230,7 @@ export async function findByPhone(
       actorId: schema.actors.id,
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.actors)
     .where(
@@ -249,6 +267,7 @@ export async function requestsFor(
       actorId: schema.actors.id,
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
+      avatarKey: schema.actors.avatarKey,
       askedAt: schema.friendRequests.createdAt,
     })
     .from(schema.friendRequests)

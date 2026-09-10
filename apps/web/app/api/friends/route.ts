@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
+import { avatarUrl } from '@/accounts';
 import { befriend, friendsOf, requestsFor, unfriend } from '@/friends';
 import { notifyFriendRequest } from '@/notify';
 import { currentActorId } from '@/session';
@@ -39,7 +40,30 @@ export async function GET() {
     friendsOf(db, actorId),
     requestsFor(db, actorId),
   ]);
-  return NextResponse.json({ friends, requests });
+
+  /*
+   * Presigned here, and the key dropped rather than sent alongside.
+   *
+   * The same boundary rule as every other picture that crosses this line: an
+   * hour, a URL, and the storage key stays on the server — a key is an
+   * internal address and it does not expire. `withFace` spreads the row and
+   * then overwrites `avatarKey` with `undefined`, so a field added to `Person`
+   * later cannot ride out of here unnoticed by being forgotten in a hand-built
+   * object literal.
+   *
+   * A picker without faces was the reason for this: names alone make somebody
+   * read a list where they could have recognised one.
+   */
+  const withFace = async <T extends { avatarKey: string | null }>(person: T) => ({
+    ...person,
+    avatarKey: undefined,
+    avatar: await avatarUrl(person.avatarKey),
+  });
+
+  return NextResponse.json({
+    friends: await Promise.all(friends.map(withFace)),
+    requests: await Promise.all(requests.map(withFace)),
+  });
 }
 
 /** Asking. */
