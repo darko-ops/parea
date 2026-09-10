@@ -1,18 +1,22 @@
 /**
- * The door of a private event, from outside it.
+ * The door of a private album, from outside it.
  *
- * Reached from `/e/<token>` when the host has not let this person in yet. It
+ * Two ways here and they are the two halves of what private means. From
+ * `/e/<token>`, when the link has been sent to somebody who is not in yet — it
  * exists because the alternative was a 404, and a 404 to somebody holding a
- * link you sent them is a lie that reads as a broken product.
+ * link you sent them is a lie that reads as a broken product. And from the
+ * creator's profile, where private albums are listed by name to anybody signed
+ * in, with this as the only thing under them to press.
  *
- * What it may show is bounded by what they have proved. A fresh capability
- * cookie means this browser exchanged the real link, so the event's name is
- * not news to them and naming it is what makes the page make sense. Everything
- * else — the photographs, who is in it, how many — stays behind the approval,
+ * So it shows the name to whoever proved either: a fresh capability cookie
+ * means this browser exchanged the real link, and being signed in means they
+ * could have read the same name off the profile a second ago. Somebody with
+ * neither gets the answer a nonexistent album gets. Everything past the
+ * name — the photographs, who is in it, how many — stays behind the approval,
  * which is the entire point of the policy.
  */
 
-import { REQUEST_ACCESS, schema } from '@parea/core';
+import { PRIVATE, schema } from '@parea/core';
 import { and, eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 
@@ -20,6 +24,7 @@ import { AskToJoin } from '@/../app/components/AskToJoin';
 import { Shell } from '@/../app/components/Shell';
 import { findEventById, isSignedIn } from '@/access';
 import { getDb } from '@/db';
+import { isBlockedBy } from '@/moderation';
 import { requesterFor } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -34,15 +39,21 @@ export default async function RequestPage({
 
   const db = getDb();
   const event = await findEventById(db, id);
-  if (!event || event.deletedAt || event.accessPolicy !== REQUEST_ACCESS) notFound();
+  if (!event || event.deletedAt || event.accessPolicy !== PRIVATE) notFound();
 
   const requester = await requesterFor(id);
-  // Same answer as a nonexistent event for anyone who did not arrive through
-  // the link, so this page cannot be used to test whether an id is real.
-  if (requester.capEpoch !== event.capEpoch) notFound();
-
   const actorId = requester.actorId;
   const signedIn = await isSignedIn(db, actorId);
+  // The link, or an account. A signed-out browser that never exchanged the
+  // link gets the answer a nonexistent album gets, so a bare id cannot be
+  // tested from outside.
+  const viaLink = requester.capEpoch === event.capEpoch;
+  if (!signedIn && !viaLink) notFound();
+
+  // A block is silent, and this page must not be the thing that breaks that:
+  // somebody the creator has blocked cannot see the profile listing this album
+  // and gets the same answer here.
+  if (actorId && (await isBlockedBy(db, event.createdBy, actorId))) notFound();
 
   // Already in — approved between the redirect and this render, or arriving
   // here by hand. Nothing to ask for.

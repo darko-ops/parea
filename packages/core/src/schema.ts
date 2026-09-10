@@ -362,20 +362,24 @@ export const events = pgTable(
       .notNull()
       .references(() => actors.id),
     /**
-     * Chosen by whoever creates the event. `link_open` is the original model —
-     * possession of the link is the access. `account_required` keeps the link
-     * necessary and makes it insufficient. `request_access` goes one further
-     * and hands the last step to the host, who approves each person; approval
-     * is an `event_participant` row, because that is already what "in" means
-     * here. Plain text with no CHECK: the constraint that matters is in
-     * `authorize`, which denies any value it does not recognise, so an unknown
-     * string here closes the event rather than opening it.
+     * Chosen by whoever creates the event, and it is one of two things.
+     * `public` is the original model — possession of the link is the access.
+     * `private` means added or approved: an accepted invitation or a request
+     * the creator let in, both of which are an `event_participant` row,
+     * because that is already what "in" means here. Holding the link to a
+     * private album gets somebody to the door and no further.
+     *
+     * Plain text with no CHECK: the constraint that matters is in `authorize`,
+     * which denies any value it does not recognise, so an unknown string here
+     * closes the album rather than opening it. Which is also what makes the
+     * migration off the old three-way column safe in either order — a row
+     * still reading `account_required` mid-deploy is closed, not open.
      */
     accessPolicy: text('access_policy', {
-      enum: ['link_open', 'account_required', 'request_access'],
+      enum: ['public', 'private'],
     })
       .notNull()
-      .default('link_open'),
+      .default('public'),
     joinsOpen: boolean('joins_open').notNull().default(true),
     uploadsOpen: boolean('uploads_open').notNull().default(true),
     /** Hard cap of one nudge, enforced in the schema so config can't lose it. */

@@ -71,7 +71,7 @@ describe('event defaults', () => {
     const { event } = await seedEvent();
     expect(event.joinsOpen).toBe(true);
     expect(event.uploadsOpen).toBe(true);
-    expect(event.accessPolicy).toBe('link_open');
+    expect(event.accessPolicy).toBe('public');
     expect(event.capEpoch).toBe(1);
     expect(event.deletedAt).toBeNull();
   });

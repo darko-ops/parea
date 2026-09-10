@@ -28,7 +28,7 @@ function event(overrides: Partial<PolicyEvent> = {}): PolicyEvent {
     id: 'event-1',
     linkToken: LINK,
     capEpoch: 1,
-    accessPolicy: 'link_open',
+    accessPolicy: 'public',
     joinsOpen: true,
     uploadsOpen: true,
     createdBy: CREATOR,
@@ -50,18 +50,32 @@ type Case = {
 };
 
 const CASES: Case[] = [
-  // --- the ordinary path -----------------------------------------------------
+  // --- public: anyone can see it ---------------------------------------------
+  // The link is how somebody finds a public album, not what unlocks it. All
+  // four of these were `no_credential` when the policy was called `link_open`.
+  { name: 'a stranger with nothing at all can view a public album', actor: null,
+    capability: 'view', expect: true },
+  { name: 'and can download from it', actor: GUEST, capability: 'download', expect: true },
+  { name: 'a wrong link is no worse than no link on a public album', actor: GUEST,
+    capability: 'view', presented: { linkToken: WRONG_LINK }, expect: true },
+  { name: 'rotating the link does not shut anyone out of a public album', actor: GUEST,
+    capability: 'view', event: { capEpoch: 2 },
+    presented: { isParticipant: true, capEpoch: 1 }, expect: true },
   { name: 'stranger with the link can view', actor: null, capability: 'view',
     presented: { linkToken: LINK }, expect: true },
   { name: 'the link plus an account can contribute', actor: GUEST, signedIn: true,
     capability: 'contribute', presented: { linkToken: LINK }, expect: true },
   { name: 'the link alone can no longer contribute', actor: GUEST, capability: 'contribute',
     presented: { linkToken: LINK }, expect: 'sign_in_required' },
-  { name: 'stranger with the link can download', actor: GUEST, capability: 'download',
-    presented: { linkToken: LINK }, expect: true },
-  { name: 'no credential at all is refused', actor: GUEST, capability: 'view',
+  { name: 'looking stays anonymous, adding does not', actor: GUEST,
+    capability: 'contribute', expect: 'sign_in_required' },
+
+  // --- credentials, which is now a question only private albums ask ----------
+  { name: 'no credential at all is refused on a private album', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'private' },
     expect: 'no_credential' },
-  { name: 'a wrong link is not a credential', actor: GUEST, capability: 'view',
+  { name: 'a wrong link is not a credential', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private' },
     presented: { linkToken: WRONG_LINK }, expect: 'no_credential' },
 
   // --- codes -----------------------------------------------------------------
@@ -69,30 +83,36 @@ const CASES: Case[] = [
     signedIn: true, capability: 'contribute',
     presented: { code: CODE, eventCode: CODE }, expect: true },
   { name: 'the right code signed out asks for sign-in, not a better code', actor: GUEST,
-    capability: 'view', presented: { code: CODE, eventCode: CODE },
-    expect: 'sign_in_required' },
+    capability: 'view', event: { accessPolicy: 'private' },
+    presented: { code: CODE, eventCode: CODE }, expect: 'sign_in_required' },
   { name: 'a wrong code signed out is still just wrong', actor: GUEST, capability: 'view',
-    presented: { code: 'silver-otter', eventCode: CODE }, expect: 'no_credential' },
-  { name: 'a code for another event does not', actor: GUEST, capability: 'view',
+    event: { accessPolicy: 'private' },
     presented: { code: 'silver-otter', eventCode: CODE }, expect: 'no_credential' },
   { name: 'a code against an event holding none does not', actor: GUEST, capability: 'view',
-    presented: { code: CODE, eventCode: null }, expect: 'no_credential' },
+    event: { accessPolicy: 'private' }, presented: { code: CODE, eventCode: null },
+    expect: 'no_credential' },
 
   // --- stored capabilities and rotation --------------------------------------
-  { name: 'participant with a fresh capability needs no link', actor: GUEST, capability: 'view',
+  { name: 'participant with a fresh capability needs no link', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private' },
     presented: { isParticipant: true, capEpoch: 1 }, expect: true },
-  { name: 'rotation invalidates a stored capability', actor: GUEST, capability: 'view',
-    event: { capEpoch: 2 }, presented: { isParticipant: true, capEpoch: 1 },
+  { name: 'rotation invalidates a stored capability', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private', capEpoch: 2 },
+    presented: { isParticipant: true, capEpoch: 1 },
     expect: 'stale_capability' },
-  { name: 'after rotation the new link still works', actor: GUEST, capability: 'view',
-    event: { capEpoch: 2, linkToken: WRONG_LINK },
+  { name: 'after rotation the new link still works', actor: GUEST, signedIn: true,
+    capability: 'view',
+    event: { accessPolicy: 'private', capEpoch: 2, linkToken: WRONG_LINK },
     presented: { isParticipant: true, capEpoch: 1, linkToken: WRONG_LINK }, expect: true },
-  { name: 'a non-participant cannot bluff a fresh epoch', actor: GUEST, capability: 'view',
+  { name: 'a non-participant cannot bluff a fresh epoch', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private' },
     presented: { capEpoch: 1 }, expect: 'no_credential' },
 
   // --- switch: joins ---------------------------------------------------------
   { name: 'joins closed refuses a new person holding the link', actor: GUEST, capability: 'view',
     event: { joinsOpen: false }, presented: { linkToken: LINK }, expect: 'joins_closed' },
+  { name: 'joins closed refuses a new person on a public album too', actor: GUEST,
+    capability: 'view', event: { joinsOpen: false }, expect: 'joins_closed' },
   { name: 'joins closed keeps existing participants in', actor: GUEST, capability: 'view',
     event: { joinsOpen: false }, presented: { isParticipant: true, capEpoch: 1 }, expect: true },
   { name: 'joins closed keeps group members in', actor: GUEST, capability: 'download',
@@ -119,61 +139,41 @@ const CASES: Case[] = [
     event: { groupId: 'g1' }, presented: { isGroupMember: true }, expect: 'not_administrator' },
   { name: 'holding the link does not confer administration', actor: GUEST,
     capability: 'administer', presented: { linkToken: LINK }, expect: 'not_administrator' },
+  { name: 'a public album is still not administered by whoever opens it', actor: GUEST,
+    signedIn: true, capability: 'administer', expect: 'not_administrator' },
   { name: 'an anonymous visitor does not administer', actor: null, capability: 'administer',
     presented: { linkToken: LINK }, expect: 'not_administrator' },
 
-  // --- private events --------------------------------------------------------
-  { name: 'a private event admits the link holder who is signed in', actor: GUEST,
-    signedIn: true, capability: 'view', event: { accessPolicy: 'account_required' },
-    presented: { linkToken: LINK }, expect: true },
-  { name: 'a private event refuses the same link signed out', actor: GUEST,
-    capability: 'view', event: { accessPolicy: 'account_required' },
-    presented: { linkToken: LINK }, expect: 'sign_in_required' },
-  { name: 'a private event without the link is still just gone', actor: GUEST,
-    capability: 'view', event: { accessPolicy: 'account_required' },
-    expect: 'no_credential' },
-  { name: 'a private event refuses download signed out', actor: GUEST,
-    capability: 'download', event: { accessPolicy: 'account_required' },
-    presented: { linkToken: LINK }, expect: 'sign_in_required' },
-  { name: 'a private event does not trap a signed-out participant either',
-    actor: GUEST, capability: 'view', event: { accessPolicy: 'account_required' },
-    presented: { isParticipant: true, capEpoch: 1 }, expect: 'sign_in_required' },
-  { name: 'a public event still admits an anonymous link holder', actor: null,
-    capability: 'view', presented: { linkToken: LINK }, expect: true },
-
-  // --- request_access: the host has the last word -----------------------------
-  // The distinguishing property, and the whole reason this policy exists: for
-  // the other two, holding the link is the last step.
-  { name: 'request_access refuses a signed-in link holder until approved', actor: GUEST,
-    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+  // --- private: added, or let in ---------------------------------------------
+  // The distinguishing property, and the whole reason the policy exists:
+  // holding the link is not the last step, the creator is.
+  { name: 'private refuses a signed-in link holder until approved', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'private' },
     presented: { linkToken: LINK }, expect: 'approval_required' },
-  { name: 'request_access asks for sign-in before it asks for approval', actor: GUEST,
-    capability: 'view', event: { accessPolicy: 'request_access' },
+  { name: 'private asks for sign-in before it asks for approval', actor: GUEST,
+    capability: 'view', event: { accessPolicy: 'private' },
     presented: { linkToken: LINK }, expect: 'sign_in_required' },
-  { name: 'approval is a participant row, and it lets them in', actor: GUEST,
-    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
+  { name: 'being in is a participant row, and it lets them in', actor: GUEST,
+    signedIn: true, capability: 'view', event: { accessPolicy: 'private' },
     presented: { linkToken: LINK, isParticipant: true, capEpoch: 1 }, expect: true },
-  { name: 'an approved person needs no link on the next visit', actor: GUEST,
-    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
-    presented: { isParticipant: true, capEpoch: 1 }, expect: true },
-  { name: 'request_access without the link is still just gone', actor: GUEST,
-    signedIn: true, capability: 'view', event: { accessPolicy: 'request_access' },
-    expect: 'no_credential' },
+  { name: 'a private album does not trap a signed-out participant either',
+    actor: GUEST, capability: 'view', event: { accessPolicy: 'private' },
+    presented: { isParticipant: true, capEpoch: 1 }, expect: 'sign_in_required' },
   { name: 'the creator never has to ask themselves', actor: CREATOR, signedIn: true,
-    capability: 'view', event: { accessPolicy: 'request_access' }, expect: true },
+    capability: 'view', event: { accessPolicy: 'private' }, expect: true },
   { name: 'a group member is already in', actor: GUEST, signedIn: true, capability: 'view',
-    event: { accessPolicy: 'request_access', groupId: 'g1' },
+    event: { accessPolicy: 'private', groupId: 'g1' },
     presented: { isGroupMember: true }, expect: true },
   // The code is the weakest secret in the system; it must not be a way around
-  // the one policy whose point is that the host decides.
+  // the one policy whose point is that the creator decides.
   { name: 'the spoken code does not skip approval', actor: GUEST, signedIn: true,
-    capability: 'view', event: { accessPolicy: 'request_access' },
+    capability: 'view', event: { accessPolicy: 'private' },
     presented: { code: CODE, eventCode: CODE }, expect: 'approval_required' },
   { name: 'nor does download', actor: GUEST, signedIn: true, capability: 'download',
-    event: { accessPolicy: 'request_access' }, presented: { linkToken: LINK },
+    event: { accessPolicy: 'private' }, presented: { linkToken: LINK },
     expect: 'approval_required' },
   { name: 'nor does contribute', actor: GUEST, signedIn: true, capability: 'contribute',
-    event: { accessPolicy: 'request_access' }, presented: { linkToken: LINK },
+    event: { accessPolicy: 'private' }, presented: { linkToken: LINK },
     expect: 'approval_required' },
 
   // --- deletion and unknown policies -----------------------------------------
@@ -183,6 +183,9 @@ const CASES: Case[] = [
     event: { deletedAt: new Date() }, expect: 'event_deleted' },
   { name: 'an unknown policy fails closed, even for the creator', actor: CREATOR,
     capability: 'view', event: { accessPolicy: 'paid_gallery' }, expect: 'unknown_policy' },
+  { name: 'the policies this replaced are unknown, and so fail closed', actor: CREATOR,
+    capability: 'view', event: { accessPolicy: 'account_required' },
+    expect: 'unknown_policy' },
   { name: 'an unknown policy blocks administration', actor: CREATOR, capability: 'administer',
     event: { accessPolicy: 'paid_gallery' }, expect: 'unknown_policy' },
 ];
@@ -249,15 +252,32 @@ describe('invariants', () => {
     }
   });
 
-  it('grants nothing without some credential', () => {
+  /*
+   * The invariant that used to read "grants nothing without some credential",
+   * now said about the policy that still means it. A public album deliberately
+   * grants view, download and contribute to somebody holding nothing — that is
+   * what the word promises — so the property worth pinning is that a private
+   * one grants none of the four.
+   */
+  it('grants nothing on a private album without some credential', () => {
     for (const capability of capabilities) {
       const decision = authorize(
         { id: GUEST, hasAccount: true },
         capability,
-        { event: event() },
+        { event: event({ accessPolicy: 'private' }) },
         {},
       );
       expect(decision.allow, `${capability}`).toBe(false);
     }
+  });
+
+  it('never lets a public album be administered by a passer-by', () => {
+    const decision = authorize(
+      { id: GUEST, hasAccount: true },
+      'administer',
+      { event: event() },
+      { linkToken: LINK },
+    );
+    expect(decision.allow).toBe(false);
   });
 });

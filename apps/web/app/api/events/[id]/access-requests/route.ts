@@ -1,10 +1,10 @@
 /**
- * Asking to be let into a private event, and the host answering.
+ * Asking to be let into a private album, and the creator answering.
  *
- * The third access policy needs a conversation the other two do not. `link_open`
- * and `account_required` both answer "who may look?" with a property of the
- * visitor, so there is nobody to ask. `request_access` hands the last step to
- * the host, and this is where that step happens.
+ * `private` needs a conversation `public` does not: public answers "who may
+ * look?" with a property of the visitor, so there is nobody to ask. Private
+ * hands the last step to the person who made it, and this is where that step
+ * happens.
  *
  * Approving writes an `event_participant` row and that row is the grant —
  * nothing here is read by `authorize`. It is deliberate: a bug in this file can
@@ -12,12 +12,13 @@
  * cannot open an event, which would not be either.
  */
 
-import { REQUEST_ACCESS, schema } from '@parea/core';
+import { PRIVATE, schema } from '@parea/core';
 import { and, asc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, isSignedIn, recordParticipant } from '@/access';
 import { getDb } from '@/db';
+import { isBlockedBy } from '@/moderation';
 import { notifyAccessRequested } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -70,11 +71,21 @@ export async function GET(
 /**
  * Asking.
  *
- * Two things have to be true, and they are different questions. They must hold
- * the link — otherwise this route is a way to send a stranger's name to the
- * host of an event they only guessed the id of. And they must be signed in,
- * because the host is being asked to make a decision about a person and an
- * unclaimed actor is not one.
+ * Signed in, and not blocked. That is the whole gate, and it used to also
+ * require the link — the capability cookie `/e/<token>` grants — on the
+ * reasoning that otherwise this route sends a stranger's name to the host of
+ * an event they only guessed the id of.
+ *
+ * The link requirement is gone because it now contradicts the product: a
+ * private album is listed on its creator's profile, by name, to anybody signed
+ * in, and the button under it is this route. Requiring the link would mean the
+ * one door the profile offers is the one door that answers 404.
+ *
+ * What replaces it is the block, checked in the creator's direction. Somebody
+ * who has been blocked cannot reach the profile that lists the album and must
+ * not reach its door either — and they get the same 404 a nonexistent event
+ * gets, because a block is silent and this must not be the thing that tells
+ * them. Guessing remains impractical on its own: the id is a v4 UUID.
  */
 export async function POST(
   _request: Request,
@@ -83,19 +94,14 @@ export async function POST(
   const { id } = await params;
   const db = getDb();
   const event = await findEventById(db, id);
-  if (!event || event.accessPolicy !== REQUEST_ACCESS) return notFound();
+  if (!event || event.accessPolicy !== PRIVATE) return notFound();
 
-  const requester = await requesterFor(id);
-  // The capability cookie granted by `/e/<token>`. It carries no access on its
-  // own — `authorize` only counts it alongside participation — which is
-  // exactly what makes it the right thing to check here: it proves the link
-  // and nothing else.
-  if (requester.capEpoch !== event.capEpoch) return notFound();
-
-  const actorId = requester.actorId;
+  const actorId = (await requesterFor(id)).actorId;
   if (!actorId || !(await isSignedIn(db, actorId))) {
     return NextResponse.json({ error: 'sign_in_required' }, { status: 403 });
   }
+
+  if (await isBlockedBy(db, event.createdBy, actorId)) return notFound();
 
   const [existing] = await db
     .select({ status: schema.eventAccessRequests.status })

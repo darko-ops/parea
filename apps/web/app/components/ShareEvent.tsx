@@ -26,7 +26,7 @@
  * has one at all.
  */
 
-import { ACCOUNT_REQUIRED, REQUEST_ACCESS } from '@parea/core';
+import { PRIVATE } from '@parea/core';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -40,18 +40,15 @@ import { createPortal } from 'react-dom';
  * has to grant by hand — to somebody about to paste the link into a group chat
  * on the strength of that sentence.
  *
- * `joinsOpen` is checked first because it overrides all three: with the link
+ * `joinsOpen` is checked first because it overrides both: with the link
  * switched off nobody new gets in however the event is set.
  */
 export function promise(accessPolicy: string | undefined, joinsOpen: boolean): string {
   if (!joinsOpen) {
     return 'The link is off for this event — only the people you add can get in.';
   }
-  if (accessPolicy === REQUEST_ACCESS) {
+  if (accessPolicy === PRIVATE) {
     return 'Whoever you send this to can ask to come in. You let them in, under Members.';
-  }
-  if (accessPolicy === ACCOUNT_REQUIRED) {
-    return 'Whoever you send this to signs in and is straight in. Adding photos needs an account too.';
   }
   return 'Anybody with this can open the event and add their photos.';
 }

@@ -1,10 +1,9 @@
 export * as schema from './schema';
 export {
-  ACCOUNT_REQUIRED,
   authorize,
   denyStatus,
-  LINK_OPEN,
-  REQUEST_ACCESS,
+  PRIVATE,
+  PUBLIC,
   type Capability,
   type Decision,
   type DenyReason,

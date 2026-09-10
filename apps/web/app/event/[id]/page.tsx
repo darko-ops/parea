@@ -1,7 +1,7 @@
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
 import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
@@ -51,6 +51,19 @@ export default async function EventPage({
 
   const requester = await requesterFor(id);
   const decision = await decide(db, event, 'view', requester);
+  /*
+   * A private album this person is not in yet, arrived at by its own URL —
+   * from a profile listing, from a bookmark, from a link somebody pasted
+   * without the token. The door is a page, so send them to it rather than
+   * telling them the album does not exist when the profile just said it does.
+   *
+   * `/event/<id>/request` decides for itself who may see the name, and it is
+   * stricter than this line: signed in, or holding the link. So this redirect
+   * discloses nothing — somebody who should get a 404 gets one there.
+   */
+  if (!decision.allow && decision.reason === 'approval_required') {
+    redirect(`/event/${id}/request`);
+  }
   // No distinction between "no such event" and "not yours" — the page must not
   // become a way to test whether an event id is real.
   if (!decision.allow) notFound();

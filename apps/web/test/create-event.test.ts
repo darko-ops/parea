@@ -232,16 +232,16 @@ describe('the access policy a creator chooses', () => {
   it('defaults to the open one when the client says nothing', () => {
     // Older clients send no such field, and the answer for them is the
     // behaviour they already had.
-    expect(source).toMatch(/body\.accessPolicy === undefined \? LINK_OPEN/);
+    expect(source).toMatch(/body\.accessPolicy === undefined \? PUBLIC/);
   });
 
   it('refuses anything that is not one it offers', () => {
-    // Checked against a named list rather than a chain of `!==`, which is what
-    // this was: adding the third policy meant remembering to widen a boolean
-    // that reads correctly either way, and a missed clause there rejects a
-    // policy the UI offers.
+    // Checked against a named list rather than a chain of `!==`. The list is
+    // two long now and the check does not care: a policy that leaves is one
+    // fewer name here, and the old values fall through to the 400 rather than
+    // reaching a column `authorize` would fail closed on.
     expect(source).toContain("error: 'invalid_access_policy'");
-    expect(source).toMatch(/const OFFERED = \[LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS\]/);
+    expect(source).toMatch(/const OFFERED = \[PUBLIC, PRIVATE\]/);
     expect(source).toMatch(/!OFFERED\.includes\(/);
   });
 

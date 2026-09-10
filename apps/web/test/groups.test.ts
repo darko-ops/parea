@@ -591,7 +591,7 @@ describe('authorize, on group facts alone', () => {
           id: 'e',
           linkToken: 'x'.repeat(22),
           capEpoch: 1,
-          accessPolicy: 'link_open',
+          accessPolicy: 'private',
           joinsOpen: false,
           uploadsOpen: true,
           createdBy: 'someone-else',

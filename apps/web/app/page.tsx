@@ -94,17 +94,17 @@ export default function CreatePage() {
    */
   const [cover, setCover] = useState<File | null>(null);
   /*
-   * Four switches, and only two of them are the access policy.
+   * Three switches, and only one of them is the access policy.
    *
-   * `policyFor` turns "private" and "I approve each person" into the one
-   * column that decides them; the link and the phrase are separate facts about
-   * the event. They were a single choice between two named modes, which is how
-   * "private" came to mean "and everybody queues at the door".
+   * `policyFor` turns "private" into the column that decides who can see it;
+   * the link and the phrase are separate facts about the event. There was a
+   * fourth — "manually approve members" — and it is gone with the policy it
+   * set: approving people is not a variety of private, it is what private
+   * does.
    */
   const [isPrivate, setIsPrivate] = useState(false);
   const [linkJoins, setLinkJoins] = useState(true);
   const [passPhrase, setPassPhrase] = useState(false);
-  const [approve, setApprove] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -167,7 +167,7 @@ export default function CreatePage() {
             name: name.trim(),
             caption: caption.trim() || undefined,
             place: place.trim() || undefined,
-            accessPolicy: policyFor({ isPrivate, approve }),
+            accessPolicy: policyFor({ isPrivate }),
             linkJoins,
             passPhrase,
             // Ignored by the server unless this person is in that group.
@@ -233,7 +233,6 @@ export default function CreatePage() {
       caption,
       place,
       isPrivate,
-      approve,
       linkJoins,
       passPhrase,
       groupId,
@@ -425,31 +424,30 @@ export default function CreatePage() {
                   {/*
                     A column of switches rather than a row of named modes. Each
                     line is one decision somebody can predict the result of; the
-                    three-way policy underneath is assembled by `policyFor`,
-                    which is also what the manage screen writes.
+                    policy underneath is assembled by `policyFor`, which is
+                    also what the manage screen writes.
                   */}
                   <div className="toggles">
                     <Toggle
                       label="Private"
                       help={
                         isPrivate
-                          ? 'Whoever you send the link to signs in and is in. A forwarded link is no use without an account.'
-                          : 'Anyone with the link can look, with no account. Adding photos always needs one.'
+                          ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
+                          : 'Anyone can see it, with no account. Adding photos always needs one.'
                       }
                       on={isPrivate}
-                      onChange={(next) => {
-                        setIsPrivate(next);
-                        // Approval only exists inside private. Leaving it on
-                        // while flipping to public would show a switch saying
-                        // one thing and a policy saying another.
-                        if (!next) setApprove(false);
-                      }}
+                      onChange={setIsPrivate}
                     />
                     <Toggle
                       label="Share link"
                       help={
+                        // What the link does depends on the policy above it,
+                        // and saying "lets new people in" over a private album
+                        // would promise the one thing private does not do.
                         linkJoins
-                          ? 'The link lets new people in.'
+                          ? isPrivate
+                            ? 'The link lets new people ask. You answer, under Members.'
+                            : 'The link lets new people in.'
                           : 'The link opens nothing for anybody new — only the people you add are in.'
                       }
                       on={linkJoins}
@@ -464,21 +462,6 @@ export default function CreatePage() {
                       }
                       on={passPhrase}
                       onChange={setPassPhrase}
-                    />
-                    <Toggle
-                      label="Manually approve members"
-                      help={
-                        approve
-                          ? 'Holding the link only gets them as far as asking. You answer, under Members.'
-                          : 'Nobody has to ask, and you do not have to approve anyone.'
-                      }
-                      on={approve}
-                      onChange={(next) => {
-                        setApprove(next);
-                        // Approving people is a kind of private, and the policy
-                        // column cannot hold both.
-                        if (next) setIsPrivate(true);
-                      }}
                     />
                   </div>
                 </fieldset>

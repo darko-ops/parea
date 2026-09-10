@@ -68,6 +68,18 @@ async function makeSignedInActor(email = `${crypto.randomUUID()}@example.test`) 
   return actor!.id;
 }
 
+/**
+ * A private album, which is now the only kind that asks about credentials.
+ *
+ * Public means anyone can see it — no link, no account, nothing presented — so
+ * every test below about what a link, a code or a stored capability is worth
+ * has to be about a private one or it is testing nothing. That is the shape of
+ * the change, and these fixtures are where it shows.
+ */
+const makePrivateEvent = (
+  overrides: Partial<typeof schema.events.$inferInsert> = {},
+) => makeEvent({ accessPolicy: 'private', ...overrides });
+
 async function makeEvent(overrides: Partial<typeof schema.events.$inferInsert> = {}) {
   const createdBy = overrides.createdBy ?? (await makeActor());
   const [event] = await db
@@ -87,8 +99,8 @@ describe('resolving credentials from the database', () => {
     expect(decision).toEqual({ allow: true });
   });
 
-  it('refuses the same stranger without it', async () => {
-    const event = await makeEvent();
+  it('refuses the same stranger without it, on a private album', async () => {
+    const event = await makePrivateEvent();
     const decision = await decide(db, event, 'view', { actorId: null });
     expect(decision).toEqual({ allow: false, reason: 'no_credential' });
   });
@@ -128,7 +140,7 @@ describe('resolving credentials from the database', () => {
    * each half worked in isolation and no test joined them up.
    */
   it('leaves a capability that is worth nothing on its own', async () => {
-    const event = await makeEvent();
+    const event = await makePrivateEvent();
     const stranger = await makeActor();
 
     // Exactly what the event page asks on the request after the redirect: an
@@ -179,20 +191,23 @@ describe('resolving credentials from the database', () => {
   });
 
   it('matches a spoken code against the one the event actually holds', async () => {
-    const event = await makeEvent();
+    const event = await makePrivateEvent();
     const guest = await makeSignedInActor();
     await db
       .insert(schema.codes)
       .values({ words: 'amber-fox', eventId: event.id, claimedAt: new Date() });
 
+    // The code is a credential and not an admission: on a private album it
+    // gets them as far as the door, which is `approval_required`. A wrong one
+    // does not even do that.
     expect(await decide(db, event, 'contribute', { actorId: guest, code: 'amber-fox' }))
-      .toEqual({ allow: true });
+      .toEqual({ allow: false, reason: 'approval_required' });
     expect(await decide(db, event, 'contribute', { actorId: guest, code: 'silver-otter' }))
       .toEqual({ allow: false, reason: 'no_credential' });
   });
 
   it('will not take a correct code from someone signed out', async () => {
-    const event = await makeEvent();
+    const event = await makePrivateEvent();
     await db
       .insert(schema.codes)
       .values({ words: 'amber-fox', eventId: event.id, claimedAt: new Date() });
@@ -202,7 +217,7 @@ describe('resolving credentials from the database', () => {
   });
 
   it('a code claimed by another event does not open this one', async () => {
-    const mine = await makeEvent();
+    const mine = await makePrivateEvent();
     const theirs = await makeEvent();
     await db
       .insert(schema.codes)
@@ -213,8 +228,11 @@ describe('resolving credentials from the database', () => {
   });
 
   it('rotating the link locks out stored capabilities but not the new link', async () => {
-    const event = await makeEvent();
-    const actorId = await makeActor();
+    // Private, because rotation is only a lever on an album where holding the
+    // link is worth something — see the note in `authorize` on what a public
+    // album gives up in exchange for the word.
+    const event = await makePrivateEvent();
+    const actorId = await makeSignedInActor();
     await recordParticipant(db, event.id, actorId);
 
     const rotated = newLinkToken();
@@ -244,17 +262,21 @@ describe('resolving credentials from the database', () => {
 
 describe('guard', () => {
   it('throws rather than returning a value a handler could forget to check', async () => {
-    const event = await makeEvent();
+    const event = await makePrivateEvent();
     await expect(guard(db, event, 'view', { actorId: null })).rejects.toBeInstanceOf(
       AccessError,
     );
+    // The other half of the same call: a signed-in participant of that same
+    // private album passes and returns nothing at all.
+    const inside = await makeSignedInActor();
+    await recordParticipant(db, event.id, inside);
     await expect(
-      guard(db, event, 'view', { actorId: null, linkToken: event.linkToken }),
+      guard(db, event, 'view', { actorId: inside, capEpoch: event.capEpoch }),
     ).resolves.toBeUndefined();
   });
 
   it('does not leak why, to someone who never had access', async () => {
-    const event = await makeEvent();
+    const event = await makePrivateEvent();
     try {
       await guard(db, event, 'view', { actorId: null });
       expect.unreachable();
@@ -350,8 +372,8 @@ describe('a door that does not write anything down evicts people later', () => {
   });
 });
 
-describe('a private event where the host decides', () => {
-  const privateEvent = () => makeEvent({ accessPolicy: 'request_access' });
+describe('a private album where the creator decides', () => {
+  const privateEvent = () => makeEvent({ accessPolicy: 'private' });
 
   it('stops a signed-in link holder at the door', async () => {
     const event = await privateEvent();
@@ -407,7 +429,7 @@ describe('a private event where the host decides', () => {
 
   it('never makes the creator ask themselves', async () => {
     const creator = await makeSignedInActor();
-    const event = await makeEvent({ accessPolicy: 'request_access', createdBy: creator });
+    const event = await makeEvent({ accessPolicy: 'private', createdBy: creator });
     expect(await decide(db, event, 'view', { actorId: creator })).toEqual({ allow: true });
   });
 });
@@ -417,7 +439,7 @@ describe('a private event where the host decides', () => {
  *
  * It was write-once, which looks like a safety property and is not one: the
  * choice is made in the first thirty seconds of an event's life, before
- * anybody has been sent anything, and the difference between the three only
+ * anybody has been sent anything, and the difference between the two only
  * becomes visible once somebody has been. Five events here were permanently
  * making invited people queue at the door with no way back.
  *
@@ -433,17 +455,17 @@ describe('who can see it, changed after the fact', () => {
   it('takes effect on the next request, in both directions', async () => {
     // Nothing is cached and nothing is re-issued: `authorize` reads the column
     // every time, which is what makes this safe to change at all.
-    const event = await makeEvent({ accessPolicy: 'request_access' });
+    const event = await makeEvent({ accessPolicy: 'private' });
     const guest = await makeSignedInActor();
     const holdsLink = { actorId: guest, linkToken: event.linkToken };
 
     expect((await decide(db, event, 'view', holdsLink)).allow).toBe(false);
 
-    await setPolicy(event.id, 'account_required');
+    await setPolicy(event.id, 'public');
     const loosened = (await findEventById(db, event.id))!;
     expect(await decide(db, loosened, 'view', holdsLink)).toEqual({ allow: true });
 
-    await setPolicy(event.id, 'request_access');
+    await setPolicy(event.id, 'private');
     const tightened = (await findEventById(db, event.id))!;
     expect((await decide(db, tightened, 'view', holdsLink)).allow).toBe(false);
   });
@@ -452,18 +474,18 @@ describe('who can see it, changed after the fact', () => {
     // The screen says so, and this is why it can: participation is read before
     // the policy, so approval mode stops new people rather than removing
     // everyone who arrived while the event was open.
-    const event = await makeEvent({ accessPolicy: 'link_open' });
+    const event = await makeEvent({ accessPolicy: 'public' });
     const guest = await makeSignedInActor();
     await recordParticipant(db, event.id, guest);
 
-    await setPolicy(event.id, 'request_access');
+    await setPolicy(event.id, 'private');
     const tightened = (await findEventById(db, event.id))!;
     expect(
       await decide(db, tightened, 'view', { actorId: guest, capEpoch: event.capEpoch }),
     ).toEqual({ allow: true });
   });
 
-  it('is refused any value that is not one of the three', async () => {
+  it('is refused any value that is not one of the two', async () => {
     // `authorize` denies an unknown policy, so a typo stored here would lock
     // out the host as well — and the only way back is the endpoint that just
     // accepted it.
@@ -511,10 +533,18 @@ describe('the request route', () => {
     expect(grant).toBeLessThan(mark);
   });
 
-  it('checks the link before it will carry a name to the host', () => {
-    // Without this, anyone who guessed an event id could put themselves in
-    // front of its host.
-    expect(route).toMatch(/requester\.capEpoch !== event\.capEpoch/);
+  it('will not carry a name to somebody who blocked the person asking', () => {
+    /*
+     * This replaced the link check. Asking used to require the capability
+     * cookie `/e/<token>` grants, which is now the wrong gate: a private album
+     * is listed on its creator's profile and the button under it is this
+     * route, so requiring the link would 404 the one door the profile offers.
+     *
+     * The block is what is left, and it is checked in the creator's direction
+     * — silently, with the answer a nonexistent album gets.
+     */
+    expect(route).toMatch(/isBlockedBy\(db, event\.createdBy, actorId\)/);
+    expect(route).not.toMatch(/requester\.capEpoch !== event\.capEpoch/);
   });
 
   it('will not reopen a request the host declined', () => {
@@ -555,6 +585,48 @@ describe('the native join route', () => {
     // apart fails on its own documentation.
     expect(route).not.toMatch(/ensureActor\s*\(/);
     expect(route).toMatch(/if \(actorId\) await recordParticipant/);
+  });
+
+  /**
+   * The door, for the client that cannot be redirected to one.
+   *
+   * The web sends a browser to `/event/<id>/request`. Native has no navigation
+   * to hand it, so the refusal itself has to be the door: 403, the reason, and
+   * the album's name for the screen to put at the top.
+   */
+  it('tells a private album apart from a link that resolves to nothing', async () => {
+    const creator = await makeSignedInActor();
+    const event = await makeEvent({ accessPolicy: 'private', createdBy: creator });
+    const asking = await makeSignedInActor();
+
+    // What the route decides on, taken from the same helper the route uses.
+    const decision = await decide(db, event, 'view', {
+      actorId: asking,
+      linkToken: event.linkToken,
+    });
+    expect(decision).toEqual({ allow: false, reason: 'approval_required' });
+
+    // And what the route does with it: 403 with the album, not 404 with
+    // nothing. Source-checked, because the reply is the contract the app's
+    // door screen is written against.
+    expect(route).toMatch(/decision\.reason === 'approval_required'/);
+    expect(route).toMatch(/event: \{ id: event\.id, name: event\.name \}/);
+    expect(route).toMatch(/status: 403/);
+  });
+
+  it('still says nothing at all about a token nobody holds', () => {
+    /*
+     * The property the 403 must not cost. `event` is found *by* the link token
+     * or by an unreleased code, so the reply above only ever reaches somebody
+     * who presented a real credential — and a guessed token never gets that
+     * far, because the lookup fails and the route answers 404 before any of
+     * this. Anchored on the order, which is the safety property.
+     */
+    const notFound = route.indexOf("if (!event) return NextResponse.json({ error: 'not_found' }");
+    const door = route.indexOf("decision.reason === 'approval_required'");
+    expect(notFound).toBeGreaterThan(-1);
+    expect(door).toBeGreaterThan(-1);
+    expect(notFound).toBeLessThan(door);
   });
 });
 

@@ -65,41 +65,43 @@ export type Decision = { allow: true } | { allow: false; reason: DenyReason };
 const ALLOW: Decision = { allow: true };
 const deny = (reason: DenyReason): Decision => ({ allow: false, reason });
 
-/** Possession of the link is the access model. Anyone holding it may view. */
-export const LINK_OPEN = 'link_open';
+/**
+ * Anyone can see it.
+ *
+ * Possession of the link is the access model, and nothing else is asked: no
+ * account to look, no host to ask. Adding photos still names who added them —
+ * see the `contribute` check below — because an upload is attributable and a
+ * look is not.
+ */
+export const PUBLIC = 'public';
 
 /**
- * The link gets you to the door; an account gets you in.
+ * You are in it, or you are not.
  *
- * Chosen per event by whoever created it. The link token is still required and
- * still not sufficient: a private event handed to someone signed out denies
- * with `sign_in_required` rather than 404, because they hold a real credential
- * and the fix is an action they can take.
+ * Two doors and no third: somebody added you and you accepted, or you asked
+ * and the person who made it let you in. Holding the link is not one of them.
+ * It gets you as far as the door — `/event/<id>/request` — and no further,
+ * which is also all a stranger who found the album on somebody's profile
+ * gets. Both arrive at the same page and press the same button.
+ *
+ * Being in is an `event_participant` row, whichever door it came through.
+ * There is no separate "approved" column, because that row is already what
+ * "in" means here and already what `joins_open` reads — a second table saying
+ * the same thing is two answers to one question, and the day they disagree the
+ * wrong one wins silently.
+ *
+ * Signing in comes before asking: a request from somebody with no account
+ * names nobody, and the host is being asked about a person.
+ *
+ * This replaced two policies. `account_required` — the link admits whoever
+ * signs in — was the middle setting, and it is gone because it made "private"
+ * mean two different things depending on a switch most people never found. A
+ * forwarded link either opens an album or it does not, and for a private
+ * album the answer is now always no.
  */
-export const ACCOUNT_REQUIRED = 'account_required';
+export const PRIVATE = 'private';
 
-/**
- * The link gets you to the door; the host lets you in.
- *
- * The strongest of the three, and the only one where holding the link is not
- * the last step. `link_open` and `account_required` both answer "who may
- * look?" with a property of the visitor — anyone, or anyone signed in — and
- * neither asks the host anything. This one does, which is the point: an event
- * whose link has travelled further than the guest list can still be closed to
- * the people it reached.
- *
- * Approval is participation. There is no separate "approved" column, because
- * `event_participant` already means "in" and is already what `joins_open`
- * reads — a second table saying the same thing is two answers to one question,
- * and the day they disagree the wrong one wins silently.
- *
- * Signing in is required before the request rather than after: a request from
- * someone with no account names nobody, and the host is being asked to make a
- * decision about a person.
- */
-export const REQUEST_ACCESS = 'request_access';
-
-const KNOWN_POLICIES: readonly string[] = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS];
+const KNOWN_POLICIES: readonly string[] = [PUBLIC, PRIVATE];
 
 export function authorize(
   actor: PolicyActor,
@@ -144,7 +146,26 @@ export function authorize(
   // it names who is using it or it opens nothing.
   const viaCode = codeMatches && signedIn;
 
+  /*
+   * A public album needs no credential at all.
+   *
+   * This is the half of the simplification that is not in the column. It used
+   * to be link_open — possession of the link *was* the access — and "public"
+   * cannot mean that: an album listed on somebody's profile, opened by a
+   * person who was never sent anything, is the whole point of the word. So for
+   * `public` the link is a convenience for finding the thing, not the lock on
+   * it.
+   *
+   * What that costs, said plainly: rotating the link no longer shuts anybody
+   * out of a public album, because there is nothing to shut. The lever that
+   * still works is the policy itself — switch it to private and everyone who
+   * is not already a participant is out, which is the honest shape anyway.
+   * `joins_open` is untouched and still overrides this below.
+   */
+  const isPublic = event.accessPolicy === PUBLIC;
+
   const hasCredential =
+    isPublic ||
     viaLink ||
     viaCode ||
     isCreator ||
@@ -168,19 +189,16 @@ export function authorize(
   // Past this point the caller has proved they may know the event exists, so
   // denials can say why without becoming an oracle.
 
-  // Private events. The link is necessary and not sufficient.
-  if (event.accessPolicy === ACCOUNT_REQUIRED && !signedIn) {
-    return deny('sign_in_required');
-  }
-
-  if (event.accessPolicy === REQUEST_ACCESS) {
+  // Private albums. The link is not a way in — it is a way to ask.
+  if (event.accessPolicy === PRIVATE) {
     // Asked first, because "sign in" is the step in front of "ask", and
     // telling someone to wait for approval when they have not yet said who
     // they are sends them to wait for a decision nobody can make.
     if (!signedIn) return deny('sign_in_required');
 
-    // The link proved they may know it exists. Being in is a separate fact and
-    // the host owns it. `isParticipant` is what approval writes, so this reads
+    // Whatever credential got them this far, being in is a separate fact and
+    // the person who made it owns it. `isParticipant` is what both doors
+    // write — an accepted invitation and an approved request — so this reads
     // the same column `joins_open` does rather than inventing a second one.
     if (!(isCreator || isGroupMember || isParticipant)) {
       return deny('approval_required');

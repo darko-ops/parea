@@ -27,6 +27,7 @@
  */
 
 import { ago } from '@parea/cards';
+import { PRIVATE } from '@parea/core';
 import type { Message } from '@/messages';
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -808,6 +809,7 @@ export function EventView({
           <People
             roster={feed.roster}
             linkToken={feed.event.linkToken}
+            accessPolicy={feed.event.accessPolicy}
             onInvite={() => setSharing(true)}
           />
           <SiteFooter />
@@ -990,10 +992,13 @@ function Masonry({
 function People({
   roster,
   linkToken,
+  accessPolicy,
   onInvite,
 }: {
   roster: Roster[];
   linkToken: string;
+  /** Decides what the line under the link is allowed to promise. */
+  accessPolicy: string;
   onInvite: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1060,7 +1065,16 @@ function People({
       */}
       <div className="people-foot">
         <Mark size={26} />
-        <p>Anyone with the link can add photos — no account needed to look.</p>
+        {/*
+          The sentence has to match the policy. It said "anyone with the link"
+          on every event, which on a private one is the opposite of true — and
+          it is the line somebody reads while deciding who to send the link to.
+        */}
+        <p>
+          {accessPolicy === PRIVATE
+            ? 'The link lets somebody ask to come in. You let them in, under Members.'
+            : 'Anyone with the link can add photos — no account needed to look.'}
+        </p>
         <button
           type="button"
           className="secondary"

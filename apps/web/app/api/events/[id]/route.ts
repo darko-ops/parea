@@ -10,7 +10,7 @@
  * creator, so no listing path needs a special case.
  */
 
-import { ACCOUNT_REQUIRED, LINK_OPEN, REQUEST_ACCESS, schema } from '@parea/core';
+import { PRIVATE, PUBLIC, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -56,7 +56,7 @@ export async function PATCH(
     caption?: string | null;
     joinsOpen?: boolean;
     uploadsOpen?: boolean;
-    accessPolicy?: typeof LINK_OPEN | typeof ACCOUNT_REQUIRED | typeof REQUEST_ACCESS;
+    accessPolicy?: typeof PUBLIC | typeof PRIVATE;
   } = {};
 
   /*
@@ -102,11 +102,11 @@ export async function PATCH(
    *
    * Tightening does not evict anyone. Whoever is already a participant stays
    * one — `authorize` reads participation before the policy — so switching to
-   * approval stops new people rather than removing the people already in. The
+   * private stops new people rather than removing the people already in. The
    * screen says so, because "private" sounds like it should mean the opposite.
    */
   if (typeof body.accessPolicy === 'string') {
-    const known = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS] as const;
+    const known = [PUBLIC, PRIVATE] as const;
     const chosen = known.find((policy) => policy === body.accessPolicy);
     if (!chosen) {
       return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });

@@ -1,33 +1,28 @@
 'use client';
 
 /**
- * Who can see it — the one control, in the two places it is asked.
+ * Who can see it — two answers, in the two places it is asked.
  *
- * It is asked when an event is made and again when one is managed, and those
- * were two different questions until now: the create form offered "anyone with
- * the link" or "you approve each person", the phone offered "anyone with the
- * link" or "sign in", and Manage offered nothing at all because the column was
- * write-once. Three surfaces, three vocabularies, one column.
+ * It is asked when an album is made and again when one is managed, and there
+ * used to be three answers: anyone with the link, private-but-the-link-admits,
+ * and private-and-I-approve. The middle one is gone. It was the setting that
+ * made "private" ambiguous — two albums both marked private behaved
+ * differently on a forwarded link, and which way depended on a switch most
+ * people never opened.
  *
- * The middle setting is the one that was missing from the web, and it is the
- * one most people mean by private: the link admits, and you have to say who
- * you are to use it. Without it, choosing "private" here meant every person
- * you deliberately sent a link to had to stand at the door and ask — which is
- * the right behaviour for a link that may travel past the guest list, and the
- * wrong one for a link sent to six friends.
+ * So: public means anyone can see it. Private means you are in it or you are
+ * not, and getting in is somebody adding you or the creator letting you in
+ * after you ask. There is no third thing a link can do.
  *
  * The copy is the interesting part and it lives here, once. Each option says
  * what happens to the person on the other end, not what the policy is called:
- * "they sign in and they are in" is a fact somebody can predict from, where
- * "account required" is a setting they have to interpret.
+ * "they ask, and you let them in" is a fact somebody can predict from, where
+ * "account required" was a setting they had to interpret.
  */
 
-import { ACCOUNT_REQUIRED, LINK_OPEN, REQUEST_ACCESS } from '@parea/core';
+import { PRIVATE, PUBLIC } from '@parea/core';
 
-export type AccessPolicy =
-  | typeof LINK_OPEN
-  | typeof ACCOUNT_REQUIRED
-  | typeof REQUEST_ACCESS;
+export type AccessPolicy = typeof PUBLIC | typeof PRIVATE;
 
 export const ACCESS_OPTIONS: {
   value: AccessPolicy;
@@ -36,51 +31,36 @@ export const ACCESS_OPTIONS: {
   help: string;
 }[] = [
   {
-    value: LINK_OPEN,
-    label: 'Anyone with the link',
-    help: 'Whoever holds the link sees the photos, and so does anyone who is told the phrase. No account needed to look; adding photos always needs one.',
+    value: PUBLIC,
+    label: 'Public',
+    help: 'Anyone can see it — whoever holds the link, and anyone they pass it on to. No account needed to look; adding photos always needs one.',
   },
   {
-    value: ACCOUNT_REQUIRED,
-    label: 'Private — they sign in',
-    help: 'Whoever you send the link to signs in and is straight in. Nobody has to ask and you do not have to approve anyone — but the link alone opens nothing, so a forwarded link is no use without an account.',
-  },
-  {
-    value: REQUEST_ACCESS,
-    label: 'I approve each person',
-    help: 'Holding the link only gets them as far as asking. You approve each person, under Members. Use this when the link may travel further than the guest list.',
+    value: PRIVATE,
+    label: 'Private',
+    help: 'Only the people in it. You add them, or they ask and you let them in — from the link, or from your profile, where the album is listed by name with nothing in it showing. A forwarded link opens nothing.',
   },
 ];
 
 /**
- * The same three, asked as switches rather than as a row of names.
+ * The same two, asked as a switch rather than as a row of names.
  *
- * The create screen asks it this way because somebody making an event is
+ * The create screen asks it this way because somebody making an album is
  * deciding several things at once — who can see it, whether the link admits,
- * whether there is a phrase — and a list of switches is how that reads. Manage
- * asks it as three names because by then it is one settled fact being changed.
+ * whether there is a phrase — and a line of switches is how that reads. Manage
+ * asks it as two names because by then it is one settled fact being changed.
  *
- * Both end up in the same column, through this function and nowhere else. The
- * mapping is the part worth keeping in one place: "private" and "I approve
- * each person" are not two settings, they are two of the three values, and
- * approval implies private because a policy cannot be both.
+ * Both end up in the same column, through this function and nowhere else.
  */
-export function policyFor({
-  isPrivate,
-  approve,
-}: {
-  isPrivate: boolean;
-  approve: boolean;
-}): AccessPolicy {
-  if (approve) return REQUEST_ACCESS;
-  return isPrivate ? ACCOUNT_REQUIRED : LINK_OPEN;
+export function policyFor({ isPrivate }: { isPrivate: boolean }): AccessPolicy {
+  return isPrivate ? PRIVATE : PUBLIC;
 }
 
 export function AccessChoice({
   value,
   onChange,
   disabled = false,
-  /** Shown under the options when this is an event that already exists. */
+  /** Shown under the options when this is an album that already exists. */
   note,
 }: {
   value: AccessPolicy;

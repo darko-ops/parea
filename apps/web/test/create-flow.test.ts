@@ -1,14 +1,14 @@
 /**
  * The shape of making an event, as the screen now asks it.
  *
- * Four switches where there used to be a choice between two named modes, a
- * guest list, and an ending that is the event rather than a page about it.
+ * Three switches where there used to be four, a guest list, and an ending that
+ * is the event rather than a page about it.
  * Every one of those is a decision somebody can get wrong on the way back
  * through, and the ones worth pinning are the ones where the screen and the
  * database can disagree without anything looking broken.
  */
 
-import { ACCOUNT_REQUIRED, LINK_OPEN, REQUEST_ACCESS } from '@parea/core';
+import { PRIVATE, PUBLIC } from '@parea/core';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -23,40 +23,37 @@ const read = (path: string) =>
 const CREATE = read('../app/page.tsx');
 const ROUTE = read('../app/api/events/route.ts');
 
-describe('two switches, three policies', () => {
+describe('one switch, two policies', () => {
   /*
-   * `policyFor` is the only place the switches become a policy, and it is
-   * shared with the manage screen. The mapping is not obvious in one
-   * direction: "I approve each person" is not a fourth setting sitting beside
-   * private, it *is* private plus a step, and the column can only hold one
-   * value.
+   * `policyFor` is the only place the switch becomes a policy, and it is
+   * shared with the manage screen. There used to be a second switch — "I
+   * approve each person" — and the mapping was the un-obvious part: approval
+   * was not a fourth setting beside private, it was private plus a step. It is
+   * gone, because approval is what private does now.
    */
   it('is public until somebody says otherwise', () => {
-    expect(policyFor({ isPrivate: false, approve: false })).toBe(LINK_OPEN);
+    expect(policyFor({ isPrivate: false })).toBe(PUBLIC);
   });
 
-  it('is sign-in-and-you-are-in for private', () => {
-    // The setting most people mean, and the one the web form did not offer
-    // until now: the link admits, the account names them, nobody queues.
-    expect(policyFor({ isPrivate: true, approve: false })).toBe(ACCOUNT_REQUIRED);
+  it('is added-or-let-in for private', () => {
+    expect(policyFor({ isPrivate: true })).toBe(PRIVATE);
   });
 
-  it('is approval whenever approval is asked for', () => {
-    expect(policyFor({ isPrivate: true, approve: true })).toBe(REQUEST_ACCESS);
-    // Even from a public switch position, because the screen forces private on
-    // when this goes on and the two must not be able to disagree.
-    expect(policyFor({ isPrivate: false, approve: true })).toBe(REQUEST_ACCESS);
+  it('offers nothing between the two', () => {
+    // The regression this file exists to catch: a third value creeping back in
+    // as a special case somewhere other than here.
+    expect(new Set([policyFor({ isPrivate: false }), policyFor({ isPrivate: true })]).size)
+      .toBe(2);
   });
 
   it('is what the form sends, rather than a second copy of the rule', () => {
-    expect(CREATE).toMatch(/accessPolicy: policyFor\(\{ isPrivate, approve \}\)/);
+    expect(CREATE).toMatch(/accessPolicy: policyFor\(\{ isPrivate \}\)/);
   });
 
-  it('keeps the two switches consistent in both directions', () => {
-    // Turning approval on implies private; turning private off cannot leave
-    // approval standing, or the screen says one thing and the row says another.
-    expect(CREATE).toMatch(/setApprove\(next\);[\s\S]{0,80}if \(next\) setIsPrivate\(true\)/);
-    expect(CREATE).toMatch(/setIsPrivate\(next\);[\s\S]{0,120}if \(!next\) setApprove\(false\)/);
+  it('has no approval switch left to disagree with the policy', () => {
+    // Two switches writing one column is how "private" came to mean two
+    // different things. There is one switch now, and this is what says so.
+    expect(CREATE).not.toMatch(/setApprove|Manually approve/);
   });
 });
 
@@ -115,27 +112,23 @@ describe('what the share panel promises the person receiving the link', () => {
   /*
    * The sentence under a link somebody is about to paste into a group chat.
    * It said "anybody with this can open the event and add their photos" on
-   * every event, which is true of exactly one of the three policies — and the
-   * person reading it is deciding, on the strength of it, who to send it to.
+   * every event, which is true of exactly one of the policies — and the person
+   * reading it is deciding, on the strength of it, who to send it to.
    */
   it('is the plain truth for a public event', () => {
-    expect(promise(LINK_OPEN, true)).toMatch(/Anybody with this can open the event/);
-  });
-
-  it('says what private actually costs the recipient', () => {
-    expect(promise(ACCOUNT_REQUIRED, true)).toMatch(/signs in and is straight in/);
+    expect(promise(PUBLIC, true)).toMatch(/Anybody with this can open the event/);
   });
 
   it('does not promise entry when entry has to be granted', () => {
-    const said = promise(REQUEST_ACCESS, true);
+    const said = promise(PRIVATE, true);
     expect(said).toMatch(/can ask to come in/);
     expect(said).not.toMatch(/straight in|Anybody with this/);
   });
 
-  it('lets the link switch override all three, because it does', () => {
+  it('lets the link switch override both, because it does', () => {
     // Joins closed means nobody new gets in however the event is set, so this
     // is checked before the policy rather than after.
-    for (const policy of [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS]) {
+    for (const policy of [PUBLIC, PRIVATE]) {
       expect(promise(policy, false), policy).toMatch(/The link is off for this event/);
     }
   });

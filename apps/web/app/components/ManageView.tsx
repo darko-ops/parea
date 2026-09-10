@@ -13,7 +13,7 @@
  * ability to decline is theoretical.
  */
 
-import { LINK_OPEN, REQUEST_ACCESS } from '@parea/core';
+import { PRIVATE, PUBLIC } from '@parea/core';
 import { ACCEPT_ATTRIBUTE } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -61,7 +61,7 @@ export function ManageView({
 }) {
   const [joinsOpen, setJoinsOpen] = useState(initial.joinsOpen);
   const [access, setAccess] = useState<AccessPolicy>(
-    (ACCESS_OPTIONS.find((o) => o.value === initial.accessPolicy)?.value ?? LINK_OPEN),
+    (ACCESS_OPTIONS.find((o) => o.value === initial.accessPolicy)?.value ?? PUBLIC),
   );
   const [uploadsOpen, setUploadsOpen] = useState(initial.uploadsOpen);
   const [reports, setReports] = useState<PendingReport[]>([]);
@@ -125,7 +125,7 @@ export function ManageView({
     // The live value, not the one the page was rendered with: the policy is
     // changeable on this screen now, and reading the prop would leave somebody
     // who has just turned approval on looking at a section that never fills.
-    if (access !== REQUEST_ACCESS) return;
+    if (access !== PRIVATE) return;
     const res = await fetch(`/api/events/${eventId}/access-requests`);
     if (res.ok) setRequests((await res.json()).requests);
   }, [access, eventId]);
@@ -516,7 +516,7 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'members' && access === REQUEST_ACCESS && (
+      {tab === 'members' && access === PRIVATE && (
         <section className="panel">
           <h2>Requests</h2>
           <p className="panel-note">

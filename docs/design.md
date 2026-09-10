@@ -332,7 +332,7 @@ event
   ends_at       timestamptz null
   group_id      uuid null fk
   created_by    uuid fk actor
-  access_policy text default 'link_open'    -- §6
+  access_policy text default 'public'      -- §6
   joins_open    boolean default true
   uploads_open  boolean default true
   nudged_at     timestamptz null      -- hard cap of one, in the schema
@@ -424,11 +424,32 @@ function authorize(
 ): Decision   // { allow: true } | { allow: false; reason: … }
 ```
 
-v1 ships one policy, `link_open`: a valid link or code grants `view`,
-`contribute`, and `download`; creator and group admins also get `administer`. A
-handful of lines. The point isn't the policy — it's that `event.access_policy`
-is a column with one value today, so `paid_gallery` later is a branch in one
-function plus an entitlement check, not archaeology across forty call sites.
+Two policies, and the second one exists because the first cannot be softened
+into it:
+
+- **`public`** — anyone can see it. `view` and `download` need nothing
+  presented at all; the link is how somebody finds it, not what unlocks it.
+  `contribute` still needs an account, because an upload is attributable and a
+  look is not.
+- **`private`** — added, or let in. Being in is an `event_participant` row,
+  written by an accepted invitation or by the creator approving a request.
+  Holding the link gets somebody to `/event/<id>/request` and no further; so
+  does finding the album on its creator's profile, where private albums are
+  listed by name and nothing else.
+
+Creator and group admins get `administer`, which no link and no policy grants.
+
+There were briefly three. `account_required` — the link admits whoever signs
+in — sat between them and made "private" mean two different things depending on
+a switch most people never opened; the migration folds it into `private`, the
+closed direction. The point was never the count: `event.access_policy` is a
+column, so `paid_gallery` later is a branch in one function plus an entitlement
+check, not archaeology across forty call sites.
+
+What `public` gives up, said plainly: rotating the link no longer shuts anybody
+out of one, because there is nothing to shut. The lever that still works is the
+policy — switching to `private` leaves everybody who is not already a
+participant outside.
 
 Correspondingly: **events own photos, groups own events.** No photo is reachable
 except through an event. This is what makes a future per-collection rule

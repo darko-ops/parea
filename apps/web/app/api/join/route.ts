@@ -61,6 +61,37 @@ export async function POST(request: Request) {
     linkToken: event.linkToken,
     code: presentedCode,
   });
+
+  /*
+   * A private album whose creator has not let them in yet, and the app's own
+   * version of the redirect `/e/<token>` sends a browser.
+   *
+   * Every denial here used to be 404, which was right when holding the link
+   * was the access: there was nothing else a link could mean. Private changed
+   * that — a link to one is real, correct, and not a way in — and 404 turned
+   * the answer into "Couldn't find that. Check the link and try again", sent
+   * to somebody holding exactly the right link. They check it, find it is
+   * right, and try again.
+   *
+   * Safe to distinguish because of what is above it: `event` was found *by*
+   * the link token or by an unreleased code, so this reply only ever reaches
+   * somebody who presented a real credential — the same test the web's door
+   * page applies before it will say an album's name. A guessed token is still
+   * 404 below, so this does not become a way to ask whether one exists.
+   *
+   * The name comes with it. The door has to say which album is being asked
+   * about, and it is not news to somebody who was sent the link.
+   */
+  if (
+    !decision.allow &&
+    (decision.reason === 'approval_required' || decision.reason === 'sign_in_required')
+  ) {
+    return NextResponse.json(
+      { error: decision.reason, event: { id: event.id, name: event.name } },
+      { status: 403 },
+    );
+  }
+
   if (!decision.allow) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }

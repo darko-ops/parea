@@ -7,9 +7,8 @@
  */
 
 import {
-  ACCOUNT_REQUIRED,
-  LINK_OPEN,
-  REQUEST_ACCESS,
+  PRIVATE,
+  PUBLIC,
   newLinkToken,
   schema,
 } from '@parea/core';
@@ -212,8 +211,8 @@ export async function POST(request: Request) {
   // refused rather than defaulted: `authorize` fails closed on a policy it does
   // not know, so a typo that reached the column would lock the creator out of
   // the event they had just made.
-  const requested = body.accessPolicy === undefined ? LINK_OPEN : body.accessPolicy;
-  const OFFERED = [LINK_OPEN, ACCOUNT_REQUIRED, REQUEST_ACCESS] as const;
+  const requested = body.accessPolicy === undefined ? PUBLIC : body.accessPolicy;
+  const OFFERED = [PUBLIC, PRIVATE] as const;
   if (!OFFERED.includes(requested as (typeof OFFERED)[number])) {
     return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
   }
