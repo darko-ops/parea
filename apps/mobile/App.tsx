@@ -61,6 +61,7 @@ import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
@@ -155,6 +156,17 @@ export default function App() {
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
   const [tab, setTab] = useState<Tab>('home');
+  /*
+   * Somebody pressed `+` on their profile and chose a group.
+   *
+   * The form that makes one lives on the Groups tab, because that is where the
+   * suggestions are — the people this actor keeps ending up in events with,
+   * which is the argument for making a group rather than an empty room to
+   * fill. So the press goes there and opens it, rather than a second copy of
+   * the form appearing on the profile. A counter rather than a flag: pressing
+   * `+` twice has to open it twice.
+   */
+  const [makeGroup, setMakeGroup] = useState(0);
   const [events, setEvents] = useState<EventListing[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [arriving, setArriving] = useState(false);
@@ -291,6 +303,29 @@ export default function App() {
     setTab('home');
   }, []);
 
+  /*
+   * Leaving a pushed screen, named once each.
+   *
+   * Every one of these is reached two ways now — the arrow in the top-left
+   * corner and dragging the screen off to the right — and the two have to do
+   * the same thing, refreshes included. Written inline at both call sites they
+   * would be one edit away from a gesture that leaves a stale list behind and
+   * an arrow that does not.
+   */
+  const leaveEvent = useCallback(() => {
+    void refreshEvents();
+    setRoute({ screen: 'tabs' });
+  }, [refreshEvents]);
+
+  const leaveGroup = useCallback(() => {
+    void refreshGroups();
+    void refreshEvents();
+    setRoute({ screen: 'tabs' });
+  }, [refreshEvents, refreshGroups]);
+
+  /** The screens that change nothing on their way out. */
+  const leaveToTabs = useCallback(() => setRoute({ screen: 'tabs' }), []);
+
   const handled = useRef<string | null>(null);
   const arrive = useCallback(
     async (url: string | null) => {
@@ -369,22 +404,21 @@ export default function App() {
     <View style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar style={dark ? 'light' : 'dark'} />
       {route.screen === 'event' && (
-        <EventScreen
-          api={api}
-          event={route.event}
-          webBase={API_BASE}
-          t={t}
-          dark={dark}
-          signedIn={signedIn}
-          onSignedIn={refreshAccount}
-          Button={Button}
-          onBack={() => {
-            void refreshEvents();
-            setRoute({ screen: 'tabs' });
-          }}
-          onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-          onGroupsChanged={refreshGroups}
-        />
+        <SwipeBack onBack={leaveEvent}>
+          <EventScreen
+            api={api}
+            event={route.event}
+            webBase={API_BASE}
+            t={t}
+            dark={dark}
+            signedIn={signedIn}
+            onSignedIn={refreshAccount}
+            Button={Button}
+            onBack={leaveEvent}
+            onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+            onGroupsChanged={refreshGroups}
+          />
+        </SwipeBack>
       )}
 
       {route.screen === 'create' && signedIn === false && (
@@ -438,19 +472,17 @@ export default function App() {
       )}
 
       {route.screen === 'group' && (
-        <GroupScreen
-          api={api}
-          groupId={route.id}
-          t={t}
-          onBack={() => {
-            void refreshGroups();
-            void refreshEvents();
-            setRoute({ screen: 'tabs' });
-          }}
-          onOpenEvent={open}
-          onCreateEvent={(name) => setRoute({ screen: 'create', groupId: route.id, groupName: name })}
-          Button={Button}
-        />
+        <SwipeBack onBack={leaveGroup}>
+          <GroupScreen
+            api={api}
+            groupId={route.id}
+            t={t}
+            onBack={leaveGroup}
+            onOpenEvent={open}
+            onCreateEvent={(name) => setRoute({ screen: 'create', groupId: route.id, groupName: name })}
+            Button={Button}
+          />
+        </SwipeBack>
       )}
 
       {/*
@@ -460,15 +492,17 @@ export default function App() {
         same act as opening it from home.
       */}
       {route.screen === 'person' && (
-        <PersonScreen
-          api={api}
-          handle={route.handle}
-          events={events}
-          t={t}
-          onBack={() => setRoute({ screen: 'tabs' })}
-          onOpenEvent={openListing}
-          Button={Button}
-        />
+        <SwipeBack onBack={leaveToTabs}>
+          <PersonScreen
+            api={api}
+            handle={route.handle}
+            events={events}
+            t={t}
+            onBack={leaveToTabs}
+            onOpenEvent={openListing}
+            Button={Button}
+          />
+        </SwipeBack>
       )}
 
       {/*
@@ -480,20 +514,22 @@ export default function App() {
         in.
       */}
       {route.screen === 'door' && (
-        <DoorScreen
-          api={api}
-          eventId={route.eventId}
-          name={route.name}
-          t={t}
-          onBack={() => setRoute({ screen: 'tabs' })}
-          // Approved between the link being sent and the button being pressed.
-          // Nothing to wait for, so the list is refreshed and the door closes.
-          onLetIn={() => {
-            void refreshEvents();
-            setRoute({ screen: 'tabs' });
-          }}
-          Button={Button}
-        />
+        <SwipeBack onBack={leaveToTabs}>
+          <DoorScreen
+            api={api}
+            eventId={route.eventId}
+            name={route.name}
+            t={t}
+            onBack={leaveToTabs}
+            // Approved between the link being sent and the button being pressed.
+            // Nothing to wait for, so the list is refreshed and the door closes.
+            onLetIn={() => {
+              void refreshEvents();
+              setRoute({ screen: 'tabs' });
+            }}
+            Button={Button}
+          />
+        </SwipeBack>
       )}
 
       {route.screen === 'join' && (
@@ -542,6 +578,7 @@ export default function App() {
               // See the note at the top of `GroupsTab`.
               events={events}
               t={t}
+              openCreate={makeGroup}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
               onGoToEvents={() => setTab('home')}
             />
@@ -560,8 +597,14 @@ export default function App() {
             <ProfileScreen
               api={api}
               events={events}
+              webBase={API_BASE}
               t={t}
               onOpen={openListing}
+              onCreateEvent={() => setRoute({ screen: 'create' })}
+              onCreateGroup={() => {
+                setTab('groups');
+                setMakeGroup((n) => n + 1);
+              }}
               onSignedIn={() => {
                 // The account may speak for another device's actor, so what
                 // this person can reach has just changed.
@@ -791,6 +834,17 @@ function JoinScreen({
 }
 
 // --- event -------------------------------------------------------------------
+
+/**
+ * Where the album's page begins, under the cover.
+ *
+ * The same number as `styles.page.top`, and it has to stay the same number:
+ * the thread's composer is lifted clear of the keyboard by it, and the two
+ * drifting apart puts the text field back behind the keyboard by exactly the
+ * difference. Named here rather than read off the stylesheet so that the
+ * reason they match is written down next to one of them.
+ */
+const PAGE_TOP = 248;
 
 function EventScreen({
   api,
@@ -1300,128 +1354,139 @@ function EventScreen({
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
-      {pane === 'photos' ? (
-        <>
-          {/* White ink over the cover, for as long as the cover is what is
-              under the clock. */}
-          <StatusBar style="light" />
+      {/*
+        One head, and the tabs under it, for all three panes.
 
-          <View style={styles.cover}>
-            {cover ? (
-              <ExpoImage
-                source={{ uri: cover }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={120}
-              />
-            ) : (
-              // No cover and nothing to borrow: the event's own lens, which is
-              // the same letter-on-a-colour every other doorless thing in the
-              // product gets. Never a photograph pulled out of the grid — that
-              // is a decision about which evening this was, made by an
-              // upload's timestamp.
-              <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
-            )}
+        The photographs got the cover; the conversation and the roster got a
+        folded-up version of it — a 38pt thumbnail, the name and a count, on a
+        bar. Two headers for one album, so moving between the tabs rebuilt the
+        top of the screen: the cover appeared and vanished, the title changed
+        size, and the album looked like a different screen depending on which
+        of its tabs was up. One cover now, and only what is below the tabs
+        changes, which is what a tab is for.
+      */}
+      {/* White ink over the cover, for as long as the cover is what is
+          under the clock. */}
+      <StatusBar style="light" />
+
+      <View style={styles.cover}>
+        {cover ? (
+          <ExpoImage
+            source={{ uri: cover }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : (
+          // No cover and nothing to borrow: the event's own lens, which is
+          // the same letter-on-a-colour every other doorless thing in the
+          // product gets. Never a photograph pulled out of the grid — that
+          // is a decision about which evening this was, made by an
+          // upload's timestamp.
+          <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
+        )}
+        {/*
+          Dark at the top and the bottom, clear through the middle.
+
+          Not a flat wash: what has to be legible is the clock and the back
+          arrow at the top and the title at the foot, and darkening the
+          whole photograph to carry four words would be the product
+          deciding that somebody's cover is a texture. The middle stop is
+          at 45%, which is where the two gradients meet without either
+          reaching the other.
+        */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.42)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']}
+          locations={[0, 0.45, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      </View>
+
+      <Pressable
+        onPress={onBack}
+        hitSlop={10}
+        style={styles.coverBack}
+        accessibilityRole="button"
+        accessibilityLabel="All events"
+      >
+        <Text style={styles.coverBackText}>‹ All events</Text>
+      </Pressable>
+
+      {/*
+        Everything this screen used to stack, behind one glyph.
+
+        Eight full-width slabs sat between the name and the first
+        photograph — share, save, who can see it, the cover, asking people
+        in, starting a group — so that opening an album showed you a column
+        of settings and, if you scrolled, some photographs. They are the
+        same actions with the same copy and the same calls; they are in a
+        sheet now, which is where an album's settings go.
+      */}
+      <Pressable
+        onPress={() => setSheetOpen(true)}
+        hitSlop={8}
+        style={styles.coverMore}
+        accessibilityRole="button"
+        accessibilityLabel="Event options"
+      >
+        <BlurView intensity={10} tint="dark" style={styles.coverMoreBlur}>
+          <Text style={styles.coverMoreGlyph}>⋯</Text>
+        </BlurView>
+      </Pressable>
+
+      <View style={styles.coverTitle} pointerEvents="box-none">
+        <Text style={styles.coverName} numberOfLines={2}>
+          {event.name}
+        </Text>
+        <View style={styles.coverMeta}>
+          <Faces members={feed?.members ?? []} />
+          <View style={styles.coverMetaLine}>
+            <Text style={styles.coverMetaText}>
+              {feed
+                ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'}`
+                : (feedError ?? 'Loading…')}
+              {when ? ` · ${when} · ` : ' · '}
+            </Text>
             {/*
-              Dark at the top and the bottom, clear through the middle.
-
-              Not a flat wash: what has to be legible is the clock and the back
-              arrow at the top and the title at the foot, and darkening the
-              whole photograph to carry four words would be the product
-              deciding that somebody's cover is a texture. The middle stop is
-              at 45%, which is where the two gradients meet without either
-              reaching the other.
+              Who can see it, as a picture. An open padlock on a public
+              album and a closed one on a private album, in the line
+              somebody reads immediately before handing the link on — which
+              is the moment the answer matters and the only moment it was
+              previously given, three slabs down, in a paragraph.
             */}
-            <LinearGradient
-              colors={['rgba(0,0,0,0.42)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']}
-              locations={[0, 0.45, 1]}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
+            <Glyph
+              name={visible === 'private' ? 'locked' : 'unlocked'}
+              size={15}
+              color="rgba(255,255,255,0.92)"
             />
           </View>
+        </View>
+      </View>
 
+      <View style={[styles.page, { backgroundColor: t.bg }]}>
+        <View style={styles.tabRow}>
+          {tabs}
           <Pressable
-            onPress={onBack}
-            hitSlop={10}
-            style={styles.coverBack}
+            onPress={add}
+            disabled={feed?.event.uploadsOpen === false}
             accessibilityRole="button"
-            accessibilityLabel="All events"
+            accessibilityLabel="Add photos"
+            style={({ pressed }) => [
+              styles.addButton,
+              {
+                backgroundColor: t.card,
+                borderColor: t.line,
+                opacity: feed?.event.uploadsOpen === false ? 0.4 : pressed ? 0.7 : 1,
+              },
+            ]}
           >
-            <Text style={styles.coverBackText}>‹ All events</Text>
+            <Glyph name="plus" size={18} color={t.fg} />
           </Pressable>
+        </View>
 
-          {/*
-            Everything this screen used to stack, behind one glyph.
-
-            Eight full-width slabs sat between the name and the first
-            photograph — share, save, who can see it, the cover, asking people
-            in, starting a group — so that opening an album showed you a column
-            of settings and, if you scrolled, some photographs. They are the
-            same actions with the same copy and the same calls; they are in a
-            sheet now, which is where an album's settings go.
-          */}
-          <Pressable
-            onPress={() => setSheetOpen(true)}
-            hitSlop={8}
-            style={styles.coverMore}
-            accessibilityRole="button"
-            accessibilityLabel="Event options"
-          >
-            <BlurView intensity={10} tint="dark" style={styles.coverMoreBlur}>
-              <Text style={styles.coverMoreGlyph}>⋯</Text>
-            </BlurView>
-          </Pressable>
-
-          <View style={styles.coverTitle} pointerEvents="box-none">
-            <Text style={styles.coverName} numberOfLines={2}>
-              {event.name}
-            </Text>
-            <View style={styles.coverMeta}>
-              <Faces members={feed?.members ?? []} />
-              <View style={styles.coverMetaLine}>
-                <Text style={styles.coverMetaText}>
-                  {feed
-                    ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'}`
-                    : (feedError ?? 'Loading…')}
-                  {when ? ` · ${when} · ` : ' · '}
-                </Text>
-                {/*
-                  Who can see it, as a picture. An open padlock on a public
-                  album and a closed one on a private album, in the line
-                  somebody reads immediately before handing the link on — which
-                  is the moment the answer matters and the only moment it was
-                  previously given, three slabs down, in a paragraph.
-                */}
-                <Glyph
-                  name={visible === 'private' ? 'locked' : 'unlocked'}
-                  size={15}
-                  color="rgba(255,255,255,0.92)"
-                />
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.page, { backgroundColor: t.bg }]}>
-            <View style={styles.tabRow}>
-              {tabs}
-              <Pressable
-                onPress={add}
-                disabled={feed?.event.uploadsOpen === false}
-                accessibilityRole="button"
-                accessibilityLabel="Add photos"
-                style={({ pressed }) => [
-                  styles.addButton,
-                  {
-                    backgroundColor: t.card,
-                    borderColor: t.line,
-                    opacity: feed?.event.uploadsOpen === false ? 0.4 : pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Glyph name="plus" size={18} color={t.fg} />
-              </Pressable>
-            </View>
-
+        {pane === 'photos' ? (
+          <>
             {/*
               The transient lines, which are the only things still allowed
               between the tabs and the grid: an upload in flight and the one
@@ -1490,8 +1555,15 @@ function EventScreen({
               }
               renderItem={({ item }) => (
                 <Pressable style={styles.tile} onPress={() => setSelected(item)}>
+                  {/*
+                    The 640 rather than the 320. A tile is a third of the
+                    screen's width, which is 390 device pixels on a 3× phone —
+                    `src` is a 320 and was being scaled up into it. `card` is
+                    null only before the deriver has been round, and `src` is
+                    then the only thing that exists.
+                  */}
                   <ExpoImage
-                    source={{ uri: item.src }}
+                    source={{ uri: item.card ?? item.src }}
                     style={styles.thumb}
                     contentFit="cover"
                     transition={120}
@@ -1499,116 +1571,62 @@ function EventScreen({
                 </Pressable>
               )}
             />
-          </View>
+          </>
+        ) : pane === 'talk' ? (
+          <Thread
+            api={api}
+            eventId={event.id}
+            messages={messages}
+            canPost={feed?.canPost ?? false}
+            // This event's contributors and nobody else — the rule the web's
+            // mention list follows, and the reason it is safe for a text
+            // field a link-holder can type into.
+            people={(feed?.people ?? []).map((person) => ({
+              key: person.key,
+              name: person.name,
+              mine: person.mine,
+            }))}
+            t={t}
+            // The pane starts below the cover, and `KeyboardAvoidingView`
+            // measures from its own parent — so the composer needs telling how
+            // far down the screen it really is or the keyboard covers it.
+            keyboardOffset={PAGE_TOP}
+            onChanged={refresh}
+            onSeen={markRead}
+          />
+        ) : (
+          <People roster={feed?.roster ?? []} t={t} />
+        )}
+      </View>
 
-          {/*
-            One line, over the cover, when somebody says something while you
-            are looking at the photographs. It is the whole of the notification
-            this screen needs: who, what they said, and how many are waiting.
-          */}
-          {latest && unread > 0 && !bannerGone && (
-            <Pressable
-              onPress={() => setPane('talk')}
-              accessibilityRole="button"
-              accessibilityLabel={`${unread} new ${unread === 1 ? 'message' : 'messages'}`}
-              style={styles.bannerShell}
-            >
-              <BlurView intensity={18} tint="light" style={styles.banner}>
-                <Bubble name={latest.author.name} url={latest.author.avatarUrl} keyed={latest.author.key} />
-                <Text style={[styles.bannerText, { color: '#14171c' }]} numberOfLines={1}>
-                  <Text style={styles.bannerName}>{latest.author.name} </Text>
-                  {latest.deleted ? 'Message deleted' : latest.body}
-                </Text>
-                <Text style={styles.bannerCount}>
-                  {unread} new
-                </Text>
-              </BlurView>
-            </Pressable>
-          )}
-        </>
-      ) : (
-        <>
-          <StatusBar style={dark ? 'light' : 'dark'} />
+      {/*
+        One line, over the cover, when somebody says something while you
+        are looking at the photographs. It is the whole of the notification
+        this screen needs: who, what they said, and how many are waiting.
 
-          {/*
-            The same screen with its head folded up.
-
-            One screen and three panes rather than two screens: the thread is
-            about these photographs, and pushing it as its own route would give
-            the conversation a back button to the album it is already in.
-          */}
-          <View style={[styles.head, { backgroundColor: t.card, borderBottomColor: t.line }]}>
-            <View style={styles.headRow}>
-              <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="All events">
-                <Text style={[styles.headBack, { color: t.accent }]}>‹</Text>
-              </Pressable>
-              {cover ? (
-                <ExpoImage
-                  source={{ uri: cover }}
-                  style={[styles.headThumb, { backgroundColor: t.line }]}
-                  contentFit="cover"
-                  transition={120}
-                />
-              ) : (
-                <View style={[styles.headThumb, { backgroundColor: lensFor(event.id).fill }]} />
-              )}
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.headName, { color: t.fg }]} numberOfLines={1}>
-                  {event.name}
-                </Text>
-                <Text style={[styles.headMeta, { color: t.dim }]} numberOfLines={1}>
-                  {feed
-                    ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'} · ${feed.members.length} ${
-                        feed.members.length === 1 ? 'person' : 'people'
-                      }`
-                    : (feedError ?? 'Loading…')}
-                </Text>
-              </View>
-              <Pressable
-                onPress={shareLink}
-                accessibilityRole="button"
-                accessibilityLabel="Share this event"
-                style={({ pressed }) => [
-                  styles.sharePill,
-                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={[styles.sharePillText, { color: t.fg }]}>Share</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setSheetOpen(true)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Event options"
-              >
-                <Text style={[styles.headMore, { color: t.dim }]}>⋯</Text>
-              </Pressable>
-            </View>
-            <View style={styles.headTabs}>{tabs}</View>
-          </View>
-
-          {pane === 'talk' ? (
-            <Thread
-              api={api}
-              eventId={event.id}
-              messages={messages}
-              canPost={feed?.canPost ?? false}
-              // This event's contributors and nobody else — the rule the web's
-              // mention list follows, and the reason it is safe for a text
-              // field a link-holder can type into.
-              people={(feed?.people ?? []).map((person) => ({
-                key: person.key,
-                name: person.name,
-                mine: person.mine,
-              }))}
-              t={t}
-              onChanged={refresh}
-              onSeen={markRead}
-            />
-          ) : (
-            <People roster={feed?.roster ?? []} t={t} />
-          )}
-        </>
+        Over the photographs only. It is a way *into* the conversation, so on
+        the conversation it would be a banner announcing the thing directly
+        underneath it, and on the roster it would sit over the first two
+        people for no reason.
+      */}
+      {pane === 'photos' && latest && unread > 0 && !bannerGone && (
+        <Pressable
+          onPress={() => setPane('talk')}
+          accessibilityRole="button"
+          accessibilityLabel={`${unread} new ${unread === 1 ? 'message' : 'messages'}`}
+          style={styles.bannerShell}
+        >
+          <BlurView intensity={18} tint="light" style={styles.banner}>
+            <Bubble name={latest.author.name} url={latest.author.avatarUrl} keyed={latest.author.key} />
+            <Text style={[styles.bannerText, { color: '#14171c' }]} numberOfLines={1}>
+              <Text style={styles.bannerName}>{latest.author.name} </Text>
+              {latest.deleted ? 'Message deleted' : latest.body}
+            </Text>
+            <Text style={styles.bannerCount}>
+              {unread} new
+            </Text>
+          </BlurView>
+        </Pressable>
       )}
 
       {sheetOpen && (

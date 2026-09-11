@@ -21,8 +21,16 @@ export type EventSummary = {
 
 export type FeedPhoto = {
   id: string;
-  /** Thumbnail, for the grid. */
+  /** 320px thumbnail. The fallback, and all there is before the deriver runs. */
   src: string;
+  /**
+   * 640px, and what the grid should actually draw.
+   *
+   * A tile is a third of the screen — about 130 points, so 390 pixels on a 3×
+   * phone — and `src` is a 320. Handing that to a 390-pixel slot upscales it,
+   * which is what made albums look soft. Null until the derivatives exist.
+   */
+  card: string | null;
   /** 2560px rendition, for looking at one. */
   full: string;
   /** The camera's own file. What gets saved to the camera roll. */

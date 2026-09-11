@@ -301,6 +301,29 @@ export function HomeTab({
   const [pulled, setPulled] = useState(0);
   const now = useNow();
 
+  /*
+   * Albums with nothing in them are not on this page.
+   *
+   * An empty album is a card that asks to be opened and then has nothing to
+   * show — and most of them were never this person's doing: somebody made an
+   * evening, added people, and the evening has not happened yet. A column of
+   * those is the first thing the product's main screen said, on the tab whose
+   * whole subject is photographs.
+   *
+   * `arrivingCount` counts too, so an album stays put between the upload
+   * finishing and the deriver getting to it. Without that, adding the first
+   * photograph to an album would make it disappear for the minute or so the
+   * derivatives take and then come back, which is worse than either state.
+   *
+   * This hides your own empty albums as well. Making one still lands you
+   * inside it — `onCreated` opens the event rather than returning to this
+   * list — so the way in is the link, the group it belongs to, or adding the
+   * photograph that puts it back here.
+   */
+  const filled = events.filter(
+    (event) => event.photoCount > 0 || event.arrivingCount > 0,
+  );
+
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
@@ -360,9 +383,9 @@ export function HomeTab({
         onAnswered={() => void onRefresh()}
       />
 
-      {loading && events.length === 0 && <ActivityIndicator color={t.accent} />}
+      {loading && filled.length === 0 && <ActivityIndicator color={t.accent} />}
 
-      {!loading && events.length === 0 && (
+      {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.body, { color: t.fg }]}>
             Nothing here yet. Events you are sent, or make, show up here — use
@@ -372,7 +395,7 @@ export function HomeTab({
         </View>
       )}
 
-      {events.map((event) => (
+      {filled.map((event) => (
         <EventCard
           key={event.id}
           event={event}
@@ -479,6 +502,7 @@ export function GroupsTab({
   api,
   events,
   t,
+  openCreate = 0,
   onOpenGroup,
   onGoToEvents,
 }: {
@@ -492,6 +516,15 @@ export function GroupsTab({
    */
   events: EventListing[];
   t: TabTheme;
+  /**
+   * Bumped by somebody who asked to make a group from another tab.
+   *
+   * A counter rather than a boolean: the profile's `+` can be pressed twice,
+   * and the second press has to open the form again after the first was
+   * cancelled — which a flag that is already `true` cannot say. The form
+   * itself stays here because this is where the suggestions are.
+   */
+  openCreate?: number;
   onOpenGroup: (groupId: string) => void;
   /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
@@ -520,6 +553,12 @@ export function GroupsTab({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Zero is the value nobody asked with — the tab opening normally, rather
+  // than somebody arriving on it holding a press.
+  useEffect(() => {
+    if (openCreate > 0) setMaking('anyone');
+  }, [openCreate]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);

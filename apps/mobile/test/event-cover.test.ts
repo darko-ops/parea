@@ -92,7 +92,15 @@ describe('after the change', () => {
     // whole event list from inside the event to fix a thumbnail nobody is
     // looking at is a request for the sake of tidiness. Going back already
     // reloads it.
-    expect(APP).toMatch(/onBack=\{\(\) => \{\s*void refreshEvents\(\);/);
+    //
+    // `leaveEvent` rather than an inline handler since the swipe landed: the
+    // arrow and the gesture are two ways out of the same screen and they have
+    // to refresh the same list, so there is one callback and both take it.
+    expect(APP).toMatch(
+      /const leaveEvent = useCallback\(\(\) => \{\s*void refreshEvents\(\);/,
+    );
+    expect(APP).toMatch(/onBack=\{leaveEvent\}/);
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\}>/);
   });
 });
 

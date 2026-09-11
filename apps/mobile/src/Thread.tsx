@@ -66,6 +66,7 @@ export function Thread({
   canPost,
   people,
   t,
+  keyboardOffset = 0,
   onChanged,
   onSeen,
 }: {
@@ -77,6 +78,16 @@ export function Thread({
   /** This event's contributors, for the mention list. Never anybody else. */
   people: Mentionable[];
   t: GroupTheme;
+  /**
+   * How far down the screen this pane starts.
+   *
+   * `KeyboardAvoidingView` measures its own frame from `onLayout`, which is
+   * relative to its parent — and this one's parent is the album's page, which
+   * is pinned below the cover rather than at the top of the screen. Without
+   * the offset the composer is lifted by that much too little and ends up
+   * behind the keyboard by exactly the height of the header.
+   */
+  keyboardOffset?: number;
   /** Re-reads the feed, which is where the thread lives. */
   onChanged: () => void | Promise<void>;
   /** Called when the thread has actually been read. */
@@ -173,6 +184,7 @@ export function Thread({
       // of it. `padding` is the iOS answer and `height` the Android one; both
       // are wrong on the other platform.
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={keyboardOffset}
     >
       {live.length === 0 ? (
         /*

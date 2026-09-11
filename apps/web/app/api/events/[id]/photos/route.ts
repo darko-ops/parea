@@ -82,6 +82,23 @@ export async function GET(
       // grid of originals is ~800MB of pointless transfer.
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
       /*
+       * The same tile at 640, for a client that picks its own size.
+       *
+       * The browser gets this through `srcSet` below and has done since `card`
+       * was added. The native client has no `srcset` — it hands one URL to one
+       * image view — so it was rendering the 320 into a tile that is a third
+       * of a phone's width: about 130 points, which is 390 device pixels on
+       * every 3× iPhone. A 320px JPEG encoded at quality 72 and then scaled
+       * *up* by a fifth is the blur people were seeing in their albums.
+       *
+       * Null before the deriver has been round, which is the same condition
+       * `srcSet` already tests for; the client falls back to `src` and gets
+       * what it used to get.
+       */
+      card: hasCard.has(photo.id)
+        ? await imageSrc(photo, 'card', event.capEpoch)
+        : null,
+      /*
        * Two sizes, so the browser can pick one that matches the slot.
        *
        * `src` stays the 320 for anything that ignores `srcset`, and for a

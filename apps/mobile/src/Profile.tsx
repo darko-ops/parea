@@ -48,6 +48,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -60,6 +61,7 @@ import { dateLabel } from '@parea/cards';
 import type { Account, Api, EventListing } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
@@ -80,8 +82,11 @@ type ButtonEl = (props: {
 export function ProfileScreen({
   api,
   events,
+  webBase,
   t,
   onOpen,
+  onCreateEvent,
+  onCreateGroup,
   onSignedIn,
   onSignedOut,
   Button,
@@ -89,8 +94,22 @@ export function ProfileScreen({
   api: Api;
   /** Everything this person can reach, which is what the grid draws. */
   events: EventListing[];
+  /** Where a profile lives on the web, for the link `Share profile` hands out. */
+  webBase: string;
   t: GroupTheme;
   onOpen: (event: EventListing) => void;
+  /** The `+` in the corner: the album half. Opens the full create screen. */
+  onCreateEvent: () => void;
+  /**
+   * The `+` in the corner: the group half.
+   *
+   * Goes to the Groups tab with its form open rather than drawing a second
+   * copy of it here — the one on that tab comes with the people this person
+   * keeps ending up in events with, which is the whole argument for making a
+   * group at all. A bare name-and-nobody form on this screen would be the
+   * empty-group problem the Groups tab was written to avoid.
+   */
+  onCreateGroup: () => void;
   onSignedIn: () => void;
   onSignedOut: () => void;
   Button: ButtonEl;
@@ -99,6 +118,8 @@ export function ProfileScreen({
   const [friends, setFriends] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [settings, setSettings] = useState(false);
+  /** The `+`'s two-line menu. Nothing is created until one of them is chosen. */
+  const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();
 
   const load = useCallback(async () => {
@@ -127,15 +148,70 @@ export function ProfileScreen({
   /** The tile edge, from the window rather than a constant. */
   const tile = Math.floor((width - 40 - GAP * (COLUMNS - 1)) / COLUMNS);
 
+  /**
+   * The profile's own link, handed out by `Share profile`.
+   *
+   * The handle rather than an id: it is the half of a profile somebody can
+   * read out loud, and `/u/<handle>` is the address the web already answers
+   * on. Nothing to share before somebody has one, which is why the button is
+   * drawn disabled rather than hidden — a row that changes shape depending on
+   * whether you have picked a handle is a row nobody learns.
+   */
+  const shareProfile = useCallback(() => {
+    if (!account?.handle) return;
+    void Share.share({ message: `${webBase}/u/${account.handle}` });
+  }, [account?.handle, webBase]);
+
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
+      {/*
+        The two things that are not about looking at this profile, in the two
+        corners, above everything that is.
+
+        Settings used to be half of the row under the bio, which put the
+        product's two destructive verbs beside `Edit profile` and gave the
+        screen's quietest action the same weight as its loudest. It is a `⋯` in
+        the top-left now — the same glyph, in the same corner, as the one an
+        album's own settings live behind, so there is one shape in the product
+        that means "everything else about this thing".
+
+        The `+` opposite it is the only place on this tab anything is made. It
+        is drawn as one stroke rather than a labelled button because it is the
+        third `+` somebody meets in this app and the other two already taught
+        it.
+      */}
+      <View style={styles.bar}>
+        <Pressable
+          onPress={() => setSettings(true)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <Text style={[styles.barMore, { color: t.fg }]}>⋯</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => setCreating(true)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="New album or group"
+          style={({ pressed }) => [styles.barPlus, { opacity: pressed ? 0.55 : 1 }]}
+        >
+          <Glyph name="plus" size={22} color={t.fg} />
+        </Pressable>
+      </View>
+
       {/*
         Who, and how much, on one line. The picture is to the right of the
         words rather than above them: a name set at 28 points is the thing
         being introduced, and a circle centred over it makes the screen a
         badge.
+
+        Set down the page rather than tight under the status bar. A name at 28
+        points starting a few pixels below the clock reads as a title bar; the
+        gap above it is what makes it somebody's name.
       */}
-      <View style={styles.head}>
+      <View style={[styles.head, styles.headLower]}>
         <View style={styles.who}>
           {name ? (
             <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
@@ -206,6 +282,12 @@ export function ProfileScreen({
         Two halves of one row, and neither is the screen's primary action —
         which is opening an album. `Edit profile` carries the ink border
         because it is the one of the two that changes what other people see.
+
+        The second half was `Settings`, which is in the corner now. What stands
+        here instead is the thing somebody actually opens their own profile to
+        do to it: hand it to somebody. Settings was a door out of this screen;
+        sharing is about the screen you are on, which is what a button under
+        the bio should be.
       */}
       {account && (
         <View style={styles.actions}>
@@ -220,14 +302,22 @@ export function ProfileScreen({
             <Text style={[styles.actionText, { color: t.fg }]}>Edit profile</Text>
           </Pressable>
           <Pressable
-            onPress={() => setSettings(true)}
+            onPress={shareProfile}
+            disabled={!account.handle}
             accessibilityRole="button"
+            accessibilityLabel="Share your profile"
             style={({ pressed }) => [
               styles.action,
-              { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
+              {
+                borderColor: t.line,
+                backgroundColor: t.card,
+                // Nothing to hand out until there is a handle to put in the
+                // link. Dimmed rather than gone: see `shareProfile`.
+                opacity: !account.handle ? 0.4 : pressed ? 0.6 : 1,
+              },
             ]}
           >
-            <Text style={[styles.actionText, { color: t.fg }]}>Settings</Text>
+            <Text style={[styles.actionText, { color: t.fg }]}>Share profile</Text>
           </Pressable>
         </View>
       )}
@@ -307,6 +397,64 @@ export function ProfileScreen({
                   }}
                 />
               </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/*
+        What the `+` makes, as two lines.
+
+        A sheet rather than a menu pinned under the corner: the two things it
+        makes are not the same size — an album is an evening and a group is a
+        room that outlives one — and each gets a line saying which is which.
+        Neither creates anything on its own; both hand off to the screen that
+        already knows how, so there is still exactly one way to make each.
+      */}
+      {creating && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setCreating(false)}>
+          <Pressable style={styles.backdrop} onPress={() => setCreating(false)}>
+            <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+              <View style={styles.panelScroll}>
+                <Text style={[styles.panelTitle, { color: t.fg }]}>Start something</Text>
+
+                <Pressable
+                  onPress={() => {
+                    setCreating(false);
+                    onCreateEvent();
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.choice,
+                    { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.choiceName, { color: t.fg }]}>New album</Text>
+                  <Text style={[styles.choiceWhy, { color: t.dim }]}>
+                    One evening, and a link for the people who were at it.
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setCreating(false);
+                    onCreateGroup();
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.choice,
+                    { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.choiceName, { color: t.fg }]}>New group</Text>
+                  <Text style={[styles.choiceWhy, { color: t.dim }]}>
+                    The people you keep ending up with, so the next album has
+                    somewhere to go.
+                  </Text>
+                </Pressable>
+
+                <Button label="Cancel" t={t} onPress={() => setCreating(false)} />
+              </View>
             </Pressable>
           </Pressable>
         </Modal>
@@ -551,8 +699,17 @@ const styles = StyleSheet.create({
      here — 72 is the allowance every screen in this project starts at. The
      bottom clears the floating tab bubble. */
   scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16 },
+  /* Settings and `+`, in the two corners, above everything else. */
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  /* The glyph's own box, so the two corners are the same height. */
+  barMore: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
+  barPlus: { alignItems: 'center', justifyContent: 'center', width: 24, height: 24 },
   /* The words and the picture on one line, the words first. */
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
+     corner glyphs and the name, which is what stops a 28pt name reading as a
+     title bar. */
+  headLower: { marginTop: 20 },
   who: { flex: 1, minWidth: 0 },
   name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
   handle: { fontSize: 14.5, marginTop: 3 },
@@ -581,6 +738,10 @@ const styles = StyleSheet.create({
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   panelScroll: { padding: 16, paddingBottom: 40, gap: 12 },
   panelTitle: { fontSize: 22, fontWeight: '700' },
+  /* One of the `+`'s two lines: what it is, and what it is for. */
+  choice: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 4 },
+  choiceName: { fontSize: 16, fontWeight: '600' },
+  choiceWhy: { fontSize: 13.5, lineHeight: 19 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   fieldLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
   input: { borderWidth: 1, borderRadius: 11, paddingVertical: 12, paddingHorizontal: 15, fontSize: 16 },
