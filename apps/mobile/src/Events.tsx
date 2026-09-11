@@ -706,36 +706,6 @@ export function GroupsTab({
       )}
 
       {/*
-        What the product noticed, as one line under everything it already knows
-        about. Never more than two, and a cluster whose people are already
-        gathered in one of these groups is dropped by the server — which is
-        what lets this stay without needing a way to dismiss it.
-      */}
-      {clusters.map((cluster) =>
-        making === cluster.key ? (
-          <CreateGroupForm
-            key={cluster.key}
-            api={api}
-            cluster={cluster}
-            also={also}
-            t={t}
-            onCancel={() => setMaking(null)}
-            onCreated={(id) => {
-              setMaking(null);
-              onOpenGroup(id);
-            }}
-          />
-        ) : (
-          <ClusterCard
-            key={cluster.key}
-            cluster={cluster}
-            onMake={() => setMaking(cluster.key)}
-            t={t}
-          />
-        ),
-      )}
-
-      {/*
         The conversations that belong to no group.
 
         An evening with the same six people every month becomes a group and its
@@ -791,6 +761,44 @@ export function GroupsTab({
             </Pressable>
           ))}
         </View>
+      )}
+
+      {/*
+        What the product noticed, as one line at the foot of everything it
+        already knows about.
+
+        Below the conversations rather than between them. It is the one thing
+        on this tab that is a suggestion rather than a room somebody is
+        already in, and sitting it between the groups and the event chats put
+        an offer in the middle of a list of places — which read as a break in
+        the list rather than as a remark about it.
+
+        Never more than two, and a cluster whose people are already gathered
+        in one of these groups is dropped by the server — which is what lets
+        this stay without needing a way to dismiss it.
+      */}
+      {clusters.map((cluster) =>
+        making === cluster.key ? (
+          <CreateGroupForm
+            key={cluster.key}
+            api={api}
+            cluster={cluster}
+            also={also}
+            t={t}
+            onCancel={() => setMaking(null)}
+            onCreated={(id) => {
+              setMaking(null);
+              onOpenGroup(id);
+            }}
+          />
+        ) : (
+          <ClusterCard
+            key={cluster.key}
+            cluster={cluster}
+            onMake={() => setMaking(cluster.key)}
+            t={t}
+          />
+        ),
       )}
 
       {/*

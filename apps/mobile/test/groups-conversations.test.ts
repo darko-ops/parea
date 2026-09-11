@@ -48,6 +48,18 @@ describe('which conversations appear', () => {
     expect(TAB).toMatch(/b\.lastMessage\?\.at \?\? b\.lastActiveAt/);
   });
 
+  it('puts the suggestion at the foot, below the rooms', () => {
+    /*
+     * A cluster is the one thing on this tab that is a suggestion rather than
+     * a room somebody is already in. Between the groups and the event chats it
+     * read as a break in the list of places rather than as a remark about it.
+     */
+    const order = ['groups.map((group)', 'EVENT CHATS', 'clusters.map((cluster)'];
+    const at = order.map((needle) => TAB.indexOf(needle));
+    expect(at.every((i) => i > -1)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
+
   it('keeps an event nobody has spoken in', () => {
     // It is a door: the thread is how you reach it, and hiding it until
     // somebody speaks means nobody ever does.
