@@ -221,7 +221,8 @@ describe('the closed list of what is collected', () => {
       group_invite: /invited you into an event, or\s+into a group/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
-      // A count, never a name: which emoji, on which picture.
+      // Which emoji, on which picture — and, since the viewer names people,
+      // who left it.
       photo_reaction: /react to a photograph itself, without saying anything/,
       group_message: /what you say in a group is kept with that\s+group/,
       // One time per thread per person, and never shown to anybody else.

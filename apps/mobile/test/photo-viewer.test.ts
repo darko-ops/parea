@@ -108,17 +108,40 @@ describe('the gesture', () => {
 });
 
 describe('reacting to a photograph', () => {
-  it('offers what is already there, then the rest of the set', () => {
-    // "What people said about this, and what else you could say" — rather
-    // than a keyboard.
-    expect(GESTURE).toMatch(/photo\.reactions\.map\(\(r\) =>/);
-    expect(GESTURE).toMatch(/REACTIONS\.filter\(\(emoji\) => !mine\.has\(emoji\)\)/);
+  it('separates who said something from what you could say', () => {
+    /*
+     * One row of pills conflated the two: "❤️ 3" was both a fact about other
+     * people and a control that changed your own answer, and the only way to
+     * tell which of the three was you was a border.
+     */
+    expect(GESTURE).toMatch(/styles\.said\b/);
+    expect(GESTURE).toMatch(/styles\.picker\b/);
+    // Left is people; right is every emoji in the set, and only that.
+    expect(GESTURE).toMatch(/photo\.reactions\.slice\(0, VISIBLE_REACTIONS\)/);
+    expect(GESTURE).toMatch(/REACTIONS\.map\(\(emoji\) =>/);
   });
 
-  it('is a count and never a name', () => {
-    // Who left which reaction is not disclosed to anybody.
-    expect(API).toMatch(/reactions: \{ emoji: string; count: number; mine: boolean \}\[\]/);
+  it('prints the handle, without an `@`, and never an actor id', () => {
+    // The handle is a byline here, not a mention — and the client does not
+    // add a sigil the server did not send.
+    expect(API).toMatch(/reactions: \{ emoji: string; name: string; mine: boolean \}\[\]/);
+    expect(GESTURE).toMatch(/\{r\.mine \? 'You' : r\.name\}/);
+    expect(GESTURE).not.toMatch(/`@\$\{/);
     expect(GESTURE).not.toMatch(/actorId|avatarUrl/);
+  });
+
+  it('stops before a popular photograph is covered in names', () => {
+    // Twenty handles up the side of a picture is a list covering the thing
+    // the list is about.
+    expect(GESTURE).toMatch(/const VISIBLE_REACTIONS = 4/);
+    expect(GESTURE).toMatch(/photo\.reactions\.length - VISIBLE_REACTIONS/);
+  });
+
+  it('is a column you scroll, cut off so it looks like one', () => {
+    // Four keys tall, so a fifth is visibly clipped and the column reads as
+    // something to scroll rather than as all there is.
+    expect(GESTURE).toMatch(/<ScrollView/);
+    expect(GESTURE).toMatch(/pickerScroll: \{ maxHeight: 4 \* 44 \}/);
   });
 
   it('goes to its own path, not the message one', () => {
@@ -129,7 +152,8 @@ describe('reacting to a photograph', () => {
   });
 
   it('says why rather than offering a control that will be refused', () => {
-    expect(GESTURE).toMatch(/Reacting needs an account/);
+    expect(GESTURE).toMatch(/Sign in/);
+    expect(GESTURE).toMatch(/!canReact \?/);
     expect(APP).toMatch(/canReact=\{feed\?\.canPost \?\? false\}/);
   });
 

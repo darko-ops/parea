@@ -14,12 +14,36 @@
  */
 
 import { schema } from '@parea/core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, not, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
-/** Emoji to the people who chose it, and whether the viewer is one of them. */
-export type PhotoReaction = { emoji: string; count: number; mine: boolean };
+/**
+ * One reaction, and who left it.
+ *
+ * This was a tally — `{ emoji, count, mine }` — on the reasoning that a
+ * reaction should say how many rather than who. The viewer names people now,
+ * so it is a row per person, and two things follow from that which did not
+ * apply to a count.
+ *
+ * The first is blocking. A count has no name in it, so there was nothing of a
+ * blocked person's to hide and dropping their row would have leaked the block
+ * by making the number differ between two viewers of one photograph. A named
+ * reaction is the opposite on both halves: there *is* something to hide, and a
+ * name missing from a list discloses nothing, because a list of names is not a
+ * number anybody can check against somebody else's.
+ *
+ * The second is the handle. It is what the viewer prints, and it is already
+ * how this product names a person in every list that is not a thread — an
+ * actor id still does not cross this boundary.
+ */
+export type PhotoReaction = {
+  emoji: string;
+  /** What to print. The handle where there is one, else the display name. */
+  name: string;
+  /** True where this is the viewer's own. */
+  mine: boolean;
+};
 
 /**
  * Reactions for many photographs at once.
@@ -28,10 +52,15 @@ export type PhotoReaction = { emoji: string; count: number; mine: boolean };
  * column of every picture in the event, and a query per row would make opening
  * one an N+1 that grows with the album.
  *
- * Blocked people are not filtered here. A reaction carries no name and no
- * face — it is a number on an emoji — so there is nothing of a blocked
- * person's to hide, and dropping their row would leak the block by making the
- * count differ between two viewers of the same photograph.
+ * Blocked people are filtered, in SQL and in both directions — the same rule
+ * and the same reasoning as `messagesFor`. This is a reversal: while a
+ * reaction was a count it was deliberately *not* filtered, because a missing
+ * row would have changed a number that two people could compare. Now that it
+ * carries a name there is something to hide and nothing to compare, so the
+ * rule flips with it.
+ *
+ * In SQL rather than afterwards, so that adding a `limit` later cannot
+ * silently return a short page instead of skipping the rows.
  */
 export async function reactionsForPhotos(
   db: Db,
@@ -46,31 +75,48 @@ export async function reactionsForPhotos(
       photoId: schema.photoReactions.photoId,
       emoji: schema.photoReactions.emoji,
       actorId: schema.photoReactions.actorId,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
     })
     .from(schema.photoReactions)
-    .where(inArray(schema.photoReactions.photoId, photoIds));
-
-  /** photo id → emoji → tally. Built once rather than per photograph. */
-  const tallies = new Map<string, Map<string, PhotoReaction>>();
-  for (const row of rows) {
-    const forPhoto = tallies.get(row.photoId) ?? new Map<string, PhotoReaction>();
-    const tally = forPhoto.get(row.emoji) ?? { emoji: row.emoji, count: 0, mine: false };
-    tally.count += 1;
-    if (viewerId != null && row.actorId === viewerId) tally.mine = true;
-    forPhoto.set(row.emoji, tally);
-    tallies.set(row.photoId, forPhoto);
-  }
-
-  for (const [photoId, forPhoto] of tallies) {
-    byPhoto.set(
-      photoId,
-      [...forPhoto.values()].sort(
-        // Most-reacted first, then by emoji so two polls agree. Never by time:
-        // a pill that moves because somebody else tapped one is a pill that
-        // moves under your finger.
-        (a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji),
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.photoReactions.actorId))
+    .where(
+      and(
+        inArray(schema.photoReactions.photoId, photoIds),
+        viewerId
+          ? not(
+              sql`exists (
+                select 1 from "block" b
+                where (b.blocker_actor_id = ${viewerId}
+                       and b.blocked_actor_id = ${schema.photoReactions.actorId})
+                   or (b.blocked_actor_id = ${viewerId}
+                       and b.blocker_actor_id = ${schema.photoReactions.actorId})
+              )`,
+            )
+          : undefined,
       ),
-    );
+    )
+    /*
+     * Newest first, then by actor.
+     *
+     * The column reads as "who has just said something about this", so the
+     * most recent belongs at the top. The actor breaks ties: `created_at`
+     * defaults to the transaction clock, so two reactions written in the same
+     * instant would otherwise come back in either order and swap places
+     * between two reads of the same photograph.
+     */
+    .orderBy(desc(schema.photoReactions.createdAt), asc(schema.photoReactions.actorId));
+
+  for (const row of rows) {
+    const list = byPhoto.get(row.photoId) ?? [];
+    list.push({
+      emoji: row.emoji,
+      // The handle, which is what the viewer prints — and a display name only
+      // where somebody has not chosen one.
+      name: row.handle ?? row.displayName?.trim() ?? 'Someone',
+      mine: viewerId != null && row.actorId === viewerId,
+    });
+    byPhoto.set(row.photoId, list);
   }
 
   return byPhoto;

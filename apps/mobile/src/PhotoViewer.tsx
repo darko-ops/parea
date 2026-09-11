@@ -34,6 +34,7 @@ import {
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -54,6 +55,15 @@ const DOUBLE_TAP_MS = 280;
 
 /** Farther than this and the finger was dragging, not tapping. */
 const TAP_SLOP = 8;
+
+/**
+ * How many names the corner shows before it stops.
+ *
+ * A photograph everybody liked would otherwise put a column of twenty handles
+ * up the left-hand side of it, which is a list covering the thing the list is
+ * about. The rest are a count on the end.
+ */
+const VISIBLE_REACTIONS = 4;
 
 const distance = (touches: { pageX: number; pageY: number }[]) => {
   const [a, b] = touches;
@@ -239,7 +249,10 @@ export function PhotoViewer({
     [api, busy, onChanged, photo.id],
   );
 
-  const mine = new Set(photo.reactions.filter((r) => r.mine).map((r) => r.emoji));
+  const mine = useMemo(
+    () => new Set(photo.reactions.filter((r) => r.mine).map((r) => r.emoji)),
+    [photo.reactions],
+  );
 
   return (
     <View style={styles.root}>
@@ -285,63 +298,66 @@ export function PhotoViewer({
           </View>
 
           {/*
-            The reactions, along the foot.
+            Who said something, bottom left. What you could say, bottom right.
 
-            Everything already left sits first, in the order the server sorted
-            it, and the rest of the offered set follows — so the row reads as
-            "what people said about this, and what else you could say" rather
-            than as a keyboard. Yours are outlined, which is the same way the
-            thread marks a pill you are part of.
+            The two are different kinds of thing and they were one row of pills
+            that conflated them: a pill reading "❤️ 3" was both a fact about
+            other people and a control that changed your own answer, and the
+            only way to tell which of the three was you was a border.
+
+            Left is now a list of people — a handle and the emoji they left,
+            newest at the bottom so the most recent sits closest to the corner
+            and the column grows upward out of it. Right is the picker, and
+            nothing else: every emoji in the set, in a column you scroll.
           */}
-          <View style={styles.foot} pointerEvents="box-none">
-            <View style={styles.pills}>
-              {photo.reactions.map((r) => (
-                <Pressable
-                  key={r.emoji}
-                  onPress={() => void react(r.emoji)}
-                  disabled={!canReact || busy != null}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: r.mine }}
-                  accessibilityLabel={`${r.emoji}, ${r.count}${r.mine ? ', including you' : ''}`}
-                  style={({ pressed }) => [
-                    styles.pill,
-                    r.mine && styles.pillMine,
-                    { opacity: pressed || busy === r.emoji ? 0.6 : 1 },
-                  ]}
-                >
-                  <Text style={styles.pillText}>
-                    {r.emoji} {r.count}
-                  </Text>
-                </Pressable>
-              ))}
-
-              {canReact &&
-                REACTIONS.filter((emoji) => !mine.has(emoji))
-                  .filter((emoji) => !photo.reactions.some((r) => r.emoji === emoji))
-                  .map((emoji) => (
-                    <Pressable
-                      key={emoji}
-                      onPress={() => void react(emoji)}
-                      disabled={busy != null}
-                      accessibilityRole="button"
-                      accessibilityLabel={`React ${emoji}`}
-                      style={({ pressed }) => [
-                        styles.pill,
-                        styles.pillEmpty,
-                        { opacity: pressed || busy === emoji ? 0.6 : 1 },
-                      ]}
-                    >
-                      <Text style={styles.pillText}>{emoji}</Text>
-                    </Pressable>
-                  ))}
-
-              {busy && <ActivityIndicator color="#fff" style={{ marginLeft: 4 }} />}
-            </View>
-
-            {!canReact && (
-              <Text style={styles.why}>
-                Reacting needs an account — looking does not.
+          <View style={styles.said} pointerEvents="box-none">
+            {photo.reactions.slice(0, VISIBLE_REACTIONS).reverse().map((r, i) => (
+              <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
+                <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
+                  {r.mine ? 'You' : r.name}
+                </Text>
+                <Text style={styles.saidEmoji}>{r.emoji}</Text>
+              </View>
+            ))}
+            {photo.reactions.length > VISIBLE_REACTIONS && (
+              <Text style={styles.saidMore}>
+                and {photo.reactions.length - VISIBLE_REACTIONS} more
               </Text>
+            )}
+          </View>
+
+          <View style={styles.picker} pointerEvents="box-none">
+            {!canReact ? (
+              <Text style={styles.why}>Sign in{'\n'}to react</Text>
+            ) : (
+              <ScrollView
+                style={styles.pickerScroll}
+                contentContainerStyle={styles.pickerInner}
+                showsVerticalScrollIndicator={false}
+              >
+                {REACTIONS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => void react(emoji)}
+                    disabled={busy != null}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: mine.has(emoji) }}
+                    accessibilityLabel={
+                      mine.has(emoji) ? `Take back ${emoji}` : `React ${emoji}`
+                    }
+                    style={({ pressed }) => [
+                      styles.key,
+                      // Yours is filled rather than outlined: at this size a
+                      // 1pt border round an emoji is not a state anybody sees.
+                      mine.has(emoji) && styles.keyMine,
+                      { opacity: pressed || busy === emoji ? 0.55 : 1 },
+                    ]}
+                  >
+                    <Text style={styles.keyText}>{emoji}</Text>
+                  </Pressable>
+                ))}
+                {busy && <ActivityIndicator color="#fff" />}
+              </ScrollView>
             )}
           </View>
         </>
@@ -375,21 +391,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   roundGlyph: { color: '#fff', fontSize: 15, fontWeight: '600', lineHeight: 17 },
-  foot: { position: 'absolute', left: 12, right: 12, bottom: 44, gap: 8 },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  pill: {
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 999,
-    backgroundColor: 'rgba(20,23,28,0.55)',
-    borderWidth: 1,
-    borderColor: 'transparent',
+  /* Who reacted, bottom left. Room kept clear of the picker opposite. */
+  said: { position: 'absolute', left: 16, right: 84, bottom: 44, gap: 6 },
+  saidRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  /* A handle, without the `@` — this is a byline, not a mention. Shadowed
+     rather than sat on a panel: a slab behind every name would cover more of
+     the photograph than the names do. */
+  saidWho: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowRadius: 6,
+    flexShrink: 1,
   },
-  /* Outlined where you are one of the people counted — the same way the
-     thread marks a pill you are part of. */
-  pillMine: { borderColor: '#fff' },
-  /* One you have not left yet: the emoji alone, with no count to read. */
-  pillEmpty: { backgroundColor: 'rgba(20,23,28,0.38)' },
-  pillText: { color: '#fff', fontSize: 14 },
-  why: { color: 'rgba(255,255,255,0.75)', fontSize: 12.5 },
+  /* "You" rather than your own handle read back at you — the same call every
+     card in this product makes. */
+  saidMine: { color: 'rgba(255,255,255,0.85)' },
+  saidEmoji: { fontSize: 15 },
+  saidMore: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12.5,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowRadius: 6,
+  },
+
+  /* The picker, bottom right: one column, scrolled. */
+  picker: { position: 'absolute', right: 12, bottom: 44, alignItems: 'center' },
+  /* Tall enough for four keys, so a fifth is visibly cut off and the column
+     reads as something to scroll rather than as all there is. */
+  pickerScroll: { maxHeight: 4 * 44 },
+  pickerInner: { gap: 6, paddingVertical: 2, alignItems: 'center' },
+  key: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(20,23,28,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* Filled where it is yours. At 38pt a 1pt outline round an emoji is not a
+     state anybody notices. */
+  keyMine: { backgroundColor: 'rgba(255,255,255,0.28)' },
+  keyText: { fontSize: 19 },
+  why: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowRadius: 6,
+  },
 });

@@ -39,15 +39,16 @@ beforeAll(async () => {
 beforeEach(async () => {
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
-    truncate "actor", "event", "photo", "photo_reaction" restart identity cascade
+    truncate "actor", "event", "photo", "photo_reaction", "block"
+    restart identity cascade
   `);
 });
 
 let n = 0;
-async function person(displayName = 'Someone') {
+async function person(displayName = 'Someone', handle: string | null = null) {
   const [actor] = await db
     .insert(schema.actors)
-    .values({ kind: 'guest', displayName })
+    .values({ kind: 'guest', displayName, handle })
     .returning();
   return actor!.id;
 }
@@ -95,20 +96,65 @@ describe('one tap on, one tap off', () => {
     expect((await db.select().from(schema.photoReactions)).length).toBe(0);
   });
 
-  it('counts two people as two, and knows which one is you', async () => {
-    const me = await person('Me');
-    const them = await person('Them');
+  it('names both people, and knows which one is you', async () => {
+    /*
+     * A row per person rather than a tally. The viewer prints who reacted, so
+     * two people leaving the same emoji are two lines, not a count of two.
+     */
+    const me = await person('Me', 'darko');
+    const them = await person('Them', 'priya');
     const id = await photo(me);
     await togglePhotoReaction(db, id, me, '❤️');
     await togglePhotoReaction(db, id, them, '❤️');
 
     const mine = (await reactionsForPhotos(db, [id], me)).get(id)!;
-    expect(mine).toEqual([{ emoji: '❤️', count: 2, mine: true }]);
+    expect(mine).toHaveLength(2);
+    expect(mine.filter((r) => r.mine).map((r) => r.name)).toEqual(['darko']);
+    expect([...mine].map((r) => r.name).sort()).toEqual(['darko', 'priya']);
 
     // The same picture, to somebody who has not reacted.
     const other = await person('Other');
     const theirs = (await reactionsForPhotos(db, [id], other)).get(id)!;
-    expect(theirs).toEqual([{ emoji: '❤️', count: 2, mine: false }]);
+    expect(theirs.every((r) => !r.mine)).toBe(true);
+  });
+
+  it('prints the handle, falling back to a name', async () => {
+    // The handle is what the viewer shows — without the `@`, which the client
+    // does not add either.
+    const named = await person('Ana Ruiz');
+    const handled = await person('Whoever', 'tomas');
+    const id = await photo(named);
+    await togglePhotoReaction(db, id, named, '❤️');
+    await togglePhotoReaction(db, id, handled, '😂');
+
+    const names = (await reactionsForPhotos(db, [id], null)).get(id)!.map((r) => r.name);
+    expect(names).toContain('Ana Ruiz');
+    expect(names).toContain('tomas');
+    expect(names.some((n) => n.startsWith('@'))).toBe(false);
+  });
+
+  it('hides somebody you have blocked, both ways round', async () => {
+    /*
+     * A reversal, and the reasoning reverses with it. While a reaction was a
+     * count it was deliberately *not* filtered: a missing row would have
+     * changed a number that two people could compare, which leaks the block.
+     * A name has something to hide and nothing to compare.
+     */
+    const me = await person('Me', 'darko');
+    const them = await person('Them', 'priya');
+    const id = await photo(me);
+    await togglePhotoReaction(db, id, me, '❤️');
+    await togglePhotoReaction(db, id, them, '🔥');
+
+    await db.insert(schema.blocks).values({ blockerActorId: me, blockedActorId: them });
+
+    expect((await reactionsForPhotos(db, [id], me)).get(id)!.map((r) => r.name)).toEqual([
+      'darko',
+    ]);
+    // And the blocked person does not see the blocker's either.
+    expect((await reactionsForPhotos(db, [id], them)).get(id)!.map((r) => r.name)).toEqual([
+      'priya',
+    ]);
   });
 
   it('is one reaction however many times it races itself', async () => {
@@ -127,25 +173,26 @@ describe('one tap on, one tap off', () => {
   });
 });
 
-describe('the order the pills come back in', () => {
-  it('is most-reacted first, then the emoji itself', async () => {
-    /*
-     * Never by time: a pill that moves because somebody else tapped one is a
-     * pill that moves under your finger. The emoji breaks ties so that two
-     * polls a second apart agree.
-     */
-    const me = await person();
-    const them = await person();
+describe('the order they come back in', () => {
+  it('is newest first, so the column reads as what has just been said', async () => {
+    const me = await person('Me', 'darko');
+    const them = await person('Them', 'priya');
     const id = await photo(me);
-    await togglePhotoReaction(db, id, me, '😂');
-    await togglePhotoReaction(db, id, me, '❤️');
-    await togglePhotoReaction(db, id, them, '❤️');
 
-    const pills = (await reactionsForPhotos(db, [id], me)).get(id)!;
-    expect(pills.map((p) => [p.emoji, p.count])).toEqual([
-      ['❤️', 2],
-      ['😂', 1],
-    ]);
+    const { eq, and } = await import('drizzle-orm');
+    await togglePhotoReaction(db, id, me, '😂');
+    await db
+      .update(schema.photoReactions)
+      .set({ createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 1)) })
+      .where(and(eq(schema.photoReactions.actorId, me), eq(schema.photoReactions.photoId, id)));
+    await togglePhotoReaction(db, id, them, '🔥');
+    await db
+      .update(schema.photoReactions)
+      .set({ createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 2)) })
+      .where(and(eq(schema.photoReactions.actorId, them), eq(schema.photoReactions.photoId, id)));
+
+    const list = (await reactionsForPhotos(db, [id], me)).get(id)!;
+    expect(list.map((r) => r.name)).toEqual(['priya', 'darko']);
   });
 });
 
@@ -162,6 +209,7 @@ describe('a page of photographs', () => {
     expect(all.size).toBe(2);
     expect(all.get(ids[1]!)).toBeUndefined();
     expect(all.get(ids[2]!)![0]!.emoji).toBe('🙏');
+    expect(all.get(ids[2]!)![0]!.mine).toBe(true);
   });
 
   it('returns an empty map rather than querying for nothing', async () => {

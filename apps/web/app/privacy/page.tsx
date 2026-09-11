@@ -218,9 +218,12 @@ export default function PrivacyPage() {
           <p className="muted">
             You can also react to a photograph itself, without saying anything.
             What is kept is which emoji you chose and which picture you chose it
-            on. Everybody who can see the photograph sees the reaction; what
-            they see is a count, so nobody is told by name who left which one,
-            and tapping it again takes it back and removes the record.
+            on. Everybody who can see the photograph sees the reaction{' '}
+            <em>and who left it</em>: your handle is shown beside it, in the
+            same way your name appears on anything you post. Tapping it again
+            takes it back and removes the record. Somebody you have blocked
+            does not appear in the reactions you see, exactly as their messages
+            and their photographs do not.
           </p>
 
           <h3>What you write in a group</h3>

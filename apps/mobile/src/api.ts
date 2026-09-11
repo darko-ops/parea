@@ -49,13 +49,16 @@ export type FeedPhoto = {
   takenAt: string;
   mine: boolean;
   /**
-   * Emoji to the people who chose it, and whether the viewer is one of them.
+   * Who reacted, and with what. Newest first.
    *
-   * Empty for a photograph nobody has reacted to, which is most of them — the
-   * viewer draws no row of pills rather than an empty one. A count and never a
-   * name: who left which reaction is not disclosed to anybody.
+   * A row per person rather than a tally: the viewer names people, so two
+   * people leaving the same emoji are two lines. `name` is the handle where
+   * somebody has one — printed without the `@`, which this client does not add
+   * — and their display name otherwise.
+   *
+   * Empty for a photograph nobody has reacted to, which is most of them.
    */
-  reactions: { emoji: string; count: number; mine: boolean }[];
+  reactions: { emoji: string; name: string; mine: boolean }[];
 };
 
 export type Feed = {
