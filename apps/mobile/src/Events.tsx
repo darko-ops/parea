@@ -135,8 +135,30 @@ function EventCard({
   }
 
   const live = isLive(event.lastActiveAt, now);
-  const faces = event.faces.slice(0, CARD_FACES);
-  const moreFaces = Math.max(0, event.memberCount - faces.length);
+  /*
+   * The circles are everybody the host shared it with, and no longer the host.
+   *
+   * They are named and pictured in the byline directly above, so the first
+   * circle was the same person twice on one card — and on your own evenings it
+   * was your own face, over a photograph you took, on a wall of your own
+   * events.
+   *
+   * Filtered rather than sliced off the front. The server orders the host
+   * first, so dropping `[0]` would look identical right up until an event
+   * whose creator never turned up to it — at which point the card would
+   * quietly stop showing a real guest.
+   */
+  const others = event.faces.filter((face) => !face.isCreator);
+  const faces = others.slice(0, CARD_FACES);
+  /*
+   * Everybody no circle shows — and not the host either, who has the byline.
+   *
+   * `memberCount` counts the host when they are in their own event, which is
+   * usually but not always. Rather than assume, subtract them only when the
+   * face rows actually held one.
+   */
+  const hostCounted = event.faces.length > others.length ? 1 : 0;
+  const moreFaces = Math.max(0, event.memberCount - hostCounted - faces.length);
   const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
   const host = event.mine ? 'You' : event.creator.name;
 
@@ -149,13 +171,16 @@ function EventCard({
    * appears in the line under the title — this row is the byline, that line is
    * the sentence.
    *
+   * Written without the `@`. The sigil is what tells a handle from a name when
+   * the two sit together in a sentence, and nothing here is a sentence: it is
+   * a face and the word beside it, which is a byline, and a byline reads as a
+   * name whether or not it is punctuated like one.
+   *
    * Never a silhouette where there is no picture, which is the rule every
    * other face in this product follows: a letter on the person's own lens
    * colour, hashed from their handle so it is theirs and stays theirs.
    */
-  const by = event.creator.handle
-    ? `@${event.creator.handle}`
-    : (event.creator.name ?? 'Someone');
+  const by = event.creator.handle ?? event.creator.name ?? 'Someone';
   const byLens = lensFor(event.creator.handle ?? event.creator.name ?? event.id);
 
   return (
@@ -1717,19 +1742,24 @@ const styles = StyleSheet.create({
      was a rounded card, 14 from its left corner was the obvious reference;
      now that the photograph runs to the screen edge the only column left to
      line up with is the title underneath. */
-  faces: { flexDirection: 'row', marginTop: -18, marginLeft: 4, marginBottom: 2 },
+  faces: { flexDirection: 'row', marginTop: -13, marginLeft: 4, marginBottom: 2 },
+  /* 70% of the 34 these were. Every number in the stack is scaled with the
+     circle rather than only its width — the ring, the overlap and the letter
+     were all chosen against 34, and leaving any of them put would make a
+     smaller face look heavier rather than smaller. The overlap onto the
+     photograph above (`faces.marginTop`) scales for the same reason. */
   face: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 2,
-    marginRight: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginRight: -6,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   faceShot: { width: '100%', height: '100%' },
-  faceLetter: { fontSize: 12, fontWeight: '700' },
+  faceLetter: { fontSize: 8.5, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
   under: { paddingHorizontal: 4, paddingTop: 8, gap: 2 },
   /* The byline, above the photograph. Aligned to the same column as the title

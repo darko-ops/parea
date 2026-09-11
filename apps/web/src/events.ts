@@ -53,6 +53,18 @@ export type FaceRow = {
   actorId: string;
   name: string;
   avatarKey: string | null;
+  /**
+   * Whether this face is the person who made the event.
+   *
+   * A boolean rather than a `creatorActorId` on the listing. The note on
+   * `mine` below explains why that id has deliberately never been carried here
+   * — an id added for one screen's convenience is an id published everywhere —
+   * and a client that wants to draw the host apart from everybody else does
+   * not need to *know* who they are, only which of these rows they are. The
+   * ordering already encoded this and only implicitly; saying it outright is
+   * what lets a caller filter rather than slice off the front and hope.
+   */
+  isCreator: boolean;
 };
 
 export type EventListing = {
@@ -202,7 +214,8 @@ export async function eventsFor(
         select coalesce(json_agg(row_to_json(f)), '[]'::json) from (
           select a.id as "actorId",
                  coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone') as name,
-                 a.avatar_key as "avatarKey"
+                 a.avatar_key as "avatarKey",
+                 (a.id = ${schema.events.createdBy}) as "isCreator"
           from "event_participant" ep
           join "actor" a on a.id = ep.actor_id
           where ep.event_id = ${schema.events.id}

@@ -124,6 +124,9 @@ export async function GET() {
             actorId: face.actorId,
             name: face.name,
             avatarUrl: await avatarUrl(face.avatarKey),
+            // Which of these is the host, so a card can draw them apart from
+            // everybody else without being told who they are. See `FaceRow`.
+            isCreator: face.isCreator,
           })),
         );
         const { creator, coverKey, faces: faceRows, ...rest } = listing;

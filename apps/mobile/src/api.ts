@@ -283,7 +283,20 @@ export type EventListing = {
    * answered without a second request when two of them turn out to be the
    * same person under two rows.
    */
-  faces: { actorId: string; name: string; avatarUrl: string | null }[];
+  faces: {
+    actorId: string;
+    name: string;
+    avatarUrl: string | null;
+    /**
+     * Whether this is the person who made it.
+     *
+     * The card names the host in its byline, so the row of circles is
+     * everybody *else* — and this is how one is told from the other. A flag
+     * rather than the creator's actor id, which this listing has deliberately
+     * never carried: see the note on `mine` in the server's `EventListing`.
+     */
+    isCreator: boolean;
+  }[];
   /** Whose event it is, in the two names the card prints together. */
   creator: { name: string | null; handle: string | null; avatarUrl: string | null };
   /**

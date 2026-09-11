@@ -51,8 +51,18 @@ describe('the card the home list draws', () => {
      * evenings needs to tell two people called Ana apart.
      */
     expect(EVENTS).toMatch(/styles\.byline\b/);
-    expect(EVENTS).toMatch(/const by = event\.creator\.handle\s*\n?\s*\? `@\$\{event\.creator\.handle\}`/);
+    expect(EVENTS).toMatch(/const by = event\.creator\.handle \?\? event\.creator\.name/);
     expect(EVENTS).toMatch(/bylineName: \{[^}]*fontWeight: '700'/);
+    /*
+     * And without the `@`. The sigil tells a handle from a name when the two
+     * sit together in a sentence; a face and the word beside it is a byline,
+     * which reads as a name whether or not it is punctuated like one.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    expect(CARD).not.toMatch(/`@\$\{event\.creator\.handle\}`/);
     // Above the cover, not under it.
     expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={styles.cover}>'));
   });
@@ -74,15 +84,42 @@ describe('the card the home list draws', () => {
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
-    expect(CARD.match(/`@\$\{event\.creator\.handle\}`/g) ?? []).toHaveLength(1);
+    /*
+     * Counted on what is *drawn*, not on how often the field is read: the
+     * byline also keys a lens off the handle and falls back to it for the
+     * initial, and neither of those puts it on the screen.
+     */
+    const under = CARD.slice(CARD.indexOf('<View style={styles.under}>'));
+    expect(under).not.toMatch(/creator\.handle/);
+    expect(CARD.match(/\{by\}/g) ?? []).toHaveLength(1);
     expect(CARD).toMatch(/\{host && \(/);
+  });
+
+  it('leaves the host out of the circles and scales them to 70%', () => {
+    /*
+     * The host is named and pictured in the byline directly above, so the
+     * first circle was the same person twice on one card.
+     *
+     * Filtered rather than sliced off the front: the server orders the host
+     * first, so dropping `[0]` looks identical right up until an event whose
+     * creator never turned up to it — and then the card quietly stops showing
+     * a real guest.
+     */
+    expect(EVENTS).toMatch(/event\.faces\.filter\(\(face\) => !face\.isCreator\)/);
+    expect(EVENTS).not.toMatch(/event\.faces\.slice\(0, CARD_FACES\)/);
+    // And the "+N" does not count them either, when they were in it at all.
+    expect(EVENTS).toMatch(/const hostCounted = event\.faces\.length > others\.length \? 1 : 0/);
+
+    // 70% of 34, with the ring, the overlap and the letter scaled with it.
+    expect(EVENTS).toMatch(/width: 24,\s*\n\s*height: 24,\s*\n\s*borderRadius: 12,\s*\n\s*borderWidth: 1\.5,\s*\n\s*marginRight: -6,/);
+    expect(EVENTS).toMatch(/faceLetter: \{ fontSize: 8\.5/);
   });
 
   it('lines the faces and the live tag up with the title', () => {
     // While the cover was an inset card, an offset from its corner was the
     // obvious reference. Against a full-bleed photograph the only column left
     // to align with is the text underneath.
-    expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -18, marginLeft: 4/);
+    expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: 4/);
     expect(EVENTS).toMatch(/under: \{ paddingHorizontal: 4/);
     expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 24,/);
   });
