@@ -16,7 +16,9 @@
 
 import { BlurView } from 'expo-blur';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -39,6 +41,7 @@ import {
 } from 'react-native';
 
 import { resolveWindow, type Window } from '@parea/autoselect';
+import { CARD_FACES, dateLabel } from '@parea/cards';
 
 import {
   Api,
@@ -47,7 +50,11 @@ import {
   type EventListing,
   type Feed,
   type FeedPhoto,
+  type Member,
 } from './src/api';
+import { Glyph, type GlyphName } from './src/Glyph';
+import { initialOf, lensFor } from './src/lens';
+import { People, Thread } from './src/Thread';
 import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
@@ -110,6 +117,14 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
  * product treats as persistent identity in a drawer with the settings.
  */
 type Tab = 'home' | 'groups' | 'search' | 'profile';
+
+/**
+ * Which pane of an event is up — its photographs, its conversation, or who is
+ * in it. Three panes of one screen rather than three screens: they are all
+ * about the same evening, and pushing the thread as its own route would give
+ * the conversation a back button to the album it is already inside.
+ */
+type Pane = 'photos' | 'talk' | 'people';
 
 type Route =
   | { screen: 'tabs' }
@@ -359,6 +374,7 @@ export default function App() {
           event={route.event}
           webBase={API_BASE}
           t={t}
+          dark={dark}
           signedIn={signedIn}
           onSignedIn={refreshAccount}
           Button={Button}
@@ -521,6 +537,10 @@ export default function App() {
           {tab === 'groups' && (
             <GroupsTab
               api={api}
+              // The covers under each group's name come off this list — the
+              // albums this actor can already open — and never off the group.
+              // See the note at the top of `GroupsTab`.
+              events={events}
               t={t}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
               onGoToEvents={() => setTab('home')}
@@ -566,14 +586,26 @@ export default function App() {
               blurMethod="dimezisBlurView"
               style={[styles.tabBar, { borderColor: t.line }]}
             >
+              {/*
+                Glyphs, where four words used to be.
+
+                Four labels across a 365pt bubble is four pieces of type
+                competing with the photographs running underneath it, and
+                "Events / Groups / Find / You" is the one row in this product
+                that is read once and recognised forever after. The drawings
+                are the web rail's own — see `Glyph.tsx` — so the two clients
+                point at a group with the same picture. The label survives as
+                the accessibility name, which is where a word is still worth
+                having.
+              */}
               {(
                 [
-                  ['home', 'Events'],
-                  ['groups', 'Groups'],
-                  ['search', 'Find'],
-                  ['profile', 'You'],
-                ] as [Tab, string][]
-              ).map(([id, label]) => (
+                  ['home', 'photos', 'Events'],
+                  ['groups', 'group', 'Groups'],
+                  ['search', 'search', 'Find'],
+                  ['profile', 'profile', 'You'],
+                ] as [Tab, GlyphName, string][]
+              ).map(([id, glyph, label]) => (
                 <Pressable
                   key={id}
                   style={[
@@ -588,15 +620,7 @@ export default function App() {
                   accessibilityState={{ selected: tab === id }}
                   accessibilityLabel={label}
                 >
-                  <Text
-                    style={[
-                      styles.tabLabel,
-                      { color: tab === id ? t.accent : t.dim },
-                      tab === id && styles.tabLabelActive,
-                    ]}
-                  >
-                    {label}
-                  </Text>
+                  <Glyph name={glyph} size={22} color={tab === id ? t.accent : t.dim} />
                 </Pressable>
               ))}
             </BlurView>
@@ -773,6 +797,7 @@ function EventScreen({
   event,
   webBase,
   t,
+  dark,
   signedIn,
   onSignedIn,
   Button: ButtonEl,
@@ -785,6 +810,8 @@ function EventScreen({
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
+  /** Which way round the segmented control's well is drawn. */
+  dark: boolean;
   /** null until the answer arrives; the gate renders nothing meanwhile. */
   signedIn: boolean | null;
   onSignedIn: () => void;
@@ -802,8 +829,23 @@ function EventScreen({
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
   const [offerUpgrade, setOfferUpgrade] = useState(false);
-  const [namingGroup, setNamingGroup] = useState(false);
-  const [groupName, setGroupName] = useState('');
+  /**
+   * Which of the three panes is up.
+   *
+   * Client state and not a route, deliberately: an event's link should open on
+   * its photographs, never on its roster or halfway down somebody's
+   * conversation. It is the same screen either way — see the note on the
+   * folded header below.
+   */
+  const [pane, setPane] = useState<Pane>('photos');
+  /** The sheet behind `⋯`, which is where this screen's settings went. */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  /** The account, asked for only when somebody reaches for what needs one. */
+  const [gateOpen, setGateOpen] = useState(false);
+  /** How much of the thread has been read. Null until the first feed lands. */
+  const [seen, setSeen] = useState<number | null>(null);
+  /** Whether the unread banner has taken itself away again. */
+  const [bannerGone, setBannerGone] = useState(false);
   /**
    * Who can see it, while the change is in the air.
    *
@@ -1151,27 +1193,52 @@ function EventScreen({
     );
   }, [api, cover, event.id, refresh]);
 
-  /**
-   * Roll this event into a group — design §3.
+  const messages = feed?.messages ?? [];
+
+  /*
+   * Where the unread mark sits.
    *
-   * Offered from an event rather than as "create a group", because "the same
-   * people keep doing things together" is something you notice afterwards.
-   * Only the host sees it, and only once: an event belongs to at most one
-   * group, and the server refuses a second.
+   * `null` until the first feed lands, and then set to whatever was already
+   * there: a banner on opening an event would otherwise announce the entire
+   * history of the conversation as new. After that it only moves forward, on
+   * reaching the bottom of the thread.
    */
-  const createGroup = useCallback(async () => {
-    const name = groupName.trim();
-    if (!name) return;
-    try {
-      const group = await api.createGroup(event.id, name, false);
-      setNamingGroup(false);
-      setGroupName('');
-      onGroupsChanged();
-      onOpenGroup(group.id);
-    } catch {
-      Alert.alert('Could not make the group', 'Try again in a moment.');
-    }
-  }, [api, event.id, groupName, onGroupsChanged, onOpenGroup]);
+  useEffect(() => {
+    if (feed && seen === null) setSeen(feed.messages.length);
+  }, [feed, seen]);
+
+  const unread = seen === null ? 0 : Math.max(0, messages.length - seen);
+  const latest = messages[messages.length - 1] ?? null;
+
+  /*
+   * The banner drops in and takes itself away.
+   *
+   * Six seconds is long enough to read one line and short enough that it is
+   * not a bar across the top of somebody's photographs. Dismissing it does not
+   * mark the thread read — the count is still on the Talk tab, which is where
+   * it belongs; this is a notification, not the conversation.
+   */
+  useEffect(() => {
+    if (unread === 0) return;
+    setBannerGone(false);
+    const timer = setTimeout(() => setBannerGone(true), 6000);
+    return () => clearTimeout(timer);
+  }, [unread, messages.length]);
+
+  const markRead = useCallback(() => setSeen(messages.length), [messages.length]);
+
+  const shareLink = useCallback(() => {
+    // The link alone. The name arrives with it — a shared link unfurls into a
+    // card carrying the event's title, so putting it in the message body as
+    // well says it twice.
+    void Share.share({ message: `${webBase}/e/${event.linkToken}` });
+  }, [event.linkToken, webBase]);
+
+  /** Whichever way in `+` takes: the picker, or the account it first needs. */
+  const add = useCallback(() => {
+    if (signedIn === false) return setGateOpen(true);
+    void addPhotos();
+  }, [addPhotos, signedIn]);
 
   if (autoWindow) {
     return (
@@ -1205,105 +1272,164 @@ function EventScreen({
     );
   }
 
-  return (
-    <View style={styles.root}>
-      <FlatList
-        data={feed?.photos ?? []}
-        keyExtractor={(photo) => photo.id}
-        numColumns={3}
-        contentContainerStyle={styles.gridContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            tintColor={t.dim}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await refresh();
-              setRefreshing(false);
-            }}
-          />
-        }
-        ListHeaderComponent={
-          <View style={{ gap: 12, paddingBottom: 12 }}>
-            <Pressable onPress={onBack}>
-              <Text style={[styles.body, { color: t.accent }]}>‹ All events</Text>
-            </Pressable>
-            {/*
-              The name, and the one thing an event is for.
+  /** The evening this was, for the line under the name. */
+  const when = dateLabel(
+    feed?.event.startsAt ??
+      event.startsAt ??
+      (feed?.photos.length
+        ? feed.photos.reduce((oldest, p) => (p.takenAt < oldest ? p.takenAt : oldest), feed.photos[0]!.takenAt)
+        : null),
+  );
 
-              Sharing was not reachable from this screen at all — the link
-              appeared once, on the screen that made the event, and after that
-              the only way to send it to somebody was to make another. It is
-              the system sheet rather than a panel of our own: it already knows
-              which group chat these people use, and picking somebody in it
-              tells this app nothing about who they are.
+  const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
+
+  const tabs = (
+    <Segmented
+      pane={pane}
+      unread={unread}
+      onPane={(next) => {
+        setPane(next);
+        // Arriving on the thread is half of having read it; reaching the
+        // bottom is the other half and the list says when that happens.
+        if (next === 'talk' && messages.length === 0) markRead();
+      }}
+      t={t}
+      dark={dark}
+    />
+  );
+
+  return (
+    <View style={[styles.root, { backgroundColor: t.bg }]}>
+      {pane === 'photos' ? (
+        <>
+          {/* White ink over the cover, for as long as the cover is what is
+              under the clock. */}
+          <StatusBar style="light" />
+
+          <View style={styles.cover}>
+            {cover ? (
+              <ExpoImage
+                source={{ uri: cover }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={120}
+              />
+            ) : (
+              // No cover and nothing to borrow: the event's own lens, which is
+              // the same letter-on-a-colour every other doorless thing in the
+              // product gets. Never a photograph pulled out of the grid — that
+              // is a decision about which evening this was, made by an
+              // upload's timestamp.
+              <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
+            )}
+            {/*
+              Dark at the top and the bottom, clear through the middle.
+
+              Not a flat wash: what has to be legible is the clock and the back
+              arrow at the top and the title at the foot, and darkening the
+              whole photograph to carry four words would be the product
+              deciding that somebody's cover is a texture. The middle stop is
+              at 45%, which is where the two gradients meet without either
+              reaching the other.
             */}
-            <View style={styles.eventTitleRow}>
-              <Text style={[styles.h1, { color: t.fg, flex: 1 }]}>{event.name}</Text>
+            <LinearGradient
+              colors={['rgba(0,0,0,0.42)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.5)']}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+          </View>
+
+          <Pressable
+            onPress={onBack}
+            hitSlop={10}
+            style={styles.coverBack}
+            accessibilityRole="button"
+            accessibilityLabel="All events"
+          >
+            <Text style={styles.coverBackText}>‹ All events</Text>
+          </Pressable>
+
+          {/*
+            Everything this screen used to stack, behind one glyph.
+
+            Eight full-width slabs sat between the name and the first
+            photograph — share, save, who can see it, the cover, asking people
+            in, starting a group — so that opening an album showed you a column
+            of settings and, if you scrolled, some photographs. They are the
+            same actions with the same copy and the same calls; they are in a
+            sheet now, which is where an album's settings go.
+          */}
+          <Pressable
+            onPress={() => setSheetOpen(true)}
+            hitSlop={8}
+            style={styles.coverMore}
+            accessibilityRole="button"
+            accessibilityLabel="Event options"
+          >
+            <BlurView intensity={10} tint="dark" style={styles.coverMoreBlur}>
+              <Text style={styles.coverMoreGlyph}>⋯</Text>
+            </BlurView>
+          </Pressable>
+
+          <View style={styles.coverTitle} pointerEvents="box-none">
+            <Text style={styles.coverName} numberOfLines={2}>
+              {event.name}
+            </Text>
+            <View style={styles.coverMeta}>
+              <Faces members={feed?.members ?? []} />
+              <View style={styles.coverMetaLine}>
+                <Text style={styles.coverMetaText}>
+                  {feed
+                    ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'}`
+                    : (feedError ?? 'Loading…')}
+                  {when ? ` · ${when} · ` : ' · '}
+                </Text>
+                {/*
+                  Who can see it, as a picture. An open padlock on a public
+                  album and a closed one on a private album, in the line
+                  somebody reads immediately before handing the link on — which
+                  is the moment the answer matters and the only moment it was
+                  previously given, three slabs down, in a paragraph.
+                */}
+                <Glyph
+                  name={visible === 'private' ? 'locked' : 'unlocked'}
+                  size={15}
+                  color="rgba(255,255,255,0.92)"
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.page, { backgroundColor: t.bg }]}>
+            <View style={styles.tabRow}>
+              {tabs}
               <Pressable
-                onPress={() => {
-                  // The link alone. The name arrives with it — a shared link
-                  // unfurls into a card carrying the event's title, so putting
-                  // it in the message body as well says it twice.
-                  void Share.share({ message: `${webBase}/e/${event.linkToken}` });
-                }}
+                onPress={add}
+                disabled={feed?.event.uploadsOpen === false}
                 accessibilityRole="button"
-                accessibilityLabel="Share this event"
+                accessibilityLabel="Add photos"
                 style={({ pressed }) => [
-                  styles.eventShare,
-                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                  styles.addButton,
+                  {
+                    backgroundColor: t.card,
+                    borderColor: t.line,
+                    opacity: feed?.event.uploadsOpen === false ? 0.4 : pressed ? 0.7 : 1,
+                  },
                 ]}
               >
-                <Text style={[styles.eventShareText, { color: t.fg }]}>Share</Text>
+                <Glyph name="plus" size={18} color={t.fg} />
               </Pressable>
             </View>
-            <Text style={[styles.body, { color: t.dim }]}>
-              {feed
-                ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'} from ${feed.contributors} ${feed.contributors === 1 ? 'person' : 'people'}`
-                : (feedError ?? 'Loading…')}
-            </Text>
 
             {/*
-              What the link does, beside the button that sends it.
-
-              The web says this inside its share panel; the app hands the link
-              to the system sheet, which has nowhere to put a sentence — so it
-              goes here, where somebody reads it immediately before tapping
-              Share. Only for a private album: on a public one the link does
-              the obvious thing, and a line saying so on every event is a line
-              that stops being read.
+              The transient lines, which are the only things still allowed
+              between the tabs and the grid: an upload in flight and the one
+              offer that is made after a contribution rather than in front of
+              it. Both go away on their own.
             */}
-            {(policy ?? feed?.event.accessPolicy) === 'private' && (
-              <Text style={[styles.small, { color: t.dim }]}>
-                {feed?.event.canAdminister
-                  ? 'Private — whoever you send the link to can ask, and you answer.'
-                  : 'Private — the link lets somebody ask. Whoever made this album decides.'}
-              </Text>
-            )}
-
-            {feed?.event.groupId && (
-              <Pressable onPress={() => onOpenGroup(feed.event.groupId!)}>
-                <Text style={[styles.body, { color: t.accent }]}>
-                  in {feed.event.groupName} ›
-                </Text>
-              </Pressable>
-            )}
-
-            {feed?.event.uploadsOpen !== false && signedIn === true && (
-              <Button label="Add photos" onPress={addPhotos} t={t} primary />
-            )}
-            {feed?.event.uploadsOpen !== false && signedIn === false && (
-              <AccountCard
-                api={api}
-                t={t}
-                Button={ButtonEl}
-                gate
-                why="Adding photos needs an account. Looking does not — carry on browsing without one."
-                onSignedIn={onSignedIn}
-              />
-            )}
             {queueStatus && (
-              <Text style={[styles.body, { color: t.dim }]}>
+              <Text style={[styles.queueLine, { color: t.dim }]}>
                 {queueStatus}
                 {waitingForNetwork
                   ? // Nothing is lost and nothing needs doing. Saying this
@@ -1314,8 +1440,11 @@ function EventScreen({
                     ' — keep the app open until this finishes'}
               </Text>
             )}
+
             {offerUpgrade && (
-              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+              <View
+                style={[styles.upgrade, { backgroundColor: t.card, borderColor: t.line }]}
+              >
                 <Text style={[styles.body, { color: t.fg }]}>
                   Next time we can find them for you — pick out the photos from
                   the event so you do not have to scroll. Your photos stay on
@@ -1334,13 +1463,447 @@ function EventScreen({
               </View>
             )}
 
+            <FlatList
+              data={feed?.photos ?? []}
+              keyExtractor={(photo) => photo.id}
+              numColumns={3}
+              columnWrapperStyle={styles.gridRow}
+              contentContainerStyle={styles.gridContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  tintColor={t.dim}
+                  onRefresh={async () => {
+                    setRefreshing(true);
+                    await refresh();
+                    setRefreshing(false);
+                  }}
+                />
+              }
+              ListEmptyComponent={
+                feed ? (
+                  <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
+                    Nothing here yet. Add yours and everyone else will see there
+                    is something to add to.
+                  </Text>
+                ) : null
+              }
+              renderItem={({ item }) => (
+                <Pressable style={styles.tile} onPress={() => setSelected(item)}>
+                  <ExpoImage
+                    source={{ uri: item.src }}
+                    style={styles.thumb}
+                    contentFit="cover"
+                    transition={120}
+                  />
+                </Pressable>
+              )}
+            />
+          </View>
+
+          {/*
+            One line, over the cover, when somebody says something while you
+            are looking at the photographs. It is the whole of the notification
+            this screen needs: who, what they said, and how many are waiting.
+          */}
+          {latest && unread > 0 && !bannerGone && (
+            <Pressable
+              onPress={() => setPane('talk')}
+              accessibilityRole="button"
+              accessibilityLabel={`${unread} new ${unread === 1 ? 'message' : 'messages'}`}
+              style={styles.bannerShell}
+            >
+              <BlurView intensity={18} tint="light" style={styles.banner}>
+                <Bubble name={latest.author.name} url={latest.author.avatarUrl} keyed={latest.author.key} />
+                <Text style={[styles.bannerText, { color: '#14171c' }]} numberOfLines={1}>
+                  <Text style={styles.bannerName}>{latest.author.name} </Text>
+                  {latest.deleted ? 'Message deleted' : latest.body}
+                </Text>
+                <Text style={styles.bannerCount}>
+                  {unread} new
+                </Text>
+              </BlurView>
+            </Pressable>
+          )}
+        </>
+      ) : (
+        <>
+          <StatusBar style={dark ? 'light' : 'dark'} />
+
+          {/*
+            The same screen with its head folded up.
+
+            One screen and three panes rather than two screens: the thread is
+            about these photographs, and pushing it as its own route would give
+            the conversation a back button to the album it is already in.
+          */}
+          <View style={[styles.head, { backgroundColor: t.card, borderBottomColor: t.line }]}>
+            <View style={styles.headRow}>
+              <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="All events">
+                <Text style={[styles.headBack, { color: t.accent }]}>‹</Text>
+              </Pressable>
+              {cover ? (
+                <ExpoImage
+                  source={{ uri: cover }}
+                  style={[styles.headThumb, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View style={[styles.headThumb, { backgroundColor: lensFor(event.id).fill }]} />
+              )}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.headName, { color: t.fg }]} numberOfLines={1}>
+                  {event.name}
+                </Text>
+                <Text style={[styles.headMeta, { color: t.dim }]} numberOfLines={1}>
+                  {feed
+                    ? `${feed.count} ${feed.count === 1 ? 'photo' : 'photos'} · ${feed.members.length} ${
+                        feed.members.length === 1 ? 'person' : 'people'
+                      }`
+                    : (feedError ?? 'Loading…')}
+                </Text>
+              </View>
+              <Pressable
+                onPress={shareLink}
+                accessibilityRole="button"
+                accessibilityLabel="Share this event"
+                style={({ pressed }) => [
+                  styles.sharePill,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.sharePillText, { color: t.fg }]}>Share</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSheetOpen(true)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Event options"
+              >
+                <Text style={[styles.headMore, { color: t.dim }]}>⋯</Text>
+              </Pressable>
+            </View>
+            <View style={styles.headTabs}>{tabs}</View>
+          </View>
+
+          {pane === 'talk' ? (
+            <Thread
+              api={api}
+              eventId={event.id}
+              messages={messages}
+              canPost={feed?.canPost ?? false}
+              // This event's contributors and nobody else — the rule the web's
+              // mention list follows, and the reason it is safe for a text
+              // field a link-holder can type into.
+              people={(feed?.people ?? []).map((person) => ({
+                key: person.key,
+                name: person.name,
+                mine: person.mine,
+              }))}
+              t={t}
+              onChanged={refresh}
+              onSeen={markRead}
+            />
+          ) : (
+            <People roster={feed?.roster ?? []} t={t} />
+          )}
+        </>
+      )}
+
+      {sheetOpen && (
+        <HostSheet
+          api={api}
+          t={t}
+          feed={feed}
+          event={event}
+          cover={cover}
+          policy={policy}
+          policyError={policyError}
+          saving={saving}
+          Button={ButtonEl}
+          onClose={() => setSheetOpen(false)}
+          onShare={shareLink}
+          onSaveAll={saveAll}
+          onEditCover={editCover}
+          onPolicy={async (value) => {
+            setPolicy(value);
+            setPolicyError(null);
+            try {
+              await api.setAccessPolicy(event.id, value);
+              // Not because the pills need it — they answered the press
+              // already — but because the padlock over the cover and the
+              // number waiting are both read off the feed.
+              await refresh();
+            } catch {
+              setPolicy(null);
+              setPolicyError('Could not change that. Try again in a moment.');
+            }
+          }}
+          onGroup={async (name) => {
+            try {
+              const group = await api.createGroup(event.id, name, false);
+              setSheetOpen(false);
+              onGroupsChanged();
+              onOpenGroup(group.id);
+            } catch {
+              Alert.alert('Could not make the group', 'Try again in a moment.');
+            }
+          }}
+          onOpenGroup={onOpenGroup}
+        />
+      )}
+
+      {/*
+        The account, asked for only when somebody has reached for the thing
+        that needs one. Never in front of the photographs — which is what the
+        card sitting permanently above the grid amounted to.
+      */}
+      <Modal visible={gateOpen} animationType="slide" transparent onRequestClose={() => setGateOpen(false)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setGateOpen(false)}>
+          <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
+            <AccountCard
+              api={api}
+              t={t}
+              Button={ButtonEl}
+              gate
+              why="Adding photos needs an account. Looking does not — carry on browsing without one."
+              onSignedIn={() => {
+                setGateOpen(false);
+                onSignedIn();
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {selected && (
+        <PhotoActions
+          api={api}
+          photo={selected}
+          t={t}
+          onClose={() => setSelected(null)}
+          onChanged={refresh}
+        />
+      )}
+    </View>
+  );
+}
+
+/**
+ * Photos · Talk · People, as one control.
+ *
+ * Glyphs rather than words, and the middle one carries the number: a count on
+ * a tab is the only place in this screen that says somebody is waiting to be
+ * answered, and it has to survive being the third of three items on a 240pt
+ * control. The active item is a white card inside the well, which is the
+ * shape iOS uses and the reason no second colour is needed to say which pane
+ * you are in.
+ */
+function Segmented({
+  pane,
+  unread,
+  onPane,
+  t,
+  dark,
+}: {
+  pane: Pane;
+  unread: number;
+  onPane: (pane: Pane) => void;
+  t: Theme;
+  dark: boolean;
+}) {
+  const items: [Pane, GlyphName, string][] = [
+    ['photos', 'photos', 'Photos'],
+    ['talk', 'plane', 'Talk'],
+    ['people', 'group', 'People'],
+  ];
+  return (
+    <View style={[styles.segmented, { backgroundColor: dark ? '#ffffff14' : '#eef0f4' }]}>
+      {items.map(([id, glyph, label]) => {
+        const on = pane === id;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => onPane(id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={
+              id === 'talk' && unread > 0 ? `${label}, ${unread} new` : label
+            }
+            style={[
+              styles.segment,
+              on && [styles.segmentOn, { backgroundColor: t.card }],
+            ]}
+          >
+            <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
+            {id === 'talk' && unread > 0 && (
+              <Text style={[styles.segmentCount, { color: t.accent }]}>{unread}</Text>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * The faces over the cover: three, and then how many more.
+ *
+ * Rings in white rather than in the page colour, because what is behind them
+ * is a photograph — a ring the colour of the background would be a hole in
+ * whatever the cover happens to be.
+ */
+function Faces({ members }: { members: Member[] }) {
+  const shown = members.slice(0, CARD_FACES);
+  const more = members.length - shown.length;
+  if (shown.length === 0) return null;
+  return (
+    <View style={styles.faceStack}>
+      {shown.map((member) => {
+        const lens = lensFor(member.actorId);
+        return member.avatarUrl ? (
+          <ExpoImage
+            key={member.actorId}
+            source={{ uri: member.avatarUrl }}
+            style={[styles.faceRing, { backgroundColor: lens.fill }]}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : (
+          <View
+            key={member.actorId}
+            style={[styles.faceRing, styles.faceCentred, { backgroundColor: lens.fill }]}
+          >
+            <Text style={[styles.faceLetter, { color: lens.ink }]}>
+              {initialOf(member.name)}
+            </Text>
+          </View>
+        );
+      })}
+      {more > 0 && (
+        <View style={[styles.faceRing, styles.faceCentred, styles.faceMore]}>
+          <Text style={styles.faceMoreText}>+{more}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** One face in the unread banner — theirs, or the letter on their lens. */
+function Bubble({ name, url, keyed }: { name: string; url: string | null; keyed: string }) {
+  const lens = lensFor(keyed);
+  return url ? (
+    <ExpoImage source={{ uri: url }} style={styles.bannerFace} contentFit="cover" transition={120} />
+  ) : (
+    <View style={[styles.bannerFace, styles.faceCentred, { backgroundColor: lens.fill }]}>
+      <Text style={[styles.bannerFaceLetter, { color: lens.ink }]}>{initialOf(name)}</Text>
+    </View>
+  );
+}
+
+/**
+ * Everything the album's screen used to stack above its first photograph.
+ *
+ * Share and save for anybody who can see it; the cover, who can see it, asking
+ * people in and starting a group for whoever runs it. The copy, the order of
+ * the questions and every call they make are the ones `EventScreen` already
+ * made — this is where they are, not what they do.
+ */
+function HostSheet({
+  api,
+  t,
+  feed,
+  event,
+  cover,
+  policy,
+  policyError,
+  saving,
+  Button: ButtonEl,
+  onClose,
+  onShare,
+  onSaveAll,
+  onEditCover,
+  onPolicy,
+  onGroup,
+  onOpenGroup,
+}: {
+  api: Api;
+  t: Theme;
+  feed: Feed | null;
+  event: SavedEvent;
+  cover: string | null;
+  policy: 'public' | 'private' | null;
+  policyError: string | null;
+  saving: string | null;
+  Button: typeof Button;
+  onClose: () => void;
+  onShare: () => void;
+  onSaveAll: () => void;
+  onEditCover: () => void;
+  onPolicy: (value: 'public' | 'private') => void;
+  onGroup: (name: string) => void;
+  onOpenGroup: (groupId: string) => void;
+}) {
+  const [naming, setNaming] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const host = feed?.event.canAdminister === true;
+  const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
+          <ScrollView contentContainerStyle={styles.sheetScroll}>
+            <Row label="Share" note="Send the link to whoever should be in it." onPress={onShare} t={t} />
             {(feed?.photos.length ?? 0) > 0 && (
-              <Button
+              <Row
                 label={saving ?? 'Save all to my camera roll'}
-                onPress={saveAll}
+                note="Full quality or smaller copies — it asks which."
+                onPress={onSaveAll}
                 disabled={saving !== null}
                 t={t}
               />
+            )}
+
+            {feed?.event.groupId && (
+              <Row
+                label={`in ${feed.event.groupName}`}
+                note="Open the group this event is in."
+                onPress={() => {
+                  onClose();
+                  onOpenGroup(feed.event.groupId!);
+                }}
+                t={t}
+              />
+            )}
+
+            {host && (
+              <Pressable
+                onPress={onEditCover}
+                style={({ pressed }) => [
+                  styles.coverRow,
+                  { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={cover ? 'Change the event cover' : 'Choose an event cover'}
+              >
+                {cover ? (
+                  <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
+                ) : (
+                  // Dashed, which means "nothing here" rather than "a very dark
+                  // photograph" — the same call the web's empty tile makes.
+                  <View style={[styles.coverEmpty, { borderColor: t.line }]} />
+                )}
+                <View style={styles.coverWords}>
+                  <Text style={[styles.coverTitleText, { color: t.fg }]}>Event cover</Text>
+                  <Text style={[styles.coverNote, { color: t.dim }]}>
+                    {cover
+                      ? 'What this event leads with everywhere.'
+                      : 'Leading with its newest photograph.'}
+                  </Text>
+                </View>
+              </Pressable>
             )}
 
             {/*
@@ -1349,15 +1912,13 @@ function EventScreen({
               The app asked this once — two pills on the create screen — and
               then never again, which is the wrong way round: the choice is
               made in the first thirty seconds, before anybody has been sent
-              anything, and what you want is obvious only once they have. The
-              web grew a manage screen for it; the app has this screen, so it
-              is here.
+              anything, and what you want is obvious only once they have.
 
               Host only, because it decides what everybody else can reach. The
               note under it is not decoration: "private" sounds like it should
               throw people out, and it does not.
             */}
-            {feed?.event.canAdminister && (
+            {host && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
                 <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
                 <View style={styles.pills}>
@@ -1367,28 +1928,13 @@ function EventScreen({
                       ['private', 'Private'],
                     ] as ['public' | 'private', string][]
                   ).map(([value, label]) => {
-                    const on = (policy ?? feed.event.accessPolicy) === value;
+                    const on = visible === value;
                     return (
                       <Pressable
                         key={value}
                         accessibilityRole="button"
                         accessibilityState={{ selected: on }}
-                        onPress={async () => {
-                          if (on) return;
-                          setPolicy(value);
-                          setPolicyError(null);
-                          try {
-                            await api.setAccessPolicy(event.id, value);
-                            // Not because the pills need it — they answered the
-                            // press already — but because the sentence under
-                            // the link and the number waiting both change with
-                            // this, and they are read off the feed.
-                            await refresh();
-                          } catch {
-                            setPolicy(null);
-                            setPolicyError('Could not change that. Try again in a moment.');
-                          }
-                        }}
+                        onPress={() => !on && onPolicy(value)}
                         style={[
                           styles.pill,
                           on
@@ -1410,88 +1956,48 @@ function EventScreen({
                   })}
                 </View>
                 <Text style={[styles.small, { color: t.dim }]}>
-                  {(policy ?? feed.event.accessPolicy) === 'private'
+                  {visible === 'private'
                     ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
                     : 'Anyone can see it, no account needed. Adding photos always needs one.'}
                 </Text>
-                {feed.event.waiting > 0 && (
-                  /*
-                    Said here rather than only in the bubble on Home, because
-                    this is the screen somebody is on when they turn private on
-                    and then wonder where the asking happens. Answered where
-                    they are, on the tab that already lists it.
-                  */
+                {(feed?.event.waiting ?? 0) > 0 && (
                   <Text style={[styles.small, { color: t.accent }]}>
-                    {feed.event.waiting}{' '}
-                    {feed.event.waiting === 1 ? 'person is' : 'people are'} waiting to be
+                    {feed!.event.waiting}{' '}
+                    {feed!.event.waiting === 1 ? 'person is' : 'people are'} waiting to be
                     let in — answer them on Events.
                   </Text>
                 )}
-                {policyError && (
-                  <Text style={[styles.small, { color: t.dim }]}>{policyError}</Text>
-                )}
+                {policyError && <Text style={[styles.small, { color: t.dim }]}>{policyError}</Text>}
               </View>
             )}
+
+            {/*
+              What the link does, beside the thing that sends it. Only for a
+              private album: on a public one the link does the obvious thing,
+              and a line saying so on every event is a line that stops being
+              read.
+            */}
+            {visible === 'private' && !host && (
+              <Text style={[styles.small, { color: t.dim }]}>
+                Private — the link lets somebody ask. Whoever made this album decides.
+              </Text>
+            )}
+
+            {/*
+              The other door into a private album, and the one the app did not
+              have: somebody who made one could send the link and wait to be
+              asked, but could not ask anybody.
+            */}
+            {host && <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />}
 
             {/*
               Only the host, and only for an event that is not already in one.
               The pitch is the recurrence, not the feature: nobody wants "a
               group", they want to stop sending the link every time.
             */}
-            {/*
-              Host only. It changes what everybody else sees on their home
-              screen, which is the same reason the web keeps it on the manage
-              screen rather than on the event.
-
-              The picture is here rather than only behind the press, matching
-              the web's manage screen: the cover is the one setting on this
-              screen whose value is an image, and an image described in words
-              is a setting you have to remember rather than read.
-            */}
-            {feed?.event.canAdminister && (
-              <Pressable
-                onPress={editCover}
-                // Same press feedback as `Button`, because it sits in a column
-                // of them and a row that does not dim under a finger reads as
-                // the one thing on the screen that did not take the press.
-                style={({ pressed }) => [
-                  styles.coverRow,
-                  { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={cover ? 'Change the event cover' : 'Choose an event cover'}
-              >
-                {cover ? (
-                  <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
-                ) : (
-                  // Dashed, which means "nothing here" rather than "a very dark
-                  // photograph" — the same call the web's empty tile makes.
-                  <View style={[styles.coverEmpty, { borderColor: t.line }]} />
-                )}
-                <View style={styles.coverWords}>
-                  <Text style={[styles.coverTitle, { color: t.fg }]}>Event cover</Text>
-                  <Text style={[styles.coverNote, { color: t.dim }]}>
-                    {cover
-                      ? 'What this event leads with everywhere.'
-                      : 'Leading with its newest photograph.'}
-                  </Text>
-                </View>
-              </Pressable>
-            )}
-
-            {/*
-              The other door into a private album, and the one the app did not
-              have: somebody who made one could send the link and wait to be
-              asked, but could not ask anybody. Whoever can administer, on the
-              screen the album is already open on.
-            */}
-            {feed?.event.canAdminister && (
-              <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />
-            )}
-
-            {feed?.event.canAdminister && !feed.event.groupId && (
+            {host && !feed?.event.groupId && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-                {namingGroup ? (
+                {naming ? (
                   <>
                     <Text style={[styles.label, { color: t.fg }]}>Name the group</Text>
                     <TextInput
@@ -1500,11 +2006,8 @@ function EventScreen({
                       placeholder="Sunday roast"
                       placeholderTextColor={t.dim}
                       autoFocus
-                      onSubmitEditing={createGroup}
-                      style={[
-                        styles.input,
-                        { color: t.fg, borderColor: t.line, backgroundColor: t.bg },
-                      ]}
+                      onSubmitEditing={() => onGroup(groupName.trim())}
+                      style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
                     />
                     <Text style={[styles.small, { color: t.dim }]}>
                       Everyone here keeps their access. Nobody is added to the
@@ -1512,12 +2015,12 @@ function EventScreen({
                     </Text>
                     <Button
                       label="Make the group"
-                      onPress={createGroup}
+                      onPress={() => onGroup(groupName.trim())}
                       disabled={!groupName.trim()}
                       t={t}
                       primary
                     />
-                    <Button label="Cancel" onPress={() => setNamingGroup(false)} t={t} />
+                    <Button label="Cancel" onPress={() => setNaming(false)} t={t} />
                   </>
                 ) : (
                   <>
@@ -1527,40 +2030,53 @@ function EventScreen({
                     </Text>
                     <Button
                       label="Start a group from this event"
-                      onPress={() => setNamingGroup(true)}
+                      onPress={() => setNaming(true)}
                       t={t}
                     />
                   </>
                 )}
               </View>
             )}
-          </View>
-        }
-        ListEmptyComponent={
-          feed ? (
-            <Text style={[styles.body, { color: t.dim, paddingVertical: 40 }]}>
-              Nothing here yet. Add yours and everyone else will see there is
-              something to add to.
-            </Text>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <Pressable style={styles.tile} onPress={() => setSelected(item)}>
-            <Image source={{ uri: item.src }} style={styles.thumb} />
-          </Pressable>
-        )}
-      />
 
-      {selected && (
-        <PhotoActions
-          api={api}
-          photo={selected}
-          t={t}
-          onClose={() => setSelected(null)}
-          onChanged={refresh}
-        />
-      )}
-    </View>
+            <Button label="Done" onPress={onClose} t={t} />
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** One action in the sheet: what it does, and one line about what that means. */
+function Row({
+  label,
+  note,
+  onPress,
+  disabled,
+  t,
+}: {
+  label: string;
+  note: string;
+  onPress: () => void;
+  disabled?: boolean;
+  t: Theme;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.sheetRow,
+        {
+          backgroundColor: t.card,
+          borderColor: t.line,
+          opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text style={[styles.coverTitleText, { color: t.fg }]}>{label}</Text>
+      <Text style={[styles.coverNote, { color: t.dim }]}>{note}</Text>
+    </Pressable>
   );
 }
 
@@ -1735,15 +2251,154 @@ const FLOAT_SHADOW = {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  /* The event's name, and Share on the same line as it. A full-width button
-     under the title would be the third stacked slab on this screen and would
-     read as the thing to do, which is adding photos. */
-  eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  eventShare: {
-    flex: 0, borderWidth: 1, borderRadius: 999,
-    paddingVertical: 7, paddingHorizontal: 14,
+  /* --- the album, photographs first ------------------------------------
+
+     Everything down to `gridContent` is one screen described in absolute
+     positions, which is unusual in this file and is the point: the cover is
+     full-bleed under the clock, the title sits on it, and the body is a sheet
+     that starts below it. A column of views in normal flow cannot put white
+     type over a photograph and a grey page under it without the page's
+     background being drawn over the picture. */
+  cover: { position: 'absolute', top: 0, left: 0, right: 0, height: 232 },
+  coverBack: { position: 'absolute', top: 46, left: 16, zIndex: 3 },
+  coverBackText: { fontSize: 15, color: '#fff' },
+  coverMore: { position: 'absolute', top: 40, right: 16, zIndex: 3 },
+  /* Glass rather than a solid disc: it sits on a photograph nobody chose for
+     it, and a grey circle is a hole in whatever is behind it. */
+  coverMoreBlur: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20,23,28,0.38)',
   },
-  eventShareText: { fontSize: 14, fontWeight: '600' },
+  coverMoreGlyph: { color: '#fff', fontSize: 16, fontWeight: '600', lineHeight: 18 },
+  coverTitle: { position: 'absolute', top: 140, left: 20, right: 20, zIndex: 3, gap: 6 },
+  /* The shadow is what keeps four words legible over a cover that turns out to
+     be a white tablecloth. */
+  coverName: {
+    fontSize: 27,
+    lineHeight: 30,
+    fontWeight: '700',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
+  coverMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  coverMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  coverMetaText: { fontSize: 13, color: 'rgba(255,255,255,0.92)' },
+  faceStack: { flexDirection: 'row' },
+  /* The ring is white rather than the page colour — what is behind these is a
+     photograph, and a ring in `#f7f8fa` would be a notch cut out of it. */
+  faceRing: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    marginRight: -8,
+  },
+  faceCentred: { alignItems: 'center', justifyContent: 'center' },
+  faceLetter: { fontSize: 10.5, fontWeight: '700' },
+  faceMore: { backgroundColor: 'rgba(255,255,255,0.85)', marginRight: 0 },
+  faceMoreText: { fontSize: 9.5, fontWeight: '700', color: '#5b6472' },
+  /* The page, starting 16 points into the cover's bottom scrim. */
+  page: { position: 'absolute', top: 248, left: 0, right: 0, bottom: 0 },
+  tabRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
+  addButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  queueLine: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingBottom: 8 },
+  upgrade: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12, marginHorizontal: 16, marginBottom: 10 },
+  /* --- the album, folded up ---------------------------------------------
+
+     The head the thread and the roster get: the same event, with its cover
+     shrunk to a thumbnail so that the conversation has the screen. */
+  /* 72 to the first line of it, which is this file's standing allowance for
+     the status bar — the same number every scroll screen here starts at. The
+     design measures 14 from the bottom of the bar; there is no safe-area
+     library in this project, so the allowance is the one constant rather than
+     a second guess at how tall a notch is. */
+  head: { borderBottomWidth: 1, paddingTop: 72, paddingHorizontal: 16, paddingBottom: 10 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headBack: { fontSize: 22, lineHeight: 24 },
+  headThumb: { width: 38, height: 38, borderRadius: 10 },
+  headName: { fontSize: 18, fontWeight: '700' },
+  headMeta: { fontSize: 12.5 },
+  sharePill: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 13 },
+  sharePillText: { fontSize: 13.5, fontWeight: '600' },
+  headMore: { fontSize: 18, fontWeight: '600' },
+  headTabs: { marginTop: 12 },
+  /* --- Photos · Talk · People -------------------------------------------
+
+     A well with a card in it, which is the shape iOS uses and the reason the
+     selected pane needs no second colour to be legible. */
+  segmented: { flex: 1, flexDirection: 'row', gap: 4, borderRadius: 10, padding: 3 },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  segmentOn: {
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  segmentCount: { fontSize: 13, fontWeight: '700' },
+  /* --- somebody said something -------------------------------------------
+
+     One line that drops in over the cover and takes itself away again. The
+     shell carries the shadow and the blur is clipped inside it, for the same
+     reason the tab bubble is two views. */
+  bannerShell: {
+    position: 'absolute',
+    top: 76,
+    left: 12,
+    right: 12,
+    zIndex: 4,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  /* Light in both themes, and not an oversight: it sits over a photograph
+     rather than over the page, so it takes its contrast from the cover
+     underneath it and not from whichever theme the phone is in. The ink is
+     fixed for the same reason. */
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderRadius: 14,
+    overflow: 'hidden',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.93)',
+  },
+  bannerFace: { width: 24, height: 24, borderRadius: 12 },
+  bannerFaceLetter: { fontSize: 11, fontWeight: '700' },
+  bannerText: { flex: 1, minWidth: 0, fontSize: 14 },
+  bannerName: { fontWeight: '700' },
+  bannerCount: { fontSize: 12, color: '#5b6472' },
+  /* --- the sheet behind `⋯` ---------------------------------------------- */
+  sheetScroll: { gap: 10, paddingBottom: 10 },
+  sheetRow: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: {
     position: 'absolute',
@@ -1755,7 +2410,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   scroll: { padding: 20, paddingTop: 72, gap: 14 },
-  gridContent: { padding: 12, paddingTop: 64 },
+  /* Three across with hairline gaps, running under the safe area rather than
+     stopping above it: the grid is one object and the last row of it being cut
+     by the screen's edge is what says there is more. */
+  gridContent: { paddingHorizontal: 12, paddingBottom: 12, gap: 3 },
+  gridRow: { gap: 3 },
   h1: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
@@ -1803,9 +2462,11 @@ const styles = StyleSheet.create({
   /* Each tab is a capsule inside the capsule, which is what makes the selected
      one legible without a second colour: the fill is the page's own background
      showing through the bar, the way the system tab bar seats its selection. */
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 15, borderRadius: 999 },
-  tabLabel: { fontSize: 14 },
-  tabLabelActive: { fontWeight: '700' },
+  /* The glyph is centred in the capsule and 22 points across, which is the
+     size the web rail draws the same drawings at. The vertical padding is what
+     the four labels used to need and is kept: the bubble's height is the one
+     measurement on this screen that people's thumbs have learned. */
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 999 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   /* The two who-can-see-it pills, the same shape the create screen asks the
      same question with — one control, one look, wherever it is asked. */
@@ -1817,10 +2478,17 @@ const styles = StyleSheet.create({
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },
   buttonText: { fontSize: 16, fontWeight: '600' },
   listRow: { paddingVertical: 10 },
-  tile: { flex: 1 / 3, padding: 3 },
+  tile: { flex: 1 },
   thumb: { width: '100%', aspectRatio: 1, borderRadius: 6, backgroundColor: '#8883' },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
-  sheet: { padding: 16, paddingBottom: 40, gap: 10, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  sheet: {
+    padding: 16,
+    paddingBottom: 40,
+    gap: 10,
+    maxHeight: '86%',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
   sheetImage: { width: '100%', height: 240, borderRadius: 10, backgroundColor: '#8883' },
   // A card in the same family as `card`, laid out sideways: the picture reads
   // first, the words explain it. 3:2 rather than square, because that is the
@@ -1829,7 +2497,7 @@ const styles = StyleSheet.create({
   coverShot: { width: 66, height: 44, borderRadius: 8, backgroundColor: '#8883' },
   coverEmpty: { width: 66, height: 44, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
   coverWords: { flex: 1, gap: 2 },
-  coverTitle: { fontSize: 16, fontWeight: '600' },
+  coverTitleText: { fontSize: 16, fontWeight: '600' },
   coverNote: { fontSize: 13 },
 });
 

@@ -108,6 +108,8 @@ describe('the door of a private album', () => {
 
 describe('who can see it, after the first thirty seconds', () => {
   it('is changeable on the event screen, by whoever can administer', () => {
+    // In the `⋯` sheet now rather than as a card stacked above the
+    // photographs. Same question, same call, same gate.
     expect(APP).toMatch(/Who can see it/);
     expect(APP).toMatch(/api\.setAccessPolicy\(event\.id, value\)/);
   });
@@ -116,7 +118,7 @@ describe('who can see it, after the first thirty seconds', () => {
     // One round trip is long enough for a tap to feel ignored. But a local
     // guess left standing would outrank a change made on another device, so
     // the refresh clears it.
-    expect(APP).toMatch(/policy \?\? feed\.event\.accessPolicy/);
+    expect(APP).toMatch(/policy \?\? feed\?\.event\.accessPolicy/);
     expect(APP).toMatch(/setPolicy\(null\)/);
   });
 
@@ -210,6 +212,7 @@ describe('adding people to an album', () => {
   it('offers it on the event screen only to somebody who can administer', () => {
     // A host's guest list, not a way for anybody in an album to pull people
     // into it — the same gate the route applies.
-    expect(APP).toMatch(/feed\?\.event\.canAdminister && \(\s*\n\s*<InviteCard/);
+    expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
+    expect(APP).toMatch(/\{host && <InviteCard/);
   });
 });
