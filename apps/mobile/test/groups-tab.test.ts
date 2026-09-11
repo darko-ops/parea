@@ -39,9 +39,11 @@ describe('the tab', () => {
      * yet. After Find would file the places you belong under the heading for
      * finding places you do not.
      */
-    const events = APP.indexOf("['home', 'Events']");
-    const groups = APP.indexOf("['groups', 'Groups']");
-    const find = APP.indexOf("['search', 'Find']");
+    // The bar carries a glyph between the tab and its label now — the label
+    // survives as the accessibility name, which is what these look for.
+    const events = APP.indexOf("['home', 'photos', 'Events']");
+    const groups = APP.indexOf("['groups', 'group', 'Groups']");
+    const find = APP.indexOf("['search', 'search', 'Find']");
     expect(groups).toBeGreaterThan(-1);
     expect(events).toBeLessThan(groups);
     expect(groups).toBeLessThan(find);
@@ -104,33 +106,55 @@ describe('what the screen may do', () => {
     expect(EVENTS).toMatch(/Groups are for the people who keep turning up/);
   });
 
-  it('draws a group as a letter, never a photograph', () => {
+  it('draws the door as a letter, never as a photograph', () => {
     /*
-     * The rule is about *the door*: a group has no picture of its own, and the
-     * only ones available are inside events that belong to it, so borrowing
-     * one shows a photograph from a room on the screen that is merely the way
-     * in — including to somebody who has since been removed.
+     * The rule is about *the door*, and it still holds: the tile beside a
+     * group's name is a letter on the lens colour its id hashes to, and
+     * nothing about a group is ever drawn from a picture.
+     */
+    const block = EVENTS.slice(
+      EVENTS.indexOf('function GroupBlock'),
+      EVENTS.indexOf('const COVER_STRIP'),
+    );
+    expect(block).not.toBe('');
+    expect(block).toMatch(/groupTile/);
+    expect(block).toMatch(/lensFor\(group\.id\)/);
+  });
+
+  it('takes the covers under a group off this viewer’s own albums', () => {
+    /*
+     * The tab shows photographs now — three recent covers under each group's
+     * name — which is a real change to a rule this file used to state as "no
+     * image at all that is not a person's own picture".
      *
-     * Cluster cards do draw faces, and that is not an exception to this: an
-     * avatar is a person's own picture, not a photograph out of somebody's
-     * evening. They live in `CreateGroup.tsx`, which is why the slice below
-     * stays clean — asserted here so that stays a reason rather than a
-     * coincidence that a later move would quietly undo.
+     * What replaces it is a bound on *where the picture comes from*, which is
+     * what the old rule was protecting. The old worry was a group handing out
+     * a photograph from a room to somebody merely standing at the door,
+     * "including to somebody who has since been removed". These covers are
+     * read off `events` — the albums this actor can already open, the same
+     * list the home tab draws — and never off the group or its detail
+     * response. Somebody who was never in one of a group's events, or who has
+     * since been removed from it, has no listing for it and gets the dashed
+     * empty slot where that cover would be. The server is not asked for a
+     * group's photographs and does not answer with any.
+     *
+     * So: every `uri:` in the block is either a cover from this viewer's own
+     * album list, or a person's own avatar. A photograph reaching this screen
+     * under any other name fails here.
      */
-    const rows = tab.slice(tab.indexOf('groups.map('));
-    expect(rows).toMatch(/groupTile/);
-    // Never anything out of an event: no mosaic, no cover, no event thumb.
-    expect(rows).not.toMatch(/mosaic|coverUrl|event\.cover/);
-    /*
-     * The rows draw member faces now, which is the same exception the cluster
-     * cards have always had and for the same reason — so the check moves from
-     * "no image at all" to "every image is a person's own picture". Written as
-     * every `uri:` in the slice, so a photograph smuggled in under any other
-     * field fails here rather than passing because it was not called `cover`.
-     */
-    const sources = [...rows.matchAll(/uri:\s*([A-Za-z.]+)/g)].map((m) => m[1]);
+    const block = EVENTS.slice(
+      EVENTS.indexOf('function GroupBlock'),
+      EVENTS.indexOf('const COVER_STRIP'),
+    );
+    const sources = [...block.matchAll(/uri:\s*([A-Za-z.?]+)/g)].map((m) => m[1]);
     expect(sources.length).toBeGreaterThan(0);
-    expect(new Set(sources)).toEqual(new Set(['person.avatarUrl']));
+    expect(new Set(sources)).toEqual(new Set(['album.cover.src']));
+
+    // And the albums are handed in, not fetched: the tab cannot reach for a
+    // group's photographs because it never asks anybody for any.
+    expect(tab).toMatch(/events: EventListing\[\]/);
+    expect(tab).not.toMatch(/mosaic|coverUrl/);
+    expect(APP).toMatch(/<GroupsTab[\s\S]{0,400}events=\{events\}/);
   });
 });
 

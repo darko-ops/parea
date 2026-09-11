@@ -62,11 +62,101 @@ export type Feed = {
      * depending on who is asking, which is a second thing to get wrong.
      */
     coverUrl: string | null;
+    /** When the event was, ISO — what the line under the name dates it by. */
+    startsAt: string | null;
   };
   contributors: number;
   count: number;
   photos: FeedPhoto[];
+  /**
+   * Everybody in the event: the faces over the cover, and the People pane.
+   *
+   * Not the same list as the contributors count above it — this includes
+   * somebody who has been let in and added nothing yet, which is most of a
+   * room in the hour after the link goes out.
+   */
+  members: Member[];
+  /**
+   * Whose photographs these are — the list behind the count above.
+   *
+   * `key` is an opaque per-event digest of the actor, not an actor id: stable
+   * across polls, which is all a mention list needs, and useless anywhere
+   * else. The same person in two events has two keys, so it cannot be used to
+   * follow somebody between them.
+   */
+  people: { key: string; name: string; photoCount: number; mine: boolean }[];
+  /** Everybody in it with what they have put in, plus whoever was asked. */
+  roster: Roster[];
+  /**
+   * The conversation, oldest first.
+   *
+   * Folded into the feed by the server rather than fetched on its own timer,
+   * and the client keeps that bargain: this screen polls one endpoint and the
+   * thread comes with the photographs. Two pollers would be two schedules to
+   * reason about and twice the requests from a phone in somebody's pocket.
+   */
+  messages: Message[];
+  /**
+   * Whether this viewer may post — `contribute`, and signed in.
+   *
+   * Read off the server rather than inferred from having a token: `contribute`
+   * is held by anybody with the link, and posting additionally requires an
+   * account. Inferring it locally draws a composer for somebody the server was
+   * always going to refuse.
+   */
+  canPost: boolean;
 };
+
+/** Somebody in an event: a name, a face, and whether it is their event. */
+export type Member = {
+  actorId: string;
+  /** Display name, else handle, else "Someone" — never an id. */
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  isCreator: boolean;
+};
+
+/** A member with what they have put in — what the People pane lists. */
+export type Roster = {
+  actorId: string | null;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  photoCount: number;
+  role: 'creator' | 'contributor' | 'viewer' | 'invited';
+  /** For somebody asked and not yet arrived: when the invitation was sent. */
+  invitedAt: string | null;
+};
+
+/**
+ * One message in an event's thread.
+ *
+ * `author.key` is an opaque per-event digest, not an actor id — the same rule
+ * the contributor chips follow. It is stable across polls, which is all a list
+ * needs, and it is useless anywhere else.
+ */
+export type Message = {
+  id: string;
+  body: string;
+  createdAt: string;
+  edited: boolean;
+  /** A tombstone: the body is gone and the row is a gap that says so. */
+  deleted: boolean;
+  author: { key: string; name: string; mine: boolean; avatarUrl: string | null };
+  /** Set when this is a comment on one photograph rather than to the thread. */
+  photoId: string | null;
+  reactions: { emoji: string; count: number; mine: boolean }[];
+};
+
+/**
+ * What a message can be reacted with — the web's set, and the same six.
+ *
+ * A row of reaction pills is a row and not a keyboard: the point is to say
+ * something in one tap, and a picker with two hundred faces in it is a second
+ * decision to make about a photograph of a dinner.
+ */
+export const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🙏'] as const;
 
 /**
  * One event as it appears in a list: enough to draw a card, and no more.
@@ -467,6 +557,52 @@ export class Api {
     return this.call<Feed>(
       `/api/events/${eventId}/photos?t=${encodeURIComponent(linkToken)}`,
     );
+  }
+
+  /**
+   * Say something in an event's thread.
+   *
+   * The four calls below are the routes the web already talks to, and no new
+   * server work is implied by any of them. The thread itself is not fetched
+   * here: it arrives on the feed, so every one of these ends with the caller
+   * refreshing the feed rather than with a second list to keep in step.
+   *
+   * `contribute` and an account, both enforced by the route. The screen reads
+   * `feed.canPost` rather than guessing, so a refusal is something the
+   * composer never gets the chance to be surprised by.
+   */
+  postMessage(eventId: string, body: string, photoId?: string): Promise<{ id: string }> {
+    return this.call<{ id: string }>(`/api/events/${eventId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(photoId ? { body, photoId } : { body }),
+    });
+  }
+
+  editMessage(messageId: string, body: string): Promise<unknown> {
+    return this.call(`/api/messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  /**
+   * Take one back.
+   *
+   * It leaves a gap rather than closing over itself — the messages either side
+   * of a silently removed one appear to be answering each other, which is a
+   * worse thing to do to a conversation than admitting something was deleted.
+   * That is the route's behaviour; this only asks for it.
+   */
+  deleteMessage(messageId: string): Promise<unknown> {
+    return this.call(`/api/messages/${messageId}`, { method: 'DELETE' });
+  }
+
+  /** One tap, and the same tap again takes it off. The route toggles. */
+  react(messageId: string, emoji: string): Promise<unknown> {
+    return this.call(`/api/messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
   }
 
   async presign(

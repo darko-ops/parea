@@ -56,15 +56,29 @@ describe('what the numbers may say', () => {
      * and the photograph number is deliberately not a claim about authorship —
      * it is the size of the shelf.
      */
-    expect(PROFILE).toMatch(/n=\{events\.length\} label="Albums"/);
+    expect(PROFILE).toMatch(/\{events\.length\} \{events\.length === 1 \? 'album' : 'albums'\}/);
     expect(PROFILE).toMatch(/sum \+ event\.photoCount/);
     expect(PROFILE).toMatch(/api\s*\.friends\(\)|api\.friends\(\)/);
+  });
+
+  it('says them in one line, at the size of the handle', () => {
+    /*
+     * Three stacked pairs of figure and label, spread across the space beside
+     * the picture, gave a shelf of eleven albums the visual weight of an
+     * analytics panel. One line in one colour, because none of the three is a
+     * score and the product does not want them read as one.
+     */
+    expect(PROFILE).toMatch(/counts: \{ fontSize: 14\.5/);
+    expect(PROFILE).toMatch(/handle: \{ fontSize: 14\.5/);
+    // And nothing left of the dashboard to drift back into use.
+    expect(PROFILE).not.toMatch(/function Stat\b/);
+    expect(PROFILE).not.toMatch(/statN|statLabel/);
   });
 
   it('shows a dash rather than a zero while a number is unknown', () => {
     // "0 friends" is a claim, and the wrong one to make about somebody whose
     // request has not come back.
-    expect(PROFILE).toMatch(/n === null \? '—' : n/);
+    expect(PROFILE).toMatch(/friends === null \? '—' : friends/);
   });
 });
 

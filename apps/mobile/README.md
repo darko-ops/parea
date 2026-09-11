@@ -49,6 +49,16 @@ layer's shadow the moment `overflow: 'hidden'` is set, and the blur needs
 exactly that to be clipped into a capsule — so the outer view carries the
 shadow and the inner one carries the glass.
 
+The four items are **glyphs rather than words**. Four labels across a 365pt
+bubble is four pieces of type competing with the photographs running
+underneath it, and "Events / Groups / Find / You" is the one row in this
+product that is read once and recognised forever after. The drawings are the
+web rail's own — `Glyph.tsx` carries `RailIcon.tsx`'s exact path data on the
+same 24-unit grid at stroke 2 with round caps, so the app and the site point
+at a group with the same picture rather than with two of them. The label
+survives as the accessibility name, which is where a word is still worth
+having.
+
 There was a second capsule above it, a "have a link or a code?" pill on every
 tab. Being sent a link is how most people arrive, so it was never more than
 one tap away — and the price was a permanent second bar across the bottom of
@@ -61,7 +71,7 @@ in rather than losing one.
 This is the one place a `BlurView` belongs here — see the note on event cards
 below for the case where it does not.
 
-## Three tabs
+## Four tabs
 
 **Events** — the same card the web draws, and it took the same route here. It
 was a mosaic of the four most recent photos over a detail strip whose
@@ -91,18 +101,52 @@ words around them are the app's; what is shared is the part that could ever
 disagree, which is the rounding — this file had a second `ago` of its own, and
 it is gone.
 
-**Find** — two halves that are different in kind. Group search reaches groups
-you are *not* in; it is the only discovery surface in the product and it
-returns findable groups by name. There is deliberately no event search: §3's
-rule is that groups can be findable and photos never are, and searching events
-is searching photos. The map half is the reverse — only events you are already
-in, arranged by where they were, so nothing is discovered and nothing is
-exposed that you could not already see.
+**Groups** — the rooms you are in, drawn as what is in them. It was a
+directory: a letter tile, a name, a line of counts, repeated. A list of rooms
+with no photographs in it, on a tab of a product whose whole subject is
+photographs.
 
-**You** — a profile, laid out the way profiles are laid out: the picture and
-three numbers on one line, then the name, the handle and the line somebody
-wrote about themselves, then one button that opens all of it for editing, and
-then a grid.
+Each group is its evenings now — three recent covers under its name, how many
+more there are on the third one, and the newest event's name in the line
+underneath. The **door is still a letter**: the tile beside the name is the
+group's lens colour, hashed from its id, because a group has no picture of its
+own and giving it one out of an event inside it would put a photograph from a
+room on the thing that is merely the way in.
+
+The strip is not that, and the difference is where the pictures come from.
+Those covers are read off the actor's own event listing — the albums they can
+already open, the same list the Events tab draws — and never off the group or
+its detail response. Somebody who was never in one of a group's events, or who
+has since been removed from it, has no listing for it and gets a dashed empty
+slot where that cover would be. The server is not asked for a group's
+photographs and does not answer with any.
+
+The cluster suggestion is one line above a rule rather than a card. It is a
+remark about the list above it — "these three were at four of the same
+evenings" — and a bordered box with a filled button on it gave that the weight
+of a room somebody had already made.
+
+**Find** — one field, scoped by chips, and the policy said once at the foot.
+
+It was a card per kind: "Somebody, by handle", "A group, by name", "Your
+events, by place" — three bordered panels, two text fields, and a paragraph of
+policy above each one. So a screen whose whole job is a search asked which of
+two boxes to type in, and said what could never be searched three times before
+anything had been searched for at all. Switching chips re-runs what was typed
+against the other namespace rather than clearing it, which is the whole reason
+it is one field.
+
+The three scopes are still different in kind. People and Groups reach the
+server: group search is the only discovery surface in the product and returns
+findable groups by name. There is deliberately no event scope — §3's rule is
+that groups can be findable and photos never are, and searching events is
+searching photos. Places is the reverse and reaches nothing: it groups events
+you are already in by where they were, which is why it can answer before the
+two-character floor the other two wait for.
+
+**You** — a profile, laid out the way profiles are laid out: the name, the
+handle and one line of numbers, the picture beside them, then the line
+somebody wrote about themselves, two buttons, and a grid.
 
 It was a form until recently — a name field in a card, a paragraph explaining
 what the field was for, and two lists of events under headings — while
@@ -112,14 +156,27 @@ bio all along.
 The grid is **albums, not photographs**, which is the one place it departs
 from the shape it borrows: a square of somebody's photographs is a wall of
 images with no way to tell one evening from another, and the unit here is the
-evening. Each tile leads with the cover its card leads with and carries the
-album's name across the bottom.
+evening. Two across rather than three — at 166 points a cover is a photograph
+and at 111 it was a swatch — with the name and the date *under* the picture
+rather than over it, because a scrim block across the bottom of every tile
+makes a shelf read as captioned stock photography.
 
 The three numbers are albums, photographs and friends, and all three are facts
 about this person's own shelf — nothing on the page counts anything about
 anybody else, and the photograph number is the size of the shelf rather than a
 claim about who took what. A number that has not arrived is a dash, because
-"0 friends" is a claim.
+"0 friends" is a claim. They are **one line of text at the size of the
+handle**: three stacked pairs of figure and label, spread across the space
+beside the picture, gave a shelf of eleven albums the visual weight of an
+analytics panel, and none of the three is a score.
+
+`Edit profile` and `Settings` are two halves of one row, and neither is the
+screen's primary action — which is opening an album. `Settings` holds what was
+loose at the foot of this scroll: the address this device is signed in as,
+signing out, deleting the account, and the safety and reporting link. All of
+it used to be under a rule below the grid, which meant the two destructive
+verbs in the product were reached by scrolling past somebody's photographs and
+the app had no settings entry point anywhere.
 
 Editing sends only the fields that changed, so an empty bio typed by accident
 cannot clear a handle, and a refused handle repeats the route's own sentence:
@@ -142,7 +199,8 @@ you could not ask anybody. `InvitePeople.tsx` is the picker — friends, plus
 anybody by handle — used twice, and the two callers do opposite things with
 what it holds. The create screen keeps the choice until there is an album to
 attach it to, because backing out of that form has to ask nobody. The event
-screen sends immediately, because the album is already there.
+screen — in the `⋯` sheet, since the redesign — sends immediately, because the
+album is already there.
 
 Picking somebody asks them. The route writes an `open` invitation and nothing
 else, so the copy says asked rather than added: a host who could add people
@@ -151,10 +209,85 @@ count on screen is the one the server returned, not the number that was sent
 — it drops anybody it will not write and refuses to say which, because that
 would report whether each of them has blocked you.
 
-Finding people is not built, and is marked as such rather than left blank. It
-needs accounts, which §3 deliberately does not have: identity is a credential
-on a device, so there is nobody to look up. Building it is a decision about
-what the product is, not a screen.
+Finding people is built and lives on Find's People chip, against
+`/api/people`. It was once marked as impossible here, on the grounds that §3
+has no accounts to look up — which stopped being true when a handle became
+something somebody chooses. What survives of that argument is the bound: a
+search returns a handle, a name and a face, and never their events, their
+photographs, or who else they know.
+
+## The album, and the conversation in it
+
+Opening an event used to show, in order: a back link, the name, a count, an
+Add photos button, a Save all button, a "who can see it" card, a cover row, an
+invite card and an offer to start a group. Eight full-width slabs before the
+first photograph, on the screen whose entire subject is photographs. And the
+messenger that shipped on the web was not reachable from the app at all — the
+one feature people could use from a browser and not from the thing they take
+to the event.
+
+**The cover is the head.** Full-bleed, 232 points, with the name, the faces of
+whoever is in it and "48 photos · Fri 14 Mar" over its bottom scrim. The page
+starts underneath it and the grid runs to the bottom edge.
+
+**Who can see it is a padlock, not a paragraph.** Open on a public album,
+closed on a private one, in the line somebody reads immediately before handing
+the link on — which is the moment the answer matters. It used to be a sentence
+three slabs down.
+
+**Everything that was a slab is behind one `⋯`.** Share, save all to the
+camera roll, the cover, who can see it, asking people in, starting a group.
+Same copy, same calls, same gates — only the presentation moved. The account
+prompt moved with them: it was a permanent sign-in card above the grid for
+anybody not signed in, which is a form in front of the one thing on the screen
+that needs no account, and it opens on pressing `+` now.
+
+**Three panes, one screen.** Photos, Talk and People as a segmented control,
+with the unread count on Talk. Client state rather than a route, deliberately:
+an event's link must open on its photographs, never on its roster or halfway
+down somebody's conversation — and the thread pushed as its own screen would
+give the conversation a back button to the album it is already inside.
+
+### The thread
+
+`Thread.tsx` here is the web's `Thread.tsx` with the same rules, because two
+implementations of "who may post" is how one of them comes to be wrong:
+
+- Posting is `contribute` **and** an account; everybody who may see the event
+  may read. The screen takes `canPost` off the feed rather than inferring it
+  from holding a link, which would draw a composer for somebody the server was
+  always going to refuse.
+- A deleted message leaves a gap saying so. The ones either side of a silently
+  removed message appear to be answering each other.
+- The mention list offers this event's contributors and nobody else. A picker
+  that reaches further is a way to find out who exists by typing letters at
+  it, and this is the one text field a link-holder can use.
+- `@name` is marked, not resolved. It says what somebody typed; it does not
+  assert the person exists and cannot be made to render anything but
+  characters that were already going to be shown.
+- The empty state is an invitation. "Nothing said yet" describes what you can
+  already see.
+- Reaching the bottom is what marks it read.
+
+**No new server work.** `GET/POST /api/events/[id]/messages`, `PATCH/DELETE
+/api/messages/[id]` and `POST /api/messages/[id]/reactions` are the routes the
+web already talks to, and the thread itself arrives folded into the photo feed
+— which the event screen already polls. A second poller would be a second
+schedule to reason about and twice the requests from a phone in a pocket, so
+every write here ends by re-reading the feed rather than keeping a second list
+in step with it.
+
+The list is **inverted** rather than scrolled to the end after layout: it
+starts on the newest message with no measuring pass, which is the difference
+between opening on the conversation and watching it jump once. The vocabulary
+goes upside down with it — reaching the bottom is `onStartReached` — and the
+behaviour does not.
+
+A message arriving while you are on the photographs drops one line in over the
+cover and takes itself away after six seconds. Dismissing it does not mark the
+thread read; only reaching the bottom does. The mark is set to whatever was
+already there on the first feed, so opening an event cannot announce the whole
+history of the conversation as new.
 
 ## What native buys
 
@@ -223,10 +356,13 @@ findable; a private group answers identically to one that does not exist. The
 client shows one message for all three refusals on purpose — distinguishing
 them would make the screen a way to confirm a private group is real.
 
-Making one is offered from an event, to its host, and only while the event has
-no group: "the same people keep doing things together" is something you notice
-afterwards, so the flow is roll this event into a group rather than create an
-empty one and fill it. Nobody who attended is auto-enrolled — conscripting
+Making one is offered from an event's `⋯` sheet, to its host, and only while
+the event has no group: "the same people keep doing things together" is
+something you notice afterwards, so the flow is roll this event into a group
+rather than create an empty one and fill it. The Groups tab offers it too, and
+what makes that safe is what sits beside the button — the people this actor
+keeps ending up in the same events as, so creating is confirming a set that
+already exists rather than inventing one. Nobody who attended is auto-enrolled — conscripting
 everyone who once opened a link would make membership the opposite of opt-in.
 
 Search is last on the join screen and never above the link box. It is the

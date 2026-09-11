@@ -96,8 +96,10 @@ describe('what the screen says', () => {
 
   it('counts events, not photographs or dates', () => {
     // The moment the line names an event it reads as a suggestion derived from
-    // that event rather than from the people.
-    expect(FORM).toMatch(/Together in \{cluster\.sharedEventCount\}/);
+    // that event rather than from the people. The suggestion is one line above
+    // a rule now rather than a card, and this survived the move.
+    expect(FORM).toMatch(/\{cluster\.sharedEventCount\}/);
+    expect(FORM).toMatch(/events'\} together/);
   });
 });
 

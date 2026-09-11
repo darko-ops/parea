@@ -84,70 +84,59 @@ function FaceOf({
 }
 
 /**
- * The resting card: who they are, how often, and one button.
+ * What the product noticed, as one line.
  *
- * `primary` is one per screen. The first card is filled and the rest outlined,
- * so the screen has a single primary action — passed in rather than worked out
- * here, because "first" is a fact about the list.
+ * This was a bordered card with a filled button on it, which on a tab full of
+ * rooms somebody is actually in gave "these three people were at four of the
+ * same evenings" the same weight as a group they had already made. It is a
+ * remark about the list above it, so it is drawn as one: a rule, three
+ * overlapping faces, a sentence and a verb — no box, no fill, and no claim on
+ * the screen's primary action, which is opening a group.
+ *
+ * The wording keeps the rule the card had: the count, and never the name of an
+ * event. The moment this line names one, the suggestion starts to look like it
+ * was derived from that event rather than from the people, which is the
+ * opposite of what it says.
  */
 export function ClusterCard({
   cluster,
-  primary,
   onMake,
   t,
 }: {
   cluster: Cluster;
-  primary: boolean;
   onMake: () => void;
   t: GroupTheme;
 }) {
   return (
-    <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+    <View style={[styles.suggestion, { borderTopColor: t.line }]}>
       <View style={styles.stack}>
         {cluster.faces.map((person, i) => (
           <View key={i} style={i === 0 ? undefined : styles.overlap}>
-            <FaceOf person={person} size={36} t={t} />
+            <FaceOf person={person} size={26} t={t} />
           </View>
         ))}
         {cluster.moreFaces > 0 && (
           <View style={[styles.more, styles.overlap, { backgroundColor: t.line }]}>
-            <Text style={{ color: t.dim, fontSize: 12, fontWeight: '600' }}>
+            <Text style={{ color: t.dim, fontSize: 10, fontWeight: '600' }}>
               +{cluster.moreFaces}
             </Text>
           </View>
         )}
       </View>
 
-      <View style={styles.what}>
-        <Text style={[styles.names, { color: t.fg }]} numberOfLines={2}>
-          {cluster.names}
-        </Text>
-        {/*
-          The count and nothing else. The moment this line names an event the
-          card starts to look like a suggestion derived from that one event
-          rather than from the people, which is the opposite of what it says.
-        */}
-        <Text style={[styles.meta, { color: t.dim }]}>
-          Together in {cluster.sharedEventCount}{' '}
-          {cluster.sharedEventCount === 1 ? 'event' : 'events'}
-        </Text>
-      </View>
+      <Text style={[styles.suggestionText, { color: t.dim }]} numberOfLines={2}>
+        {cluster.names} — {cluster.sharedEventCount}{' '}
+        {cluster.sharedEventCount === 1 ? 'event' : 'events'} together
+      </Text>
 
       <Pressable
         onPress={onMake}
         accessibilityRole="button"
         accessibilityLabel={`Make a group with ${cluster.names}`}
-        style={({ pressed }) => [
-          styles.make,
-          primary
-            ? { backgroundColor: t.accent, borderColor: t.accent }
-            : { borderColor: t.accent },
-          { opacity: pressed ? 0.7 : 1 },
-        ]}
+        hitSlop={8}
+        style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
       >
-        <Text style={[styles.makeText, { color: primary ? t.onAccent : t.accent }]}>
-          Make a group
-        </Text>
+        <Text style={[styles.groupThem, { color: t.accent }]}>Group them</Text>
       </Pressable>
     </View>
   );
@@ -361,17 +350,21 @@ const styles = StyleSheet.create({
   },
   form: { flexDirection: 'column', alignItems: 'stretch', gap: 0, padding: 18 },
 
+  /* A rule and a line, not a box. See the note on `ClusterCard`. */
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    paddingTop: 14,
+  },
+  suggestionText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 18 },
+  groupThem: { fontSize: 13.5, fontWeight: '600' },
+
   stack: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
-  overlap: { marginLeft: -12 },
+  overlap: { marginLeft: -8 },
   faceFallback: { alignItems: 'center', justifyContent: 'center' },
-  more: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-
-  what: { flex: 1, minWidth: 0, gap: 3 },
-  names: { fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
-  meta: { fontSize: 12.5 },
-
-  make: { flexShrink: 0, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16 },
-  makeText: { fontSize: 14.5, fontWeight: '600' },
+  more: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
 
   formLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
   labelRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },

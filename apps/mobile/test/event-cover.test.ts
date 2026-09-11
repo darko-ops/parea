@@ -27,11 +27,20 @@ const read = (name: string) =>
 const APP = read('App.tsx');
 const API = read('src/api.ts');
 
-/** The handler, without the rest of a 1600-line screen. */
-const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('const createGroup'));
+/** The handler, without the rest of a 2000-line screen. */
+const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('if (autoWindow)'));
 
-/** The row that opens it, which lives a couple of hundred lines further down. */
-const ROW = APP.slice(APP.indexOf('Host only. It changes'), APP.indexOf('!feed.event.groupId'));
+/**
+ * The row that opens it.
+ *
+ * It is inside the `⋯` sheet now rather than stacked on the screen above the
+ * photographs — one of the eight slabs that moved there. What it draws and who
+ * may draw it are unchanged, which is what the rest of this file checks.
+ */
+const ROW = APP.slice(
+  APP.indexOf('function HostSheet'),
+  APP.indexOf('Who can see it, changeable here'),
+);
 
 describe('the cover the event already has', () => {
   it('arrives on the feed, so the screen can draw it', () => {
@@ -91,6 +100,7 @@ describe('who sees it', () => {
   it('is the host and nobody else', () => {
     // It changes what everybody else's home screen shows, which is the same
     // reason the web keeps it on the manage screen rather than on the event.
-    expect(ROW).toMatch(/feed\?\.event\.canAdminister && \(\s*<Pressable/);
+    expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
+    expect(ROW).toMatch(/\{host && \(\s*<Pressable/);
   });
 });

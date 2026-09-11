@@ -1,5 +1,5 @@
 /**
- * The three tabs' contents: home, search, profile.
+ * Three of the four tabs' contents: home, groups and find. You is its own file.
  *
  * One word for one thing: an event. These tabs briefly said "event" while the
  * schema said `event`, which meant every file that touched them opened with a
@@ -38,7 +38,9 @@ import type {
   MyGroupDetail,
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
+import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
 
@@ -420,53 +422,75 @@ export function HomeTab({
  * available are inside events that belong to it — putting one on the door
  * shows something from a room on the screen that is merely the way in.
  */
-const GROUP_LENSES = [
-  { fill: '#ffb3b8', ink: '#7a4f52' },
-  { fill: '#9db2f0', ink: '#33477f' },
-  { fill: '#a5dcc6', ink: '#3f6b57' },
-  { fill: '#f3b584', ink: '#7d5230' },
-  { fill: '#c79ad9', ink: '#5f3f70' },
-] as const;
-
-function lensFor(id: string) {
-  let hash = 0;
-  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return GROUP_LENSES[hash % GROUP_LENSES.length]!;
-}
+/*
+ * The lens palette lives in `lens.ts` now.
+ *
+ * Four screens draw one of these — the group tiles here, the faces over an
+ * event's cover, the avatars in a thread and the tiles in a search result —
+ * and a second copy of the five colours is how the same group comes to be pink
+ * in one list and green in another.
+ */
 
 /**
- * The rooms you are in — the same screen the web grew, on a phone.
+ * The rooms you are in, drawn as what is in them.
  *
- * Groups were a card inside You, under the name field and above the event
- * lists, which put the thing the product treats as persistent identity in a
- * drawer with the settings. They are a tab now, between Events and Find, in
- * the order those are true in: Events is what has already happened, Groups is
- * the rooms you are already in, Find is the only tab that goes looking for
- * something you are not part of yet.
+ * This was a directory: a letter tile, a name, a line of counts, repeated. A
+ * list of rooms with no photographs in it, on a tab of a product whose whole
+ * subject is photographs — so the one screen that should have made somebody
+ * want to open a group looked like a settings list of them.
  *
- * ## Groups are made here now, and what makes that safe
+ * Each group is now its evenings: three recent covers under its name, and how
+ * many more there are on the third one. The name and the date of the newest
+ * event are the line under it, because "Sunday roast, added to 2 days ago,
+ * Ana's birthday" is what tells you whether there is anything new in there.
+ *
+ * ## The door is still a letter
+ *
+ * The tile beside the name is a letter on the group's lens colour, hashed from
+ * its id, and it stays that way: a group has no picture of its own, and giving
+ * it one out of an event inside it would put a photograph from a room on the
+ * thing that is merely the way in.
+ *
+ * The strip below it is not that, and the difference is where the pictures
+ * come from. Those covers are read off `events` — this actor's own listing,
+ * the albums they can already open — and never off the group. So a group shows
+ * somebody the evenings *they* were at, three at a time; somebody who was
+ * never in one of its events, or who has since been removed from it, has no
+ * listing for it and sees an empty slot where that cover would be. The server
+ * is not asked for a group's photographs and does not answer with any.
+ *
+ * ## Groups are made here, and what makes that safe
  *
  * This tab used to refuse a create action outright, and the argument was good:
  * a group is something you notice afterwards, and an empty group you then have
  * to fill is a distribution problem with no photographs in it.
  *
  * What changed is not the argument but what sits beside the button — the
- * people this actor keeps ending up in the same events as, fetched from
- * `/api/groups/clusters`. Creating is then confirming a set of people who
- * already exist rather than inventing one, so the empty room the old comment
- * warned about cannot be the common case. See `CreateGroup.tsx` for why
- * pressing the button still writes nothing.
+ * people this actor keeps ending up in the same events as, from
+ * `/api/groups/clusters`. Creating is confirming a set of people who already
+ * exist rather than inventing one. The suggestion is one quiet line above a
+ * rule now rather than a card: it is a remark about the list above it, and a
+ * bordered box gave it the weight of a room you are already in.
  *
- * The roll-up from an event has not gone anywhere; it is still on the event
- * screen and still the only path that moves an event under a group.
+ * The roll-up from an event has not gone anywhere; it is still in the event's
+ * `⋯` sheet and still the only path that moves an event under a group.
  */
 export function GroupsTab({
   api,
+  events,
   t,
   onOpenGroup,
   onGoToEvents,
 }: {
   api: Api;
+  /**
+   * This actor's own albums, for the covers under each group's name.
+   *
+   * Passed in rather than fetched: the tabs already hold this list, and it is
+   * the list of what this person can reach — which is exactly the bound that
+   * makes drawing a photograph here safe. See the note at the top.
+   */
+  events: EventListing[];
   t: TabTheme;
   onOpenGroup: (groupId: string) => void;
   /** Where somebody with nothing to recognise yet is sent. */
@@ -503,9 +527,22 @@ export function GroupsTab({
     setRefreshing(false);
   }, [load]);
 
+  /** This actor's albums, filed under the group they belong to, newest first. */
+  const byGroup = useMemo(() => {
+    const map = new Map<string, EventListing[]>();
+    for (const event of events) {
+      if (!event.groupId) continue;
+      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+    }
+    return map;
+  }, [events]);
+
   return (
     <ScrollView
-      contentContainerStyle={styles.scroll}
+      contentContainerStyle={styles.groupsScroll}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
@@ -513,11 +550,13 @@ export function GroupsTab({
       <View style={styles.groupsHead}>
         <Text style={[styles.h1, { color: t.fg }]}>Groups</Text>
         {/*
-          Here in every state, including the empty one — outlined, so a
-          cluster's filled `Make a group` is still the screen's one primary
-          action. It used to be absent until you already had groups, which was
-          backwards: somebody with none is who most needs to know a group can
-          be made.
+          A filled disc rather than an outlined word.
+
+          Here in every state, including the empty one: somebody with no groups
+          is who most needs to know one can be made. It is a glyph now because
+          the screen's heading row is a heading and one action, and "New group"
+          set beside a 30pt title was a second thing to read on the way to the
+          rooms underneath it.
         */}
         {groups !== null && making !== 'anyone' && (
           <Pressable
@@ -526,10 +565,10 @@ export function GroupsTab({
             accessibilityLabel="New group"
             style={({ pressed }) => [
               styles.newGroup,
-              { borderColor: t.accent, opacity: pressed ? 0.7 : 1 },
+              { backgroundColor: t.accent, opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <Text style={[styles.newGroupText, { color: t.accent }]}>New group</Text>
+            <Glyph name="plus" size={20} color={t.onAccent} />
           </Pressable>
         )}
       </View>
@@ -550,48 +589,7 @@ export function GroupsTab({
 
       {groups === null ? (
         <ActivityIndicator color={t.accent} />
-      ) : groups.length === 0 && clusters.length > 0 ? (
-        /*
-          What the product noticed, offered as something to confirm rather than
-          as a suggestion. Two sentences and nothing else — the heading is an
-          observation about the past, the body is the one thing a group does
-          that nothing else here does.
-        */
-        <View style={{ gap: 12 }}>
-          <Text style={[styles.label, { color: t.fg }]}>
-            The same people keep turning up.
-          </Text>
-          <Text style={[styles.body, { color: t.dim }]}>
-            You have shared several events with these people. Keep everyone
-            together for next time — the next event includes all of them without
-            a single invite.
-          </Text>
-          {clusters.map((cluster, i) =>
-            making === cluster.key ? (
-              <CreateGroupForm
-                key={cluster.key}
-                api={api}
-                cluster={cluster}
-                also={also}
-                t={t}
-                onCancel={() => setMaking(null)}
-                onCreated={(id) => {
-                  setMaking(null);
-                  onOpenGroup(id);
-                }}
-              />
-            ) : (
-              <ClusterCard
-                key={cluster.key}
-                cluster={cluster}
-                primary={i === 0}
-                onMake={() => setMaking(cluster.key)}
-                t={t}
-              />
-            ),
-          )}
-        </View>
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && clusters.length === 0 ? (
         /*
           Where groups come from, rather than a control that cannot work.
           Somebody here with none has not failed at anything — they have not
@@ -605,7 +603,7 @@ export function GroupsTab({
           <Text style={[styles.body, { color: t.dim }]}>
             Groups are for the people who keep turning up — once you have shared
             a couple of events with the same faces, they show up here ready to
-            keep together. Nothing to go on yet, so New group above is the way
+            keep together. Nothing to go on yet, so the button above is the way
             to start one.
           </Text>
           <Pressable
@@ -617,137 +615,45 @@ export function GroupsTab({
           </Pressable>
         </View>
       ) : (
-        groups.map((group) => {
-          const lens = lensFor(group.id);
-          return (
-            <Pressable
-              key={group.id}
-              style={styles.groupRow}
-              onPress={() => onOpenGroup(group.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`${group.name}, ${groupMeta(group)}`}
-            >
-              <View style={[styles.groupTile, { backgroundColor: lens.fill }]}>
-                <Text style={[styles.groupInitial, { color: lens.ink }]}>
-                  {group.name.trim().slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.groupNameRow}>
-                  {/*
-                    `flexShrink` on the name, not on the stack: a long group
-                    name should ellipsize and leave the faces whole, where the
-                    default would squash three circles into slivers.
-                  */}
-                  <Text
-                    style={[styles.groupName, styles.groupNameText, { color: t.fg }]}
-                    numberOfLines={1}
-                  >
-                    {group.name}
-                  </Text>
-                  {/*
-                    Who is in it, beside the name — the same stack the web row
-                    draws, from the same three-faces-then-a-number rule on the
-                    server.
-
-                    It does not make the count in the line below redundant:
-                    the stack says *who* and the number says *how many*, and
-                    three circles cannot say eleven. People and never
-                    photographs, which is the line that keeps a group's row
-                    from showing anything out of a room it is merely the way
-                    into.
-                  */}
-                  {group.faces.length > 0 && (
-                    <View style={styles.groupFaces}>
-                      {group.faces.map((person, i) => (
-                        <View
-                          key={`${person.name}-${i}`}
-                          style={[
-                            styles.groupFace,
-                            { borderColor: t.bg, backgroundColor: t.line },
-                          ]}
-                        >
-                          {person.avatarUrl ? (
-                            <Image
-                              source={{ uri: person.avatarUrl }}
-                              style={styles.groupFaceShot}
-                              contentFit="cover"
-                            />
-                          ) : (
-                            <Text style={[styles.groupFaceLetter, { color: t.dim }]}>
-                              {(person.name || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}
-                            </Text>
-                          )}
-                        </View>
-                      ))}
-                      {group.moreFaces > 0 && (
-                        <View
-                          style={[
-                            styles.groupFace,
-                            { borderColor: t.bg, backgroundColor: t.line },
-                          ]}
-                        >
-                          <Text style={[styles.groupFaceLetter, { color: t.dim }]}>
-                            +{group.moreFaces}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.small, { color: t.dim }]}>{groupMeta(group)}</Text>
-              </View>
-              {/* Admin only. "Member" on every other row is a word that
-                  appears so often it stops being read. */}
-              {group.role === 'admin' && (
-                <Text style={[styles.small, { color: t.dim }]}>Admin</Text>
-              )}
-            </Pressable>
-          );
-        })
+        groups.map((group) => (
+          <GroupBlock
+            key={group.id}
+            group={group}
+            albums={byGroup.get(group.id) ?? []}
+            t={t}
+            onPress={() => onOpenGroup(group.id)}
+          />
+        ))
       )}
 
       {/*
-        Demoted, once there are rooms to enter.
-
-        The same card under a label that keeps it an observation rather than a
-        prompt: "too" only makes sense as a remark about the list above it.
-        Never more than two, and a cluster whose people are already gathered in
-        one of these groups is dropped by the server — which is what lets this
-        stay without needing a way to dismiss it.
+        What the product noticed, as one line under everything it already knows
+        about. Never more than two, and a cluster whose people are already
+        gathered in one of these groups is dropped by the server — which is
+        what lets this stay without needing a way to dismiss it.
       */}
-      {groups !== null && groups.length > 0 && clusters.length > 0 && (
-        <View style={{ gap: 12, paddingTop: 20 }}>
-          <Text style={[styles.small, { color: t.dim, fontWeight: '700', letterSpacing: 0.7 }]}>
-            THESE PEOPLE KEEP TURNING UP TOO
-          </Text>
-          {clusters.map((cluster) =>
-            making === cluster.key ? (
-              <CreateGroupForm
-                key={cluster.key}
-                api={api}
-                cluster={cluster}
-                also={also}
-                t={t}
-                onCancel={() => setMaking(null)}
-                onCreated={(id) => {
-                  setMaking(null);
-                  onOpenGroup(id);
-                }}
-              />
-            ) : (
-              <ClusterCard
-                key={cluster.key}
-                cluster={cluster}
-                // Outlined, all of them: on a screen with rooms in it the
-                // primary action is entering one.
-                primary={false}
-                onMake={() => setMaking(cluster.key)}
-                t={t}
-              />
-            ),
-          )}
-        </View>
+      {clusters.map((cluster) =>
+        making === cluster.key ? (
+          <CreateGroupForm
+            key={cluster.key}
+            api={api}
+            cluster={cluster}
+            also={also}
+            t={t}
+            onCancel={() => setMaking(null)}
+            onCreated={(id) => {
+              setMaking(null);
+              onOpenGroup(id);
+            }}
+          />
+        ) : (
+          <ClusterCard
+            key={cluster.key}
+            cluster={cluster}
+            onMake={() => setMaking(cluster.key)}
+            t={t}
+          />
+        ),
       )}
 
       {/*
@@ -765,27 +671,147 @@ export function GroupsTab({
   );
 }
 
-/** "3 events · 12 people · added to 2 days ago". */
-function groupMeta(group: MyGroupDetail): string {
-  const parts = [plural(group.eventCount, 'event'), plural(group.memberCount, 'person', 'people')];
-  // Only when there is something to have been active about. "added to never"
-  // is a sentence about an absence the count before it already states.
+/**
+ * One group: its door, its evenings, and what has just happened in it.
+ *
+ * Three blocks of one thing rather than a row — the covers are the reason this
+ * screen exists now, and a strip 96 points tall is a photograph where a 44pt
+ * thumbnail beside a name was a bullet point.
+ */
+function GroupBlock({
+  group,
+  albums,
+  t,
+  onPress,
+}: {
+  group: MyGroupDetail;
+  /** This actor's own albums in this group, newest first. Never the group's. */
+  albums: EventListing[];
+  t: TabTheme;
+  onPress: () => void;
+}) {
+  const lens = lensFor(group.id);
+  const shown = albums.slice(0, COVER_STRIP);
   /*
-   * The shared rounding, not a second one.
+   * How many evenings are not in the strip.
    *
-   * This file had its own `ago` — days, then "yesterday", then weeks — written
-   * before the card imported the shared one, and two of them in one file is
-   * how "3 days ago" comes to mean two different spans in one product. The
-   * strings shift slightly here as a result ("20m ago" where it used to say
-   * "just now" for anything under an hour), which is the shared function being
-   * more precise rather than this line being wrong.
+   * Counted off the group's own `eventCount` rather than off `albums`, because
+   * that is the honest number: it is what the room holds, and it is already
+   * disclosed to every member — `groupEvents` lists all of them by name. The
+   * strip shows the ones this person can open.
    */
-  if (group.lastActiveAt) {
-    parts.push(`added to ${ago(new Date(group.lastActiveAt), new Date())}`);
-  }
-  return parts.join(' · ');
+  const more = Math.max(0, group.eventCount - shown.length);
+  const newest = albums[0] ?? null;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${group.name}, ${plural(group.memberCount, 'person', 'people')}`}
+      style={({ pressed }) => [styles.groupBlock, { opacity: pressed ? 0.7 : 1 }]}
+    >
+      <View style={styles.groupHeader}>
+        {/*
+          The door: a letter on the group's own colour, hashed from its id and
+          the same on every screen and every device. Never a photograph — see
+          the note at the top of the tab.
+        */}
+        <View style={[styles.groupTile, { backgroundColor: lens.fill }]}>
+          <Text style={[styles.groupInitial, { color: lens.ink }]}>
+            {initialOf(group.name)}
+          </Text>
+        </View>
+        <Text style={[styles.groupName, { color: t.fg }]} numberOfLines={1}>
+          {group.name}
+        </Text>
+        {/* Admin only. "Member" on every other row is a word that appears so
+            often it stops being read. */}
+        <Text style={[styles.groupMeta, { color: t.dim }]}>
+          {plural(group.memberCount, 'person', 'people')}
+          {group.role === 'admin' && ' · Admin'}
+        </Text>
+      </View>
+
+      <View style={styles.strip}>
+        {Array.from({ length: COVER_STRIP }, (_, i) => {
+          const album = shown[i];
+          const last = i === COVER_STRIP - 1;
+          return (
+            <View key={album?.id ?? `slot-${i}`} style={styles.stripTile}>
+              {album?.cover ? (
+                <Image
+                  source={{ uri: album.cover.src }}
+                  style={[styles.stripShot, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                /* Dashed, which reads as "nothing here" rather than as a very
+                   dark photograph — the same call every empty tile in this
+                   product makes. An evening this person cannot open leaves one
+                   of these rather than borrowing a picture from the group. */
+                <View style={[styles.stripShot, styles.stripEmpty, { borderColor: t.line }]} />
+              )}
+              {last && more > 0 && (
+                <View style={styles.stripMore}>
+                  <Text style={styles.stripMoreText}>+{more}</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+
+      {/*
+        What has just happened in it, which is the only reason to open one
+        today rather than tomorrow. "added to never" is a sentence about an
+        absence, so a group nobody has put anything in says that instead.
+      */}
+      <Text style={[styles.groupMeta, { color: t.dim }]} numberOfLines={1}>
+        {group.lastActiveAt
+          ? `Added to ${ago(new Date(group.lastActiveAt), new Date())}${
+              newest ? ` · ${newest.name}` : ''
+            }`
+          : 'Nothing in it yet — anyone in it can start the first event.'}
+      </Text>
+    </Pressable>
+  );
 }
 
+/** Three covers, and a count on the third. */
+const COVER_STRIP = 3;
+
+/**
+ * Find — one field, scoped by chips.
+ *
+ * It was three bordered cards, each with a heading, each with a paragraph of
+ * policy above it, two of them holding a text field. So a tab whose whole job
+ * is a search asked somebody to pick which of two boxes to type in, and told
+ * them what could not be searched three times before they had searched for
+ * anything at all.
+ *
+ * Now: one field, three chips saying what it is searching, results as rows in
+ * one list, and the policy said once at the foot — where it is read by
+ * somebody who has just seen what came back, rather than as a preamble to an
+ * empty screen.
+ *
+ * ## What has not changed
+ *
+ * Every rule the three cards enforced is still here, because none of them was
+ * about the layout:
+ *
+ *   - **Two characters before anything is asked for.** The server's floor;
+ *     below it there is nothing to ask for and asking per keystroke is a
+ *     request per keystroke.
+ *   - **A failed lookup empties the list.** A stale row here is one somebody
+ *     is about to tap, and tapping it opens a page for a search they have
+ *     already changed.
+ *   - **Places is local.** It groups this person's own events by their place
+ *     and hands the place to the maps app they already use. It queries
+ *     nothing, which is why it can answer before two characters.
+ *   - **Events and photographs are never searchable.** That is the sentence at
+ *     the foot, and it is the product's line rather than this screen's.
+ */
 export function SearchTab({
   api,
   events,
@@ -801,37 +827,31 @@ export function SearchTab({
   onOpenGroup: (groupId: string) => void;
   onOpenPerson: (handle: string) => void;
 }) {
+  const [scope, setScope] = useState<Scope>('people');
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<
-    { id: string; name: string; memberCount: number }[]
-  >([]);
-  const [handle, setHandle] = useState('');
+  const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
   const [people, setPeople] = useState<InvitablePerson[]>([]);
 
-  const search = useCallback(
-    async (next: string) => {
-      setQuery(next);
-      // Two characters is the server's floor. Below it there is nothing to
-      // ask for, and asking per keystroke is a request per keystroke.
-      if (next.trim().length < 2) return setResults([]);
-      setResults(await api.searchGroups(next).catch(() => []));
-    },
-    [api],
-  );
-
-  /*
-   * The same shape, against the other namespace.
+  /**
+   * One box, and which namespace it is asking is the chip.
    *
-   * A failed lookup empties the list rather than leaving the last one up:
-   * unlike the home screen's count, a stale result here is a row somebody is
-   * about to tap, and tapping it would open a page for a search they have
-   * already changed.
+   * Both lists are emptied on every keystroke below the floor and on every
+   * failure, and the scope is what decides which of them is asked — switching
+   * chips re-runs the same text against the other namespace rather than
+   * clearing what somebody typed, which is the whole reason this is one field.
    */
-  const searchPeople = useCallback(
-    async (next: string) => {
-      setHandle(next);
-      if (next.trim().length < 2) return setPeople([]);
-      setPeople(await api.findPeople(next).catch(() => []));
+  const search = useCallback(
+    async (next: string, into: Scope) => {
+      setQuery(next);
+      // Two characters is the server's floor. Below it there is nothing to ask
+      // for, and asking per keystroke is a request per keystroke.
+      if (next.trim().length < 2) {
+        setPeople([]);
+        setGroups([]);
+        return;
+      }
+      if (into === 'people') setPeople(await api.findPeople(next).catch(() => []));
+      if (into === 'groups') setGroups(await api.searchGroups(next).catch(() => []));
     },
     [api],
   );
@@ -843,170 +863,266 @@ export function SearchTab({
       if (!event.place) continue;
       byPlace.set(event.place, [...(byPlace.get(event.place) ?? []), event]);
     }
-    return [...byPlace.entries()];
-  }, [events]);
+    return [...byPlace.entries()].filter(
+      ([place]) =>
+        query.trim().length < 2 || place.toLowerCase().includes(query.trim().toLowerCase()),
+    );
+  }, [events, query]);
 
-  const unplaced = events.filter((a) => !a.place).length;
+  const unplaced = events.filter((event) => !event.place).length;
+  const asked = query.trim().length >= 2;
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       <Text style={[styles.h1, { color: t.fg }]}>Find</Text>
 
-      {/*
-        Somebody, by handle — the way into their page.
-        
-        Its own card rather than one box over both, which is what the web does
-        now: this tab is built as a card per kind and folding them together is
-        a redesign of the tab rather than an addition to it.
-      */}
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Somebody, by handle</Text>
-        <TextInput
-          value={handle}
-          onChangeText={searchPeople}
-          placeholder="Their handle"
-          placeholderTextColor={t.dim}
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel="Find somebody by handle"
-          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
-        />
-        {/*
-          There used to be a card further down that said this and offered no
-          box: it had been rewritten twice as the product moved under it, from
-          "an account is an email address and nothing else" to "there is nobody
-          to find". A paragraph describing a search, above no search, is the
-          same overexplaining the web page had — so it says it here, once,
-          under the thing it is about.
-        */}
-        <Text style={[styles.small, { color: t.dim }]}>
-          By the start of a handle, and only that. A search returns a handle
-          and a name — never their events, their photos, or who else they know.
-        </Text>
-        {people.map((person) => (
-          <Pressable
-            key={person.actorId}
-            style={styles.row}
-            disabled={!person.handle}
-            onPress={() => person.handle && onOpenPerson(person.handle)}
-          >
-            {/*
-              The face `/api/people` sends now, and the letter when somebody
-              has none. A row of handles is a list to read; the picture is what
-              makes it one to recognise, which is the point of a search for a
-              person rather than for a word.
-            */}
-            {person.avatar ? (
-              <Image
-                source={{ uri: person.avatar }}
-                style={[styles.rowFace, { backgroundColor: t.line }]}
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <View style={[styles.rowFace, styles.rowFaceBlank, { backgroundColor: t.line }]}>
-                <Text style={[styles.small, { color: t.dim }]}>
-                  {(person.displayName?.trim() || person.handle || '?')
-                    .replace(/^@/, '')
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <Text style={[styles.body, { color: t.accent, flex: 1 }]}>
-              {person.displayName?.trim() || `@${person.handle}`}
-            </Text>
-            {person.displayName?.trim() && person.handle && (
-              <Text style={[styles.small, { color: t.dim }]}>@{person.handle}</Text>
-            )}
-          </Pressable>
-        ))}
-        {handle.trim().length >= 2 && people.length === 0 && (
-          <Text style={[styles.body, { color: t.dim }]}>No handle starts with that.</Text>
-        )}
-      </View>
-
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>A group, by name</Text>
+      <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Glyph name="search" size={17} color={t.dim} />
         <TextInput
           value={query}
-          onChangeText={search}
-          placeholder="Sunday roast"
+          onChangeText={(next) => void search(next, scope)}
+          placeholder={PLACEHOLDER[scope]}
           placeholderTextColor={t.dim}
           autoCapitalize="none"
           autoCorrect={false}
-          accessibilityLabel="Search for a group by name"
-          style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
+          accessibilityLabel={`Find ${scope}`}
+          style={[styles.fieldText, { color: t.fg }]}
         />
-        <Text style={[styles.small, { color: t.dim }]}>
-          Groups can be findable. Events and photos never are — the only way
-          into one is being sent it.
-        </Text>
-        {results.map((group) => (
-          <Pressable
-            key={group.id}
-            style={styles.row}
-            onPress={() => onOpenGroup(group.id)}
-          >
-            <Text style={[styles.body, { color: t.accent }]}>{group.name}</Text>
-            <Text style={[styles.small, { color: t.dim }]}>
-              {plural(group.memberCount, 'member')}
-            </Text>
-          </Pressable>
-        ))}
-        {query.trim().length >= 2 && results.length === 0 && (
-          <Text style={[styles.body, { color: t.dim }]}>Nothing by that name.</Text>
-        )}
       </View>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Your events, by place</Text>
-        {places.length === 0 ? (
-          <Text style={[styles.body, { color: t.dim }]}>
-            None of your events say where they were yet. Whoever starts one can
-            add a place, and it shows up here.
-          </Text>
-        ) : (
-          places.map(([place, inPlace]) => (
-            <View key={place} style={styles.placeBlock}>
-              <View style={styles.row}>
-                <Text style={[styles.label, { color: t.fg, flex: 1 }]}>{place}</Text>
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="link"
-                  accessibilityLabel={`Open ${place} in Maps`}
-                  // The system map rather than an embedded one. A map view is a
-                  // native module this codebase cannot test, and handing the
-                  // place to the maps app someone already uses gets them
-                  // directions as well as a pin.
-                  onPress={() =>
-                    void Linking.openURL(
-                      `https://maps.apple.com/?q=${encodeURIComponent(place)}`,
-                    )
-                  }
-                >
-                  <Text style={[styles.small, { color: t.accent }]}>Map ›</Text>
-                </Pressable>
-              </View>
+      {/*
+        What the box is asking, rather than which box to type in. The active
+        chip is filled in the ink colour: this is the one control on the screen
+        whose state changes what the rows below it mean, and an outline would
+        make it the same weight as the two it is not.
+      */}
+      <View style={styles.chips}>
+        {(
+          [
+            ['people', 'People'],
+            ['groups', 'Groups'],
+            ['places', 'Places'],
+          ] as [Scope, string][]
+        ).map(([id, label]) => {
+          const on = scope === id;
+          return (
+            <Pressable
+              key={id}
+              onPress={() => {
+                setScope(id);
+                void search(query, id);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[
+                styles.chip,
+                on
+                  ? { backgroundColor: t.fg, borderColor: t.fg }
+                  : { backgroundColor: t.card, borderColor: t.line },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  on && styles.chipTextOn,
+                  { color: on ? t.bg : t.dim },
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.results}>
+        {scope === 'people' &&
+          people.map((person, i) => (
+            <Result
+              key={person.actorId}
+              first={i === 0}
+              t={t}
+              /* The face `/api/people` sends, and the letter on their lens when
+                 somebody has none. A list of handles is a list to read; the
+                 picture is what makes it one to recognise, which is the point
+                 of searching for a person rather than for a word. */
+              avatar={person.avatar}
+              seed={person.handle ?? person.actorId}
+              name={person.displayName?.trim() || `@${person.handle}`}
+              under={person.displayName?.trim() && person.handle ? `@${person.handle}` : null}
+              disabled={!person.handle}
+              onPress={() => person.handle && onOpenPerson(person.handle)}
+            />
+          ))}
+
+        {scope === 'groups' &&
+          groups.map((group, i) => (
+            <Result
+              key={group.id}
+              first={i === 0}
+              t={t}
+              avatar={null}
+              seed={group.id}
+              name={group.name}
+              under={null}
+              aside={plural(group.memberCount, 'member')}
+              onPress={() => onOpenGroup(group.id)}
+            />
+          ))}
+
+        {/*
+          Places is this person's own events grouped by where they were, so it
+          answers without asking anything of the server — which is also why the
+          two-character floor does not apply to it. The place itself opens in
+          the maps app somebody already uses: a map view is a native module
+          this codebase cannot test, and handing over the name gets them
+          directions as well as a pin.
+        */}
+        {scope === 'places' &&
+          places.map(([place, inPlace], i) => (
+            <View key={place}>
+              <Result
+                first={i === 0}
+                t={t}
+                avatar={null}
+                seed={place}
+                name={place}
+                under={plural(inPlace.length, 'event')}
+                aside="Map ›"
+                onPress={() =>
+                  void Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place)}`)
+                }
+              />
               {inPlace.map((event) => (
                 <Pressable
                   key={event.id}
-                  style={styles.row}
+                  style={styles.placeEvent}
                   onPress={() => onOpen(event)}
+                  accessibilityRole="button"
                 >
-                  <Text style={[styles.body, { color: t.accent }]}>{event.name}</Text>
+                  <Text style={[styles.small, { color: t.accent }]}>{event.name}</Text>
                 </Pressable>
               ))}
             </View>
-          ))
-        )}
-        {unplaced > 0 && places.length > 0 && (
-          <Text style={[styles.small, { color: t.dim }]}>
-            {plural(unplaced, 'event')} without a place.
+          ))}
+      </View>
+
+      {/*
+        Nothing came back, said once and only after something was asked. The
+        wording is per scope because "no handle starts with that" is a fact
+        about handles and would be a lie about places.
+      */}
+      {scope === 'people' && asked && people.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>No handle starts with that.</Text>
+      )}
+      {scope === 'groups' && asked && groups.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>Nothing findable by that name.</Text>
+      )}
+      {scope === 'places' && places.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          {events.length === 0 || unplaced === events.length
+            ? 'None of your events say where they were yet. Whoever starts one can add a place, and it shows up here.'
+            : 'No place of yours matches that.'}
+        </Text>
+      )}
+      {scope === 'places' && unplaced > 0 && places.length > 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          {plural(unplaced, 'event')} without a place.
+        </Text>
+      )}
+
+      {/*
+        Once, at the foot.
+
+        It used to be said above each of three cards, before anything had been
+        searched for — which is a paragraph of policy in front of an empty
+        screen, and the thing everybody scrolls past. Here it is read by
+        somebody who has just seen what a search returns, which is the moment
+        "and this is what it will never return" means anything.
+      */}
+      <Text style={[styles.footnote, { color: t.dim }]}>
+        Handles and findable groups only. Events and photos are never
+        searchable — the only way into one is being sent it.
+      </Text>
+    </ScrollView>
+  );
+}
+
+/** Which namespace the one field is asking. */
+type Scope = 'people' | 'groups' | 'places';
+
+const PLACEHOLDER: Record<Scope, string> = {
+  people: 'A handle, or the start of one',
+  groups: 'A group by name',
+  places: 'Somewhere you have been',
+};
+
+/**
+ * One row of a result list.
+ *
+ * A row with a hairline above it rather than a card: three bordered boxes make
+ * three results look like three decisions, and most of these are a name
+ * somebody is scanning past on the way to the one they meant.
+ */
+function Result({
+  first,
+  t,
+  avatar,
+  seed,
+  name,
+  under,
+  aside,
+  disabled,
+  onPress,
+}: {
+  /** The first row has no rule above it — there is nothing to divide it from. */
+  first: boolean;
+  t: TabTheme;
+  avatar: string | null;
+  /** What the lens colour is keyed on, when there is no picture. */
+  seed: string;
+  name: string;
+  under: string | null;
+  aside?: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const lens = lensFor(seed);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.result,
+        !first && { borderTopWidth: 1, borderTopColor: t.line },
+        { opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      {avatar ? (
+        <Image
+          source={{ uri: avatar }}
+          style={[styles.resultFace, { backgroundColor: t.line }]}
+          contentFit="cover"
+          transition={120}
+        />
+      ) : (
+        <View style={[styles.resultFace, styles.resultFaceBlank, { backgroundColor: lens.fill }]}>
+          <Text style={[styles.resultLetter, { color: lens.ink }]}>{initialOf(name)}</Text>
+        </View>
+      )}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.resultName, { color: t.fg }]} numberOfLines={1}>
+          {name}
+        </Text>
+        {under && (
+          <Text style={[styles.resultUnder, { color: t.dim }]} numberOfLines={1}>
+            {under}
           </Text>
         )}
       </View>
-
-    </ScrollView>
+      {aside && <Text style={[styles.resultUnder, { color: t.dim }]}>{aside}</Text>}
+    </Pressable>
   );
 }
 
@@ -1343,43 +1459,81 @@ const styles = StyleSheet.create({
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  /* A row rather than a card. The Find tab draws a group as a bordered card
-     because each one there is a decision — a door, with a button on it. These
-     are rooms you are already in, so the row is a way through, and a stack of
-     boxes would make walking into your own group look like an application. */
-  /* The face on a search result: a rounded square, like the event thumbs above
-     it, rather than a circle — these rows sit in the same list as events. */
-  rowFace: { width: 34, height: 34, borderRadius: 10, marginRight: 12 },
-  rowFaceBlank: { alignItems: 'center', justifyContent: 'center' },
+  /* Wider apart than the cards on the other tabs: each group is three pieces
+     stacked — a name, a strip of evenings and a line about the last one — and
+     14 points between blocks made two groups read as one.
+
+     `paddingTop` is this file's standing 72 rather than the design's 26: the
+     mockup draws the status bar as a row of its own and measures from under
+     it, and there is no safe-area library here — 72 is the one allowance every
+     screen in this project already starts at. */
+  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18 },
   groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  newGroup: { borderWidth: 1, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 15 },
-  newGroupText: { fontSize: 14, fontWeight: '600' },
-  groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
-  /* The name and the faces on one line, the name taking what is left. */
-  groupNameRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minWidth: 0 },
-  groupNameText: { flexShrink: 1, minWidth: 0 },
-  /* Overlapped and ringed in the screen's own background, so the overlap
-     reads as depth rather than as one shape with bites out of it — the same
-     stack the event card draws, at the smaller size a row can carry. */
-  groupFaces: { flexDirection: 'row', flex: 0 },
-  groupFace: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    marginRight: -6,
-    overflow: 'hidden',
+  newGroup: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  groupFaceShot: { width: '100%', height: '100%' },
-  groupFaceLetter: { fontSize: 9.5, fontWeight: '700' },
+  groupBlock: { gap: 10 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /* The door: small, because the evenings under it are what the block is for.
+     It was 44 points when it was the only picture on the row. */
   groupTile: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 28, height: 28, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',
   },
-  groupInitial: { fontSize: 18, fontWeight: '600' },
-  groupName: { fontSize: 17, fontWeight: '600' },
-  placeBlock: { gap: 2, paddingTop: 4 },
+  groupInitial: { fontSize: 13, fontWeight: '600' },
+  groupName: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: '600' },
+  groupMeta: { fontSize: 12.5 },
+  /* Three equal tiles with hairline gaps: one strip rather than three cards,
+     which is what makes it read as "what is in here" and not as three things
+     to choose between. */
+  strip: { flexDirection: 'row', gap: 3 },
+  stripTile: { flex: 1, height: 96 },
+  stripShot: { width: '100%', height: '100%', borderRadius: 8 },
+  stripEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
+  stripMore: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20,23,28,0.55)',
+  },
+  stripMoreText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  /* --- Find -------------------------------------------------------------
+     One field, three chips, and rows under a hairline. Everything here
+     replaced three bordered cards with a heading and a paragraph each. */
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  /* No padding of its own: the box has it, and a field with both is a caret
+     that starts a quarter of an inch from the magnifier. */
+  fieldText: { flex: 1, fontSize: 16, padding: 0 },
+  chips: { flexDirection: 'row', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14 },
+  chipText: { fontSize: 13.5 },
+  chipTextOn: { fontWeight: '600' },
+  results: { },
+  /* A hairline between rows rather than a border around each: three bordered
+     boxes make three results look like three decisions. */
+  result: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
+  resultFace: { width: 38, height: 38, borderRadius: 10 },
+  resultFaceBlank: { alignItems: 'center', justifyContent: 'center' },
+  resultLetter: { fontSize: 14, fontWeight: '700' },
+  resultName: { fontSize: 15.5, fontWeight: '600' },
+  resultUnder: { fontSize: 13 },
+  placeEvent: { paddingVertical: 6, paddingLeft: 50 },
+  footnote: { fontSize: 13, lineHeight: 18, paddingTop: 4 },
 });
