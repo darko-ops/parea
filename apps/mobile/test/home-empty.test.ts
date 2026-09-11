@@ -27,6 +27,67 @@ const HOME = code(
   EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function GroupsTab')),
 );
 
+describe('the card the home list draws', () => {
+  it('runs the photograph to both edges of the screen', () => {
+    /*
+     * A rounded card inset from both sides is an object on a page, with the
+     * page showing around it. The subject of this screen is the photograph,
+     * so it is the card — which is what the note at the top of `EventCard`
+     * has always claimed and the 18pt radius was quietly contradicting.
+     *
+     * The scroll keeps its gutter for the words; the cover steps back out of
+     * it, which is one number to keep in step rather than four.
+     */
+    expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
+    expect(EVENTS).toMatch(/cover: \{ marginHorizontal: -20, overflow: 'hidden', height: 260/);
+    // No radius on it at all, rather than a smaller one.
+    expect(EVENTS).not.toMatch(/cover: \{[^}]*borderRadius/);
+  });
+
+  it('names the creator above the photograph, by handle, in bold', () => {
+    /*
+     * The handle rather than the display name: it is the half of somebody that
+     * is unique and the half they can be found by, which is what a wall of
+     * evenings needs to tell two people called Ana apart.
+     */
+    expect(EVENTS).toMatch(/styles\.byline\b/);
+    expect(EVENTS).toMatch(/const by = event\.creator\.handle\s*\n?\s*\? `@\$\{event\.creator\.handle\}`/);
+    expect(EVENTS).toMatch(/bylineName: \{[^}]*fontWeight: '700'/);
+    // Above the cover, not under it.
+    expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={styles.cover}>'));
+  });
+
+  it('draws a letter rather than a silhouette where there is no picture', () => {
+    // The rule every other face in this product follows.
+    expect(EVENTS).toMatch(/styles\.bylineBlank/);
+    expect(EVENTS).toMatch(/const byLens = lensFor\(/);
+  });
+
+  it('says the handle once, not twice', () => {
+    /*
+     * The line under the title used to print both names. The byline carries
+     * the handle now, so repeating it there said the same unique thing twice
+     * on one card and left the name reading as a label for it. What survives
+     * below is the half the byline does not have: what somebody is called.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    expect(CARD.match(/`@\$\{event\.creator\.handle\}`/g) ?? []).toHaveLength(1);
+    expect(CARD).toMatch(/\{host && \(/);
+  });
+
+  it('lines the faces and the live tag up with the title', () => {
+    // While the cover was an inset card, an offset from its corner was the
+    // obvious reference. Against a full-bleed photograph the only column left
+    // to align with is the text underneath.
+    expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -18, marginLeft: 4/);
+    expect(EVENTS).toMatch(/under: \{ paddingHorizontal: 4/);
+    expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 24,/);
+  });
+});
+
 describe('the home list', () => {
   it('leaves out the ones with no photographs', () => {
     expect(HOME).toMatch(

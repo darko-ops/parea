@@ -140,8 +140,46 @@ function EventCard({
   const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
   const host = event.mine ? 'You' : event.creator.name;
 
+  /*
+   * Whose evening this is, above the photograph rather than under it.
+   *
+   * The handle rather than the display name: it is the half of somebody that
+   * is unique and the half they can be found by, and a wall of evenings is
+   * exactly where two people called Ana need telling apart. The name still
+   * appears in the line under the title — this row is the byline, that line is
+   * the sentence.
+   *
+   * Never a silhouette where there is no picture, which is the rule every
+   * other face in this product follows: a letter on the person's own lens
+   * colour, hashed from their handle so it is theirs and stays theirs.
+   */
+  const by = event.creator.handle
+    ? `@${event.creator.handle}`
+    : (event.creator.name ?? 'Someone');
+  const byLens = lensFor(event.creator.handle ?? event.creator.name ?? event.id);
+
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <View style={styles.byline}>
+        {event.creator.avatarUrl ? (
+          <Image
+            source={{ uri: event.creator.avatarUrl }}
+            style={[styles.bylineFace, { backgroundColor: t.line }]}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : (
+          <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
+            <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
+              {initialOf(event.creator.name ?? event.creator.handle)}
+            </Text>
+          </View>
+        )}
+        <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
+          {by}
+        </Text>
+      </View>
+
       <View style={styles.cover}>
         {event.cover && (
           <Image
@@ -197,17 +235,22 @@ function EventCard({
           {event.name}
         </Text>
         {/*
-          Whose event it is, in their own two names — both, always. The name is
-          what somebody recognises and the handle is what is unique, so
-          printing one makes the reader guess which they have. On your own
-          events the name is "You": your own name read back at you on a wall of
-          your own evenings is the screen describing you to yourself.
+          The name, and only the name.
+
+          This line used to print both names — "both, always", on the reasoning
+          that printing one makes the reader guess which they have. The byline
+          above the photograph carries the handle now, so printing it again
+          here says the same unique thing twice on one card and leaves the name
+          looking like a label for it.
+
+          What is left is the half the byline does not have: what somebody is
+          called, which is what a reader recognises. On your own events that is
+          "You" — your own name read back at you on a wall of your own evenings
+          is the screen describing you to yourself.
         */}
-        {(host || event.creator.handle) && (
+        {host && (
           <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
             {host}
-            {host && event.creator.handle ? '  ' : ''}
-            {event.creator.handle ? `@${event.creator.handle}` : ''}
           </Text>
         )}
         {/*
@@ -1649,12 +1692,32 @@ const styles = StyleSheet.create({
   /* The photograph is the card: no border, no panel, no strip of chrome. What
      used to be `event` was a bordered box around a mosaic and a detail strip;
      what is left is a tall picture, some faces over its edge, and two lines. */
-  cover: { borderRadius: 18, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
+  /*
+   * Edge to edge, and square.
+   *
+   * The scroll keeps its 20pt gutter for everything that is words; the
+   * photograph steps back out of it. A rounded card inset from both sides is a
+   * *card* — an object on a page, with the page showing around it — and the
+   * subject of this screen is the photograph, not the container it arrived in.
+   * At full width with square corners the picture is the card, which is what
+   * the note at the top of `EventCard` claims and the 18pt radius was quietly
+   * contradicting.
+   *
+   * The negative margin rather than a padding-free scroll: the alternative is
+   * moving the gutter onto every text block separately, which is four places
+   * to keep in step instead of one.
+   */
+  cover: { marginHorizontal: -20, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
   coverShot: { width: '100%', height: '100%' },
   /* Over the picture's bottom edge, not under it — see the note on the card.
      The negative margin is the overlap, and the row sits above the text it
-     shares a column with. */
-  faces: { flexDirection: 'row', marginTop: -18, marginLeft: 14, marginBottom: 2 },
+     shares a column with.
+
+     Aligned to that text rather than inset from the picture. While the cover
+     was a rounded card, 14 from its left corner was the obvious reference;
+     now that the photograph runs to the screen edge the only column left to
+     line up with is the title underneath. */
+  faces: { flexDirection: 'row', marginTop: -18, marginLeft: 4, marginBottom: 2 },
   face: {
     width: 34,
     height: 34,
@@ -1669,11 +1732,27 @@ const styles = StyleSheet.create({
   faceLetter: { fontSize: 12, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
   under: { paddingHorizontal: 4, paddingTop: 8, gap: 2 },
+  /* The byline, above the photograph. Aligned to the same column as the title
+     below it — `under`'s 4, so the face, the name and the date share an edge. */
+  byline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+  },
+  bylineFace: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
+  bylineBlank: { alignItems: 'center', justifyContent: 'center' },
+  bylineLetter: { fontSize: 12, fontWeight: '700' },
+  bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
   /* Small, quiet, and on the picture rather than beside the title: it is true
      for an hour and it is about the photographs, not about the event. */
   liveTag: {
     position: 'absolute',
-    left: 12,
+    // 24 from the screen edge, which is where the title below it starts. It
+    // was 12 in from a cover that was itself inset by 20; against a full-bleed
+    // photograph the same number would sit almost on the edge of the glass.
+    left: 24,
     top: 12,
     flexDirection: 'row',
     alignItems: 'center',
