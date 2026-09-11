@@ -115,13 +115,38 @@ describe('the card the home list draws', () => {
     expect(EVENTS).toMatch(/faceLetter: \{ fontSize: 8\.5/);
   });
 
-  it('lines the faces and the live tag up with the title', () => {
-    // While the cover was an inset card, an offset from its corner was the
-    // obvious reference. Against a full-bleed photograph the only column left
-    // to align with is the text underneath.
-    expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: 4/);
-    expect(EVENTS).toMatch(/under: \{ paddingHorizontal: 4/);
-    expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 24,/);
+  it('measures the text column from the glass, not from the scroll', () => {
+    /*
+     * Everything in the card's column sat at the scroll's 20 plus 4 of its
+     * own — 24 from the screen, which was right while the photograph was an
+     * inset card and its corner was the thing being aligned to. The picture
+     * runs to the edge now, so the only edge left to measure from is the
+     * screen's, and 24 read as a wide margin beside one with none at all.
+     *
+     * `-4` against the scroll's 20 is 16, and the three blocks must agree.
+     */
+    expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
+    expect(EVENTS).toMatch(/byline: \{[^}]*marginHorizontal: -4,/);
+    expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
+    expect(EVENTS).toMatch(/under: \{ marginHorizontal: -4/);
+    // The tag rides on the photograph, so it is placed from the glass direct.
+    expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 16,/);
+  });
+
+  it('puts the creator’s name before the title, and quiets the title', () => {
+    /*
+     * Whose evening it was is the first thing read off the card: the picture
+     * at the top is theirs, and both ends being about the same person is what
+     * makes the middle an evening rather than a listing.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    const under = CARD.slice(CARD.indexOf('<View style={styles.under}>'));
+    expect(under.indexOf('{host}')).toBeLessThan(under.indexOf('{event.name}'));
+    // No longer the first thing on the card, so no longer set like it.
+    expect(EVENTS).toMatch(/eventName: \{ fontSize: 18, fontWeight: '700' \}/);
   });
 });
 

@@ -256,11 +256,13 @@ function EventCard({
       )}
 
       <View style={styles.under}>
-        <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
-          {event.name}
-        </Text>
         {/*
-          The name, and only the name.
+          The name, and only the name — and above the title rather than under.
+
+          Whose evening it was is the first thing read off the card now: the
+          picture at the top is theirs, and both ends of the card being about
+          the same person is what makes the middle of it an evening rather than
+          a listing. The title reads as what they called it.
 
           This line used to print both names — "both, always", on the reasoning
           that printing one makes the reader guess which they have. The byline
@@ -278,6 +280,9 @@ function EventCard({
             {host}
           </Text>
         )}
+        <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
+          {event.name}
+        </Text>
         {/*
           When first, then who — and at the same size as the host line above
           it rather than a step larger.
@@ -1742,7 +1747,7 @@ const styles = StyleSheet.create({
      was a rounded card, 14 from its left corner was the obvious reference;
      now that the photograph runs to the screen edge the only column left to
      line up with is the title underneath. */
-  faces: { flexDirection: 'row', marginTop: -13, marginLeft: 4, marginBottom: 2 },
+  faces: { flexDirection: 'row', marginTop: -13, marginLeft: -4, marginBottom: 2 },
   /* 70% of the 34 these were. Every number in the stack is scaled with the
      circle rather than only its width — the ring, the overlap and the letter
      were all chosen against 34, and leaving any of them put would make a
@@ -1761,14 +1766,27 @@ const styles = StyleSheet.create({
   faceShot: { width: '100%', height: '100%' },
   faceLetter: { fontSize: 8.5, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
-  under: { paddingHorizontal: 4, paddingTop: 8, gap: 2 },
+  under: { marginHorizontal: -4, paddingTop: 8, gap: 2 },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
+  /*
+   * The card's text column, and it answers to the screen rather than to the
+   * scroll.
+   *
+   * Everything here used to sit at the scroll's 20 plus 4 of its own — 24 from
+   * the glass, which was the right distance while the photograph was an inset
+   * card and its corner was the thing being lined up with. The photograph runs
+   * to the edge now, so the only edge left to measure from is the screen's,
+   * and 24 read as a wide margin beside a picture with none at all.
+   *
+   * `-4` against the scroll's 20 puts the whole column at 16. One number, in
+   * three places that must agree: the byline, the faces and the title block.
+   */
   byline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 4,
+    marginHorizontal: -4,
     paddingBottom: 8,
   },
   bylineFace: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
@@ -1779,10 +1797,10 @@ const styles = StyleSheet.create({
      for an hour and it is about the photographs, not about the event. */
   liveTag: {
     position: 'absolute',
-    // 24 from the screen edge, which is where the title below it starts. It
+    // 16 from the screen edge, which is where the column below it starts. It
     // was 12 in from a cover that was itself inset by 20; against a full-bleed
     // photograph the same number would sit almost on the edge of the glass.
-    left: 24,
+    left: 16,
     top: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1814,7 +1832,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptySlotMark: { fontSize: 13, fontWeight: '700' },
-  eventName: { fontSize: 22, fontWeight: '700' },
+  /* 18 rather than 22. It is no longer the first thing on the card — the
+     byline and the creator's name are both above it — and at 22 it went on
+     competing with the photograph for the loudest thing in the column. */
+  eventName: { fontSize: 18, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
