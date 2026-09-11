@@ -36,6 +36,7 @@ import type {
   EventListing,
   InvitablePerson,
   MyGroupDetail,
+  ThreadLine,
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import { Glyph } from './Glyph';
@@ -504,6 +505,8 @@ export function GroupsTab({
   t,
   openCreate = 0,
   onOpenGroup,
+  onOpenGroupThread,
+  onOpenEventThread,
   onGoToEvents,
 }: {
   api: Api;
@@ -526,6 +529,10 @@ export function GroupsTab({
    */
   openCreate?: number;
   onOpenGroup: (groupId: string) => void;
+  /** A group's own conversation, which is not the same place as the group. */
+  onOpenGroupThread: (group: MyGroupDetail) => void;
+  /** An event's conversation — the album, opened on its Talk pane. */
+  onOpenEventThread: (event: EventListing) => void;
   /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
 }) {
@@ -579,6 +586,29 @@ export function GroupsTab({
     return map;
   }, [events]);
 
+  /*
+   * The evenings that belong to no group, newest conversation first.
+   *
+   * Sorted by when something was last *said*, falling back to when the album
+   * was last added to. A list of conversations ordered by upload time puts a
+   * silent album full of photographs above the one somebody is talking in,
+   * which is the wrong answer on a tab about talking.
+   *
+   * An event with no messages still lists. It is a door — the thread is how
+   * you get to it, and hiding it until somebody speaks means nobody ever does.
+   */
+  const loose = useMemo(
+    () =>
+      events
+        .filter((event) => !event.groupId)
+        .sort((a, b) =>
+          (b.lastMessage?.at ?? b.lastActiveAt).localeCompare(
+            a.lastMessage?.at ?? a.lastActiveAt,
+          ),
+        ),
+    [events],
+  );
+
   return (
     <ScrollView
       contentContainerStyle={styles.groupsScroll}
@@ -604,10 +634,19 @@ export function GroupsTab({
             accessibilityLabel="New group"
             style={({ pressed }) => [
               styles.newGroup,
-              { backgroundColor: t.accent, opacity: pressed ? 0.7 : 1 },
+              {
+                // The same quiet control the album screen's "add photos" is,
+                // rather than a filled accent circle. Two tabs, one shape for
+                // "make something here" — and a solid blue disc beside a 30pt
+                // title was the loudest thing on a screen whose subject is
+                // underneath it.
+                backgroundColor: t.card,
+                borderColor: t.line,
+                opacity: pressed ? 0.7 : 1,
+              },
             ]}
           >
-            <Glyph name="plus" size={20} color={t.onAccent} />
+            <Glyph name="plus" size={20} color={t.fg} />
           </Pressable>
         )}
       </View>
@@ -661,6 +700,7 @@ export function GroupsTab({
             albums={byGroup.get(group.id) ?? []}
             t={t}
             onPress={() => onOpenGroup(group.id)}
+            onOpenThread={() => onOpenGroupThread(group)}
           />
         ))
       )}
@@ -696,6 +736,64 @@ export function GroupsTab({
       )}
 
       {/*
+        The conversations that belong to no group.
+
+        An evening with the same six people every month becomes a group and its
+        talk moves under that group's block. An evening that never will — a
+        wedding, somebody's leaving do, the one barbecue — still has a thread,
+        and before this it was reachable only by remembering which album it was
+        inside. This is the other half of "one tab for every conversation".
+
+        Grouped events are deliberately absent: their talk belongs under the
+        group, and listing them twice would make the busiest rooms the noisiest
+        part of a screen that is meant to be scanned.
+      */}
+      {loose.length > 0 && (
+        <View style={{ gap: 2 }}>
+          <Text style={[styles.sectionLabel, { color: t.dim }]}>EVENT CHATS</Text>
+          {loose.map((event, i) => (
+            <Pressable
+              key={event.id}
+              onPress={() => onOpenEventThread(event)}
+              accessibilityRole="button"
+              accessibilityLabel={`${event.name}, conversation`}
+              style={({ pressed }) => [
+                styles.chatRow,
+                // No rule under the last one: a divider at the foot of a list
+                // is a line under nothing.
+                i < loose.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.line },
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              {event.cover ? (
+                <Image
+                  source={{ uri: event.cover.src }}
+                  style={[styles.chatThumb, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View
+                  style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]}
+                />
+              )}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
+                  {event.name}
+                </Text>
+                <ConversationLine
+                  line={event}
+                  fallback="Nobody has said anything yet."
+                  t={t}
+                  dot
+                />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/*
         Where the other kind of group is. Discovery lives on Find and stays
         there — this tab is the rooms you are in, and a second list of rooms
         you are not would make it two screens wearing one title.
@@ -722,12 +820,16 @@ function GroupBlock({
   albums,
   t,
   onPress,
+  onOpenThread,
 }: {
   group: MyGroupDetail;
   /** This actor's own albums in this group, newest first. Never the group's. */
   albums: EventListing[];
   t: TabTheme;
+  /** The block itself: the room, its people and its evenings. */
   onPress: () => void;
+  /** The line at the foot: the conversation, which is a different place. */
+  onOpenThread: () => void;
 }) {
   const lens = lensFor(group.id);
   const shown = albums.slice(0, COVER_STRIP);
@@ -740,7 +842,6 @@ function GroupBlock({
    * strip shows the ones this person can open.
    */
   const more = Math.max(0, group.eventCount - shown.length);
-  const newest = albums[0] ?? null;
 
   return (
     <Pressable
@@ -802,17 +903,120 @@ function GroupBlock({
       </View>
 
       {/*
-        What has just happened in it, which is the only reason to open one
-        today rather than tomorrow. "added to never" is a sentence about an
-        absence, so a group nobody has put anything in says that instead.
+        The last thing said in it, which is what makes this a conversation
+        rather than a folder.
+
+        It replaced "Added to 2 days ago · Ana's birthday" — a line about the
+        newest *event*, which the strip of covers directly above it already
+        shows. Two statements of the same fact, and neither of them the one
+        thing that would make somebody open the room today.
+
+        Unread is carried by ink as well as by the pill: a waiting message is
+        set in `fg`, a read one in `dim`. The pill alone is a small blue circle
+        somebody has to find; the weight of the line is what they see first.
       */}
-      <Text style={[styles.groupMeta, { color: t.dim }]} numberOfLines={1}>
-        {group.lastActiveAt
-          ? `Added to ${ago(new Date(group.lastActiveAt), new Date())}${
-              newest ? ` · ${newest.name}` : ''
-            }`
-          : 'Nothing in it yet — anyone in it can start the first event.'}
-      </Text>
+      <ConversationLine
+        line={group}
+        fallback={
+          group.eventCount === 0
+            ? 'Nothing in it yet — anyone in it can start the first event.'
+            : 'Nobody has said anything yet.'
+        }
+        t={t}
+        onPress={onOpenThread}
+      />
+    </Pressable>
+  );
+}
+
+/**
+ * One conversation, as one line: who spoke, what they said, when, and how many
+ * are waiting.
+ *
+ * Shared by the group blocks and the event-chat rows because they are the same
+ * sentence about two kinds of room, and written twice they would drift the
+ * first time somebody changed how a name is emphasised.
+ *
+ * The count is a pill on a group and a dot on an event chat, which is not
+ * decoration: a group is busy and the number is the useful part, where an
+ * event chat is usually one or two messages and a number on it is precision
+ * nobody asked for.
+ */
+function ConversationLine({
+  line,
+  fallback,
+  t,
+  dot = false,
+  onPress,
+}: {
+  line: ThreadLine;
+  /** What a thread nobody has spoken in says. A door, not an error. */
+  fallback: string;
+  t: TabTheme;
+  /** A dot rather than a count. See above. */
+  dot?: boolean;
+  onPress?: () => void;
+}) {
+  const unread = line.unreadCount > 0;
+  const last = line.lastMessage;
+
+  const body = (
+    <>
+      {last ? (
+        <>
+          <View style={[styles.sayerFace, { backgroundColor: lensFor(last.author).fill }]}>
+            <Text style={[styles.sayerInitial, { color: lensFor(last.author).ink }]}>
+              {initialOf(last.author)}
+            </Text>
+          </View>
+          <Text
+            style={[styles.said, { color: unread ? t.fg : t.dim }]}
+            numberOfLines={1}
+          >
+            {/* "You" rather than your own name read back at you — the same
+                thing every card in this product does. */}
+            <Text style={styles.sayer}>{last.mine ? 'You' : last.author}</Text>{' '}
+            {last.body}
+          </Text>
+          <Text style={[styles.saidWhen, { color: t.dim }]}>
+            {ago(new Date(last.at), new Date())}
+          </Text>
+        </>
+      ) : (
+        <Text style={[styles.said, { color: t.dim }]} numberOfLines={1}>
+          {fallback}
+        </Text>
+      )}
+
+      {unread &&
+        (dot ? (
+          <View style={[styles.unreadDot, { backgroundColor: t.accent }]} />
+        ) : (
+          <View style={[styles.unreadPill, { backgroundColor: t.accent }]}>
+            <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+              {line.unreadCount > 99 ? '99+' : line.unreadCount}
+            </Text>
+          </View>
+        ))}
+    </>
+  );
+
+  if (!onPress) return <View style={styles.sayRow}>{body}</View>;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={
+        last
+          ? `Conversation, ${line.unreadCount > 0 ? `${line.unreadCount} new, ` : ''}${
+              last.mine ? 'you' : last.author
+            } said ${last.body}`
+          : 'Conversation, nothing said yet'
+      }
+      style={({ pressed }) => [styles.sayRow, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      {body}
     </Pressable>
   );
 }
@@ -1512,6 +1716,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1530,7 +1735,7 @@ const styles = StyleSheet.create({
      which is what makes it read as "what is in here" and not as three things
      to choose between. */
   strip: { flexDirection: 'row', gap: 3 },
-  stripTile: { flex: 1, height: 96 },
+  stripTile: { flex: 1, height: 84 },
   stripShot: { width: '100%', height: '100%', borderRadius: 8 },
   stripEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
   stripMore: {
@@ -1545,6 +1750,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,23,28,0.55)',
   },
   stripMoreText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  /* One conversation, as one line. Shared by a group block and an event chat. */
+  sayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sayerFace: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  sayerInitial: { fontSize: 11, fontWeight: '700' },
+  said: { flex: 1, minWidth: 0, fontSize: 13.5 },
+  /* The name carries the weight; the message is the same size beside it. */
+  sayer: { fontWeight: '600' },
+  saidWhen: { fontSize: 12.5 },
+  /* A number on a group — it is busy and the number is the useful part. */
+  unreadPill: {
+    minWidth: 19,
+    height: 19,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadCount: { fontSize: 11.5, fontWeight: '700' },
+  /* A dot on an event chat — usually one or two messages, and a count there is
+     precision nobody asked for. */
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
+  /* The one-off evenings, under a label rather than a heading: they are the
+     minor half of this screen and a 30pt title would say otherwise. */
+  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
+  chatThumb: { width: 40, height: 40, borderRadius: 10 },
+  chatName: { fontSize: 15, fontWeight: '600' },
   /* --- Find -------------------------------------------------------------
      One field, three chips, and rows under a hairline. Everything here
      replaced three bordered cards with a heading and a paragraph each. */

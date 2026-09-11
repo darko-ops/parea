@@ -19,6 +19,7 @@ import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
+import { EMPTY_SUMMARY, eventThreadSummaries } from '@/groupMessages';
 import { coverSrc } from '@/cards';
 import { imageSources, imageSrc } from '@/images';
 import { findGroup, membershipOf } from '@/groups';
@@ -66,7 +67,23 @@ type Body = {
  * and not existing look the same from here because they should.
  */
 export async function GET() {
-  const listings = await eventsFor(getDb(), await currentActorId());
+  const db = getDb();
+  const actorId = await currentActorId();
+  const listings = await eventsFor(db, actorId);
+
+  /*
+   * Each event's conversation, as one line, for the whole list at once.
+   *
+   * The Groups tab lists every event chat this person can reach, and it needs
+   * the newest message and the number waiting to draw a row. Fetching each
+   * thread to render a list would be an N+1 against the busiest table in the
+   * product — two queries answer for the whole page. See `eventThreadSummaries`.
+   */
+  const threads = await eventThreadSummaries(
+    db,
+    listings.map((listing) => listing.id),
+    actorId,
+  );
 
   return NextResponse.json({
     events: await Promise.all(
@@ -152,6 +169,7 @@ export async function GET() {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),
           },
+          ...(threads.get(listing.id) ?? EMPTY_SUMMARY),
         };
       }),
     ),

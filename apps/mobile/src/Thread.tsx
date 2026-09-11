@@ -52,16 +52,33 @@ import {
 
 import { ago } from '@parea/cards';
 
-import { ApiError, REACTIONS, type Api, type Message, type Roster } from './api';
+import { ApiError, REACTIONS, type Message, type Roster } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 
 /** Somebody the mention list may offer: a contributor to this event. */
 export type Mentionable = { key: string; name: string; mine: boolean };
 
+/**
+ * The four things a thread does to the server.
+ *
+ * Passed in rather than reached for, because the same component now draws an
+ * event's conversation and a group's, and those hit different routes — a
+ * message id from one table is not a message id from the other, and a
+ * component that guessed which was which would be a component that can guess
+ * wrong. `Reactions` is optional: a group message has none yet, and the row of
+ * pills is simply not drawn when there is no way to add one.
+ */
+export type ThreadActions = {
+  post: (body: string) => Promise<unknown>;
+  edit: (messageId: string, body: string) => Promise<unknown>;
+  remove: (messageId: string) => Promise<unknown>;
+  /** Omitted where the room has no reactions. */
+  react?: (messageId: string, emoji: string) => Promise<unknown>;
+};
+
 export function Thread({
-  api,
-  eventId,
+  actions,
   messages,
   canPost,
   people,
@@ -70,8 +87,8 @@ export function Thread({
   onChanged,
   onSeen,
 }: {
-  api: Api;
-  eventId: string;
+  /** What this thread's four verbs do. See `ThreadActions`. */
+  actions: ThreadActions;
   messages: Message[];
   /** Whether this viewer may post. The server's answer, never a guess. */
   canPost: boolean;
@@ -114,7 +131,7 @@ export function Thread({
     setPosting(true);
     setError(null);
     try {
-      await api.postMessage(eventId, body);
+      await actions.post(body);
       setDraft('');
       await onChanged();
     } catch (err) {
@@ -124,14 +141,14 @@ export function Thread({
     } finally {
       setPosting(false);
     }
-  }, [api, draft, eventId, onChanged, posting]);
+  }, [actions, draft, onChanged, posting]);
 
   const react = useCallback(
     async (id: string, emoji: string) => {
-      await api.react(id, emoji).catch(() => {});
+      await actions.react?.(id, emoji).catch(() => {});
       await onChanged();
     },
-    [api, onChanged],
+    [actions, onChanged],
   );
 
   const remove = useCallback(
@@ -142,13 +159,13 @@ export function Thread({
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await api.deleteMessage(id).catch(() => {});
+            await actions.remove(id).catch(() => {});
             await onChanged();
           },
         },
       ]);
     },
-    [api, onChanged],
+    [actions, onChanged],
   );
 
   /*
@@ -217,9 +234,10 @@ export function Thread({
               message={item}
               canPost={canPost}
               t={t}
+              canReact={actions.react != null}
               onReact={(emoji) => void react(item.id, emoji)}
               onDelete={() => remove(item.id)}
-              onEdit={(body) => void api.editMessage(item.id, body).then(onChanged)}
+              onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
             />
           )}
         />
@@ -292,6 +310,7 @@ function Row({
   message,
   canPost,
   t,
+  canReact,
   onReact,
   onDelete,
   onEdit,
@@ -299,6 +318,8 @@ function Row({
   message: Message;
   canPost: boolean;
   t: GroupTheme;
+  /** Whether this room has reactions at all. */
+  canReact: boolean;
   onReact: (emoji: string) => void;
   onDelete: () => void;
   onEdit: (body: string) => void;
@@ -406,7 +427,11 @@ function Row({
           </Pressable>
         )}
 
-        {(message.reactions.length > 0 || canPost) && (
+        {/* No picker in a room that has no reactions — a group's messages
+            have none yet, and offering one that does nothing is worse than
+            not offering it. Existing reactions still draw, so this survives
+            group reactions arriving later. */}
+        {(message.reactions.length > 0 || (canPost && canReact)) && (
           <View style={[styles.chips, mine && styles.chipsMine]}>
             {message.reactions.map((reaction) => (
               <Pressable
@@ -429,6 +454,7 @@ function Row({
               </Pressable>
             ))}
             {canPost &&
+              canReact &&
               (picking ? (
                 REACTIONS.map((emoji) => (
                   <Pressable

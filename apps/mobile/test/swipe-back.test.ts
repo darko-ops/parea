@@ -103,8 +103,9 @@ describe('the screens it wraps', () => {
     for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs']) {
       expect(APP).toMatch(new RegExp(`<SwipeBack onBack=\\{${back}\\}>`));
     }
-    // Event, group, person and door — the four with an arrow in the corner.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(4);
+    // Event, group, group thread, person and door — every screen pushed over
+    // the tabs that has an arrow in its corner.
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(5);
   });
 
   it('does not wrap the screens holding something half-typed', () => {

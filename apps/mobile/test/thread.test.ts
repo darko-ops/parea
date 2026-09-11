@@ -105,9 +105,10 @@ describe('the rules carried over from the web', () => {
   it('keeps the draft when a post fails', () => {
     // Losing what somebody typed because a request failed is the failure mode
     // this is written to avoid: the draft is only cleared after a success.
-    expect(THREAD).toMatch(
-      /await api\.postMessage\(eventId, body\);\s*\n\s*setDraft\(''\);/,
-    );
+    // `actions.post` rather than `api.postMessage`: the same component draws a
+    // group's thread now, and the two hit different routes. What matters here
+    // is unchanged — the draft is cleared only after the await returns.
+    expect(THREAD).toMatch(/await actions\.post\(body\);\s*\n\s*setDraft\(''\);/);
   });
 });
 
@@ -128,6 +129,12 @@ describe('what is native rather than borrowed', () => {
     // The same rule the banner over the cover clears on, and the same one the
     // web's column follows.
     expect(APP).toMatch(/onSeen=\{markRead\}/);
-    expect(APP).toMatch(/const markRead = useCallback\(\(\) => setSeen\(messages\.length\)/);
+    expect(APP).toMatch(/const markRead = useCallback\(\(\) => \{\s*setSeen\(messages\.length\);/);
+    /*
+     * And it is now durable as well as local. `seen` clears the banner and the
+     * count while this screen is open; the call to the server is what stops
+     * the Groups tab listing the same conversation as waiting tomorrow.
+     */
+    expect(APP).toMatch(/void api\.markEventRead\(event\.id, event\.linkToken\)/);
   });
 });

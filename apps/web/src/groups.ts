@@ -18,6 +18,7 @@ import { and, asc, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
 import { invitable } from './friends';
+import { EMPTY_SUMMARY, groupThreadSummaries } from './groupMessages';
 import { imageSrc } from './images';
 import { getStorage } from './storage';
 
@@ -389,6 +390,15 @@ export type MyGroupDetailed = MyGroup & {
   faces: { name: string; avatarUrl: string | null }[];
   /** Everybody the three faces do not show. Zero draws no chip. */
   moreFaces: number;
+  /**
+   * The group's own conversation, as one line.
+   *
+   * Null for a group nobody has spoken in — a door rather than an error, and
+   * the row says so in words rather than going missing.
+   */
+  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  /** Posted since this viewer last read the group thread. */
+  unreadCount: number;
 };
 
 /** How many events a group's row previews before "View all N" takes over. */
@@ -434,13 +444,28 @@ export async function myGroupsDetailed(
 ): Promise<MyGroupDetailed[]> {
   const groups = await myGroups(db, actorId);
 
+  /*
+   * The conversations, asked for once rather than per group.
+   *
+   * The covers and the faces above are per-group by necessity — they are
+   * different rows for each — but "the newest message and how many are
+   * waiting" is two queries for the whole list, and issuing them inside the
+   * map below would make a tab of twelve groups twenty-four round trips.
+   */
+  const threads = await groupThreadSummaries(
+    db,
+    groups.map((group) => group.id),
+    actorId,
+  );
+
   return Promise.all(
     groups.map(async (group) => {
       const [events, people] = await Promise.all([
         groupArchive(db, group.id, actorId, since, GROUP_STRIP),
         facesFor(db, group.id),
       ]);
-      return { ...group, events, ...people };
+      const thread = threads.get(group.id) ?? EMPTY_SUMMARY;
+      return { ...group, events, ...people, ...thread };
     }),
   );
 }

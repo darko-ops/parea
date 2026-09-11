@@ -183,6 +183,13 @@
       "when": 1788997487637,
       "tag": "0025_two_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789161227025,
+      "tag": "0026_sturdy_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

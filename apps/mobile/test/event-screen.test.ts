@@ -102,7 +102,13 @@ describe('the three panes', () => {
      * conversation a back button to the album it is already inside.
      */
     expect(APP).toMatch(/type Pane = 'photos' \| 'talk' \| 'people'/);
-    expect(SCREEN).toMatch(/useState<Pane>\('photos'\)/);
+    /*
+     * The default carries the rule now that the Groups tab can open an album
+     * on its conversation: `initialPane` is optional, nothing sets it but an
+     * in-app row that is itself a thread, and a link reaches none of them.
+     */
+    expect(SCREEN).toMatch(/useState<Pane>\(initialPane \?\? 'photos'\)/);
+    expect(APP).toMatch(/pane\?: Pane;/);
     expect(APP).not.toMatch(/screen: 'thread'/);
   });
 

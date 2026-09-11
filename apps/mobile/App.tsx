@@ -51,6 +51,7 @@ import {
   type Feed,
   type FeedPhoto,
   type Member,
+  type MyGroupDetail,
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
@@ -59,6 +60,7 @@ import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
+import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
 import { SwipeBack } from './src/SwipeBack';
@@ -130,7 +132,16 @@ type Pane = 'photos' | 'talk' | 'people';
 type Route =
   | { screen: 'tabs' }
   | { screen: 'join' }
-  | { screen: 'event'; event: SavedEvent }
+  | {
+      screen: 'event';
+      event: SavedEvent;
+      /**
+       * Which pane to land on. Absent means the photographs, which is what a
+       * link must always open on — only an in-app row that *is* a conversation
+       * asks for anything else.
+       */
+      pane?: Pane;
+    }
   /**
    * The door of a private album — a real link to one that has not let this
    * person in. A screen rather than an error string on the join screen,
@@ -140,6 +151,15 @@ type Route =
    */
   | { screen: 'door'; eventId: string; name: string }
   | { screen: 'group'; id: string }
+  /**
+   * A group's conversation, which is not the group.
+   *
+   * Carries the summary the Groups tab already holds rather than an id: the
+   * header wants a name, a member count and a lens the moment it draws, and
+   * re-fetching all three to render a title bar is a spinner where a name
+   * should be.
+   */
+  | { screen: 'groupThread'; group: MyGroupDetail }
   | { screen: 'person'; handle: string }
   | { screen: 'create'; groupId?: string; groupName?: string };
 
@@ -172,9 +192,9 @@ export default function App() {
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
-  const open = useCallback(async (event: SavedEvent) => {
+  const open = useCallback(async (event: SavedEvent, pane?: Pane) => {
     setRemembered(await rememberEvent(event));
-    setRoute({ screen: 'event', event });
+    setRoute({ screen: 'event', event, pane });
   }, []);
 
   /**
@@ -408,6 +428,7 @@ export default function App() {
           <EventScreen
             api={api}
             event={route.event}
+            initialPane={route.pane}
             webBase={API_BASE}
             t={t}
             dark={dark}
@@ -469,6 +490,19 @@ export default function App() {
           }}
           Button={Button}
         />
+      )}
+
+      {route.screen === 'groupThread' && (
+        <SwipeBack onBack={leaveToTabs}>
+          <GroupThread
+            api={api}
+            group={route.group}
+            t={t}
+            dark={dark}
+            onBack={leaveToTabs}
+            onOpenGroup={() => setRoute({ screen: 'group', id: route.group.id })}
+          />
+        </SwipeBack>
       )}
 
       {route.screen === 'group' && (
@@ -580,6 +614,12 @@ export default function App() {
               t={t}
               openCreate={makeGroup}
               onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+              onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
+              // The album, opened on the conversation rather than on the
+              // photographs — the one entry point allowed to ask for that.
+              onOpenEventThread={(listing) => {
+                void open(listing, 'talk');
+              }}
               onGoToEvents={() => setTab('home')}
             />
           )}
@@ -849,6 +889,7 @@ const PAGE_TOP = 248;
 function EventScreen({
   api,
   event,
+  initialPane,
   webBase,
   t,
   dark,
@@ -861,6 +902,8 @@ function EventScreen({
 }: {
   api: Api;
   event: SavedEvent;
+  /** Which pane to land on. See the `useState` below for why it is optional. */
+  initialPane?: Pane;
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
@@ -891,7 +934,15 @@ function EventScreen({
    * conversation. It is the same screen either way — see the note on the
    * folded header below.
    */
-  const [pane, setPane] = useState<Pane>('photos');
+  /*
+   * Photographs unless something explicitly asked otherwise.
+   *
+   * The default is the rule: an event's *link* must open on its photographs,
+   * never on its roster or halfway down somebody's conversation. `initialPane`
+   * is set only by an in-app row that is itself a conversation — the Groups
+   * tab's event chats — and no deep link can reach it.
+   */
+  const [pane, setPane] = useState<Pane>(initialPane ?? 'photos');
   /** The sheet behind `⋯`, which is where this screen's settings went. */
   const [sheetOpen, setSheetOpen] = useState(false);
   /** The account, asked for only when somebody reaches for what needs one. */
@@ -1279,7 +1330,32 @@ function EventScreen({
     return () => clearTimeout(timer);
   }, [unread, messages.length]);
 
-  const markRead = useCallback(() => setSeen(messages.length), [messages.length]);
+  /*
+   * Read, in both senses.
+   *
+   * The local `seen` is what clears the banner and the count on the tab while
+   * this screen is open. The call to the server is what stops the Groups tab
+   * showing this conversation as waiting the next time it is drawn — that mark
+   * is durable and per-person, where `seen` lasts as long as the screen does.
+   *
+   * Failure is swallowed: not having recorded that you read something is not
+   * worth an alert over a conversation you are looking at.
+   */
+  const markRead = useCallback(() => {
+    setSeen(messages.length);
+    void api.markEventRead(event.id, event.linkToken).catch(() => {});
+  }, [api, event.id, event.linkToken, messages.length]);
+
+  /** This room's four verbs, for the thread that draws them. */
+  const eventThread = useMemo(
+    () => ({
+      post: (body: string) => api.postMessage(event.id, body),
+      edit: (id: string, body: string) => api.editMessage(id, body),
+      remove: (id: string) => api.deleteMessage(id),
+      react: (id: string, emoji: string) => api.react(id, emoji),
+    }),
+    [api, event.id],
+  );
 
   const shareLink = useCallback(() => {
     // The link alone. The name arrives with it — a shared link unfurls into a
@@ -1574,8 +1650,7 @@ function EventScreen({
           </>
         ) : pane === 'talk' ? (
           <Thread
-            api={api}
-            eventId={event.id}
+            actions={eventThread}
             messages={messages}
             canPost={feed?.canPost ?? false}
             // This event's contributors and nobody else — the rule the web's

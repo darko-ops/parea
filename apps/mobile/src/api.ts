@@ -207,7 +207,21 @@ export type Cluster = {
   suggestedName: string | null;
 };
 
-export type MyGroupDetail = {
+/**
+ * A conversation as one line, for a list of them.
+ *
+ * The same shape for a group's thread and an event's, because the Groups tab
+ * draws both in one scroll and two shapes would be two row components that
+ * drift. `lastMessage` is null for a thread nobody has said anything in — a
+ * door rather than an error, and the row says so in words.
+ */
+export type ThreadLine = {
+  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  /** Posted since this viewer last read it. Zero when signed out. */
+  unreadCount: number;
+};
+
+export type MyGroupDetail = ThreadLine & {
   id: string;
   name: string;
   role: 'member' | 'admin';
@@ -284,7 +298,7 @@ export type EventListing = {
    * `/api/events` mosaic was for, and nothing else reads it yet.
    */
   mosaic: string[];
-};
+} & ThreadLine;
 
 /** A group as a stranger sees it: a door, never the room. */
 export type GroupDoor = {
@@ -603,6 +617,62 @@ export class Api {
    */
   deleteMessage(messageId: string): Promise<unknown> {
     return this.call(`/api/messages/${messageId}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Say that this event's thread has been read, up to now.
+   *
+   * Its own call rather than a side effect of reading the feed: the phone
+   * fetches photographs, roster and thread in one request, and clearing a
+   * badge because somebody opened an album would clear it for a conversation
+   * they never looked at. Sent when the Talk pane is actually reached.
+   */
+  markEventRead(eventId: string, linkToken: string): Promise<unknown> {
+    return this.call(
+      `/api/events/${eventId}/read?t=${encodeURIComponent(linkToken)}`,
+      { method: 'POST' },
+    );
+  }
+
+  // --- a group's own thread --------------------------------------------------
+
+  /**
+   * The conversation in a group, oldest first.
+   *
+   * Membership is the whole access rule — there is no link that opens one, and
+   * somebody who can see the photographs in an event under the group cannot
+   * read this. A non-member is answered 404 rather than 403, so asking is not
+   * a way to find out that a group exists.
+   *
+   * Fetching it is what marks it read; `peek` asks for the messages without
+   * making that claim.
+   */
+  groupMessages(groupId: string, peek = false): Promise<{ messages: Message[] }> {
+    return this.call<{ messages: Message[] }>(
+      `/api/groups/${groupId}/messages${peek ? '?peek=1' : ''}`,
+    );
+  }
+
+  postGroupMessage(groupId: string, body: string): Promise<{ id: string }> {
+    return this.call<{ id: string }>(`/api/groups/${groupId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  /*
+   * A separate path from an event message's, because the ids come out of two
+   * tables and a route that guesses which one is a route that can guess wrong.
+   */
+  editGroupMessage(messageId: string, body: string): Promise<unknown> {
+    return this.call(`/api/group-messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  deleteGroupMessage(messageId: string): Promise<unknown> {
+    return this.call(`/api/group-messages/${messageId}`, { method: 'DELETE' });
   }
 
   /** One tap, and the same tap again takes it off. The route toggles. */
