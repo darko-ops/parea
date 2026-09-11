@@ -1037,6 +1037,49 @@ export const groupMessages = pgTable(
   ],
 );
 
+/**
+ * One person's reaction to one photograph.
+ *
+ * `message_reaction` is the same shape about a different object, and the two
+ * stay apart rather than growing a nullable pair of anchors. The reason is not
+ * tidiness: a message reaction is bounded by who can read the thread, and a
+ * photo reaction is bounded by `visiblePhotos` — which also answers for
+ * removed, hidden and blocked, three states a message does not have. One table
+ * would mean one query that has to satisfy both bounds at once, and the day
+ * those disagree is the day a reaction survives the photograph it was about.
+ *
+ * A row rather than a count, for the same reason as the message version: the
+ * question a pill answers is "did *you* react", and a counter cannot be
+ * un-clicked by the person who clicked it. The primary key is the whole tuple,
+ * so reacting twice with the same emoji is one reaction.
+ *
+ * No tombstone here. A reaction is not a thing somebody said, so taking it
+ * back leaves nothing that the pictures either side of it could appear to be
+ * answering — which is the whole argument for the deleted-message gap, and it
+ * does not apply.
+ */
+export const photoReactions = pgTable(
+  'photo_reaction',
+  {
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.photoId, t.actorId, t.emoji] }),
+    // Every read is "the reactions on these photographs", which the primary
+    // key's leading column already serves. The index earns its place on the
+    // other direction: everything one person has reacted to, which is what a
+    // merge has to move and an account deletion has to find.
+    index('photo_reaction_actor_idx').on(t.actorId),
+  ],
+);
+
 /*
  * How far somebody has read, in each kind of thread.
  *

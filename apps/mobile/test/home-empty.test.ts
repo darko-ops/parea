@@ -147,6 +147,40 @@ describe('the card the home list draws', () => {
     expect(under.indexOf('{host}')).toBeLessThan(under.indexOf('{event.name}'));
     // No longer the first thing on the card, so no longer set like it.
     expect(EVENTS).toMatch(/eventName: \{ fontSize: 18, fontWeight: '700' \}/);
+
+    /*
+     * And on one line, as one sentence.
+     *
+     * Nested `Text` rather than a row: inside a single `Text` the baseline is
+     * the text engine's problem, where a flex row would need telling both how
+     * to align a 13pt name against an 18pt title and which of the two may
+     * shrink. `numberOfLines` on the outer one truncates the line as a line,
+     * so a long title runs out of room rather than squeezing the name.
+     */
+    expect(under).toMatch(
+      /<Text numberOfLines=\{1\}>\s*\{host && \([\s\S]*?\{event\.name\}<\/Text>\s*<\/Text>/,
+    );
+  });
+});
+
+describe('the heading row', () => {
+  it('is a title and one `+`, not two words', () => {
+    /*
+     * The same 36pt bordered circle the Groups tab makes a group with and the
+     * album screen adds photographs with. Three tabs, one shape for "make
+     * something here".
+     */
+    expect(HOME).toMatch(/accessibilityLabel="Start an event"/);
+    expect(HOME).toMatch(/styles\.newGroup/);
+    expect(HOME).toMatch(/<Glyph name="plus" size=\{20\}/);
+    expect(HOME).not.toMatch(/Start one/);
+  });
+
+  it('no longer sends anybody to a button that is not there', () => {
+    // `Open a link` is gone, and so is the empty card's instruction to use it.
+    expect(HOME).not.toMatch(/Open a link/);
+    expect(HOME).not.toMatch(/onOpenLink/);
+    expect(APP).not.toMatch(/onOpenLink=/);
   });
 });
 

@@ -257,12 +257,23 @@ function EventCard({
 
       <View style={styles.under}>
         {/*
-          The name, and only the name — and above the title rather than under.
+          The name, then the evening, on one line.
 
-          Whose evening it was is the first thing read off the card now: the
-          picture at the top is theirs, and both ends of the card being about
-          the same person is what makes the middle of it an evening rather than
-          a listing. The title reads as what they called it.
+          Whose evening it was is read first: the picture at the top is theirs,
+          and both ends of the card being about the same person is what makes
+          the middle of it an evening rather than a listing. The title follows
+          on the same baseline, which is what turns two stacked facts into one
+          sentence — "You, at Ana's birthday" rather than a label above a
+          heading.
+
+          Nested `Text` rather than a row of two.
+
+          A `flexDirection: 'row'` would need `alignItems: 'baseline'` to stop
+          a 13pt name floating against an 18pt title, and it would then have to
+          be told which of the two may shrink. Inside one `Text` the baseline
+          is the text engine's problem, and `numberOfLines={1}` truncates the
+          line as a line — so a long title runs out of room rather than
+          squeezing the name that introduces it.
 
           This line used to print both names — "both, always", on the reasoning
           that printing one makes the reader guess which they have. The byline
@@ -275,13 +286,11 @@ function EventCard({
           "You" — your own name read back at you on a wall of your own evenings
           is the screen describing you to yourself.
         */}
-        {host && (
-          <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-            {host}
-          </Text>
-        )}
-        <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
-          {event.name}
+        <Text numberOfLines={1}>
+          {host && (
+            <Text style={[styles.small, { color: t.dim }]}>{host}  </Text>
+          )}
+          <Text style={[styles.eventName, { color: t.fg }]}>{event.name}</Text>
         </Text>
         {/*
           When first, then who — and at the same size as the host line above
@@ -355,7 +364,6 @@ export function HomeTab({
   onOpen,
   onRefresh,
   onCreate,
-  onOpenLink,
   Button,
 }: {
   api: Api;
@@ -365,8 +373,6 @@ export function HomeTab({
   onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
-  /** The link, the QR code and the spoken phrase — all three doors, one screen. */
-  onOpenLink: () => void;
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
@@ -415,33 +421,27 @@ export function HomeTab({
       }
     >
       {/*
-        "Start one" sits on the title's baseline rather than being a button at
-        the end of the list. It is the one thing someone arriving with nothing
-        needs, and at the bottom of a long list it is the one place they will
-        not look.
+        A title and the one thing you can make from here.
+
+        `Start one` was a word on the title's baseline and is a `+` now — the
+        same 36pt bordered circle the Groups tab makes a group with and the
+        album screen adds photographs with. Three tabs, one shape for "make
+        something here", and it stops the heading row being two things to read
+        on the way to the evenings underneath it.
       */}
       <View style={styles.headRow}>
         <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
-        {/*
-          Two actions, and the order is the argument: most people arrive
-          holding a link somebody sent them, and the second one is the screen
-          that takes it — along with a QR code and a spoken phrase.
-
-          It used to be a pill of its own pinned above the tab bar, on every
-          tab. Being sent a link is how most people arrive, so it was never
-          more than one tap away — but the price was a permanent second bar
-          across the bottom of every screen, announcing a door most people
-          walk through once. It is one tap from here, which is where somebody
-          who has just been sent something is looking.
-        */}
-        <View style={styles.headActions}>
-          <Pressable onPress={onOpenLink} accessibilityRole="button">
-            <Text style={[styles.headAction, { color: t.accent }]}>Open a link</Text>
-          </Pressable>
-          <Pressable onPress={onCreate} accessibilityRole="button">
-            <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={onCreate}
+          accessibilityRole="button"
+          accessibilityLabel="Start an event"
+          style={({ pressed }) => [
+            styles.newGroup,
+            { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Glyph name="plus" size={20} color={t.fg} />
+        </Pressable>
       </View>
 
       {/*
@@ -461,9 +461,13 @@ export function HomeTab({
 
       {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+          {/* No longer points at `Open a link`, which is not on this screen
+              any more. An event somebody sends you opens itself when you tap
+              it, so the only thing left for this card to offer is the one
+              action that is here. */}
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Events you are sent, or make, show up here — use
-            Open a link above for one somebody has sent you.
+            Nothing here yet. Events you are sent open when you tap the link,
+            and the ones you make show up here.
           </Text>
           <Button label="Create Event" onPress={onCreate} t={t} primary />
         </View>

@@ -63,6 +63,7 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
 import { arrivalFromUrl } from './src/links';
@@ -600,7 +601,6 @@ export default function App() {
               onCreate={() => setRoute({ screen: 'create' })}
               // The join screen's only way in, now that the pill above the tab
               // bar is gone: a link, a QR code or a spoken phrase.
-              onOpenLink={() => setRoute({ screen: 'join' })}
               Button={Button}
             />
           )}
@@ -923,6 +923,8 @@ function EventScreen({
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
+  /** The `⋯` sheet inside the viewer: remove, ask down, report, block. */
+  const [actionsFor, setActionsFor] = useState<FeedPhoto | null>(null);
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
   const [offerUpgrade, setOfferUpgrade] = useState(false);
@@ -1604,11 +1606,23 @@ function EventScreen({
               </View>
             )}
 
+            {/*
+              One photograph per row, the width of the screen.
+
+              It was a three-column grid of 121pt squares, which is a contact
+              sheet: good for finding a photograph you already know is in
+              there, and nothing at all like looking at one. Every square was
+              also a crop — `contentFit="cover"` on a 1:1 tile throws away the
+              ends of everything anybody shot in portrait.
+
+              A column of full-width pictures is what the home screen does with
+              evenings, and this is the same argument one level down: the
+              photograph is the thing, so it gets the width. Square corners and
+              no side gutter for the same reason the cards have none.
+            */}
             <FlatList
               data={feed?.photos ?? []}
               keyExtractor={(photo) => photo.id}
-              numColumns={3}
-              columnWrapperStyle={styles.gridRow}
               contentContainerStyle={styles.gridContent}
               refreshControl={
                 <RefreshControl
@@ -1632,14 +1646,14 @@ function EventScreen({
               renderItem={({ item }) => (
                 <Pressable style={styles.tile} onPress={() => setSelected(item)}>
                   {/*
-                    The 640 rather than the 320. A tile is a third of the
-                    screen's width, which is 390 device pixels on a 3× phone —
-                    `src` is a 320 and was being scaled up into it. `card` is
-                    null only before the deriver has been round, and `src` is
-                    then the only thing that exists.
+                    The 1280 now that a row is the whole width of the screen:
+                    393 points is 1179 device pixels on a 3× phone, and the 640
+                    that was right for a third of a row cannot fill one. Both
+                    fall back the same way — each is null only until the
+                    deriver has been round, and `src` is then all there is.
                   */}
                   <ExpoImage
-                    source={{ uri: item.card ?? item.src }}
+                    source={{ uri: item.grid ?? item.card ?? item.src }}
                     style={styles.thumb}
                     contentFit="cover"
                     transition={120}
@@ -1770,13 +1784,45 @@ function EventScreen({
         </Pressable>
       </Modal>
 
+      {/*
+        The photograph, on its own, over everything.
+
+        A full-screen modal rather than a sheet: what was here was a thumbnail
+        on a card above five full-width buttons, on the screen whose whole
+        subject is one picture. The viewer owns the glass; the five buttons are
+        behind its `⋯`, which opens the sheet below.
+      */}
       {selected && (
+        <Modal visible animationType="fade" onRequestClose={() => setSelected(null)}>
+          <PhotoViewer
+            api={api}
+            photo={
+              // Re-read off the feed rather than held: a reaction refreshes the
+              // feed, and the copy captured when the tile was tapped would go
+              // on showing the counts as they were before the tap.
+              feed?.photos.find((p) => p.id === selected.id) ?? selected
+            }
+            t={t}
+            canReact={feed?.canPost ?? false}
+            onClose={() => setSelected(null)}
+            onChanged={refresh}
+            onOptions={() => setActionsFor(selected)}
+          />
+        </Modal>
+      )}
+
+      {actionsFor && (
         <PhotoActions
           api={api}
-          photo={selected}
+          photo={actionsFor}
           t={t}
-          onClose={() => setSelected(null)}
-          onChanged={refresh}
+          onClose={() => setActionsFor(null)}
+          onChanged={async () => {
+            await refresh();
+            // Removing or hiding the photograph takes the viewer with it —
+            // there is nothing left underneath for it to be showing.
+            setSelected(null);
+          }}
         />
       )}
     </View>
@@ -2219,7 +2265,9 @@ function PhotoActions({
     <Modal visible animationType="slide" onRequestClose={onClose} transparent>
       <View style={styles.sheetBackdrop}>
         <View style={[styles.sheet, { backgroundColor: t.card }]}>
-          <Image source={{ uri: photo.full }} style={styles.sheetImage} />
+          {/* No thumbnail at the top any more: the photograph this is about is
+              full-screen directly behind the sheet, and a 160pt copy of it
+              above the buttons was the only way to see it before. */}
           {photo.mine ? (
             <Button
               label="Remove my photo"
@@ -2506,8 +2554,8 @@ const styles = StyleSheet.create({
   /* Three across with hairline gaps, running under the safe area rather than
      stopping above it: the grid is one object and the last row of it being cut
      by the screen's edge is what says there is more. */
-  gridContent: { paddingHorizontal: 12, paddingBottom: 12, gap: 3 },
-  gridRow: { gap: 3 },
+  /* No side gutter: the photographs run to both edges, as the home cards do. */
+  gridContent: { paddingBottom: 12, gap: 3 },
   h1: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
@@ -2572,7 +2620,12 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 16, fontWeight: '600' },
   listRow: { paddingVertical: 10 },
   tile: { flex: 1 },
-  thumb: { width: '100%', aspectRatio: 1, borderRadius: 6, backgroundColor: '#8883' },
+  /* 4:5 rather than square, and no radius.
+     A 1:1 crop takes the ends off everything shot in portrait, which is most
+     of what a phone shoots at an evening; 4:5 is the tallest shape that still
+     fits two photographs on a screen, so the column still reads as a list
+     rather than as one picture at a time. */
+  thumb: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#8883' },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   sheet: {
     padding: 16,

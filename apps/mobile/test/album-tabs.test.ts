@@ -94,19 +94,38 @@ describe('one header, three panes', () => {
 });
 
 describe('the grid', () => {
-  it('draws the 640 rather than the 320', () => {
-    // A tile is a third of the screen: 390 device pixels on a 3× phone.
-    expect(SCREEN).toMatch(/source=\{\{ uri: item\.card \?\? item\.src \}\}/);
+  it('is one photograph per row, not a contact sheet', () => {
+    /*
+     * Three columns of 121pt squares is good for finding a photograph you
+     * already know is in there and nothing like looking at one — and every
+     * square was a crop, since `cover` on a 1:1 tile takes the ends off
+     * anything shot in portrait.
+     */
+    expect(SCREEN).not.toMatch(/numColumns=\{3\}/);
+    expect(SCREEN).not.toMatch(/columnWrapperStyle/);
+    expect(APP).toMatch(/thumb: \{ width: '100%', aspectRatio: 4 \/ 5/);
+    // Edge to edge, as the home cards are.
+    expect(APP).toMatch(/gridContent: \{ paddingBottom: 12, gap: 3 \}/);
+  });
+
+  it('draws the 1280 now that a row is the whole screen', () => {
+    // 393 points is 1179 device pixels on a 3× phone, which the 640 that was
+    // right for a third of a row cannot fill.
+    expect(SCREEN).toMatch(/source=\{\{ uri: item\.grid \?\? item\.card \?\? item\.src \}\}/);
   });
 
   it('still has something to draw before the deriver has run', () => {
-    // `card` is null until the derivatives exist, and `src` is then the only
+    // Both are null until the derivatives exist, and `src` is then the only
     // thing there is.
     expect(API).toMatch(/card: string \| null/);
+    expect(API).toMatch(/grid: string \| null/);
   });
 
   it('leaves the one being looked at on the 2560', () => {
-    // The lightbox was never the problem and is not re-pointed at `card`.
-    expect(APP).toMatch(/source=\{\{ uri: photo\.full \}\}/);
+    // The viewer was never the problem and is not re-pointed at a smaller
+    // rendition. It lives in its own file now; the album only opens it.
+    const VIEWER = read('src/PhotoViewer.tsx');
+    expect(VIEWER).toMatch(/source=\{\{ uri: photo\.full \}\}/);
+    expect(VIEWER).toMatch(/contentFit="contain"/);
   });
 });

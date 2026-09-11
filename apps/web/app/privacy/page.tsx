@@ -215,6 +215,13 @@ export default function PrivacyPage() {
             each other. Somebody you have blocked does not appear in the thread
             you see, exactly as their photographs do not.
           </p>
+          <p className="muted">
+            You can also react to a photograph itself, without saying anything.
+            What is kept is which emoji you chose and which picture you chose it
+            on. Everybody who can see the photograph sees the reaction; what
+            they see is a count, so nobody is told by name who left which one,
+            and tapping it again takes it back and removes the record.
+          </p>
 
           <h3>What you write in a group</h3>
           <p className="muted">

@@ -31,6 +31,14 @@ export type FeedPhoto = {
    * which is what made albums look soft. Null until the derivatives exist.
    */
   card: string | null;
+  /**
+   * 1280px, and what a full-width row draws.
+   *
+   * The album is one photograph per row now, so a tile is the width of the
+   * screen — 1179 device pixels on a 3× phone, which the 640 `card` cannot
+   * fill without being scaled up. Null until the derivatives exist.
+   */
+  grid: string | null;
   /** 2560px rendition, for looking at one. */
   full: string;
   /** The camera's own file. What gets saved to the camera roll. */
@@ -40,6 +48,14 @@ export type FeedPhoto = {
   mime: string;
   takenAt: string;
   mine: boolean;
+  /**
+   * Emoji to the people who chose it, and whether the viewer is one of them.
+   *
+   * Empty for a photograph nobody has reacted to, which is most of them — the
+   * viewer draws no row of pills rather than an empty one. A count and never a
+   * name: who left which reaction is not disclosed to anybody.
+   */
+  reactions: { emoji: string; count: number; mine: boolean }[];
 };
 
 export type Feed = {
@@ -686,6 +702,20 @@ export class Api {
 
   deleteGroupMessage(messageId: string): Promise<unknown> {
     return this.call(`/api/group-messages/${messageId}`, { method: 'DELETE' });
+  }
+
+  /**
+   * The same tap, on a photograph rather than on a message.
+   *
+   * Its own path because the ids come out of two tables, and a route that had
+   * to guess which one it was handed is a route that can guess wrong. Toggles,
+   * like the message version: the response says which way it went.
+   */
+  reactToPhoto(photoId: string, emoji: string): Promise<{ state: 'added' | 'removed' }> {
+    return this.call<{ state: 'added' | 'removed' }>(
+      `/api/photos/${photoId}/reactions`,
+      { method: 'POST', body: JSON.stringify({ emoji }) },
+    );
   }
 
   /** One tap, and the same tap again takes it off. The route toggles. */

@@ -118,6 +118,15 @@ const OWNED: {
   // which is more than can be said for a merge that fails on a constraint.
   { table: 'event_thread_read', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'group_thread_read', column: 'actor_id', uniqueWith: ['group_id'] },
+  // The same collision as a message reaction, about a photograph: both actors
+  // having left the same emoji on the same picture is one reaction, not two,
+  // so the loser's row goes rather than moving — which is also what the
+  // primary key requires.
+  {
+    table: 'photo_reaction',
+    column: 'actor_id',
+    uniqueWith: ['photo_id', 'emoji'],
+  },
   // Lines somebody has dismissed on Activity. Moved rather than dropped: the
   // feed is derived from rows that survive the merge, so a notification hidden
   // on the laptop would otherwise come back the moment the phone signs in —
