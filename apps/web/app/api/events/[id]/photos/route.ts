@@ -24,6 +24,7 @@ import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
+import { reactionsForPhotos } from '@/photoReactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -64,6 +65,9 @@ export async function GET(
 
   // Asked once for the page rather than per row — see `photosWithCard`.
   const hasCard = await photosWithCard(db, rows.map((row) => row.id));
+  // And the reactions, for the same reason: an album is a column of every
+  // picture in the event, and a query per row grows with it.
+  const reactions = await reactionsForPhotos(db, rows.map((row) => row.id), viewerId);
 
   const photos = await Promise.all(
     rows.map(async (photo) => ({
@@ -81,6 +85,39 @@ export async function GET(
       // A 320px thumbnail rather than a multi-megabyte original: a 200-photo
       // grid of originals is ~800MB of pointless transfer.
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
+      /*
+       * The same tile at 640, for a client that picks its own size.
+       *
+       * The browser gets this through `srcSet` below and has done since `card`
+       * was added. The native client has no `srcset` — it hands one URL to one
+       * image view — so it was rendering the 320 into a tile that is a third
+       * of a phone's width: about 130 points, which is 390 device pixels on
+       * every 3× iPhone. A 320px JPEG encoded at quality 72 and then scaled
+       * *up* by a fifth is the blur people were seeing in their albums.
+       *
+       * Null before the deriver has been round, which is the same condition
+       * `srcSet` already tests for; the client falls back to `src` and gets
+       * what it used to get.
+       */
+      card: hasCard.has(photo.id)
+        ? await imageSrc(photo, 'card', event.capEpoch)
+        : null,
+      /*
+       * And the 1280, for a client that draws one photograph per row.
+       *
+       * The native album is a single full-width column rather than a grid of
+       * thirds, so a tile is the whole width of the screen — about 393 points,
+       * which is 1179 device pixels on a 3× phone. The 640 that is right for a
+       * third of a row would be scaled up by nearly a fifth again to fill one,
+       * which is the same mistake the 320 was making before `card` existed.
+       *
+       * Still not `full`: that is 2560 and an archive rendition, and a column
+       * of them is tens of megabytes to scroll past a screen of photographs
+       * nobody has tapped yet.
+       */
+      grid: hasDerivatives(photo)
+        ? await imageSrc(photo, 'grid', event.capEpoch)
+        : null,
       /*
        * Two sizes, so the browser can pick one that matches the slot.
        *
@@ -101,6 +138,13 @@ export async function GET(
       // 2560px `full` above is a lightbox rendition, not the photo. The web
       // has no use for it — its terminal action is the zip.
       original: await imageSrc(photo, 'orig', event.capEpoch),
+      /*
+       * Emoji to the people who chose it, and whether the viewer is one.
+       *
+       * Empty for a photograph nobody has reacted to, which is most of them —
+       * the client draws no row of pills rather than an empty one.
+       */
+      reactions: reactions.get(photo.id) ?? [],
     })),
   );
 

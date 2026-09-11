@@ -36,6 +36,7 @@ import type {
   EventListing,
   InvitablePerson,
   MyGroupDetail,
+  ThreadLine,
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import { Glyph } from './Glyph';
@@ -134,13 +135,76 @@ function EventCard({
   }
 
   const live = isLive(event.lastActiveAt, now);
-  const faces = event.faces.slice(0, CARD_FACES);
-  const moreFaces = Math.max(0, event.memberCount - faces.length);
+  /*
+   * The circles are everybody the host shared it with, and no longer the host.
+   *
+   * They are named and pictured in the byline directly above, so the first
+   * circle was the same person twice on one card — and on your own evenings it
+   * was your own face, over a photograph you took, on a wall of your own
+   * events.
+   *
+   * Filtered rather than sliced off the front. The server orders the host
+   * first, so dropping `[0]` would look identical right up until an event
+   * whose creator never turned up to it — at which point the card would
+   * quietly stop showing a real guest.
+   */
+  const others = event.faces.filter((face) => !face.isCreator);
+  const faces = others.slice(0, CARD_FACES);
+  /*
+   * Everybody no circle shows — and not the host either, who has the byline.
+   *
+   * `memberCount` counts the host when they are in their own event, which is
+   * usually but not always. Rather than assume, subtract them only when the
+   * face rows actually held one.
+   */
+  const hostCounted = event.faces.length > others.length ? 1 : 0;
+  const moreFaces = Math.max(0, event.memberCount - hostCounted - faces.length);
   const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
   const host = event.mine ? 'You' : event.creator.name;
 
+  /*
+   * Whose evening this is, above the photograph rather than under it.
+   *
+   * The handle rather than the display name: it is the half of somebody that
+   * is unique and the half they can be found by, and a wall of evenings is
+   * exactly where two people called Ana need telling apart. The name still
+   * appears in the line under the title — this row is the byline, that line is
+   * the sentence.
+   *
+   * Written without the `@`. The sigil is what tells a handle from a name when
+   * the two sit together in a sentence, and nothing here is a sentence: it is
+   * a face and the word beside it, which is a byline, and a byline reads as a
+   * name whether or not it is punctuated like one.
+   *
+   * Never a silhouette where there is no picture, which is the rule every
+   * other face in this product follows: a letter on the person's own lens
+   * colour, hashed from their handle so it is theirs and stays theirs.
+   */
+  const by = event.creator.handle ?? event.creator.name ?? 'Someone';
+  const byLens = lensFor(event.creator.handle ?? event.creator.name ?? event.id);
+
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <View style={styles.byline}>
+        {event.creator.avatarUrl ? (
+          <Image
+            source={{ uri: event.creator.avatarUrl }}
+            style={[styles.bylineFace, { backgroundColor: t.line }]}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : (
+          <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
+            <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
+              {initialOf(event.creator.name ?? event.creator.handle)}
+            </Text>
+          </View>
+        )}
+        <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
+          {by}
+        </Text>
+      </View>
+
       <View style={styles.cover}>
         {event.cover && (
           <Image
@@ -192,23 +256,42 @@ function EventCard({
       )}
 
       <View style={styles.under}>
-        <Text style={[styles.eventName, { color: t.fg }]} numberOfLines={1}>
-          {event.name}
-        </Text>
         {/*
-          Whose event it is, in their own two names — both, always. The name is
-          what somebody recognises and the handle is what is unique, so
-          printing one makes the reader guess which they have. On your own
-          events the name is "You": your own name read back at you on a wall of
-          your own evenings is the screen describing you to yourself.
+          The name, then the evening, on one line.
+
+          Whose evening it was is read first: the picture at the top is theirs,
+          and both ends of the card being about the same person is what makes
+          the middle of it an evening rather than a listing. The title follows
+          on the same baseline, which is what turns two stacked facts into one
+          sentence — "You, at Ana's birthday" rather than a label above a
+          heading.
+
+          Nested `Text` rather than a row of two.
+
+          A `flexDirection: 'row'` would need `alignItems: 'baseline'` to stop
+          a 13pt name floating against an 18pt title, and it would then have to
+          be told which of the two may shrink. Inside one `Text` the baseline
+          is the text engine's problem, and `numberOfLines={1}` truncates the
+          line as a line — so a long title runs out of room rather than
+          squeezing the name that introduces it.
+
+          This line used to print both names — "both, always", on the reasoning
+          that printing one makes the reader guess which they have. The byline
+          above the photograph carries the handle now, so printing it again
+          here says the same unique thing twice on one card and leaves the name
+          looking like a label for it.
+
+          What is left is the half the byline does not have: what somebody is
+          called, which is what a reader recognises. On your own events that is
+          "You" — your own name read back at you on a wall of your own evenings
+          is the screen describing you to yourself.
         */}
-        {(host || event.creator.handle) && (
-          <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-            {host}
-            {host && event.creator.handle ? '  ' : ''}
-            {event.creator.handle ? `@${event.creator.handle}` : ''}
-          </Text>
-        )}
+        <Text numberOfLines={1}>
+          {host && (
+            <Text style={[styles.small, { color: t.dim }]}>{host}  </Text>
+          )}
+          <Text style={[styles.eventName, { color: t.fg }]}>{event.name}</Text>
+        </Text>
         {/*
           When first, then who — and at the same size as the host line above
           it rather than a step larger.
@@ -281,7 +364,6 @@ export function HomeTab({
   onOpen,
   onRefresh,
   onCreate,
-  onOpenLink,
   Button,
 }: {
   api: Api;
@@ -291,8 +373,6 @@ export function HomeTab({
   onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
-  /** The link, the QR code and the spoken phrase — all three doors, one screen. */
-  onOpenLink: () => void;
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
@@ -300,6 +380,29 @@ export function HomeTab({
   // above it stale would make the count the thing nobody trusts.
   const [pulled, setPulled] = useState(0);
   const now = useNow();
+
+  /*
+   * Albums with nothing in them are not on this page.
+   *
+   * An empty album is a card that asks to be opened and then has nothing to
+   * show — and most of them were never this person's doing: somebody made an
+   * evening, added people, and the evening has not happened yet. A column of
+   * those is the first thing the product's main screen said, on the tab whose
+   * whole subject is photographs.
+   *
+   * `arrivingCount` counts too, so an album stays put between the upload
+   * finishing and the deriver getting to it. Without that, adding the first
+   * photograph to an album would make it disappear for the minute or so the
+   * derivatives take and then come back, which is worse than either state.
+   *
+   * This hides your own empty albums as well. Making one still lands you
+   * inside it — `onCreated` opens the event rather than returning to this
+   * list — so the way in is the link, the group it belongs to, or adding the
+   * photograph that puts it back here.
+   */
+  const filled = events.filter(
+    (event) => event.photoCount > 0 || event.arrivingCount > 0,
+  );
 
   return (
     <ScrollView
@@ -318,33 +421,27 @@ export function HomeTab({
       }
     >
       {/*
-        "Start one" sits on the title's baseline rather than being a button at
-        the end of the list. It is the one thing someone arriving with nothing
-        needs, and at the bottom of a long list it is the one place they will
-        not look.
+        A title and the one thing you can make from here.
+
+        `Start one` was a word on the title's baseline and is a `+` now — the
+        same 36pt bordered circle the Groups tab makes a group with and the
+        album screen adds photographs with. Three tabs, one shape for "make
+        something here", and it stops the heading row being two things to read
+        on the way to the evenings underneath it.
       */}
       <View style={styles.headRow}>
         <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
-        {/*
-          Two actions, and the order is the argument: most people arrive
-          holding a link somebody sent them, and the second one is the screen
-          that takes it — along with a QR code and a spoken phrase.
-
-          It used to be a pill of its own pinned above the tab bar, on every
-          tab. Being sent a link is how most people arrive, so it was never
-          more than one tap away — but the price was a permanent second bar
-          across the bottom of every screen, announcing a door most people
-          walk through once. It is one tap from here, which is where somebody
-          who has just been sent something is looking.
-        */}
-        <View style={styles.headActions}>
-          <Pressable onPress={onOpenLink} accessibilityRole="button">
-            <Text style={[styles.headAction, { color: t.accent }]}>Open a link</Text>
-          </Pressable>
-          <Pressable onPress={onCreate} accessibilityRole="button">
-            <Text style={[styles.headAction, { color: t.accent }]}>Start one</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={onCreate}
+          accessibilityRole="button"
+          accessibilityLabel="Start an event"
+          style={({ pressed }) => [
+            styles.newGroup,
+            { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Glyph name="plus" size={20} color={t.fg} />
+        </Pressable>
       </View>
 
       {/*
@@ -360,19 +457,23 @@ export function HomeTab({
         onAnswered={() => void onRefresh()}
       />
 
-      {loading && events.length === 0 && <ActivityIndicator color={t.accent} />}
+      {loading && filled.length === 0 && <ActivityIndicator color={t.accent} />}
 
-      {!loading && events.length === 0 && (
+      {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+          {/* No longer points at `Open a link`, which is not on this screen
+              any more. An event somebody sends you opens itself when you tap
+              it, so the only thing left for this card to offer is the one
+              action that is here. */}
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Events you are sent, or make, show up here — use
-            Open a link above for one somebody has sent you.
+            Nothing here yet. Events you are sent open when you tap the link,
+            and the ones you make show up here.
           </Text>
           <Button label="Create Event" onPress={onCreate} t={t} primary />
         </View>
       )}
 
-      {events.map((event) => (
+      {filled.map((event) => (
         <EventCard
           key={event.id}
           event={event}
@@ -479,7 +580,10 @@ export function GroupsTab({
   api,
   events,
   t,
+  openCreate = 0,
   onOpenGroup,
+  onOpenGroupThread,
+  onOpenEventThread,
   onGoToEvents,
 }: {
   api: Api;
@@ -492,7 +596,20 @@ export function GroupsTab({
    */
   events: EventListing[];
   t: TabTheme;
+  /**
+   * Bumped by somebody who asked to make a group from another tab.
+   *
+   * A counter rather than a boolean: the profile's `+` can be pressed twice,
+   * and the second press has to open the form again after the first was
+   * cancelled — which a flag that is already `true` cannot say. The form
+   * itself stays here because this is where the suggestions are.
+   */
+  openCreate?: number;
   onOpenGroup: (groupId: string) => void;
+  /** A group's own conversation, which is not the same place as the group. */
+  onOpenGroupThread: (group: MyGroupDetail) => void;
+  /** An event's conversation — the album, opened on its Talk pane. */
+  onOpenEventThread: (event: EventListing) => void;
   /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
 }) {
@@ -521,6 +638,12 @@ export function GroupsTab({
     void load();
   }, [load]);
 
+  // Zero is the value nobody asked with — the tab opening normally, rather
+  // than somebody arriving on it holding a press.
+  useEffect(() => {
+    if (openCreate > 0) setMaking('anyone');
+  }, [openCreate]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     await load();
@@ -539,6 +662,29 @@ export function GroupsTab({
     }
     return map;
   }, [events]);
+
+  /*
+   * The evenings that belong to no group, newest conversation first.
+   *
+   * Sorted by when something was last *said*, falling back to when the album
+   * was last added to. A list of conversations ordered by upload time puts a
+   * silent album full of photographs above the one somebody is talking in,
+   * which is the wrong answer on a tab about talking.
+   *
+   * An event with no messages still lists. It is a door — the thread is how
+   * you get to it, and hiding it until somebody speaks means nobody ever does.
+   */
+  const loose = useMemo(
+    () =>
+      events
+        .filter((event) => !event.groupId)
+        .sort((a, b) =>
+          (b.lastMessage?.at ?? b.lastActiveAt).localeCompare(
+            a.lastMessage?.at ?? a.lastActiveAt,
+          ),
+        ),
+    [events],
+  );
 
   return (
     <ScrollView
@@ -565,10 +711,19 @@ export function GroupsTab({
             accessibilityLabel="New group"
             style={({ pressed }) => [
               styles.newGroup,
-              { backgroundColor: t.accent, opacity: pressed ? 0.7 : 1 },
+              {
+                // The same quiet control the album screen's "add photos" is,
+                // rather than a filled accent circle. Two tabs, one shape for
+                // "make something here" — and a solid blue disc beside a 30pt
+                // title was the loudest thing on a screen whose subject is
+                // underneath it.
+                backgroundColor: t.card,
+                borderColor: t.line,
+                opacity: pressed ? 0.7 : 1,
+              },
             ]}
           >
-            <Glyph name="plus" size={20} color={t.onAccent} />
+            <Glyph name="plus" size={20} color={t.fg} />
           </Pressable>
         )}
       </View>
@@ -622,15 +777,82 @@ export function GroupsTab({
             albums={byGroup.get(group.id) ?? []}
             t={t}
             onPress={() => onOpenGroup(group.id)}
+            onOpenThread={() => onOpenGroupThread(group)}
           />
         ))
       )}
 
       {/*
-        What the product noticed, as one line under everything it already knows
-        about. Never more than two, and a cluster whose people are already
-        gathered in one of these groups is dropped by the server — which is
-        what lets this stay without needing a way to dismiss it.
+        The conversations that belong to no group.
+
+        An evening with the same six people every month becomes a group and its
+        talk moves under that group's block. An evening that never will — a
+        wedding, somebody's leaving do, the one barbecue — still has a thread,
+        and before this it was reachable only by remembering which album it was
+        inside. This is the other half of "one tab for every conversation".
+
+        Grouped events are deliberately absent: their talk belongs under the
+        group, and listing them twice would make the busiest rooms the noisiest
+        part of a screen that is meant to be scanned.
+      */}
+      {loose.length > 0 && (
+        <View style={{ gap: 2 }}>
+          <Text style={[styles.sectionLabel, { color: t.dim }]}>EVENT CHATS</Text>
+          {loose.map((event, i) => (
+            <Pressable
+              key={event.id}
+              onPress={() => onOpenEventThread(event)}
+              accessibilityRole="button"
+              accessibilityLabel={`${event.name}, conversation`}
+              style={({ pressed }) => [
+                styles.chatRow,
+                // No rule under the last one: a divider at the foot of a list
+                // is a line under nothing.
+                i < loose.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.line },
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              {event.cover ? (
+                <Image
+                  source={{ uri: event.cover.src }}
+                  style={[styles.chatThumb, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View
+                  style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]}
+                />
+              )}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
+                  {event.name}
+                </Text>
+                <ConversationLine
+                  line={event}
+                  fallback="Nobody has said anything yet."
+                  t={t}
+                  dot
+                />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/*
+        What the product noticed, as one line at the foot of everything it
+        already knows about.
+
+        Below the conversations rather than between them. It is the one thing
+        on this tab that is a suggestion rather than a room somebody is
+        already in, and sitting it between the groups and the event chats put
+        an offer in the middle of a list of places — which read as a break in
+        the list rather than as a remark about it.
+
+        Never more than two, and a cluster whose people are already gathered
+        in one of these groups is dropped by the server — which is what lets
+        this stay without needing a way to dismiss it.
       */}
       {clusters.map((cluster) =>
         making === cluster.key ? (
@@ -683,12 +905,16 @@ function GroupBlock({
   albums,
   t,
   onPress,
+  onOpenThread,
 }: {
   group: MyGroupDetail;
   /** This actor's own albums in this group, newest first. Never the group's. */
   albums: EventListing[];
   t: TabTheme;
+  /** The block itself: the room, its people and its evenings. */
   onPress: () => void;
+  /** The line at the foot: the conversation, which is a different place. */
+  onOpenThread: () => void;
 }) {
   const lens = lensFor(group.id);
   const shown = albums.slice(0, COVER_STRIP);
@@ -701,7 +927,6 @@ function GroupBlock({
    * strip shows the ones this person can open.
    */
   const more = Math.max(0, group.eventCount - shown.length);
-  const newest = albums[0] ?? null;
 
   return (
     <Pressable
@@ -763,17 +988,120 @@ function GroupBlock({
       </View>
 
       {/*
-        What has just happened in it, which is the only reason to open one
-        today rather than tomorrow. "added to never" is a sentence about an
-        absence, so a group nobody has put anything in says that instead.
+        The last thing said in it, which is what makes this a conversation
+        rather than a folder.
+
+        It replaced "Added to 2 days ago · Ana's birthday" — a line about the
+        newest *event*, which the strip of covers directly above it already
+        shows. Two statements of the same fact, and neither of them the one
+        thing that would make somebody open the room today.
+
+        Unread is carried by ink as well as by the pill: a waiting message is
+        set in `fg`, a read one in `dim`. The pill alone is a small blue circle
+        somebody has to find; the weight of the line is what they see first.
       */}
-      <Text style={[styles.groupMeta, { color: t.dim }]} numberOfLines={1}>
-        {group.lastActiveAt
-          ? `Added to ${ago(new Date(group.lastActiveAt), new Date())}${
-              newest ? ` · ${newest.name}` : ''
-            }`
-          : 'Nothing in it yet — anyone in it can start the first event.'}
-      </Text>
+      <ConversationLine
+        line={group}
+        fallback={
+          group.eventCount === 0
+            ? 'Nothing in it yet — anyone in it can start the first event.'
+            : 'Nobody has said anything yet.'
+        }
+        t={t}
+        onPress={onOpenThread}
+      />
+    </Pressable>
+  );
+}
+
+/**
+ * One conversation, as one line: who spoke, what they said, when, and how many
+ * are waiting.
+ *
+ * Shared by the group blocks and the event-chat rows because they are the same
+ * sentence about two kinds of room, and written twice they would drift the
+ * first time somebody changed how a name is emphasised.
+ *
+ * The count is a pill on a group and a dot on an event chat, which is not
+ * decoration: a group is busy and the number is the useful part, where an
+ * event chat is usually one or two messages and a number on it is precision
+ * nobody asked for.
+ */
+function ConversationLine({
+  line,
+  fallback,
+  t,
+  dot = false,
+  onPress,
+}: {
+  line: ThreadLine;
+  /** What a thread nobody has spoken in says. A door, not an error. */
+  fallback: string;
+  t: TabTheme;
+  /** A dot rather than a count. See above. */
+  dot?: boolean;
+  onPress?: () => void;
+}) {
+  const unread = line.unreadCount > 0;
+  const last = line.lastMessage;
+
+  const body = (
+    <>
+      {last ? (
+        <>
+          <View style={[styles.sayerFace, { backgroundColor: lensFor(last.author).fill }]}>
+            <Text style={[styles.sayerInitial, { color: lensFor(last.author).ink }]}>
+              {initialOf(last.author)}
+            </Text>
+          </View>
+          <Text
+            style={[styles.said, { color: unread ? t.fg : t.dim }]}
+            numberOfLines={1}
+          >
+            {/* "You" rather than your own name read back at you — the same
+                thing every card in this product does. */}
+            <Text style={styles.sayer}>{last.mine ? 'You' : last.author}</Text>{' '}
+            {last.body}
+          </Text>
+          <Text style={[styles.saidWhen, { color: t.dim }]}>
+            {ago(new Date(last.at), new Date())}
+          </Text>
+        </>
+      ) : (
+        <Text style={[styles.said, { color: t.dim }]} numberOfLines={1}>
+          {fallback}
+        </Text>
+      )}
+
+      {unread &&
+        (dot ? (
+          <View style={[styles.unreadDot, { backgroundColor: t.accent }]} />
+        ) : (
+          <View style={[styles.unreadPill, { backgroundColor: t.accent }]}>
+            <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+              {line.unreadCount > 99 ? '99+' : line.unreadCount}
+            </Text>
+          </View>
+        ))}
+    </>
+  );
+
+  if (!onPress) return <View style={styles.sayRow}>{body}</View>;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={
+        last
+          ? `Conversation, ${line.unreadCount > 0 ? `${line.unreadCount} new, ` : ''}${
+              last.mine ? 'you' : last.author
+            } said ${last.body}`
+          : 'Conversation, nothing said yet'
+      }
+      style={({ pressed }) => [styles.sayRow, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      {body}
     </Pressable>
   );
 }
@@ -1398,31 +1726,85 @@ const styles = StyleSheet.create({
   /* The photograph is the card: no border, no panel, no strip of chrome. What
      used to be `event` was a bordered box around a mosaic and a detail strip;
      what is left is a tall picture, some faces over its edge, and two lines. */
-  cover: { borderRadius: 18, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
+  /*
+   * Edge to edge, and square.
+   *
+   * The scroll keeps its 20pt gutter for everything that is words; the
+   * photograph steps back out of it. A rounded card inset from both sides is a
+   * *card* — an object on a page, with the page showing around it — and the
+   * subject of this screen is the photograph, not the container it arrived in.
+   * At full width with square corners the picture is the card, which is what
+   * the note at the top of `EventCard` claims and the 18pt radius was quietly
+   * contradicting.
+   *
+   * The negative margin rather than a padding-free scroll: the alternative is
+   * moving the gutter onto every text block separately, which is four places
+   * to keep in step instead of one.
+   */
+  cover: { marginHorizontal: -20, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
   coverShot: { width: '100%', height: '100%' },
   /* Over the picture's bottom edge, not under it — see the note on the card.
      The negative margin is the overlap, and the row sits above the text it
-     shares a column with. */
-  faces: { flexDirection: 'row', marginTop: -18, marginLeft: 14, marginBottom: 2 },
+     shares a column with.
+
+     Aligned to that text rather than inset from the picture. While the cover
+     was a rounded card, 14 from its left corner was the obvious reference;
+     now that the photograph runs to the screen edge the only column left to
+     line up with is the title underneath. */
+  faces: { flexDirection: 'row', marginTop: -13, marginLeft: -4, marginBottom: 2 },
+  /* 70% of the 34 these were. Every number in the stack is scaled with the
+     circle rather than only its width — the ring, the overlap and the letter
+     were all chosen against 34, and leaving any of them put would make a
+     smaller face look heavier rather than smaller. The overlap onto the
+     photograph above (`faces.marginTop`) scales for the same reason. */
   face: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 2,
-    marginRight: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginRight: -6,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   faceShot: { width: '100%', height: '100%' },
-  faceLetter: { fontSize: 12, fontWeight: '700' },
+  faceLetter: { fontSize: 8.5, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
-  under: { paddingHorizontal: 4, paddingTop: 8, gap: 2 },
+  under: { marginHorizontal: -4, paddingTop: 8, gap: 2 },
+  /* The byline, above the photograph. Aligned to the same column as the title
+     below it — `under`'s 4, so the face, the name and the date share an edge. */
+  /*
+   * The card's text column, and it answers to the screen rather than to the
+   * scroll.
+   *
+   * Everything here used to sit at the scroll's 20 plus 4 of its own — 24 from
+   * the glass, which was the right distance while the photograph was an inset
+   * card and its corner was the thing being lined up with. The photograph runs
+   * to the edge now, so the only edge left to measure from is the screen's,
+   * and 24 read as a wide margin beside a picture with none at all.
+   *
+   * `-4` against the scroll's 20 puts the whole column at 16. One number, in
+   * three places that must agree: the byline, the faces and the title block.
+   */
+  byline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: -4,
+    paddingBottom: 8,
+  },
+  bylineFace: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
+  bylineBlank: { alignItems: 'center', justifyContent: 'center' },
+  bylineLetter: { fontSize: 12, fontWeight: '700' },
+  bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
   /* Small, quiet, and on the picture rather than beside the title: it is true
      for an hour and it is about the photographs, not about the event. */
   liveTag: {
     position: 'absolute',
-    left: 12,
+    // 16 from the screen edge, which is where the column below it starts. It
+    // was 12 in from a cover that was itself inset by 20; against a full-bleed
+    // photograph the same number would sit almost on the edge of the glass.
+    left: 16,
     top: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1454,7 +1836,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptySlotMark: { fontSize: 13, fontWeight: '700' },
-  eventName: { fontSize: 22, fontWeight: '700' },
+  /* 18 rather than 22. It is no longer the first thing on the card — the
+     byline and the creator's name are both above it — and at 22 it went on
+     competing with the photograph for the loudest thing in the column. */
+  eventName: { fontSize: 18, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
@@ -1473,6 +1858,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1491,7 +1877,7 @@ const styles = StyleSheet.create({
      which is what makes it read as "what is in here" and not as three things
      to choose between. */
   strip: { flexDirection: 'row', gap: 3 },
-  stripTile: { flex: 1, height: 96 },
+  stripTile: { flex: 1, height: 84 },
   stripShot: { width: '100%', height: '100%', borderRadius: 8 },
   stripEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
   stripMore: {
@@ -1506,6 +1892,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,23,28,0.55)',
   },
   stripMoreText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  /* One conversation, as one line. Shared by a group block and an event chat. */
+  sayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sayerFace: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  sayerInitial: { fontSize: 11, fontWeight: '700' },
+  said: { flex: 1, minWidth: 0, fontSize: 13.5 },
+  /* The name carries the weight; the message is the same size beside it. */
+  sayer: { fontWeight: '600' },
+  saidWhen: { fontSize: 12.5 },
+  /* A number on a group — it is busy and the number is the useful part. */
+  unreadPill: {
+    minWidth: 19,
+    height: 19,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadCount: { fontSize: 11.5, fontWeight: '700' },
+  /* A dot on an event chat — usually one or two messages, and a count there is
+     precision nobody asked for. */
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
+  /* The one-off evenings, under a label rather than a heading: they are the
+     minor half of this screen and a 30pt title would say otherwise. */
+  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
+  chatThumb: { width: 40, height: 40, borderRadius: 10 },
+  chatName: { fontSize: 15, fontWeight: '600' },
   /* --- Find -------------------------------------------------------------
      One field, three chips, and rows under a hairline. Everything here
      replaced three bordered cards with a heading and a paragraph each. */

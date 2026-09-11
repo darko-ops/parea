@@ -988,6 +988,152 @@ export const eventMessages = pgTable(
 );
 
 /**
+ * Talking in a group, rather than about one evening.
+ *
+ * The comment at the head of `event_message` says this table is not coming:
+ * "Not a group thread, not an inbox, not a direct message: those are three
+ * more products, each with its own answer to 'who can see this'." That was the
+ * right call at the time and the reasoning still holds — what changed is that
+ * the Groups tab became the place every conversation lives, and a tab of rooms
+ * you cannot speak in is a directory.
+ *
+ * So this is the one of the three that got built, and the objection is
+ * answered rather than ignored: the access rule is `group_member`, full stop.
+ * Not a capability, not a link, not `authorize()` — membership of the group is
+ * both the right to read and the right to post, it is one join, and there is
+ * no anonymous path to it the way an event has one through its link. That is
+ * the whole reason this is tractable and the inbox still is not.
+ *
+ * Shaped after `event_message` down to the tombstone, because the client draws
+ * both with the same component and a thread that behaves differently depending
+ * on which room it is in is two threads to reason about. What is deliberately
+ * missing is `photo_id`: a group owns no photographs of its own — they belong
+ * to the events under it — so there is nothing here to anchor a comment to.
+ *
+ * Reactions are missing too, and that is a scope line rather than a decision:
+ * `message_reaction` has a foreign key to `event_message`, so giving a group
+ * message a reaction means either a second reaction table or a nullable pair,
+ * and neither is worth doing before anybody has asked to react to one.
+ */
+export const groupMessages = pgTable(
+  'group_message',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    /** Never null, for the same reason an event message's author is not. */
+    authorActorId: uuid('author_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    // The thread, in order — the only read this table has.
+    index('group_message_thread_idx').on(t.groupId, t.createdAt),
+  ],
+);
+
+/**
+ * One person's reaction to one photograph.
+ *
+ * `message_reaction` is the same shape about a different object, and the two
+ * stay apart rather than growing a nullable pair of anchors. The reason is not
+ * tidiness: a message reaction is bounded by who can read the thread, and a
+ * photo reaction is bounded by `visiblePhotos` — which also answers for
+ * removed, hidden and blocked, three states a message does not have. One table
+ * would mean one query that has to satisfy both bounds at once, and the day
+ * those disagree is the day a reaction survives the photograph it was about.
+ *
+ * A row rather than a count, for the same reason as the message version: the
+ * question a pill answers is "did *you* react", and a counter cannot be
+ * un-clicked by the person who clicked it. The primary key is the whole tuple,
+ * so reacting twice with the same emoji is one reaction.
+ *
+ * No tombstone here. A reaction is not a thing somebody said, so taking it
+ * back leaves nothing that the pictures either side of it could appear to be
+ * answering — which is the whole argument for the deleted-message gap, and it
+ * does not apply.
+ */
+export const photoReactions = pgTable(
+  'photo_reaction',
+  {
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.photoId, t.actorId, t.emoji] }),
+    // Every read is "the reactions on these photographs", which the primary
+    // key's leading column already serves. The index earns its place on the
+    // other direction: everything one person has reacted to, which is what a
+    // merge has to move and an account deletion has to find.
+    index('photo_reaction_actor_idx').on(t.actorId),
+  ],
+);
+
+/*
+ * How far somebody has read, in each kind of thread.
+ *
+ * Until now "unread" was a number held in the client for as long as a screen
+ * was mounted: it meant "since you opened this album just now", it reset on
+ * every launch, and no list could ask about a thread it was not already
+ * showing. A tab whose subject is every conversation has to say which of them
+ * are waiting for you, and that is a fact about a person, not about a session
+ * — so it is written down.
+ *
+ * A timestamp rather than a count or a last-message id. A count goes wrong the
+ * moment a message is deleted out of the middle of a thread; an id needs a
+ * join back to the message to find out what it means and breaks if that
+ * message is purged. "Everything before this instant has been seen" survives
+ * both, and unread is then a `count(*) where created_at > read_at`, which is
+ * one index away from free.
+ *
+ * Two tables rather than one with a nullable event and a nullable group. The
+ * pair would need a CHECK to say exactly one is set, this schema expresses its
+ * constraints in Drizzle rather than in hand-written SQL, and the two are read
+ * in different places anyway — the events list asks one, the groups list asks
+ * the other. `event_message.photo_id` is a nullable anchor and stays one
+ * because there the two cases are the same act; here they are two rooms.
+ */
+export const eventThreadReads = pgTable(
+  'event_thread_read',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** Everything posted at or before this has been seen. */
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.eventId] })],
+);
+
+export const groupThreadReads = pgTable(
+  'group_thread_read',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.groupId] })],
+);
+
+/**
  * One person's reaction to one message.
  *
  * A row rather than a count, because the question the pill answers is "did

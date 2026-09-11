@@ -104,6 +104,29 @@ const OWNED: {
     column: 'actor_id',
     uniqueWith: ['message_id', 'emoji'],
   },
+  // The same argument as `event_message`, in the other kind of room: somebody
+  // who talked in a group from a laptop and then signed in on their phone
+  // would find their own messages no longer theirs to edit or take back.
+  { table: 'group_message', column: 'author_actor_id' },
+  // How far each of them had read. The two rows are two answers to one
+  // question, and the merge has to pick one — so the loser's row is dropped
+  // and the winner's kept rather than the pair colliding on the primary key.
+  //
+  // Which one survives is arbitrary and the consequence is small in both
+  // directions: a handful of messages re-marked unread, or a handful marked
+  // read that were not. Both self-correct the next time the thread is opened,
+  // which is more than can be said for a merge that fails on a constraint.
+  { table: 'event_thread_read', column: 'actor_id', uniqueWith: ['event_id'] },
+  { table: 'group_thread_read', column: 'actor_id', uniqueWith: ['group_id'] },
+  // The same collision as a message reaction, about a photograph: both actors
+  // having left the same emoji on the same picture is one reaction, not two,
+  // so the loser's row goes rather than moving — which is also what the
+  // primary key requires.
+  {
+    table: 'photo_reaction',
+    column: 'actor_id',
+    uniqueWith: ['photo_id', 'emoji'],
+  },
   // Lines somebody has dismissed on Activity. Moved rather than dropped: the
   // feed is derived from rows that survive the merge, so a notification hidden
   // on the laptop would otherwise come back the moment the phone signs in —

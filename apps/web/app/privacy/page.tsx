@@ -215,6 +215,38 @@ export default function PrivacyPage() {
             each other. Somebody you have blocked does not appear in the thread
             you see, exactly as their photographs do not.
           </p>
+          <p className="muted">
+            You can also react to a photograph itself, without saying anything.
+            What is kept is which emoji you chose and which picture you chose it
+            on. Everybody who can see the photograph sees the reaction{' '}
+            <em>and who left it</em>: your handle is shown beside it, in the
+            same way your name appears on anything you post. Tapping it again
+            takes it back and removes the record. Somebody you have blocked
+            does not appear in the reactions you see, exactly as their messages
+            and their photographs do not.
+          </p>
+
+          <h3>What you write in a group</h3>
+          <p className="muted">
+            A group has a thread of its own, separate from the threads on the
+            events inside it, and what you say in a group is kept with that
+            group and shown under your name to its members. Membership is the
+            whole of the rule: there is no link that opens a group&rsquo;s
+            conversation, and somebody who can see the photographs in one of
+            its events cannot read it. Editing, deleting and blocking work
+            exactly as they do in an event&rsquo;s thread.
+          </p>
+
+          <h3>How far you have read</h3>
+          <p className="muted">
+            So that a conversation can tell you something is waiting, we keep
+            one line per thread per person: the moment you last read it. Not
+            what you read, not how long you looked, and nothing about
+            individual messages &mdash; a single time, overwritten each time
+            you open the thread again, for each event and group thread you have
+            opened. It is never shown to anybody else: nothing here tells one
+            person whether another has read what they wrote.
+          </p>
 
           <h3>Your phone number, if you give one</h3>
           <p className="muted">
