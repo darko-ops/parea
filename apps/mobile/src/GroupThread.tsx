@@ -25,13 +25,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import type { Api, Message, MyGroupDetail } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Thread } from './Thread';
+import { Waiting } from './Waiting';
 
 /** Where the page begins, under the header. See `PAGE_TOP` in `App.tsx`. */
 const HEAD = 112;
@@ -130,7 +131,7 @@ export function GroupThread({
 
       {messages === null ? (
         <View style={styles.centre}>
-          <ActivityIndicator color={t.accent} />
+          <Waiting size={40} />
         </View>
       ) : error ? (
         <View style={styles.centre}>

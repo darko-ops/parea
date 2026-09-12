@@ -22,7 +22,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   FlatList,
@@ -69,6 +68,7 @@ import { ProfileScreen } from './src/Profile';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
+import { Waiting } from './src/Waiting';
 import {
   libraryAccess,
   requestLibraryAccess,
@@ -416,7 +416,7 @@ export default function App() {
   if (!ready) {
     return (
       <View style={[styles.center, { backgroundColor: t.bg }]}>
-        <ActivityIndicator color={t.accent} />
+        <Waiting size={40} />
       </View>
     );
   }
@@ -718,7 +718,7 @@ export default function App() {
       */}
       {arriving && route.screen !== 'join' && (
         <View style={[styles.center, styles.overlay]}>
-          <ActivityIndicator color={t.accent} />
+          <Waiting />
           <Text style={[styles.body, { color: t.fg }]}>Opening…</Text>
         </View>
       )}

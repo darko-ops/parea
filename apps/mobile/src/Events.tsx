@@ -17,7 +17,6 @@ import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
@@ -44,6 +43,7 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
 import { RequestBubble } from './Requests';
+import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
 
@@ -457,7 +457,7 @@ export function HomeTab({
         onAnswered={() => void onRefresh()}
       />
 
-      {loading && filled.length === 0 && <ActivityIndicator color={t.accent} />}
+      {loading && filled.length === 0 && <Waiting fill />}
 
       {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
@@ -753,7 +753,7 @@ export function GroupsTab({
         order it is written in.
       */}
       {groups === null ? (
-        <ActivityIndicator color={t.accent} style={styles.waiting} />
+        <Waiting fill />
       ) : (
         <>
       {groups.length === 0 && clusters.length === 0 ? (
@@ -1729,7 +1729,9 @@ const styles = StyleSheet.create({
      It was 150 while a second pill floated above the bubble, and 40 before
      either — which was already too little, so the last card on every tab
      ended up underneath the chrome. */
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14 },
+  /* `flexGrow` so a page that is still loading fills the screen and the
+     spinner has somewhere to be the middle of. Inert once there are cards. */
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
@@ -1866,7 +1868,7 @@ const styles = StyleSheet.create({
      mockup draws the status bar as a row of its own and measures from under
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
-  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18 },
+  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
   groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   newGroup: {
     width: 36,
@@ -1930,9 +1932,6 @@ const styles = StyleSheet.create({
   /* The one-off evenings, under a label rather than a heading: they are the
      minor half of this screen and a 30pt title would say otherwise. */
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
-  /* Room for the spinner, so replacing it with the rooms does not yank the
-     scroll position somebody has already started reading from. */
-  waiting: { paddingVertical: 64 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   chatName: { fontSize: 15, fontWeight: '600' },

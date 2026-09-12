@@ -24,10 +24,11 @@
  */
 
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Api } from './api';
 import type { GroupTheme } from './Groups';
+import { Waiting } from './Waiting';
 
 /** What the last answer left standing, as far as this screen is concerned. */
 type Asked = 'none' | 'sent' | 'in';
@@ -104,7 +105,7 @@ export function DoorScreen({
               name on it.
             </Text>
             {busy ? (
-              <ActivityIndicator color={t.accent} />
+              <Waiting size={28} />
             ) : (
               <Button label="Ask to join" onPress={() => void ask()} t={t} primary />
             )}

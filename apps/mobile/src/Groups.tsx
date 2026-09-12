@@ -18,7 +18,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -29,6 +28,7 @@ import {
 } from 'react-native';
 
 import type { Api, GroupView, JoinRequest } from './api';
+import { Waiting } from './Waiting';
 
 /** Structural rather than imported, to keep this file out of App's import cycle. */
 export type GroupTheme = {
@@ -154,7 +154,7 @@ export function GroupScreen({
   if (!group) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={t.accent} />
+        <Waiting size={40} />
       </View>
     );
   }

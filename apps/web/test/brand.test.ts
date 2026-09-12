@@ -28,6 +28,8 @@ const read = (path: string) =>
 const icon = read('../../mobile/assets/icon.svg');
 const favicon = read('../app/icon.svg');
 const web = read('../app/components/Mark.tsx');
+/** The fourth copy: the same mark in `react-native-svg`, for the phone. */
+const native = read('../../mobile/src/Mark.tsx');
 const og = read('../app/api/og/route.tsx');
 /** What the preview image actually hands to the rasteriser. */
 const preview = markSvg(400);
@@ -83,6 +85,54 @@ describe.each([
      */
     expect(svg).not.toMatch(/rgba\(|opacity=|fill-opacity|mix-blend-mode/);
     expect(svg).toMatch(/clip-path=/);
+  });
+});
+
+/**
+ * The native mark, which is JSX rather than an SVG document.
+ *
+ * Its own block because `circlesIn` cannot read it: the geometry is in the same
+ * `MARK_CENTRES` literal the web component uses — `{ cx: 512, cy: 400 }` — not
+ * in `<circle cx="512">`. The thing being checked is the same, and it is the
+ * thing that matters: four drawings of one logo agreeing about where the
+ * circles are and what colour the overlaps come out.
+ */
+describe('the native mark', () => {
+  it('uses the same three centres and radius as the component', () => {
+    const centres = [...native.matchAll(/\{ cx: (\d+), cy: (\d+) \}/g)].map((m) => ({
+      cx: Number(m[1]),
+      cy: Number(m[2]),
+    }));
+    expect(centres.length, 'the extractor found nothing, which is not a pass')
+      .toBeGreaterThan(2);
+
+    const key = ({ cx, cy }: { cx: number; cy: number }) => `${cx},${cy}`;
+    expect([...new Set(centres.map(key))].sort()).toEqual([...MARK_CENTRES.map(key)].sort());
+    expect(native).toMatch(new RegExp(`MARK_R = ${MARK_R}\\b`));
+  });
+
+  it('carries all seven fills', () => {
+    for (const fill of FILLS) {
+      expect(native, `${fill} missing`).toContain(fill);
+    }
+  });
+
+  it('paints the overlaps rather than compositing them', () => {
+    // No alpha anywhere, for the reason the other three give: multiply turns
+    // the pink-over-mint lens muddy, and that lens is where the warmth is.
+    expect(native).not.toMatch(/rgba\(|opacity=|fillOpacity|mixBlendMode/);
+    expect(native).toMatch(/clipPath=/);
+  });
+
+  it('gives each instance its own clip ids', () => {
+    /*
+     * `react-native-svg` does not scope `clipPath` ids per `Svg` on every
+     * platform, so two marks mounted at once with hard-coded ids can clip
+     * against each other's circles — which looks like one of them losing its
+     * overlaps and nothing else.
+     */
+    expect(native).toMatch(/useId\(\)/);
+    expect(native).toMatch(/\$\{id\}-blue/);
   });
 });
 

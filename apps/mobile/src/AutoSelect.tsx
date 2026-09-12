@@ -23,7 +23,6 @@ import { describe as describeSuggestion, narrow, type Suggestion, type Window } 
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -32,6 +31,7 @@ import {
 } from 'react-native';
 
 import { scanWindow, type LibraryScan } from './library';
+import { Waiting } from './Waiting';
 
 export type AutoSelectTheme = {
   bg: string;
@@ -102,7 +102,7 @@ export function AutoSelect({
   if (!suggestion || !scan) {
     return (
       <View style={[styles.center, { backgroundColor: t.bg }]}>
-        <ActivityIndicator color={t.accent} />
+        <Waiting size={40} />
         <Text style={[styles.body, { color: t.dim }]}>Looking through your photos…</Text>
       </View>
     );

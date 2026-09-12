@@ -65,6 +65,7 @@ import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
+import { Waiting } from './Waiting';
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -235,7 +236,7 @@ export function ProfileScreen({
         inventing a transition rather than removing one.
       */}
       {account === undefined ? (
-        <ActivityIndicator color={t.accent} style={styles.waiting} />
+        <Waiting fill />
       ) : (
         <>
       <View style={[styles.head, styles.headLower]}>
@@ -727,7 +728,10 @@ const styles = StyleSheet.create({
      of its own and measures from under it, and there is no safe-area library
      here — 72 is the allowance every screen in this project starts at. The
      bottom clears the floating tab bubble. */
-  scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16 },
+  /* `flexGrow` so that a short page — which, while it is loading, is the bar
+     and a spinner — still fills the screen, and the spinner has a height to
+     centre itself in. Inert once there is enough content to scroll. */
+  scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16, flexGrow: 1 },
   /* Settings and `+`, in the two corners, above everything else. */
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   /* The glyph's own box, so the two corners are the same height. */
@@ -739,9 +743,6 @@ const styles = StyleSheet.create({
      corner glyphs and the name, which is what stops a 28pt name reading as a
      title bar. */
   headLower: { marginTop: 20 },
-  /* Enough room that replacing the spinner with the profile does not yank the
-     scroll position; roughly where the name and the avatar will land. */
-  waiting: { paddingVertical: 64 },
   who: { flex: 1, minWidth: 0 },
   name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
   handle: { fontSize: 14.5, marginTop: 3 },

@@ -29,7 +29,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -40,6 +39,7 @@ import {
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import type { GroupTheme } from './Groups';
+import { Waiting } from './Waiting';
 
 /** What we call somebody: their name if they gave one, else the handle. */
 function nameOf(person: Person): string {
@@ -174,7 +174,7 @@ export function PersonScreen({
   if (!person) {
     return (
       <View style={[styles.center, { backgroundColor: t.bg }]}>
-        <ActivityIndicator color={t.dim} />
+        <Waiting size={40} />
       </View>
     );
   }

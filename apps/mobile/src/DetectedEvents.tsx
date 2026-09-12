@@ -30,10 +30,11 @@
 import { recentBundles, RECENT_DAYS, type Bundle } from '@parea/autoselect';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { libraryAccess, requestLibraryAccess, scanRecent } from './library';
 import type { GroupTheme } from './Groups';
+import { Waiting } from './Waiting';
 
 type State =
   | { kind: 'checking' }
@@ -129,7 +130,7 @@ export function DetectedEvents({
   if (state.kind === 'scanning') {
     return (
       <View style={[styles.card, styles.scanning, { backgroundColor: t.card, borderColor: t.line }]}>
-        <ActivityIndicator color={t.accent} />
+        <Waiting size={26} />
         <Text style={[styles.small, { color: t.dim }]}>Looking at the last few days…</Text>
       </View>
     );
