@@ -42,13 +42,29 @@ export type Member = {
  */
 export const MEMBER_LIMIT = 200;
 
-export async function membersOf(db: Db, eventId: string): Promise<Member[]> {
-  const [event] = await db
-    .select({ createdBy: schema.events.createdBy })
-    .from(schema.events)
-    .where(eq(schema.events.id, eventId));
-
-  const rows = await db
+export async function membersOf(
+  db: Db,
+  eventId: string,
+  /**
+   * The event's creator, where the caller already has it.
+   *
+   * Without it this has to go and read the event again purely to find out
+   * which of these rows to mark as the host — a whole round trip, and the feed
+   * route is holding the answer when it calls. Passing it turns two trips into
+   * one; leaving it out keeps every other caller working, and those two reads
+   * then at least go together rather than one after the other.
+   */
+  createdBy?: string | null,
+): Promise<Member[]> {
+  const [host, rows] = await Promise.all([
+    createdBy !== undefined
+      ? Promise.resolve(createdBy)
+      : db
+          .select({ createdBy: schema.events.createdBy })
+          .from(schema.events)
+          .where(eq(schema.events.id, eventId))
+          .then(([event]) => event?.createdBy ?? null),
+    db
     .select({
       actorId: schema.actors.id,
       displayName: schema.actors.displayName,
@@ -59,7 +75,8 @@ export async function membersOf(db: Db, eventId: string): Promise<Member[]> {
     .innerJoin(schema.actors, eq(schema.actors.id, schema.eventParticipants.actorId))
     .where(eq(schema.eventParticipants.eventId, eventId))
     .orderBy(asc(schema.eventParticipants.firstSeenAt))
-    .limit(MEMBER_LIMIT);
+    .limit(MEMBER_LIMIT),
+  ]);
 
   const members = await Promise.all(
     rows.map(async (row) => ({
@@ -70,7 +87,7 @@ export async function membersOf(db: Db, eventId: string): Promise<Member[]> {
       // Presigned here, one HMAC per row and no round trip. The key itself
       // never crosses the boundary; see `accounts.avatarUrl`.
       avatarUrl: await avatarUrl(row.avatarKey),
-      isCreator: row.actorId === event?.createdBy,
+      isCreator: row.actorId === host,
     })),
   );
 
@@ -106,35 +123,20 @@ export type Roster = {
   invitedAt: string | null;
 };
 
-export async function rosterFor(
-  db: Db,
-  eventId: string,
-  counts: Map<string, number>,
-): Promise<Roster[]> {
-  const members = await membersOf(db, eventId);
-
-  const joined: Roster[] = members.map((member) => ({
-    actorId: member.actorId,
-    name: member.name,
-    handle: member.handle,
-    avatarUrl: member.avatarUrl,
-    photoCount: counts.get(member.actorId) ?? 0,
-    role: member.isCreator
-      ? ('creator' as const)
-      : (counts.get(member.actorId) ?? 0) > 0
-        ? ('contributor' as const)
-        : ('viewer' as const),
-    invitedAt: null,
-  }));
-
-  /*
-   * Asked and not here yet.
-   *
-   * Open invitations only: a declined one is a person's answer, and repeating
-   * it on a roster every time somebody opens the tab would be the product
-   * relaying a no on their behalf. Accepted ones are already above, as members.
-   */
-  const inside = new Set(members.map((member) => member.actorId));
+/**
+ * Asked and not here yet, as roster rows.
+ *
+ * Split out of `rosterFor` so that a caller already fetching the members can
+ * ask for these *beside* them rather than after them. The two reads have
+ * nothing to say to each other — the de-duplication below is done on rows both
+ * have already returned — so running them in series was a round trip spent on
+ * nothing.
+ *
+ * Open invitations only: a declined one is a person's answer, and repeating it
+ * on a roster every time somebody opens the tab would be the product relaying
+ * a no on their behalf. Accepted ones are already members.
+ */
+export async function invitedTo(db: Db, eventId: string): Promise<Roster[]> {
   const invited = await db
     .select({
       actorId: schema.actors.id,
@@ -154,19 +156,64 @@ export async function rosterFor(
     .orderBy(asc(schema.eventInvites.createdAt))
     .limit(MEMBER_LIMIT);
 
-  const waiting: Roster[] = await Promise.all(
-    invited
-      .filter((row) => !inside.has(row.actorId))
-      .map(async (row) => ({
-        actorId: row.actorId,
-        name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
-        handle: row.handle,
-        avatarUrl: await avatarUrl(row.avatarKey),
-        photoCount: 0,
-        role: 'invited' as const,
-        invitedAt: row.createdAt.toISOString(),
-      })),
+  return Promise.all(
+    invited.map(async (row) => ({
+      actorId: row.actorId,
+      name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+      handle: row.handle,
+      avatarUrl: await avatarUrl(row.avatarKey),
+      photoCount: 0,
+      role: 'invited' as const,
+      invitedAt: row.createdAt.toISOString(),
+    })),
   );
+}
 
-  return [...joined, ...waiting];
+/**
+ * The roster, from rows somebody else has already fetched.
+ *
+ * No database in it at all. `rosterFor` below is this plus the two reads, for
+ * callers that have neither; the feed route has both already and would
+ * otherwise fetch the members twice — once for its own `members` field and
+ * again inside `rosterFor`.
+ */
+export function rosterFrom(
+  members: Member[],
+  invited: Roster[],
+  counts: Map<string, number>,
+): Roster[] {
+  const joined: Roster[] = members.map((member) => ({
+    actorId: member.actorId,
+    name: member.name,
+    handle: member.handle,
+    avatarUrl: member.avatarUrl,
+    photoCount: counts.get(member.actorId) ?? 0,
+    role: member.isCreator
+      ? ('creator' as const)
+      : (counts.get(member.actorId) ?? 0) > 0
+        ? ('contributor' as const)
+        : ('viewer' as const),
+    invitedAt: null,
+  }));
+
+  // Somebody invited who has since turned up is a member, and appears once.
+  // A row with no actor cannot collide with one, so it stays.
+  const inside = new Set(members.map((member) => member.actorId));
+  return [
+    ...joined,
+    ...invited.filter((row) => row.actorId == null || !inside.has(row.actorId)),
+  ];
+}
+
+/** The roster, fetching both halves at once, for callers holding neither. */
+export async function rosterFor(
+  db: Db,
+  eventId: string,
+  counts: Map<string, number>,
+): Promise<Roster[]> {
+  const [members, invited] = await Promise.all([
+    membersOf(db, eventId),
+    invitedTo(db, eventId),
+  ]);
+  return rosterFrom(members, invited, counts);
 }

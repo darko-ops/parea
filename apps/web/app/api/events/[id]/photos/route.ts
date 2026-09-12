@@ -19,7 +19,7 @@ import { decide, findEventById, guard, toResponse } from '@/access';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
-import { membersOf, rosterFor } from '@/members';
+import { invitedTo, membersOf, rosterFrom } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
@@ -94,7 +94,7 @@ export async function GET(
     adminDecision,
     group,
     members,
-    roster,
+    invited,
     contributeDecision,
     accountActorId,
   ] = await Promise.all([
@@ -148,12 +148,22 @@ export async function GET(
       .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt))),
     decide(db, event, 'administer', requester),
     event.groupId ? findGroup(db, event.groupId) : Promise.resolve(null),
-    // Everybody in the event, for the faces in the head and the Members tab.
-    // Not the same list as `people`, which is whose photographs these are.
-    membersOf(db, event.id),
-    // The People tab's fuller answer: everybody in it with what they have put
-    // in, plus whoever was asked and has not arrived.
-    rosterFor(db, event.id, photoCounts(rows)),
+    /*
+     * Everybody in the event, for the faces in the head and the Members tab.
+     *
+     * `event.createdBy` is handed over rather than looked up again: without it
+     * `membersOf` reads the event a second time purely to find out which row
+     * is the host, and this route has held that answer since its first query.
+     */
+    membersOf(db, event.id, event.createdBy),
+    /*
+     * And the people asked who have not arrived, for the People tab.
+     *
+     * `invitedTo` rather than `rosterFor`, which would fetch the members all
+     * over again — the same query being made on the line above. The two lists
+     * are assembled below, with no database in it.
+     */
+    invitedTo(db, event.id),
     // `contribute` and an account, matching what the POST actually enforces.
     // Not `viewerId != null`, which is true for a guest — the composer would
     // have been drawn for somebody the server was always going to refuse.
@@ -315,7 +325,7 @@ export async function GET(
     contributors,
     people,
     members,
-    roster,
+    roster: rosterFrom(members, invited, photoCounts(rows)),
     messages,
     canPost: contributeDecision.allow && accountActorId != null,
     arriving,

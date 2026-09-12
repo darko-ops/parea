@@ -14,7 +14,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, asc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
@@ -80,6 +80,35 @@ export async function messagesFor(
   viewerId: string | null,
   key: (actorId: string) => string,
 ): Promise<Message[]> {
+  /*
+   * The reactions, asked for beside the thread rather than after it.
+   *
+   * This used to wait for the messages and then look up reactions by their
+   * ids, which is a second round trip that begins only once the first has
+   * finished — and against a database in another region that is another
+   * hundred milliseconds on a screen already waiting for ten other things.
+   *
+   * Scoped through the message's event rather than through a list of ids, the
+   * question needs nothing from the first query and both go at once. It reads
+   * the same rows: every reaction on this event's thread is a reaction on one
+   * of the messages that query returns. Ones belonging to a message the viewer
+   * cannot see are dropped below, where the tally is built from `rows`.
+   *
+   * Not awaited here — started here, and awaited after the messages come back.
+   */
+  const reactionRows = db
+    .select({
+      messageId: schema.messageReactions.messageId,
+      emoji: schema.messageReactions.emoji,
+      actorId: schema.messageReactions.actorId,
+    })
+    .from(schema.messageReactions)
+    .innerJoin(
+      schema.eventMessages,
+      eq(schema.eventMessages.id, schema.messageReactions.messageId),
+    )
+    .where(eq(schema.eventMessages.eventId, eventId));
+
   const rows = await db
     .select({
       id: schema.eventMessages.id,
@@ -130,14 +159,7 @@ export async function messagesFor(
 
   if (rows.length === 0) return [];
 
-  const reactions = await db
-    .select({
-      messageId: schema.messageReactions.messageId,
-      emoji: schema.messageReactions.emoji,
-      actorId: schema.messageReactions.actorId,
-    })
-    .from(schema.messageReactions)
-    .where(inArray(schema.messageReactions.messageId, rows.map((r) => r.id)));
+  const reactions = await reactionRows;
 
   /** message id → emoji → {count, mine}. Built once rather than per message. */
   const byMessage = new Map<string, Map<string, { count: number; mine: boolean }>>();
