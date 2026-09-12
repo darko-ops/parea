@@ -122,11 +122,30 @@ export function ProfileScreen({
   const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();
 
+  /*
+   * Both halves at once, and committed together.
+   *
+   * These were two `await`s in a row, which made this screen arrive in three
+   * stages: the album grid first, because it comes from a prop that is already
+   * loaded; then the name, the picture and the buttons when the account landed;
+   * then the friend count a round trip later, turning a dash into a number. A
+   * page assembling itself in front of somebody reads as a page that is broken,
+   * even when every stage of it is correct.
+   *
+   * Asked for together they cost one round trip rather than two, and both
+   * `set`s land in the same tick — React batches them into a single render, so
+   * there is one transition instead of two.
+   *
+   * Each still keeps its own failure: a profile with no friend count is a
+   * profile missing a number, where one that throws is a blank screen.
+   */
   const load = useCallback(async () => {
-    setAccount(await api.account().catch(() => null));
-    // Its own call and its own failure: a profile with no friend count is a
-    // profile missing a number, where one that throws is a blank screen.
-    setFriends(await api.friends().then((list) => list.length).catch(() => null));
+    const [account, friends] = await Promise.all([
+      api.account().catch(() => null),
+      api.friends().then((list) => list.length).catch(() => null),
+    ]);
+    setAccount(account);
+    setFriends(friends);
   }, [api]);
 
   useEffect(() => {
@@ -202,15 +221,23 @@ export function ProfileScreen({
       </View>
 
       {/*
-        Who, and how much, on one line. The picture is to the right of the
-        words rather than above them: a name set at 28 points is the thing
-        being introduced, and a circle centred over it makes the screen a
-        badge.
-
-        Set down the page rather than tight under the status bar. A name at 28
-        points starting a few pixels below the clock reads as a title bar; the
-        gap above it is what makes it somebody's name.
+        Nothing below the corners until all of it is ready.
+  
+        The album grid comes from a prop that is already loaded, so it used to
+        be on screen before the account that the name, the picture and the
+        buttons are read from — the page built itself downwards while somebody
+        watched. One spinner and then the whole thing is less information for a
+        moment and more of it after; a page arriving in pieces is a page that
+        looks broken even when every piece is right.
+  
+        The corners are exempt because they are not waiting for anything: they
+        are the same two glyphs before and after, so holding them back would be
+        inventing a transition rather than removing one.
       */}
+      {account === undefined ? (
+        <ActivityIndicator color={t.accent} style={styles.waiting} />
+      ) : (
+        <>
       <View style={[styles.head, styles.headLower]}>
         <View style={styles.who}>
           {name ? (
@@ -379,6 +406,8 @@ export function ProfileScreen({
             );
           })}
         </View>
+      )}
+        </>
       )}
 
       {account && editing && (
@@ -710,6 +739,9 @@ const styles = StyleSheet.create({
      corner glyphs and the name, which is what stops a 28pt name reading as a
      title bar. */
   headLower: { marginTop: 20 },
+  /* Enough room that replacing the spinner with the profile does not yank the
+     scroll position; roughly where the name and the avatar will land. */
+  waiting: { paddingVertical: 64 },
   who: { flex: 1, minWidth: 0 },
   name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
   handle: { fontSize: 14.5, marginTop: 3 },

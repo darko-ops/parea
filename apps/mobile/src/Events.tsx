@@ -742,9 +742,21 @@ export function GroupsTab({
         />
       )}
 
+      {/*
+        Nothing under the title until all of it is ready.
+
+        The event chats are built from `events`, a prop the tabs already hold,
+        so they were on screen a round trip before the groups they sit beneath —
+        the minor half of this tab arriving first and the rooms dropping in above
+        it afterwards, which pushed everything somebody was reading down the
+        page. The spinner covers the lot now, and the order it appears in is the
+        order it is written in.
+      */}
       {groups === null ? (
-        <ActivityIndicator color={t.accent} />
-      ) : groups.length === 0 && clusters.length === 0 ? (
+        <ActivityIndicator color={t.accent} style={styles.waiting} />
+      ) : (
+        <>
+      {groups.length === 0 && clusters.length === 0 ? (
         /*
           Where groups come from, rather than a control that cannot work.
           Somebody here with none has not failed at anything — they have not
@@ -883,11 +895,13 @@ export function GroupsTab({
         there — this tab is the rooms you are in, and a second list of rooms
         you are not would make it two screens wearing one title.
       */}
-      {groups !== null && groups.length > 0 && (
+      {groups.length > 0 && (
         <Text style={[styles.small, { color: t.dim, paddingTop: 6 }]}>
           Looking for one you are not in? Find searches groups that have chosen
           to be findable — you would still be asking to be let in.
         </Text>
+      )}
+        </>
       )}
     </ScrollView>
   );
@@ -1916,6 +1930,9 @@ const styles = StyleSheet.create({
   /* The one-off evenings, under a label rather than a heading: they are the
      minor half of this screen and a 30pt title would say otherwise. */
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  /* Room for the spinner, so replacing it with the rooms does not yank the
+     scroll position somebody has already started reading from. */
+  waiting: { paddingVertical: 64 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   chatName: { fontSize: 15, fontWeight: '600' },

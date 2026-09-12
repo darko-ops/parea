@@ -69,6 +69,30 @@ describe('the profile details', () => {
   });
 });
 
+describe('the page arrives in one piece', () => {
+  it('asks for the account and the friend count together', () => {
+    /*
+     * These were two `await`s in a row, so the screen arrived in three stages:
+     * the album grid from an already-loaded prop, then the name and picture a
+     * round trip later, then a dash turning into a number a round trip after
+     * that. One wave, and both `set`s in the same tick so React batches them
+     * into a single render.
+     */
+    expect(PROFILE).toMatch(/const \[account, friends\] = await Promise\.all\(\[/);
+    expect(PROFILE).not.toMatch(/setAccount\(await api\.account\(\)/);
+  });
+
+  it('holds the body until there is a body to draw', () => {
+    // The corners are exempt: they are the same two glyphs before and after,
+    // so holding them back would invent a transition rather than remove one.
+    expect(SCREEN).toMatch(/\{account === undefined \? \(/);
+    const gate = SCREEN.indexOf('account === undefined ?');
+    expect(SCREEN.indexOf('styles.bar')).toBeLessThan(gate);
+    expect(SCREEN.indexOf('styles.headLower')).toBeGreaterThan(gate);
+    expect(SCREEN.indexOf('styles.grid')).toBeGreaterThan(gate);
+  });
+});
+
 describe('share profile', () => {
   it('took the half-row settings vacated', () => {
     expect(SCREEN).toMatch(/<Text style=\{\[styles\.actionText, \{ color: t\.fg \}\]\}>Share profile<\/Text>/);

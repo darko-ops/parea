@@ -67,6 +67,23 @@ describe('which conversations appear', () => {
   });
 });
 
+describe('the tab arrives in one piece', () => {
+  it('waits for the groups before drawing the event chats', () => {
+    /*
+     * The event chats are built from `events`, a prop the tabs already hold, so
+     * they were on screen a round trip before the groups they sit beneath — the
+     * minor half of the tab first, with the rooms dropping in above it and
+     * pushing down whatever somebody had started reading.
+     */
+    const gate = TAB.indexOf('groups === null ?');
+    expect(gate).toBeGreaterThan(-1);
+    // Everything that is not the title row sits inside that branch.
+    expect(TAB.indexOf('EVENT CHATS')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('groups.map((group)')).toBeGreaterThan(gate);
+  });
+});
+
 describe('one conversation, as one line', () => {
   it('is written once and drawn in both places', () => {
     // A group block and an event-chat row are the same sentence about two
