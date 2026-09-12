@@ -117,7 +117,7 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).toMatch(/styles\.said\b/);
     expect(GESTURE).toMatch(/styles\.picker\b/);
     // Left is people; right is every emoji in the set, and only that.
-    expect(GESTURE).toMatch(/photo\.reactions\.slice\(0, VISIBLE_REACTIONS\)/);
+    expect(GESTURE).toMatch(/reactions\.slice\(0, VISIBLE_REACTIONS\)/);
     expect(GESTURE).toMatch(/REACTIONS\.map\(\(emoji\) =>/);
   });
 
@@ -134,7 +134,7 @@ describe('reacting to a photograph', () => {
     // Twenty handles up the side of a picture is a list covering the thing
     // the list is about.
     expect(GESTURE).toMatch(/const VISIBLE_REACTIONS = 4/);
-    expect(GESTURE).toMatch(/photo\.reactions\.length - VISIBLE_REACTIONS/);
+    expect(GESTURE).toMatch(/reactions\.length - VISIBLE_REACTIONS/);
   });
 
   it('is a column you scroll, cut off so it looks like one', () => {
@@ -157,9 +157,30 @@ describe('reacting to a photograph', () => {
     expect(APP).toMatch(/canReact=\{feed\?\.canPost \?\? false\}/);
   });
 
-  it('fails quietly', () => {
-    // An alert over a photograph for a tap that did not land is worse than
-    // the tap not landing; the next refresh corrects the pill.
-    expect(GESTURE).toMatch(/} catch \{\s*} finally \{/);
+  it('draws the answer before the server has given one', () => {
+    /*
+     * A reaction used to wait on a POST *and* a refresh of the entire album
+     * feed, because that feed is where the counts live. Against a database in
+     * another region that is most of a second with nothing on screen changing,
+     * and the pill was disabled throughout.
+     */
+    expect(GESTURE).toMatch(/const \[pending, setPending\] = useState<Map<string, boolean>>/);
+    // Set before the request, not after it.
+    expect(GESTURE).toMatch(/setPending\(\(was\) => new Map\(was\)\.set\(emoji, on\)\);\s*try \{/);
+    // And nothing in the picker is disabled while it is in flight.
+    expect(GESTURE).not.toMatch(/disabled=\{busy/);
+  });
+
+  it('only ever overlays your own rows', () => {
+    // You cannot react for somebody else, so everybody else's stand
+    // untouched underneath the overlay.
+    expect(GESTURE).toMatch(/r\.mine && pending\.get\(r\.emoji\) === false/);
+  });
+
+  it('fails quietly, and lets the refresh be the correction', () => {
+    // An alert over a photograph for a tap that did not land is worse than the
+    // tap not landing. No hand-rolled rollback: the feed arriving is what puts
+    // a refused tap back.
+    expect(GESTURE).toMatch(/} catch \{\s*}\s*await onChanged\(\);/);
   });
 });

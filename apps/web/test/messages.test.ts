@@ -339,12 +339,28 @@ describe('who is allowed to say anything at all', () => {
     // `canPost` decides whether the client draws a composer at all. Computed
     // from `viewerId != null` it was true for guests, so the product offered a
     // box that the POST behind it always refused.
+    /*
+     * Checked on what `canPost` is computed *from* rather than on the two
+     * sitting next to each other. The feed route asks for everything it needs
+     * in one `Promise.all` now, so the call and the field are a hundred lines
+     * apart — which changes nothing about the rule and broke a regex that was
+     * really testing adjacency.
+     */
     for (const path of [
       '../app/api/events/[id]/photos/route.ts',
       '../app/event/[id]/page.tsx',
     ]) {
-      expect(read(path), `${path} promises posting it cannot honour`).toMatch(
-        /canPost:[\s\S]{0,200}currentAccountActorId\(\)/,
+      const source = read(path);
+      expect(source, `${path} never asks for an account actor`).toMatch(
+        /currentAccountActorId\(\)/,
+      );
+      // The field is derived from that answer, and never from `viewerId`,
+      // which is non-null for a guest.
+      expect(source, `${path} promises posting it cannot honour`).toMatch(
+        /canPost:[\s\S]{0,200}(accountActorId|currentAccountActorId\(\))/,
+      );
+      expect(source, `${path} decides canPost from a guest actor`).not.toMatch(
+        /canPost:[\s\S]{0,120}viewerId != null/,
       );
     }
   });

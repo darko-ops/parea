@@ -62,12 +62,109 @@ export async function GET(
     );
 
   const viewerId = await currentActorId();
+  const photoIds = rows.map((row) => row.id);
 
-  // Asked once for the page rather than per row — see `photosWithCard`.
-  const hasCard = await photosWithCard(db, rows.map((row) => row.id));
-  // And the reactions, for the same reason: an album is a column of every
-  // picture in the event, and a query per row grows with it.
-  const reactions = await reactionsForPhotos(db, rows.map((row) => row.id), viewerId);
+  /*
+   * Everything this screen needs, asked for at once.
+   *
+   * This route used to `await` eighteen things one after another, each of them
+   * a round trip to a database in another region. Measured from a developer
+   * machine against the hosted one, a single trivial query — `select ... limit
+   * 1` — takes about 100ms, and essentially all of that is the network rather
+   * than the query. Eighteen of those in series is most of two seconds before
+   * a byte is rendered, which is the "pages are slow" people were reporting.
+   *
+   * None of these eleven needs any of the others: they all take the event and
+   * the viewer, both of which are known by now. Run together they cost about
+   * what the slowest one costs, and the connection pool holds ten, so this is
+   * roughly two waves rather than eleven.
+   *
+   * What is deliberately *not* in here: `waiting`, which needs `canAdminister`
+   * to have come back first and is skipped entirely for everybody else, and
+   * the photo URLs, which need `hasCard` and `reactions`. Those two stay where
+   * they are.
+   */
+  const [
+    hasCard,
+    reactions,
+    people,
+    pendingRows,
+    messages,
+    spokenRows,
+    adminDecision,
+    group,
+    members,
+    roster,
+    contributeDecision,
+    accountActorId,
+  ] = await Promise.all([
+    // Asked once for the page rather than per row — see `photosWithCard`.
+    photosWithCard(db, photoIds),
+    // And the reactions, for the same reason: an album is a column of every
+    // picture in the event, and a query per row grows with it.
+    reactionsForPhotos(db, photoIds, viewerId),
+    // The contribution count is a recruiting device, not a statistic: "6
+    // people, 88 photos" is what gets the seventh person to add theirs
+    // (design §2). Kept as a number as well as a list.
+    contributorsOf(db, event.id, rows, viewerId),
+    /*
+     * Uploaded and not through the deriver yet — everybody's, not this tab's.
+     *
+     * Counted rather than taken from `rows`, because a photo mid-ingest is not
+     * in `rows`: `visiblePhotos` returns what can be looked at, and this is the
+     * number for the thing that cannot be looked at yet. Deliberately not
+     * filtered by uploader — "12 arriving" is about the event filling up, and
+     * whose they are is not knowable until they land anyway.
+     */
+    db
+      .select({ n: countDistinct(schema.photos.id) })
+      .from(schema.photos)
+      .where(
+        and(
+          eq(schema.photos.eventId, event.id),
+          eq(schema.photos.status, 'pending'),
+          isNull(schema.photos.deletedAt),
+        ),
+      ),
+    // Folded into the feed rather than given its own timer. The event page
+    // already polls this endpoint while anything is in flight; a second poller
+    // for the thread would be a second schedule to reason about and twice the
+    // requests from a tab somebody left open.
+    messagesFor(db, event.id, viewerId, (actorId) => contributorKey(event.id, actorId)),
+    /*
+     * The share details, for everybody who can already see the event.
+     *
+     * A widening, and worth being explicit about: until now the link lived on
+     * the manage page, so only the creator and a group admin could pass it on.
+     * Participation deliberately is not a credential — somebody who opened a
+     * link once and lost it could not let anybody else in — and handing the
+     * link to every viewer means anybody who can see the event can now invite.
+     * `joins_open` is still the switch that decides whether a link admits
+     * anyone at all.
+     */
+    db
+      .select({ words: schema.codes.words })
+      .from(schema.codes)
+      .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt))),
+    decide(db, event, 'administer', requester),
+    event.groupId ? findGroup(db, event.groupId) : Promise.resolve(null),
+    // Everybody in the event, for the faces in the head and the Members tab.
+    // Not the same list as `people`, which is whose photographs these are.
+    membersOf(db, event.id),
+    // The People tab's fuller answer: everybody in it with what they have put
+    // in, plus whoever was asked and has not arrived.
+    rosterFor(db, event.id, photoCounts(rows)),
+    // `contribute` and an account, matching what the POST actually enforces.
+    // Not `viewerId != null`, which is true for a guest — the composer would
+    // have been drawn for somebody the server was always going to refuse.
+    decide(db, event, 'contribute', requester),
+    currentAccountActorId(),
+  ]);
+
+  const contributors = people.length;
+  const arriving = pendingRows[0]?.n ?? 0;
+  const [spoken] = spokenRows;
+  const canAdminister = adminDecision.allow;
 
   const photos = await Promise.all(
     rows.map(async (photo) => ({
@@ -148,58 +245,6 @@ export async function GET(
     })),
   );
 
-  // The contribution count is a recruiting device, not a statistic: "6 people,
-  // 88 photos" is what gets the seventh person to add theirs (design §2).
-  // Kept as a number as well as a list: the native client reads this field and
-  // has no use for the filter the list is for.
-  const people = await contributorsOf(db, event.id, rows, viewerId);
-  const contributors = people.length;
-
-  /*
-   * Uploaded and not through the deriver yet — everybody's, not this tab's.
-   *
-   * Counted rather than taken from `rows`, because a photo mid-ingest is not
-   * in `rows`: `visiblePhotos` returns what can be looked at, and this is the
-   * number for the thing that cannot be looked at yet. Deliberately not
-   * filtered by uploader — "12 arriving" is about the event filling up, and
-   * whose they are is not knowable until they land anyway.
-   */
-  const [pending] = await db
-    .select({ n: countDistinct(schema.photos.id) })
-    .from(schema.photos)
-    .where(
-      and(
-        eq(schema.photos.eventId, event.id),
-        eq(schema.photos.status, 'pending'),
-        isNull(schema.photos.deletedAt),
-      ),
-    );
-  const arriving = pending?.n ?? 0;
-
-  // Folded into the feed rather than given its own timer. The event page
-  // already polls this endpoint while anything is in flight; a second poller
-  // for the thread would be a second schedule to reason about and twice the
-  // requests from a tab somebody left open.
-  const messages = await messagesFor(db, event.id, viewerId, (actorId) =>
-    contributorKey(event.id, actorId),
-  );
-
-
-  /*
-   * The share details, for everybody who can already see the event.
-   *
-   * A widening, and worth being explicit about: until now the link lived on
-   * the manage page, so only the creator and a group admin could pass it on.
-   * Participation deliberately is not a credential — somebody who opened a
-   * link once and lost it could not let anybody else in — and handing the link
-   * to every viewer means anybody who can see the event can now invite. That is
-   * what "everybody else sees the share info" asks for, and `joins_open` is
-   * still the switch that decides whether a link admits anyone at all.
-   */
-  const [spoken] = await db
-    .select({ words: schema.codes.words })
-    .from(schema.codes)
-    .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt)));
 
   /*
    * People waiting on this host, for the badge on the settings menu.
@@ -208,7 +253,6 @@ export async function GET(
    * else it is zero, not because the number is secret but because a count of
    * decisions you cannot make is a notification about somebody else's job.
    */
-  const canAdminister = (await decide(db, event, 'administer', requester)).allow;
   const [waitingRow] = canAdminister
     ? await db
         .select({ n: countDistinct(schema.eventAccessRequests.id) })
@@ -229,7 +273,7 @@ export async function GET(
       canAdminister,
       waiting: waitingRow?.n ?? 0,
       groupId: event.groupId,
-      groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
+      groupName: group?.name ?? null,
       caption: event.caption,
       startsAt: event.startsAt?.toISOString() ?? null,
       linkToken: event.linkToken,
@@ -270,21 +314,10 @@ export async function GET(
     },
     contributors,
     people,
-    // Everybody in the event, for the faces in the head and the Members tab.
-    // Not the same list as `people`, which is whose photographs these are.
-    members: await membersOf(db, event.id),
-    // The People tab's fuller answer: everybody in it with what they have put
-    // in, plus whoever was asked and has not arrived. One query more, rather
-    // than one per row on a page that is nothing but rows.
-    roster: await rosterFor(db, event.id, photoCounts(rows)),
+    members,
+    roster,
     messages,
-    // `contribute` and an account, matching what the POST actually enforces.
-    // Computed from the same helper rather than from `viewerId != null`, which
-    // is true for a guest — the composer would have been drawn for somebody the
-    // server was always going to refuse.
-    canPost:
-      (await decide(db, event, 'contribute', requester)).allow &&
-      (await currentAccountActorId()) != null,
+    canPost: contributeDecision.allow && accountActorId != null,
     arriving,
     count: photos.length,
     photos,

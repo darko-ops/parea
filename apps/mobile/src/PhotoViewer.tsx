@@ -30,7 +30,6 @@
 import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   PanResponder,
   Pressable,
@@ -120,7 +119,6 @@ export function PhotoViewer({
   const lastTap = useRef(0);
 
   const [chrome, setChrome] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
 
   const settle = useCallback(
     (next: number) => {
@@ -231,27 +229,74 @@ export function PhotoViewer({
     [pan, scale, settle, zoomTo],
   );
 
-  const react = useCallback(
-    async (emoji: string) => {
-      if (busy) return;
-      setBusy(emoji);
-      try {
-        await api.reactToPhoto(photo.id, emoji);
-        await onChanged();
-      } catch {
-        // Silent. A reaction that did not take is a pill that did not light
-        // up, which the next refresh corrects — and an alert over a
-        // photograph for a failed tap is worse than the tap not landing.
-      } finally {
-        setBusy(null);
-      }
-    },
-    [api, busy, onChanged, photo.id],
-  );
+  /*
+   * What the tap did, before the server has said anything.
+   *
+   * A reaction used to wait on two round trips: the POST, and then a refresh
+   * of the *entire* album feed — every photograph, the roster, the thread —
+   * because that feed is where the counts live. Against a database in another
+   * region that is most of a second in which nothing on screen changes, and
+   * the pill was disabled for all of it. It felt broken because it was, in the
+   * only sense that matters to somebody holding the phone.
+   *
+   * So the answer is drawn immediately and reconciled afterwards. The overlay
+   * is what this device believes it has changed; the feed is still the truth,
+   * and when it arrives it replaces this. A tap that the server refuses is
+   * undone by that same arrival, which is why the catch does not need to put
+   * anything back by hand.
+   */
+  const [pending, setPending] = useState<Map<string, boolean>>(new Map());
+
+  /*
+   * The server's answer with this device's unconfirmed taps folded in.
+   *
+   * Yours are the only rows a tap can add or remove — you cannot react for
+   * somebody else — so the overlay only ever touches rows marked `mine`, and
+   * everybody else's stand untouched underneath it.
+   */
+  const reactions = useMemo(() => {
+    if (pending.size === 0) return photo.reactions;
+    const kept = photo.reactions.filter(
+      (r) => !(r.mine && pending.get(r.emoji) === false),
+    );
+    const added = [...pending]
+      .filter(([emoji, on]) => on && !photo.reactions.some((r) => r.mine && r.emoji === emoji))
+      // Newest at the top, which is where the server would have put them.
+      .map(([emoji]) => ({ emoji, name: 'You', mine: true }));
+    return [...added, ...kept];
+  }, [pending, photo.reactions]);
 
   const mine = useMemo(
-    () => new Set(photo.reactions.filter((r) => r.mine).map((r) => r.emoji)),
-    [photo.reactions],
+    () => new Set(reactions.filter((r) => r.mine).map((r) => r.emoji)),
+    [reactions],
+  );
+
+  const react = useCallback(
+    async (emoji: string) => {
+      const on = !mine.has(emoji);
+      // Drawn now. Nothing below this line is waited on by the interface.
+      setPending((was) => new Map(was).set(emoji, on));
+      try {
+        await api.reactToPhoto(photo.id, emoji);
+      } catch {
+        // Silent, and deliberately without a rollback: the refresh below is
+        // the correction, and an alert over a photograph for a tap that did
+        // not land is worse than the tap not landing.
+      }
+      /*
+       * The feed, and only then the overlay comes off.
+       *
+       * Dropped in the same tick that the fresh counts arrive, so the pill
+       * never flickers through the old answer on its way to the new one.
+       */
+      await onChanged();
+      setPending((was) => {
+        const next = new Map(was);
+        next.delete(emoji);
+        return next;
+      });
+    },
+    [api, mine, onChanged, photo.id],
   );
 
   return (
@@ -311,7 +356,7 @@ export function PhotoViewer({
             nothing else: every emoji in the set, in a column you scroll.
           */}
           <View style={styles.said} pointerEvents="box-none">
-            {photo.reactions.slice(0, VISIBLE_REACTIONS).reverse().map((r, i) => (
+            {reactions.slice(0, VISIBLE_REACTIONS).reverse().map((r, i) => (
               <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
                 <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
                   {r.mine ? 'You' : r.name}
@@ -319,9 +364,9 @@ export function PhotoViewer({
                 <Text style={styles.saidEmoji}>{r.emoji}</Text>
               </View>
             ))}
-            {photo.reactions.length > VISIBLE_REACTIONS && (
+            {reactions.length > VISIBLE_REACTIONS && (
               <Text style={styles.saidMore}>
-                and {photo.reactions.length - VISIBLE_REACTIONS} more
+                and {reactions.length - VISIBLE_REACTIONS} more
               </Text>
             )}
           </View>
@@ -339,7 +384,6 @@ export function PhotoViewer({
                   <Pressable
                     key={emoji}
                     onPress={() => void react(emoji)}
-                    disabled={busy != null}
                     accessibilityRole="button"
                     accessibilityState={{ selected: mine.has(emoji) }}
                     accessibilityLabel={
@@ -350,13 +394,12 @@ export function PhotoViewer({
                       // Yours is filled rather than outlined: at this size a
                       // 1pt border round an emoji is not a state anybody sees.
                       mine.has(emoji) && styles.keyMine,
-                      { opacity: pressed || busy === emoji ? 0.55 : 1 },
+                      { opacity: pressed ? 0.55 : 1 },
                     ]}
                   >
                     <Text style={styles.keyText}>{emoji}</Text>
                   </Pressable>
                 ))}
-                {busy && <ActivityIndicator color="#fff" />}
               </ScrollView>
             )}
           </View>
