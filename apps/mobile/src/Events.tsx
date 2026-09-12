@@ -581,6 +581,7 @@ export function GroupsTab({
   events,
   t,
   openCreate = 0,
+  active,
   onOpenGroup,
   onOpenGroupThread,
   onOpenEventThread,
@@ -605,6 +606,16 @@ export function GroupsTab({
    * itself stays here because this is where the suggestions are.
    */
   openCreate?: number;
+  /**
+   * Whether this tab is the one in front.
+   *
+   * Kept-alive tabs do not refetch on their own, and this one has the most to
+   * go stale: a group made from the profile's `+`, an event rolled into a
+   * group, somebody else saying something in one. Returning re-reads quietly —
+   * `load` never clears what it holds, so the rooms stay on screen while the
+   * fresh answer is on its way.
+   */
+  active: boolean;
   onOpenGroup: (groupId: string) => void;
   /** A group's own conversation, which is not the same place as the group. */
   onOpenGroupThread: (group: MyGroupDetail) => void;
@@ -634,9 +645,10 @@ export function GroupsTab({
     setAlso(found.also);
   }, [api]);
 
+  // On arrival, and on every return to the tab. Not on the switches away.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (active) void load();
+  }, [active, load]);
 
   // Zero is the value nobody asked with — the tab opening normally, rather
   // than somebody arriving on it holding a press.

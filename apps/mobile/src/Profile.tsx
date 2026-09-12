@@ -85,6 +85,7 @@ export function ProfileScreen({
   events,
   webBase,
   t,
+  active,
   onOpen,
   onCreateEvent,
   onCreateGroup,
@@ -98,6 +99,16 @@ export function ProfileScreen({
   /** Where a profile lives on the web, for the link `Share profile` hands out. */
   webBase: string;
   t: GroupTheme;
+  /**
+   * Whether this tab is the one in front.
+   *
+   * The tabs are kept alive now rather than unmounted, so without this the
+   * screen would fetch once and then show that answer for as long as the app
+   * stayed open. Coming back to it re-reads quietly: `load` never clears what
+   * it has first, so the old profile stays on screen until the new one arrives
+   * and there is no spinner on a revisit.
+   */
+  active: boolean;
   onOpen: (event: EventListing) => void;
   /** The `+` in the corner: the album half. Opens the full create screen. */
   onCreateEvent: () => void;
@@ -149,9 +160,10 @@ export function ProfileScreen({
     setFriends(friends);
   }, [api]);
 
+  // On arrival, and on every return to the tab. Not on the switches away.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (active) void load();
+  }, [active, load]);
 
   const photos = events.reduce((sum, event) => sum + event.photoCount, 0);
   const name = account?.displayName?.trim() || null;

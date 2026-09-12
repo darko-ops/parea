@@ -178,6 +178,23 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
   const [tab, setTab] = useState<Tab>('home');
   /*
+   * Which tabs have been opened, and therefore still exist.
+   *
+   * Each tab used to be `{tab === 'profile' && <ProfileScreen …>}`, which
+   * unmounts it the moment somebody looks at something else — so every switch
+   * back threw away what it had fetched, asked for it again and sat on a
+   * spinner while it waited. It also lost the scroll position, which is the
+   * part nobody reports and everybody notices.
+   *
+   * Mounted on first visit and kept from then on. Lazily, rather than all four
+   * at launch: a cold start would otherwise fire four tabs' worth of requests
+   * to draw one of them.
+   */
+  const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set(['home']));
+  useEffect(() => {
+    setVisited((was) => (was.has(tab) ? was : new Set(was).add(tab)));
+  }, [tab]);
+  /*
    * Somebody pressed `+` on their profile and chose a group.
    *
    * The form that makes one lives on the Groups tab, because that is where the
@@ -590,70 +607,80 @@ export default function App() {
 
       {route.screen === 'tabs' && (
         <>
-          {tab === 'home' && (
-            <HomeTab
-              api={api}
-              events={events}
-              loading={loadingEvents}
-              t={t}
-              onOpen={openListing}
-              onRefresh={refreshEvents}
-              onCreate={() => setRoute({ screen: 'create' })}
-              // The join screen's only way in, now that the pill above the tab
-              // bar is gone: a link, a QR code or a spoken phrase.
-              Button={Button}
-            />
+          {visited.has('home') && (
+            <Pane showing={tab === 'home'}>
+              <HomeTab
+                api={api}
+                events={events}
+                loading={loadingEvents}
+                t={t}
+                onOpen={openListing}
+                onRefresh={refreshEvents}
+                onCreate={() => setRoute({ screen: 'create' })}
+                // The join screen's only way in, now that the pill above the tab
+                // bar is gone: a link, a QR code or a spoken phrase.
+                Button={Button}
+              />
+            </Pane>
           )}
-          {tab === 'groups' && (
-            <GroupsTab
-              api={api}
-              // The covers under each group's name come off this list — the
-              // albums this actor can already open — and never off the group.
-              // See the note at the top of `GroupsTab`.
-              events={events}
-              t={t}
-              openCreate={makeGroup}
-              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-              onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
-              // The album, opened on the conversation rather than on the
-              // photographs — the one entry point allowed to ask for that.
-              onOpenEventThread={(listing) => {
-                void open(listing, 'talk');
-              }}
-              onGoToEvents={() => setTab('home')}
-            />
+          {visited.has('groups') && (
+            <Pane showing={tab === 'groups'}>
+              <GroupsTab
+                api={api}
+                // The covers under each group's name come off this list — the
+                // albums this actor can already open — and never off the group.
+                // See the note at the top of `GroupsTab`.
+                events={events}
+                t={t}
+                active={tab === 'groups'}
+                openCreate={makeGroup}
+                onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
+                // The album, opened on the conversation rather than on the
+                // photographs — the one entry point allowed to ask for that.
+                onOpenEventThread={(listing) => {
+                  void open(listing, 'talk');
+                }}
+                onGoToEvents={() => setTab('home')}
+              />
+            </Pane>
           )}
-          {tab === 'search' && (
-            <SearchTab
-              api={api}
-              events={events}
-              t={t}
-              onOpen={openListing}
-              onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-              onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
-            />
+          {visited.has('search') && (
+            <Pane showing={tab === 'search'}>
+              <SearchTab
+                api={api}
+                events={events}
+                t={t}
+                onOpen={openListing}
+                onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+                onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+              />
+            </Pane>
           )}
-          {tab === 'profile' && (
-            <ProfileScreen
-              api={api}
-              events={events}
-              webBase={API_BASE}
-              t={t}
-              onOpen={openListing}
-              onCreateEvent={() => setRoute({ screen: 'create' })}
-              onCreateGroup={() => {
-                setTab('groups');
-                setMakeGroup((n) => n + 1);
-              }}
-              onSignedIn={() => {
-                // The account may speak for another device's actor, so what
-                // this person can reach has just changed.
-                void refreshEvents();
-                void refreshGroups();
-              }}
-              onSignedOut={signOut}
-              Button={Button}
-            />
+          {visited.has('profile') && (
+            <Pane showing={tab === 'profile'}>
+              <ProfileScreen
+                api={api}
+                events={events}
+                webBase={API_BASE}
+                t={t}
+                active={tab === 'profile'}
+                onOpen={openListing}
+                onCreateEvent={() => setRoute({ screen: 'create' })}
+                onCreateGroup={() => {
+                  setTab('groups');
+                  setMakeGroup((n) => n + 1);
+                }}
+                onSignedIn={() => {
+                  // The account may speak for another device's actor, so what
+                  // this person can reach has just changed.
+                  void refreshEvents();
+                  void refreshGroups();
+                }}
+                onSignedOut={signOut}
+                Button={Button}
+              />
+            </Pane>
           )}
 
           {/*
@@ -2323,6 +2350,35 @@ function PhotoActions({
 
 // --- chrome -------------------------------------------------------------------
 
+/**
+ * One tab, kept alive while another is in front of it.
+ *
+ * `display: 'none'` rather than unmounting, which is the whole point: the tab
+ * keeps its state, its fetched data and its scroll position, so coming back to
+ * it is instant instead of a spinner and a round trip. A hidden view is not
+ * measured or drawn, so the four of them cost memory and nothing else.
+ *
+ * `pointerEvents` as well as `display`, because a hidden view that still
+ * answers touches is a screen you can press through by accident — belt and
+ * braces, since `display: 'none'` should already remove it from the tree.
+ */
+function Pane({ showing, children }: { showing: boolean; children: React.ReactNode }) {
+  return (
+    <View
+      style={[styles.pane, !showing && styles.paneHidden]}
+      pointerEvents={showing ? 'auto' : 'none'}
+      // Hidden panes are not there as far as a screen reader is concerned,
+      // which is what `ActivityIndicator` and every label inside them would
+      // otherwise be announced as part of.
+      accessibilityElementsHidden={!showing}
+      importantForAccessibility={showing ? 'auto' : 'no-hide-descendants'}
+    >
+      {children}
+    </View>
+  );
+}
+
+
 function Button({
   label,
   onPress,
@@ -2541,6 +2597,11 @@ const styles = StyleSheet.create({
   sheetScroll: { gap: 10, paddingBottom: 10 },
   sheetRow: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  /* A kept-alive tab. `position: 'absolute'` so the four of them stack rather
+     than sitting in a column — only one is ever visible, and a hidden sibling
+     taking part in the layout would halve the height of the one that is not. */
+  pane: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  paneHidden: { display: 'none' },
   overlay: {
     position: 'absolute',
     top: 0,

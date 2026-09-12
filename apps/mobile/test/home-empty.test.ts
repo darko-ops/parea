@@ -19,6 +19,7 @@ const read = (name: string) =>
 
 const EVENTS = read('src/Events.tsx');
 const APP = read('App.tsx');
+const PROFILE = read('src/Profile.tsx');
 
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -160,6 +161,45 @@ describe('the card the home list draws', () => {
     expect(under).toMatch(
       /<Text numberOfLines=\{1\}>\s*\{host && \([\s\S]*?\{event\.name\}<\/Text>\s*<\/Text>/,
     );
+  });
+});
+
+describe('switching tabs', () => {
+  it('keeps a tab alive rather than unmounting it', () => {
+    /*
+     * Each tab was `{tab === 'profile' && <ProfileScreen …>}`, which destroys it
+     * the moment somebody looks at something else — so switching back threw away
+     * what it had fetched, asked again, and sat on a spinner. It also lost the
+     * scroll position, which is the part nobody reports and everybody notices.
+     */
+    expect(APP).toMatch(/visited\.has\('profile'\)/);
+    expect(APP).toMatch(/<Pane showing=\{tab === 'profile'\}>/);
+    expect(APP).not.toMatch(/\{tab === 'profile' && \(/);
+    // Hidden, not laid out: four panes in a column would each get a quarter of
+    // the screen.
+    expect(APP).toMatch(/paneHidden: \{ display: 'none' \}/);
+    expect(APP).toMatch(/pane: \{ position: 'absolute'/);
+  });
+
+  it('mounts them lazily, so a cold start fetches one tab and not four', () => {
+    expect(APP).toMatch(/useState<ReadonlySet<Tab>>\(\(\) => new Set\(\['home'\]\)\)/);
+  });
+
+  it('still refreshes the ones that can go stale, without a spinner', () => {
+    /*
+     * A kept-alive tab never refetches on its own. Returning to it re-reads
+     * quietly: `load` does not clear what it holds first, so the old answer
+     * stays on screen until the new one lands.
+     */
+    expect(APP).toMatch(/active=\{tab === 'profile'\}/);
+    expect(APP).toMatch(/active=\{tab === 'groups'\}/);
+    for (const source of [PROFILE, EVENTS]) {
+      expect(source).toMatch(/if \(active\) void load\(\);/);
+    }
+    // And neither resets to the empty state before fetching, which is what
+    // would put the spinner back on every visit.
+    expect(PROFILE).not.toMatch(/setAccount\(undefined\)/);
+    expect(EVENTS).not.toMatch(/setGroups\(null\)/);
   });
 });
 
