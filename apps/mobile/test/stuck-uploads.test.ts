@@ -103,6 +103,47 @@ describe('the way out', () => {
   });
 });
 
+describe('one album at a time', () => {
+  it('runs only this album’s work', () => {
+    /*
+     * The queue holds work for every album this phone has uploaded into, and
+     * it will happily work all of it. This client cannot: it presigns and
+     * completes with the link token of the album on screen, so a leftover item
+     * from another evening went up with the wrong credential and came back
+     * refused — a failure invented by the queue being more capable than its
+     * caller.
+     */
+    expect(APP).toMatch(/await queue\.run\(event\.id\)/);
+    expect(QUEUE).toMatch(/async run\(eventId\?: string\): Promise<void>/);
+  });
+
+  it('does not start a run because another album has leftovers', () => {
+    expect(APP).toMatch(
+      /if \(!state\.items\.some\(\(i\) => i\.eventId === event\.id\)\) return;/,
+    );
+  });
+
+  it('counts the bar off this album too', () => {
+    // Another evening's pending items in the total is a bar that cannot reach
+    // the end, for photographs this screen is not sending and will never show.
+    expect(APP).toMatch(/const done = queue\.doneIn\(event\.id\);/);
+    expect(APP).toMatch(/const pending = queue\.pendingIn\(event\.id\);/);
+  });
+
+  it('leaves the other album’s work in the saved state', () => {
+    /*
+     * The load-bearing half, and the reason this is scoped inside `run` rather
+     * than by filtering the state on the way in: every run writes the whole
+     * state back, so a filtered queue would erase the other album's items the
+     * first time this one saved.
+     */
+    expect(QUEUE).toMatch(/i\.status === 'presigned' && \(!eventId \|\| i\.eventId === eventId\)/);
+    expect(QUEUE).toMatch(/i\.status === 'pending' && \(!eventId \|\| i\.eventId === eventId\)/);
+    // And nothing in the client narrows the state before constructing a queue.
+    expect(APP).not.toMatch(/state\.items\.filter/);
+  });
+});
+
 describe('what stays true', () => {
   it('still tells somebody in a basement to do nothing', () => {
     /*
@@ -112,7 +153,11 @@ describe('what stays true', () => {
      * on their photographs.
      */
     expect(APP).toMatch(/they are saved and will go up on their own/);
-    expect(APP).toMatch(/queue\.waitingForNetwork\s*\?\s*`\$\{queue\.pendingCount\} waiting for a connection`/);
+    // Scoped, like everything else this line says: a signal this album is
+    // waiting for, not one another evening's leftovers are waiting for.
+    expect(APP).toMatch(
+      /queue\.waitingFor\(event\.id\)\s*\?\s*`\$\{queue\.pendingIn\(event\.id\)\} waiting for a connection`/,
+    );
   });
 
   it('does not tell somebody to keep the app open about a dead upload', () => {

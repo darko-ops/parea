@@ -172,6 +172,15 @@ export class UploadQueue {
    */
   private paused = false;
 
+  /**
+   * Which album the last run was working, if it was working one.
+   *
+   * Not persisted: it describes a run, not the queue, and a resumed queue has
+   * not run yet. `undefined` means the run was unscoped, which is the browser's
+   * case and the answer that makes `waitingFor` behave as it always did.
+   */
+  private scope: string | undefined;
+
   constructor(
     private readonly deps: Deps,
     state: QueueState = { items: [] },
@@ -235,6 +244,40 @@ export class UploadQueue {
 
   staleIn(eventId: string): QueueItem[] {
     return this.items.filter((i) => i.eventId === eventId && i.status === 'stale');
+  }
+
+  /** Still on its way up, in one album. The number a progress bar wants. */
+  pendingIn(eventId: string): number {
+    return this.items.filter(
+      (i) =>
+        i.eventId === eventId &&
+        i.status !== 'done' &&
+        i.status !== 'failed' &&
+        i.status !== 'stale',
+    ).length;
+  }
+
+  doneIn(eventId: string): number {
+    return this.items.filter((i) => i.eventId === eventId && i.status === 'done').length;
+  }
+
+  /**
+   * Stopped for want of a network, with work left in *this* album.
+   *
+   * Three things have to be true, and the middle one is the interesting one.
+   * The unscoped form says yes whenever anything anywhere is still pending
+   * after a pause — which on a screen about one album means telling somebody
+   * their photographs are waiting for a signal when the thing waiting belongs
+   * to a different evening, and when the album they are looking at has not been
+   * attempted at all.
+   *
+   * So the last run's scope is remembered. An album nobody has tried yet is not
+   * waiting for a network; it is waiting for somebody to open it.
+   */
+  waitingFor(eventId: string): boolean {
+    if (!this.paused) return false;
+    if (this.scope !== undefined && this.scope !== eventId) return false;
+    return this.pendingIn(eventId) > 0;
   }
 
   /**
@@ -302,11 +345,31 @@ export class UploadQueue {
    *
    * Safe to call again after a crash or a cold start: items are picked up from
    * whatever state they were persisted in.
+   *
+   * ## `eventId`, and why a caller would pass one
+   *
+   * The queue holds work for every album a device has uploaded into, and it
+   * will happily work all of it — which is right for a client that can act for
+   * any album at any time, and wrong for one whose credentials belong to the
+   * album on screen. The phone is the second kind: it presigns and completes
+   * with the link token of the album it is looking at, so a leftover item from
+   * another album gets sent with the wrong credential and is refused.
+   *
+   * Scoped, the leftovers are not touched — they are not lost either. They sit
+   * in the saved state, which every run writes back whole, and they go up when
+   * somebody opens the album they belong to. That is the honest reading of an
+   * upload anyway: it happens in the room you are standing in.
+   *
+   * Omitting it keeps the old behaviour, which is what the browser client
+   * wants.
    */
-  async run(): Promise<void> {
+  async run(eventId?: string): Promise<void> {
     if (this.running) return;
     this.running = true;
     this.paused = false;
+    // Remembered for `waitingFor`, which has to tell "there is no signal" apart
+    // from "nobody has opened that album yet".
+    this.scope = eventId;
     try {
       // Bounded, and a loop rather than a self-call. Re-presigning is the
       // legitimate answer to a grant that went stale while the phone was
@@ -317,10 +380,12 @@ export class UploadQueue {
       // leaves the items pending, which the next run picks up.
       for (let round = 0; round <= MAX_REPRESIGN_ROUNDS; round++) {
         this.needsRepresign = false;
-        await this.presignPending();
+        await this.presignPending(eventId);
 
         let next = 0;
-        const workable = this.items.filter((i) => i.status === 'presigned');
+        const workable = this.items.filter(
+          (i) => i.status === 'presigned' && (!eventId || i.eventId === eventId),
+        );
         const worker = async () => {
           // Stops the other workers too: once one request has found no
           // network, the remaining hundred and ninety-nine will not find one.
@@ -344,8 +409,10 @@ export class UploadQueue {
   }
 
   /** One presign call per event covers the whole pending batch. */
-  private async presignPending(): Promise<void> {
-    const pending = this.items.filter((i) => i.status === 'pending');
+  private async presignPending(eventId?: string): Promise<void> {
+    const pending = this.items.filter(
+      (i) => i.status === 'pending' && (!eventId || i.eventId === eventId),
+    );
     if (pending.length === 0) return;
 
     const byEvent = new Map<string, QueueItem[]>();

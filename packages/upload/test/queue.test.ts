@@ -386,6 +386,116 @@ describe('coming back from a failure', () => {
   });
 });
 
+/**
+ * Working one album's photographs and leaving the rest alone.
+ *
+ * The queue holds work for every album a device has uploaded into, and working
+ * all of it is right for a client that can act for any album at any time. The
+ * phone is not that client: it presigns and completes with the link token of
+ * the album on screen, so a leftover item belonging to another album went up
+ * with the wrong credential and was refused — a failure invented by the queue
+ * being more capable than its caller.
+ */
+describe('running one album at a time', () => {
+  it('touches only the album it was given', async () => {
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(h.uploaded).toHaveLength(1);
+    expect(h.uploaded[0]).toContain('photo-1');
+    expect(queue.doneIn('event-1')).toBe(1);
+    // Untouched, not failed: it has not been tried, so it has nothing to
+    // recover from.
+    expect(queue.pendingIn('event-2')).toBe(1);
+    expect(queue.failedIn('event-2')).toHaveLength(0);
+  });
+
+  it('does not presign for an album it is not working', async () => {
+    // The presign carries the credential. Asking for a grant on somebody
+    // else's evening is the request that comes back refused.
+    const asked: string[] = [];
+    const h = harness({
+      async presign(eventId, files) {
+        asked.push(eventId);
+        return files.map((f, i) => ({
+          photoId: `photo-${f.name}-${i}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: {},
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(asked).toEqual(['event-1']);
+  });
+
+  it('keeps the other album’s work in the saved state', async () => {
+    /*
+     * The load-bearing half. Every run writes the whole state back, so a queue
+     * that had merely been *filtered* on the way in would erase the other
+     * album's items the first time this one saved. They are still there, and
+     * they go up when somebody opens the album they belong to.
+     */
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+    queue.prune();
+
+    const saved = h.saved[h.saved.length - 1]!;
+    expect(saved.items.map((i) => i.eventId)).toContain('event-2');
+
+    // And a later run in that album finishes the job.
+    await queue.run('event-2');
+    expect(h.uploaded).toHaveLength(2);
+  });
+
+  it('still works everything when nobody scopes it', async () => {
+    // The browser client acts for any album it has a session for, and this is
+    // the behaviour it has always had.
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run();
+
+    expect(h.uploaded).toHaveLength(2);
+  });
+
+  it('is not waiting for a connection on behalf of another album', async () => {
+    /*
+     * `waitingForNetwork` is true whenever anything anywhere is pending after a
+     * pause. On a screen about one album that reads as "your photographs are
+     * waiting for a signal" when the thing waiting is a different evening.
+     */
+    const h = harness({
+      async upload() {
+        throw new Offline('no signal');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(queue.waitingFor('event-1')).toBe(true);
+    expect(queue.waitingFor('event-2')).toBe(false);
+  });
+});
+
 describe('housekeeping', () => {
   it('prunes finished items so a long-lived queue does not grow', async () => {
     const h = harness();

@@ -1147,11 +1147,19 @@ function EventScreen({
     void refresh();
   }, [refresh]);
 
-  /** Resume anything left over from a previous launch, before anything else. */
+  /**
+   * Resume what this album left over, before anything else.
+   *
+   * Scoped on the way in as well as on the way through: the saved queue can
+   * hold another evening's work, and starting a run because *something*
+   * somewhere is unfinished means a screen that reports on a batch it is not
+   * sending. The other album's items are not lost — they are still in the saved
+   * state, and they go up when somebody opens it.
+   */
   useEffect(() => {
     (async () => {
       const state = await loadQueue();
-      if (state.items.length === 0) return;
+      if (!state.items.some((i) => i.eventId === event.id)) return;
       await runQueue(state);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1183,18 +1191,37 @@ function EventScreen({
       const queue = openQueue(state ?? (await loadQueue()));
 
       const tick = setInterval(() => {
-        const total = queue.doneCount + queue.pendingCount;
-        setQueueStatus(
-          queue.pendingCount > 0 ? `${queue.doneCount} of ${total} added` : null,
-        );
+        // This album's, all through: the queue may be holding another evening's
+        // leftovers, and counting them here would put photographs in the bar
+        // that this screen is not sending and will never show.
+        const done = queue.doneIn(event.id);
+        const pending = queue.pendingIn(event.id);
+        const total = done + pending;
+        setQueueStatus(pending > 0 ? `${done} of ${total} added` : null);
         // What the bar needs: how many are still on their way up. The rest of
         // the sum is `arriving`, which only the feed knows.
-        setUploading(queue.pendingCount);
+        setUploading(pending);
         setBatch((was) => (was === null ? total : Math.max(was, total)));
       }, 400);
 
       try {
-        await queue.run();
+        /*
+         * Only this album's photographs.
+         *
+         * The queue holds work for every album this phone has uploaded into,
+         * and it will happily work all of it — which is right for a client that
+         * can act for any album at any time, and wrong for this one: it
+         * presigns and completes with the link token of the album on screen, so
+         * a leftover item belonging to a different evening went up with the
+         * wrong credential and came back refused. A failure invented by the
+         * queue being more capable than its caller.
+         *
+         * Nothing is lost by leaving them. Every run writes the whole saved
+         * state back, so they sit there and go up when somebody opens the album
+         * they belong to — which is the honest reading of an upload anyway. It
+         * happens in the room you are standing in.
+         */
+        await queue.run(event.id);
       } finally {
         clearInterval(tick);
         // Nothing left to send. The bar may still have a way to go — the
@@ -1204,7 +1231,7 @@ function EventScreen({
         await saveQueue(queue.state);
         // Three outcomes, not two. "Waiting" and "failed" ask opposite things
         // of a person: one is do nothing, the other is try again.
-        setWaitingForNetwork(queue.waitingForNetwork);
+        setWaitingForNetwork(queue.waitingFor(event.id));
         /*
          * Three outcomes and, when something is stuck, why.
          *
@@ -1226,8 +1253,8 @@ function EventScreen({
         const failed = queue.failedIn(event.id).length;
         const stale = queue.staleIn(event.id).length;
         setStuck({ failed, stale });
-        const note = queue.waitingForNetwork
-          ? `${queue.pendingCount} waiting for a connection`
+        const note = queue.waitingFor(event.id)
+          ? `${queue.pendingIn(event.id)} waiting for a connection`
           : failed > 0
             ? `${failed} didn't upload`
             : stale > 0
