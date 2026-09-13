@@ -1557,12 +1557,28 @@ function EventScreen({
   const outstanding = uploading + (feed?.arriving ?? 0);
   useEffect(() => {
     if (batch === null) return;
-    if (outstanding === 0) {
-      setBatch(null);
-      setProgress(null);
+    if (outstanding > 0) {
+      setProgress(Math.min(1, Math.max(0, (batch - outstanding) / batch)));
       return;
     }
-    setProgress(Math.min(1, Math.max(0, (batch - outstanding) / batch)));
+    /*
+     * Zero can mean "not told yet", so it is held rather than believed.
+     *
+     * `uploading` drops to zero the instant the last byte leaves, and the feed
+     * at that moment is still the one fetched before any of this started — it
+     * says `arriving: 0` because it was read before the rows existed. Believing
+     * the sum straight away ended the batch on a stale answer: the bar vanished
+     * partway with the album still empty, which is exactly what it looked like.
+     *
+     * Three seconds is longer than a refresh takes and shorter than anybody
+     * would wait wondering. If something really is still coming, the poll below
+     * will have said so by then and this never fires.
+     */
+    const settle = setTimeout(() => {
+      setBatch(null);
+      setProgress(null);
+    }, 3000);
+    return () => clearTimeout(settle);
   }, [batch, outstanding]);
 
   /*
@@ -1574,11 +1590,34 @@ function EventScreen({
    * arriving, and not at all otherwise: an album nobody is adding to must not
    * poll in somebody's pocket.
    */
+  /*
+   * Whether anything is still on its way, readable without re-subscribing.
+   *
+   * A ref rather than a dependency, and that distinction is the whole bug. This
+   * condition was the interval's dependency list — but `uploading` is written
+   * every 400ms while the queue runs, so the effect tore its timer down and
+   * built a new one four hundred milliseconds into every two-second wait. It
+   * never once reached the end of a cycle, so it never fired. What looked like
+   * "polling stops after the first photograph" was polling that had never
+   * started, with a single post-upload refresh doing all the work.
+   */
+  const stillComing = useRef(false);
+  stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0;
+
+  /*
+   * One timer, made once, for as long as the album is open.
+   *
+   * `refresh` is stable, so nothing re-renders this away: it ticks on its own
+   * schedule and asks the ref each time whether there is any reason to look.
+   * The tick costs a comparison when there is nothing coming, which is the
+   * price of a poll that cannot be cancelled by the thing it is waiting for.
+   */
   useEffect(() => {
-    if (!feed || feed.arriving === 0) return;
-    const timer = setInterval(() => void refresh(), 2000);
+    const timer = setInterval(() => {
+      if (stillComing.current) void refresh();
+    }, 2000);
     return () => clearInterval(timer);
-  }, [feed, refresh]);
+  }, [refresh]);
 
   /*
    * The seam under the cover, used as the progress bar.

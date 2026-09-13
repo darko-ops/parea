@@ -296,19 +296,33 @@ describe('the bar, and when the album is actually full', () => {
      */
     expect(APP).toMatch(/const outstanding = uploading \+ \(feed\?\.arriving \?\? 0\)/);
     expect(APP).toMatch(/\(batch - outstanding\) \/ batch/);
-    // And it goes when both halves are done, which is the moment the album is
-    // full rather than the moment the phone stopped sending.
-    expect(APP).toMatch(/if \(outstanding === 0\) \{\s*setBatch\(null\);\s*setProgress\(null\);/);
+    /*
+     * And a zero is held rather than believed. `uploading` drops the instant
+     * the last byte leaves, while the feed is still the one fetched before any
+     * of this began — it says `arriving: 0` because it was read before the rows
+     * existed. Believing that ended the batch on a stale answer, which is the
+     * bar vanishing partway with the album still empty.
+     */
+    expect(APP).toMatch(/const settle = setTimeout\(\(\) => \{\s*setBatch\(null\);\s*setProgress\(null\);/);
+    expect(APP).toMatch(/return \(\) => clearTimeout\(settle\)/);
   });
 
   it('asks again while anything is still being processed', () => {
     // The deriver tells nobody when it is done, so without this the album sits
     // on whatever it knew when it opened.
-    expect(APP).toMatch(/if \(!feed \|\| feed\.arriving === 0\) return;/);
-    expect(APP).toMatch(/setInterval\(\(\) => void refresh\(\), 2000\)/);
-    // And not at all otherwise: an album nobody is adding to must not poll in
-    // somebody's pocket.
-    expect(APP).toMatch(/return \(\) => clearInterval\(timer\)/);
+    /*
+     * The condition is a ref, not a dependency, and that distinction is the
+     * whole bug it was written for. As a dependency it included `uploading`,
+     * which the queue writes every 400ms — so the effect tore its two-second
+     * timer down and built a new one four hundred milliseconds into every wait.
+     * It never reached the end of a cycle, so it never fired: what looked like
+     * "polling stops after the first photograph" was polling that had never
+     * started, with the single post-upload refresh doing all the work.
+     */
+    expect(APP).toMatch(/stillComing\.current = uploading > 0 \|\| \(feed\?\.arriving \?\? 0\) > 0/);
+    expect(APP).toMatch(/if \(stillComing\.current\) void refresh\(\);/);
+    // Made once, from a stable callback, so nothing re-renders it away.
+    expect(APP).toMatch(/setInterval\(\(\)[\s\S]{0,80}\}, 2000\);\s*return \(\) => clearInterval\(timer\);\s*\}, \[refresh\]\);/);
   });
 
   it('sits on the cover’s own edge, in white', () => {
