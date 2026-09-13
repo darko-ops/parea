@@ -211,7 +211,9 @@ describe('the heading row', () => {
      * something here".
      */
     expect(HOME).toMatch(/accessibilityLabel="New album or group"/);
-    expect(HOME).toMatch(/styles\.newGroup/);
+    // The product's one piece of round chrome, shared rather than restyled per
+    // corner — see `RoundButton`.
+    expect(HOME).toMatch(/<RoundButton/);
     expect(HOME).toMatch(/<Glyph name="plus" size=\{20\}/);
     expect(HOME).not.toMatch(/Start one/);
     /*

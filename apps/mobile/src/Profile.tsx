@@ -62,6 +62,7 @@ import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
+import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -230,24 +231,17 @@ export function ProfileScreen({
         it.
       */}
       <View style={styles.bar}>
-        <Pressable
-          onPress={() => setSettings(true)}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Settings"
-        >
-          <Text style={[styles.barMore, { color: t.fg }]}>⋯</Text>
-        </Pressable>
+        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
+          <More color={t.fg} />
+        </RoundButton>
 
-        <Pressable
+        <RoundButton
+          t={t}
           onPress={() => setCreating(true)}
-          hitSlop={12}
-          accessibilityRole="button"
           accessibilityLabel="New album or group"
-          style={({ pressed }) => [styles.barPlus, { opacity: pressed ? 0.55 : 1 }]}
         >
-          <Glyph name="plus" size={22} color={t.fg} />
-        </Pressable>
+          <Glyph name="plus" size={20} color={t.fg} />
+        </RoundButton>
       </View>
 
       {/*
@@ -825,8 +819,6 @@ const styles = StyleSheet.create({
   /* Settings and `+`, in the two corners, above everything else. */
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   /* The glyph's own box, so the two corners are the same height. */
-  barMore: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
-  barPlus: { alignItems: 'center', justifyContent: 'center', width: 24, height: 24 },
   /* The words and the picture on one line, the words first. */
   head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   /* Clear of the bar above it. With the scroll's own 16 that is 36 between the

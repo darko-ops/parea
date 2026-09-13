@@ -93,6 +93,36 @@ describe('one header, three panes', () => {
   });
 });
 
+describe('the corners', () => {
+  it('are the same disc as every other corner in the product', () => {
+    /*
+     * Back was `‹ All events` — words on a photograph with nothing behind them
+     * — and the options were a dark blur circle. The blur was the careful
+     * answer to sitting on somebody's picture, and its trouble is that it only
+     * works while the ink is white, so these two could never match the two on
+     * the profile.
+     */
+    expect(SCREEN).toMatch(/<RoundButton[\s\S]{0,160}styles\.coverBack/);
+    expect(SCREEN).toMatch(/<RoundButton[\s\S]{0,160}styles\.coverMore/);
+    expect(SCREEN).toMatch(/<Back color=\{t\.fg\} \/>/);
+    expect(SCREEN).toMatch(/<More color=\{t\.fg\} \/>/);
+    // The blur and its white glyph are gone with it.
+    expect(APP).not.toMatch(/coverMoreBlur|coverMoreGlyph|coverBackText/);
+  });
+
+  it('says nothing about where back goes', () => {
+    // Which is the one thing a back button never needs to say.
+    expect(SCREEN).not.toMatch(/‹ All events/);
+  });
+
+  it('sit level with each other, and lower than either was', () => {
+    // They were at 46 and 40 — close enough to look like a mistake rather than
+    // a decision.
+    expect(APP).toMatch(/coverBack: \{ position: 'absolute', top: 52, left: 16/);
+    expect(APP).toMatch(/coverMore: \{ position: 'absolute', top: 52, right: 16/);
+  });
+});
+
 describe('the grid', () => {
   it('is one photograph per row, not a contact sheet', () => {
     /*

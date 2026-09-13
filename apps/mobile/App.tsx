@@ -65,6 +65,7 @@ import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
 import { PickPhotos } from './src/PickPhotos';
+import { Back, More, RoundButton } from './src/RoundButton';
 import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
@@ -1762,37 +1763,46 @@ function EventScreen({
         )}
       </View>
 
-      <Pressable
+      {/*
+        The two corners, in the disc every other corner in the product uses.
+
+        Back was `‹ All events` — words, on a photograph, with nothing behind
+        them — and the options were a dark blur circle. The blur was the careful
+        answer to sitting on somebody's picture, and the trouble with it is that
+        it only works while the ink is white, so these two could never match the
+        two on the profile. A filled disc solves the same problem the way the
+        rest of the product already does.
+
+        And the words go with it: `All events` was describing where the back
+        button went, which is the one thing a back button never needs to say.
+      */}
+      <RoundButton
+        t={t}
         onPress={onBack}
-        hitSlop={10}
+        accessibilityLabel="Back to your events"
         style={styles.coverBack}
-        accessibilityRole="button"
-        accessibilityLabel="All events"
       >
-        <Text style={styles.coverBackText}>‹ All events</Text>
-      </Pressable>
+        <Back color={t.fg} />
+      </RoundButton>
 
       {/*
         Everything this screen used to stack, behind one glyph.
 
-        Eight full-width slabs sat between the name and the first
-        photograph — share, save, who can see it, the cover, asking people
-        in, starting a group — so that opening an album showed you a column
-        of settings and, if you scrolled, some photographs. They are the
-        same actions with the same copy and the same calls; they are in a
-        sheet now, which is where an album's settings go.
+        Eight full-width slabs sat between the name and the first photograph —
+        share, save, who can see it, the cover, asking people in, starting a
+        group — so that opening an album showed you a column of settings and, if
+        you scrolled, some photographs. They are the same actions with the same
+        copy and the same calls; they are in a sheet now, which is where an
+        album's settings go.
       */}
-      <Pressable
+      <RoundButton
+        t={t}
         onPress={() => setSheetOpen(true)}
-        hitSlop={8}
-        style={styles.coverMore}
-        accessibilityRole="button"
         accessibilityLabel="Event options"
+        style={styles.coverMore}
       >
-        <BlurView intensity={10} tint="dark" style={styles.coverMoreBlur}>
-          <Text style={styles.coverMoreGlyph}>⋯</Text>
-        </BlurView>
-      </Pressable>
+        <More color={t.fg} />
+      </RoundButton>
 
       <View style={styles.coverTitle} pointerEvents="box-none">
         <Text style={styles.coverName} numberOfLines={2}>
@@ -2711,21 +2721,13 @@ const styles = StyleSheet.create({
      type over a photograph and a grey page under it without the page's
      background being drawn over the picture. */
   cover: { position: 'absolute', top: 0, left: 0, right: 0, height: 232 },
-  coverBack: { position: 'absolute', top: 46, left: 16, zIndex: 3 },
-  coverBackText: { fontSize: 15, color: '#fff' },
-  coverMore: { position: 'absolute', top: 40, right: 16, zIndex: 3 },
+  /* Level with each other, and a little lower than either was: they were at 46
+     and 40, which is close enough to look like a mistake rather than a
+     decision. 52 also puts them clear of the clock on every size of phone. */
+  coverBack: { position: 'absolute', top: 52, left: 16, zIndex: 3 },
+  coverMore: { position: 'absolute', top: 52, right: 16, zIndex: 3 },
   /* Glass rather than a solid disc: it sits on a photograph nobody chose for
      it, and a grey circle is a hole in whatever is behind it. */
-  coverMoreBlur: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(20,23,28,0.38)',
-  },
-  coverMoreGlyph: { color: '#fff', fontSize: 16, fontWeight: '600', lineHeight: 18 },
   coverTitle: { position: 'absolute', top: 140, left: 20, right: 20, zIndex: 3, gap: 6 },
   /* The shadow is what keeps four words legible over a cover that turns out to
      be a white tablecloth. */

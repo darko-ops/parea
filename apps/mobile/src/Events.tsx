@@ -39,6 +39,7 @@ import type {
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import { Glyph } from './Glyph';
+import { RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -448,17 +449,13 @@ export function HomeTab({
       */}
       <View style={styles.headRow}>
         <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
-        <Pressable
+        <RoundButton
+          t={t}
           onPress={() => setStarting(true)}
-          accessibilityRole="button"
           accessibilityLabel="New album or group"
-          style={({ pressed }) => [
-            styles.newGroup,
-            { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
-          ]}
         >
           <Glyph name="plus" size={20} color={t.fg} />
-        </Pressable>
+        </RoundButton>
       </View>
 
       {starting && (
@@ -753,26 +750,9 @@ export function GroupsTab({
           rooms underneath it.
         */}
         {groups !== null && making !== 'anyone' && (
-          <Pressable
-            onPress={() => setMaking('anyone')}
-            accessibilityRole="button"
-            accessibilityLabel="New group"
-            style={({ pressed }) => [
-              styles.newGroup,
-              {
-                // The same quiet control the album screen's "add photos" is,
-                // rather than a filled accent circle. Two tabs, one shape for
-                // "make something here" — and a solid blue disc beside a 30pt
-                // title was the loudest thing on a screen whose subject is
-                // underneath it.
-                backgroundColor: t.card,
-                borderColor: t.line,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-          >
+          <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
             <Glyph name="plus" size={20} color={t.fg} />
-          </Pressable>
+          </RoundButton>
         )}
       </View>
 
@@ -1931,14 +1911,6 @@ const styles = StyleSheet.create({
      screen in this project already starts at. */
   groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
   groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  newGroup: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   groupBlock: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* The door: small, because the evenings under it are what the block is for.

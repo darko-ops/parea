@@ -40,7 +40,10 @@ describe('the two corners', () => {
      */
     expect(SCREEN).toMatch(/styles\.bar\b/);
     expect(SCREEN).toMatch(/accessibilityLabel="Settings"/);
-    expect(SCREEN).toMatch(/⋯/);
+    // The `⋯` itself lives in `RoundButton` now, so that every corner drawing
+    // one agrees about its size — the profile's was 22pt and the album's 16.
+    expect(SCREEN).toMatch(/<More color=\{t\.fg\} \/>/);
+    expect(read('src/RoundButton.tsx')).toMatch(/⋯/);
     // And it is the first thing in the bar, which is the left-hand corner.
     const bar = SCREEN.slice(SCREEN.indexOf('styles.bar'), SCREEN.indexOf('styles.headLower'));
     expect(bar.indexOf('Settings')).toBeLessThan(bar.indexOf('New album or group'));
