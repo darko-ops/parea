@@ -1033,6 +1033,19 @@ function EventScreen({
   const [feed, setFeed] = useState<Feed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
+  /**
+   * What is stuck in *this* album, as numbers rather than as a sentence.
+   *
+   * The sentence is for reading; these are for deciding what to offer under it.
+   * Scoped to the event because nothing but `done` is ever pruned from the
+   * queue — a failure outlives every later run, and the counts on the queue
+   * itself are the whole queue's, so this screen was captioning a perfectly
+   * good upload into one album with failures belonging to another.
+   */
+  const [stuck, setStuck] = useState<{ failed: number; stale: number }>({
+    failed: 0,
+    stale: 0,
+  });
   /*
    * How far along the uploads are, as a fraction.
    *
@@ -1144,17 +1157,30 @@ function EventScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runQueue = useCallback(
-    async (state?: Awaited<ReturnType<typeof loadQueue>>) => {
-      const queue = new UploadQueue(
+  /**
+   * A queue over the saved state, wired to this album.
+   *
+   * One place that knows the wiring, because three things want a queue now —
+   * the run, the retry and the forget — and three copies of the same four
+   * callbacks is three places for the link token to go stale.
+   */
+  const openQueue = useCallback(
+    (state: Awaited<ReturnType<typeof loadQueue>>) =>
+      new UploadQueue(
         {
           presign: (eventId, files) => api.presign(eventId, event.linkToken, files),
           upload: uploadItem,
           complete: (photoId) => api.complete(photoId, event.linkToken),
           save: saveQueue,
         },
-        state ?? (await loadQueue()),
-      );
+        state,
+      ),
+    [api, event.linkToken],
+  );
+
+  const runQueue = useCallback(
+    async (state?: Awaited<ReturnType<typeof loadQueue>>) => {
+      const queue = openQueue(state ?? (await loadQueue()));
 
       const tick = setInterval(() => {
         const total = queue.doneCount + queue.pendingCount;
@@ -1188,11 +1214,22 @@ function EventScreen({
          * One line saying both is how a person can tell those apart — and how
          * anybody reporting it can say something more useful than "it failed".
          */
-        const stale = queue.staleItems.length;
-        const stuck = queue.waitingForNetwork
+        /*
+         * This album's, not the queue's.
+         *
+         * `failedCount` and `staleItems` are the whole queue, which is the
+         * right answer for a screen about the queue and the wrong one here: a
+         * failure in another album would caption this one's uploads forever,
+         * and there is no state in which telling somebody about it *here*
+         * helps them.
+         */
+        const failed = queue.failedIn(event.id).length;
+        const stale = queue.staleIn(event.id).length;
+        setStuck({ failed, stale });
+        const note = queue.waitingForNetwork
           ? `${queue.pendingCount} waiting for a connection`
-          : queue.failedCount > 0
-            ? `${queue.failedCount} didn't upload`
+          : failed > 0
+            ? `${failed} didn't upload`
             : stale > 0
               ? // Their bytes are gone rather than refused, so "try again" is
                 // the wrong advice: the photograph has to be picked again.
@@ -1209,15 +1246,57 @@ function EventScreen({
          * bug several rounds of guessing.
          */
         const why =
-          stuck && (queue.cause ?? queue.staleItems[0]?.error)
-            ? (queue.cause ?? queue.staleItems[0]?.error)
+          note && (queue.cause ?? queue.staleIn(event.id)[0]?.error)
+            ? (queue.cause ?? queue.staleIn(event.id)[0]?.error)
             : null;
-        setQueueStatus(stuck && why ? `${stuck} — ${why}` : stuck);
+        setQueueStatus(note && why ? `${note} — ${why}` : note);
         await refresh();
       }
     },
-    [api, event, refresh],
+    [event, openQueue, refresh],
   );
+
+  /**
+   * The way out of a line that used to have none.
+   *
+   * "6 didn't upload" was the end of the conversation: `failed` is terminal
+   * after four attempts, nothing but `done` is ever pruned, so the sentence
+   * outlived every later run with nothing to press and nothing to dismiss. A
+   * report of a problem with no remedy beside it is not information, it is a
+   * scar — and people learn to read past the one line on the screen that might
+   * one day matter.
+   *
+   * Four attempts were spent against a condition that may well have changed: a
+   * build that has since been fixed, a network that came back, a source that
+   * can be copied out of the library again. Somebody pressing this is the new
+   * information, which is why the attempts go back to zero.
+   */
+  const retryStuck = useCallback(async () => {
+    const queue = openQueue(await loadQueue());
+    if (queue.retryFailed(event.id) === 0) return;
+    await saveQueue(queue.state);
+    setQueueStatus('Trying again…');
+    setStuck({ failed: 0, stale: 0 });
+    await runQueue(queue.state);
+  }, [event.id, openQueue, runQueue]);
+
+  /**
+   * And the way out of the other one, where trying again would be a lie.
+   *
+   * A stale item's bytes are gone — the copy in the sandbox was cleaned up, or
+   * the library handed back something that no longer resolves — so another four
+   * attempts would find them just as gone. The only remedy is to pick the
+   * photographs again, which is what the line says. This is how somebody agrees
+   * to that and gets their screen back. Nothing is lost: the photographs are in
+   * the camera roll, which is where they were all along.
+   */
+  const forgetStuck = useCallback(async () => {
+    const queue = openQueue(await loadQueue());
+    queue.forget(queue.staleIn(event.id).map((i) => i.source));
+    await saveQueue(queue.state);
+    setStuck({ failed: 0, stale: 0 });
+    setQueueStatus(null);
+  }, [event.id, openQueue]);
 
   /**
    * Try again when there is some reason to think the answer will differ.
@@ -2009,22 +2088,64 @@ function EventScreen({
         {pane === 'photos' ? (
           <>
             {/*
-              The transient lines, which are the only things still allowed
-              between the tabs and the grid: an upload in flight and the one
-              offer that is made after a contribution rather than in front of
-              it. Both go away on their own.
+              The lines between the tabs and the grid: an upload in flight, and
+              the one offer that is made after a contribution rather than in
+              front of it.
+
+              Most of these go away on their own. The one that does not is a
+              failure, and it used to have nothing under it — `failed` is
+              terminal after four attempts and nothing but `done` is pruned, so
+              "6 didn't upload" sat there through every later run with nothing
+              to press and nothing to dismiss. That is not a report, it is a
+              scar, and a permanent line is one people learn to read past.
             */}
             {queueStatus && (
-              <Text style={[styles.queueLine, { color: t.dim }]}>
-                {queueStatus}
-                {waitingForNetwork
-                  ? // Nothing is lost and nothing needs doing. Saying this
-                    // plainly is the difference between someone waiting and
-                    // someone force-quitting the app on their photos.
-                    ' — they are saved and will go up on their own.'
-                  : !BACKGROUND_UPLOAD_SUPPORTED &&
-                    ' — keep the app open until this finishes'}
-              </Text>
+              <View style={styles.queueLine}>
+                <Text style={[styles.queueText, { color: t.dim }]}>
+                  {queueStatus}
+                  {waitingForNetwork
+                    ? // Nothing is lost and nothing needs doing. Saying this
+                      // plainly is the difference between someone waiting and
+                      // someone force-quitting the app on their photos.
+                      ' — they are saved and will go up on their own.'
+                    : !BACKGROUND_UPLOAD_SUPPORTED &&
+                      stuck.failed === 0 &&
+                      stuck.stale === 0 &&
+                      ' — keep the app open until this finishes'}
+                </Text>
+
+                {/*
+                  One remedy, chosen by which kind of stuck this is.
+
+                  A failed item wants another attempt: the condition that beat
+                  it may be gone, and pressing this is the new information that
+                  earns a fresh set of attempts. A stale one wants the opposite
+                  — its bytes are gone, another four attempts would find them
+                  just as gone, and the only honest thing to offer is to let it
+                  go. The photographs are in the camera roll either way.
+                */}
+                {stuck.failed > 0 ? (
+                  <Pressable
+                    onPress={() => void retryStuck()}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Try again with ${stuck.failed} ${stuck.failed === 1 ? 'photo' : 'photos'}`}
+                  >
+                    <Text style={[styles.queueDo, { color: t.accent }]}>Try again</Text>
+                  </Pressable>
+                ) : (
+                  stuck.stale > 0 && (
+                    <Pressable
+                      onPress={() => void forgetStuck()}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Stop asking about these"
+                    >
+                      <Text style={[styles.queueDo, { color: t.accent }]}>Never mind</Text>
+                    </Pressable>
+                  )
+                )}
+              </View>
             )}
 
             {offerUpgrade && (
@@ -3073,7 +3194,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  queueLine: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingBottom: 8 },
+  /* The sentence and its remedy on one line, the remedy at the end of it where
+     a thumb already is rather than under it as a third stacked thing. */
+  queueLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  queueText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  queueDo: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
   upgrade: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12, marginHorizontal: 16, marginBottom: 10 },
   /* --- the album, folded up ---------------------------------------------
 

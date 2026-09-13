@@ -219,6 +219,54 @@ export class UploadQueue {
   }
 
   /**
+   * The same two questions, asked about one album.
+   *
+   * The counts above are the whole queue's, which is the right answer for a
+   * screen that is about the queue and the wrong one for a screen that is about
+   * an album. Nothing is pruned but `done`, so a failure survives every later
+   * run — and a screen reading the global count captions a perfectly good
+   * upload into one album with six failures that belong to another. Which is
+   * exactly what it looks like from the outside: a line that will not go away
+   * and has nothing to do with what you just did.
+   */
+  failedIn(eventId: string): QueueItem[] {
+    return this.items.filter((i) => i.eventId === eventId && i.status === 'failed');
+  }
+
+  staleIn(eventId: string): QueueItem[] {
+    return this.items.filter((i) => i.eventId === eventId && i.status === 'stale');
+  }
+
+  /**
+   * Spends a fresh set of attempts on everything that gave up.
+   *
+   * `failed` is terminal after `MAX_ATTEMPTS`, and it has to be: a queue that
+   * retried forever would sit in somebody's pocket burning a battery on a file
+   * the server keeps refusing. But terminal is not the same as permanent, and
+   * the code had no way back at all — four attempts against a condition that
+   * has since changed (a fixed build, a different network, a source that can be
+   * copied out of the library again) were the end of it.
+   *
+   * A person pressing "try again" *is* the new information. Attempts go back to
+   * zero rather than merely being allowed one more, because the count exists to
+   * stop an unattended loop, and this run is not unattended.
+   *
+   * Stale items are deliberately untouched: their bytes are gone, and another
+   * four attempts would find them just as gone. `forget` is the remedy there.
+   */
+  retryFailed(eventId?: string): number {
+    let woken = 0;
+    for (const item of this.items) {
+      if (item.status !== 'failed') continue;
+      if (eventId && item.eventId !== eventId) continue;
+      item.status = 'pending';
+      item.attempts = 0;
+      woken += 1;
+    }
+    return woken;
+  }
+
+  /**
    * Forgets items so they can be queued again.
    *
    * The web client calls this when someone re-picks files that had gone stale:

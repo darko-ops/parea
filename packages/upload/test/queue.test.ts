@@ -14,6 +14,7 @@ import {
   MAX_ATTEMPTS,
   MAX_REPRESIGN_ROUNDS,
   Offline,
+  SourceGone,
   UploadQueue,
   type Deps,
   type QueueItem,
@@ -279,6 +280,109 @@ describe('failure', () => {
     // Still pending, not failed: offline is a retry-later, not a give-up.
     expect(queue.pendingCount).toBe(2);
     expect(queue.state.items.every((i) => i.attempts === 1)).toBe(true);
+  });
+});
+
+/**
+ * A failure is terminal, and terminal is not the same as permanent.
+ *
+ * `failed` has to be an end state — a queue that retried forever would sit in
+ * a pocket burning a battery on a file the server keeps refusing. But nothing
+ * but `done` is ever pruned, so a failure outlives every later run, and until
+ * these two there was no way back from one at all: four attempts against a
+ * condition that has since changed were the end of the photograph.
+ *
+ * The counts also answered the wrong question. They are the whole queue's,
+ * which is right for a screen about the queue and wrong for a screen about an
+ * album — one album's screen was captioning a perfectly good upload with six
+ * failures belonging to another.
+ */
+describe('coming back from a failure', () => {
+  const exhaust = async (queue: UploadQueue) => {
+    for (let i = 0; i < MAX_ATTEMPTS + 1; i++) await queue.run();
+  };
+
+  it('spends a fresh set of attempts when somebody asks', async () => {
+    let working = false;
+    const h = harness({
+      async upload(item) {
+        if (!working) throw new Error('nope');
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await exhaust(queue);
+    expect(queue.failedCount).toBe(1);
+
+    // The condition that made it fail is gone — a fixed build, a network that
+    // came back, a source that can be copied out of the library again. The
+    // press is the new information.
+    working = true;
+    expect(queue.retryFailed()).toBe(1);
+    await queue.run();
+
+    expect(queue.doneCount).toBe(1);
+    expect(queue.failedCount).toBe(0);
+  });
+
+  it('puts the attempts back to zero, not up by one', async () => {
+    // The count exists to stop an unattended loop. This run is not unattended,
+    // and leaving it at the cap would buy a single attempt and then the same
+    // dead line on the screen.
+    const h = harness({
+      async upload() {
+        throw new Error('nope');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await exhaust(queue);
+
+    queue.retryFailed();
+    expect(queue.state.items[0]!.attempts).toBe(0);
+    expect(queue.state.items[0]!.status).toBe('pending');
+  });
+
+  it('leaves a stale item alone, because its bytes are gone', async () => {
+    // Another four attempts would find them just as gone. `forget` is the
+    // remedy there, and the screen says to pick the photograph again.
+    const h = harness({
+      async upload() {
+        throw new SourceGone('the copy is not there');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+    expect(queue.staleItems).toHaveLength(1);
+
+    expect(queue.retryFailed()).toBe(0);
+    expect(queue.staleItems).toHaveLength(1);
+  });
+
+  it('can be asked about one album at a time', async () => {
+    const h = harness({
+      async upload(item) {
+        if (item.eventId === 'event-1') throw new Error('nope');
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+    await exhaust(queue);
+
+    expect(queue.failedIn('event-1')).toHaveLength(1);
+    expect(queue.failedIn('event-2')).toHaveLength(0);
+    // And the global count is still the global count: the screen that is about
+    // the queue rather than about an album has not changed.
+    expect(queue.failedCount).toBe(1);
+
+    // Retrying one album does not wake another's failures.
+    queue.add('event-3', [file(3)]);
+    expect(queue.retryFailed('event-2')).toBe(0);
+    expect(queue.failedIn('event-1')).toHaveLength(1);
   });
 });
 
