@@ -2461,7 +2461,31 @@ function HostSheet({
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+      {/*
+        The dim is a sibling of the sheet, not its parent.
+
+        It used to wrap it — a `Pressable` for the backdrop, a second one around
+        the sheet to swallow presses that should not close it, and the scroll
+        view inside both. That nesting is what made the first swipe on an opened
+        sheet do nothing: a touch anywhere in it is offered to the deepest view
+        that wants to be the responder, the sheet's own `Pressable` said yes on
+        the way down, and the scroll had to wait for that press to end before it
+        could take the gesture back. You swiped, nothing moved, you swiped again
+        and it worked — which reads as the page taking a moment to wake up.
+
+        Flat, there is nothing above the scroll view to claim anything: the dim
+        is behind it and covers the whole screen, so a tap on the visible part
+        still closes, and a tap on the sheet lands on the sheet because the
+        sheet is drawn over it.
+      */}
+      <View style={styles.sheetShell}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+
         {/*
           The way out, above the sheet rather than at the foot of it.
 
@@ -2481,7 +2505,7 @@ function HostSheet({
           <Back color={t.fg} />
         </RoundButton>
 
-        <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
+        <View style={[styles.sheet, { backgroundColor: t.bg }]}>
           <ScrollView contentContainerStyle={styles.sheetScroll}>
             <View style={styles.actions}>
               <Action
@@ -2690,8 +2714,8 @@ function HostSheet({
               />
             )}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -3224,6 +3248,9 @@ const styles = StyleSheet.create({
      rather than as one picture at a time. */
   thumb: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#8883' },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
+  /* The same thing without the press handling: the dim is a separate view
+     underneath now, so this one only decides where the sheet sits. */
+  sheetShell: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   sheet: {
     padding: 16,
     paddingBottom: 40,

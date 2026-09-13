@@ -140,6 +140,33 @@ describe('leaving', () => {
   });
 });
 
+describe('the sheet as a surface', () => {
+  it('puts nothing above the scroll view that can claim a touch', () => {
+    /*
+     * The dim used to be the sheet's parent — a `Pressable` for the backdrop, a
+     * second one around the sheet to swallow presses that should not close it,
+     * and the scroll view inside both. A touch anywhere in it is offered to the
+     * deepest view that wants to be the responder, the sheet's own `Pressable`
+     * said yes on the way down, and the scroll had to wait for that press to
+     * end before it could take the gesture back. You swiped, nothing moved, you
+     * swiped again and it worked — which reads as the page taking a moment to
+     * wake up.
+     *
+     * So: the shell is a plain `View`, the dim is an absolutely-filled sibling
+     * *under* the sheet, and the sheet itself is a `View`. Re-nesting them is
+     * the regression, and it is invisible in a screenshot.
+     */
+    expect(SHEET).toMatch(/<View style=\{styles\.sheetShell\}>/);
+    expect(SHEET).toMatch(
+      /<Pressable\s*style=\{StyleSheet\.absoluteFill\}\s*onPress=\{onClose\}/,
+    );
+    expect(SHEET).toMatch(/<View style=\{\[styles\.sheet, \{ backgroundColor: t\.bg \}\]\}>\s*<ScrollView/);
+    expect(SHEET).not.toMatch(/<Pressable style=\{styles\.sheetBackdrop\}/);
+    // And the dim still covers everything, so a tap beside the sheet closes it.
+    expect(APP).toMatch(/sheetShell: \{ flex: 1, justifyContent: 'flex-end'/);
+  });
+});
+
 describe('the way out of the sheet', () => {
   it('is the album’s own back button, above it', () => {
     /*
