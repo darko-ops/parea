@@ -320,3 +320,102 @@ export async function eventsFor(
     },
   }));
 }
+
+/**
+ * Taking one person out of an event.
+ *
+ * The counterpart to everything above: that reads who can reach an event, this
+ * is how somebody stops. It lives here rather than in the route for two
+ * reasons, and the second one is structural.
+ *
+ * The first is that the *reason* deleting the row is not always enough is the
+ * rule at the top of this file — there are two ways to be in an event, and
+ * leaving can only undo one of them.
+ *
+ * The second is that this function is the authorization. Every argument it
+ * needs about a person is `actorId`, every statement it runs is scoped to that
+ * actor, and it returns nothing about the event except whether this one person
+ * was in it. So the handler above it reads no event data at all and has nothing
+ * to guard — the same shape `eventsFor(db, actorId)` has, and the reason
+ * `access-chokepoint.test.ts` does not reach either of them. Anything added
+ * here that answers a question about the event itself breaks that, and belongs
+ * behind `guard` in the route instead.
+ *
+ * ## What it does not do
+ *
+ * It does not take the photographs. They belong to the evening rather than to
+ * whoever carried them there, and a roomful of people should not lose an hour
+ * of their lives because one of them tidied up. Nor does it lock the door: a
+ * public album's link still works afterwards, so this is "take this off my
+ * list" rather than "never again". Blocking is the tool for never again, and it
+ * is about a person rather than a room.
+ *
+ * ## `throughGroup`
+ *
+ * If the event belongs to a group this actor is in, the participant row was
+ * never what put it on their home screen — the group membership was, and it
+ * still does. Deleting the row and reporting success would be a lie somebody
+ * discovers by pulling to refresh. So the row goes, and the caller is told
+ * plainly that the album is still there and which door it is coming through.
+ *
+ * ## Why the host is refused
+ *
+ * There would be nobody to answer a request to join and nobody to change who
+ * can see it, and an album in that state is not a room somebody left — it is
+ * one with no way back in. Deleting it is the action they actually mean, and it
+ * is one tap away in the same sheet.
+ */
+export type LeftEvent =
+  | { left: true; wasIn: boolean; throughGroup: string | null }
+  | { left: false; reason: 'not_found' | 'host' };
+
+export async function leaveEvent(
+  db: Db,
+  eventId: string,
+  actorId: string,
+): Promise<LeftEvent> {
+  /*
+   * One row, two columns, and neither is anybody's data: whether this event
+   * exists, and whether this actor made it. Not a read of the event in the
+   * sense the chokepoint means — there is nothing here to leak to somebody who
+   * guessed an id that a 404 does not already tell them.
+   */
+  const [row] = await db
+    .select({ mine: eq(schema.events.createdBy, actorId), groupId: schema.events.groupId })
+    .from(schema.events)
+    .where(eq(schema.events.id, eventId))
+    .limit(1);
+
+  if (!row) return { left: false, reason: 'not_found' };
+  if (row.mine) return { left: false, reason: 'host' };
+
+  const [removed, inGroup] = await Promise.all([
+    db
+      .delete(schema.eventParticipants)
+      .where(
+        and(
+          eq(schema.eventParticipants.eventId, eventId),
+          eq(schema.eventParticipants.actorId, actorId),
+        ),
+      )
+      .returning({ actorId: schema.eventParticipants.actorId }),
+    row.groupId
+      ? db
+          .select({ groupId: schema.groupMembers.groupId })
+          .from(schema.groupMembers)
+          .where(
+            and(
+              eq(schema.groupMembers.groupId, row.groupId),
+              eq(schema.groupMembers.actorId, actorId),
+            ),
+          )
+          .limit(1)
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    left: true,
+    wasIn: removed.length > 0,
+    throughGroup: inGroup[0]?.groupId ?? null,
+  };
+}

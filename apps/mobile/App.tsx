@@ -16,6 +16,7 @@
 
 import { BlurView } from 'expo-blur';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Clipboard from 'expo-clipboard';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,7 +34,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -1413,12 +1413,33 @@ function EventScreen({
    * the common case and removing one is rare, and the rare destructive action
    * is better one press further away than sitting next to the ordinary one.
    */
-  const cover = feed?.event.coverUrl ?? null;
+  const chosenCover = feed?.event.coverUrl ?? null;
+
+  /**
+   * What the album actually leads with: the chosen cover, or its first photograph.
+   *
+   * This reverses a rule that was written down a few feet below — "never a
+   * photograph pulled out of the grid, that is a decision about which evening
+   * this was". The objection was sound about *which* photograph: an album's
+   * first upload by timestamp is an accident of whose phone finished first.
+   *
+   * What changed is that the first one is no longer an accident. The picker
+   * chooses the order now, and the one leading the grid is the one somebody put
+   * first — so borrowing it is reading a decision that has already been made,
+   * not inventing one. And the alternative was worse than it sounded: an album
+   * full of photographs whose door was a coloured letter, because nobody went
+   * looking for a setting they had no reason to know existed.
+   *
+   * Kept apart from `chosenCover` deliberately. The edit sheet below offers
+   * "Remove it" only where there is something to remove, and if this fed it the
+   * borrowed picture it would offer to remove a cover nobody set.
+   */
+  const cover = chosenCover ?? feed?.photos[0]?.card ?? feed?.photos[0]?.src ?? null;
 
   const editCover = useCallback(() => {
     const actions: Parameters<typeof Alert.alert>[2] = [
       {
-        text: cover ? 'Choose a different photo' : 'Choose a photo',
+        text: chosenCover ? 'Choose a different photo' : 'Choose a photo',
         onPress: async () => {
           const picked = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
@@ -1447,7 +1468,7 @@ function EventScreen({
       },
     ];
 
-    if (cover) {
+    if (chosenCover) {
       actions.push({
         text: 'Remove it',
         style: 'destructive',
@@ -1466,12 +1487,12 @@ function EventScreen({
 
     Alert.alert(
       'Event cover',
-      cover
+      chosenCover
         ? 'The picture the event leads with, wherever it is shown.'
         : 'Choose the picture the event leads with. Without one it leads with its newest photograph.',
       actions,
     );
-  }, [api, cover, event.id, refresh]);
+  }, [api, chosenCover, event.id, refresh]);
 
   const messages = feed?.messages ?? [];
 
@@ -1648,12 +1669,106 @@ function EventScreen({
     [api, event.id],
   );
 
-  const shareLink = useCallback(() => {
+  /**
+   * The link, on the clipboard.
+   *
+   * This was the OS share sheet, and the sheet is the more capable control —
+   * it knows every app on the phone. What it is not is predictable: it takes a
+   * second to appear, it covers the screen, and where it puts the link depends
+   * on a grid of icons that is different on everybody's phone. The common case
+   * is somebody who wants the link *in their hand* to paste into a conversation
+   * they already have open.
+   *
+   * So: one tap, the link is copied, and the button says so. `copied` is what
+   * makes that true — a copy with no visible consequence is indistinguishable
+   * from a button that did nothing.
+   */
+  const [copied, setCopied] = useState(false);
+  const copyLink = useCallback(() => {
     // The link alone. The name arrives with it — a shared link unfurls into a
     // card carrying the event's title, so putting it in the message body as
     // well says it twice.
-    void Share.share({ message: `${webBase}/e/${event.linkToken}` });
+    void Clipboard.setStringAsync(`${webBase}/e/${event.linkToken}`);
+    setCopied(true);
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
   }, [event.linkToken, webBase]);
+
+  /**
+   * Ending the album, and stepping out of it.
+   *
+   * Two actions that look alike in a menu and are nothing alike: one takes the
+   * evening away from everybody who was there, the other takes this person off
+   * a list. They are never offered together — the host sees the first, everyone
+   * else the second — because a row whose meaning depends on who is reading it
+   * is a row somebody will misread.
+   *
+   * Both confirm, and the destructive one says what it costs in photographs.
+   * Both leave by `onBack`, which re-reads the event list, so the album is gone
+   * from the home screen rather than sitting there until something else
+   * refreshes it.
+   */
+  const deleteAlbum = useCallback(() => {
+    const count = feed?.photos.length ?? 0;
+    Alert.alert(
+      `Delete ${event.name}?`,
+      count > 0
+        ? `This takes the album and its ${count} ${count === 1 ? 'photo' : 'photos'} away from everybody in it. It cannot be undone.`
+        : 'This takes the album away from everybody in it. It cannot be undone.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteEvent(event.id);
+              onBack();
+            } catch {
+              Alert.alert('Could not delete it', 'Try again in a moment.');
+            }
+          },
+        },
+      ],
+    );
+  }, [api, event.id, event.name, feed, onBack]);
+
+  const leaveAlbum = useCallback(() => {
+    Alert.alert(
+      `Leave ${event.name}?`,
+      'It comes off your list. Photographs you added stay — they belong to the evening. If it is public the link still works, so you can come back.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { throughGroup } = await api.leaveEvent(event.id);
+              onBack();
+              /*
+               * The half of leaving that is not this album's to give.
+               *
+               * An album inside a group reaches the home screen through the
+               * membership, not through the participant row — so the row going
+               * is real and the album is still there. Said here rather than
+               * left to be discovered on the next pull to refresh, which is
+               * where it reads as the Leave button having failed.
+               */
+              if (throughGroup) {
+                Alert.alert(
+                  'Still in your list',
+                  `${event.name} belongs to a group you are in, so it stays on your home screen. Leaving the group is what takes it off.`,
+                );
+              }
+            } catch {
+              Alert.alert('Could not leave', 'Try again in a moment.');
+            }
+          },
+        },
+      ],
+    );
+  }, [api, event.id, event.name, onBack]);
 
   /** Whichever way in `+` takes: the picker, or the account it first needs. */
   const add = useCallback(() => {
@@ -1745,11 +1860,9 @@ function EventScreen({
             transition={120}
           />
         ) : (
-          // No cover and nothing to borrow: the event's own lens, which is
-          // the same letter-on-a-colour every other doorless thing in the
-          // product gets. Never a photograph pulled out of the grid — that
-          // is a decision about which evening this was, made by an
-          // upload's timestamp.
+          // Nothing chosen and nothing to borrow — an album nobody has put a
+          // photograph in yet. The event's own lens, which is the same
+          // letter-on-a-colour every other doorless thing in the product gets.
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
         {/*
@@ -2060,8 +2173,11 @@ function EventScreen({
           saving={saving}
           Button={ButtonEl}
           onClose={() => setSheetOpen(false)}
-          onShare={shareLink}
+          copied={copied}
+          onCopyLink={copyLink}
           onSaveAll={saveAll}
+          onDelete={deleteAlbum}
+          onLeave={leaveAlbum}
           onEditCover={editCover}
           onPolicy={async (value) => {
             setPolicy(value);
@@ -2274,10 +2390,26 @@ function Bubble({ name, url, keyed }: { name: string; url: string | null; keyed:
 /**
  * Everything the album's screen used to stack above its first photograph.
  *
- * Share and save for anybody who can see it; the cover, who can see it, asking
- * people in and starting a group for whoever runs it. The copy, the order of
- * the questions and every call they make are the ones `EventScreen` already
- * made — this is where they are, not what they do.
+ * ## Three actions, then four questions
+ *
+ * The sheet used to be one list, and everything in it looked equally like
+ * everything else: sharing the link, saving every photograph and changing who
+ * could see it were all a title with a line of explanation under it, stacked.
+ * Two of those are things you *do* and take a second; the rest are things you
+ * *decide* and change the album.
+ *
+ * So the doing sits across the top as three icons — copy the link, download it,
+ * and the one that ends your part in it — and the deciding is below in the
+ * order somebody actually meets it: what it looks like, who is in it, who can
+ * see it, and whether this keeps happening. Icons for the first three because
+ * they are the same three verbs every phone already has a picture for, and a
+ * row of three is glanceable in a way a stack of three paragraphs is not.
+ *
+ * The last of the three is the reason they are not four: **Delete** and
+ * **Leave** occupy one slot and are never both offered. The host ends the
+ * evening for everybody; everybody else steps out of it. Neither is a smaller
+ * version of the other, and a single row whose meaning turned on who was
+ * reading it is a row somebody would eventually misread.
  */
 function HostSheet({
   api,
@@ -2288,10 +2420,13 @@ function HostSheet({
   policy,
   policyError,
   saving,
+  copied,
   Button: ButtonEl,
   onClose,
-  onShare,
+  onCopyLink,
   onSaveAll,
+  onDelete,
+  onLeave,
   onEditCover,
   onPolicy,
   onGroup,
@@ -2305,10 +2440,14 @@ function HostSheet({
   policy: 'public' | 'private' | null;
   policyError: string | null;
   saving: string | null;
+  /** True for a moment after the link goes on the clipboard. */
+  copied: boolean;
   Button: typeof Button;
   onClose: () => void;
-  onShare: () => void;
+  onCopyLink: () => void;
   onSaveAll: () => void;
+  onDelete: () => void;
+  onLeave: () => void;
   onEditCover: () => void;
   onPolicy: (value: 'public' | 'private') => void;
   onGroup: (name: string) => void;
@@ -2318,35 +2457,69 @@ function HostSheet({
   const [groupName, setGroupName] = useState('');
   const host = feed?.event.canAdminister === true;
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
+  const photos = feed?.photos.length ?? 0;
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        {/*
+          The way out, above the sheet rather than at the foot of it.
+
+          It was a Done button under everything, which meant closing a sheet you
+          had scrolled to the bottom of was easy and closing one you had not
+          meant scrolling to find the exit. This is the album's own back button,
+          in the same disc, in the same corner, at the same size — so the
+          gesture that leaves this is the gesture that leaves the screen under
+          it, and it never moves.
+        */}
+        <RoundButton
+          t={t}
+          onPress={onClose}
+          accessibilityLabel="Close"
+          style={styles.sheetBack}
+        >
+          <Back color={t.fg} />
+        </RoundButton>
+
         <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
           <ScrollView contentContainerStyle={styles.sheetScroll}>
-            <Row label="Share" note="Send the link to whoever should be in it." onPress={onShare} t={t} />
-            {(feed?.photos.length ?? 0) > 0 && (
-              <Row
-                label={saving ?? 'Save all to my camera roll'}
-                note="Full quality or smaller copies — it asks which."
+            <View style={styles.actions}>
+              <Action
+                t={t}
+                icon="share"
+                /* The label says what the tap did, for two seconds. A copy is
+                   invisible otherwise — the clipboard is not a place you can
+                   see. */
+                label={copied ? 'Link copied' : 'Copy link'}
+                onPress={onCopyLink}
+              />
+              <Action
+                t={t}
+                icon="download"
+                label={saving ?? 'Download Album'}
                 onPress={onSaveAll}
-                disabled={saving !== null}
-                t={t}
+                /* Nothing to download from an empty album, and a live button
+                   that can only apologise is worse than one that is plainly
+                   not yet for you. */
+                disabled={photos === 0 || saving !== null}
               />
-            )}
+              {host ? (
+                <Action t={t} icon="trash" label="Delete Album" onPress={onDelete} danger />
+              ) : (
+                <Action t={t} icon="door" label="Leave Album" onPress={onLeave} danger />
+              )}
+            </View>
 
-            {feed?.event.groupId && (
-              <Row
-                label={`in ${feed.event.groupName}`}
-                note="Open the group this event is in."
-                onPress={() => {
-                  onClose();
-                  onOpenGroup(feed.event.groupId!);
-                }}
-                t={t}
-              />
-            )}
+            {/*
+              What it leads with.
 
+              The explanation under it is gone: the row *is* the photograph, at
+              the size the album draws it, and a line saying "what this event
+              leads with everywhere" was describing a picture sitting right
+              beside the words. It shows the borrowed first photograph when
+              nobody has chosen one, which is what the album's header shows —
+              so this row is never a different answer from the screen behind it.
+            */}
             {host && (
               <Pressable
                 onPress={onEditCover}
@@ -2366,14 +2539,16 @@ function HostSheet({
                 )}
                 <View style={styles.coverWords}>
                   <Text style={[styles.coverTitleText, { color: t.fg }]}>Event cover</Text>
-                  <Text style={[styles.coverNote, { color: t.dim }]}>
-                    {cover
-                      ? 'What this event leads with everywhere.'
-                      : 'Leading with its newest photograph.'}
-                  </Text>
                 </View>
               </Pressable>
             )}
+
+            {/*
+              The other door into a private album, and the one the app did not
+              have: somebody who made one could send the link and wait to be
+              asked, but could not ask anybody.
+            */}
+            {host && <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />}
 
             {/*
               Who can see it, changeable here.
@@ -2453,16 +2628,12 @@ function HostSheet({
             )}
 
             {/*
-              The other door into a private album, and the one the app did not
-              have: somebody who made one could send the link and wait to be
-              asked, but could not ask anybody.
-            */}
-            {host && <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />}
+              Last, because it is the only question about the future.
 
-            {/*
               Only the host, and only for an event that is not already in one.
               The pitch is the recurrence, not the feature: nobody wants "a
-              group", they want to stop sending the link every time.
+              group", they want to stop sending the link every time. An event
+              that is already in a group says which one instead, and opens it.
             */}
             {host && !feed?.event.groupId && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
@@ -2498,7 +2669,7 @@ function HostSheet({
                       together, so you only send the link once.
                     </Text>
                     <Button
-                      label="Start a group from this event"
+                      label="Create group from this event"
                       onPress={() => setNaming(true)}
                       t={t}
                     />
@@ -2507,11 +2678,65 @@ function HostSheet({
               </View>
             )}
 
-            <Button label="Done" onPress={onClose} t={t} />
+            {feed?.event.groupId && (
+              <Row
+                label={`in ${feed.event.groupName}`}
+                note="Open the group this event is in."
+                onPress={() => {
+                  onClose();
+                  onOpenGroup(feed.event.groupId!);
+                }}
+                t={t}
+              />
+            )}
           </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/**
+ * One of the three across the top: a glyph in a disc, and two words under it.
+ *
+ * Sized to a third of the sheet, so three of them fit without wrapping and the
+ * touch target is the whole column rather than the 44 points of circle. The
+ * destructive one is drawn in the theme's own warning colour and is still the
+ * same shape as its neighbours — a red row is a label, not a barrier, and the
+ * barrier is the confirmation behind it.
+ */
+function Action({
+  t,
+  icon,
+  label,
+  onPress,
+  disabled,
+  danger,
+}: {
+  t: Theme;
+  icon: GlyphName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  const ink = disabled ? t.dim : danger ? t.warn : t.fg;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled === true }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.action, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      <View style={[styles.actionDisc, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Glyph name={icon} size={21} color={ink} />
+      </View>
+      <Text style={[styles.actionLabel, { color: ink }]} numberOfLines={2}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -2718,11 +2943,17 @@ function Button({
 type Theme = ReturnType<typeof theme>;
 
 function theme(dark: boolean) {
+  /*
+   * `warn` is the product's only red, and it appears on exactly two labels:
+   * deleting an album and leaving one. Both are picked to clear text contrast
+   * on `card` rather than to be as red as possible — a warning nobody can read
+   * is decoration, and a shout on every screen stops meaning anything.
+   */
   return dark
     ? { bg: '#0d0f12', card: '#171a1f', line: '#272b33', fg: '#f2f4f7',
-        dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12' }
+        dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12', warn: '#ff7b70' }
     : { bg: '#f7f8fa', card: '#ffffff', line: '#e3e6ea', fg: '#14171c',
-        dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff' };
+        dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff', warn: '#c23127' };
 }
 
 /** How far the floating chrome sits from the screen's edges. */
@@ -3011,6 +3242,25 @@ const styles = StyleSheet.create({
   coverWords: { flex: 1, gap: 2 },
   coverTitleText: { fontSize: 16, fontWeight: '600' },
   coverNote: { fontSize: 13 },
+  /* Above the sheet, at the album's own back-button inset — so leaving the
+     sheet and leaving the screen are the same gesture in the same place. It
+     rides on the sheet's top edge rather than sitting at a fixed height,
+     because the sheet is as tall as its contents. */
+  sheetBack: { alignSelf: 'flex-start', marginLeft: 16, marginBottom: 12 },
+  actions: { flexDirection: 'row', paddingTop: 2, paddingBottom: 6 },
+  /* Thirds. Equal columns rather than content-width, so the three glyphs line
+     up whatever their labels say — "Link copied" is four characters longer
+     than "Copy link" and the row must not shuffle when it flips. */
+  action: { flex: 1, alignItems: 'center', gap: 8 },
+  actionDisc: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionLabel: { fontSize: 12.5, fontWeight: '600', textAlign: 'center' },
 });
 
 /** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */

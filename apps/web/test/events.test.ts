@@ -17,7 +17,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { MOSAIC_TILES, eventsFor } from '../src/events';
+import { MOSAIC_TILES, eventsFor, leaveEvent } from '../src/events';
 import type { Db } from '../src/db';
 
 const MIGRATIONS = fileURLToPath(
@@ -300,5 +300,158 @@ describe('the photos the card leads with', () => {
     const [listing] = await eventsFor(db, person);
     expect(listing!.mosaic).toEqual([]);
     expect(listing!.capEpoch).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Leaving one, which is the same rule read backwards.
+ *
+ * Everything above is about the two ways an event reaches a home screen. This
+ * is what happens when somebody wants it off theirs — and the reason it is
+ * worth a test rather than a one-line delete is that removing a participant row
+ * only closes one of the two doors.
+ */
+describe('leaving an event', () => {
+  it('takes it off the list', async () => {
+    const person = await actor();
+    const host = await actor();
+    const id = await event(host);
+    await participates(id, person);
+
+    expect(await leaveEvent(db, id, person)).toEqual({
+      left: true,
+      wasIn: true,
+      throughGroup: null,
+    });
+    expect(await eventsFor(db, person)).toEqual([]);
+  });
+
+  it('leaves the photographs where they are', async () => {
+    /*
+     * They belong to the evening rather than to whoever carried them there. A
+     * roomful of people losing an hour of their lives because one of them
+     * tidied up is the failure this pins — and it is the same call the account
+     * deletion makes, where the actor survives as a guest and keeps its
+     * uploads.
+     */
+    const person = await actor();
+    const host = await actor();
+    const id = await event(host);
+    await participates(id, person);
+    const [photo] = await db
+      .insert(schema.photos)
+      .values({
+        eventId: id,
+        uploaderId: person,
+        storageKey: 'k/1',
+        mime: 'image/jpeg',
+        byteSize: 1024,
+        status: 'ready',
+      })
+      .returning();
+
+    await leaveEvent(db, id, person);
+
+    const left = await db.select().from(schema.photos);
+    expect(left).toHaveLength(1);
+    expect(left[0]!.id).toBe(photo!.id);
+    // And still theirs. Orphaning the upload would be a quieter way of
+    // throwing it away — nobody could be asked to take it down.
+    expect(left[0]!.uploaderId).toBe(person);
+  });
+
+  it('says so when the album is in a group they are in', async () => {
+    /*
+     * The participant row was never what put this on their home screen. The
+     * group membership was, and it still does — so deleting the row and
+     * reporting plain success is a lie somebody discovers by pulling to
+     * refresh. The caller is told which door it is still coming through.
+     */
+    const person = await actor();
+    const host = await actor();
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Climbing', slug: groupSlug('Climbing') })
+      .returning();
+    await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: person });
+    const id = await event(host, { groupId: group!.id });
+    await participates(id, person);
+
+    expect(await leaveEvent(db, id, person)).toEqual({
+      left: true,
+      wasIn: true,
+      throughGroup: group!.id,
+    });
+    expect((await eventsFor(db, person)).map((a) => a.id)).toEqual([id]);
+  });
+
+  it('does not report a group they are not in', async () => {
+    // The event belongs to one; this person does not. Saying "it is still on
+    // your list through Climbing" to somebody who is not in Climbing would be
+    // both wrong and a small leak about a group they cannot see.
+    const person = await actor();
+    const host = await actor();
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Climbing', slug: groupSlug('Climbing') })
+      .returning();
+    const id = await event(host, { groupId: group!.id });
+    await participates(id, person);
+
+    expect(await leaveEvent(db, id, person)).toEqual({
+      left: true,
+      wasIn: true,
+      throughGroup: null,
+    });
+    expect(await eventsFor(db, person)).toEqual([]);
+  });
+
+  it('touches nobody else', async () => {
+    const person = await actor();
+    const other = await actor();
+    const host = await actor();
+    const id = await event(host);
+    await participates(id, person);
+    await participates(id, other);
+
+    await leaveEvent(db, id, person);
+    expect((await eventsFor(db, other)).map((a) => a.id)).toEqual([id]);
+  });
+
+  it('is quiet about somebody who was never in it', async () => {
+    // Left on another device, or never joined at all: either way they are
+    // already where they asked to be, and a failure here would be a report
+    // about a state they wanted.
+    const person = await actor();
+    const host = await actor();
+    const id = await event(host);
+
+    expect(await leaveEvent(db, id, person)).toEqual({
+      left: true,
+      wasIn: false,
+      throughGroup: null,
+    });
+  });
+
+  it('refuses the host, who means delete', async () => {
+    /*
+     * An album whose host has left is not a room somebody left — it is one with
+     * no way back in: nobody to answer a request to join, nobody to change who
+     * can see it. The action they mean is one tap away in the same sheet, and
+     * the app never offers this one to them.
+     */
+    const host = await actor();
+    const id = await event(host);
+    await participates(id, host);
+
+    expect(await leaveEvent(db, id, host)).toEqual({ left: false, reason: 'host' });
+    expect((await eventsFor(db, host)).map((a) => a.id)).toEqual([id]);
+  });
+
+  it('says not_found for an event that is not there', async () => {
+    const person = await actor();
+    expect(
+      await leaveEvent(db, '00000000-0000-0000-0000-000000000000', person),
+    ).toEqual({ left: false, reason: 'not_found' });
   });
 });

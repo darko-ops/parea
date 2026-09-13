@@ -39,6 +39,8 @@ export type GroupTheme = {
   line: string;
   accent: string;
   onAccent: string;
+  /** The one red, for the two actions that take something away. */
+  warn: string;
 };
 
 export type OpenableEvent = {

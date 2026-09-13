@@ -731,6 +731,35 @@ export class Api {
     );
   }
 
+  /**
+   * Ends the album, for everybody.
+   *
+   * `administer` on the server, so this is the host's action — the route
+   * refuses anybody else, and the sheet only offers it to somebody it would
+   * accept. Tombstoned rather than erased: the purge job is what actually takes
+   * the objects, which is why this returns immediately.
+   */
+  deleteEvent(eventId: string): Promise<unknown> {
+    return this.call(`/api/events/${eventId}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Takes this person out of the album, and nothing else.
+   *
+   * Not a smaller delete: the photographs stay, because they belong to the
+   * evening rather than to whoever carried them there, and the link still
+   * works. It is "take this off my list" rather than "never again" — blocking
+   * is the tool for that, and it is about a person rather than a room.
+   */
+  leaveEvent(
+    eventId: string,
+  ): Promise<{ left: boolean; wasIn: boolean; throughGroup: string | null }> {
+    return this.call<{ left: boolean; wasIn: boolean; throughGroup: string | null }>(
+      `/api/events/${eventId}/participation`,
+      { method: 'DELETE' },
+    );
+  }
+
   /** One tap, and the same tap again takes it off. The route toggles. */
   react(messageId: string, emoji: string): Promise<unknown> {
     return this.call(`/api/messages/${messageId}/reactions`, {

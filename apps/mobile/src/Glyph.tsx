@@ -28,7 +28,11 @@ export type GlyphName =
   | 'search'
   | 'plus'
   | 'unlocked'
-  | 'locked';
+  | 'locked'
+  | 'share'
+  | 'download'
+  | 'trash'
+  | 'door';
 
 /**
  * One glyph, in one colour.
@@ -141,6 +145,57 @@ function paths(name: GlyphName) {
         <>
           <Rect x={4.5} y={11} width={15} height={9.5} rx={2} />
           <Path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+        </>
+      );
+
+    /*
+     * The system share mark: a box you are lifting something out of.
+     *
+     * Deliberately the arrow-out-of-a-tray rather than the three linked dots.
+     * On a phone this control opens the OS sheet, and this is the shape iOS
+     * uses for that everywhere — a glyph somebody has to learn is a glyph that
+     * has failed at the one job an icon has.
+     */
+    case 'share':
+      return (
+        <>
+          <Path d="M12 3.5v11" />
+          <Path d="M8.5 7 12 3.5 15.5 7" />
+          <Path d="M6.5 11.5H5.5a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5h-1" />
+        </>
+      );
+
+    /* The same tray, receiving rather than giving: the arrow points in. */
+    case 'download':
+      return (
+        <>
+          <Path d="M12 3.5v11" />
+          <Path d="M8.5 11 12 14.5 15.5 11" />
+          <Path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+        </>
+      );
+
+    case 'trash':
+      return (
+        <>
+          <Path d="M4.5 6.5h15" />
+          <Path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5" />
+          <Path d="M6.5 6.5 7.4 19a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.5" />
+        </>
+      );
+
+    /*
+     * A door with a handle, for leaving. Not an arrow through a doorway, which
+     * is the same picture as "sign out" in half the apps on a phone and means
+     * something much larger than stepping out of one album.
+     */
+    case 'door':
+      return (
+        <>
+          <Path d="M6 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H6z" />
+          <Circle cx={13} cy={12} r={1.1} />
+          <Path d="M18.5 12H21" />
+          <Path d="M19.6 10.2 21.4 12l-1.8 1.8" />
         </>
       );
   }

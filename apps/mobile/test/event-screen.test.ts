@@ -68,13 +68,15 @@ describe('what is above the first photograph', () => {
      * every one of them still exists — in the sheet, doing the same thing.
      */
     for (const gone of [
-      'Save all to my camera roll',
+      // The sheet's three actions run across the top as icons now — this is
+      // the label under the second one.
+      'Download Album',
       'Who can see it',
       // The cover's row, not its handler: `editCover` still lives on the
       // screen, because the sheet calls it and the screen owns the refresh.
       'styles.coverRow',
       '<InviteCard',
-      'Start a group from this event',
+      'Create group from this event',
     ]) {
       expect(SCREEN).not.toContain(gone);
       expect(SHEET).toContain(gone);
