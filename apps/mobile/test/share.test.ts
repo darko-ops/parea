@@ -46,35 +46,49 @@ describe('sharing an event from the event', () => {
 });
 
 /**
- * And the screen that makes an event.
+ * And the screen that makes an album, which no longer shares anything.
  *
- * The phrase used to be offered here behind a button, on the one screen whose
- * job is sending a link. Two doors shown as one act again, and this one had a
- * second problem coming: the server stopped minting a phrase unless an event
- * asks for one, so it was on its way to being a button that revealed nothing.
+ * Posting used to land on a sheet about the link — the URL, a Copy button, "Send
+ * it to everyone who was there" — with the new album dimmed behind it. The
+ * argument was that sending the link is the most important moment in the
+ * product, which is true, and it was still the wrong place: somebody who has
+ * just chosen photographs and pressed Post is going to the album.
+ *
+ * It was also a bug. `onCreated` fired from that sheet's one link and nowhere
+ * else, so the photographs chosen two screens earlier were not sent until
+ * somebody tapped through it — and anybody who swiped it away, or pressed Copy
+ * and went back, got an album with nothing in it.
+ *
+ * What has to survive is the part above: the link is still reachable, from the
+ * album's own `⋯`, which is where somebody looks for it a day later anyway.
  */
-describe('the create screen sends a link and offers nothing else', () => {
+describe('the create screen no longer shares at all', () => {
   const create = readFileSync(
     fileURLToPath(new URL('../src/CreateEvent.tsx', import.meta.url)),
     'utf8',
   );
 
-  it('has no spoken phrase in it', () => {
-    /*
-     * Matched as rendered text — `>Say a code<` — rather than anywhere in the
-     * file, because the paragraph above this describes the button that was
-     * removed and would otherwise fail the test that removed it. The web side
-     * has `stripComments` for this; there is no such helper here, and one
-     * anchored regex is cheaper than importing one across a workspace.
-     */
-    expect(create).not.toMatch(/>\s*(Say a code|OR SAY IT OUT LOUD)\s*</);
-    // The state it was revealed by, and the field it read.
-    expect(create).not.toMatch(/showCode|made\.code/);
+  it('draws no sheet, and builds no link', () => {
+    expect(create).not.toMatch(/Share\.share/);
+    expect(create).not.toMatch(/Clipboard/);
+    // It has no host to build one from any more, which is the structural half
+    // of the same fact: a screen that cannot make a link cannot show one.
+    expect(create).not.toMatch(/webBase/);
   });
 
-  it('still sends the link itself', () => {
-    // The removal is of a second option, not of the thing the screen is for.
-    expect(create).toMatch(/Share\.share\(\{ message: made\.url \}\)/);
-    expect(create).toMatch(/Send the link/);
+  it('goes to the album as soon as the album exists', () => {
+    /*
+     * The fix for the photographs, and the reason this is the same test: the
+     * only path that sent them was the sheet's link, so the sheet going away is
+     * what makes Post send them.
+     */
+    expect(create).toMatch(/onCreated\(\{\s*id: created\.id/);
+    expect(create).not.toMatch(/setMade|const \[made/);
+  });
+
+  it('still does not wait on the invitations', () => {
+    // Going to the album must not queue behind a round trip that is about
+    // somebody else's Events tab.
+    expect(create).toMatch(/void api\s*\n?\s*\.invite\(/);
   });
 });

@@ -117,7 +117,7 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).toMatch(/styles\.said\b/);
     expect(GESTURE).toMatch(/styles\.picker\b/);
     // Left is people; right is every emoji in the set, and only that.
-    expect(GESTURE).toMatch(/reactions\.slice\(0, VISIBLE_REACTIONS\)/);
+    expect(GESTURE).toMatch(/ordered\.map\(\(r, i\) =>/);
     expect(GESTURE).toMatch(/REACTIONS\.map\(\(emoji\) =>/);
   });
 
@@ -130,11 +130,31 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).not.toMatch(/actorId|avatarUrl/);
   });
 
-  it('stops before a popular photograph is covered in names', () => {
-    // Twenty handles up the side of a picture is a list covering the thing
-    // the list is about.
+  it('grows upward from the corner, newest against it', () => {
+    /*
+     * It was the four newest shown oldest-first with "and N more" underneath,
+     * which put the overflow *below* the newest line — reading as "there are
+     * newer ones I am not showing" — and shifted the whole column up a row
+     * every time somebody reacted. The window moved, so the names moved.
+     */
+    expect(GESTURE).toMatch(/const ordered = useMemo\(\(\) => \[\.\.\.reactions\]\.reverse\(\)/);
+    // Short lists sit against the bottom rather than floating at the top.
+    expect(GESTURE).toMatch(/justifyContent: 'flex-end'/);
+    // And nothing summarises the overflow away any more.
+    expect(GESTURE).not.toMatch(/and \{reactions\.length - VISIBLE_REACTIONS\} more/);
+    expect(GESTURE).not.toMatch(/saidMore/);
+  });
+
+  it('stops at four rows and lets the rest be scrolled to', () => {
+    // Twenty handles up the side of a picture is a list covering the thing the
+    // list is about — but summarising them hid who they were.
     expect(GESTURE).toMatch(/const VISIBLE_REACTIONS = 4/);
-    expect(GESTURE).toMatch(/reactions\.length - VISIBLE_REACTIONS/);
+    expect(GESTURE).toMatch(
+      /maxHeight: VISIBLE_REACTIONS \* SAID_ROW \+ \(VISIBLE_REACTIONS - 1\) \* SAID_GAP/,
+    );
+    // Pinned to the newest, without animation: it fires on first layout too,
+    // and a column sliding into place on open looks like something late.
+    expect(GESTURE).toMatch(/scrollToEnd\(\{ animated: false \}\)/);
   });
 
   it('is a column you scroll, cut off so it looks like one', () => {

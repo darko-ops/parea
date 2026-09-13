@@ -39,13 +39,13 @@ describe('which conversations appear', () => {
      * both places would make the busiest rooms the noisiest part of a screen
      * whose whole job is to be scanned.
      */
-    expect(TAB).toMatch(/events\s*\n?\s*\.filter\(\(event\) => !event\.groupId\)/);
+    expect(TAB).toMatch(/\.filter\(\(event\) => !event\.groupId && event\.lastMessage != null\)/);
   });
 
   it('orders them by what was last said, not by what was last uploaded', () => {
     // A silent album full of photographs above the one somebody is talking in
     // is the wrong answer on a tab about talking.
-    expect(TAB).toMatch(/b\.lastMessage\?\.at \?\? b\.lastActiveAt/);
+    expect(TAB).toMatch(/b\.lastMessage!\.at\.localeCompare\(a\.lastMessage!\.at\)/);
   });
 
   it('puts the suggestion at the foot, below the rooms', () => {
@@ -54,16 +54,37 @@ describe('which conversations appear', () => {
      * a room somebody is already in. Between the groups and the event chats it
      * read as a break in the list of places rather than as a remark about it.
      */
-    const order = ['groups.map((group)', 'EVENT CHATS', 'clusters.map((cluster)'];
+    const order = ['groups.map((group)', 'GROUP CHATS', 'clusters.map((cluster)'];
     const at = order.map((needle) => TAB.indexOf(needle));
     expect(at.every((i) => i > -1)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
   });
 
-  it('keeps an event nobody has spoken in', () => {
-    // It is a door: the thread is how you reach it, and hiding it until
-    // somebody speaks means nobody ever does.
-    expect(TAB).toMatch(/Nobody has said anything yet\./);
+  it('leaves out an event nobody has spoken in', () => {
+    /*
+     * A reversal. These used to list whether or not anything had been said, on
+     * the argument that an empty chat is a door. In practice it filled the
+     * section with rows reading "Nobody has said anything yet" — a list of
+     * absences under a heading promising conversations. The door is the album's
+     * own Talk tab now.
+     */
+    expect(TAB).toMatch(/event\.lastMessage != null/);
+    // A group block can still be empty and worth drawing: the room exists
+     // whether or not anybody has spoken in it.
+    expect(EVENTS).toMatch(/Nobody has said anything yet\./);
+  });
+});
+
+describe('what the tab is called', () => {
+  it('is "Your Parea", not "Groups"', () => {
+    // The tab holds the rooms and the conversations, and the word for all of
+    // that together is the one the product is named after.
+    expect(TAB).toMatch(/>Your Parea</);
+  });
+
+  it('calls the one-off conversations group chats', () => {
+    expect(TAB).toMatch(/>GROUP CHATS</);
+    expect(TAB).not.toMatch(/EVENT CHATS/);
   });
 });
 
@@ -78,7 +99,7 @@ describe('the tab arrives in one piece', () => {
     const gate = TAB.indexOf('groups === null ?');
     expect(gate).toBeGreaterThan(-1);
     // Everything that is not the title row sits inside that branch.
-    expect(TAB.indexOf('EVENT CHATS')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
     expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
     expect(TAB.indexOf('groups.map((group)')).toBeGreaterThan(gate);
   });
@@ -107,7 +128,8 @@ describe('one conversation, as one line', () => {
     expect(EVENTS).toMatch(/styles\.unreadPill/);
     expect(EVENTS).toMatch(/styles\.unreadDot/);
     // The dot is asked for at the event-chat call site and nowhere else.
-    expect(EVENTS.match(/\n\s+dot\n/g) ?? []).toHaveLength(1);
+    expect(EVENTS.match(/<ConversationLine line=\{event\} t=\{t\} dot \/>/g) ?? [])
+      .toHaveLength(1);
   });
 
   it('says "You" rather than your own name back at you', () => {

@@ -64,6 +64,10 @@ const TAP_SLOP = 8;
  */
 const VISIBLE_REACTIONS = 4;
 
+/** One row: a 22pt face and the gap under it. */
+const SAID_ROW = 22;
+const SAID_GAP = 6;
+
 const distance = (touches: { pageX: number; pageY: number }[]) => {
   const [a, b] = touches;
   return Math.hypot(a!.pageX - b!.pageX, a!.pageY - b!.pageY);
@@ -119,6 +123,8 @@ export function PhotoViewer({
   const lastTap = useRef(0);
 
   const [chrome, setChrome] = useState(true);
+  /** The names column, kept scrolled to the newest. */
+  const column = useRef<ScrollView>(null);
 
   const settle = useCallback(
     (next: number) => {
@@ -271,6 +277,16 @@ export function PhotoViewer({
     [reactions],
   );
 
+  /*
+   * Oldest first, because the column is read upwards from the corner.
+   *
+   * The server answers newest first, which is the right order for a list that
+   * grows downwards and the wrong one for a list that grows up out of the
+   * bottom-left. Reversed once here rather than at the call site, so the
+   * `slice` that used to do it cannot quietly change which four are visible.
+   */
+  const ordered = useMemo(() => [...reactions].reverse(), [reactions]);
+
   const react = useCallback(
     async (emoji: string) => {
       const on = !mine.has(emoji);
@@ -355,20 +371,41 @@ export function PhotoViewer({
             and the column grows upward out of it. Right is the picker, and
             nothing else: every emoji in the set, in a column you scroll.
           */}
+          {/*
+            Newest at the bottom, older above it, and scrollable past four.
+
+            This was the four newest shown oldest-first with "and N more"
+            underneath — which put the overflow *below* the newest line, where it
+            read as "there are newer ones I am not showing you", and made the
+            whole column shift up a row every time somebody reacted. The window
+            moved, so the names moved.
+
+            Now the list is every reaction in order and the view is clamped to
+            four rows: the most recent sits against the corner, anything older is
+            above it, and the rest is up there to be scrolled to rather than
+            summarised. Nothing moves when a reaction arrives except the list
+            growing by one at the bottom.
+          */}
           <View style={styles.said} pointerEvents="box-none">
-            {reactions.slice(0, VISIBLE_REACTIONS).reverse().map((r, i) => (
-              <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
-                <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
-                  {r.mine ? 'You' : r.name}
-                </Text>
-                <Text style={styles.saidEmoji}>{r.emoji}</Text>
-              </View>
-            ))}
-            {reactions.length > VISIBLE_REACTIONS && (
-              <Text style={styles.saidMore}>
-                and {reactions.length - VISIBLE_REACTIONS} more
-              </Text>
-            )}
+            <ScrollView
+              ref={column}
+              style={styles.saidScroll}
+              contentContainerStyle={styles.saidInner}
+              showsVerticalScrollIndicator={false}
+              // Pinned to the newest, which is the end. Without animation:
+              // this fires on the first layout too, and a column that slides
+              // into place on open looks like something arriving late.
+              onContentSizeChange={() => column.current?.scrollToEnd({ animated: false })}
+            >
+              {ordered.map((r, i) => (
+                <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
+                  <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
+                    {r.mine ? 'You' : r.name}
+                  </Text>
+                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
+                </View>
+              ))}
+            </ScrollView>
           </View>
 
           <View style={styles.picker} pointerEvents="box-none">
@@ -435,7 +472,13 @@ const styles = StyleSheet.create({
   },
   roundGlyph: { color: '#fff', fontSize: 15, fontWeight: '600', lineHeight: 17 },
   /* Who reacted, bottom left. Room kept clear of the picker opposite. */
-  said: { position: 'absolute', left: 16, right: 84, bottom: 44, gap: 6 },
+  said: { position: 'absolute', left: 16, right: 84, bottom: 44 },
+  /* Exactly four rows tall, so a fifth is cut off and the column reads as
+     something to scroll rather than as all there is. */
+  saidScroll: { maxHeight: VISIBLE_REACTIONS * SAID_ROW + (VISIBLE_REACTIONS - 1) * SAID_GAP },
+  /* `flex-end` so a list shorter than four rows sits against the bottom of the
+     box rather than floating at the top of it. */
+  saidInner: { gap: SAID_GAP, justifyContent: 'flex-end', flexGrow: 1 },
   saidRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   /* A handle, without the `@` — this is a byline, not a mention. Shadowed
      rather than sat on a panel: a slab behind every name would cover more of
@@ -452,12 +495,6 @@ const styles = StyleSheet.create({
      card in this product makes. */
   saidMine: { color: 'rgba(255,255,255,0.85)' },
   saidEmoji: { fontSize: 15 },
-  saidMore: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12.5,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowRadius: 6,
-  },
 
   /* The picker, bottom right: one column, scrolled. */
   picker: { position: 'absolute', right: 12, bottom: 44, alignItems: 'center' },

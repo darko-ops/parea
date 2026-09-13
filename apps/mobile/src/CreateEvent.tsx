@@ -21,9 +21,7 @@
  * the second after they made it.
  */
 
-import * as Clipboard from 'expo-clipboard';
-import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -39,15 +37,24 @@ import {
 import { InvitePicker } from './InvitePeople';
 import type { Api, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
-import { DetectedEvents } from './DetectedEvents';
 import { uploadCover } from './platform';
-import {
-  WHEN_OPTIONS,
-  eventDateFor,
-  windowFor,
-  type Bundle,
-  type WindowId,
-} from '@parea/autoselect';
+import { sandboxCopy, windowOf, type LibraryPhoto } from './library';
+
+/**
+ * The day an album happened, as `YYYY-MM-DD`.
+ *
+ * Local parts, never `toISOString().slice(0, 10)`. A photograph taken at eleven
+ * at night is dated tomorrow in UTC, and "the evening of the 14th" is exactly
+ * what this field is for — the same construction `eventDateFor` used before the
+ * question went away.
+ */
+function dayOf(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
 
 export type CreatedEvent = {
   id: string;
@@ -71,10 +78,10 @@ export type CreatedEvent = {
 
 export function CreateEvent({
   api,
-  webBase,
   groupId,
   groupName,
   recentPlaces = [],
+  chosen = [],
   t,
   onCancel,
   onCreated,
@@ -82,7 +89,6 @@ export function CreateEvent({
 }: {
   api: Api;
   /** Where links live, for the message that gets shared. */
-  webBase: string;
   groupId?: string;
   groupName?: string;
   /**
@@ -94,6 +100,14 @@ export function CreateEvent({
    * never anything derived from a photo.
    */
   recentPlaces?: string[];
+  /**
+   * What was chosen on the page before, in the order it was chosen.
+   *
+   * The first one leads the album — which is what the cover chooser used to ask
+   * for separately — and the span they cover is the album's window. Empty is a
+   * real answer: an album can be made before the evening it is for.
+   */
+  chosen?: LibraryPhoto[];
   t: GroupTheme;
   onCancel: () => void;
   onCreated: (event: CreatedEvent) => void;
@@ -107,47 +121,30 @@ export function CreateEvent({
 }) {
   const [name, setName] = useState('');
   const [place, setPlace] = useState('');
-  const [when, setWhen] = useState<WindowId | null>(null);
-  /** Set by tapping a detected run. Supersedes the `when` picker entirely. */
-  const [picked, setPicked] = useState<Bundle | null>(null);
   /*
-   * The picture the event leads with, if they choose one.
+   * The window, read off the photographs rather than asked for.
    *
-   * From the camera roll rather than from photographs already picked, which is
-   * what the web offers — because this screen has none to offer. Nothing is
-   * chosen here yet: a run of photographs is detected, and the choosing
-   * happens on the event afterwards. So the cover is asked for the only way it
-   * can be, and it is the one image this screen sends anywhere.
+   * `chosen` arrives from the picker, so first shutter to last is already known
+   * — see `windowOf`. Null when nothing was chosen, which the server takes: an
+   * album with no date is the common case, and a card dates itself by its
+   * earliest photograph.
    */
-  const [cover, setCover] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [copied, setCopied] = useState(false);
+  const span = useMemo(() => windowOf(chosen), [chosen]);
+  /*
+   * The cover is the first photograph chosen, and there is no second question.
+   *
+   * This used to be its own trip through `ImagePicker`: somebody picked the
+   * album's photographs, then picked one of them again out of the whole camera
+   * roll to lead it. The order of the selection on the page before already says
+   * which one leads, which is what the numbered badges on those tiles mean.
+   */
+  const cover = chosen[0] ?? null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /*
-   * What was made, and the link to it.
-   *
-   * No spoken phrase. It used to be offered here behind a "Say a code" button
-   * — the other door, for somebody across a room whose phone you are not
-   * holding — and it does not belong on the screen whose job is sending a
-   * link. The server no longer mints one unless an event asks for it, so this
-   * was also on its way to being a button that revealed nothing.
-   */
-  const [made, setMade] = useState<{
-    event: CreatedEvent;
-    url: string;
-  } | null>(null);
 
-  const copy = useCallback(async (url: string) => {
-    await Clipboard.setStringAsync(url);
-    setCopied(true);
-    // The label changes back rather than a toast appearing. Feedback belongs
-    // on the thing that was pressed.
-    setTimeout(() => setCopied(false), 2000);
-  }, []);
-
-  /** Both commit controls ask the same question, so it is asked once. */
-  const ready = Boolean(name.trim()) && (picked !== null || when !== null);
-  const chosenOption = WHEN_OPTIONS.find((option) => option.id === when);
+  // A name, and nothing else. The page before answered when, and whether there
+  // are photographs at all is not this screen's business to insist on.
+  const ready = Boolean(name.trim());
   /** Public unless the creator says otherwise — a forwarded link still works. */
   const [isPrivate, setIsPrivate] = useState(false);
   /**
@@ -158,8 +155,6 @@ export function CreateEvent({
    * that was never made. See `InvitePeople.tsx`.
    */
   const [invitees, setInvitees] = useState<InvitablePerson[]>([]);
-  /** What the server said it did with them, once it has said. */
-  const [asked, setAsked] = useState<number | null>(null);
 
   /**
    * One photograph, from the system picker.
@@ -171,47 +166,30 @@ export function CreateEvent({
    * it is what detection is for, and offers it after a contribution rather
    * than in front of one — design §7.4.
    */
-  const chooseCover = useCallback(async () => {
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      // Photographs only, for the same reason the event's picker says so: no
-      // part of this can do anything with a video.
-      mediaTypes: ['images'],
-      allowsMultipleSelection: false,
-      // Re-encoded on the way out of the picker, which is most of the
-      // difference between a two-megabyte request and a twelve-megabyte one.
-      // The server re-encodes again to the size it actually draws.
-      quality: 0.8,
-      exif: false,
-    });
-    if (picked.canceled || picked.assets.length === 0) return;
-    setCover(picked.assets[0] ?? null);
-  }, []);
-
   const create = useCallback(async () => {
     const trimmed = name.trim();
-    if (!trimmed || (picked === null && when === null)) return;
+    if (!trimmed) return;
     setBusy(true);
     setError(null);
     try {
-      const now = new Date();
-
-      // A tapped run wins over the picker. Its window is the real first and
-      // last shutter press, padded — not a phrase resolved to a six-hour box.
-      const span = picked
-        ? {
-            startsAt: new Date(picked.window.start).toISOString(),
-            endsAt: new Date(picked.window.end).toISOString(),
-          }
-        : windowFor(when!, now);
-      const eventDate = picked ? picked.eventDate : eventDateFor(when!, now);
+      /*
+       * First shutter to last, from the photographs themselves.
+       *
+       * No padding and no rounding: this is not a phrase being resolved, it is
+       * the span the chosen pictures actually cover. The date is the day the
+       * first of them was taken, which is the evening somebody means.
+       */
+      const startsAt = span ? new Date(span.start).toISOString() : null;
+      const endsAt = span ? new Date(span.end).toISOString() : null;
+      const eventDate = span ? dayOf(new Date(span.start)) : undefined;
 
       const created = await api.createEvent({
         name: trimmed,
         place: place.trim() || undefined,
         groupId,
         eventDate,
-        startsAt: span?.startsAt ?? null,
-        endsAt: span?.endsAt ?? null,
+        startsAt,
+        endsAt,
         accessPolicy: isPrivate ? 'private' : 'public',
       });
       /*
@@ -225,29 +203,33 @@ export function CreateEvent({
        * one.
        */
       if (cover) {
+        /*
+         * Copied into our own sandbox first, like the photographs.
+         *
+         * `cover.uri` is the asset's own path inside the Photos container, and
+         * the cover goes up on a background session exactly as a photograph
+         * does — so it hit the same wall and for a while it was the half of this
+         * I had missed:
+         *
+         *   Failed to issue sandbox extension for file
+         *   file:///var/mobile/Media/DCIM/100APPLE/IMG_0891.PNG
+         *
+         * The profile's avatar upload needs none of this: it comes from the
+         * system picker, which already hands back a copy in our own sandbox.
+         */
         const target = api.coverTarget(created.id);
-        void uploadCover(target.url, target.headers, cover.uri).catch(() => {});
+        void sandboxCopy(cover.id)
+          .then((local) => uploadCover(target.url, target.headers, local.uri))
+          .catch(() => {});
       }
 
-      setMade({
-        event: {
-          id: created.id,
-          name: created.name,
-          linkToken: created.linkToken,
-          startsAt: span?.startsAt ?? null,
-          endsAt: span?.endsAt ?? null,
-        },
-        url: `${webBase}/e/${created.linkToken}`,
-      });
-
       /*
-       * The invitations, after the share step is on screen rather than before.
+       * The invitations, sent and not waited for.
        *
-       * Sharing is the moment that matters here and it must not wait on a
-       * round trip that is about somebody else's Events tab. The count lands
-       * under the sheet when it lands; a failure says so there and costs the
-       * event nothing, because the event is made and asking again is one
-       * screen away.
+       * Going to the album is the next thing that happens and it must not wait
+       * on a round trip that is about somebody else's Events tab. A failure
+       * costs the event nothing — it is made, and asking again is in its own
+       * `⋯` sheet — which is why nothing here surfaces one.
        */
       if (invitees.length > 0) {
         void api
@@ -255,117 +237,48 @@ export function CreateEvent({
             created.id,
             invitees.map((person) => person.actorId),
           )
-          .then(({ invited }) => setAsked(invited))
-          .catch(() => setAsked(-1));
+          .catch(() => {});
       }
+
+      /*
+       * Straight to the album, which is where somebody who pressed Post is
+       * going. This is also what sends the photographs: the caller opens the
+       * event with them, and it used to be reachable only by tapping through a
+       * sheet about the link.
+       */
+      onCreated({
+        id: created.id,
+        name: created.name,
+        linkToken: created.linkToken,
+        startsAt,
+        endsAt,
+      });
     } catch {
       setError('Could not make the event. Try again in a moment.');
     } finally {
       setBusy(false);
     }
-  }, [api, cover, groupId, invitees, isPrivate, name, picked, place, webBase, when]);
+  }, [api, cover, groupId, invitees, isPrivate, name, onCreated, place, span]);
 
-  /**
-   * Tapping a run fills the name in rather than creating straight away.
+  /*
+   * No share sheet between posting and the album.
    *
-   * One tap to create would be one tap to publish a shareable link under a
-   * name nobody chose, and "Last night" is a poor name for the event your
-   * friends open next week. Prefilling gets it to one tap plus a glance, and
-   * the field is already correct if the glance says it is.
+   * Posting used to land on a page about the link — "Send it to everyone who
+   * was there", the URL, a Copy button — with the album dimmed behind it, and
+   * only a "Open it and add yours" link through to the thing just made. The
+   * argument for it was that sending the link is the most important moment in
+   * the product, which is true, and it was still the wrong place: somebody who
+   * has just chosen photographs and pressed Post is going to the album.
+   *
+   * It was also the bug. `onCreated` fired from that link and nowhere else, so
+   * the photographs chosen two screens earlier were not sent until somebody
+   * tapped through the sheet — and anybody who swiped it away or pressed Copy
+   * and went back got an album with nothing in it.
+   *
+   * The link has not gone anywhere: it is behind the album's own `⋯`, which is
+   * where it lives for every other event and where somebody looks for it a day
+   * later.
    */
-  const pick = useCallback(
-    (bundle: Bundle) => {
-      setPicked(bundle);
-      setWhen(null);
-      setName((current) => current.trim() || bundle.label);
-    },
-    [],
-  );
-
-  if (made) {
-    /*
-     * A sheet over the event it just made, rather than a page you are sent to.
-     *
-     * The event behind it is real and empty, dimmed: that is the thing the
-     * link leads to, and seeing it is what makes "an empty event stays empty"
-     * land as a fact rather than a slogan. The share step is the most
-     * important moment in the product — an event nobody was sent is worth
-     * nothing — and it should not feel like a confirmation page.
-     */
-    return (
-      <View style={styles.sheetRoot}>
-        <View style={styles.behind}>
-          <Text style={[styles.h1, { color: t.fg }]}>{made.event.name}</Text>
-          <Text style={[styles.body, { color: t.dim }]}>
-            Nothing here yet — add yours first.
-          </Text>
-        </View>
-
-        <View style={[styles.sheet, { backgroundColor: t.bg }]}>
-          <View style={[styles.grab, { backgroundColor: t.line }]} />
-
-          <View style={{ gap: 4 }}>
-            <Text style={[styles.sheetTitle, { color: t.fg }]}>
-              Send it to everyone who was there
-            </Text>
-            <Text style={[styles.body, { color: t.dim }]}>
-              Anyone with the link sees the photos, with no app to install.
-              Adding needs an account.
-            </Text>
-          </View>
-
-          <View style={[styles.linkRow, { backgroundColor: t.card, borderColor: t.line }]}>
-            <Text style={[styles.mono, { color: t.dim }]} numberOfLines={1}>
-              {made.url}
-            </Text>
-            <Pressable onPress={() => copy(made.url)} accessibilityRole="button">
-              <Text style={[styles.copy, { color: t.accent }]}>
-                {copied ? 'Copied' : 'Copy'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.actions}>
-            <Pressable
-              onPress={() => {
-                // The system sheet. It already knows which group chat these
-                // people use, and picking someone in it tells this app
-                // nothing about who they are — which is why there is no
-                // contact list here of our own.
-                void Share.share({ message: made.url });
-              }}
-              style={[styles.action, { backgroundColor: t.accent }]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.actionText, { color: t.onAccent }]}>Send the link</Text>
-            </Pressable>
-          </View>
-
-          {/*
-            What happened to the people who were picked, said here because
-            this is the screen somebody is on when it lands. Never a spinner:
-            the invitations are in flight behind a sheet that is already
-            useful, and a pending row would make the share step look busy.
-          */}
-          {asked !== null && (
-            <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>
-              {asked < 0
-                ? 'Could not ask the people you picked. Add them from the event.'
-                : asked === 0
-                  ? 'Nobody new to ask.'
-                  : `Asked ${asked}. It is under their Events now.`}
-            </Text>
-          )}
-
-          <Pressable onPress={() => onCreated(made.event)} accessibilityRole="button">
-            <Text style={[styles.body, { color: t.accent, textAlign: 'center' }]}>
-              Open it and add yours
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -405,23 +318,16 @@ export function CreateEvent({
         nothing at all when there is no permission to ask about or the library
         has already been refused.
       */}
-      {!picked && <DetectedEvents t={t} onPick={pick} />}
+      {/*
+        No detected-run card here any more.
 
-      {picked && (
-        <Pressable
-          onPress={() => setPicked(null)}
-          style={[styles.card, { backgroundColor: t.card, borderColor: t.accent }]}
-        >
-          <Text style={[styles.label, { color: t.accent }]}>
-            {picked.label} · {picked.count}{' '}
-            {picked.count === 1 ? 'photo' : 'photos'}
-          </Text>
-          <Text style={[styles.small, { color: t.dim }]}>
-            {picked.timeRange}. You&rsquo;ll see them and choose before anything
-            uploads. Tap to start from something else.
-          </Text>
-        </Pressable>
-      )}
+        It offered "last night, 34 photos" as a shortcut to the thing the page
+        before this one now does properly and by eye. Two ways to choose the
+        same photographs on two consecutive screens is one way too many, and the
+        one that shows you the pictures wins. `DetectedEvents` still exists and
+        is still reached from the album itself, which is where somebody adds to
+        an evening after the fact.
+      */}
 
       <View style={styles.field}>
         <Text style={[styles.fieldLabel, { color: t.dim }]}>WHAT WAS IT?</Text>
@@ -478,91 +384,30 @@ export function CreateEvent({
         </Text>
       </View>
 
-      <View style={styles.field}>
-        <View style={styles.fieldHead}>
-          <Text style={[styles.fieldLabel, { color: t.dim }]}>EVENT COVER</Text>
-          <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
-        </View>
-        <View style={styles.coverRow}>
-          {cover && (
-            <Image source={{ uri: cover.uri }} style={[styles.coverThumb, { borderColor: t.line }]} />
-          )}
-          <View style={{ flex: 1, gap: 6 }}>
-            <Pressable
-              onPress={chooseCover}
-              accessibilityRole="button"
-              style={[styles.pill, { borderColor: t.line, backgroundColor: t.card, alignSelf: 'flex-start' }]}
-            >
-              <Text style={[styles.pillText, { color: t.accent }]}>
-                {cover ? 'Choose another' : 'Choose a photo'}
-              </Text>
-            </Pressable>
-            <Text style={[styles.small, { color: t.dim }]}>
-              {cover
-                ? 'This one leads, wherever the event is shown.'
-                : 'Without one the event leads with its newest photo.'}
-            </Text>
-          </View>
-          {cover && (
-            <Pressable onPress={() => setCover(null)} accessibilityRole="button">
-              <Text style={[styles.small, { color: t.accent }]}>Remove</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
+      {/*
+        No cover chooser here any more.
+
+        It asked somebody to pick a leading photograph out of a library they had
+        just picked photographs out of — the same act, twice, on two screens. The
+        first one chosen on the page before is the cover, which is what the order
+        of that selection is for.
+      */}
 
       {/*
-        The fallback, and only that. Detection covers the common case — someone
-        adding last night — and cannot cover the other one, which is an event
-        being created before it has been photographed. That person still has to
-        be asked, and a careless answer is still worse than none, so the phrases
-        and the reason for asking are unchanged from when this was the only path.
-      */}
-      {!picked && (
-        <View style={styles.field}>
-          <Text style={[styles.fieldLabel, { color: t.dim }]}>WHEN</Text>
-          <View style={styles.pills}>
-            {WHEN_OPTIONS.map((option) => {
-              const on = when === option.id;
-              return (
-                <Pressable
-                  key={option.id}
-                  onPress={() => setWhen(option.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  style={[
-                    styles.pill,
-                    on
-                      ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
-                      : { borderColor: t.line, backgroundColor: t.card },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      on && styles.pillTextOn,
-                      { color: on ? t.accent : t.fg },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {/*
-            The selected option's own description, then why the question is
-            being asked at all. The hint alone reads as trivia; the reason is
-            what makes someone answer it carefully, and a careless answer here
-            pre-selects the wrong photos on somebody else's phone.
-          */}
-          <Text style={[styles.small, { color: t.dim }]}>
-            {chosenOption ? `${capitalise(chosenOption.hint)}. ` : ''}
-            It is what lets everyone&rsquo;s own photos from the right hours be
-            found for them later, instead of asking them to scroll.
-            &ldquo;Not sure yet&rdquo; is a real answer.
-          </Text>
+        No "when was it?" either.
 
+        It existed so that everybody else's photographs from the right hours
+        could be found for them later, and it was the wrong party to ask: a
+        phrase like "last night" resolved to a six-hour box. The photographs
+        chosen on the page before answer it exactly — first shutter to last — so
+        the question is asked of the pictures instead of the person.
+
+        An album made with nothing chosen has no window, which is an album with
+        no date rather than an error: most have none, and a card dates itself by
+        its earliest photograph.
+      */}
+
+      <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
             WHO IS IN IT
           </Text>
@@ -621,17 +466,30 @@ export function CreateEvent({
               ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
               : 'Anyone can see it, no account needed. Adding photos always needs one.'}
           </Text>
-        </View>
-      )}
+      </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
 
       {/*
-        Nothing is pre-selected, so the button waits for an answer rather than
-        letting one be skipped past. "Not sure yet" is one of the answers.
+        "Post", and it says how many are going up with it.
+
+        It was "Get a link", which described the sheet that follows rather than
+        the act — and the sheet is still there, because sending the link is the
+        moment that matters. But by the time somebody reaches this button they
+        have chosen the photographs and named the evening, and what they are
+        doing is posting it.
+
+        A name is the only thing it waits for. An album with no photographs is a
+        real thing — made before the evening, to hand the link out at it.
       */}
       <Button
-        label={busy ? 'Making it…' : picked ? `Get a link and add ${picked.count}` : 'Get a link'}
+        label={
+          busy
+            ? 'Posting…'
+            : chosen.length > 0
+              ? `Post ${chosen.length} ${chosen.length === 1 ? 'photo' : 'photos'}`
+              : 'Post'
+        }
         onPress={create}
         disabled={busy || !ready}
         t={t}
@@ -643,8 +501,6 @@ export function CreateEvent({
 }
 
 const styles = StyleSheet.create({
-  coverRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  coverThumb: { width: 56, height: 56, borderRadius: 10, borderWidth: 1 },
   scroll: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 18 },
   headerRow: {
     flexDirection: 'row',
@@ -664,48 +520,11 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 15 },
   pillTextOn: { fontWeight: '600' },
   inputBig: { fontSize: 22, fontWeight: '700', borderRadius: 14, paddingVertical: 14 },
-  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
-  /* The real, empty event behind the sheet — dimmed, but there. Seeing it is
-     what makes "an empty event stays empty" a fact rather than a slogan. */
-  behind: { flex: 1, opacity: 0.5, padding: 20, paddingTop: 72, gap: 10 },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 26,
-    gap: 16,
-    shadowColor: '#14171c',
-    shadowOffset: { width: 0, height: -12 },
-    shadowOpacity: 0.14,
-    shadowRadius: 40,
-    elevation: 24,
-  },
-  grab: { width: 40, height: 5, borderRadius: 999, alignSelf: 'center' },
-  sheetTitle: { fontSize: 22, fontWeight: '700' },
-  linkRow: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  copy: { fontSize: 15, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 10 },
-  action: { flex: 1, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
-  actionText: { fontSize: 16, fontWeight: '600' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   h1: { fontSize: 26, fontWeight: '700' },
   label: { fontSize: 16, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
-  mono: { fontSize: 15, fontFamily: 'Courier' },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
 });
 
-/** The hints read as sentence fragments; this one starts a sentence. */
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}

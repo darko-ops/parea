@@ -60,6 +60,49 @@ describe('the two corners', () => {
   });
 });
 
+describe('the friends', () => {
+  it('keeps the people, not only how many', () => {
+    /*
+     * `/api/friends` has always answered with the people — the screen threw all
+     * but the length away. Keeping them is what lets the count be something to
+     * press, and costs no extra request.
+     */
+    expect(PROFILE).toMatch(/useState<InvitablePerson\[\] \| null>\(null\)/);
+    expect(PROFILE).toMatch(/api\.friends\(\)\.catch\(\(\) => null\)/);
+    expect(PROFILE).not.toMatch(/\.then\(\(list\) => list\.length\)/);
+  });
+
+  it('makes only the friends half of the line a button', () => {
+    /*
+     * Albums and photographs are already reachable — the shelf below is the
+     * albums, and a photograph lives in one. A friend was the one thing this
+     * line counted that the app could not then show you.
+     */
+    expect(SCREEN).toMatch(/onPress=\{friends\?\.length \? \(\) => setShowFriends\(true\) : undefined\}/);
+    expect(PROFILE).toMatch(/countsLink: \{ textDecorationLine: 'underline' \}/);
+  });
+
+  it('still says "—" rather than "0" before the answer is back', () => {
+    // "0 friends" is a claim, and the wrong one to make about somebody whose
+    // request is still in flight.
+    expect(SCREEN).toMatch(/friends === null \? '—' : friends\.length/);
+  });
+
+  it('opens somebody’s own profile, by handle', () => {
+    expect(SCREEN).toMatch(/onOpenPerson\(friend\.handle\)/);
+    expect(APP).toMatch(/onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+    // And closes the sheet on the way, so there is no list behind the profile.
+    expect(SCREEN).toMatch(/setShowFriends\(false\);\s*if \(friend\.handle\)/);
+  });
+
+  it('lists somebody with no handle without pretending to be a way through', () => {
+    // A profile is reached by handle, and not everybody has chosen one. They
+    // are still a friend.
+    expect(SCREEN).toMatch(/const reachable = friend\.handle != null/);
+    expect(SCREEN).toMatch(/disabled=\{!reachable\}/);
+  });
+});
+
 describe('the profile details', () => {
   it('sit below the corners rather than under the clock', () => {
     // A 28pt name starting a few pixels below the status bar reads as a title
@@ -114,14 +157,30 @@ describe('share profile', () => {
 
 describe('what the `+` makes', () => {
   it('offers both, and creates neither by itself', () => {
-    expect(SCREEN).toMatch(/New album/);
-    expect(SCREEN).toMatch(/New group/);
-    expect(SCREEN).toMatch(/onCreateEvent\(\);/);
-    expect(SCREEN).toMatch(/onCreateGroup\(\);/);
+    /*
+     * The sheet itself lives in `StartSomething` now, because the Events tab's
+     * `+` opens the same two choices — written twice they would be two sheets
+     * agreeing today and disagreeing the first time somebody rewrote a line.
+     */
+    const SHEET = read('src/StartSomething.tsx');
+    expect(SHEET).toMatch(/New album/);
+    expect(SHEET).toMatch(/New group/);
+    expect(SHEET).toMatch(/onAlbum\(\);/);
+    expect(SHEET).toMatch(/onGroup\(\);/);
+    // And the profile hands it the two destinations rather than drawing it.
+    expect(SCREEN).toMatch(/onAlbum=\{onCreateEvent\}/);
+    expect(SCREEN).toMatch(/onGroup=\{onCreateGroup\}/);
   });
 
-  it('hands the album off to the screen that already makes one', () => {
-    expect(APP).toMatch(/onCreateEvent=\{\(\) => setRoute\(\{ screen: 'create' \}\)\}/);
+  it('hands the album off to the photographs, which come first now', () => {
+    /*
+     * `pick` rather than `create`: making an album begins with choosing the
+     * pictures, and the form is the second step. Every entry point goes to the
+     * same place, so there is no route into the form without a selection behind
+     * it — which is where its window and its cover come from.
+     */
+    expect(APP).toMatch(/onCreateEvent=\{\(\) => setRoute\(\{ screen: 'pick' \}\)\}/);
+    expect(APP).not.toMatch(/setRoute\(\{ screen: 'create' \}\)/);
   });
 
   it('hands the group off to the tab that holds the suggestions', () => {

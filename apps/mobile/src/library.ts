@@ -24,6 +24,7 @@ import {
   requestPermissionsAsync,
   type PermissionResponse,
 } from 'expo-media-library';
+import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 /** Guards against a pathological window over a huge library. */
@@ -158,23 +159,164 @@ export async function scanWindow(
   return { candidates, locationErrors, truncated };
 }
 
-/** Turns library ids back into files the upload queue can send. */
+/** One photograph on the phone, as a picker needs it. */
+export type LibraryPhoto = {
+  id: string;
+  /** Displayable on this device. Not an upload source — see `resolveForUpload`. */
+  uri: string;
+  /** When the shutter went, ms. Null for an asset the store has no time for. */
+  takenAt: number | null;
+};
+
+/**
+ * The most recent photographs, for somebody choosing by eye.
+ *
+ * Deliberately not `scanWindow`. That exists for auto-selection and pays for a
+ * location lookup per asset so it can group them by where they were — which is
+ * the expensive call, and a grid somebody is scrolling needs none of it. This
+ * asks for ids, times and a URI and nothing else.
+ *
+ * Paged rather than bounded, because the bound `scanWindow` needs is a
+ * protection against a pathological window and the bound here is a screenful:
+ * `after` is the id to continue from, so a picker can fetch more as somebody
+ * scrolls instead of reading a five-year camera roll to draw twelve tiles.
+ */
+export async function recentPhotos(
+  limit: number,
+  after?: string,
+): Promise<{ photos: LibraryPhoto[]; next: string | null }> {
+  const metas = await new Query()
+    .eq(AssetField.MEDIA_TYPE, MediaType.IMAGE)
+    // Newest first: a picker opens on last night, not on 2019.
+    .orderBy({ key: AssetField.CREATION_TIME, ascending: false })
+    .exeForMetadata();
+
+  /*
+   * Paged in JavaScript rather than in the query.
+   *
+   * `Query` has no cursor, so the page has to be cut after the fact. The
+   * metadata pass is the cheap one — no location, no file access — and the
+   * expensive part is the `getUri` below, which is what the slice bounds.
+   */
+  const from = after ? metas.findIndex((m) => m.id === after) + 1 : 0;
+  const page = metas.slice(from, from + limit);
+
+  const photos = await pooled(page, CONCURRENCY, async (meta) => ({
+    id: meta.id,
+    uri: await new Asset(meta.id).getUri(),
+    takenAt: meta.creationTime ?? null,
+  }));
+
+  return {
+    photos,
+    next: from + limit < metas.length ? (page.at(-1)?.id ?? null) : null,
+  };
+}
+
+/**
+ * The window a set of chosen photographs covers.
+ *
+ * What the `WHEN` picker used to ask for, answered by the photographs instead.
+ * Somebody who has just chosen the evening's pictures has already said when it
+ * was, far more precisely than a six-hour box resolved from "last night" — and
+ * asking them to say it again was the screen not reading what it had been
+ * handed.
+ *
+ * Null when nothing chosen has a time on it, which is an album with no date
+ * rather than an error: most events have none, and the card dates itself by its
+ * earliest photograph.
+ */
+export function windowOf(photos: LibraryPhoto[]): Window | null {
+  const times = photos.map((p) => p.takenAt).filter((t): t is number => t != null);
+  if (times.length === 0) return null;
+  return { start: Math.min(...times), end: Math.max(...times) };
+}
+
+/**
+ * Where copies of chosen photographs wait to be uploaded.
+ *
+ * The cache rather than documents: these are reproducible from the library, so
+ * iOS is welcome to reclaim them under pressure — which is exactly the bargain
+ * `Paths.cache` describes. They are deleted on a successful upload anyway; see
+ * `uploadItem`.
+ */
+export const OUTBOX = 'outbox';
+
+/**
+ * Turns library ids into files the upload queue can send.
+ *
+ * ## Why this copies rather than handing over the asset's own path
+ *
+ * `getUri()` returns a real `file://` URL — `contentEditingInput
+ * .fullSizeImageURL`, which points *inside the Photos library container* and is
+ * reached through a temporary grant scoped to this app in the foreground.
+ *
+ * The uploader runs a **background** `URLSession`, which means an out-of-process
+ * iOS daemon opens the file. That daemon does not hold the grant, so the
+ * transfer failed before a byte moved — and because `uploadItem` reads any
+ * throw as "no network", it surfaced as "3 waiting for a connection, they are
+ * saved and will go up on their own", which was three kinds of wrong: they were
+ * not waiting, nothing was saved, and they were never going up.
+ *
+ * Copying into our own sandbox fixes it at the cause. It buys two other things
+ * worth having: the bytes survive somebody deleting the photograph out of their
+ * library mid-queue, and the size is read off the copy that is actually being
+ * sent rather than off a file the sender cannot open.
+ */
+export async function sandboxCopy(
+  assetId: string,
+): Promise<{ uri: string; name: string; size: number }> {
+  const outbox = new Directory(Paths.cache, OUTBOX);
+  // Idempotent: this runs per upload, and the directory survives between them
+  // unless iOS has reclaimed it.
+  outbox.create({ idempotent: true });
+
+  const asset = new Asset(assetId);
+  const info = await asset.getInfo();
+  const uri = await asset.getUri();
+
+  /*
+   * Named by the asset, not by its filename.
+   *
+   * Two photographs taken a second apart can share `IMG_0042.HEIC` across
+   * albums, and a collision here would upload one of them twice. The id is
+   * unique and is `ph://<uuid>/L0/001` on iOS, so its slashes and colons come
+   * out before it can be read as a path of its own.
+   */
+  const safe = assetId.replace(/[^A-Za-z0-9._-]/g, '_');
+  const copy = new File(outbox, `${safe}-${info.filename}`);
+  if (!copy.exists) await new File(uri).copy(copy);
+
+  return { uri: copy.uri, name: info.filename, size: copy.size ?? 0 };
+}
+
+/** True for a path this app owns, and therefore one a background session can read. */
+export function inOutbox(uri: string): boolean {
+  return uri.includes(`/${OUTBOX}/`);
+}
+
 export async function resolveForUpload(
   ids: string[],
 ): Promise<{ id: string; source: string; name: string; size: number; mime: string }[]> {
   return pooled(ids, CONCURRENCY, async (id) => {
-    const asset = new Asset(id);
-    const info = await asset.getInfo();
-    const uri = await asset.getUri();
+    const copy = await sandboxCopy(id);
+
     return {
       id,
-      // The queue's opaque source string; on native it is the asset URI.
-      source: uri,
-      name: info.filename,
-      // The queue sends the real size from disk; the media store's is
-      // advisory, and the server only uses it for a sanity bound.
-      size: 0,
-      mime: guessMime(info.filename),
+      // The queue's opaque source string: our copy, which is the only version
+      // of these bytes a background session can open.
+      source: copy.uri,
+      name: copy.name,
+      /*
+       * The real size, read off the copy.
+       *
+       * This was `0`, with a comment claiming the queue sent the real size from
+       * disk. It does not — it presigns with exactly the number handed to it —
+       * and `/api/events/[id]/uploads` refuses any file whose size is not
+       * greater than zero, so every upload was rejected before it started.
+       */
+      size: copy.size,
+      mime: guessMime(copy.name),
     };
   });
 }

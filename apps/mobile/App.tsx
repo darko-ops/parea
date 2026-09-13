@@ -23,7 +23,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   AppState,
+  Easing,
   FlatList,
   Image,
   Linking,
@@ -62,6 +64,7 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { PickPhotos } from './src/PickPhotos';
 import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
@@ -74,6 +77,7 @@ import {
   requestLibraryAccess,
   resolveForUpload,
   type LibraryAccess,
+  type LibraryPhoto,
 } from './src/library';
 import { Platform as RNPlatform } from 'react-native';
 
@@ -142,6 +146,16 @@ type Route =
        * asks for anything else.
        */
       pane?: Pane;
+      /**
+       * Library ids to upload on arrival.
+       *
+       * Set only by the create flow. The album used to be handed a *window* and
+       * left to re-scan the library for it, which offered everything from those
+       * hours rather than the photographs somebody actually chose — close
+       * enough when the window came from a phrase, wrong now that it comes from
+       * a selection.
+       */
+      upload?: string[];
     }
   /**
    * The door of a private album — a real link to one that has not let this
@@ -162,7 +176,21 @@ type Route =
    */
   | { screen: 'groupThread'; group: MyGroupDetail }
   | { screen: 'person'; handle: string }
-  | { screen: 'create'; groupId?: string; groupName?: string };
+  /**
+   * Making an album, in two steps.
+   *
+   * `pick` is the photographs — the screen that shows them, because choosing
+   * what an album *is* should come before naming it. `create` is the form, and
+   * it carries what was chosen: the window they cover, the first one as the
+   * cover, and the set to upload once the album exists.
+   */
+  | { screen: 'pick'; groupId?: string; groupName?: string }
+  | {
+      screen: 'create';
+      groupId?: string;
+      groupName?: string;
+      chosen: LibraryPhoto[];
+    };
 
 export default function App() {
   const dark = useColorScheme() === 'dark';
@@ -210,10 +238,13 @@ export default function App() {
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
-  const open = useCallback(async (event: SavedEvent, pane?: Pane) => {
-    setRemembered(await rememberEvent(event));
-    setRoute({ screen: 'event', event, pane });
-  }, []);
+  const open = useCallback(
+    async (event: SavedEvent, pane?: Pane, upload?: string[]) => {
+      setRemembered(await rememberEvent(event));
+      setRoute({ screen: 'event', event, pane, upload });
+    },
+    [],
+  );
 
   /**
    * Groups belong to the actor, not the device — so they are fetched rather
@@ -447,6 +478,7 @@ export default function App() {
             api={api}
             event={route.event}
             initialPane={route.pane}
+            initialUpload={route.upload}
             webBase={API_BASE}
             t={t}
             dark={dark}
@@ -476,6 +508,35 @@ export default function App() {
         </ScrollView>
       )}
 
+      {/*
+        Step one: the photographs.
+
+        Gated on an account for the same reason the form is — making an album is
+        the one thing here that needs one — so the card below answers for both
+        steps and this never opens on somebody who would be refused at the end.
+      */}
+      {route.screen === 'pick' && signedIn === true && (
+        <PickPhotos
+          t={t}
+          Button={Button}
+          onCancel={() =>
+            setRoute(
+              route.groupId
+                ? { screen: 'group', id: route.groupId }
+                : { screen: 'tabs' },
+            )
+          }
+          onNext={(chosen) =>
+            setRoute({
+              screen: 'create',
+              groupId: route.groupId,
+              groupName: route.groupName,
+              chosen,
+            })
+          }
+        />
+      )}
+
       {route.screen === 'create' && signedIn === true && (
         <CreateEvent
           api={api}
@@ -485,26 +546,35 @@ export default function App() {
           recentPlaces={[
             ...new Set(events.map((e) => e.place).filter((p): p is string => Boolean(p))),
           ].slice(0, 3)}
-          webBase={API_BASE}
           groupId={route.groupId}
           groupName={route.groupName}
+          chosen={route.chosen}
           t={t}
+          // Back to the photographs, not out of the flow: somebody on the form
+          // who wants a different picture has not changed their mind about
+          // making an album.
           onCancel={() =>
-            setRoute(
-              route.groupId
-                ? { screen: 'group', id: route.groupId }
-                : { screen: 'tabs' },
-            )
+            setRoute({
+              screen: 'pick',
+              groupId: route.groupId,
+              groupName: route.groupName,
+            })
           }
           onCreated={(created) => {
             void refreshGroups();
-            void open({
-              id: created.id,
-              name: created.name,
-              linkToken: created.linkToken,
-              startsAt: created.startsAt,
-              endsAt: created.endsAt,
-            });
+            void open(
+              {
+                id: created.id,
+                name: created.name,
+                linkToken: created.linkToken,
+                startsAt: created.startsAt,
+                endsAt: created.endsAt,
+              },
+              undefined,
+              // What was chosen two screens ago, sent now that there is an
+              // album to send it to.
+              route.chosen.map((photo) => photo.id),
+            );
           }}
           Button={Button}
         />
@@ -531,7 +601,7 @@ export default function App() {
             t={t}
             onBack={leaveGroup}
             onOpenEvent={open}
-            onCreateEvent={(name) => setRoute({ screen: 'create', groupId: route.id, groupName: name })}
+            onCreateEvent={(name) => setRoute({ screen: 'pick', groupId: route.id, groupName: name })}
             Button={Button}
           />
         </SwipeBack>
@@ -597,7 +667,7 @@ export default function App() {
           t={t}
           onOpen={open}
           onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-          onCreateEvent={() => setRoute({ screen: 'create' })}
+          onCreateEvent={() => setRoute({ screen: 'pick' })}
           onJoin={join}
           onBack={() => setRoute({ screen: 'tabs' })}
           busy={arriving}
@@ -616,7 +686,11 @@ export default function App() {
                 t={t}
                 onOpen={openListing}
                 onRefresh={refreshEvents}
-                onCreate={() => setRoute({ screen: 'create' })}
+                onCreate={() => setRoute({ screen: 'pick' })}
+                onCreateGroup={() => {
+                  setTab('groups');
+                  setMakeGroup((n) => n + 1);
+                }}
                 // The join screen's only way in, now that the pill above the tab
                 // bar is gone: a link, a QR code or a spoken phrase.
                 Button={Button}
@@ -666,7 +740,8 @@ export default function App() {
                 t={t}
                 active={tab === 'profile'}
                 onOpen={openListing}
-                onCreateEvent={() => setRoute({ screen: 'create' })}
+                onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+                onCreateEvent={() => setRoute({ screen: 'pick' })}
                 onCreateGroup={() => {
                   setTab('groups');
                   setMakeGroup((n) => n + 1);
@@ -917,6 +992,7 @@ function EventScreen({
   api,
   event,
   initialPane,
+  initialUpload,
   webBase,
   t,
   dark,
@@ -931,6 +1007,15 @@ function EventScreen({
   event: SavedEvent;
   /** Which pane to land on. See the `useState` below for why it is optional. */
   initialPane?: Pane;
+  /**
+   * Library ids to send as soon as this opens.
+   *
+   * Set only by the create flow, which chose them two screens ago. The album
+   * used to be handed the event's *window* and left to re-scan the library for
+   * it — which offered everything taken in those hours rather than the
+   * photographs somebody actually picked.
+   */
+  initialUpload?: string[];
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
@@ -947,6 +1032,33 @@ function EventScreen({
   const [feed, setFeed] = useState<Feed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
+  /*
+   * How far along the uploads are, as a fraction.
+   *
+   * Separate from `queueStatus`, which is a sentence. A bar needs a number, and
+   * deriving one by parsing "2 of 5 added" back out of its own label is the kind
+   * of thing that works until somebody rewords the label.
+   *
+   * Null when nothing is in flight, which is what takes the bar away — rather
+   * than leaving a full one sitting under the cover after the last photograph
+   * has landed.
+   */
+  const [progress, setProgress] = useState<number | null>(null);
+  /*
+   * How many photographs this batch is putting into the album.
+   *
+   * The bar used to measure bytes leaving the phone, which is half the wait: a
+   * photograph is not in the album when it has been uploaded, it is in the
+   * album when the deriver has been round. So the bar finished, the screen said
+   * "Nothing here yet", and the pictures then appeared one at a time to anybody
+   * who kept pulling down to refresh.
+   *
+   * One number for the whole journey instead. Done is everything that is
+   * neither still uploading nor still being processed, so the bar fills once
+   * and empties when the album is actually full.
+   */
+  const [batch, setBatch] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(0);
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
@@ -1044,29 +1156,62 @@ function EventScreen({
       );
 
       const tick = setInterval(() => {
+        const total = queue.doneCount + queue.pendingCount;
         setQueueStatus(
-          queue.pendingCount > 0
-            ? `${queue.doneCount} of ${queue.doneCount + queue.pendingCount} added`
-            : null,
+          queue.pendingCount > 0 ? `${queue.doneCount} of ${total} added` : null,
         );
+        // What the bar needs: how many are still on their way up. The rest of
+        // the sum is `arriving`, which only the feed knows.
+        setUploading(queue.pendingCount);
+        setBatch((was) => (was === null ? total : Math.max(was, total)));
       }, 400);
 
       try {
         await queue.run();
       } finally {
         clearInterval(tick);
+        // Nothing left to send. The bar may still have a way to go — the
+        // deriver has the rest of it — so this only reports the upload half.
+        setUploading(0);
         queue.prune();
         await saveQueue(queue.state);
         // Three outcomes, not two. "Waiting" and "failed" ask opposite things
         // of a person: one is do nothing, the other is try again.
         setWaitingForNetwork(queue.waitingForNetwork);
-        setQueueStatus(
-          queue.waitingForNetwork
-            ? `${queue.pendingCount} waiting for a connection`
-            : queue.failedCount > 0
-              ? `${queue.failedCount} didn't upload`
-              : null,
-        );
+        /*
+         * Three outcomes and, when something is stuck, why.
+         *
+         * The reason is appended rather than replacing the note: "waiting for a
+         * connection" is the right thing to tell somebody in a basement, and
+         * useless on its own when the truth is that a file could not be read.
+         * One line saying both is how a person can tell those apart — and how
+         * anybody reporting it can say something more useful than "it failed".
+         */
+        const stale = queue.staleItems.length;
+        const stuck = queue.waitingForNetwork
+          ? `${queue.pendingCount} waiting for a connection`
+          : queue.failedCount > 0
+            ? `${queue.failedCount} didn't upload`
+            : stale > 0
+              ? // Their bytes are gone rather than refused, so "try again" is
+                // the wrong advice: the photograph has to be picked again.
+                `${stale} could not be read — add ${stale === 1 ? 'it' : 'them'} again`
+              : null;
+        /*
+         * And why, where there is a why.
+         *
+         * The reason is appended rather than replacing the note: "waiting for a
+         * connection" is the right thing to tell somebody in a basement, and
+         * useless on its own when the truth is that a file could not be read.
+         * One line saying both is how a person tells those apart — and how
+         * anybody reporting it can say more than "it failed", which cost this
+         * bug several rounds of guessing.
+         */
+        const why =
+          stuck && (queue.cause ?? queue.staleItems[0]?.error)
+            ? (queue.cause ?? queue.staleItems[0]?.error)
+            : null;
+        setQueueStatus(stuck && why ? `${stuck} — ${why}` : stuck);
         await refresh();
       }
     },
@@ -1370,10 +1515,87 @@ function EventScreen({
    * Failure is swallowed: not having recorded that you read something is not
    * worth an alert over a conversation you are looking at.
    */
+  /*
+   * The photographs the create flow chose, sent once.
+   *
+   * A ref rather than a dependency, because the guard is "this set, ever" and
+   * not "this set, while the prop is unchanged": the effect re-runs when
+   * `enqueue` is rebuilt, and without the latch a refresh would send them all a
+   * second time. `resolveForUpload` turns ids into files the queue can send —
+   * the picker deliberately carried neither.
+   */
+  const sent = useRef(false);
+  useEffect(() => {
+    if (sent.current || !initialUpload?.length) return;
+    sent.current = true;
+    void (async () => {
+      try {
+        await enqueue(await resolveForUpload(initialUpload));
+      } catch {
+        // The album exists and the photographs are still on the phone. Add
+        // photos is the way back to them, which is the same recovery as any
+        // other upload that did not start.
+        setQueueStatus('Could not start those uploads — use Add photos.');
+      }
+    })();
+  }, [enqueue, initialUpload]);
+
   const markRead = useCallback(() => {
     setSeen(messages.length);
     void api.markEventRead(event.id, event.linkToken).catch(() => {});
   }, [api, event.id, event.linkToken, messages.length]);
+
+  /*
+   * The whole journey, as one fraction.
+   *
+   * Still uploading, plus uploaded and not yet through the deriver. When both
+   * reach zero the batch is over and the bar goes — which is now the same
+   * moment the album is actually full, rather than the moment the last byte
+   * left the phone.
+   */
+  const outstanding = uploading + (feed?.arriving ?? 0);
+  useEffect(() => {
+    if (batch === null) return;
+    if (outstanding === 0) {
+      setBatch(null);
+      setProgress(null);
+      return;
+    }
+    setProgress(Math.min(1, Math.max(0, (batch - outstanding) / batch)));
+  }, [batch, outstanding]);
+
+  /*
+   * Keep asking while anything is still being processed.
+   *
+   * The deriver takes a second or two per photograph and tells nobody when it
+   * is done, so without this the album sits on whatever it knew when it opened
+   * and only a pull-to-refresh moves it. Every two seconds while something is
+   * arriving, and not at all otherwise: an album nobody is adding to must not
+   * poll in somebody's pocket.
+   */
+  useEffect(() => {
+    if (!feed || feed.arriving === 0) return;
+    const timer = setInterval(() => void refresh(), 2000);
+    return () => clearInterval(timer);
+  }, [feed, refresh]);
+
+  /*
+   * The seam under the cover, used as the progress bar.
+   *
+   * Animated rather than set, because the queue reports every 400ms and a line
+   * that jumps in five steps reads as five separate events. `width` cannot go on
+   * the native driver — only transforms can — which is acceptable for a 2pt view
+   * that changes four times a second and never while a gesture is in flight.
+   */
+  const bar = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(bar, {
+      toValue: progress ?? 0,
+      duration: 350,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [bar, progress]);
 
   /** This room's four verbs, for the thread that draws them. */
   const eventThread = useMemo(
@@ -1506,6 +1728,38 @@ function EventScreen({
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
+
+        {/*
+          What is still landing, along the bottom edge of the cover.
+
+          It sat on the top edge of the page below, which is sixteen points
+          further down — so it read as a line floating in the gap rather than as
+          part of anything. The cover's own edge is a line somebody already
+          sees, so colouring that in costs no room and adds no furniture.
+
+          White rather than the accent: it lies on a photograph, which can be
+          any colour at all, and the scrim at the foot of the cover is already
+          there to make white legible — it is what the title and the faces above
+          it rely on.
+
+          Null progress draws nothing rather than an empty track, because an
+          unfilled bar under every album would be a permanent promise of
+          something happening.
+        */}
+        {progress !== null && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.uploadBar,
+              {
+                width: bar.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%'],
+                }),
+              },
+            ]}
+          />
+        )}
       </View>
 
       <Pressable
@@ -2504,6 +2758,16 @@ const styles = StyleSheet.create({
   faceMoreText: { fontSize: 9.5, fontWeight: '700', color: '#5b6472' },
   /* The page, starting 16 points into the cover's bottom scrim. */
   page: { position: 'absolute', top: 248, left: 0, right: 0, bottom: 0 },
+  /* The cover's bottom edge. White, because it lies on a photograph — see the
+     note at the call site. */
+  uploadBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    height: 2.5,
+    backgroundColor: '#fff',
+    zIndex: 3,
+  },
   tabRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   addButton: {
     width: 38,

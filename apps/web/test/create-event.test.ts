@@ -92,29 +92,53 @@ describe('the clients that send one', () => {
     '%s sends startsAt and endsAt',
     (_label, path) => {
     const client = read(path);
-    // The identifier is not the point and pinning it was a false failure
-    // waiting to happen — the native screen now resolves its window from a
-    // detected run and calls the result `span`. What has to hold is that both
-    // ends come from one nullable source, so the pair is sent together or not
-    // at all: half a window resolves against an open interval, which is every
-    // photo on a device.
-    expect(client).toMatch(/startsAt: (\w+)\?\.startsAt \?\? null/);
-    expect(client).toMatch(/endsAt: (\w+)\?\.endsAt \?\? null/);
-    expect(client.match(/startsAt: (\w+)\?\./)?.[1]).toBe(
-      client.match(/endsAt: (\w+)\?\./)?.[1],
-    );
+    /*
+     * The identifier is not the point, and pinning its shape was a false
+     * failure waiting to happen — which is what it turned out to be twice. The
+     * native screen reads its window off the photographs somebody chose now and
+     * derives the two ends separately from one nullable `span`.
+     *
+     * What has to hold is unchanged and is the whole reason this test exists:
+     * both ends come from the *same* nullable source, so the pair is sent
+     * together or not at all. Half a window resolves against an open interval,
+     * which is every photograph on a device.
+     */
+    const starts = client.match(/const startsAt = (\w+) \?/)?.[1];
+    const ends = client.match(/const endsAt = (\w+) \?/)?.[1];
+    expect(starts, 'startsAt is not derived from a nullable window').toBeTruthy();
+    expect(ends, 'endsAt is not derived from a nullable window').toBeTruthy();
+    expect(starts).toBe(ends);
+    // And both fall back to null rather than to a bound of their own.
+    expect(client).toMatch(/const startsAt = \w+ \? [^;]+ : null;/);
+    expect(client).toMatch(/const endsAt = \w+ \? [^;]+ : null;/);
     },
   );
 
-  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
-    '%s takes its phrasing from the shared module',
-    (_label, path) => {
-      // Two copies of the preset list would drift on what "Tonight" means, and
-      // no test anywhere would notice.
-      expect(read(path)).toMatch(/from '@parea\/autoselect'/);
-      expect(read(path)).toContain('WHEN_OPTIONS');
-    },
-  );
+  it('the native create screen no longer asks when it was at all', () => {
+    /*
+     * This used to assert that the screen took its phrasing from
+     * `@parea/autoselect`, so that two copies of the preset list could not
+     * drift on what "Tonight" means. There is no list now: making an album
+     * begins by choosing the photographs, and their first and last shutter is
+     * the window — exactly, rather than a phrase resolved to a six-hour box.
+     *
+     * So the guard inverts. The screen must *not* carry a phrase list, because
+     * a second way of answering the same question is how the two would disagree.
+     */
+    const client = read('../../mobile/src/CreateEvent.tsx');
+    /*
+     * Comments out before looking. The note explaining where the date's
+     * construction came from names `eventDateFor`, and a check that cannot tell
+     * prose from code fails on the explanation for the thing it is checking.
+     */
+    const body = client
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(body).not.toContain('WHEN_OPTIONS');
+    expect(body).not.toMatch(/windowFor|eventDateFor/);
+    // The window comes from the selection instead.
+    expect(body).toMatch(/windowOf\(chosen\)/);
+  });
 
   /*
    * Nothing is pre-selected, so a submit control has to wait for an answer
@@ -160,18 +184,24 @@ describe('the clients that send one', () => {
     },
   );
 
-  it.each([['the native create screen', '../../mobile/src/CreateEvent.tsx']])(
-    '%s ties that guard to an unanswered window',
-    (_label, path) => {
-      const client = read(path);
-      const named = client.match(/const ready = ([^;]+);/)?.[1];
-
-      // Whichever form the client uses, the window has to be in it. On native
-      // a detected run answers the question instead, so `picked` counts.
-      if (named) expect(named).toMatch(/when/);
-      else expect(client).toMatch(/disabled=\{[^}]*!when/);
-    },
-  );
+  it('the native create screen still refuses to submit without a name', () => {
+    /*
+     * This used to require the *window* to be in the guard, because the window
+     * was a question somebody could skip past. It is not one any more — it is
+     * read off the photographs — so what is left to insist on is the name,
+     * which is the same thing the web form guards and for the same reason: a
+     * submit control that cannot be pressed past an unanswered required
+     * question.
+     *
+     * Deliberately not the photographs. An album with none is a real thing —
+     * made before the evening, or to hand the link out at it.
+     */
+    const client = read('../../mobile/src/CreateEvent.tsx');
+    const named = client.match(/const ready = ([^;]+);/)?.[1];
+    expect(named, 'the native screen has no named submit rule').toBeTruthy();
+    expect(named).toMatch(/name\.trim\(\)/);
+    expect(client).toMatch(/disabled=\{busy \|\| !ready\}/);
+  });
 
   it('the web form still refuses to submit without a name', () => {
     // What the guard rule was really protecting: a submit control that cannot

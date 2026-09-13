@@ -134,9 +134,10 @@ describe('what the screen may do', () => {
      * read off `events` — the albums this actor can already open, the same
      * list the home tab draws — and never off the group or its detail
      * response. Somebody who was never in one of a group's events, or who has
-     * since been removed from it, has no listing for it and gets the dashed
-     * empty slot where that cover would be. The server is not asked for a
-     * group's photographs and does not answer with any.
+     * since been removed from it, has no listing for it and so contributes no
+     * tile at all — the strip is only as wide as the covers it has, and a group
+     * with none draws no strip. The server is not asked for a group's
+     * photographs and does not answer with any.
      *
      * So: every `uri:` in the block is either a cover from this viewer's own
      * album list, or a person's own avatar. A photograph reaching this screen
@@ -146,9 +147,23 @@ describe('what the screen may do', () => {
       EVENTS.indexOf('function GroupBlock'),
       EVENTS.indexOf('const COVER_STRIP'),
     );
-    const sources = [...block.matchAll(/uri:\s*([A-Za-z.?]+)/g)].map((m) => m[1]);
+    // `!` allowed in the path: the tiles are filtered on `album.cover` before
+    // they are drawn, so the assertion inside the map is not a second check.
+    const sources = [...block.matchAll(/uri:\s*([A-Za-z.?!]+)/g)].map((m) => m[1]);
     expect(sources.length).toBeGreaterThan(0);
-    expect(new Set(sources)).toEqual(new Set(['album.cover.src']));
+    expect(new Set(sources)).toEqual(new Set(['album.cover!.src']));
+
+    /*
+     * And no room reserved for a cover that does not exist.
+     *
+     * Three slots were drawn whatever the group held, the gaps filled with
+     * dashed outlines — so one evening was a photograph and two empty boxes,
+     * and none was 84 points of nothing. A placeholder belongs where somebody
+     * is meant to put something, and nobody puts an album into a strip.
+     */
+    expect(block).toMatch(/albums\.filter\(\(album\) => album\.cover\)/);
+    expect(block).toMatch(/\{withCovers\.length > 0 && \(/);
+    expect(EVENTS).not.toMatch(/stripEmpty/);
 
     // And the albums are handed in, not fetched: the tab cannot reach for a
     // group's photographs because it never asks anybody for any.

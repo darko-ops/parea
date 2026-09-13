@@ -58,10 +58,11 @@ import {
 
 import { dateLabel } from '@parea/cards';
 
-import type { Account, Api, EventListing } from './api';
+import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
+import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
@@ -87,6 +88,7 @@ export function ProfileScreen({
   t,
   active,
   onOpen,
+  onOpenPerson,
   onCreateEvent,
   onCreateGroup,
   onSignedIn,
@@ -110,6 +112,8 @@ export function ProfileScreen({
    */
   active: boolean;
   onOpen: (event: EventListing) => void;
+  /** A friend's own profile, reached by handle — the same route Find uses. */
+  onOpenPerson: (handle: string) => void;
   /** The `+` in the corner: the album half. Opens the full create screen. */
   onCreateEvent: () => void;
   /**
@@ -127,7 +131,20 @@ export function ProfileScreen({
   Button: ButtonEl;
 }) {
   const [account, setAccount] = useState<Account | null | undefined>();
-  const [friends, setFriends] = useState<number | null>(null);
+  /*
+   * The friends themselves, not only how many.
+   *
+   * `/api/friends` has always answered with the people — the screen was
+   * throwing all but the length away. Keeping them is what lets the count be
+   * something to press rather than a statistic, and costs no extra request.
+   *
+   * Null while the answer has not come back, which is the difference between
+   * "none" and "not yet": "0 friends" is a claim, and the wrong one to make
+   * about somebody whose request is still in flight.
+   */
+  const [friends, setFriends] = useState<InvitablePerson[] | null>(null);
+  /** The list, as a sheet over the profile. */
+  const [showFriends, setShowFriends] = useState(false);
   const [editing, setEditing] = useState(false);
   const [settings, setSettings] = useState(false);
   /** The `+`'s two-line menu. Nothing is created until one of them is chosen. */
@@ -154,7 +171,7 @@ export function ProfileScreen({
   const load = useCallback(async () => {
     const [account, friends] = await Promise.all([
       api.account().catch(() => null),
-      api.friends().then((list) => list.length).catch(() => null),
+      api.friends().catch(() => null),
     ]);
     setAccount(account);
     setFriends(friends);
@@ -279,9 +296,30 @@ export function ProfileScreen({
             claim, and the wrong one to make about somebody whose request has
             not come back yet.
           */}
+          {/*
+            The friends half is a button; the other two are not.
+
+            Albums and photographs are already reachable — the shelf below is
+            the albums, and a photograph lives in one of them. A friend was the
+            one thing this line counted that the app could not then show you, so
+            that is the half that became a control. Underlined rather than
+            coloured: an accent word in the middle of a grey line reads as a
+            link in prose, and this is a line of facts.
+          */}
           <Text style={[styles.counts, { color: t.dim }]}>
             {events.length} {events.length === 1 ? 'album' : 'albums'} · {photos}{' '}
-            {photos === 1 ? 'photo' : 'photos'} · {friends === null ? '—' : friends} friends
+            {photos === 1 ? 'photo' : 'photos'} ·{' '}
+            <Text
+              onPress={friends?.length ? () => setShowFriends(true) : undefined}
+              suppressHighlighting
+              accessibilityRole={friends?.length ? 'button' : undefined}
+              accessibilityLabel={
+                friends?.length ? `${friends.length} friends, see them` : undefined
+              }
+              style={friends?.length ? styles.countsLink : undefined}
+            >
+              {friends === null ? '—' : friends.length} friends
+            </Text>
           </Text>
         </View>
 
@@ -445,61 +483,101 @@ export function ProfileScreen({
       )}
 
       {/*
-        What the `+` makes, as two lines.
+        Your friends, as a sheet over your own profile.
 
-        A sheet rather than a menu pinned under the corner: the two things it
-        makes are not the same size — an album is an evening and a group is a
-        room that outlives one — and each gets a line saying which is which.
-        Neither creates anything on its own; both hand off to the screen that
-        already knows how, so there is still exactly one way to make each.
+        A sheet rather than a route, because it is a list you came to from a
+        number and will leave again immediately — pushing a screen for it would
+        put a back arrow between somebody and the profile they were reading.
+        Tapping one *is* a route, and closes this on the way.
       */}
-      {creating && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setCreating(false)}>
-          <Pressable style={styles.backdrop} onPress={() => setCreating(false)}>
+      {showFriends && friends && (
+        <Modal
+          visible
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowFriends(false)}
+        >
+          <Pressable style={styles.backdrop} onPress={() => setShowFriends(false)}>
             <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-              <View style={styles.panelScroll}>
-                <Text style={[styles.panelTitle, { color: t.fg }]}>Start something</Text>
+              <ScrollView contentContainerStyle={styles.panelScroll}>
+                <Text style={[styles.panelTitle, { color: t.fg }]}>
+                  {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
+                </Text>
 
-                <Pressable
-                  onPress={() => {
-                    setCreating(false);
-                    onCreateEvent();
-                  }}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.choice,
-                    { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.choiceName, { color: t.fg }]}>New album</Text>
-                  <Text style={[styles.choiceWhy, { color: t.dim }]}>
-                    One evening, and a link for the people who were at it.
-                  </Text>
-                </Pressable>
+                {friends.map((friend) => {
+                  const lens = lensFor(friend.handle ?? friend.actorId);
+                  /*
+                   * Somebody with no handle cannot be opened.
+                   *
+                   * A profile is reached by handle — it is the half of a person
+                   * that is an address — and not everybody has chosen one. The
+                   * row still lists them, because they are a friend either way;
+                   * it simply does not pretend to be a way through.
+                   */
+                  const reachable = friend.handle != null;
+                  return (
+                    <Pressable
+                      key={friend.actorId}
+                      disabled={!reachable}
+                      onPress={() => {
+                        setShowFriends(false);
+                        if (friend.handle) onOpenPerson(friend.handle);
+                      }}
+                      accessibilityRole={reachable ? 'button' : undefined}
+                      accessibilityLabel={
+                        reachable
+                          ? `${friend.displayName ?? friend.handle}, open their profile`
+                          : undefined
+                      }
+                      style={({ pressed }) => [
+                        styles.friendRow,
+                        { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
+                      ]}
+                    >
+                      {friend.avatar ? (
+                        <Image
+                          source={{ uri: friend.avatar }}
+                          style={[styles.friendFace, { backgroundColor: t.line }]}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                      ) : (
+                        <View style={[styles.friendFace, styles.friendBlank, { backgroundColor: lens.fill }]}>
+                          <Text style={[styles.friendLetter, { color: lens.ink }]}>
+                            {initialOf(friend.displayName ?? friend.handle)}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.friendName, { color: t.fg }]} numberOfLines={1}>
+                          {friend.displayName?.trim() || friend.handle || 'Someone'}
+                        </Text>
+                        {friend.displayName && friend.handle && (
+                          <Text style={[styles.friendHandle, { color: t.dim }]} numberOfLines={1}>
+                            {friend.handle}
+                          </Text>
+                        )}
+                      </View>
+                      {reachable && <Text style={[styles.friendGo, { color: t.dim }]}>›</Text>}
+                    </Pressable>
+                  );
+                })}
 
-                <Pressable
-                  onPress={() => {
-                    setCreating(false);
-                    onCreateGroup();
-                  }}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [
-                    styles.choice,
-                    { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.choiceName, { color: t.fg }]}>New group</Text>
-                  <Text style={[styles.choiceWhy, { color: t.dim }]}>
-                    The people you keep ending up with, so the next album has
-                    somewhere to go.
-                  </Text>
-                </Pressable>
-
-                <Button label="Cancel" t={t} onPress={() => setCreating(false)} />
-              </View>
+                <Button label="Close" t={t} onPress={() => setShowFriends(false)} />
+              </ScrollView>
             </Pressable>
           </Pressable>
         </Modal>
+      )}
+
+      {creating && (
+        <StartSomething
+          t={t}
+          Button={Button}
+          onClose={() => setCreating(false)}
+          onAlbum={onCreateEvent}
+          onGroup={onCreateGroup}
+        />
       )}
 
       {settings && (
@@ -761,6 +839,24 @@ const styles = StyleSheet.create({
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
   counts: { fontSize: 14.5, marginTop: 8 },
+  /* Underlined rather than accented: an accent word inside a grey line reads as
+     a link in prose, and this is a line of facts. */
+  countsLink: { textDecorationLine: 'underline' },
+  /* One friend. A rule between rows and none under the last, which is the same
+     shape the event chats use. */
+  friendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  friendFace: { width: 38, height: 38, borderRadius: 19 },
+  friendBlank: { alignItems: 'center', justifyContent: 'center' },
+  friendLetter: { fontSize: 15, fontWeight: '700' },
+  friendName: { fontSize: 15.5, fontWeight: '600' },
+  friendHandle: { fontSize: 13 },
+  friendGo: { fontSize: 20 },
   avatar: { width: 64, height: 64, borderRadius: 32 },
   avatarBlank: { alignItems: 'center', justifyContent: 'center' },
   avatarLetter: { fontSize: 25, fontWeight: '700' },
@@ -783,10 +879,6 @@ const styles = StyleSheet.create({
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   panelScroll: { padding: 16, paddingBottom: 40, gap: 12 },
   panelTitle: { fontSize: 22, fontWeight: '700' },
-  /* One of the `+`'s two lines: what it is, and what it is for. */
-  choice: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 4 },
-  choiceName: { fontSize: 16, fontWeight: '600' },
-  choiceWhy: { fontSize: 13.5, lineHeight: 19 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   fieldLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
   input: { borderWidth: 1, borderRadius: 11, paddingVertical: 12, paddingHorizontal: 15, fontSize: 16 },

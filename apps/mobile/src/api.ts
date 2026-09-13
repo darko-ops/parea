@@ -94,6 +94,16 @@ export type Feed = {
   };
   contributors: number;
   count: number;
+  /**
+   * Uploaded and not through the deriver yet.
+   *
+   * The server has answered with this all along and this client never declared
+   * it, so the album could not tell "there is nothing here" from "there are
+   * four photographs a few seconds away". That is why a freshly posted album
+   * read as empty and then filled in one picture at a time, but only for
+   * somebody who kept pulling down to refresh.
+   */
+  arriving: number;
   photos: FeedPhoto[];
   /**
    * Everybody in the event: the faces over the cover, and the People pane.

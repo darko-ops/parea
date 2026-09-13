@@ -39,6 +39,7 @@ import type {
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import { Glyph } from './Glyph';
+import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
@@ -364,6 +365,7 @@ export function HomeTab({
   onOpen,
   onRefresh,
   onCreate,
+  onCreateGroup,
   Button,
 }: {
   api: Api;
@@ -373,12 +375,23 @@ export function HomeTab({
   onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
+  /**
+   * The group half of the `+`.
+   *
+   * Goes to the Groups tab with its form open, exactly as the profile's does —
+   * the form there arrives with the people this person keeps ending up in
+   * events with, and a bare name-and-nobody form is the empty-group problem
+   * that tab was written to avoid.
+   */
+  onCreateGroup: () => void;
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
   // One gesture refreshes both: pulling the list down and finding the count
   // above it stale would make the count the thing nobody trusts.
   const [pulled, setPulled] = useState(0);
+  /** The `+`'s two choices. Nothing is made until one of them is picked. */
+  const [starting, setStarting] = useState(false);
   const now = useNow();
 
   /*
@@ -428,13 +441,17 @@ export function HomeTab({
         album screen adds photographs with. Three tabs, one shape for "make
         something here", and it stops the heading row being two things to read
         on the way to the evenings underneath it.
+
+        It opens the same two choices the profile's `+` does. One glyph meaning
+        two things in one place and one thing in another is the sort of
+        difference nobody can learn: either `+` makes what you ask it for.
       */}
       <View style={styles.headRow}>
         <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
         <Pressable
-          onPress={onCreate}
+          onPress={() => setStarting(true)}
           accessibilityRole="button"
-          accessibilityLabel="Start an event"
+          accessibilityLabel="New album or group"
           style={({ pressed }) => [
             styles.newGroup,
             { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
@@ -443,6 +460,16 @@ export function HomeTab({
           <Glyph name="plus" size={20} color={t.fg} />
         </Pressable>
       </View>
+
+      {starting && (
+        <StartSomething
+          t={t}
+          Button={Button}
+          onClose={() => setStarting(false)}
+          onAlbum={onCreate}
+          onGroup={onCreateGroup}
+        />
+      )}
 
       {/*
         Above the list, because it is the one thing here somebody has to do
@@ -683,18 +710,24 @@ export function GroupsTab({
    * silent album full of photographs above the one somebody is talking in,
    * which is the wrong answer on a tab about talking.
    *
-   * An event with no messages still lists. It is a door — the thread is how
-   * you get to it, and hiding it until somebody speaks means nobody ever does.
+   * Only the ones somebody has actually spoken in.
+   *
+   * A reversal: these used to list whether or not anything had been said, on
+   * the argument that an empty chat is a door and hiding it until somebody
+   * speaks means nobody ever does. In practice it filled the section with rows
+   * reading "Nobody has said anything yet" — a list of absences under a heading
+   * that promises conversations.
+   *
+   * The door is still there, it is just the album's own Talk tab rather than
+   * this list: opening the evening and saying something is what puts it here.
    */
   const loose = useMemo(
     () =>
       events
-        .filter((event) => !event.groupId)
-        .sort((a, b) =>
-          (b.lastMessage?.at ?? b.lastActiveAt).localeCompare(
-            a.lastMessage?.at ?? a.lastActiveAt,
-          ),
-        ),
+        .filter((event) => !event.groupId && event.lastMessage != null)
+        // By when something was last said. No fallback needed now that a row
+        // without a message is not a row.
+        .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
     [events],
   );
 
@@ -706,7 +739,10 @@ export function GroupsTab({
       }
     >
       <View style={styles.groupsHead}>
-        <Text style={[styles.h1, { color: t.fg }]}>Groups</Text>
+        {/* "Your Parea" rather than "Groups": the tab holds the rooms and the
+            conversations, and the word for all of that together is the one the
+            product is named after. */}
+        <Text style={[styles.h1, { color: t.fg }]}>Your Parea</Text>
         {/*
           A filled disc rather than an outlined word.
 
@@ -821,7 +857,7 @@ export function GroupsTab({
       */}
       {loose.length > 0 && (
         <View style={{ gap: 2 }}>
-          <Text style={[styles.sectionLabel, { color: t.dim }]}>EVENT CHATS</Text>
+          <Text style={[styles.sectionLabel, { color: t.dim }]}>GROUP CHATS</Text>
           {loose.map((event, i) => (
             <Pressable
               key={event.id}
@@ -852,12 +888,7 @@ export function GroupsTab({
                 <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
                   {event.name}
                 </Text>
-                <ConversationLine
-                  line={event}
-                  fallback="Nobody has said anything yet."
-                  t={t}
-                  dot
-                />
+                <ConversationLine line={event} t={t} dot />
               </View>
             </Pressable>
           ))}
@@ -943,7 +974,14 @@ function GroupBlock({
   onOpenThread: () => void;
 }) {
   const lens = lensFor(group.id);
-  const shown = albums.slice(0, COVER_STRIP);
+  /*
+   * The covers this person can actually draw.
+   *
+   * An evening they are not in has no listing here and so no cover — and an
+   * album nobody has photographed yet has none either. Both used to leave a
+   * dashed box; neither leaves anything now.
+   */
+  const withCovers = albums.filter((album) => album.cover).slice(0, COVER_STRIP);
   /*
    * How many evenings are not in the strip.
    *
@@ -952,7 +990,7 @@ function GroupBlock({
    * disclosed to every member — `groupEvents` lists all of them by name. The
    * strip shows the ones this person can open.
    */
-  const more = Math.max(0, group.eventCount - shown.length);
+  const more = Math.max(0, group.eventCount - withCovers.length);
 
   return (
     <Pressable
@@ -983,35 +1021,40 @@ function GroupBlock({
         </Text>
       </View>
 
-      <View style={styles.strip}>
-        {Array.from({ length: COVER_STRIP }, (_, i) => {
-          const album = shown[i];
-          const last = i === COVER_STRIP - 1;
-          return (
-            <View key={album?.id ?? `slot-${i}`} style={styles.stripTile}>
-              {album?.cover ? (
-                <Image
-                  source={{ uri: album.cover.src }}
-                  style={[styles.stripShot, { backgroundColor: t.line }]}
-                  contentFit="cover"
-                  transition={120}
-                />
-              ) : (
-                /* Dashed, which reads as "nothing here" rather than as a very
-                   dark photograph — the same call every empty tile in this
-                   product makes. An evening this person cannot open leaves one
-                   of these rather than borrowing a picture from the group. */
-                <View style={[styles.stripShot, styles.stripEmpty, { borderColor: t.line }]} />
-              )}
-              {last && more > 0 && (
+      {/*
+        Only the covers that exist, and no strip at all without one.
+
+        It used to draw three slots whatever the group held, filling the gaps
+        with dashed outlines — so a room with one evening in it was a
+        photograph and two empty boxes, and a room with none was three empty
+        boxes and 84 points of nothing. A placeholder is worth drawing where
+        somebody is meant to put something; nobody puts an album into a strip.
+        Here it was the product reserving room for absences.
+
+        The tiles keep `flex: 1`, so one cover fills the width and two split it
+        — the strip is as wide as the block either way and the pictures grow to
+        meet it, rather than a lone cover sitting in a third of the space with
+        the rest blank.
+      */}
+      {withCovers.length > 0 && (
+        <View style={styles.strip}>
+          {withCovers.map((album, i) => (
+            <View key={album.id} style={styles.stripTile}>
+              <Image
+                source={{ uri: album.cover!.src }}
+                style={[styles.stripShot, { backgroundColor: t.line }]}
+                contentFit="cover"
+                transition={120}
+              />
+              {i === withCovers.length - 1 && more > 0 && (
                 <View style={styles.stripMore}>
                   <Text style={styles.stripMoreText}>+{more}</Text>
                 </View>
               )}
             </View>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+      )}
 
       {/*
         The last thing said in it, which is what makes this a conversation
@@ -1061,8 +1104,14 @@ function ConversationLine({
   onPress,
 }: {
   line: ThreadLine;
-  /** What a thread nobody has spoken in says. A door, not an error. */
-  fallback: string;
+  /**
+   * What a thread nobody has spoken in says.
+   *
+   * Optional, because the event chats no longer list a conversation that has
+   * not happened — only a group block can be empty and still be worth drawing,
+   * since the room exists whether or not anybody has spoken in it yet.
+   */
+  fallback?: string;
   t: TabTheme;
   /** A dot rather than a count. See above. */
   dot?: boolean;
@@ -1093,11 +1142,11 @@ function ConversationLine({
             {ago(new Date(last.at), new Date())}
           </Text>
         </>
-      ) : (
+      ) : fallback ? (
         <Text style={[styles.said, { color: t.dim }]} numberOfLines={1}>
           {fallback}
         </Text>
-      )}
+      ) : null}
 
       {unread &&
         (dot ? (
@@ -1907,7 +1956,6 @@ const styles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: 3 },
   stripTile: { flex: 1, height: 84 },
   stripShot: { width: '100%', height: '100%', borderRadius: 8 },
-  stripEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
   stripMore: {
     position: 'absolute',
     top: 0,

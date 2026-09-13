@@ -60,6 +60,16 @@ export type QueueItem = {
   /** When the presigned URL stops working. */
   expiresAt?: number;
   error?: string;
+  /**
+   * The underlying reason, where `error` is the note a person reads.
+   *
+   * Kept because the two are not the same thing and conflating them cost real
+   * debugging time: every transport failure arrives here as `Offline`, whose
+   * note is "waiting for a connection" — correct advice when the network is
+   * actually gone, and a dead end when the truth is that the file could not be
+   * read. The note stays reassuring; this is what says why.
+   */
+  cause?: string;
 };
 
 export type QueueState = { items: QueueItem[] };
@@ -181,6 +191,17 @@ export class UploadQueue {
 
   get doneCount(): number {
     return this.items.filter((i) => i.status === 'done').length;
+  }
+
+  /**
+   * The first underlying reason anything gave, if anything did.
+   *
+   * For a screen that wants to say more than "waiting for a connection" when
+   * the wait is not going to end. One is enough: a queue of twenty photographs
+   * stopped by one cause does not need it printed twenty times.
+   */
+  get cause(): string | null {
+    return this.items.find((i) => i.cause)?.cause ?? null;
   }
 
   get failedCount(): number {
@@ -343,6 +364,9 @@ export class UploadQueue {
       // budget of every remaining photo against a network that is not there.
       this.paused = true;
       item.error = 'waiting for a connection';
+      // What actually threw. `Offline` is a reading of the failure, not a
+      // report of it — see `cause`.
+      if (err.message) item.cause = err.message;
       return;
     }
 

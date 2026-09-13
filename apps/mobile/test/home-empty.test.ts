@@ -210,10 +210,18 @@ describe('the heading row', () => {
      * album screen adds photographs with. Three tabs, one shape for "make
      * something here".
      */
-    expect(HOME).toMatch(/accessibilityLabel="Start an event"/);
+    expect(HOME).toMatch(/accessibilityLabel="New album or group"/);
     expect(HOME).toMatch(/styles\.newGroup/);
     expect(HOME).toMatch(/<Glyph name="plus" size=\{20\}/);
     expect(HOME).not.toMatch(/Start one/);
+    /*
+     * And it offers the same two things the profile's `+` does. One glyph
+     * meaning two things in one place and one thing in another is a difference
+     * nobody can learn.
+     */
+    expect(HOME).toMatch(/<StartSomething/);
+    expect(HOME).toMatch(/onAlbum=\{onCreate\}/);
+    expect(HOME).toMatch(/onGroup=\{onCreateGroup\}/);
   });
 
   it('no longer sends anybody to a button that is not there', () => {
@@ -264,8 +272,11 @@ describe('the home list', () => {
   it('still lands you inside an album you have just made', () => {
     /*
      * This hides your own empty albums too, so the create flow must not depend
-     * on the list: `onCreated` opens the event rather than returning to it.
+     * on the list: `onCreated` opens the event rather than returning to it —
+     * and hands it the photographs chosen two screens earlier, so the album it
+     * lands on is filling rather than empty.
      */
-    expect(APP).toMatch(/onCreated=\{\(created\) => \{[\s\S]{0,200}void open\(\{/);
+    expect(APP).toMatch(/onCreated=\{\(created\) => \{[\s\S]{0,260}void open\(/);
+    expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
   });
 });

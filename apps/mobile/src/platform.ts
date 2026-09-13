@@ -12,7 +12,9 @@ import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import { Offline, type QueueItem, type QueueState } from '@parea/upload';
+import { Offline, SourceGone, type QueueItem, type QueueState } from '@parea/upload';
+
+import { inOutbox, sandboxCopy } from './library';
 
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
@@ -141,7 +143,53 @@ export async function saveQueue(state: QueueState): Promise<void> {
 export async function uploadItem(item: QueueItem): Promise<void> {
   if (!item.uploadUrl) throw new Error('no upload url');
 
-  const task = new UploadTask(new File(item.source), item.uploadUrl, {
+  /*
+   * A file this app owns, that exists right now.
+   *
+   * Two conditions, and getting it down to one crashed the app. The queue is
+   * persisted, so an item may carry the asset's own path from before the copy
+   * existed — `/var/mobile/Media/DCIM/…`, which a background session can never
+   * open. But a copy this function made can also be *gone*: it is deleted after
+   * a successful upload, and `Paths.cache` is a directory iOS empties whenever
+   * it likes. Checking only "is it ours" sent `UploadTask` at a path that had
+   * been deleted, and the native side does not return an error for that — it
+   * raises, and an uncaught ObjC exception takes the whole app down:
+   *
+   *   *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+   *   reason: 'Cannot read file at file:///…/Caches/outbox/…'
+   *
+   * Which is the worst shape a bug can take here: the queue runs on launch, so
+   * a single unreadable item made the app unusable rather than making one
+   * photograph fail.
+   */
+  let source = item.source;
+  if (!inOutbox(source) || !new File(source).exists) {
+    try {
+      source = (await sandboxCopy(item.id)).uri;
+    } catch (err) {
+      /*
+       * The asset itself is unreadable — deleted from the library, or in
+       * iCloud with no way to fetch it. No retry will find it, which is
+       * exactly what `SourceGone` means: the item goes stale rather than
+       * burning three attempts, and nothing crashes.
+       */
+      throw new SourceGone(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /*
+   * Checked once more before handing it over.
+   *
+   * `copy()` can report success and still leave nothing readable if the cache
+   * was reclaimed in between. This is the last point at which that can be a
+   * thrown error rather than a crash.
+   */
+  const file = new File(source);
+  if (!file.exists) {
+    throw new SourceGone(`copy missing after preparing it: ${source}`);
+  }
+
+  const task = new UploadTask(file, item.uploadUrl, {
     httpMethod: 'PUT',
     headers: item.headers ?? {},
     mimeType: item.mime,
@@ -152,15 +200,46 @@ export async function uploadItem(item: QueueItem): Promise<void> {
   try {
     result = await task.uploadAsync();
   } catch (err) {
-    // A transfer that never got an answer. At a venue this is no signal, and
-    // the queue must not spend a retry on it — see `Offline`. Erring towards
-    // that reading: a stalled queue someone restarts beats a batch of photos
-    // marked permanently failed while they were standing in a basement.
-    throw new Offline(err instanceof Error ? err.message : undefined);
+    /*
+     * A transfer that never got an answer. At a venue this is no signal, and
+     * the queue must not spend a retry on it — see `Offline`. Erring towards
+     * that reading: a stalled queue someone restarts beats a batch of photos
+     * marked permanently failed while they were standing in a basement.
+     *
+     * But the message travels with it, and the queue keeps it as `cause`. This
+     * reading is a guess, and for a while it was an unfalsifiable one: every
+     * failure here — an unreadable file as much as a dead network — came out of
+     * the app as "waiting for a connection", which is advice to do nothing
+     * about a problem that was never going to fix itself.
+     */
+    throw new Offline(err instanceof Error ? err.message : String(err));
   }
 
   if (result.status < 200 || result.status >= 300) {
     throw new Error(`upload failed: ${result.status}`);
+  }
+
+  /*
+   * The copy has done its job, so it goes.
+   *
+   * `resolveForUpload` copies each chosen photograph into the cache because a
+   * background session cannot read one out of the Photos container. That leaves
+   * a second copy of somebody's evening on their phone, and the moment it stops
+   * being needed is this one — after a 2xx, never before, because a retry needs
+   * the bytes.
+   *
+   * Only ever our own outbox: the same function uploads covers and anything else
+   * a caller points it at, and deleting a file somebody else owns because it
+   * happened to be uploaded would be a fine way to eat a camera roll.
+   *
+   * Swallowed, because a copy that outlives its upload is litter in a directory
+   * iOS empties under pressure, and failing an upload that has already
+   * succeeded over it would be the worse outcome by far.
+   */
+  if (inOutbox(source)) {
+    try {
+      new File(source).delete();
+    } catch {}
   }
 }
 
@@ -184,7 +263,17 @@ export async function uploadCover(
   headers: Record<string, string>,
   uri: string,
 ): Promise<void> {
-  const task = new UploadTask(new File(uri), url, {
+  /*
+   * Checked before it is handed over, for the reason `uploadItem` explains at
+   * length: the native side raises rather than returning an error for a file it
+   * cannot read, and an uncaught ObjC exception takes the app down with it. The
+   * cover is sent without anybody waiting on it, so a crash here would be a
+   * crash nobody could connect to anything they had done.
+   */
+  const file = new File(uri);
+  if (!file.exists) throw new Error(`cover source is not readable: ${uri}`);
+
+  const task = new UploadTask(file, url, {
     httpMethod: 'POST',
     // The file as the request body and nothing else. It is the default, and
     // it is written down because the endpoint reads `arrayBuffer()` — a
