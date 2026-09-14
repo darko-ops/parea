@@ -47,6 +47,15 @@ export type FeedPhoto = {
   byteSize: number;
   mime: string;
   takenAt: string;
+  /**
+   * When it arrived in the album, which is not when it was taken.
+   *
+   * `takenAt` falls back to this, so for most photographs the two agree. They
+   * diverge exactly where the difference is worth having: somebody adding last
+   * summer's pictures tonight. The grid dates them by this one — "added today"
+   * is what tells you a row is new to you.
+   */
+  addedAt: string;
   mine: boolean;
   /**
    * Who added it, as the opaque per-event key — never an actor id.

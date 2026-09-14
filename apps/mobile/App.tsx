@@ -42,7 +42,7 @@ import {
 } from 'react-native';
 
 import { resolveWindow, type Window } from '@parea/autoselect';
-import { CARD_FACES, dateLabel } from '@parea/cards';
+import { CARD_FACES, dateLabel, shortDate } from '@parea/cards';
 
 import {
   Api,
@@ -2452,6 +2452,7 @@ function EventScreen({
               }
               renderItem={({ item }) => {
                 const who = item.by ? byline.get(item.by) : undefined;
+                const added = shortDate(item.addedAt);
                 return (
                   <Pressable style={styles.tile} onPress={() => setSelected(item)}>
                     {/*
@@ -2520,6 +2521,16 @@ function EventScreen({
                         <Text style={styles.tileHandle} numberOfLines={1}>
                           {who.handle ?? who.name}
                         </Text>
+                        {/*
+                          And when it arrived, in the same line rather than in a
+                          corner of its own. Who added it and when are one fact
+                          about a photograph, and splitting them across two
+                          corners makes the eye do the joining.
+
+                          Dimmer than the handle: it is the part you read only
+                          when you are already asking.
+                        */}
+                        {added && <Text style={styles.tileWhen}>{added}</Text>}
                       </View>
                     )}
 
@@ -3593,7 +3604,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    maxWidth: '70%',
+    /* Short of the save in the opposite corner, so a long handle wraps or
+       truncates rather than running under it. */
+    maxWidth: '76%',
   },
   tileFace: { width: 24, height: 24, borderRadius: 12 },
   tileFaceBlank: { alignItems: 'center', justifyContent: 'center' },
@@ -3606,9 +3619,25 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
-  /* Opposite corner from the byline, so the two never meet however long a
-     handle is. */
-  tileSave: { position: 'absolute', right: 10, bottom: 10, padding: 4 },
+  /*
+   * Level with the byline, at the other end of the same line.
+   *
+   * It was bottom-right, which put the two things you can do with a photograph
+   * at opposite ends of a diagonal — and on a row the height of the screen's
+   * width, that is a long way for a thumb to travel to a control it can barely
+   * see against the picture. Both live in the top strip now, where the scrim is
+   * already darkest.
+   */
+  tileSave: { position: 'absolute', right: 10, top: 10, padding: 4 },
+  /* Dimmer than the handle: the part you read only when you are already
+     asking. */
+  tileWhen: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.78)',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   uploadBar: {
     position: 'absolute',
     bottom: 0,

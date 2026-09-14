@@ -184,6 +184,16 @@ export async function GET(
       mime: photo.mime,
       byteSize: photo.byteSize,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
+      /*
+       * When it arrived, which is not when it was taken.
+       *
+       * `takenAt` above falls back to this one, so for most photographs the two
+       * agree — a phone that uploads the same evening. They diverge exactly
+       * where the difference is worth having: somebody adding last summer's
+       * pictures to an album tonight. "Taken in July" says what it is; "added
+       * today" says it is new to you, and the album's grid wants the second.
+       */
+      addedAt: photo.uploadedAt.toISOString(),
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
       // Which contributor chip this photo belongs to. A per-event digest, not

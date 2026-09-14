@@ -368,11 +368,59 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
   });
 
-  it('keeps the two out of each other’s corner', () => {
-    // Opposite corners, so they never meet however long a handle is.
+  it('puts both controls in the top strip, at either end', () => {
+    /*
+     * The save was bottom-right, which put the two things you can do with a
+     * photograph at opposite ends of a diagonal — and on a row as tall as the
+     * screen is wide, that is a long way for a thumb to travel to a control it
+     * can barely see against the picture. Both are in the top strip now, where
+     * the scrim is already darkest.
+     *
+     * The byline's width stops short of the save, so a long handle truncates
+     * rather than running under it.
+     */
     expect(APP).toMatch(/tileBy: \{\s*position: 'absolute',\s*top: 10,\s*left: 10,/);
-    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, bottom: 10,/);
-    expect(APP).toMatch(/maxWidth: '70%'/);
+    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, top: 10,/);
+    expect(APP).toMatch(/maxWidth: '76%'/);
+  });
+
+  it('dates each one by when it arrived, not by when it was taken', () => {
+    /*
+     * `takenAt` falls back to `addedAt`, so for most photographs the two agree —
+     * a phone that uploads the same evening. They diverge exactly where the
+     * difference is worth having: somebody adding last summer's pictures
+     * tonight. "Taken in July" says what it is; "added today" says it is new to
+     * you, and a grid somebody is scanning wants the second.
+     */
+    expect(API).toMatch(/addedAt: string;/);
+    expect(APP).toMatch(/const added = shortDate\(item\.addedAt\)/);
+    expect(APP).not.toMatch(/shortDate\(item\.takenAt\)/);
+  });
+
+  it('puts the date in the byline rather than in a corner of its own', () => {
+    // Who added it and when are one fact about a photograph; splitting them
+    // across two corners makes the eye do the joining.
+    expect(APP).toMatch(/\{added && <Text style=\{styles\.tileWhen\}>\{added\}<\/Text>\}/);
+    const by = APP.slice(APP.indexOf('<View style={styles.tileBy}'), APP.indexOf('styles.tileSave'));
+    expect(by).toMatch(/styles\.tileHandle/);
+    expect(by).toMatch(/styles\.tileWhen/);
+  });
+
+  it('dates a file in local time, unlike an evening', () => {
+    /*
+     * `dateLabel` fixes the zone on purpose — an event's date is a day somebody
+     * chose, not an instant, and it must read the same everywhere. A
+     * photograph's arrival *is* an instant, and one added at half past eleven
+     * at night is dated tomorrow by UTC: the wrong answer, given confidently.
+     */
+    const CARDS = readFileSync(
+      fileURLToPath(new URL('../../../packages/cards/src/index.ts', import.meta.url).href),
+      'utf8',
+    );
+    const short = CARDS.slice(CARDS.indexOf('export function shortDate'), CARDS.indexOf('export const CARD_FACES'));
+    expect(short).toMatch(/day: 'numeric', month: 'short'/);
+    expect(short).not.toMatch(/timeZone/);
+    expect(short).not.toMatch(/weekday/);
   });
 
   it('shadows the corners rather than dimming the photograph', () => {

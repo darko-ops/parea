@@ -78,6 +78,27 @@ export function dateLabel(iso: string | null): string | null {
 }
 
 /**
+ * The same date, shorter, and in the reader's own timezone.
+ *
+ * "14 Sep" rather than "Sat 14 Sep". `dateLabel` names the weekday because it
+ * dates an *evening* — which night it was is half of what somebody is trying to
+ * remember — and this dates a file, where the weekday is three characters of
+ * nothing in a corner of a photograph.
+ *
+ * Local rather than UTC, which is the other difference and the one that
+ * matters. `dateLabel` fixes the zone on purpose: an event's date is a day
+ * somebody chose, not an instant, and it must read the same in every timezone.
+ * A photograph's arrival *is* an instant, and one added at half past eleven at
+ * night is dated tomorrow by UTC — the wrong answer given confidently.
+ */
+export function shortDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date);
+}
+
+/**
  * How many faces a card draws before it starts counting.
  *
  * Three, and then a chip saying how many more. Four circles is the most a
