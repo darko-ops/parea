@@ -53,6 +53,24 @@ import { imageSrc } from './images';
 export type ActivityKind =
   | 'reaction'
   | 'mention'
+  /**
+   * Somebody said something about a photograph you added.
+   *
+   * Distinct from `mention`, which is somebody writing your handle. This is
+   * about the picture being yours: nobody has to name you for a remark on your
+   * photograph to be addressed to you.
+   */
+  | 'photo_comment'
+  /**
+   * Somebody said you are in a photograph.
+   *
+   * The one kind of line here that is a claim about you rather than a thing
+   * that happened near you, which is why it is worth its own word: "Maya tagged
+   * you in a photo" is information you may want to act on, and burying it in
+   * the feed's general noise would be the product deciding on your behalf that
+   * you would not mind.
+   */
+  | 'tagged'
   | 'let_in'
   | 'photos_added'
   | 'request_answered'
@@ -188,8 +206,18 @@ export async function activityFor(
    * somebody has hidden — and the alternative is four `not exists` clauses
    * built from string concatenation in four places.
    */
-  const [hidden, reactions, mentions, letIn, added, answered, befriended, arrivals] =
-    await Promise.all([
+  const [
+    hidden,
+    reactions,
+    mentions,
+    comments,
+    tagged,
+    letIn,
+    added,
+    answered,
+    befriended,
+    arrivals,
+  ] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
       .from(schema.hiddenActivity)
@@ -263,6 +291,78 @@ export async function activityFor(
           .orderBy(desc(schema.eventMessages.createdAt))
           .limit(LIMIT)
       : Promise.resolve([]),
+
+    /*
+     * Somebody commented on a photograph you added.
+     *
+     * A comment is an `event_message` carrying a `photo_id`, so this is the
+     * same table the mentions above read — joined through the photograph to its
+     * uploader rather than matched against your handle. The two overlap when
+     * somebody writes your name under your own picture, and that is fine: they
+     * are different facts and the ids differ, so the feed shows one line for
+     * each and neither is wrong.
+     *
+     * Your own comments are excluded, which is the whole of "other than you".
+     */
+    db
+      .select({
+        id: schema.eventMessages.id,
+        at: schema.eventMessages.createdAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        eventId: schema.eventMessages.eventId,
+        eventName: schema.events.name,
+        body: schema.eventMessages.body,
+      })
+      .from(schema.eventMessages)
+      .innerJoin(schema.photos, eq(schema.photos.id, schema.eventMessages.photoId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.eventMessages.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.eventMessages.authorActorId))
+      .where(
+        and(
+          eq(schema.photos.uploaderId, actorId),
+          ne(schema.eventMessages.authorActorId, actorId),
+          isNull(schema.eventMessages.deletedAt),
+          // A comment on a photograph that has since been taken down is a
+          // remark about nothing, and the line would lead somewhere empty.
+          isNull(schema.photos.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.eventMessages.createdAt))
+      .limit(LIMIT),
+
+    /*
+     * Somebody said you are in a photograph.
+     *
+     * Only the ones you did not put on yourself — a tag is a claim about you,
+     * and a claim you made is not news. The photograph comes with it, because
+     * "you are in this one" is a line nobody can evaluate without seeing which.
+     */
+    db
+      .select({
+        photoId: schema.photoTags.photoId,
+        at: schema.photoTags.createdAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        eventId: schema.photos.eventId,
+        eventName: schema.events.name,
+        storageKey: schema.photos.storageKey,
+        contentHash: schema.photos.contentHash,
+        capEpoch: schema.events.capEpoch,
+      })
+      .from(schema.photoTags)
+      .innerJoin(schema.photos, eq(schema.photos.id, schema.photoTags.photoId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.photoTags.taggedBy))
+      .where(
+        and(
+          eq(schema.photoTags.actorId, actorId),
+          ne(schema.photoTags.taggedBy, actorId),
+          isNull(schema.photos.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.photoTags.createdAt))
+      .limit(LIMIT),
 
     // You were let into somebody else's event.
     db
@@ -603,6 +703,51 @@ export async function activityFor(
       href: `/event/${a.eventId}`,
       image: await avatarUrl(a.avatarKey),
       images: [],
+    })),
+    ...comments.map(async (c) => ({
+      id: `comment:${c.id}`,
+      kind: 'photo_comment' as const,
+      at: c.at.toISOString(),
+      who: c.who,
+      /*
+       * The remark itself, not the fact that one exists.
+       *
+       * "commented on your photo" is a line somebody has to open the album to
+       * act on, and most of the time what they wanted was to read six words.
+       * Trimmed hard, because this is a feed row and not the thread.
+       */
+      what: `said “${c.body.length > 60 ? `${c.body.slice(0, 60).trimEnd()}…` : c.body}” on your photo`,
+      href: `/event/${c.eventId}`,
+      image: await avatarUrl(c.avatarKey),
+      images: [],
+    })),
+    ...tagged.map(async (g) => ({
+      id: `tagged:${g.photoId}`,
+      kind: 'tagged' as const,
+      at: g.at.toISOString(),
+      who: g.who,
+      what: `tagged you in a photo in ${g.eventName}`,
+      href: `/event/${g.eventId}`,
+      // The person who said it, because the line is about them saying it.
+      image: await avatarUrl(g.avatarKey),
+      /*
+       * And the photograph, which is the exception the `images` field exists
+       * for — see `photos_added`. A claim that you are in a picture is one
+       * nobody can evaluate without seeing which picture, and making somebody
+       * open the album to find out is making them do the work the line was
+       * supposed to save.
+       */
+      images: [
+        await imageSrc(
+          {
+            eventId: g.eventId,
+            storageKey: g.storageKey,
+            contentHash: g.contentHash,
+          },
+          'thumb',
+          g.capEpoch,
+        ),
+      ],
     })),
     ...answered.map(async (a) => ({
       id: `answered:${a.id}`,
