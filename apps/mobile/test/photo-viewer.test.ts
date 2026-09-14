@@ -121,12 +121,14 @@ describe('reacting to a photograph', () => {
      * One row of pills conflated the two: "❤️ 3" was both a fact about other
      * people and a control that changed your own answer, and the only way to
      * tell which of the three was you was a border.
+     *
+     * They were then two columns at opposite corners with a gap of photograph
+     * between them. Now the list sits over the bar, and the control is one face
+     * at the end of it.
      */
     expect(GESTURE).toMatch(/styles\.said\b/);
-    expect(GESTURE).toMatch(/styles\.picker\b/);
-    // Left is people; right is every emoji in the set, and only that.
     expect(GESTURE).toMatch(/ordered\.map\(\(r, i\) =>/);
-    expect(GESTURE).toMatch(/REACTIONS\.map\(\(emoji\) =>/);
+    expect(GESTURE).toMatch(/styles\.smiley\b/);
   });
 
   it('prints the handle, without an `@`, and never an actor id', () => {
@@ -138,17 +140,28 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).not.toMatch(/actorId|avatarUrl/);
   });
 
-  it('grows upward from the corner, newest against it', () => {
+  it('reads downward from the newest, over the comment bar', () => {
     /*
-     * It was the four newest shown oldest-first with "and N more" underneath,
-     * which put the overflow *below* the newest line — reading as "there are
-     * newer ones I am not showing" — and shifted the whole column up a row
-     * every time somebody reacted. The window moved, so the names moved.
+     * Two reversals, and the second undid the first for a reason.
+     *
+     * It began as the four newest shown oldest-first with "and N more"
+     * underneath — the overflow *below* the newest line, reading as "there are
+     * newer ones I am not showing", and the whole column shifting up a row
+     * every time somebody reacted. That was fixed by reversing it so the newest
+     * sat against the corner and the list grew upward out of it.
+     *
+     * Right for a column anchored to a corner; wrong for a list in the middle
+     * of the screen. Above the comment bar it is an ordinary list in an
+     * ordinary place, and an ordinary list reads downward from the newest —
+     * which is what the album's own conversation does and what everything else
+     * in the product does.
      */
-    expect(GESTURE).toMatch(/const ordered = useMemo\(\(\) => \[\.\.\.reactions\]\.reverse\(\)/);
-    // Short lists sit against the bottom rather than floating at the top.
-    expect(GESTURE).toMatch(/justifyContent: 'flex-end'/);
-    // And nothing summarises the overflow away any more.
+    expect(GESTURE).toMatch(/const ordered = reactions;/);
+    expect(GESTURE).not.toMatch(/\[\.\.\.reactions\]\.reverse\(\)/);
+    // No longer anchored to a corner, so nothing pins it to an edge.
+    expect(GESTURE).not.toMatch(/justifyContent: 'flex-end'/);
+    expect(GESTURE).toMatch(/said: \{ position: 'absolute', left: 16, right: 16, bottom: 88 \}/);
+    // And nothing summarises the overflow away.
     expect(GESTURE).not.toMatch(/and \{reactions\.length - VISIBLE_REACTIONS\} more/);
     expect(GESTURE).not.toMatch(/saidMore/);
   });
@@ -160,16 +173,13 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).toMatch(
       /maxHeight: VISIBLE_REACTIONS \* SAID_ROW \+ \(VISIBLE_REACTIONS - 1\) \* SAID_GAP/,
     );
-    // Pinned to the newest, without animation: it fires on first layout too,
-    // and a column sliding into place on open looks like something late.
-    expect(GESTURE).toMatch(/scrollToEnd\(\{ animated: false \}\)/);
-  });
-
-  it('is a column you scroll, cut off so it looks like one', () => {
-    // Four keys tall, so a fifth is visibly clipped and the column reads as
-    // something to scroll rather than as all there is.
+    /*
+     * Nothing scrolls it on arrival any more. The newest is the first row now,
+     * which is where a scroll view already starts — and `scrollToEnd` would
+     * open it showing the oldest reaction on the photograph.
+     */
+    expect(GESTURE).not.toMatch(/scrollToEnd/);
     expect(GESTURE).toMatch(/<ScrollView/);
-    expect(GESTURE).toMatch(/pickerScroll: \{ maxHeight: 4 \* 44 \}/);
   });
 
   it('goes to its own path, not the message one', () => {
@@ -181,7 +191,7 @@ describe('reacting to a photograph', () => {
 
   it('says why rather than offering a control that will be refused', () => {
     expect(GESTURE).toMatch(/Sign in/);
-    expect(GESTURE).toMatch(/!canReact \?/);
+    expect(GESTURE).toMatch(/canReact \? \(/);
     expect(APP).toMatch(/canReact=\{feed\?\.canPost \?\? false\}/);
   });
 
@@ -271,8 +281,11 @@ describe('what is said about one photograph', () => {
   it('keeps the box on the glass rather than inside the panel', () => {
     // It is the thing somebody came here to do, and a comment box you have to
     // open a panel to find is a comment box nobody uses.
-    expect(VIEWER).toMatch(/composerHint: \{\s*position: 'absolute'/);
-    expect(VIEWER).toMatch(/\{canPost && !talking && \(/);
+    expect(VIEWER).toMatch(/bar: \{\s*position: 'absolute'/);
+    expect(VIEWER).toMatch(/\{!talking && \(/);
+    // The box and the face share one line, so the list above has a single edge
+    // to sit over rather than two controls at different heights.
+    expect(VIEWER).toMatch(/composerHint: \{\s*flex: 1,/);
   });
 
   it('keeps the photograph in view behind it', () => {
@@ -290,15 +303,22 @@ describe('what is said about one photograph', () => {
 });
 
 describe('reacting with anything', () => {
-  it('keeps the six as the default and puts the rest behind one more press', () => {
+  it('offers one face rather than a column of guesses', () => {
     /*
-     * Six was the whole vocabulary because a reaction should be one tap and a
-     * grid of two thousand emoji is not one tap. That argument is about the
-     * default, not the ceiling — the six stay exactly where they were.
+     * Six emoji were offered because a reaction should be one tap and a grid of
+     * two thousand is not one tap. The flaw in that is which six: they are the
+     * set we guessed, and the seventh emoji somebody reaches for is the one
+     * they actually mean — so the column spent the right-hand side of a
+     * photograph to save a press that only sometimes landed.
+     *
+     * One control now, and the picker behind it is the one on their own phone,
+     * with their own recents at the front of it. The frequent emoji are still
+     * one tap away; they are theirs rather than ours.
      */
-    expect(VIEWER).toMatch(/REACTIONS\.map\(\(emoji\)/);
-    expect(VIEWER).toMatch(/accessibilityLabel="React with any emoji"/);
+    expect(code(VIEWER)).not.toMatch(/\bREACTIONS\b/);
+    expect(VIEWER).toMatch(/accessibilityLabel="React to this photo"/);
     expect(VIEWER).toMatch(/setPicking\(true\)/);
+    expect(VIEWER).toMatch(/<Text style=\{styles\.smileyFace\}>🙂<\/Text>/);
   });
 
   it('borrows the system keyboard rather than drawing a grid', () => {

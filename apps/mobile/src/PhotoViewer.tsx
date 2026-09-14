@@ -43,7 +43,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { REACTIONS, type Api, type FeedPhoto, type Message } from './api';
+import type { Api, FeedPhoto, Message } from './api';
 import type { GroupTheme } from './Groups';
 
 /** As far in as a pinch will go. Beyond this a 2560px rendition is mush. */
@@ -173,11 +173,9 @@ export function PhotoViewer({
   const [talking, setTalking] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  /** The `⋯` on the reaction column: an emoji off the system keyboard. */
+  /** The smiley: an emoji off the system keyboard. */
   const [picking, setPicking] = useState(false);
   const [typed, setTyped] = useState('');
-  /** The names column, kept scrolled to the newest. */
-  const column = useRef<ScrollView>(null);
 
   const settle = useCallback(
     (next: number) => {
@@ -381,7 +379,17 @@ export function PhotoViewer({
    * bottom-left. Reversed once here rather than at the call site, so the
    * `slice` that used to do it cannot quietly change which four are visible.
    */
-  const ordered = useMemo(() => [...reactions].reverse(), [reactions]);
+  /*
+   * Newest first, which is the order the server already sends.
+   *
+   * This was reversed, so the column grew upward out of the corner with the
+   * most recent line closest to it. That was right while the list sat in the
+   * bottom-left of the glass and had a corner to grow out of; above the comment
+   * bar it is an ordinary list in an ordinary place, and an ordinary list reads
+   * downward from the newest — the same way the album's own conversation does,
+   * and everything else in the product.
+   */
+  const ordered = reactions;
 
   /**
    * Say something about this photograph.
@@ -509,81 +517,19 @@ export function PhotoViewer({
           */}
           <View style={styles.said} pointerEvents="box-none">
             <ScrollView
-              ref={column}
               style={styles.saidScroll}
               contentContainerStyle={styles.saidInner}
               showsVerticalScrollIndicator={false}
-              // Pinned to the newest, which is the end. Without animation:
-              // this fires on the first layout too, and a column that slides
-              // into place on open looks like something arriving late.
-              onContentSizeChange={() => column.current?.scrollToEnd({ animated: false })}
             >
               {ordered.map((r, i) => (
                 <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
+                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
                   <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
                     {r.mine ? 'You' : r.name}
                   </Text>
-                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
                 </View>
               ))}
             </ScrollView>
-          </View>
-
-          <View style={styles.picker} pointerEvents="box-none">
-            {!canReact ? (
-              <Text style={styles.why}>Sign in{'\n'}to react</Text>
-            ) : (
-              <ScrollView
-                style={styles.pickerScroll}
-                contentContainerStyle={styles.pickerInner}
-                showsVerticalScrollIndicator={false}
-              >
-                {REACTIONS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => void react(emoji)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: mine.has(emoji) }}
-                    accessibilityLabel={
-                      mine.has(emoji) ? `Take back ${emoji}` : `React ${emoji}`
-                    }
-                    style={({ pressed }) => [
-                      styles.key,
-                      // Yours is filled rather than outlined: at this size a
-                      // 1pt border round an emoji is not a state anybody sees.
-                      mine.has(emoji) && styles.keyMine,
-                      { opacity: pressed ? 0.55 : 1 },
-                    ]}
-                  >
-                    <Text style={styles.keyText}>{emoji}</Text>
-                  </Pressable>
-                ))}
-
-                {/*
-                  Anything else, off the system keyboard.
-
-                  Six was the whole vocabulary, chosen because a reaction should
-                  be one tap and a grid of two thousand emoji is not one tap.
-                  That argument is about the *default*, not about the ceiling —
-                  the six stay where they were and this is underneath them, so
-                  the common case costs exactly what it did and the rest is one
-                  press further.
-
-                  A `TextInput` rather than a picker of our own: every phone
-                  already has one, it is the one somebody has their recents in,
-                  and a grid we drew would be a worse copy of it that also has
-                  to be kept up to date with Unicode.
-                */}
-                <Pressable
-                  onPress={() => setPicking(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="React with any emoji"
-                  style={({ pressed }) => [styles.key, { opacity: pressed ? 0.55 : 1 }]}
-                >
-                  <Text style={styles.keyMore}>⋯</Text>
-                </Pressable>
-              </ScrollView>
-            )}
           </View>
 
           {/*
@@ -594,23 +540,55 @@ export function PhotoViewer({
             a panel to find is a comment box nobody uses. Pulling down opens the
             list above it; the box itself is always there.
           */}
-          {canPost && !talking && (
-            <Pressable
-              onPress={() => setTalking(true)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                comments.length > 0
-                  ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
-                  : 'Add a comment'
-              }
-              style={styles.composerHint}
-            >
-              <Text style={styles.composerHintText} numberOfLines={1}>
-                {comments.length > 0
-                  ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
-                  : 'Add a comment'}
-              </Text>
-            </Pressable>
+          {!talking && (
+            <View style={styles.bar} pointerEvents="box-none">
+              {canPost && (
+                <Pressable
+                  onPress={() => setTalking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
+                      : 'Add a comment'
+                  }
+                  style={styles.composerHint}
+                >
+                  <Text style={styles.composerHintText} numberOfLines={1}>
+                    {comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
+                      : 'Add a comment'}
+                  </Text>
+                </Pressable>
+              )}
+
+              {/*
+                One face, and the whole keyboard behind it.
+
+                This was a column of six emoji with a `⋯` under them, offered
+                because a reaction should be one tap. The trouble is that six is
+                not the set anybody wants: it is the set we guessed, and the
+                seventh emoji somebody reaches for is the one they actually
+                mean. A column of six guesses takes the right-hand side of
+                somebody's photograph to save a press that only sometimes lands.
+
+                So: one control, always the same shape, and the picker behind it
+                is the one on their own phone with their own recents at the
+                front of it. The frequent emoji are still one tap away — theirs
+                rather than ours.
+              */}
+              {canReact ? (
+                <Pressable
+                  onPress={() => setPicking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="React to this photo"
+                  style={({ pressed }) => [styles.smiley, { opacity: pressed ? 0.55 : 1 }]}
+                >
+                  <Text style={styles.smileyFace}>🙂</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.why}>Sign in{'\n'}to react</Text>
+              )}
+            </View>
           )}
         </>
       )}
@@ -727,8 +705,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  /* The `⋯` that opens the system keyboard, at the foot of the six. */
-  keyMore: { fontSize: 20, lineHeight: 22, color: 'rgba(255,255,255,0.85)', fontWeight: '700' },
   /*
    * The comment box, on the glass rather than inside the panel.
    *
@@ -736,11 +712,19 @@ const styles = StyleSheet.create({
    * panel to find is a box nobody uses. Left of the reaction column, clear of
    * the names in the other corner.
    */
-  composerHint: {
+  /* The two of them on one line, so the list above has a single edge to sit
+     over rather than two controls at different heights. */
+  bar: {
     position: 'absolute',
     left: 16,
-    right: 74,
+    right: 16,
     bottom: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  composerHint: {
+    flex: 1,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -814,13 +798,23 @@ const styles = StyleSheet.create({
   },
   roundGlyph: { color: '#fff', fontSize: 15, fontWeight: '600', lineHeight: 17 },
   /* Who reacted, bottom left. Room kept clear of the picker opposite. */
-  said: { position: 'absolute', left: 16, right: 84, bottom: 44 },
+  /*
+   * Above the comment bar, not in a corner beside it.
+   *
+   * It was bottom-left with the picker column opposite, so the two halves of
+   * "what people said" sat at either side of the glass with a gap of photograph
+   * between them. One column now, over the box that adds to it, which is where
+   * somebody looks when they are wondering what has been said.
+   */
+  said: { position: 'absolute', left: 16, right: 16, bottom: 88 },
   /* Exactly four rows tall, so a fifth is cut off and the column reads as
      something to scroll rather than as all there is. */
   saidScroll: { maxHeight: VISIBLE_REACTIONS * SAID_ROW + (VISIBLE_REACTIONS - 1) * SAID_GAP },
   /* `flex-end` so a list shorter than four rows sits against the bottom of the
      box rather than floating at the top of it. */
-  saidInner: { gap: SAID_GAP, justifyContent: 'flex-end', flexGrow: 1 },
+  /* Newest at the top, so the list starts where it starts. `flex-end` was for
+     a column that grew out of a corner. */
+  saidInner: { gap: SAID_GAP },
   saidRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   /* A handle, without the `@` — this is a byline, not a mention. Shadowed
      rather than sat on a panel: a slab behind every name would cover more of
@@ -839,23 +833,18 @@ const styles = StyleSheet.create({
   saidEmoji: { fontSize: 15 },
 
   /* The picker, bottom right: one column, scrolled. */
-  picker: { position: 'absolute', right: 12, bottom: 44, alignItems: 'center' },
-  /* Tall enough for four keys, so a fifth is visibly cut off and the column
-     reads as something to scroll rather than as all there is. */
-  pickerScroll: { maxHeight: 4 * 44 },
-  pickerInner: { gap: 6, paddingVertical: 2, alignItems: 'center' },
-  key: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  /* The same disc as the two in the top corners, at the end of the bar. */
+  smiley: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(20,23,28,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* Filled where it is yours. At 38pt a 1pt outline round an emoji is not a
-     state anybody notices. */
-  keyMine: { backgroundColor: 'rgba(255,255,255,0.28)' },
-  keyText: { fontSize: 19 },
+  smileyFace: { fontSize: 21 },
+  /* Tall enough for four keys, so a fifth is visibly cut off and the column
+     reads as something to scroll rather than as all there is. */
   why: {
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
