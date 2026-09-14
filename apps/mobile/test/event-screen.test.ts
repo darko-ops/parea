@@ -444,15 +444,16 @@ describe('a photograph in an album', () => {
     // Comments stripped: the prose between the two blocks explains the move,
     // so a raw slice ends in a comment rather than in the markup being checked.
     const jsx = code(APP);
+    // A `Pressable` since the byline became a way to open the person it names.
     const by = jsx.slice(
-      jsx.indexOf('<View style={styles.tileBy}'),
+      jsx.indexOf('style={styles.tileBy}'),
       jsx.indexOf('{added &&'),
     );
     expect(by).toMatch(/styles\.tileHandle/);
     // The byline's conditional closes before the date begins, so the date is a
     // sibling of it rather than a child — which is what lets it be pinned.
     // `{}` is what the comment stripper leaves behind where a JSX comment was.
-    expect(by.trimEnd()).toMatch(/<\/View>\s*\)\}\s*(\{\})?$/);
+    expect(by.trimEnd()).toMatch(/<\/Pressable>\s*\)\}\s*(\{\})?$/);
     expect(by).not.toMatch(/styles\.tileWhen/);
   });
 

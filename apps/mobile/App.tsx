@@ -576,6 +576,7 @@ export default function App() {
             Button={Button}
             onBack={leaveEvent}
             onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             onGroupsChanged={refreshGroups}
           />
         </SwipeBack>
@@ -821,6 +822,7 @@ export default function App() {
                 onOpen={openListing}
                 onRefresh={refreshEvents}
                 onCreate={() => setRoute({ screen: 'pick' })}
+                onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateGroup={() => {
                   setTab('groups');
                   setMakeGroup((n) => n + 1);
@@ -1187,6 +1189,7 @@ function EventScreen({
   Button: ButtonEl,
   onBack,
   onOpenGroup,
+  onOpenPerson,
   onGroupsChanged,
 }: {
   api: Api;
@@ -1213,6 +1216,8 @@ function EventScreen({
   Button: typeof Button;
   onBack: () => void;
   onOpenGroup: (groupId: string) => void;
+  /** A byline on a photograph is a person; pressing one opens them. */
+  onOpenPerson: (handle: string) => void;
   onGroupsChanged: () => void;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
@@ -2598,7 +2603,35 @@ function EventScreen({
                       captions, a column of handles reads as attribution.
                     */}
                     {who && (
-                      <View style={styles.tileBy} pointerEvents="none">
+                      /*
+                        The byline goes to the person, the rest of the row goes
+                        to the photograph.
+
+                        Nested inside the row's own `Pressable`, which is what
+                        makes both work: the inner one takes the touch when it
+                        lands on the face or the handle, and the outer one takes
+                        everything else. It stopped being `pointerEvents="none"`
+                        for exactly this.
+
+                        Only when there is a handle. Somebody who arrived by
+                        link and added photographs has a name and a face here
+                        and no profile to open, and a control that does nothing
+                        is worse than a label that never offered.
+                      */
+                      <Pressable
+                        onPress={
+                          who.handle ? () => onOpenPerson(who.handle!) : undefined
+                        }
+                        disabled={!who.handle}
+                        accessibilityRole={who.handle ? 'button' : 'text'}
+                        accessibilityLabel={
+                          who.handle
+                            ? `${who.handle}, see their profile`
+                            : who.name
+                        }
+                        hitSlop={6}
+                        style={styles.tileBy}
+                      >
                         {who.avatarUrl ? (
                           <ExpoImage
                             source={{ uri: who.avatarUrl }}
@@ -2624,7 +2657,7 @@ function EventScreen({
                         <Text style={styles.tileHandle} numberOfLines={1}>
                           {who.handle ?? who.name}
                         </Text>
-                      </View>
+                      </Pressable>
                     )}
 
                     {/*

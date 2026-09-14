@@ -96,12 +96,21 @@ function EventCard({
   now,
   t,
   onPress,
+  onOpenPerson,
 }: {
   event: EventListing;
   /** One clock for every card on screen, so none disagree about the minute. */
   now: Date;
   t: TabTheme;
   onPress: () => void;
+  /**
+   * The byline, which is a person and should behave like one.
+   *
+   * Null for somebody with no handle — a guest who arrived by link has a name
+   * and a face here and no profile to open, so the row stays a label rather
+   * than becoming a control that does nothing.
+   */
+  onOpenPerson: (handle: string) => void;
 }) {
   const label = `${event.name}, ${plural(event.photoCount, 'photo')}`;
 
@@ -200,7 +209,31 @@ function EventCard({
 
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-      <View style={styles.byline}>
+      {/*
+        The byline goes to the person, not to the album.
+
+        A face and a name at the top of a card is the one thing on this screen
+        that is about somebody rather than about an evening, and it was the only
+        such thing in the product that could not be pressed. Nested inside the
+        card's own `Pressable`, which is what makes it work: the inner one takes
+        the touch when it is on the byline and the outer one takes everything
+        else, so the whole card still opens the album.
+
+        Only when there is a handle to open. A guest who arrived by link has a
+        name and a face and no profile, and a control that does nothing is worse
+        than a label that never promised to.
+      */}
+      <Pressable
+        onPress={
+          event.creator.handle
+            ? () => onOpenPerson(event.creator.handle!)
+            : undefined
+        }
+        disabled={!event.creator.handle}
+        accessibilityRole={event.creator.handle ? 'button' : 'text'}
+        accessibilityLabel={event.creator.handle ? `${by}, see their profile` : by}
+        style={styles.byline}
+      >
         {event.creator.avatarUrl ? (
           <Image
             source={{ uri: event.creator.avatarUrl }}
@@ -218,7 +251,7 @@ function EventCard({
         <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
           {by}
         </Text>
-      </View>
+      </Pressable>
 
       <View style={styles.cover}>
         {event.cover && (
@@ -380,6 +413,7 @@ export function HomeTab({
   onRefresh,
   onCreate,
   onCreateGroup,
+  onOpenPerson,
   Button,
 }: {
   api: Api;
@@ -389,6 +423,8 @@ export function HomeTab({
   onOpen: (event: EventListing) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
+  /** A byline on a card is a person; pressing one opens them. */
+  onOpenPerson: (handle: string) => void;
   /**
    * The group half of the `+`.
    *
@@ -549,6 +585,7 @@ export function HomeTab({
           // recency only while it is being added to — so there is no longer a
           // "newest" case, which used to be the only row showing a time.
           now={now}
+          onOpenPerson={onOpenPerson}
           t={t}
           onPress={() => onOpen(event)}
         />

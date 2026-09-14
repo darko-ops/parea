@@ -92,7 +92,14 @@ describe('the card the home list draws', () => {
      */
     const under = CARD.slice(CARD.indexOf('<View style={styles.under}>'));
     expect(under).not.toMatch(/creator\.handle/);
-    expect(CARD.match(/\{by\}/g) ?? []).toHaveLength(1);
+    /*
+     * Drawn, which is narrower than "mentioned": the byline is a control now
+     * and its accessible name is built from the same value — "maya, see their
+     * profile" — which is a string a screen reader speaks rather than a second
+     * copy on the card. Counting every `{by}` would fail on that and pass on a
+     * real duplicate rendered from a different expression.
+     */
+    expect(CARD.match(/>\s*\{by\}\s*</g) ?? []).toHaveLength(1);
     expect(CARD).toMatch(/\{host && \(/);
   });
 
@@ -280,5 +287,56 @@ describe('the home list', () => {
      */
     expect(APP).toMatch(/onCreated=\{\(created\) => \{[\s\S]{0,260}void open\(/);
     expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
+  });
+});
+
+/**
+ * A byline is a person, so pressing one opens them.
+ *
+ * Two of them: the face and handle above a card on the home list, which is
+ * whoever made the album, and the one on each photograph inside an album, which
+ * is whoever added that picture. Both were the only things in the product that
+ * named somebody and could not be pressed.
+ */
+describe('pressing a byline', () => {
+  it('opens the person on a home card', () => {
+    expect(EVENTS).toMatch(/onOpenPerson\(event\.creator\.handle!\)/);
+    expect(APP).toMatch(/<HomeTab[\s\S]{0,600}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+  });
+
+  it('opens the person on a photograph', () => {
+    expect(APP).toMatch(/onOpenPerson\(who\.handle!\)/);
+    expect(APP).toMatch(/<EventScreen[\s\S]{0,900}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+  });
+
+  it('leaves the rest of each surface doing what it did', () => {
+    /*
+     * Nested inside the `Pressable` that was already there, which is what makes
+     * both work: the inner one takes the touch when it lands on the face or the
+     * name, the outer one takes everything else. The card still opens the
+     * album and the row still opens the photograph.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    // Comments stripped: the prose between the two explains the nesting, and
+    // 400 characters of it is longer than the markup being checked.
+    expect(code(CARD)).toMatch(/<Pressable onPress=\{onPress\}[\s\S]{0,400}<Pressable/);
+    // And the photograph's byline stopped being untouchable for exactly this.
+    const tile = APP.slice(APP.indexOf('style={styles.tileBy}') - 400, APP.indexOf('style={styles.tileBy}'));
+    expect(tile).not.toMatch(/pointerEvents="none"[\s\S]{0,40}tileBy/);
+  });
+
+  it('offers nothing where there is no profile to open', () => {
+    /*
+     * Somebody who arrived by link has a name and a face and no handle. A
+     * control that does nothing is worse than a label that never offered, so
+     * both are disabled and neither claims to be a button.
+     */
+    expect(EVENTS).toMatch(/disabled=\{!event\.creator\.handle\}/);
+    expect(APP).toMatch(/disabled=\{!who\.handle\}/);
+    expect(EVENTS).toMatch(/accessibilityRole=\{event\.creator\.handle \? 'button' : 'text'\}/);
+    expect(APP).toMatch(/accessibilityRole=\{who\.handle \? 'button' : 'text'\}/);
   });
 });
