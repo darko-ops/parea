@@ -1,5 +1,5 @@
 /**
- * The album's cover, seen through leaded glass.
+ * The album's cover, seen through glass.
  *
  * The header used to be the photograph itself, which asks it to do two jobs at
  * once: be the picture of the evening, and be the surface four white words and
@@ -11,11 +11,11 @@
  * *something*, and not legible as a picture. You can see there was an evening.
  * You cannot read it from here, which is what the album underneath is for.
  *
- * ## Why this one is a single blur, when the last one could not be
+ * ## Why this one is a single blur, when an earlier one could not be
  *
- * An earlier version of this softened only the bottom forty points, and there a
- * single `BlurView` was useless: it is uniform and stops dead at its own edge,
- * so it drew a seam where it ended. That took a gradient mask to fix and was
+ * A previous version softened only the bottom forty points, and there a single
+ * `BlurView` was useless: it is uniform and stops dead at its own edge, so it
+ * drew a seam where it ended. That took a gradient mask to fix and was
  * eventually thrown away.
  *
  * Covering the whole header has no such edge. The blur ends where the header
@@ -30,25 +30,26 @@
  * the photograph grey, and a grey header is not a photograph behind anything —
  * it is a grey header.
  *
- * ## What makes it stained
+ * ## It was leaded, and it is not any more
  *
- * The came: a dark hairline between vertical panes of uneven width. Uneven on
- * purpose — equal divisions read as a progress bar or a segmented control, both
- * of which this product has elsewhere and neither of which is a window. They
- * come from a fixed table rather than a random number, so an album draws the
- * same window every time it opens.
+ * There were five vertical lights of uneven width, each a slightly different
+ * thickness of glass, with a dark came between them — the things that make
+ * glass read as *stained* rather than merely frosted.
  *
- * The panes themselves are all the same glass. They briefly were not — a tint
- * of 0.04 either way, so neighbouring lights differed slightly — which is a
- * texture across a forty-point band and two dark columns down a header 196
- * points tall. Same numbers, different scale, completely different object.
+ * Both came off, in that order, and for the same reason each time: they were
+ * drawn for a forty-point band along the bottom edge and then carried over to a
+ * header 196 points tall without their numbers being reconsidered. A 0.04 tint
+ * is a texture across forty points and a column down two hundred. A 1.5pt line
+ * is an implication at forty points and a rule at two hundred.
  *
- * Tall panes are correct here in a way they were not in the band: a light
- * taller than it is wide is what a window is made of.
+ * The lesson is about scale rather than about leading, and it is worth leaving
+ * here because the obvious way to improve this file is to put one of them back.
+ * If that happens, the values have to be chosen against *this* height, looking
+ * at it, rather than inherited from the thing this replaced.
  */
 
 import { BlurView } from 'expo-blur';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 /**
  * How hard the glass blurs.
@@ -60,64 +61,13 @@ import { StyleSheet, View } from 'react-native';
  */
 const INTENSITY = 72;
 
-/**
- * The lights, as fractions of the width. Uneven, and they sum to 1.
- *
- * Five is enough to read as leaded and few enough that the came never becomes a
- * texture in its own right.
- */
-const LIGHTS = [0.22, 0.16, 0.27, 0.14, 0.21];
-
-/** The came between two lights. */
-const LEAD = 'rgba(12,14,18,0.22)';
-
 export function CoverGlass() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <BlurView
-        intensity={INTENSITY}
-        tint="systemUltraThinMaterial"
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/*
-        The came, and nothing else.
-
-        Each pane used to carry a faint tint as well — white on the odd ones,
-        black on the even — on the theory that neighbouring lights are never
-        quite the same glass. At 0.04 on a header 196 points tall that is not a
-        suggestion of thickness, it is two dark columns down somebody's
-        photograph, which is the first thing you see and the only thing you then
-        look at.
-
-        The scale is what changed, not the idea: the same values over a
-        forty-point band were invisible. A tint is a texture at that height and
-        a block at this one.
-
-        The lead stays. A hairline between panes is a line, and a line cannot
-        become a column.
-      */}
-      <View style={styles.lights}>
-        {LIGHTS.map((width, i) => (
-          <View key={width} style={{ flex: width }}>
-            {/* Between two panes, never around the outside of the window. */}
-            {i > 0 && <View style={[styles.came, { backgroundColor: LEAD }]} />}
-          </View>
-        ))}
-      </View>
-    </View>
+    <BlurView
+      intensity={INTENSITY}
+      tint="systemUltraThinMaterial"
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  lights: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-  },
-  /* A hairline rather than a point, so it reads as lead and not as a border. */
-  came: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 1.5 },
-});

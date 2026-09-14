@@ -116,27 +116,24 @@ describe('what is above the first photograph', () => {
     // Glass rather than frost: the one material that keeps the colour of what
     // is behind it. A light or dark tint makes it a grey header.
     expect(GLASS).toMatch(/tint="systemUltraThinMaterial"/);
-    // And stained: uneven lights, from a fixed table so the window does not
-    // rearrange itself on every render.
-    const widths = GLASS.match(/const LIGHTS = \[([^\]]+)\]/)?.[1]
-      ?.split(',')
-      .map((n) => Number(n.trim()));
-    expect(widths).toBeDefined();
-    expect(new Set(widths!).size).toBe(widths!.length);
-    expect(widths!.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
-    expect(GLASS).not.toMatch(/Math\.random/);
     expect(GLASS).toMatch(/pointerEvents="none"/);
+
     /*
-     * And every pane is the same glass.
+     * And one sheet of it: no lights, no came, no tint.
      *
-     * They briefly were not: a tint of 0.04 either way, so neighbouring lights
-     * differed slightly. Over a forty-point band that is a texture; over a
-     * header 196 points tall it is two dark columns down somebody's photograph,
-     * which is the first thing you see and the only thing you then look at.
-     * Same numbers, different scale, completely different object.
+     * It had all three, and each came off for the same reason — they were drawn
+     * for a forty-point band along the bottom edge and carried to a header 196
+     * points tall without their numbers being reconsidered. A 0.04 tint is a
+     * texture across forty points and a column down two hundred; a 1.5pt line
+     * is an implication at forty points and a rule at two hundred.
+     *
+     * The guard is not "never add leading". It is that anything added here is
+     * measured against this height rather than inherited, and re-adding the old
+     * constants unchanged is what this catches.
      */
-    expect(code(GLASS)).not.toMatch(/backgroundColor:\s*\n?\s*i % 2/);
-    expect(code(GLASS)).not.toMatch(/rgba\(255,255,255,0\.05\)/);
+    expect(code(GLASS)).not.toMatch(/LIGHTS|LEAD|came/);
+    expect(code(GLASS)).not.toMatch(/rgba\(255,255,255,0\.05\)|rgba\(0,0,0,0\.04\)/);
+    expect(code(GLASS)).not.toMatch(/Math\.random/);
   });
 
   it('keeps no slab where a setting used to be', () => {
