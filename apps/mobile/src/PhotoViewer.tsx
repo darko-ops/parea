@@ -277,14 +277,19 @@ export function PhotoViewer({
           from.current = null;
 
           /*
-           * Up leaves, down talks.
+           * Down leaves, up talks.
            *
-           * Which is the opposite of the convention — a photo viewer usually
-           * dismisses downward — and it is the right way round here because of
-           * where the two things are. The comments are below the picture, so
-           * pulling down brings them up into view; the album is behind it, so
-           * pushing the photograph up off the screen puts it back. Both
-           * gestures move something in the direction it actually goes.
+           * It was the other way round, on the argument that each gesture
+           * should move something in the direction it actually goes: the
+           * comments are below, so pull them up; the album is behind, so push
+           * the photograph away. That reasoning is sound and it loses, because
+           * it is reasoning — and nobody reasons about a swipe.
+           *
+           * Every photo viewer on this phone dismisses downward, and every
+           * sheet on it arrives from below when you pull up. Those are two
+           * habits somebody already has, and a screen that inverts both to be
+           * internally consistent is a screen where the first swipe does the
+           * wrong thing to everybody who has ever used a phone.
            *
            * Vertical only: `dy` has to beat `dx`, or a diagonal flick past a
            * photograph closes it.
@@ -294,7 +299,7 @@ export function PhotoViewer({
             const flung = Math.abs(g.vy) > FLING;
             if (far || flung) {
               settle(1);
-              if (g.dy < 0) onClose();
+              if (g.dy > 0) onClose();
               else setTalking(true);
               return;
             }

@@ -221,15 +221,20 @@ describe('reacting to a photograph', () => {
  * what they must *not* do to each other.
  */
 describe('what a finger means at fit', () => {
-  it('leaves upward and talks downward', () => {
+  it('leaves downward and talks upward', () => {
     /*
-     * The opposite of the convention — a photo viewer usually dismisses
-     * downward — and right for this screen because of where the two things are.
-     * The comments are below the picture, so pulling down brings them up; the
-     * album is behind it, so pushing the photograph up puts it back. Both move
-     * something in the direction it actually goes.
+     * It was the other way round, on the argument that each gesture should move
+     * something in the direction it actually goes: the comments are below, so
+     * pull them up; the album is behind, so push the photograph away. That is
+     * sound and it loses, because it is reasoning — and nobody reasons about a
+     * swipe.
+     *
+     * Every photo viewer on this phone dismisses downward and every sheet
+     * arrives from below when you pull up. Those are habits somebody already
+     * has, and a screen that inverts both to be internally consistent is one
+     * where the first swipe does the wrong thing to everybody.
      */
-    expect(GESTURE).toMatch(/if \(g\.dy < 0\) onClose\(\);\s*else setTalking\(true\)/);
+    expect(GESTURE).toMatch(/if \(g\.dy > 0\) onClose\(\);\s*else setTalking\(true\)/);
   });
 
   it('refuses a diagonal', () => {
