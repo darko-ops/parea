@@ -2521,17 +2521,26 @@ function EventScreen({
                         <Text style={styles.tileHandle} numberOfLines={1}>
                           {who.handle ?? who.name}
                         </Text>
-                        {/*
-                          And when it arrived, in the same line rather than in a
-                          corner of its own. Who added it and when are one fact
-                          about a photograph, and splitting them across two
-                          corners makes the eye do the joining.
-
-                          Dimmer than the handle: it is the part you read only
-                          when you are already asking.
-                        */}
-                        {added && <Text style={styles.tileWhen}>{added}</Text>}
                       </View>
+                    )}
+
+                    {/*
+                      When it arrived, opposite the person who added it.
+
+                      It sat inside the byline, on the argument that who and
+                      when are one fact. They are — but they are one fact of
+                      very different weights: the handle is what you read, and
+                      the date is what you check. In the same line the date rode
+                      on the end of a name that can be any length, so it landed
+                      somewhere different on every row and the column had no
+                      edge. Pinned to the corner it is a column you can run your
+                      eye down, which is the only way a date in a grid is worth
+                      anything.
+                    */}
+                    {added && (
+                      <Text style={styles.tileWhen} pointerEvents="none">
+                        {added}
+                      </Text>
                     )}
 
                     {/*
@@ -3604,9 +3613,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    /* Short of the save in the opposite corner, so a long handle wraps or
-       truncates rather than running under it. */
-    maxWidth: '76%',
+    /* Short of the date in the opposite corner, so a long handle truncates
+       rather than running under it. A date with a year is about eighty points,
+       and the corners are inset by ten each. */
+    maxWidth: '62%',
   },
   tileFace: { width: 24, height: 24, borderRadius: 12 },
   tileFaceBlank: { alignItems: 'center', justifyContent: 'center' },
@@ -3620,18 +3630,25 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   /*
-   * Level with the byline, at the other end of the same line.
+   * Below the two labels, in the corner nothing else wants.
    *
-   * It was bottom-right, which put the two things you can do with a photograph
-   * at opposite ends of a diagonal — and on a row the height of the screen's
-   * width, that is a long way for a thumb to travel to a control it can barely
-   * see against the picture. Both live in the top strip now, where the scrim is
-   * already darkest.
+   * The top strip is now a line of text at each end — who added it and when —
+   * and a third thing in it would be a control competing with two labels for
+   * the same forty points. Down here it is the only thing in its corner, which
+   * is what a control should be.
    */
-  tileSave: { position: 'absolute', right: 10, top: 10, padding: 4 },
-  /* Dimmer than the handle: the part you read only when you are already
-     asking. */
+  tileSave: { position: 'absolute', right: 10, bottom: 10, padding: 4 },
+  /*
+   * Opposite the byline, pinned to the corner rather than trailing the handle.
+   *
+   * Riding on the end of a name means landing somewhere different on every row,
+   * and a date that moves is a date nobody reads. Dimmer than the handle: it is
+   * the part you check rather than the part you read.
+   */
   tileWhen: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
     fontSize: 12.5,
     color: 'rgba(255,255,255,0.78)',
     textShadowColor: 'rgba(0,0,0,0.4)',

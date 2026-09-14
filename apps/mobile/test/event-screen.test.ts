@@ -368,20 +368,21 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
   });
 
-  it('puts both controls in the top strip, at either end', () => {
+  it('gives each of the three its own corner', () => {
     /*
-     * The save was bottom-right, which put the two things you can do with a
-     * photograph at opposite ends of a diagonal — and on a row as tall as the
-     * screen is wide, that is a long way for a thumb to travel to a control it
-     * can barely see against the picture. Both are in the top strip now, where
-     * the scrim is already darkest.
+     * Who added it top-left, when it arrived top-right, and the save below
+     * them. The top strip is a line of text at each end, and a control in it
+     * would be a third thing competing with two labels for the same forty
+     * points — down in its own corner it is the only thing there, which is what
+     * a control should be.
      *
-     * The byline's width stops short of the save, so a long handle truncates
+     * The byline's width stops short of the date, so a long handle truncates
      * rather than running under it.
      */
     expect(APP).toMatch(/tileBy: \{\s*position: 'absolute',\s*top: 10,\s*left: 10,/);
-    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, top: 10,/);
-    expect(APP).toMatch(/maxWidth: '76%'/);
+    expect(APP).toMatch(/tileWhen: \{\s*position: 'absolute',\s*top: 10,\s*right: 10,/);
+    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, bottom: 10,/);
+    expect(APP).toMatch(/maxWidth: '62%'/);
   });
 
   it('dates each one by when it arrived, not by when it was taken', () => {
@@ -397,13 +398,47 @@ describe('a photograph in an album', () => {
     expect(APP).not.toMatch(/shortDate\(item\.takenAt\)/);
   });
 
-  it('puts the date in the byline rather than in a corner of its own', () => {
-    // Who added it and when are one fact about a photograph; splitting them
-    // across two corners makes the eye do the joining.
-    expect(APP).toMatch(/\{added && <Text style=\{styles\.tileWhen\}>\{added\}<\/Text>\}/);
-    const by = APP.slice(APP.indexOf('<View style={styles.tileBy}'), APP.indexOf('styles.tileSave'));
+  it('pins the date to the corner rather than trailing the handle', () => {
+    /*
+     * It sat inside the byline, on the argument that who added a photograph and
+     * when are one fact. They are — but they are one fact of very different
+     * weights, and riding on the end of a name that can be any length meant
+     * landing somewhere different on every row. A date that moves is a date
+     * nobody reads; a column you can run your eye down is the only way a date
+     * in a grid is worth anything.
+     */
+    // Comments stripped: the prose between the two blocks explains the move,
+    // so a raw slice ends in a comment rather than in the markup being checked.
+    const jsx = code(APP);
+    const by = jsx.slice(
+      jsx.indexOf('<View style={styles.tileBy}'),
+      jsx.indexOf('{added &&'),
+    );
     expect(by).toMatch(/styles\.tileHandle/);
-    expect(by).toMatch(/styles\.tileWhen/);
+    // The byline's conditional closes before the date begins, so the date is a
+    // sibling of it rather than a child — which is what lets it be pinned.
+    // `{}` is what the comment stripper leaves behind where a JSX comment was.
+    expect(by.trimEnd()).toMatch(/<\/View>\s*\)\}\s*(\{\})?$/);
+    expect(by).not.toMatch(/styles\.tileWhen/);
+  });
+
+  it('dates a photograph to the year', () => {
+    /*
+     * `dateLabel` names the weekday and omits the year because it dates an
+     * evening, where the year is usually this one. A grid somebody scrolls is
+     * the other case: an album people keep adding to holds photographs from
+     * several years, and "14 Sept" alone is a date that quietly assumes an
+     * answer.
+     */
+    const CARDS = readFileSync(
+      fileURLToPath(new URL('../../../packages/cards/src/index.ts', import.meta.url).href),
+      'utf8',
+    );
+    const short = CARDS.slice(
+      CARDS.indexOf('export function shortDate'),
+      CARDS.indexOf('export const CARD_FACES'),
+    );
+    expect(short).toMatch(/year: 'numeric'/);
   });
 
   it('dates a file in local time, unlike an evening', () => {
@@ -417,8 +452,10 @@ describe('a photograph in an album', () => {
       fileURLToPath(new URL('../../../packages/cards/src/index.ts', import.meta.url).href),
       'utf8',
     );
-    const short = CARDS.slice(CARDS.indexOf('export function shortDate'), CARDS.indexOf('export const CARD_FACES'));
-    expect(short).toMatch(/day: 'numeric', month: 'short'/);
+    const short = CARDS.slice(
+      CARDS.indexOf('export function shortDate'),
+      CARDS.indexOf('export const CARD_FACES'),
+    );
     expect(short).not.toMatch(/timeZone/);
     expect(short).not.toMatch(/weekday/);
   });

@@ -78,12 +78,15 @@ export function dateLabel(iso: string | null): string | null {
 }
 
 /**
- * The same date, shorter, and in the reader's own timezone.
+ * The same date, shorter, dated to the year, and in the reader's own timezone.
  *
- * "14 Sep" rather than "Sat 14 Sep". `dateLabel` names the weekday because it
- * dates an *evening* — which night it was is half of what somebody is trying to
- * remember — and this dates a file, where the weekday is three characters of
- * nothing in a corner of a photograph.
+ * "14 Sep 2026" rather than "Sat 14 Sep". The weekday goes and the year
+ * arrives, and the swap is the point: `dateLabel` dates an *evening*, where
+ * which night it was is half of what somebody is trying to remember and the
+ * year is usually this one. This dates a file in a grid somebody scrolls, where
+ * the weekday says nothing and the year is the whole question — an album people
+ * keep adding to holds photographs from several, and "14 Sep" alone is a date
+ * that quietly assumes an answer.
  *
  * Local rather than UTC, which is the other difference and the one that
  * matters. `dateLabel` fixes the zone on purpose: an event's date is a day
@@ -95,7 +98,11 @@ export function shortDate(iso: string | null): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date);
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
 }
 
 /**
