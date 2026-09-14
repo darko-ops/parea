@@ -65,6 +65,7 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { CoverGlass } from './src/CoverGlass';
 import { Lately } from './src/Lately';
 import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
@@ -1091,7 +1092,25 @@ function JoinScreen({
  * difference. Named here rather than read off the stylesheet so that the
  * reason they match is written down next to one of them.
  */
-const PAGE_TOP = 248;
+/**
+ * How tall the album's header is.
+ *
+ * It was 232, sized so a two-line album name could sit at `coverTitle`'s old
+ * top of 140 and just reach the bottom. Shorter now, with the title moved up to
+ * match: the header is a glass panel rather than a photograph to look at, and a
+ * panel does not need a third of the screen.
+ */
+const COVER = 196;
+
+/**
+ * Where the page begins — flush with the header, not sixteen points below it.
+ *
+ * There was background showing between the two, which on a screen whose header
+ * is a flat panel reads as a gap somebody forgot to close rather than as air.
+ * The tabs keep their own twelve points of padding, which is the space that was
+ * actually doing the work.
+ */
+const PAGE_TOP = COVER;
 
 function EventScreen({
   api,
@@ -2075,6 +2094,16 @@ function EventScreen({
           // letter-on-a-colour every other doorless thing in the product gets.
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
+        {/*
+          The photograph, behind glass.
+
+          Above the image so it has something to blur, and below the scrim,
+          which still carries the title and the corner discs — the glass makes
+          those legible in the common case and the gradient is what makes them
+          legible in every case. See `CoverGlass`.
+        */}
+        <CoverGlass />
+
         {/*
           Dark at the top and the bottom, clear through the middle.
 
@@ -3315,7 +3344,7 @@ const styles = StyleSheet.create({
      that starts below it. A column of views in normal flow cannot put white
      type over a photograph and a grey page under it without the page's
      background being drawn over the picture. */
-  cover: { position: 'absolute', top: 0, left: 0, right: 0, height: 232 },
+  cover: { position: 'absolute', top: 0, left: 0, right: 0, height: COVER },
   /* Level with each other, and a little lower than either was: they were at 46
      and 40, which is close enough to look like a mistake rather than a
      decision. 52 also puts them clear of the clock on every size of phone. */
@@ -3323,7 +3352,13 @@ const styles = StyleSheet.create({
   coverMore: { position: 'absolute', top: 52, right: 16, zIndex: 3 },
   /* Glass rather than a solid disc: it sits on a photograph nobody chose for
      it, and a grey circle is a hole in whatever is behind it. */
-  coverTitle: { position: 'absolute', top: 140, left: 20, right: 20, zIndex: 3, gap: 6 },
+  /*
+   * Under the corner discs, which end at 88, and sized so a two-line name still
+   * reaches the bottom edge and no further: 104 + two lines at 30 + a 6pt gap +
+   * the meta row is the header's height. The old 140 was the same sum against a
+   * taller panel.
+   */
+  coverTitle: { position: 'absolute', top: 104, left: 20, right: 20, zIndex: 3, gap: 6 },
   /* The shadow is what keeps four words legible over a cover that turns out to
      be a white tablecloth. */
   coverName: {
@@ -3354,7 +3389,7 @@ const styles = StyleSheet.create({
   faceMore: { backgroundColor: 'rgba(255,255,255,0.85)', marginRight: 0 },
   faceMoreText: { fontSize: 9.5, fontWeight: '700', color: '#5b6472' },
   /* The page, starting 16 points into the cover's bottom scrim. */
-  page: { position: 'absolute', top: 248, left: 0, right: 0, bottom: 0 },
+  page: { position: 'absolute', top: PAGE_TOP, left: 0, right: 0, bottom: 0 },
   /* The cover's bottom edge. White, because it lies on a photograph — see the
      note at the call site. */
   uploadBar: {

@@ -80,8 +80,13 @@ describe('one header, three panes', () => {
      * cover rather than at the top of the screen. Without the offset the
      * composer is lifted by exactly the height of the header too little.
      */
-    expect(APP).toMatch(/const PAGE_TOP = 248/);
-    expect(APP).toMatch(/page: \{ position: 'absolute', top: 248/);
+    /*
+     * The number moved when the header got shorter, which is the point of it
+     * being a name: `PAGE_TOP` is the header's height, the page is pinned to
+     * it, and the offset is the same value rather than a third copy of it.
+     */
+    expect(APP).toMatch(/const PAGE_TOP = COVER;/);
+    expect(APP).toMatch(/page: \{ position: 'absolute', top: PAGE_TOP,/);
     expect(SCREEN).toMatch(/keyboardOffset=\{PAGE_TOP\}/);
     expect(THREAD).toMatch(/keyboardVerticalOffset=\{keyboardOffset\}/);
   });

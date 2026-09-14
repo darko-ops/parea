@@ -54,11 +54,78 @@ describe('what is above the first photograph', () => {
   });
 
   it('is the cover, the name and the tabs — nothing else', () => {
-    // The grid starts 248 points down, under a 232pt cover and a row of tabs.
+    /*
+     * The grid starts where the header ends, under a row of tabs. It was 248
+     * under a 232pt header, with sixteen points of background showing between
+     * the two — which on a screen whose header is a flat panel reads as a gap
+     * somebody forgot to close rather than as air.
+     *
+     * One number now, and the page is pinned to it: two literals that have to
+     * agree is a pair that eventually does not.
+     */
     expect(SCREEN).toMatch(/styles\.cover\b/);
     expect(SCREEN).toMatch(/styles\.coverTitle/);
-    expect(APP).toMatch(/page: \{ position: 'absolute', top: 248/);
-    expect(APP).toMatch(/cover: \{ position: 'absolute', top: 0, left: 0, right: 0, height: 232 \}/);
+    expect(APP).toMatch(/const COVER = \d+;/);
+    expect(APP).toMatch(/const PAGE_TOP = COVER;/);
+    expect(APP).toMatch(/cover: \{ position: 'absolute', top: 0, left: 0, right: 0, height: COVER \}/);
+    expect(APP).toMatch(/page: \{ position: 'absolute', top: PAGE_TOP,/);
+  });
+
+  it('leaves room for a two-line name under the corner discs', () => {
+    /*
+     * The discs are at 52 and 36 tall, so they end at 88. The title sits below
+     * that and a two-line name has to reach the bottom edge and no further:
+     * 104 + 60 of name + a 6pt gap + the meta row is the header's height.
+     * Shortening the panel without moving the title is how a name ends up
+     * hanging over the tabs.
+     */
+    expect(APP).toMatch(/coverTitle: \{ position: 'absolute', top: 104,/);
+    expect(APP).toMatch(/coverBack: \{ position: 'absolute', top: 52,/);
+  });
+
+  it('puts the photograph behind glass', () => {
+    /*
+     * The header asked one image to be both the picture of the evening and the
+     * surface four white words sit on, and a photograph is bad at the second —
+     * a white tablecloth and the title is gone. Behind glass it is present,
+     * coloured, and not legible as a picture, which is what the album
+     * underneath is for.
+     *
+     * Above the image so it has something to blur, below the scrim because the
+     * gradient is what makes the title legible in the cases the glass does not.
+     */
+    const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
+    const image = cover.indexOf('contentFit="cover"');
+    const glass = cover.indexOf('<CoverGlass');
+    const scrim = cover.indexOf('<LinearGradient');
+    expect(image).toBeLessThan(glass);
+    expect(glass).toBeLessThan(scrim);
+
+    const GLASS = readFileSync(
+      fileURLToPath(new URL('../src/CoverGlass.tsx', import.meta.url).href),
+      'utf8',
+    );
+    /*
+     * One blur, no mask, no stack — and that is only safe because it covers the
+     * whole header. An earlier version softened the bottom forty points, where
+     * a single uniform BlurView drew a seam where it ended. Here it ends where
+     * the header ends, which is a boundary the layout already has.
+     */
+    expect(GLASS.match(/<BlurView/g) ?? []).toHaveLength(1);
+    expect(GLASS).not.toMatch(/MaskedView/);
+    // Glass rather than frost: the one material that keeps the colour of what
+    // is behind it. A light or dark tint makes it a grey header.
+    expect(GLASS).toMatch(/tint="systemUltraThinMaterial"/);
+    // And stained: uneven lights, from a fixed table so the window does not
+    // rearrange itself on every render.
+    const widths = GLASS.match(/const LIGHTS = \[([^\]]+)\]/)?.[1]
+      ?.split(',')
+      .map((n) => Number(n.trim()));
+    expect(widths).toBeDefined();
+    expect(new Set(widths!).size).toBe(widths!.length);
+    expect(widths!.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
+    expect(GLASS).not.toMatch(/Math\.random/);
+    expect(GLASS).toMatch(/pointerEvents="none"/);
   });
 
   it('keeps no slab where a setting used to be', () => {
