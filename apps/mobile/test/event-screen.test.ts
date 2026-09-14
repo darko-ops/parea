@@ -178,15 +178,32 @@ describe('the glass under the cover', () => {
     expect(GLASS).not.toMatch(/styles\.left|styles\.right/);
   });
 
-  it('ramps, rather than drawing one band with an edge of its own', () => {
-    const sizes = [...GLASS.matchAll(/at: ([\d.]+)/g)].map((m) => Number(m[1]));
-    const strengths = [...GLASS.matchAll(/intensity: (\d+)/g)].map((m) => Number(m[1]));
-    expect(sizes.length).toBeGreaterThan(2);
-    // Tallest and weakest first, so each band sits inside the one before it.
-    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
-    expect(strengths).toEqual([...strengths].sort((a, b) => a - b));
-    // Every band shares the bottom edge; only how far up it reaches differs.
-    expect(GLASS).toMatch(/band: \{ position: 'absolute', left: 0, right: 0, bottom: 0 \}/);
+  it('fades with a real alpha channel, not with stacked bands', () => {
+    /*
+     * It was three `BlurView`s of increasing strength, on the theory that three
+     * small steps read as a ramp. They do not: a `BlurView` is uniform and
+     * stops dead at its own edge, so what you saw was three rows of blur with
+     * two seams between them — worse than the single seam the whole thing
+     * exists to remove.
+     *
+     * More bands make the steps smaller and the problem bigger, because each
+     * one carries the material's wash as well as its blur and ten stacked is a
+     * milky slab. One blur behind a gradient mask is continuous, and has one
+     * wash.
+     */
+    expect(GLASS).toMatch(/<MaskedView/);
+    expect(GLASS).toMatch(/maskElement=/);
+    expect(GLASS).toMatch(/colors=\{\['rgba\(0,0,0,0\)', 'rgba\(0,0,0,1\)'\]\}/);
+    // Exactly one, which is the point.
+    expect(GLASS.match(/<BlurView/g) ?? []).toHaveLength(1);
+  });
+
+  it('is short enough to be an edge rather than a band', () => {
+    // 58 read as a stripe across the bottom of somebody's picture. This is deep
+    // enough to dissolve an edge and shallow enough that what it dissolves is
+    // the edge and not the photograph.
+    const glass = Number(GLASS.match(/export const GLASS = (\d+)/)?.[1]);
+    expect(glass).toBeLessThanOrEqual(40);
   });
 
   it('is glass rather than frost', () => {
@@ -216,10 +233,20 @@ describe('the glass under the cover', () => {
   it('draws the came between lights, not around the window', () => {
     // A line on the outside edge would be a border on a photograph, which is
     // the opposite of an edge dissolving into the page.
-    expect(GLASS).toMatch(/\{i > 0 && \(/);
-    // And it fades upward, so the lights arrive out of the photograph rather
-    // than being ruled onto it.
-    expect(GLASS).toMatch(/colors=\{\['rgba\(12,14,18,0\)', LEAD\]\}/);
+    expect(GLASS).toMatch(/\{i > 0 && </);
+  });
+
+  it('puts the lights inside the mask, so they fade with the blur', () => {
+    /*
+     * Outside it they would be drawn at full strength over a blur that is
+     * fading, and end on a line of their own — which is the seam again, in
+     * thinner ink.
+     */
+    const mask = GLASS.indexOf('<MaskedView');
+    const lights = GLASS.indexOf('<View style={styles.lights}>');
+    const close = GLASS.indexOf('</MaskedView>');
+    expect(lights).toBeGreaterThan(mask);
+    expect(lights).toBeLessThan(close);
   });
 
   it('is the same window every time the album opens', () => {
