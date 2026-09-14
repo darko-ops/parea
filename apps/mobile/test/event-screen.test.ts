@@ -196,12 +196,17 @@ describe('what is above the first photograph', () => {
     expect(APP).toMatch(/bgClear: 'rgba\(13,15,18,0\)'/);
 
     /*
-     * And biased rather than even. An even fade across all eighteen points is a
-     * soft edge, which reads as the panel being out of focus rather than as it
-     * ending; holding it clear for the first third and then resolving quickly
-     * is a crisp edge that happens to have no line in it.
+     * And biased rather than even. An even fade across the whole band is a soft
+     * edge, which reads as the panel being out of focus rather than as it
+     * ending; holding it clear and then resolving late is a crisp edge that
+     * happens to have no line in it.
+     *
+     * 0.6 of ten points leaves four points of actual ramp. The band is as short
+     * as it can usefully be, so compressing the transition inside it was the
+     * only room left — and much past this there is not enough ramp for a ramp,
+     * at which point the line comes back and all of this was for nothing.
      */
-    expect(APP).toMatch(/locations=\{\[0\.34, 1\]\}/);
+    expect(APP).toMatch(/locations=\{\[0\.6, 1\]\}/);
 
     /*
      * After the scrim, not before. The scrim's bottom stop is dark, so drawn

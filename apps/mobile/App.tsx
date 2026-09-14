@@ -2151,15 +2151,21 @@ function EventScreen({
         <LinearGradient
           colors={[t.bgClear, t.bg]}
           /*
-            Clear for the first third, then a short ramp.
+            Clear for the first six points, then four points of ramp.
 
             An even fade across the whole band is a soft edge, which reads as
             the panel being out of focus rather than as it ending. The bias
             keeps the glass looking like glass almost all the way down and then
-            resolves quickly — a crisp edge that happens to have no line in it,
-            which is the thing an even ramp cannot be.
+            resolves — a crisp edge that happens to have no line in it, which is
+            the thing an even ramp cannot be.
+
+            0.6 rather than the 0.34 it was: the band is already as short as it
+            can usefully be, so compressing the transition inside it is the only
+            room left. Much past this and there is not enough ramp for a ramp,
+            and the line comes back — which is what all of this exists to
+            remove.
           */
-          locations={[0.34, 1]}
+          locations={[0.6, 1]}
           style={styles.coverFoot}
           pointerEvents="none"
         />
