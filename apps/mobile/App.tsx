@@ -2152,12 +2152,12 @@ function EventScreen({
           colors={[t.bgClear, t.bg]}
           /*
             Clear for the first third, then a short ramp.
-            
-            An even fade across the whole eighteen points is a soft edge, which
-            reads as the panel being out of focus rather than as it ending. The
-            bias keeps the glass looking like glass almost all the way down and
-            then resolves quickly — a crisp edge that happens to have no line in
-            it, which is the thing an even ramp cannot be.
+
+            An even fade across the whole band is a soft edge, which reads as
+            the panel being out of focus rather than as it ending. The bias
+            keeps the glass looking like glass almost all the way down and then
+            resolves quickly — a crisp edge that happens to have no line in it,
+            which is the thing an even ramp cannot be.
           */
           locations={[0.34, 1]}
           style={styles.coverFoot}
@@ -3449,13 +3449,19 @@ const styles = StyleSheet.create({
   /*
    * How much of the header dissolves into the page.
    *
-   * Short on purpose. Long enough to remove the line, short enough that it is
-   * not a band — and short matters twice here, because the album's name sits at
-   * the foot of the header and a name that wraps to two lines reaches into this.
-   * At 18 the overlap is the descenders of the last line over the palest part
-   * of the ramp; at 40 it would be white text on the page colour.
+   * Ten, and it has been eighteen and forty on the way here. The failure at
+   * every length is the same one: the page below is the colour this fades to,
+   * so a long ramp does not read as the header ending softly — it reads as the
+   * page starting higher up than it does, and the header looks like it has been
+   * cropped short. Only the last few points can belong to both.
+   *
+   * With the bias below, the ramp itself is about six points. That is enough to
+   * have no line in it and not enough to be a band, which is the whole brief.
+   *
+   * It also keeps the fade clear of the album's name, which sits at the foot of
+   * the header and reaches into this when it wraps to two lines.
    */
-  coverFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 18 },
+  coverFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 10 },
   tabRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   addButton: {
     width: 38,

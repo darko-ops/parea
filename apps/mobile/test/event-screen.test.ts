@@ -172,12 +172,16 @@ describe('what is above the first photograph', () => {
      * foot into the page's own colour means the header stops without a boundary
      * to notice.
      *
-     * Short on purpose, and short matters twice: the album's name sits at the
-     * foot of the header, and a name that wraps to two lines reaches into this.
-     * At 18 the overlap is the descenders of the last line over the palest part
-     * of the ramp; at 40 it would be white text on the page colour.
+     * Short on purpose, and it has been 40 and 18 on the way to 10. The failure
+     * at every length is the same: the page below is the colour this fades to,
+     * so a long ramp does not read as the header ending softly — it reads as
+     * the page starting higher than it does, and the header looks cropped.
+     * Only the last few points can belong to both.
+     *
+     * It also keeps the fade clear of the album's name, which sits at the foot
+     * of the header and reaches into this when it wraps to two lines.
      */
-    expect(APP).toMatch(/coverFoot: \{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 18 \}/);
+    expect(APP).toMatch(/coverFoot: \{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 10 \}/);
 
     /*
      * Ramping alpha on the page's own colour, never from `'transparent'`.
