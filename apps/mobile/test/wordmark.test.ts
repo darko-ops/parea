@@ -18,6 +18,13 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const EVENTS = read('src/Events.tsx');
+const MARK = read('src/Wordmark.tsx');
+
+/* The wordmark's prose names `fontWeight` as the thing it refuses, so the
+   assertion that it is not used has to look at code rather than at commentary
+   about it — the mistake this suite has made three times. */
+const code = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const APP_JSON = JSON.parse(read('app.json')) as {
   expo: { plugins: (string | [string, Record<string, unknown>])[] };
 };
@@ -25,7 +32,7 @@ const WEB_CSS = read('../web/app/globals.css');
 
 describe('the name', () => {
   it('is the product’s, not the screen’s contents', () => {
-    expect(EVENTS).toMatch(/<Text style=\{\[styles\.wordmark, \{ color: t\.fg \}\]\}>Parea<\/Text>/);
+    expect(EVENTS).toMatch(/<Wordmark color=\{t\.fg\} \/>/);
     const home = EVENTS.slice(
       EVENTS.indexOf('export function HomeTab'),
       EVENTS.indexOf('export function GroupsTab'),
@@ -33,14 +40,16 @@ describe('the name', () => {
     expect(home).not.toMatch(/>Events</);
   });
 
-  it('is lowercased by the style, not typed that way', () => {
+  it('is read aloud as the proper noun, however it is drawn', () => {
     /*
-     * The same split the web makes: the markup says the proper noun so the
-     * accessible name is "Parea", and the type says how it is drawn. Typing
-     * "parea" would hand a screen reader a word it may or may not say as a
-     * name.
+     * The same split the web makes with `text-transform`: the type is
+     * lowercase, and the accessible name is "Parea". SVG text has no
+     * `textTransform`, so the word is lowercase in the markup and the name is
+     * declared beside it — which is the half that matters, and the half that is
+     * easy to drop.
      */
-    expect(EVENTS).toMatch(/textTransform: 'lowercase'/);
+    expect(MARK).toMatch(/accessibilityLabel="Parea"/);
+    expect(MARK).toMatch(/>\s*parea\s*</);
     expect(WEB_CSS).toMatch(/text-transform: lowercase/);
   });
 });
@@ -65,17 +74,63 @@ describe('the face it is set in', () => {
      * file name, so the file is called after the PostScript name — `Garet-Book`
      * — and one `fontFamily` satisfies both.
      */
-    expect(EVENTS).toMatch(/fontFamily: 'Garet-Book'/);
+    expect(MARK).toMatch(/fontFamily="Garet-Book"/);
   });
 
-  it('asks for no weight it does not have', () => {
+  it('gains its weight from a stroke, never from a synthetic bold', () => {
     /*
-     * One file, Book. Naming a weight would have the platform synthesise one by
-     * thinning or smearing outlines, which at wordmark size is visible — the
-     * same warning `public/fonts/README.md` gives the web.
+     * Garet ships as one face and its `usWeightClass` is 300, so there is no
+     * heavier cut to ask for. Synthetic bold smears the outlines horizontally
+     * and fills the counters of a geometric face — on a lowercase `a` and `e`
+     * that is the first thing you see, and "parea" has both, twice. A stroke
+     * grows the whole outline evenly, which is much closer to what a heavier
+     * cut is. The web reached the same conclusion and says so in `globals.css`.
      */
-    const style = EVENTS.slice(EVENTS.indexOf('wordmark: {'), EVENTS.indexOf('wordmark: {') + 200);
-    expect(style).not.toMatch(/fontWeight/);
+    expect(MARK).toMatch(/strokeWidth=\{STROKE \* size\}/);
+    expect(code(MARK)).not.toMatch(/fontWeight/);
+    expect(WEB_CSS).toMatch(/-webkit-text-stroke: 0\.045em currentColor/);
+  });
+
+  it('keeps the same stroke the web settled on', () => {
+    /*
+     * 0.045em, judged there against this word at this size: below it there is
+     * no difference in weight, above it the counters begin to close. A fraction
+     * of the size rather than a number of points, for the same reason it is in
+     * `em` there — a stroke that looks right at 32 is a blob at 13.
+     */
+    expect(MARK).toMatch(/const STROKE = 0\.045;/);
+  });
+});
+
+describe('where it sits', () => {
+  it('is centred on the screen, not on what the button leaves', () => {
+    /*
+     * The `+` is 36 points. With the name simply pushed to the left of it, the
+     * middle of the word sat 18 points left of the middle of the screen —
+     * close enough to read as centred and not be, which is the version that
+     * looks like a mistake rather than a decision.
+     *
+     * A slot the size of the button on the other side is what makes it exact,
+     * and it is sized from the same constant so the two cannot drift.
+     */
+    const row = EVENTS.slice(EVENTS.indexOf('<View style={styles.markRow}>'), EVENTS.indexOf('</View>', EVENTS.indexOf('<View style={styles.markRow}>')) + 400);
+    expect(row).toMatch(/<View style=\{styles\.roundSlot\} \/>/);
+    expect(row).toMatch(/<View style=\{styles\.centred\}>\s*<Wordmark/);
+    expect(EVENTS).toMatch(/centred: \{ flex: 1 \}/);
+    // The word centres itself inside that space: SVG has no intrinsic width,
+    // so `textAlign` has nothing to act on and `textAnchor` does the job.
+    expect(MARK).toMatch(/textAnchor="middle"/);
+    expect(MARK).toMatch(/x="50%"/);
+    expect(EVENTS).toMatch(/roundSlot: \{ width: ROUND, height: ROUND \}/);
+  });
+
+  it('does not hang the button off the name’s baseline', () => {
+    /*
+     * `headRow` aligns on the baseline, which is right for a title beside a
+     * button and wrong here: the name is set in a face with its own metrics, so
+     * a disc aligned to its baseline sits visibly low.
+     */
+    expect(EVENTS).toMatch(/markRow: \{ flexDirection: 'row', alignItems: 'center' \}/);
   });
 });
 

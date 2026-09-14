@@ -41,6 +41,7 @@ import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
 import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
+import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
@@ -446,7 +447,19 @@ export function HomeTab({
         two things in one place and one thing in another is the sort of
         difference nobody can learn: either `+` makes what you ask it for.
       */}
-      <View style={styles.headRow}>
+      <View style={styles.markRow}>
+        {/*
+          Held open, so the name is centred on the screen rather than on what is
+          left of it.
+
+          The `+` is 36 points and the name sat between the edge and it, which
+          put its middle 18 points left of the screen's — close enough to read
+          as centred and not be, which is the version that looks like a mistake.
+          A slot the size of the button on the other side is the only way to get
+          it right without measuring anything.
+        */}
+        <View style={styles.roundSlot} />
+
         {/*
           The product's name, in the product's face.
 
@@ -459,7 +472,10 @@ export function HomeTab({
           does it: the markup says the proper noun, so a screen reader says
           "Parea", and the type says how it is drawn.
         */}
-        <Text style={[styles.wordmark, { color: t.fg }]}>Parea</Text>
+        <View style={styles.centred}>
+          <Wordmark color={t.fg} />
+        </View>
+
         <RoundButton
           t={t}
           onPress={() => setStarting(true)}
@@ -1972,6 +1988,19 @@ const styles = StyleSheet.create({
      spinner has somewhere to be the middle of. Inert once there are cards. */
   scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  /*
+   * The wordmark's row, which is not `headRow`.
+   *
+   * `alignItems: 'baseline'` is right for a title beside a button and wrong for
+   * this: the name is set in a face with its own metrics, so aligning the disc
+   * to its baseline hangs the button low. Centred on the row instead, which is
+   * what the eye reads as level.
+   */
+  markRow: { flexDirection: 'row', alignItems: 'center' },
+  /* Takes the space the two discs leave, so the middle of the name is the
+     middle of the screen. The word centres itself inside it — see
+     `Wordmark.tsx`, which has no intrinsic width to centre by. */
+  centred: { flex: 1 },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
   headActions: { flexDirection: 'row', alignItems: 'baseline', gap: 18 },
@@ -2151,31 +2180,7 @@ const styles = StyleSheet.create({
   /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
      the two cannot drift apart. */
   roundSlot: { width: ROUND, height: ROUND },
-  /*
-   * The name, in the face the web sets it in.
-   *
-   * `Garet-Book` is the font's own PostScript name, which is also what the file
-   * is called — iOS resolves an embedded font by the first and Android by the
-   * second, so naming the file after the PostScript name makes one string work
-   * on both. Embedded at build time by the `expo-font` config plugin rather
-   * than loaded at runtime: it draws one word, and a font gate in front of the
-   * whole app for one word is a blank screen nobody needed.
-   *
-   * React Native takes one family and no fallback stack, unlike the web's
-   * `'Garet', 'Futura', …`. A build where the font failed to embed draws the
-   * system face rather than a near relative — visibly wrong, which is the right
-   * way for that to fail.
-   *
-   * No `fontWeight`: the file is Book and there is no other weight. Asking for
-   * 300 here would have iOS synthesise one by thinning outlines, which at this
-   * size is visible.
-   */
-  wordmark: {
-    fontFamily: 'Garet-Book',
-    fontSize: 32,
-    letterSpacing: -0.2,
-    textTransform: 'lowercase',
-  },
+
   /* The first paint, before there is a page to draw. Centred in the tab rather
      than under a heading, because there is no heading yet. */
   groupsLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
