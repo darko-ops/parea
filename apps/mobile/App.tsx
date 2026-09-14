@@ -2135,11 +2135,31 @@ function EventScreen({
           unfilled bar under every album would be a permanent promise of
           something happening.
         */}
+        {/*
+          The last few points of the header, given back to the page.
+
+          The glass ended on a line: a panel, an edge, and then the tabs. Fading
+          the foot of it into the page's own colour means the header stops
+          without a boundary to notice — the same trick the scrim above it plays
+          in the other direction, and short enough that it reads as the panel
+          ending rather than as a band across the bottom of it.
+
+          After the scrim rather than before. The scrim's bottom stop is dark,
+          so drawn over this it would put the shadow back on top of the fade and
+          the edge would return underneath it.
+        */}
+        <LinearGradient
+          colors={['transparent', t.bg]}
+          style={styles.coverFoot}
+          pointerEvents="none"
+        />
+
         {progress !== null && (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.uploadBar,
+              { backgroundColor: t.accent },
               {
                 width: bar.interpolate({
                   inputRange: [0, 1],
@@ -3387,16 +3407,32 @@ const styles = StyleSheet.create({
   faceMoreText: { fontSize: 9.5, fontWeight: '700', color: '#5b6472' },
   /* The page, starting 16 points into the cover's bottom scrim. */
   page: { position: 'absolute', top: PAGE_TOP, left: 0, right: 0, bottom: 0 },
-  /* The cover's bottom edge. White, because it lies on a photograph — see the
-     note at the call site. */
+  /*
+   * The cover's bottom edge.
+   *
+   * White until the foot of the header started fading into the page: white on a
+   * photograph under a dark scrim is legible, and white on the page's own
+   * near-white is not there at all. The accent instead, which is what the rest
+   * of the product uses to mean "this is happening" and which now has a plain
+   * background to be legible against rather than somebody's photograph.
+   */
   uploadBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     height: 2.5,
-    backgroundColor: '#fff',
     zIndex: 3,
   },
+  /*
+   * How much of the header dissolves into the page.
+   *
+   * Short on purpose. Long enough to remove the line, short enough that it is
+   * not a band — and short matters twice here, because the album's name sits at
+   * the foot of the header and a name that wraps to two lines reaches into this.
+   * At 18 the overlap is the descenders of the last line over the palest part
+   * of the ramp; at 40 it would be white text on the page colour.
+   */
+  coverFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 18 },
   tabRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   addButton: {
     width: 38,

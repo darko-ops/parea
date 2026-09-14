@@ -325,14 +325,26 @@ describe('the bar, and when the album is actually full', () => {
     expect(APP).toMatch(/setInterval\(\(\)[\s\S]{0,80}\}, 2000\);\s*return \(\) => clearInterval\(timer\);\s*\}, \[refresh\]\);/);
   });
 
-  it('sits on the cover’s own edge, in white', () => {
+  it('sits on the cover’s own edge, in the accent', () => {
     // It was on the page's top edge, sixteen points lower, reading as a line
     // floating in the gap.
     expect(APP).toMatch(/uploadBar: \{\s*position: 'absolute',\s*bottom: 0,/);
-    expect(APP).toMatch(/backgroundColor: '#fff',/);
-    // Drawn inside the cover, after the scrim that makes white legible.
+    /*
+     * White until the foot of the header began fading into the page.
+     *
+     * White on a photograph under a dark scrim is legible; white on the page's
+     * own near-white is not there at all — and the bottom two points of the
+     * header are now the page's colour by design. The accent is what the rest
+     * of the product uses to mean "this is happening", and it now has a plain
+     * background to be legible against rather than somebody's photograph.
+     */
+    expect(APP).toMatch(/styles\.uploadBar,\s*\{ backgroundColor: t\.accent \}/);
+    const bar = APP.slice(APP.indexOf('uploadBar: {'), APP.indexOf('uploadBar: {') + 220);
+    expect(bar).not.toMatch(/backgroundColor: '#fff'/);
+    // Drawn inside the cover, and still above everything that fades under it.
     const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
     expect(cover.indexOf('styles.uploadBar')).toBeLessThan(cover.indexOf('styles.coverBack'));
+    expect(cover.indexOf('styles.coverFoot')).toBeLessThan(cover.indexOf('styles.uploadBar'));
   });
 });
 

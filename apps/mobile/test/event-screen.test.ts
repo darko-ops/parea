@@ -166,6 +166,29 @@ describe('what is above the first photograph', () => {
     expect(GLASS).toMatch(/from 'react-native-svg'/);
   });
 
+  it('gives the last few points of the header back to the page', () => {
+    /*
+     * The glass ended on a line: a panel, an edge, then the tabs. Fading the
+     * foot into the page's own colour means the header stops without a boundary
+     * to notice.
+     *
+     * Short on purpose, and short matters twice: the album's name sits at the
+     * foot of the header, and a name that wraps to two lines reaches into this.
+     * At 18 the overlap is the descenders of the last line over the palest part
+     * of the ramp; at 40 it would be white text on the page colour.
+     */
+    expect(APP).toMatch(/coverFoot: \{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 18 \}/);
+    expect(APP).toMatch(/colors=\{\['transparent', t\.bg\]\}/);
+
+    /*
+     * After the scrim, not before. The scrim's bottom stop is dark, so drawn
+     * over this it would put the shadow back on top of the fade and the edge
+     * would return underneath it.
+     */
+    const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
+    expect(cover.indexOf('styles.coverFoot')).toBeGreaterThan(cover.indexOf('<LinearGradient'));
+  });
+
   it('puts no glass over an album with no photograph', () => {
     // There is nothing behind a flat lens colour to obscure, and blurring one
     // is work that changes no pixel.
