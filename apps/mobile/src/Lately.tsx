@@ -52,7 +52,7 @@ import type { ActivityRow, Api, PendingRequest } from './api';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
-import { ANSWERS } from './Requests';
+import { ANSWERS } from './answers';
 import { Back, RoundButton } from './RoundButton';
 import { Waiting } from './Waiting';
 

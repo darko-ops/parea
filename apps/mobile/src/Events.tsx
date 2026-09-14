@@ -37,14 +37,13 @@ import type {
   MyGroupDetail,
   ThreadLine,
 } from './api';
-import { ClusterCard, CreateGroupForm } from './CreateGroup';
+import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
 import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
-import { RequestBubble } from './Requests';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -448,7 +447,19 @@ export function HomeTab({
         difference nobody can learn: either `+` makes what you ask it for.
       */}
       <View style={styles.headRow}>
-        <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
+        {/*
+          The product's name, in the product's face.
+
+          It said "Events", which is the software's word for what is underneath
+          rather than the name of the thing somebody opened. The web has said
+          `parea` in Garet on every page for as long as it has had a rail, and
+          a client that names itself differently is two products.
+
+          Lowercase in the style rather than typed that way, exactly as the web
+          does it: the markup says the proper noun, so a screen reader says
+          "Parea", and the type says how it is drawn.
+        */}
+        <Text style={[styles.wordmark, { color: t.fg }]}>Parea</Text>
         <RoundButton
           t={t}
           onPress={() => setStarting(true)}
@@ -469,17 +480,19 @@ export function HomeTab({
       )}
 
       {/*
-        Above the list, because it is the one thing here somebody has to do
-        something about — everything below is theirs already.
+        The invitations used to sit here, above the list, on the argument that
+        they are the one thing on this screen somebody has to *do* something
+        about. That was true while there was nowhere else for them.
+
+        Lately is that somewhere else, and it holds the same four asks with the
+        same two buttons — so keeping this meant the same request in two places
+        at once, answered in one and still sitting in the other, which reads as
+        the answer not having taken. `activity.ts` names that failure directly;
+        it is the reason an answered friend request leaves the queue.
+
+        What replaces it is the badge on the envelope, which is a smaller claim
+        made in a place that is always there.
       */}
-      <RequestBubble
-        api={api}
-        t={t}
-        refreshKey={pulled}
-        // Accepting an invitation adds an event, and the list under it is
-        // holding the old answer until something says so.
-        onAnswered={() => void onRefresh()}
-      />
 
       {loading && filled.length === 0 && <Waiting fill />}
 
@@ -621,6 +634,10 @@ export function GroupsTab({
   onGoToEvents,
   waiting,
   onOpenLately,
+  onCreateAlbum,
+  onCreateGroup,
+  onCreateGroupFrom,
+  Button,
 }: {
   api: Api;
   /**
@@ -651,6 +668,14 @@ export function GroupsTab({
    */
   waiting: number;
   onOpenLately: () => void;
+  /** The picker, for the half of `+` that makes an evening rather than a room. */
+  onCreateAlbum: () => void;
+  /** The page that makes a group. Opened with nobody chosen. */
+  onCreateGroup: () => void;
+  /** The same page, holding the people a cluster suggested. */
+  onCreateGroupFrom: (cluster: Cluster) => void;
+  /** The app's one button, for the sheet the `+` opens. */
+  Button: ButtonComponent;
   /**
    * Whether this tab is the one in front.
    *
@@ -671,14 +696,13 @@ export function GroupsTab({
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
   const [clusters, setClusters] = useState<Cluster[]>([]);
-  const [also, setAlso] = useState<ClusterPerson[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   /*
    * Which card is open as a form, or `'anyone'` for the one `New group` opens
    * with nobody in it. One at a time: two half-filled forms on one screen is
    * two things to cancel and a question about which Create belongs to which.
    */
-  const [making, setMaking] = useState<string | null>(null);
+
   /**
    * Whether the list is showing all of them or the first few.
    *
@@ -688,6 +712,8 @@ export function GroupsTab({
    * to get out of.
    */
   const [allGroups, setAllGroups] = useState(false);
+  /** The `+` sheet, the same one Home and You open. */
+  const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
     const [mine, found] = await Promise.all([
@@ -696,7 +722,6 @@ export function GroupsTab({
     ]);
     setGroups(mine);
     setClusters(found.clusters);
-    setAlso(found.also);
   }, [api]);
 
   // On arrival, and on every return to the tab. Not on the switches away.
@@ -722,7 +747,10 @@ export function GroupsTab({
   // Zero is the value nobody asked with — the tab opening normally, rather
   // than somebody arriving on it holding a press.
   useEffect(() => {
-    if (openCreate > 0) setMaking('anyone');
+    if (openCreate > 0) onCreateGroup();
+    // `onCreateGroup` is a route change and is stable; including it would fire
+    // this on every render of the shell above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCreate]);
 
   const refresh = useCallback(async () => {
@@ -890,8 +918,20 @@ export function GroupsTab({
             A control that is in a different place for the first half-second is
             a control somebody reaches for and misses.
           */}
-          {groups !== null && making !== 'anyone' ? (
-            <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
+          {/*
+            The same `+` as Home and You, making the same two things.
+
+            It made a group and only a group, because it is on the groups tab —
+            which is the reasoning that produces an app where one glyph means
+            two things in one place and one thing in another. Nobody can learn
+            that: either `+` makes what you ask it for.
+          */}
+          {groups !== null ? (
+            <RoundButton
+              t={t}
+              onPress={() => setStarting(true)}
+              accessibilityLabel="New album or group"
+            >
               <Glyph name="plus" size={20} color={t.fg} />
             </RoundButton>
           ) : (
@@ -900,17 +940,13 @@ export function GroupsTab({
         </View>
       </View>
 
-      {making === 'anyone' && (
-        <CreateGroupForm
-          api={api}
-          cluster={null}
-          also={also}
+      {starting && (
+        <StartSomething
           t={t}
-          onCancel={() => setMaking(null)}
-          onCreated={(id) => {
-            setMaking(null);
-            onOpenGroup(id);
-          }}
+          Button={Button}
+          onClose={() => setStarting(false)}
+          onAlbum={onCreateAlbum}
+          onGroup={onCreateGroup}
         />
       )}
 
@@ -1062,29 +1098,20 @@ export function GroupsTab({
         in one of these groups is dropped by the server — which is what lets
         this stay without needing a way to dismiss it.
       */}
-      {clusters.map((cluster) =>
-        making === cluster.key ? (
-          <CreateGroupForm
-            key={cluster.key}
-            api={api}
-            cluster={cluster}
-            also={also}
-            t={t}
-            onCancel={() => setMaking(null)}
-            onCreated={(id) => {
-              setMaking(null);
-              onOpenGroup(id);
-            }}
-          />
-        ) : (
-          <ClusterCard
-            key={cluster.key}
-            cluster={cluster}
-            onMake={() => setMaking(cluster.key)}
-            t={t}
-          />
-        ),
-      )}
+      {/*
+        A cluster opens the same page the `+` does, holding its people and its
+        suggested name. It used to unfold a form in its place, which meant two
+        ways to make a group with two layouts and two sets of copy — and the
+        one reachable from a suggestion was the one that could not search.
+      */}
+      {clusters.map((cluster) => (
+        <ClusterCard
+          key={cluster.key}
+          cluster={cluster}
+          onMake={() => onCreateGroupFrom(cluster)}
+          t={t}
+        />
+      ))}
 
       {/*
         Where the other kind of group is. Discovery lives on Find and stays
@@ -2124,6 +2151,31 @@ const styles = StyleSheet.create({
   /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
      the two cannot drift apart. */
   roundSlot: { width: ROUND, height: ROUND },
+  /*
+   * The name, in the face the web sets it in.
+   *
+   * `Garet-Book` is the font's own PostScript name, which is also what the file
+   * is called — iOS resolves an embedded font by the first and Android by the
+   * second, so naming the file after the PostScript name makes one string work
+   * on both. Embedded at build time by the `expo-font` config plugin rather
+   * than loaded at runtime: it draws one word, and a font gate in front of the
+   * whole app for one word is a blank screen nobody needed.
+   *
+   * React Native takes one family and no fallback stack, unlike the web's
+   * `'Garet', 'Futura', …`. A build where the font failed to embed draws the
+   * system face rather than a near relative — visibly wrong, which is the right
+   * way for that to fail.
+   *
+   * No `fontWeight`: the file is Book and there is no other weight. Asking for
+   * 300 here would have iOS synthesise one by thinning outlines, which at this
+   * size is visible.
+   */
+  wordmark: {
+    fontFamily: 'Garet-Book',
+    fontSize: 32,
+    letterSpacing: -0.2,
+    textTransform: 'lowercase',
+  },
   /* The first paint, before there is a page to draw. Centred in the tab rather
      than under a heading, because there is no heading yet. */
   groupsLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },

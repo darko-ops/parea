@@ -186,16 +186,19 @@ describe('what the `+` makes', () => {
     expect(APP).not.toMatch(/setRoute\(\{ screen: 'create' \}\)/);
   });
 
-  it('hands the group off to the tab that holds the suggestions', () => {
+  it('hands the group off through the tab that holds the suggestions', () => {
     /*
-     * The Groups tab's form comes with the people this actor keeps ending up
-     * in events with, which is the entire argument for making a group rather
-     * than an empty room to fill. A bare name-and-nobody form on the profile
-     * would be the problem that tab was written to avoid.
+     * It still goes by way of the Groups tab rather than opening the page from
+     * the profile, and the reason has outlived the form it was written for: the
+     * clusters live on that tab, and landing there means somebody who pressed
+     * `+` meaning "a group with these people" sees them.
+     *
+     * The tab no longer unfolds a form; it opens the page, which is the one
+     * place a group is made from any entry point.
      */
     expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
     expect(APP).toMatch(/openCreate=\{makeGroup\}/);
-    expect(EVENTS).toMatch(/if \(openCreate > 0\) setMaking\('anyone'\);/);
+    expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
   });
 
   it('opens again on a second press', () => {

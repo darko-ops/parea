@@ -48,6 +48,7 @@ import {
   Api,
   ApiError,
   tokenFromInput,
+  type ClusterPerson,
   type EventListing,
   type Feed,
   type FeedPhoto,
@@ -65,6 +66,7 @@ import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
 import { Lately } from './src/Lately';
+import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
 import { Back, More, RoundButton } from './src/RoundButton';
 import { PhotoViewer } from './src/PhotoViewer';
@@ -186,6 +188,14 @@ type Route =
    * permanent quarter of the tab bar. See `Lately.tsx`.
    */
   | { screen: 'lately' }
+  /**
+   * Making a group, on its own page.
+   *
+   * It was a card that unfolded inside the Groups tab, pushing the rooms down
+   * and leaving a form the width of a list item under a keyboard. The people it
+   * may arrive holding come from a cluster — see `NewGroup.tsx`.
+   */
+  | { screen: 'newGroup'; people?: ClusterPerson[]; suggestedName?: string }
   /**
    * Making an album, in two steps.
    *
@@ -656,6 +666,23 @@ export default function App() {
         device already holds a link token for, so opening one from here is the
         same act as opening it from home.
       */}
+      {route.screen === 'newGroup' && (
+        <NewGroup
+          api={api}
+          t={t}
+          dark={dark}
+          people={route.people}
+          suggestedName={route.suggestedName}
+          onCancel={leaveToTabs}
+          onCreated={(id) => {
+            // The tab behind it is holding a list without this in it, and the
+            // group is about to be on screen — so both, before the push.
+            void refreshGroups();
+            setRoute({ screen: 'group', id });
+          }}
+        />
+      )}
+
       {route.screen === 'lately' && (
         <SwipeBack onBack={leaveLately}>
           <Lately
@@ -776,6 +803,16 @@ export default function App() {
                 openCreate={makeGroup}
                 waiting={waiting}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
+                onCreateAlbum={() => setRoute({ screen: 'pick' })}
+                onCreateGroup={() => setRoute({ screen: 'newGroup' })}
+                onCreateGroupFrom={(cluster) =>
+                  setRoute({
+                    screen: 'newGroup',
+                    people: cluster.people,
+                    suggestedName: cluster.suggestedName ?? '',
+                  })
+                }
+                Button={Button}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
                 // The album, opened on the conversation rather than on the

@@ -29,7 +29,8 @@ const APP = read('App.tsx');
 const API = read('src/api.ts');
 const LATELY = read('src/Lately.tsx');
 const EVENTS = read('src/Events.tsx');
-const REQUESTS = read('src/Requests.tsx');
+/* The bubble on Home is gone; what survives of that file is the vocabulary. */
+const ANSWERS = read('src/answers.ts');
 
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -111,8 +112,8 @@ describe('the two halves', () => {
   it('shares the labels with the bubble on Home', () => {
     // A second copy is a screen where declining a group invitation is called
     // something else.
-    expect(REQUESTS).toMatch(/export const ANSWERS/);
-    expect(LATELY).toMatch(/import \{ ANSWERS \} from '\.\/Requests'/);
+    expect(ANSWERS).toMatch(/export const ANSWERS/);
+    expect(LATELY).toMatch(/import \{ ANSWERS \} from '\.\/answers'/);
   });
 
   it('takes the card away as soon as it is answered, and puts it back if it fails', () => {
@@ -183,8 +184,8 @@ describe('the kind that could not be answered', () => {
      * `Record` rather than a lookup with a default.
      */
     expect(API).toMatch(/'invite' \| 'friend' \| 'join' \| 'group_invite'/);
-    expect(REQUESTS).toMatch(/ANSWERS: Record<PendingRequest\['kind'\]/);
-    expect(REQUESTS).toMatch(/group_invite: \{ yes: 'Accept', no: 'Decline' \}/);
+    expect(ANSWERS).toMatch(/ANSWERS: Record<PendingRequest\['kind'\]/);
+    expect(ANSWERS).toMatch(/group_invite: \{ yes: 'Accept', no: 'Decline' \}/);
     // And its own route: an event invitation and a group invitation are two
     // tables, answered by two endpoints that each decide who may say yes.
     expect(API).toMatch(/case 'group_invite':[\s\S]{0,120}\/api\/group-invites\//);

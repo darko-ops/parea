@@ -153,8 +153,15 @@ describe('where it replaced the ring', () => {
     ]) {
       expect(read(name), `${name} still draws a ring for a screen`).toMatch(/<Waiting/);
     }
-    // The three that keep it, deliberately.
-    for (const name of ['src/CreateGroup.tsx', 'src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
+    /*
+     * The two that keep it, deliberately.
+     *
+     * `CreateGroup.tsx` used to be a third. Its ring belonged to the form that
+     * unfolded inside it, and that form is a page now — `NewGroup.tsx`, which
+     * reports the same wait as a word in its bar ("Creating…") because it has a
+     * bar to put one in and a card did not.
+     */
+    for (const name of ['src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
       expect(read(name), `${name} should keep its inline ring`).toMatch(/<ActivityIndicator/);
     }
   });
