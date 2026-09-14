@@ -2077,15 +2077,17 @@ function EventScreen({
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
         {/*
-          The photograph's own boundary, softened.
+          Where the photograph meets the page, as a panel of leaded glass.
+
+          Three of the cover's sides are the screen's own edges and only this
+          one borders anything, which is why it is the only one that gets
+          anything — softening the other three was a vignette nobody asked for.
 
           Above the image so it has something to blur, and below the scrim so
           the gradient still lands on the same forty points it was tuned
-          against. Three sides of this meet the screen's edges and the fourth
-          meets the page — that last one is the seam somebody actually notices,
-          and it is why the effect is worth the layers. See `CoverEdges`.
+          against. See `CoverEdges`.
         */}
-        <CoverEdges dark={dark} />
+        <CoverEdges />
 
         {/*
           Dark at the top and the bottom, clear through the middle.

@@ -154,54 +154,85 @@ describe('the account', () => {
 });
 
 /**
- * The cover's edges, softened.
+ * Where the cover meets the page, as a panel of leaded glass.
  *
- * A photograph 232 points tall with a hard rectangular boundary: three sides
- * against the screen and one against the page. That last one is the seam
- * somebody notices — a picture stops, a line, and then the app.
+ * Three of the cover's four sides are the screen's own edges. Only the bottom
+ * borders anything, and that is the seam anybody notices — a picture stops, a
+ * line, and then the app. Softening all four was a vignette nobody asked for.
  *
- * What is worth guarding is the shape of the fix rather than the look of it.
- * One `BlurView` trades the hard edge of the photograph for the hard edge of
- * the blur half an inch higher up, which is the same line drawn somewhere else,
- * and is exactly what a later simplification would collapse this into.
+ * What is worth guarding is the shape of the thing rather than the look of it.
+ * A single `BlurView` trades the hard edge of the photograph for the hard edge
+ * of the blur half an inch higher up — the same line drawn somewhere else — and
+ * that is exactly what a later simplification collapses this into.
  */
-describe('the softened cover edge', () => {
-  const EDGES = readFileSync(
+describe('the glass under the cover', () => {
+  const GLASS = readFileSync(
     fileURLToPath(new URL('../src/CoverEdges.tsx', import.meta.url).href),
     'utf8',
   );
 
+  it('is the bottom edge and nothing else', () => {
+    expect(GLASS).toMatch(/glass: \{ position: 'absolute', left: 0, right: 0, bottom: 0 \}/);
+    // No top, and no sides: the other three edges are the screen's.
+    expect(GLASS).not.toMatch(/top: \{ top: 0/);
+    expect(GLASS).not.toMatch(/styles\.left|styles\.right/);
+  });
+
   it('ramps, rather than drawing one band with an edge of its own', () => {
-    const bands = EDGES.match(/intensity: \d+/g) ?? [];
-    expect(bands.length).toBeGreaterThan(2);
-    // Widest and weakest first, so each band sits inside the one before it.
-    const sizes = [...EDGES.matchAll(/size: (\d+)/g)].map((m) => Number(m[1]));
-    const strengths = [...EDGES.matchAll(/intensity: (\d+)/g)].map((m) => Number(m[1]));
+    const sizes = [...GLASS.matchAll(/at: ([\d.]+)/g)].map((m) => Number(m[1]));
+    const strengths = [...GLASS.matchAll(/intensity: (\d+)/g)].map((m) => Number(m[1]));
+    expect(sizes.length).toBeGreaterThan(2);
+    // Tallest and weakest first, so each band sits inside the one before it.
     expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
     expect(strengths).toEqual([...strengths].sort((a, b) => a - b));
+    // Every band shares the bottom edge; only how far up it reaches differs.
+    expect(GLASS).toMatch(/band: \{ position: 'absolute', left: 0, right: 0, bottom: 0 \}/);
   });
 
-  it('insets the sides so the corners are not blurred four times over', () => {
-    // A corner carrying every band at once is four times the wash, and it shows
-    // as a dark blot in each corner of an otherwise even frame.
-    expect(EDGES).toMatch(/top: size, bottom: size/);
-  });
-
-  it('takes its tint from the page, not from a fixed colour', () => {
+  it('is glass rather than frost', () => {
     /*
-     * A blur on iOS carries a wash as well as a blur, and a light wash under a
-     * dark page is a grey haze around the picture rather than an edge
-     * dissolving into what it borders.
+     * `systemUltraThinMaterial` is the thinnest material iOS has: it blurs what
+     * is behind it and keeps most of its colour. A `light` or `dark` tint would
+     * wash the photograph grey, and a grey band under a photograph is a band,
+     * not a window.
      */
-    expect(EDGES).toMatch(/const tint = dark \? 'dark' : 'light'/);
-    expect(APP).toMatch(/<CoverEdges dark=\{dark\} \/>/);
+    expect(GLASS).toMatch(/tint="systemUltraThinMaterial"/);
+    expect(GLASS).not.toMatch(/tint=\{?['"]?(light|dark)['"]?\}?[\s/>]/);
+  });
+
+  it('is leaded into uneven lights', () => {
+    /*
+     * Equal divisions read as a progress bar or a segmented control — both
+     * things this product has elsewhere, and neither of them a window.
+     */
+    const lights = GLASS.match(/const LIGHTS = \[([^\]]+)\]/)?.[1];
+    expect(lights).toBeDefined();
+    const widths = lights!.split(',').map((n) => Number(n.trim()));
+    expect(widths.length).toBeGreaterThan(2);
+    expect(new Set(widths).size).toBe(widths.length);
+    expect(widths.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
+  });
+
+  it('draws the came between lights, not around the window', () => {
+    // A line on the outside edge would be a border on a photograph, which is
+    // the opposite of an edge dissolving into the page.
+    expect(GLASS).toMatch(/\{i > 0 && \(/);
+    // And it fades upward, so the lights arrive out of the photograph rather
+    // than being ruled onto it.
+    expect(GLASS).toMatch(/colors=\{\['rgba\(12,14,18,0\)', LEAD\]\}/);
+  });
+
+  it('is the same window every time the album opens', () => {
+    // A random set of widths would make the glass rearrange itself on every
+    // render, which is a photograph that will not sit still.
+    expect(GLASS).not.toMatch(/Math\.random/);
   });
 
   it('sits above the photograph and below the scrim', () => {
     /*
      * Above, or it has nothing to blur. Below, because the gradient carries the
      * back button and the title and was tuned against the same forty points —
-     * putting the blur over it would change what it is sitting on.
+     * putting the glass over it would change what it is sitting on.
      */
     const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
     const image = cover.indexOf('contentFit="cover"');
@@ -212,7 +243,6 @@ describe('the softened cover edge', () => {
   });
 
   it('lets touches through', () => {
-    // It covers the whole cover, including both corner buttons.
-    expect(EDGES).toMatch(/pointerEvents="none"/);
+    expect(GLASS).toMatch(/pointerEvents="none"/);
   });
 });
