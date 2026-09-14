@@ -24,6 +24,7 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
+const API = read('src/api.ts');
 const GLYPH = read('src/Glyph.tsx');
 
 /**
@@ -314,5 +315,75 @@ describe('the account', () => {
      */
     expect(SCREEN).toMatch(/if \(signedIn === false\) return setGateOpen\(true\)/);
     expect(SCREEN).toMatch(/gate\s*\n\s*why="Adding photos needs an account/);
+  });
+});
+
+/**
+ * Whose photograph each one is, and a way to keep it.
+ *
+ * An album is several people's pictures in one column, and it attributed none
+ * of them — the People pane counted them by person and the grid said nothing.
+ * Saving one was the same gap from the other side: the only route was Download
+ * Album, which is the whole evening and a question about megabytes first.
+ */
+describe('a photograph in an album', () => {
+  it('says whose it is, by the key the photo carries', () => {
+    /*
+     * Never by an actor id. `by` is an opaque per-event digest and `Feed.people`
+     * is keyed by the same digest, so the association lives inside this event
+     * and is useless outside it — which is the rule `contributors.ts` exists to
+     * keep and the one an obvious "just send the uploader" would break.
+     */
+    expect(API).toMatch(/by: string \| null;/);
+    expect(APP).toMatch(/const who = item\.by \? byline\.get\(item\.by\) : undefined/);
+    expect(APP).not.toMatch(/item\.uploaderId|photo\.actorId/);
+  });
+
+  it('builds the lookup once rather than searching per row', () => {
+    // `people.find` inside a `renderItem` is free at five photographs and a
+    // dropped frame at three hundred.
+    expect(APP).toMatch(/const byline = useMemo\(/);
+    expect(APP).toMatch(/new Map\(\(feed\?\.people \?\? \[\]\)\.map\(\(person\) => \[person\.key, person\]\)\)/);
+  });
+
+  it('draws the handle, not the display name', () => {
+    // A column of names reads as captions; a column of handles reads as
+    // attribution. The name is the fallback for somebody who has no handle.
+    expect(APP).toMatch(/\{who\.handle \?\? who\.name\}/);
+  });
+
+  it('saves one photograph without asking about megabytes', () => {
+    /*
+     * Download Album asks first because that question is about a hundred files
+     * and a minute of waiting. One picture is a second and a few megabytes, and
+     * asking doubles the cost of the action.
+     *
+     * The original rather than a rendition: somebody saving a single photograph
+     * wants the photograph, and the size argument that makes smaller copies
+     * worth offering in bulk does not apply to one.
+     */
+    const save = APP.slice(APP.indexOf('const saveOne'), APP.indexOf('const editCover'));
+    expect(save).toMatch(/url: photo\.original/);
+    expect(save).not.toMatch(/Alert\.alert\([\s\S]{0,80}Save \$\{/);
+    expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
+  });
+
+  it('keeps the two out of each other’s corner', () => {
+    // Opposite corners, so they never meet however long a handle is.
+    expect(APP).toMatch(/tileBy: \{\s*position: 'absolute',\s*top: 10,\s*left: 10,/);
+    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, bottom: 10,/);
+    expect(APP).toMatch(/maxWidth: '70%'/);
+  });
+
+  it('shadows the corners rather than dimming the photograph', () => {
+    /*
+     * These are the pictures themselves, not a header. Darkening one to label
+     * it is the product having an opinion about somebody's photograph, so the
+     * scrim is weaker than the cover's and clear through the middle, which is
+     * most of it.
+     */
+    expect(APP).toMatch(
+      /colors=\{\['rgba\(0,0,0,0\.34\)', 'rgba\(0,0,0,0\)', 'rgba\(0,0,0,0\.34\)'\]\}/,
+    );
   });
 });

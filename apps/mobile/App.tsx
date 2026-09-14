@@ -1156,6 +1156,8 @@ function EventScreen({
   const [feed, setFeed] = useState<Feed | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
+  /** Which single photograph is on its way to the camera roll, if any. */
+  const [savingOne, setSavingOne] = useState<string | null>(null);
   /**
    * What is stuck in *this* album, as numbers rather than as a sentence.
    *
@@ -1664,6 +1666,54 @@ function EventScreen({
    * borrowed picture it would offer to remove a cover nobody set.
    */
   const cover = chosenCover ?? feed?.photos[0]?.card ?? feed?.photos[0]?.src ?? null;
+
+  /**
+   * Who each photograph belongs to, by the key each one carries.
+   *
+   * Built once rather than searched per row: an album is a long list and
+   * `people.find` inside a `renderItem` is the sort of thing that is free at
+   * five photographs and a dropped frame at three hundred.
+   */
+  const byline = useMemo(
+    () => new Map((feed?.people ?? []).map((person) => [person.key, person])),
+    [feed],
+  );
+
+  /**
+   * One photograph, into the camera roll.
+   *
+   * The sheet's Download Album asks first — how many, and whether the full
+   * quality is worth the megabytes — because that question is about a hundred
+   * files and a minute of waiting. One picture is not that question: it is a
+   * second, it is a few megabytes, and asking is the whole cost of the action
+   * doubled.
+   *
+   * The original rather than a rendition. Somebody saving a single photograph
+   * wants the photograph, and the size argument that makes the smaller copies
+   * worth offering in bulk does not apply to one.
+   */
+  const saveOne = useCallback(
+    async (photo: FeedPhoto) => {
+      setSavingOne(photo.id);
+      try {
+        const { saved } = await saveToCameraRoll(
+          [{ id: photo.id, url: photo.original, mime: photo.mime }],
+          () => {},
+        );
+        if (saved === 0) throw new Error('not saved');
+      } catch (err) {
+        Alert.alert(
+          'Could not save it',
+          err instanceof Error && err.message.includes('Permission')
+            ? err.message
+            : 'Try again in a moment.',
+        );
+      } finally {
+        setSavingOne(null);
+      }
+    },
+    [],
+  );
 
   const editCover = useCallback(() => {
     const actions: Parameters<typeof Alert.alert>[2] = [
@@ -2400,23 +2450,105 @@ function EventScreen({
                   </Text>
                 ) : null
               }
-              renderItem={({ item }) => (
-                <Pressable style={styles.tile} onPress={() => setSelected(item)}>
-                  {/*
-                    The 1280 now that a row is the whole width of the screen:
-                    393 points is 1179 device pixels on a 3× phone, and the 640
-                    that was right for a third of a row cannot fill one. Both
-                    fall back the same way — each is null only until the
-                    deriver has been round, and `src` is then all there is.
-                  */}
-                  <ExpoImage
-                    source={{ uri: item.grid ?? item.card ?? item.src }}
-                    style={styles.thumb}
-                    contentFit="cover"
-                    transition={120}
-                  />
-                </Pressable>
-              )}
+              renderItem={({ item }) => {
+                const who = item.by ? byline.get(item.by) : undefined;
+                return (
+                  <Pressable style={styles.tile} onPress={() => setSelected(item)}>
+                    {/*
+                      The 1280 now that a row is the whole width of the screen:
+                      393 points is 1179 device pixels on a 3× phone, and the 640
+                      that was right for a third of a row cannot fill one. Both
+                      fall back the same way — each is null only until the
+                      deriver has been round, and `src` is then all there is.
+                    */}
+                    <ExpoImage
+                      source={{ uri: item.grid ?? item.card ?? item.src }}
+                      style={styles.thumb}
+                      contentFit="cover"
+                      transition={120}
+                    />
+
+                    {/*
+                      Just enough shadow in the two corners to carry white.
+
+                      Top and bottom only, and weaker than the cover's: these
+                      are the photographs themselves rather than a header, and
+                      darkening one to label it is the product having an opinion
+                      about somebody's picture. Clear through the middle, which
+                      is most of it.
+                    */}
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.34)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.34)']}
+                      locations={[0, 0.32, 1]}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    />
+
+                    {/*
+                      Whose it is, top left.
+
+                      An album is several people's photographs in one column and
+                      it never said which was whose — the People pane counted
+                      them and the grid attributed none of them. The handle
+                      rather than the display name: a column of names reads as
+                      captions, a column of handles reads as attribution.
+                    */}
+                    {who && (
+                      <View style={styles.tileBy} pointerEvents="none">
+                        {who.avatarUrl ? (
+                          <ExpoImage
+                            source={{ uri: who.avatarUrl }}
+                            style={styles.tileFace}
+                            contentFit="cover"
+                            transition={120}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.tileFace,
+                              styles.tileFaceBlank,
+                              { backgroundColor: lensFor(who.key).fill },
+                            ]}
+                          >
+                            <Text
+                              style={[styles.tileInitial, { color: lensFor(who.key).ink }]}
+                            >
+                              {initialOf(who.name)}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.tileHandle} numberOfLines={1}>
+                          {who.handle ?? who.name}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/*
+                      And a way to keep it, bottom right.
+
+                      Saving one photograph out of somebody else's evening is
+                      the common case and it had no control at all: the only way
+                      was Download Album, which is the whole thing and a
+                      question about megabytes first.
+                    */}
+                    <Pressable
+                      onPress={() => void saveOne(item)}
+                      disabled={savingOne !== null}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        savingOne === item.id ? 'Saving' : 'Save this photo'
+                      }
+                      style={({ pressed }) => [
+                        styles.tileSave,
+                        { opacity: savingOne === item.id ? 0.5 : pressed ? 0.6 : 1 },
+                      ]}
+                    >
+                      <Glyph name="download" size={18} color="#fff" />
+                    </Pressable>
+                  </Pressable>
+                );
+              }}
             />
           </>
         ) : pane === 'talk' ? (
@@ -3445,6 +3577,38 @@ const styles = StyleSheet.create({
    * of the product uses to mean "this is happening" and which now has a plain
    * background to be legible against rather than somebody's photograph.
    */
+  /*
+   * The byline and the save, in the two corners of a photograph.
+   *
+   * White with a shadow rather than a disc: a filled circle in the corner of
+   * every row is furniture, and there are as many of these as there are
+   * photographs. The corners are where a phone camera already puts its own
+   * labels, so they read as being about the picture rather than as controls
+   * belonging to the app.
+   */
+  tileBy: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    maxWidth: '70%',
+  },
+  tileFace: { width: 24, height: 24, borderRadius: 12 },
+  tileFaceBlank: { alignItems: 'center', justifyContent: 'center' },
+  tileInitial: { fontSize: 11, fontWeight: '700' },
+  tileHandle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  /* Opposite corner from the byline, so the two never meet however long a
+     handle is. */
+  tileSave: { position: 'absolute', right: 10, bottom: 10, padding: 4 },
   uploadBar: {
     position: 'absolute',
     bottom: 0,

@@ -49,6 +49,20 @@ export type FeedPhoto = {
   takenAt: string;
   mine: boolean;
   /**
+   * Who added it, as the opaque per-event key — never an actor id.
+   *
+   * The server has sent this all along and this client never declared it, so
+   * the album had no way to say whose photograph a row was. Look it up in
+   * `Feed.people`, which carries the name, the handle and the face for the same
+   * key; null for a photograph whose uploader is gone.
+   *
+   * A key rather than the person themselves because an album of two hundred
+   * pictures taken by five people is five names, not two hundred — and because
+   * the key is what keeps the association inside this event. See
+   * `contributors.ts` on the server.
+   */
+  by: string | null;
+  /**
    * Who reacted, and with what. Newest first.
    *
    * A row per person rather than a tally: the viewer names people, so two
@@ -121,7 +135,23 @@ export type Feed = {
    * else. The same person in two events has two keys, so it cannot be used to
    * follow somebody between them.
    */
-  people: { key: string; name: string; photoCount: number; mine: boolean }[];
+  people: {
+    key: string;
+    name: string;
+    /**
+     * The handle alone, without the `@`. Null for a guest who arrived by link.
+     *
+     * Beside `name` rather than instead of it, because `name` already falls
+     * back to `@handle` for somebody with no display name — the byline on a
+     * photograph wants the handle *as a handle*, and the face row over the
+     * cover wants the name.
+     */
+    handle: string | null;
+    /** Presigned, as every face that crosses this boundary is. */
+    avatarUrl: string | null;
+    photoCount: number;
+    mine: boolean;
+  }[];
   /** Everybody in it with what they have put in, plus whoever was asked. */
   roster: Roster[];
   /**

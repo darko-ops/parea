@@ -143,11 +143,52 @@ describe('the list', () => {
     expect(await contributorsOf(db, EVENT, [{ uploaderId: null }], null)).toEqual([]);
   });
 
-  it('returns a key, a name and two counts, and nothing else', async () => {
-    // The shape is the promise. A field added here is a field published to
-    // everybody holding the link.
+  it('returns a key, a name, a face, a handle and two counts — and nothing else', async () => {
+    /*
+     * The shape is the promise. A field added here is a field published to
+     * everybody holding the link, which on a public album is anybody at all.
+     *
+     * `handle` and `avatarUrl` were added for the byline on each photograph in
+     * an album, and they are safe for a reason worth writing down rather than
+     * re-deriving: `membersOf` already puts both of them, for the same people,
+     * in the same response — `members` and `roster` travel beside this list. So
+     * no new fact about a person is published. What is new is the *join*
+     * between a person and a particular photograph, which is the feature.
+     *
+     * What must not appear here is an actor id. The whole point of `key` is
+     * that the association survives inside one event and is useless outside it,
+     * and an id in this object would quietly undo that while every test still
+     * passed.
+     */
     const id = await person('Maya', 'maya');
     const [only] = await contributorsOf(db, EVENT, [{ uploaderId: id }], null);
-    expect(Object.keys(only!).sort()).toEqual(['key', 'mine', 'name', 'photoCount']);
+    expect(Object.keys(only!).sort()).toEqual([
+      'avatarUrl',
+      'handle',
+      'key',
+      'mine',
+      'name',
+      'photoCount',
+    ]);
+    expect(Object.values(only!)).not.toContain(id);
+  });
+
+  it('gives the handle as a handle, beside the name that may already be one', async () => {
+    /*
+     * `name` falls back to `@handle` when somebody has no display name, so the
+     * two fields collide for exactly those people — and the byline wants the
+     * handle *as a handle* either way. A row of display names reads as a
+     * caption; a row of handles reads as attribution.
+     */
+    const named = await person('Maya', 'maya');
+    const bare = await person(null, 'jonas');
+    const people = await contributorsOf(
+      db,
+      EVENT,
+      [{ uploaderId: named }, { uploaderId: bare }],
+      null,
+    );
+    expect(people.find((p) => p.handle === 'maya')?.name).toBe('Maya');
+    expect(people.find((p) => p.handle === 'jonas')?.name).toBe('@jonas');
   });
 });
