@@ -23,7 +23,25 @@
 
 /** Long enough for a name and a surname, short enough to fit beside a photo. */
 export const HANDLE_MAX = 30;
-export const HANDLE_MIN = 2;
+
+/**
+ * Short enough to be somebody's actual name, long enough to be a name at all.
+ *
+ * It was 2, which is the shortest thing that is not a single character — a
+ * bound against nothing rather than a decision. Two and three character handles
+ * are initials and abbreviations: they are the ones worth squatting on, they
+ * are the ones a stranger cannot tell apart at a glance in a byline, and there
+ * are only a few thousand of them in the alphabet this allows.
+ *
+ * Four is the smallest length that holds a short real name — `anna`, `alex`,
+ * `yiannis` cut down — which is the thing a handle is for.
+ *
+ * Nobody is grandfathered out: this bounds what may be *set*, and no existing
+ * handle is shorter than this. Generated ones are a colour, a manner and an
+ * animal, so they are nine characters at their shortest and cannot collide with
+ * the rule either.
+ */
+export const HANDLE_MIN = 4;
 
 /**
  * Words a handle may not be.

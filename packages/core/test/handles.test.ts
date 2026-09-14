@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   generateHandle,
   HANDLE_MAX,
+  HANDLE_MIN,
   HANDLE_SPACE,
   handleKey,
   handleProblem,
@@ -33,11 +34,11 @@ describe('the key a handle is unique under', () => {
 
 describe('what is allowed', () => {
   it('takes letters, numbers, underscores and full stops', () => {
-    ok('sam');
+    ok('sammy');
     ok('sam_jones');
     ok('sam.jones');
-    ok('s4m');
-    ok('a1');
+    ok('s4mm');
+    ok('a1b2');
   });
 
   it('refuses spaces and everything else', () => {
@@ -56,6 +57,23 @@ describe('what is allowed', () => {
     bad('a'.repeat(HANDLE_MAX + 1));
   });
 
+  it('refuses the initials and abbreviations', () => {
+    /*
+     * The minimum was 2 — the shortest thing that is not a single character,
+     * which is a bound against nothing rather than a decision. Two and three
+     * character handles are the ones worth squatting on, the ones a stranger
+     * cannot tell apart at a glance in a byline, and there are only a few
+     * thousand of them in the alphabet this allows.
+     */
+    expect(HANDLE_MIN).toBe(4);
+    bad('ab');
+    bad('abc');
+    ok('abcd');
+    // Four is the smallest length that holds a short real name, which is the
+    // thing a handle is for.
+    ok('anna');
+  });
+
   it('will not start or end on punctuation', () => {
     // A leading dot hides a handle in some listings; a trailing one reads as
     // the end of a sentence.
@@ -63,7 +81,8 @@ describe('what is allowed', () => {
     bad('sam.');
     bad('_sam');
     bad('sam_');
-    ok('s.m');
+    // Punctuation in the middle is fine; four is the minimum length.
+    ok('s.am');
   });
 
   it('refuses runs of punctuation', () => {
@@ -157,6 +176,8 @@ describe('the message', () => {
 
   it('says which rule, not that there was a rule', () => {
     expect(handleProblem('a')).toMatch(/at least/);
+    // The sentence carries the number, so it cannot drift from the constant.
+    expect(handleProblem('abc')).toContain(String(HANDLE_MIN));
     expect(handleProblem('.sam')).toMatch(/start and end/);
     expect(handleProblem('parea')).toMatch(/reserved/);
   });
