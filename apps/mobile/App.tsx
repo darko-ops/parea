@@ -1692,6 +1692,28 @@ function EventScreen({
   );
 
   /**
+   * How many comments each photograph has.
+   *
+   * Counted off the thread the album already has rather than asked for: a
+   * comment is an event message with a `photo_id`, so the number is a pass over
+   * a list that is already in hand. Built once, for the same reason the byline
+   * is — `messages.filter` inside a `renderItem` is a walk of the whole
+   * conversation per row.
+   *
+   * Tombstones do not count. A deleted comment leaves a row so the messages
+   * either side of it do not appear to answer each other, and counting it would
+   * put "1 comment" under a photograph whose only comment is gone.
+   */
+  const talk = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const message of feed?.messages ?? []) {
+      if (!message.photoId || message.deleted) continue;
+      counts.set(message.photoId, (counts.get(message.photoId) ?? 0) + 1);
+    }
+    return counts;
+  }, [feed]);
+
+  /**
    * One photograph, into the camera roll.
    *
    * The sheet's Download Album asks first — how many, and whether the full
@@ -2465,6 +2487,25 @@ function EventScreen({
               renderItem={({ item }) => {
                 const who = item.by ? byline.get(item.by) : undefined;
                 const added = shortDate(item.addedAt);
+                /*
+                 * What has happened to this photograph, if anything has.
+                 *
+                 * Only the halves that are not zero, and no line at all when
+                 * both are: "0 comments" under every picture in a quiet album
+                 * is a column of nothing, and it is worse than nothing because
+                 * it makes the pictures people *have* said something about
+                 * harder to pick out.
+                 */
+                const said = [
+                  talk.get(item.id)
+                    ? `${talk.get(item.id)} ${talk.get(item.id) === 1 ? 'comment' : 'comments'}`
+                    : null,
+                  item.reactions.length
+                    ? `${item.reactions.length} ${item.reactions.length === 1 ? 'reaction' : 'reactions'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
                 return (
                   <Pressable style={styles.tile} onPress={() => setSelected(item)}>
                     {/*
@@ -2552,6 +2593,21 @@ function EventScreen({
                     {added && (
                       <Text style={styles.tileWhen} pointerEvents="none">
                         {added}
+                      </Text>
+                    )}
+
+                    {/*
+                      What people have done with it, bottom left.
+
+                      Words rather than glyphs and a number. Two counts in the
+                      corner of a photograph are read once, if at all, and
+                      "3 comments" is legible at a glance where a speech bubble
+                      with a 3 beside it asks somebody to decode two symbols
+                      first. There is room: the row is the width of the screen.
+                    */}
+                    {said !== '' && (
+                      <Text style={styles.tileSaid} pointerEvents="none" numberOfLines={1}>
+                        {said}
                       </Text>
                     )}
 
@@ -3869,6 +3925,20 @@ const styles = StyleSheet.create({
    * is what a control should be.
    */
   tileSave: { position: 'absolute', right: 10, bottom: 10, padding: 4 },
+  /* Opposite the save, and short of it: the two never meet however many
+     comments a photograph collects. */
+  tileSaid: {
+    position: 'absolute',
+    left: 10,
+    bottom: 14,
+    maxWidth: '72%',
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   /*
    * Opposite the byline, pinned to the corner rather than trailing the handle.
    *

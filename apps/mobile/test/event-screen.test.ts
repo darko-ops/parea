@@ -368,6 +368,40 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
   });
 
+  it('says what has happened to a photograph, and nothing when nothing has', () => {
+    /*
+     * "0 comments" under every picture in a quiet album is a column of nothing,
+     * and it is worse than nothing: it makes the pictures people *have* said
+     * something about harder to pick out. So each half appears only when it is
+     * not zero, and neither appearing means no line at all.
+     */
+    expect(APP).toMatch(/const said = \[/);
+    expect(APP).toMatch(/\.filter\(Boolean\)\s*\.join\(' · '\)/);
+    expect(APP).toMatch(/\{said !== '' && \(/);
+    // Singular and plural, because "1 comments" is the kind of thing that
+    // survives forever once it ships.
+    expect(APP).toMatch(/=== 1 \? 'comment' : 'comments'/);
+    expect(APP).toMatch(/=== 1 \? 'reaction' : 'reactions'/);
+  });
+
+  it('counts comments off the thread it already has', () => {
+    /*
+     * A comment is an event message with a `photo_id`, so the number is a pass
+     * over a list already in hand rather than a request. Built once: a filter
+     * inside `renderItem` is a walk of the whole conversation per row.
+     *
+     * Tombstones do not count. A deleted comment leaves a row so the messages
+     * either side do not appear to answer each other, and counting it would put
+     * "1 comment" under a photograph whose only comment is gone.
+     */
+    expect(APP).toMatch(/const talk = useMemo\(/);
+    expect(APP).toMatch(/if \(!message\.photoId \|\| message\.deleted\) continue;/);
+  });
+
+  it('keeps the counts clear of the save in the other corner', () => {
+    expect(APP).toMatch(/tileSaid: \{\s*position: 'absolute',\s*left: 10,\s*bottom: 14,\s*maxWidth: '72%'/);
+  });
+
   it('gives each of the three its own corner', () => {
     /*
      * Who added it top-left, when it arrived top-right, and the save below
