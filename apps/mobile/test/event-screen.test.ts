@@ -95,10 +95,9 @@ describe('what is above the first photograph', () => {
      * gradient is what makes the title legible in the cases the glass does not.
      */
     const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
-    const image = cover.indexOf('contentFit="cover"');
-    const glass = cover.indexOf('<CoverGlass');
+    const glass = cover.indexOf('<CoverGlass uri={cover} />');
     const scrim = cover.indexOf('<LinearGradient');
-    expect(image).toBeLessThan(glass);
+    expect(glass).toBeGreaterThan(-1);
     expect(glass).toBeLessThan(scrim);
 
     const GLASS = readFileSync(
@@ -134,6 +133,45 @@ describe('what is above the first photograph', () => {
     expect(code(GLASS)).not.toMatch(/LIGHTS|LEAD|came/);
     expect(code(GLASS)).not.toMatch(/rgba\(255,255,255,0\.05\)|rgba\(0,0,0,0\.04\)/);
     expect(code(GLASS)).not.toMatch(/Math\.random/);
+  });
+
+  it('saturates the photograph before blurring it, not after', () => {
+    /*
+     * Blurring averages neighbouring pixels, and averaging colour is how you
+     * make it grey — a blurred photograph is always duller than the photograph.
+     * Saturating afterwards saturates the mush; saturating first gives the blur
+     * livelier pixels to average, so the colour of the evening survives it.
+     *
+     * The order is the whole of the effect, which is why the image and the
+     * treatment are one component rather than an `<ExpoImage>` with something
+     * laid over it.
+     */
+    const GLASS = readFileSync(
+      fileURLToPath(new URL('../src/CoverGlass.tsx', import.meta.url).href),
+      'utf8',
+    );
+    const filtered = GLASS.indexOf('filter="url(#lit)"');
+    const blurred = GLASS.indexOf('<BlurView');
+    expect(filtered).toBeGreaterThan(-1);
+    expect(filtered).toBeLessThan(blurred);
+
+    // Saturate, then lift. The other order brightens the grey rather than the
+    // colour.
+    const saturate = GLASS.indexOf('type="saturate"');
+    const lift = GLASS.indexOf('<FeComponentTransfer');
+    expect(saturate).toBeLessThan(lift);
+
+    // And it costs an import rather than a pod: the filter set comes with the
+    // library already here for the glyphs and the wordmark.
+    expect(GLASS).toMatch(/from 'react-native-svg'/);
+  });
+
+  it('puts no glass over an album with no photograph', () => {
+    // There is nothing behind a flat lens colour to obscure, and blurring one
+    // is work that changes no pixel.
+    expect(APP).toMatch(
+      /\{cover \? \([\s\S]{0,600}<CoverGlass uri=\{cover\} \/>[\s\S]{0,400}\) : \([\s\S]{0,600}lensFor\(event\.id\)\.fill/,
+    );
   });
 
   it('keeps no slab where a setting used to be', () => {

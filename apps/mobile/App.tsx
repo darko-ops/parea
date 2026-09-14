@@ -2082,27 +2082,24 @@ function EventScreen({
 
       <View style={styles.cover}>
         {cover ? (
-          <ExpoImage
-            source={{ uri: cover }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={120}
-          />
+          /*
+            The photograph, brightened and then put behind glass — the image and
+            the treatment are one component because the order of the two is the
+            whole of it. See `CoverGlass`.
+
+            Below the scrim, which still carries the title and the corner discs:
+            the glass makes those legible in the common case and the gradient is
+            what makes them legible in every case.
+          */
+          <CoverGlass uri={cover} />
         ) : (
           // Nothing chosen and nothing to borrow — an album nobody has put a
           // photograph in yet. The event's own lens, which is the same
           // letter-on-a-colour every other doorless thing in the product gets.
+          // No glass over it: there is nothing behind a flat colour to obscure,
+          // and blurring one is work that changes no pixel.
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
-        {/*
-          The photograph, behind glass.
-
-          Above the image so it has something to blur, and below the scrim,
-          which still carries the title and the corner discs — the glass makes
-          those legible in the common case and the gradient is what makes them
-          legible in every case. See `CoverGlass`.
-        */}
-        <CoverGlass />
 
         {/*
           Dark at the top and the bottom, clear through the middle.
