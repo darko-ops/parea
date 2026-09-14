@@ -1,15 +1,28 @@
 /**
  * Three of the four tabs' contents: home, groups and find. You is its own file.
  *
- * One word for one thing: an event. These tabs briefly said "event" while the
- * schema said `event`, which meant every file that touched them opened with a
- * paragraph explaining that the two were the same. That paragraph was the cost
- * of the second word, and it bought nothing.
+ * ## One word for one thing, and the word is "album"
+ *
+ * It was "event", and the rule was that the product should say whatever the
+ * schema says — because a second word costs a paragraph of explanation in every
+ * file that touches it, and buys nothing.
+ *
+ * The rule holds; the word was wrong. "Event" is what the row is called and
+ * what somebody making this thinks about. "Album" is what the row *is* to
+ * everybody else: a set of photographs from one evening. Nobody outside this
+ * repository has ever called it an event, and the interface was quietly asking
+ * people to learn the database's vocabulary.
+ *
+ * So the split is deliberate and it is the only one: the schema, the routes and
+ * the types say `event`, top to bottom, and every word a person reads says
+ * album. Renaming the tables and the URLs to match would be a migration, a set
+ * of dead links in everybody's messages, and no improvement to anything anybody
+ * sees.
  *
  * All three read from `GET /api/events`, which lists what this actor can
- * actually reach: events they have presented a credential to, plus every event
+ * actually reach: albums they have presented a credential to, plus every album
  * in a group they belong to. Not "everything a link would still open" — a link
- * is something you were sent, not somewhere you live, and an event opened once
+ * is something you were sent, not somewhere you live, and an album opened once
  * a year ago does not belong on a home screen.
  */
 
@@ -522,7 +535,7 @@ export function HomeTab({
             Nothing here yet. Events you are sent open when you tap the link,
             and the ones you make show up here.
           </Text>
-          <Button label="Create Event" onPress={onCreate} t={t} primary />
+          <Button label="Create album" onPress={onCreate} t={t} primary />
         </View>
       )}
 
@@ -994,9 +1007,9 @@ export function GroupsTab({
           <Pressable
             onPress={onGoToEvents}
             accessibilityRole="button"
-            accessibilityLabel="Go to your events"
+            accessibilityLabel="Go to your albums"
           >
-            <Text style={[styles.headAction, { color: t.accent }]}>Your events</Text>
+            <Text style={[styles.headAction, { color: t.accent }]}>Your albums</Text>
           </Pressable>
         </View>
       ) : (
@@ -1267,7 +1280,7 @@ function GroupBlock({
         line={group}
         fallback={
           group.eventCount === 0
-            ? 'Nothing in it yet — anyone in it can start the first event.'
+            ? 'Nothing in it yet — anyone in it can start the first album.'
             : 'Nobody has said anything yet.'
         }
         t={t}
@@ -1618,7 +1631,7 @@ export function SearchTab({
       {scope === 'places' && places.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
           {events.length === 0 || unplaced === events.length
-            ? 'None of your events say where they were yet. Whoever starts one can add a place, and it shows up here.'
+            ? 'None of your albums say where they were yet. Whoever starts one can add a place, and it shows up here.'
             : 'No place of yours matches that.'}
         </Text>
       )}
@@ -1837,10 +1850,10 @@ export function AccountCard({
     Alert.alert(
       'Sign out?',
       waiting > 0
-        ? `This phone forgets you and the events it is holding links to. ${waiting} ${
+        ? `This phone forgets you and the albums it is holding links to. ${waiting} ${
             waiting === 1 ? 'photo' : 'photos'
           } waiting to upload will be dropped — they stay in your camera roll. Nothing else is deleted.`
-        : 'This phone forgets you and the events it is holding links to. Nothing is deleted, and the same address signs back in.',
+        : 'This phone forgets you and the albums it is holding links to. Nothing is deleted, and the same address signs back in.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1865,7 +1878,7 @@ export function AccountCard({
     // first; the second is offered beside it rather than folded into it.
     Alert.alert(
       'Delete your account?',
-      'Your email address and this account are removed. The photos you added stay in their events and stay yours to remove.',
+      'Your email address and this account are removed. The photos you added stay in their albums and stay yours to remove.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1919,8 +1932,8 @@ export function AccountCard({
       </Text>
       <Text style={[styles.small, { color: t.dim }]}>
         {why
-          ? 'No password — a code goes to your inbox, and your events follow you to another device.'
-          : 'Optional. Add an email and your events and groups follow you to another device. No password — a code goes to your inbox.'}
+          ? 'No password — a code goes to your inbox, and your albums follow you to another device.'
+          : 'Optional. Add an email and your albums and groups follow you to another device. No password — a code goes to your inbox.'}
       </Text>
 
       <TextInput

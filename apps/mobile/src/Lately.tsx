@@ -77,7 +77,7 @@ function byDay(rows: ActivityRow[]): { bucket: string; rows: ActivityRow[] }[] {
   return days;
 }
 
-/** A person's face or an event's cover, else the letter on its lens. */
+/** A person's face or an album's cover, else the letter on its lens. */
 function Tile({
   image,
   name,

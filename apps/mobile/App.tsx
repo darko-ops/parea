@@ -588,7 +588,7 @@ export default function App() {
             t={t}
             Button={Button}
             gate
-            why="Making an event needs an account, so the people you invite know whose event it is."
+            why="Making an album needs an account, so the people you invite know whose album it is."
             onSignedIn={() => {
               void refreshAccount();
               void refreshEvents();
@@ -944,7 +944,7 @@ export default function App() {
               */}
               {(
                 [
-                  ['home', 'photos', 'Events'],
+                  ['home', 'photos', 'Albums'],
                   ['groups', 'group', 'Groups'],
                   ['search', 'search', 'Find'],
                   ['profile', 'profile', 'You'],
@@ -1076,7 +1076,7 @@ function JoinScreen({
         a link; the host making one is the rarer case, and putting creation
         first would make the app look like a thing you have to set up.
       */}
-      <Button label="Create Event" onPress={onCreateEvent} t={t} />
+      <Button label="Create album" onPress={onCreateEvent} t={t} />
 
       {/*
         Groups first, and above the recent events, because they are the thing
@@ -1696,7 +1696,7 @@ function EventScreen({
    * The event's cover, for whoever runs it.
    *
    * This was one bare button that offered both actions unconditionally, because
-   * the feed did not say whether a cover existed — so "Event cover" meant "there
+   * the feed did not say whether a cover existed — so the row meant "there
    * may or may not be one, press to find out", and "Remove it" was offered on
    * events with nothing to remove. The feed carries `coverUrl` now, so the row
    * shows the picture and the sheet only offers removal when there is something
@@ -1849,10 +1849,10 @@ function EventScreen({
     actions.push({ text: 'Cancel', style: 'cancel' });
 
     Alert.alert(
-      'Event cover',
+      'Album cover',
       chosenCover
-        ? 'The picture the event leads with, wherever it is shown.'
-        : 'Choose the picture the event leads with. Without one it leads with its newest photograph.',
+        ? 'The picture the album leads with, wherever it is shown.'
+        : 'Choose the picture the album leads with. Without one it leads with its newest photograph.',
       actions,
     );
   }, [api, chosenCover, event.id, refresh]);
@@ -2337,7 +2337,7 @@ function EventScreen({
       <RoundButton
         t={t}
         onPress={onBack}
-        accessibilityLabel="Back to your events"
+        accessibilityLabel="Back to your albums"
         style={styles.coverBack}
       >
         <Back color={t.fg} />
@@ -2356,7 +2356,7 @@ function EventScreen({
       <RoundButton
         t={t}
         onPress={() => setSheetOpen(true)}
-        accessibilityLabel="Event options"
+        accessibilityLabel="Album options"
         style={styles.coverMore}
       >
         <More color={t.fg} />
@@ -3236,7 +3236,7 @@ function HostSheet({
                   { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={cover ? 'Change the event cover' : 'Choose an event cover'}
+                accessibilityLabel={cover ? 'Change the album cover' : 'Choose an album cover'}
               >
                 {cover ? (
                   <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
@@ -3246,7 +3246,7 @@ function HostSheet({
                   <View style={[styles.coverEmpty, { borderColor: t.line }]} />
                 )}
                 <View style={styles.coverWords}>
-                  <Text style={[styles.coverTitleText, { color: t.fg }]}>Event cover</Text>
+                  <Text style={[styles.coverTitleText, { color: t.fg }]}>Album cover</Text>
                 </View>
               </Pressable>
             )}
@@ -3377,7 +3377,7 @@ function HostSheet({
                       together, so you only send the link once.
                     </Text>
                     <Button
-                      label="Create group from this event"
+                      label="Create group from this album"
                       onPress={() => setNaming(true)}
                       t={t}
                     />
@@ -3389,7 +3389,7 @@ function HostSheet({
             {feed?.event.groupId && (
               <Row
                 label={`in ${feed.event.groupName}`}
-                note="Open the group this event is in."
+                note="Open the group this album is in."
                 onPress={() => {
                   onClose();
                   onOpenGroup(feed.event.groupId!);

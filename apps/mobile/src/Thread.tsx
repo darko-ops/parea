@@ -272,11 +272,11 @@ export function Thread({
                 ref={box}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Message everyone in this event…"
+                placeholder="Message everyone in this album…"
                 placeholderTextColor={t.dim}
                 multiline
                 style={[styles.field, { color: t.fg, borderColor: t.line }]}
-                accessibilityLabel="Message everyone in this event"
+                accessibilityLabel="Message everyone in this album"
               />
               <Pressable
                 onPress={() => void post()}

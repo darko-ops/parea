@@ -241,7 +241,7 @@ describe('what is above the first photograph', () => {
       // screen, because the sheet calls it and the screen owns the refresh.
       'styles.coverRow',
       '<InviteCard',
-      'Create group from this event',
+      'Create group from this album',
     ]) {
       expect(SCREEN).not.toContain(gone);
       expect(SHEET).toContain(gone);

@@ -4,7 +4,7 @@
  * Setting one and removing one were both already wired: the create screen
  * uploads a cover with the event, and the event screen had a button that
  * offered "Choose a photo" and "Remove it". What it did not do was *show* the
- * cover. So "Event cover" meant "there may or may not be one, press to find
+ * cover. So the row meant "there may or may not be one, press to find
  * out", "Remove it" was offered on events with nothing to remove, and after
  * choosing a picture nothing on the screen moved — the only way to learn
  * whether it took was to leave the event and come back.
@@ -108,7 +108,7 @@ describe('the cover the event already has', () => {
      * described.
      */
     expect(ROW).not.toMatch(/What this event leads with|Leading with its newest/);
-    expect(ROW).toMatch(/Event cover/);
+    expect(ROW).toMatch(/Album cover/);
   });
 });
 

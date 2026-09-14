@@ -254,7 +254,7 @@ export function CreateEvent({
         endsAt,
       });
     } catch {
-      setError('Could not make the event. Try again in a moment.');
+      setError('Could not make the album. Try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -293,7 +293,7 @@ export function CreateEvent({
           <Text style={[styles.headerSide, { color: t.accent }]}>Cancel</Text>
         </Pressable>
         <Text style={[styles.headerTitle, { color: t.fg }]}>
-          {groupName ? `New in ${groupName}` : 'New event'}
+          {groupName ? `New in ${groupName}` : 'New album'}
         </Text>
         <Pressable
           onPress={create}

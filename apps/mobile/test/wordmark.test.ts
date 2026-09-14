@@ -149,3 +149,65 @@ describe('what left the home screen with it', () => {
     expect(EVENTS).not.toMatch(/import \{ RequestBubble \}/);
   });
 });
+
+/**
+ * The product's word for the thing is "album".
+ *
+ * It was "event", on a rule worth keeping: the interface should say whatever
+ * the schema says, because a second word costs a paragraph of explanation in
+ * every file that touches it. The rule holds and the word was wrong — "event"
+ * is what the row is called and what somebody building this thinks about;
+ * "album" is what it is to everybody else.
+ *
+ * So the split is deliberate and it is the only one: the schema, the routes and
+ * the types say `event`, and every word a person reads says album. Renaming the
+ * tables and the URLs to match would be a migration, a set of dead links in
+ * everybody's messages, and no improvement to anything anybody sees.
+ */
+describe('what the product calls an album', () => {
+  const SCREENS = [
+    'App.tsx',
+    'src/Events.tsx',
+    'src/CreateEvent.tsx',
+    'src/Groups.tsx',
+    'src/Person.tsx',
+    'src/Profile.tsx',
+    'src/Thread.tsx',
+    'src/Lately.tsx',
+    'src/InvitePeople.tsx',
+  ];
+
+  it('says album in every string a person reads', () => {
+    /*
+     * Quoted strings only, and identifiers are exempt: `eventId`, `EventListing`
+     * and `/api/events` are the schema's word doing the schema's job, and
+     * renaming those is a different and much larger thing than renaming a
+     * label.
+     */
+    for (const name of SCREENS) {
+      const source = code(read(name));
+      // One line at a time: a pattern allowed to cross newlines runs from one
+      // code quote to the next and swallows the file between them.
+      const prose = [...source.matchAll(/'([^'\n]*\b[Ee]vents?\b[^'\n]*)'/g)]
+        .map((m) => m[1]!)
+        .filter((text) => / /.test(text))
+        // `screen: 'event'` and friends are route names, not sentences.
+        .filter((text) => !/^[a-z]+$/.test(text));
+      expect(prose, `${name} still says "event" to somebody`).toEqual([]);
+    }
+  });
+
+  it('says it on the tab bar, and in the two headings', () => {
+    expect(read('App.tsx')).toMatch(/\['home', 'photos', 'Albums'\]/);
+    for (const name of ['src/Groups.tsx', 'src/Person.tsx']) {
+      expect(read(name), name).toMatch(/>Albums</);
+    }
+  });
+
+  it('leaves the schema’s word where the schema uses it', () => {
+    // The guard cuts both ways: a well-meaning sweep that renamed these would
+    // be a migration and a set of dead links, for no visible gain.
+    expect(read('App.tsx')).toMatch(/screen: 'event'/);
+    expect(read('src/api.ts')).toMatch(/\/api\/events/);
+  });
+});
