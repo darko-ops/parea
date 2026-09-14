@@ -62,3 +62,49 @@ describe('fromBrowser', () => {
     expect(await fromBrowser()).toBe(false);
   });
 });
+
+/**
+ * One identity per client, and the phone's is the token.
+ *
+ * `currentActorId` reads the actor cookie *before* the bearer token, which is
+ * right for a browser and a trap for anything else: iOS keeps a shared cookie
+ * jar and `fetch` uses it without being asked, so a single `Set-Cookie`
+ * anywhere in the API gives the app a second identity it did not ask for and
+ * cannot clear.
+ *
+ * What that cost, and why this is a test rather than a comment: signing out on
+ * the phone cleared the token, the keychain and every screen — and the next
+ * request arrived as the person who had just signed out, because the cookie
+ * outranked everything the client had thrown away. Their groups and their
+ * profile came back from the server. It looks exactly like a client that failed
+ * to clear its own state, and it is not.
+ */
+describe('the phone is its token and nothing else', () => {
+  const read = async (path: string) => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    return readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+  };
+
+  it('mints an actor cookie only for a browser', async () => {
+    /*
+     * The rule was already written down one route away, at sign-in: "browsers
+     * only: native carries the same value as a bearer token and has no cookie
+     * jar worth writing to". `ensureActor` did not follow it.
+     */
+    const session = await read('../src/session.ts');
+    expect(session).toMatch(/if \(await fromBrowser\(\)\) await issueActorCookie/);
+    // And the preference is unchanged, because it is correct for the browser
+    // this file was written for.
+    expect(session).toMatch(/jar\.get\(ACTOR_COOKIE\)\?\.value\) \?\? \(await bearerActorId\(\)\)/);
+  });
+
+  it('sends no cookie from the app, whatever the server sets', async () => {
+    // Belt and braces, and the half that does not depend on every future route
+    // remembering the rule above.
+    const api = await read('../../mobile/src/api.ts');
+    expect(api).toMatch(/credentials: 'omit'/);
+    // One place makes every request, so one line covers all of them.
+    expect((api.match(/await fetch\(/g) ?? [])).toHaveLength(1);
+  });
+});

@@ -641,7 +641,29 @@ export class Api {
 
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+      res = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers,
+        /*
+         * Never a cookie. This phone is its bearer token and nothing else.
+         *
+         * iOS keeps a shared cookie jar and `fetch` uses it without being
+         * asked, so a single `Set-Cookie` anywhere in the API gave this app a
+         * second identity it did not know it had — and the server reads the
+         * cookie *first*, so that second identity outranked the token.
+         *
+         * What that cost: signing out cleared the token, the keychain and every
+         * screen, and the next request still arrived as the person who had just
+         * signed out. Their groups and their profile came back from the server,
+         * which looks exactly like a client that failed to clear its state and
+         * is not.
+         *
+         * The server already says this is the rule — "native carries the same
+         * value as a bearer token and has no cookie jar worth writing to" — and
+         * this is the client half of making it true.
+         */
+        credentials: 'omit',
+      });
     } catch {
       // `fetch` rejects rather than answering, which at a venue means no
       // signal. Distinguished from an HTTP error because the upload queue
