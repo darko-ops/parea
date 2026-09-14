@@ -126,6 +126,17 @@ describe('what is above the first photograph', () => {
     expect(widths!.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
     expect(GLASS).not.toMatch(/Math\.random/);
     expect(GLASS).toMatch(/pointerEvents="none"/);
+    /*
+     * And every pane is the same glass.
+     *
+     * They briefly were not: a tint of 0.04 either way, so neighbouring lights
+     * differed slightly. Over a forty-point band that is a texture; over a
+     * header 196 points tall it is two dark columns down somebody's photograph,
+     * which is the first thing you see and the only thing you then look at.
+     * Same numbers, different scale, completely different object.
+     */
+    expect(code(GLASS)).not.toMatch(/backgroundColor:\s*\n?\s*i % 2/);
+    expect(code(GLASS)).not.toMatch(/rgba\(255,255,255,0\.05\)/);
   });
 
   it('keeps no slab where a setting used to be', () => {

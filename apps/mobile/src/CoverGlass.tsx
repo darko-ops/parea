@@ -32,15 +32,19 @@
  *
  * ## What makes it stained
  *
- * Lights and came: vertical panes of uneven width, each a slightly different
- * thickness of glass, with a dark line between them. Uneven on purpose — equal
- * divisions read as a progress bar or a segmented control, both of which this
- * product has elsewhere and neither of which is a window. They come from a
- * fixed table rather than a random number, so an album draws the same window
- * every time it opens.
+ * The came: a dark hairline between vertical panes of uneven width. Uneven on
+ * purpose — equal divisions read as a progress bar or a segmented control, both
+ * of which this product has elsewhere and neither of which is a window. They
+ * come from a fixed table rather than a random number, so an album draws the
+ * same window every time it opens.
  *
- * Tall panes are correct here in a way they were not in the forty-point band: a
- * light taller than it is wide is what a window is made of.
+ * The panes themselves are all the same glass. They briefly were not — a tint
+ * of 0.04 either way, so neighbouring lights differed slightly — which is a
+ * texture across a forty-point band and two dark columns down a header 196
+ * points tall. Same numbers, different scale, completely different object.
+ *
+ * Tall panes are correct here in a way they were not in the band: a light
+ * taller than it is wide is what a window is made of.
  */
 
 import { BlurView } from 'expo-blur';
@@ -77,24 +81,25 @@ export function CoverGlass() {
       />
 
       {/*
-        The lights, each a slightly different thickness of glass.
+        The came, and nothing else.
 
-        Faint — 0.05 at the strongest. The point is that neighbouring panes are
-        not identical, not that anybody can name which is which; at the
-        opacities where you could, it stops being a window and becomes stripes.
+        Each pane used to carry a faint tint as well — white on the odd ones,
+        black on the even — on the theory that neighbouring lights are never
+        quite the same glass. At 0.04 on a header 196 points tall that is not a
+        suggestion of thickness, it is two dark columns down somebody's
+        photograph, which is the first thing you see and the only thing you then
+        look at.
+
+        The scale is what changed, not the idea: the same values over a
+        forty-point band were invisible. A tint is a texture at that height and
+        a block at this one.
+
+        The lead stays. A hairline between panes is a line, and a line cannot
+        become a column.
       */}
       <View style={styles.lights}>
         {LIGHTS.map((width, i) => (
           <View key={width} style={{ flex: width }}>
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor:
-                    i % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                },
-              ]}
-            />
             {/* Between two panes, never around the outside of the window. */}
             {i > 0 && <View style={[styles.came, { backgroundColor: LEAD }]} />}
           </View>
