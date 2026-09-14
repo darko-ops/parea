@@ -39,7 +39,7 @@ import type {
 } from './api';
 import { ClusterCard, CreateGroupForm } from './CreateGroup';
 import { Glyph } from './Glyph';
-import { RoundButton } from './RoundButton';
+import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -600,6 +600,15 @@ export function HomeTab({
  * The roll-up from an event has not gone anywhere; it is still in the event's
  * `⋯` sheet and still the only path that moves an event under a group.
  */
+/**
+ * How many group blocks the tab opens with.
+ *
+ * Each is a name, a strip of covers and a line of conversation — about a
+ * hundred points — so this is the number that fits under the heading without
+ * pushing the one-off conversations off the screen entirely.
+ */
+const GROUPS_SHOWN = 3;
+
 export function GroupsTab({
   api,
   events,
@@ -670,6 +679,15 @@ export function GroupsTab({
    * two things to cancel and a question about which Create belongs to which.
    */
   const [making, setMaking] = useState<string | null>(null);
+  /**
+   * Whether the list is showing all of them or the first few.
+   *
+   * Resets when the tab is left, which is deliberate: expanding is a thing you
+   * do to find one room, not a preference about how this screen looks. Coming
+   * back to a page scrolled past six group blocks is the state it was expanded
+   * to get out of.
+   */
+  const [allGroups, setAllGroups] = useState(false);
 
   const load = useCallback(async () => {
     const [mine, found] = await Promise.all([
@@ -712,28 +730,53 @@ export function GroupsTab({
   }, [events]);
 
   /*
-   * The evenings that belong to no group, newest conversation first.
+   * Every album somebody has spoken in, newest conversation first.
    *
-   * Sorted by when something was last *said*, falling back to when the album
-   * was last added to. A list of conversations ordered by upload time puts a
-   * silent album full of photographs above the one somebody is talking in,
-   * which is the wrong answer on a tab about talking.
+   * Sorted by when something was last *said*. A list of conversations ordered
+   * by upload time puts a silent album full of photographs above the one
+   * somebody is talking in, which is the wrong answer on a tab about talking.
    *
-   * Only the ones somebody has actually spoken in.
+   * ## Only the ones somebody has actually spoken in
    *
-   * A reversal: these used to list whether or not anything had been said, on
-   * the argument that an empty chat is a door and hiding it until somebody
-   * speaks means nobody ever does. In practice it filled the section with rows
-   * reading "Nobody has said anything yet" — a list of absences under a heading
-   * that promises conversations.
+   * These used to list whether or not anything had been said, on the argument
+   * that an empty chat is a door and hiding it until somebody speaks means
+   * nobody ever does. In practice it filled the section with rows reading
+   * "Nobody has said anything yet" — a list of absences under a heading that
+   * promises conversations. The door is still the album's own Talk tab.
    *
-   * The door is still there, it is just the album's own Talk tab rather than
-   * this list: opening the evening and saying something is what puts it here.
+   * ## Including the ones inside a group
+   *
+   * This filtered grouped albums out, on the argument that their talk "belongs
+   * under the group" and listing it twice would make the busiest rooms the
+   * noisiest part of a screen meant to be scanned. The premise was wrong.
+   *
+   * A group's row shows *the group's own thread* — `ConversationLine` is fed
+   * the group, not an album in it. So an album inside a group has a
+   * conversation that appears nowhere on this tab: not on its group's row,
+   * which is talking about something else, and not here. Four messages in an
+   * evening and the only way back to them was to remember which album it was
+   * and open its Talk tab.
+   *
+   * Nothing is listed twice, because the two lines were never the same line.
    */
+  /**
+   * The three most recently added to, unless somebody asked for the rest.
+   *
+   * `lastActiveAt` is null for a group nothing has happened in yet, and those
+   * go last rather than first — an empty room is the least useful thing this
+   * screen can lead with.
+   */
+  const shown = useMemo(() => {
+    const ordered = [...(groups ?? [])].sort((a, b) =>
+      (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
+    );
+    return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
+  }, [allGroups, groups]);
+
   const loose = useMemo(
     () =>
       events
-        .filter((event) => !event.groupId && event.lastMessage != null)
+        .filter((event) => event.lastMessage != null)
         // By when something was last said. No fallback needed now that a row
         // without a message is not a row.
         .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
@@ -799,10 +842,24 @@ export function GroupsTab({
             )}
           </RoundButton>
 
-          {groups !== null && making !== 'anyone' && (
+          {/*
+            The `+`'s place is held even when the `+` is not there.
+
+            It is hidden twice — while the groups are still arriving, and while
+            the create form is open — and the envelope beside it is in a row
+            that lays out from the right. So the envelope was drawn where the
+            `+` belongs and then slid left the moment the groups landed, which
+            on a cold open is the first thing on the screen and it moves.
+
+            A control that is in a different place for the first half-second is
+            a control somebody reaches for and misses.
+          */}
+          {groups !== null && making !== 'anyone' ? (
             <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
               <Glyph name="plus" size={20} color={t.fg} />
             </RoundButton>
+          ) : (
+            <View style={styles.roundSlot} />
           )}
         </View>
       </View>
@@ -861,16 +918,50 @@ export function GroupsTab({
           </Pressable>
         </View>
       ) : (
-        groups.map((group) => (
-          <GroupBlock
-            key={group.id}
-            group={group}
-            albums={byGroup.get(group.id) ?? []}
-            t={t}
-            onPress={() => onOpenGroup(group.id)}
-            onOpenThread={() => onOpenGroupThread(group)}
-          />
-        ))
+        <>
+          {shown.map((group) => (
+            <GroupBlock
+              key={group.id}
+              group={group}
+              albums={byGroup.get(group.id) ?? []}
+              t={t}
+              onPress={() => onOpenGroup(group.id)}
+              onOpenThread={() => onOpenGroupThread(group)}
+            />
+          ))}
+
+          {/*
+            The rest, behind a word.
+
+            A group block is a name, a strip of covers and a line of
+            conversation — a hundred points of screen each — so somebody in
+            eight groups scrolled past six of them to reach the one-off
+            conversations underneath, every time. Three is what fits above the
+            fold beside the heading, and three is also about how many rooms
+            anybody is actually in this week.
+
+            Ordered by `lastActiveAt`, so the three are the ones most recently
+            added to rather than the three oldest, which is what an unsorted
+            list from the server happened to give.
+
+            Expanded in place rather than on a screen of its own: the full list
+            is this same list, and pushing a second copy of it would mean two
+            places where a group block is drawn.
+          */}
+          {groups.length > shown.length && (
+            <Pressable
+              onPress={() => setAllGroups(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`All groups, ${groups.length}`}
+              style={({ pressed }) => [styles.allGroups, { borderColor: t.line, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={[styles.allGroupsText, { color: t.fg }]}>
+                All groups
+              </Text>
+              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{groups.length}</Text>
+            </Pressable>
+          )}
+        </>
       )}
 
       {/*
@@ -882,9 +973,10 @@ export function GroupsTab({
         and before this it was reachable only by remembering which album it was
         inside. This is the other half of "one tab for every conversation".
 
-        Grouped events are deliberately absent: their talk belongs under the
-        group, and listing them twice would make the busiest rooms the noisiest
-        part of a screen that is meant to be scanned.
+        Grouped albums are here too. They were held back on the grounds that
+        their talk belongs under the group — but a group's row carries the
+        group's own thread, so an album's conversation had nowhere at all to
+        appear. See `loose` above.
       */}
       {loose.length > 0 && (
         <View style={{ gap: 2 }}>
@@ -2001,6 +2093,23 @@ const styles = StyleSheet.create({
   saidWhen: { fontSize: 12.5 },
   /* A number on a group — it is busy and the number is the useful part. */
   groupsActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
+     the two cannot drift apart. */
+  roundSlot: { width: ROUND, height: ROUND },
+  /* A row rather than a link: it is the foot of a list and it is the width of
+     one, so a word floating on the left would read as a caption on the group
+     above it. */
+  allGroups: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  allGroupsText: { fontSize: 15, fontWeight: '600' },
+  allGroupsCount: { fontSize: 13.5 },
   /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
      accent fill, same ink. The ring is the page behind it, so the badge reads
      as sitting on top of the button rather than inside it. */

@@ -111,7 +111,17 @@ describe('New group', () => {
      * made. The phone must not repeat it, so the guard is that the button's
      * condition does not mention the list's length.
      */
-    expect(EVENTS).toMatch(/groups !== null && making !== 'anyone' && \(/);
+    /*
+     * A ternary now, not a guard: the `+` is hidden in two states — while the
+     * groups are arriving and while the form is open — and the envelope beside
+     * it sits in a row laid out from the right. Without something holding the
+     * place, the envelope was drawn where the `+` belongs and slid left the
+     * moment the groups landed. A control that is somewhere else for the first
+     * half-second is one somebody reaches for and misses.
+     */
+    expect(EVENTS).toMatch(/groups !== null && making !== 'anyone' \? \(/);
+    expect(EVENTS).toMatch(/<View style=\{styles\.roundSlot\} \/>/);
+    expect(EVENTS).toMatch(/roundSlot: \{ width: ROUND, height: ROUND \}/);
     expect(EVENTS).not.toMatch(/groups\.length > 0 && [\s\S]{0,80}New group/);
   });
 
