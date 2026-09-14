@@ -152,3 +152,67 @@ describe('the account', () => {
     expect(SCREEN).toMatch(/gate\s*\n\s*why="Adding photos needs an account/);
   });
 });
+
+/**
+ * The cover's edges, softened.
+ *
+ * A photograph 232 points tall with a hard rectangular boundary: three sides
+ * against the screen and one against the page. That last one is the seam
+ * somebody notices — a picture stops, a line, and then the app.
+ *
+ * What is worth guarding is the shape of the fix rather than the look of it.
+ * One `BlurView` trades the hard edge of the photograph for the hard edge of
+ * the blur half an inch higher up, which is the same line drawn somewhere else,
+ * and is exactly what a later simplification would collapse this into.
+ */
+describe('the softened cover edge', () => {
+  const EDGES = readFileSync(
+    fileURLToPath(new URL('../src/CoverEdges.tsx', import.meta.url).href),
+    'utf8',
+  );
+
+  it('ramps, rather than drawing one band with an edge of its own', () => {
+    const bands = EDGES.match(/intensity: \d+/g) ?? [];
+    expect(bands.length).toBeGreaterThan(2);
+    // Widest and weakest first, so each band sits inside the one before it.
+    const sizes = [...EDGES.matchAll(/size: (\d+)/g)].map((m) => Number(m[1]));
+    const strengths = [...EDGES.matchAll(/intensity: (\d+)/g)].map((m) => Number(m[1]));
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
+    expect(strengths).toEqual([...strengths].sort((a, b) => a - b));
+  });
+
+  it('insets the sides so the corners are not blurred four times over', () => {
+    // A corner carrying every band at once is four times the wash, and it shows
+    // as a dark blot in each corner of an otherwise even frame.
+    expect(EDGES).toMatch(/top: size, bottom: size/);
+  });
+
+  it('takes its tint from the page, not from a fixed colour', () => {
+    /*
+     * A blur on iOS carries a wash as well as a blur, and a light wash under a
+     * dark page is a grey haze around the picture rather than an edge
+     * dissolving into what it borders.
+     */
+    expect(EDGES).toMatch(/const tint = dark \? 'dark' : 'light'/);
+    expect(APP).toMatch(/<CoverEdges dark=\{dark\} \/>/);
+  });
+
+  it('sits above the photograph and below the scrim', () => {
+    /*
+     * Above, or it has nothing to blur. Below, because the gradient carries the
+     * back button and the title and was tuned against the same forty points —
+     * putting the blur over it would change what it is sitting on.
+     */
+    const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
+    const image = cover.indexOf('contentFit="cover"');
+    const edges = cover.indexOf('<CoverEdges');
+    const scrim = cover.indexOf('<LinearGradient');
+    expect(image).toBeLessThan(edges);
+    expect(edges).toBeLessThan(scrim);
+  });
+
+  it('lets touches through', () => {
+    // It covers the whole cover, including both corner buttons.
+    expect(EDGES).toMatch(/pointerEvents="none"/);
+  });
+});

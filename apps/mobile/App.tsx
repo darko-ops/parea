@@ -65,6 +65,7 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { CoverEdges } from './src/CoverEdges';
 import { Lately } from './src/Lately';
 import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
@@ -2075,6 +2076,17 @@ function EventScreen({
           // letter-on-a-colour every other doorless thing in the product gets.
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
+        {/*
+          The photograph's own boundary, softened.
+
+          Above the image so it has something to blur, and below the scrim so
+          the gradient still lands on the same forty points it was tuned
+          against. Three sides of this meet the screen's edges and the fourth
+          meets the page — that last one is the seam somebody actually notices,
+          and it is why the effect is worth the layers. See `CoverEdges`.
+        */}
+        <CoverEdges dark={dark} />
+
         {/*
           Dark at the top and the bottom, clear through the middle.
 
