@@ -326,3 +326,64 @@ describe('what may be reacted with', () => {
     expect(isReaction('🦑')).toBe(false);
   });
 });
+
+/**
+ * The two pushes a photograph can cause.
+ *
+ * Asserted against the routes rather than against Expo: what matters is who is
+ * told and who is not, and both mistakes are silent. Telling somebody about
+ * their own action spends a notification budget on nothing; failing to tell
+ * the person a claim was made about is the whole feature not happening.
+ */
+describe('who hears about a photograph', () => {
+  const read = async (path: string) =>
+    (await import('node:fs')).readFileSync(
+      (await import('node:url')).fileURLToPath(new URL(path, import.meta.url)),
+      'utf8',
+    );
+
+  it('tells the uploader about a comment, and never about their own', async () => {
+    const route = await read('../app/api/events/[id]/messages/route.ts');
+    expect(route).toMatch(/if \(photoId && uploaderId && uploaderId !== actorId\)/);
+    expect(route).toMatch(/notifyPhotoComment\(db, \{/);
+    // Only the uploader. Everybody else in the album finds out by opening it.
+    expect(route).toMatch(/toActorId: uploaderId/);
+  });
+
+  it('tells the person tagged, and never for a self-tag', async () => {
+    const route = await read('../app/api/photos/[id]/tags/route.ts');
+    expect(route).toMatch(/if \(target !== actorId\)/);
+    expect(route).toMatch(/notifyPhotoTagged\(db, \{/);
+    expect(route).toMatch(/toActorId: target/);
+  });
+
+  it('never makes the request wait on a push', async () => {
+    /*
+     * Fire-and-forget by design — see `notify.ts`. Somebody pressing Send must
+     * not wait on Expo, and must certainly not see an error because Expo is
+     * down: the comment and the tag are already written by this point.
+     */
+    for (const path of [
+      '../app/api/events/[id]/messages/route.ts',
+      '../app/api/photos/[id]/tags/route.ts',
+    ]) {
+      const route = await read(path);
+      expect(route, path).toMatch(/void notifyPhoto(Comment|Tagged)\(/);
+      expect(route, path).not.toMatch(/await notifyPhoto/);
+    }
+  });
+
+  it('sends the remark rather than the fact of one', async () => {
+    /*
+     * "Maya commented on your photo" makes somebody open the app to find out
+     * whether they wanted to, and most of the time the whole content of the
+     * notification is six words that could have been in it.
+     */
+    const push = await read('../../../packages/push/src/index.ts');
+    expect(push).toMatch(/case 'photo_comment':/);
+    expect(push).toMatch(/\$\{notification\.who\}: \$\{/);
+    // Trimmed by us, so it ends in an ellipsis rather than mid-word at
+    // whatever width the phone happens to be.
+    expect(push).toMatch(/said\.slice\(0, 80\)\.trimEnd\(\)/);
+  });
+});

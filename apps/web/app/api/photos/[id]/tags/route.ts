@@ -26,6 +26,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { membersOf } from '@/members';
+import { nameOf, notifyPhotoTagged } from '@/notify';
 import { viewerContext } from '@/moderation';
 import { tagPhoto, untagPhoto } from '@/photoTags';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
@@ -108,6 +109,29 @@ export async function POST(
   }
 
   await tagPhoto(db, found.photo.id, target, actorId);
+
+  /*
+   * And tell them, which is most of the point.
+   *
+   * A tag is a claim made about somebody, and one they may want to undo — so
+   * it is the one thing in this product where being told late is worse than
+   * being told at all. `target !== actorId` is guaranteed by the membership
+   * check above only by accident; the self-tag case is excluded here because
+   * telling somebody what they just did is a notification budget spent on
+   * nothing.
+   *
+   * Not awaited: a push is fire-and-forget by design — see `notify.ts` — and
+   * the tag is already written.
+   */
+  if (target !== actorId) {
+    void notifyPhotoTagged(db, {
+      toActorId: target,
+      eventId: found.event.id,
+      eventName: found.event.name,
+      who: await nameOf(db, actorId),
+    });
+  }
+
   return NextResponse.json({ tagged: true });
 }
 

@@ -243,6 +243,26 @@ export default function App() {
    * to draw one of them.
    */
   const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set(['home']));
+  /**
+   * Which account the tabs belong to, as a number nobody reads.
+   *
+   * The tabs are kept mounted so that switching between them is instant, and
+   * each one holds what it fetched: the Groups tab has its own list of groups
+   * and its own clusters, You has an account and a friends list, Find has
+   * whatever was last searched. Clearing the shell's copies on sign-out left
+   * every one of those on screen — somebody signed out and could still read
+   * their groups, which is not a stale cache, it is the wrong person's data on
+   * a phone they may have just handed over.
+   *
+   * Bumping this is a `key` change on the tab tree, so React discards all four
+   * and everything inside them. It is deliberately not a list of things to
+   * clear: a fourth tab with a cache of its own would not be added to such a
+   * list, and the failure would be silent and identical.
+   *
+   * Bumped on the way in as well as the way out. Signing in as somebody else on
+   * a phone that was a guest must not inherit the guest's lists.
+   */
+  const [identity, setIdentity] = useState(0);
   useEffect(() => {
     setVisited((was) => (was.has(tab) ? was : new Set(was).add(tab)));
   }, [tab]);
@@ -410,9 +430,21 @@ export default function App() {
     setRemembered([]);
     setGroups([]);
     setEvents([]);
+    // The envelope's count is about the account that has just gone.
+    setWaiting(0);
     setSignedIn(false);
     setRoute({ screen: 'tabs' });
     setTab('home');
+    /*
+     * And the tabs themselves, which hold their own copies of all of it.
+     *
+     * The four above are the shell's. Each tab fetched its own and keeps it,
+     * because they are kept mounted rather than unmounted — so without this,
+     * signing out cleared the lists the shell was holding and left the Groups
+     * tab showing groups and You showing a profile.
+     */
+    setVisited(new Set(['home']));
+    setIdentity((n) => n + 1);
   }, []);
 
   /*
@@ -773,7 +805,12 @@ export default function App() {
       )}
 
       {route.screen === 'tabs' && (
-        <>
+        /*
+         * Keyed by the account, so a change of identity takes every tab's state
+         * with it. See `identity` above for why this is a key rather than a
+         * list of things to reset.
+         */
+        <View key={identity} style={styles.root}>
           {visited.has('home') && (
             <Pane showing={tab === 'home'}>
               <HomeTab
@@ -860,6 +897,19 @@ export default function App() {
                   // this person can reach has just changed.
                   void refreshEvents();
                   void refreshGroups();
+                  void refreshWaiting();
+                  void refreshAccount();
+                  /*
+                   * And everything the other tabs are holding, which belonged
+                   * to whoever this phone was before.
+                   *
+                   * Signing in is a change of identity in the same way signing
+                   * out is — a phone that was a guest, or was somebody else,
+                   * must not carry their lists into the account that has just
+                   * arrived. The `key` is what discards them; see `identity`.
+                   */
+                  setVisited(new Set(['profile']));
+                  setIdentity((n) => n + 1);
                 }}
                 onSignedOut={signOut}
                 Button={Button}
@@ -919,7 +969,7 @@ export default function App() {
               ))}
             </BlurView>
           </View>
-        </>
+        </View>
       )}
 
       {/*
