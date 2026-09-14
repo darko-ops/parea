@@ -59,9 +59,37 @@ describe('the row of three', () => {
      * the button is drawn on the permission rather than on a guess about it.
      */
     expect(SHEET).toMatch(
-      /\{host \? \([\s\S]{0,200}Delete Album[\s\S]{0,200}\) : \([\s\S]{0,200}Leave Album/,
+      /host \? \([\s\S]{0,200}Delete Album[\s\S]{0,200}\) : \([\s\S]{0,200}Leave Album/,
     );
     expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
+  });
+
+  it('offers neither until it has been told which', () => {
+    /*
+     * `host` is false both for somebody who is not the host and for a sheet
+     * that has not been told yet, and collapsing those two is the bug this
+     * guards. The album's chrome comes from the saved listing and appears at
+     * once, so `⋯` is pressable a moment before the feed lands — and the sheet
+     * offered the creator of an album a door out of it, then swapped the label
+     * under their thumb when the real answer arrived.
+     *
+     * The reserved column matters as much as the missing label: without it the
+     * two actions either side take half the row each and slide sideways the
+     * moment the third appears.
+     */
+    expect(APP).toMatch(/const known = feed !== null;/);
+    expect(SHEET).toMatch(/\{!known \? \(\s*<View style=\{styles\.action\} \/>\s*\) : host \? \(/);
+  });
+
+  it('says it is loading rather than standing up when it finds out', () => {
+    // A sheet that arrives one inch tall and then grows to full height reads as
+    // the app changing its mind. One that arrives at a sensible size and fills
+    // in reads as a page loading, which is what it is.
+    expect(SHEET).toMatch(/\{!known && \(/);
+    expect(SHEET).toMatch(/<Waiting size=\{28\} \/>/);
+    expect(APP).toMatch(/sheetWaiting: \{ height: 160/);
+    // And when the answer is never coming, it says why instead of spinning.
+    expect(SHEET).toMatch(/feedError \? \(/);
   });
 
   it('draws both in the one red the theme has', () => {

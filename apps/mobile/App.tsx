@@ -2322,6 +2322,7 @@ function EventScreen({
           Button={ButtonEl}
           onClose={() => setSheetOpen(false)}
           copied={copied}
+          feedError={feedError}
           onCopyLink={copyLink}
           onSaveAll={saveAll}
           onDelete={deleteAlbum}
@@ -2569,6 +2570,7 @@ function HostSheet({
   policyError,
   saving,
   copied,
+  feedError,
   Button: ButtonEl,
   onClose,
   onCopyLink,
@@ -2590,6 +2592,8 @@ function HostSheet({
   saving: string | null;
   /** True for a moment after the link goes on the clipboard. */
   copied: boolean;
+  /** Why the feed is not here, when it is not coming. */
+  feedError: string | null;
   Button: typeof Button;
   onClose: () => void;
   onCopyLink: () => void;
@@ -2603,6 +2607,23 @@ function HostSheet({
 }) {
   const [naming, setNaming] = useState(false);
   const [groupName, setGroupName] = useState('');
+  /*
+   * Whether the answer has arrived at all, kept apart from what the answer is.
+   *
+   * `host` is false both for somebody who is not the host and for a sheet that
+   * has not been told yet, and collapsing those two was the bug: the album's
+   * chrome is drawn from the saved listing and appears at once, so `⋯` is
+   * pressable a moment before the feed lands. Opening it then asked "is this
+   * person the host", got "not yet", and confidently offered the creator of the
+   * album a door out of it — then swapped the label under their thumb when the
+   * real answer turned up.
+   *
+   * The rest of the screen already works this way: the composer reads
+   * `feed.canPost` rather than guessing, so a refusal is never a surprise. This
+   * is the same rule applied to the one control where guessing wrong offers to
+   * remove somebody from their own evening.
+   */
+  const known = feed !== null;
   const host = feed?.event.canAdminister === true;
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
   const photos = feed?.photos.length ?? 0;
@@ -2675,12 +2696,40 @@ function HostSheet({
                    not yet for you. */
                 disabled={photos === 0 || saving !== null}
               />
-              {host ? (
+              {/*
+                Empty until the answer is in, rather than wrong until then.
+
+                A reserved column instead of nothing at all, so the two actions
+                either side keep their thirds and the row does not re-centre
+                itself the moment the feed lands.
+              */}
+              {!known ? (
+                <View style={styles.action} />
+              ) : host ? (
                 <Action t={t} icon="trash" label="Delete Album" onPress={onDelete} danger />
               ) : (
                 <Action t={t} icon="door" label="Leave Album" onPress={onLeave} danger />
               )}
             </View>
+
+            {/*
+              What the sheet looks like before it has been told anything.
+
+              Held at a height rather than collapsed to the three actions: a
+              sheet that arrives one inch tall and then stands up to full height
+              reads as the app changing its mind, where a sheet that arrives at
+              a sensible size and fills in reads as a page loading — which is
+              what it is.
+            */}
+            {!known && (
+              <View style={styles.sheetWaiting}>
+                {feedError ? (
+                  <Text style={[styles.small, { color: t.dim }]}>{feedError}</Text>
+                ) : (
+                  <Waiting size={28} />
+                )}
+              </View>
+            )}
 
             {/*
               What it leads with.
@@ -3446,6 +3495,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionLabel: { fontSize: 12.5, fontWeight: '600', textAlign: 'center' },
+  /* Roughly what the cover row and one card would have occupied, so the sheet
+     does not have to stand up once it knows what it is. */
+  sheetWaiting: { height: 160, alignItems: 'center', justifyContent: 'center', padding: 24 },
 });
 
 /** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */
