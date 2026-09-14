@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
+import { tagsForPhotos } from '@/photoTags';
 import { getDb } from '@/db';
 import { invitedTo, membersOf, rosterFrom } from '@/members';
 import { messagesFor } from '@/messages';
@@ -87,6 +88,7 @@ export async function GET(
   const [
     hasCard,
     reactions,
+    tags,
     people,
     pendingRows,
     messages,
@@ -103,6 +105,9 @@ export async function GET(
     // And the reactions, for the same reason: an album is a column of every
     // picture in the event, and a query per row grows with it.
     reactionsForPhotos(db, photoIds, viewerId),
+    // And who is in them, for the third time the same reason: one query for
+    // the page, not one per row.
+    tagsForPhotos(db, event.id, photoIds, viewerId),
     // The contribution count is a recruiting device, not a statistic: "6
     // people, 88 photos" is what gets the seventh person to add theirs
     // (design §2). Kept as a number as well as a list.
@@ -194,6 +199,15 @@ export async function GET(
        * today" says it is new to you, and the album's grid wants the second.
        */
       addedAt: photo.uploadedAt.toISOString(),
+      /*
+       * Who the uploader says is in it.
+       *
+       * By the same opaque per-event key a contributor gets, for a reason that
+       * matters more here than there: this one is about somebody's face, and an
+       * actor id would make "who is in this photograph" a fact that follows
+       * them out of the album.
+       */
+      tags: tags.get(photo.id) ?? [],
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
       // Which contributor chip this photo belongs to. A per-event digest, not

@@ -44,6 +44,8 @@ import {
 } from 'react-native';
 
 import type { Api, FeedPhoto, Message } from './api';
+import { EmojiPicker } from './Emoji';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 
 /** As far in as a pinch will go. Beyond this a 2560px rendition is mush. */
@@ -173,9 +175,8 @@ export function PhotoViewer({
   const [talking, setTalking] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  /** The smiley: an emoji off the system keyboard. */
+  /** The face: our own emoji grid, since the system will not lend us its one. */
   const [picking, setPicking] = useState(false);
-  const [typed, setTyped] = useState('');
 
   const settle = useCallback(
     (next: number) => {
@@ -583,7 +584,7 @@ export function PhotoViewer({
                   accessibilityLabel="React to this photo"
                   style={({ pressed }) => [styles.smiley, { opacity: pressed ? 0.55 : 1 }]}
                 >
-                  <Text style={styles.smileyFace}>🙂</Text>
+                  <Glyph name="face" size={22} color="#fff" />
                 </Pressable>
               ) : (
                 <Text style={styles.why}>Sign in{'\n'}to react</Text>
@@ -663,30 +664,27 @@ export function PhotoViewer({
       )}
 
       {/*
-        The emoji keyboard, borrowed.
+        The picker, which is ours rather than the system's.
 
-        An invisible input that takes focus, so the system keyboard opens on
-        whatever panel somebody last used — which for this is almost always the
-        emoji one. The first grapheme typed is the reaction; the server refuses
-        anything that is not exactly one, so a pasted sentence is a 400 rather
-        than a wall of text under somebody's photograph.
+        The first version of this focused an invisible `TextInput` so the phone
+        would open its emoji keyboard. It works and it opens *a* keyboard — the
+        last panel somebody used, which is usually but not always the emoji one,
+        and there is no public way to ask for that panel specifically. A grid of
+        our own can only produce emoji, which is the requirement, and never puts
+        a text field over somebody's photograph. See `Emoji.tsx` for what that
+        costs.
       */}
       {picking && (
-        <Pressable style={styles.pickAway} onPress={() => setPicking(false)}>
-          <TextInput
-            value={typed}
-            onChangeText={(next) => {
-              setTyped('');
-              setPicking(false);
-              const first = [...next][0];
-              if (first) void react(first);
-            }}
-            autoFocus
-            style={styles.pickInput}
-            accessibilityLabel="Type an emoji to react with"
-          />
-        </Pressable>
+        <EmojiPicker
+          t={t}
+          onClose={() => setPicking(false)}
+          onPick={(emoji) => {
+            setPicking(false);
+            void react(emoji);
+          }}
+        />
       )}
+
     </View>
   );
 }
@@ -777,15 +775,6 @@ const styles = StyleSheet.create({
   },
   talkSend: { paddingVertical: 10 },
   talkSendText: { color: '#6ea8fe', fontSize: 15, fontWeight: '700' },
-  /*
-   * The invisible input behind the emoji keyboard.
-   *
-   * One point across rather than `display: none`: a field with no size cannot
-   * take focus on iOS, and a field that cannot take focus does not open a
-   * keyboard. The backdrop above it is what closes the whole thing.
-   */
-  pickAway: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  pickInput: { position: 'absolute', bottom: 0, left: 0, width: 1, height: 1, opacity: 0.01 },
   /* Dark discs rather than bare glyphs: white on white is invisible, and a
      photograph can be any colour at all under either corner. */
   round: {
@@ -842,7 +831,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  smileyFace: { fontSize: 21 },
+
   /* Tall enough for four keys, so a fifth is visibly cut off and the column
      reads as something to scroll rather than as all there is. */
   why: {

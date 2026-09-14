@@ -19,6 +19,21 @@ export type EventSummary = {
   endsAt: string | null;
 };
 
+/**
+ * Somebody named in a photograph.
+ *
+ * A tag is a claim the uploader makes about a third party, which is why it
+ * carries `mine`: the person named can take it off without asking, and the
+ * interface needs to know which row is theirs to offer that.
+ */
+export type PhotoTag = {
+  key: string;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  mine: boolean;
+};
+
 export type FeedPhoto = {
   id: string;
   /** 320px thumbnail. The fallback, and all there is before the deriver runs. */
@@ -56,6 +71,15 @@ export type FeedPhoto = {
    * is what tells you a row is new to you.
    */
   addedAt: string;
+  /**
+   * Who the uploader says is in it.
+   *
+   * Keyed the same opaque per-event way a contributor is — never an actor id.
+   * That matters more here than it does for a byline: this one is about
+   * somebody's face, and an id would make "who is in this photograph" a fact
+   * that follows them out of the album.
+   */
+  tags: PhotoTag[];
   mine: boolean;
   /**
    * Who added it, as the opaque per-event key — never an actor id.
@@ -848,6 +872,32 @@ export class Api {
       `/api/events/${eventId}/participation`,
       { method: 'DELETE' },
     );
+  }
+
+  /**
+   * Say who is in a photograph, or take a name off it.
+   *
+   * The server decides who may: only the uploader can add one, and either the
+   * uploader or the person named can remove one — somebody does not have to ask
+   * permission to stop being named in a picture.
+   *
+   * By actor id rather than by the opaque key the feed draws with, because this
+   * is the one direction that needs to name a person to the server. The id
+   * comes from the album's own roster, which is also the only set of people who
+   * may be tagged.
+   */
+  tagPhoto(photoId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/photos/${photoId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId }),
+    });
+  }
+
+  untagPhoto(photoId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/photos/${photoId}/tags`, {
+      method: 'DELETE',
+      body: JSON.stringify({ actorId }),
+    });
   }
 
   /** One tap, and the same tap again takes it off. The route toggles. */

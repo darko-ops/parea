@@ -1080,6 +1080,54 @@ export const photoReactions = pgTable(
   ],
 );
 
+/**
+ * Who is in a photograph, according to whoever put it there.
+ *
+ * A tag is a claim by the uploader about somebody else, which is what makes it
+ * different from a reaction: a reaction is a fact about the person who left it,
+ * and this is a fact about a third party who was not asked. Three consequences
+ * are built into the shape rather than left to the routes:
+ *
+ *   - **`taggedBy` is kept.** Somebody who finds themselves labelled in a
+ *     photograph is entitled to know who said so, and a table that recorded
+ *     only the claim would make that unanswerable.
+ *   - **Only people already in the event may be tagged**, which the routes
+ *     enforce. Tagging is not a way to point at somebody who cannot see the
+ *     album and has no way to object.
+ *   - **It grants nothing.** Being tagged is a label, not access — an actor
+ *     row here has no bearing on what anybody can open, which is deliberate and
+ *     is why there is no participation row written alongside it.
+ *
+ * Cascades on both actors: if either the tagged person or the tagger is erased,
+ * so is the claim. That is the right answer for the first and an acceptable one
+ * for the second — a tag whose author is gone is a claim nobody can be asked
+ * about, and keeping it would be keeping an accusation with no name on it.
+ */
+export const photoTags = pgTable(
+  'photo_tag',
+  {
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    taggedBy: uuid('tagged_by')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.photoId, t.actorId] }),
+    // Every read is "who is in these photographs", which the primary key's
+    // leading column serves. This is the other direction — every photograph one
+    // person is in — which is what a merge moves and a deletion finds, and what
+    // somebody asking "where am I tagged" is entitled to.
+    index('photo_tag_actor_idx').on(t.actorId),
+    index('photo_tag_by_idx').on(t.taggedBy),
+  ],
+);
+
 /*
  * How far somebody has read, in each kind of thread.
  *

@@ -228,6 +228,9 @@ describe('the closed list of what is collected', () => {
       // One time per thread per person, and never shown to anybody else.
       event_thread_read: /the moment you last read it/,
       group_thread_read: /the moment you last read it/,
+      // Which picture, which person, and who said so — the third being the
+      // part that makes a tag different in kind from a reaction.
+      photo_tag: /tag the people in it/,
       hidden_activity: /identifier of that line and nothing/,
     };
 

@@ -30,6 +30,7 @@ export type GlyphName =
   | 'unlocked'
   | 'locked'
   | 'envelope'
+  | 'face'
   | 'share'
   | 'download'
   | 'trash'
@@ -146,6 +147,25 @@ function paths(name: GlyphName) {
         <>
           <Rect x={4.5} y={11} width={15} height={9.5} rx={2} />
           <Path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+        </>
+      );
+
+    /*
+     * A face, for the control that opens the emoji picker.
+     *
+     * Drawn rather than set as an emoji. A 🙂 in the button is a *particular*
+     * emoji sitting where a control should be — it reads as "react with this
+     * one" rather than "choose one", and it changes shape between platforms
+     * and font versions while every other control in this app is a 24-unit
+     * stroke that does not.
+     */
+    case 'face':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={8.5} />
+          <Path d="M8.6 14.2a4.2 4.2 0 0 0 6.8 0" />
+          <Path d="M9.3 9.6h.01" />
+          <Path d="M14.7 9.6h.01" />
         </>
       );
 

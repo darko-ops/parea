@@ -318,24 +318,110 @@ describe('reacting with anything', () => {
     expect(code(VIEWER)).not.toMatch(/\bREACTIONS\b/);
     expect(VIEWER).toMatch(/accessibilityLabel="React to this photo"/);
     expect(VIEWER).toMatch(/setPicking\(true\)/);
-    expect(VIEWER).toMatch(/<Text style=\{styles\.smileyFace\}>🙂<\/Text>/);
   });
 
-  it('borrows the system keyboard rather than drawing a grid', () => {
+  it('draws the control as a glyph, not as a particular emoji', () => {
     /*
-     * Every phone has one, it is the one somebody's recents are in, and a grid
-     * we drew would be a worse copy that also has to be kept up to date with
-     * Unicode.
+     * A 🙂 in the button is *an* emoji sitting where a control should be: it
+     * reads as "react with this one" rather than "choose one", and it changes
+     * shape between platforms and font versions while every other control in
+     * this app is a 24-unit stroke that does not.
      */
-    expect(VIEWER).toMatch(/<TextInput[\s\S]{0,300}accessibilityLabel="Type an emoji to react with"/);
-    // One point across rather than hidden: a field with no size cannot take
-    // focus on iOS, and one that cannot take focus opens no keyboard.
-    expect(VIEWER).toMatch(/pickInput: \{[^}]*width: 1, height: 1/);
+    expect(VIEWER).toMatch(/<Glyph name="face" size=\{22\} color="#fff" \/>/);
+    expect(code(VIEWER)).not.toMatch(/🙂/);
   });
 
-  it('takes the first grapheme and lets the server judge it', () => {
-    // A pasted sentence is a 400 rather than a wall of text under somebody's
-    // photograph — see `isEmoji` on the server.
-    expect(VIEWER).toMatch(/const first = \[\.\.\.next\]\[0\]/);
+  it('shows emoji and only emoji', () => {
+    /*
+     * This focused an invisible `TextInput` so the phone would open its emoji
+     * keyboard. It works, and it opens *a* keyboard — the last panel somebody
+     * used, which is usually but not always the emoji one. There is no
+     * `keyboardType` for emoji on iOS and no public way to ask for that panel.
+     *
+     * So the choice was a keyboard that is sometimes letters, or a grid of our
+     * own. A grid can only produce emoji, which is the requirement, and it
+     * never puts a text field over somebody's photograph.
+     */
+    expect(VIEWER).toMatch(/<EmojiPicker/);
+    /*
+     * The viewer still has a `TextInput` — it is the comment box, which is a
+     * text field on purpose. What is gone is the invisible one that existed
+     * only to summon a keyboard.
+     */
+    expect(code(VIEWER)).not.toMatch(/pickInput|Type an emoji/);
+
+    const PICKER = readFileSync(
+      fileURLToPath(new URL('../src/Emoji.tsx', import.meta.url).href),
+      'utf8',
+    );
+    expect(code(PICKER)).not.toMatch(/TextInput|keyboardType/);
+    /*
+     * The six that used to be offered outright are still the first thing in it.
+     * They were chosen because they are what people react to photographs with,
+     * so the common case stays one scroll-free tap — which is the only thing
+     * worth keeping from the column they replaced.
+     */
+    expect(PICKER).toMatch(/name: 'Reactions'/);
+    const first = PICKER.slice(PICKER.indexOf("name: 'Reactions'"), PICKER.indexOf("name: 'Faces'"));
+    for (const emoji of ['❤️', '😂', '🔥', '👏', '😮', '🙏']) {
+      expect(first, `${emoji} should still lead`).toContain(emoji);
+    }
+  });
+});
+
+/**
+ * What the `⋯` offers, and who it offers it to.
+ *
+ * Two menus, and which one you get is not a matter of taste: what a person can
+ * do about a photograph depends entirely on whether they put it there. Yours —
+ * take it down, or say who is in it. Somebody else's — report it.
+ */
+describe('the photo options', () => {
+  it('does not outlive the photograph it is about', () => {
+    /*
+     * Opening `⋯` and then swiping out of the viewer left `actionsFor` set, so
+     * the sheet appeared over the album: a "remove my photo" prompt about a
+     * picture nobody was looking at any more. The viewer owns the sheet, so the
+     * viewer closing closes it.
+     */
+    expect(APP).toMatch(/setSelected\(null\);\s*setActionsFor\(null\);/);
+  });
+
+  it('offers taking it down and tagging, when it is yours', () => {
+    expect(APP).toMatch(/label="Remove photo"/);
+    expect(APP).toMatch(/Tag 'em/);
+  });
+
+  it('offers reporting, when it is not', () => {
+    expect(APP).toMatch(/label="Report photo"/);
+    const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
+    expect(sheet).toMatch(/photo\.mine \? \(/);
+  });
+
+  it('tags from the album’s own people, not from everybody', () => {
+    /*
+     * The server refuses a tag on somebody who is not in the event — tagging is
+     * not a way to point at a person who cannot open the album and so cannot
+     * object. The picker offers exactly what the server accepts, rather than
+     * searching every account and finding out on submit.
+     */
+    const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
+    expect(sheet).toMatch(/members: Member\[\]/);
+    expect(sheet).not.toMatch(/findPeople/);
+    expect(APP).toMatch(/members=\{feed\?\.members \?\? \[\]\}/);
+  });
+
+  it('lets a tag be taken off from here as well as added', () => {
+    // The uploader put it on, so the uploader can take it off. The person
+    // tagged can too, from their own side — the route allows both.
+    const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
+    expect(sheet).toMatch(/\.untagPhoto\(photo\.id, member\.actorId\)/);
+    expect(sheet).toMatch(/api\.tagPhoto\(photo\.id, actorId\)/);
+  });
+
+  it('shows the names as they are now, not as they were when opened', () => {
+    // Tagging refreshes the feed, and the copy taken when `⋯` was pressed would
+    // go on showing the names from before it.
+    expect(APP).toMatch(/feed\?\.photos\.find\(\(p\) => p\.id === actionsFor\.id\) \?\? actionsFor/);
   });
 });

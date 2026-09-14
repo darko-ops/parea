@@ -225,6 +225,18 @@ export default function PrivacyPage() {
             does not appear in the reactions you see, exactly as their messages
             and their photographs do not.
           </p>
+          <p className="muted">
+            Whoever added a photograph can tag the people in it. A tag is a
+            claim somebody else makes about you, so it works differently from
+            everything above: what is kept is which picture, which person, and{' '}
+            <em>who said so</em>. Only people already in that event can be
+            tagged — tagging is not a way to point at somebody who cannot see
+            the album — and only the person who added the photograph can add
+            one. Being tagged gives you nothing you did not already have: it is
+            a label, not access. You can take a tag of yourself off at any time
+            without asking the person who added it, and doing so removes the
+            record.
+          </p>
 
           <h3>What you write in a group</h3>
           <p className="muted">

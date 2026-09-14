@@ -2729,7 +2729,19 @@ function EventScreen({
             t={t}
             canReact={feed?.canPost ?? false}
             canPost={feed?.canPost ?? false}
-            onClose={() => setSelected(null)}
+            onClose={() => {
+              /*
+               * Both, and that is the fix for a real bug.
+               *
+               * Opening `⋯` and then swiping out of the photograph left
+               * `actionsFor` set, so the options sheet appeared over the album
+               * — a "remove my photo" prompt about a picture nobody was looking
+               * at any more. The viewer owns the sheet, so the viewer closing
+               * closes it.
+               */
+              setSelected(null);
+              setActionsFor(null);
+            }}
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}
           />
@@ -2739,7 +2751,21 @@ function EventScreen({
       {actionsFor && (
         <PhotoActions
           api={api}
-          photo={actionsFor}
+          photo={
+            // Re-read, for the same reason the viewer re-reads: tagging
+            // refreshes the feed, and the copy taken when `⋯` was pressed would
+            // go on showing the names as they were before.
+            feed?.photos.find((p) => p.id === actionsFor.id) ?? actionsFor
+          }
+          /*
+            Who may be tagged: the people already in this album.
+            
+            Not a search of everybody with an account. A tag is a claim about
+            somebody's face, and pointing at a person who cannot open the album
+            — and so cannot object — is the thing the server refuses anyway.
+            The picker offers what the server will accept.
+          */
+          members={feed?.members ?? []}
           t={t}
           onClose={() => setActionsFor(null)}
           onChanged={async () => {
@@ -3341,17 +3367,22 @@ function Row({
 function PhotoActions({
   api,
   photo,
+  members,
   t,
   onClose,
   onChanged,
 }: {
   api: Api;
   photo: FeedPhoto;
+  /** The album's own people — the only ones who may be tagged. */
+  members: Member[];
   t: Theme;
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [tagging, setTagging] = useState(false);
+  const [term, setTerm] = useState('');
 
   const act = async (label: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -3367,60 +3398,177 @@ function PhotoActions({
     }
   };
 
+  /*
+   * Who is already named, and who is left to name.
+   *
+   * Matched on the opaque per-event key rather than on an actor id, because
+   * that is what a tag carries — `members` has ids because the roster is drawn
+   * from them, and the two lists meet on the handle. Somebody with no handle
+   * cannot be matched and so cannot be double-offered, which shows as their
+   * name appearing in the list under a tag they already have: a small wrong
+   * thing, and the alternative is sending actor ids with the tags.
+   */
+  const tagged = new Set(photo.tags.map((tag) => tag.handle ?? tag.name));
+  const offerable = members
+    .filter((member) => !tagged.has(member.handle ?? member.name))
+    .filter((member) =>
+      term.trim() === ''
+        ? true
+        : `${member.name} ${member.handle ?? ''}`
+            .toLowerCase()
+            .includes(term.trim().toLowerCase()),
+    );
+
+  const tag = async (actorId: string) => {
+    setBusy(true);
+    try {
+      await api.tagPhoto(photo.id, actorId);
+      setTerm('');
+      await onChanged();
+    } catch {
+      Alert.alert('Could not tag', 'Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal visible animationType="slide" onRequestClose={onClose} transparent>
       <View style={styles.sheetBackdrop}>
         <View style={[styles.sheet, { backgroundColor: t.card }]}>
-          {/* No thumbnail at the top any more: the photograph this is about is
-              full-screen directly behind the sheet, and a 160pt copy of it
-              above the buttons was the only way to see it before. */}
+          {/*
+            Two menus, and which one you get is not a matter of taste.
+
+            Yours: take it down, or say who is in it. Somebody else's: report
+            it. That is the whole of it — what a person can do about a
+            photograph depends entirely on whether they put it there.
+          */}
           {photo.mine ? (
+            <>
+              {!tagging ? (
+                <>
+                  <Button
+                    label="Remove photo"
+                    t={t}
+                    primary
+                    disabled={busy}
+                    onPress={() =>
+                      act('Removed', () => api.removeOwn(photo.id), 'It is gone.')
+                    }
+                  />
+                  <Button
+                    label={
+                      photo.tags.length > 0
+                        ? `Tag 'em (${photo.tags.length})`
+                        : "Tag 'em"
+                    }
+                    t={t}
+                    disabled={busy}
+                    onPress={() => setTagging(true)}
+                  />
+                </>
+              ) : (
+                <>
+                  {/*
+                    Already named, each one removable.
+
+                    The uploader can take a tag off because they put it on. The
+                    person tagged can too, from their own side — the route
+                    allows both, and nobody has to ask permission to stop being
+                    named in a photograph.
+                  */}
+                  {photo.tags.length > 0 && (
+                    <View style={styles.tagRow}>
+                      {photo.tags.map((who) => (
+                        <Pressable
+                          key={who.key}
+                          disabled={busy}
+                          onPress={() => {
+                            const member = members.find(
+                              (m) => (m.handle ?? m.name) === (who.handle ?? who.name),
+                            );
+                            if (!member) return;
+                            setBusy(true);
+                            void api
+                              .untagPhoto(photo.id, member.actorId)
+                              .then(onChanged)
+                              .catch(() => {})
+                              .finally(() => setBusy(false));
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${who.name}`}
+                          style={[styles.tagChip, { borderColor: t.line, backgroundColor: t.bg }]}
+                        >
+                          <Text style={[styles.tagName, { color: t.fg }]}>{who.name}</Text>
+                          <Text style={[styles.tagX, { color: t.dim }]}>×</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+
+                  <TextInput
+                    value={term}
+                    onChangeText={setTerm}
+                    placeholder="Who is in it?"
+                    placeholderTextColor={t.dim}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={[styles.input, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
+                    accessibilityLabel="Who is in it?"
+                  />
+
+                  {/*
+                    The album's own people, filtered as you type.
+
+                    No search of everybody with an account, because the server
+                    refuses a tag on somebody who is not in the event — a tag is
+                    not a way to point at a person who cannot open the album and
+                    so cannot object. The picker offers what the server accepts.
+                  */}
+                  <ScrollView style={styles.tagList} keyboardShouldPersistTaps="handled">
+                    {offerable.length === 0 ? (
+                      <Text style={[styles.small, { color: t.dim }]}>
+                        {members.length === 0
+                          ? 'Nobody else is in this album yet.'
+                          : 'Everybody here is already tagged.'}
+                      </Text>
+                    ) : (
+                      offerable.map((member) => (
+                        <Pressable
+                          key={member.actorId}
+                          disabled={busy}
+                          onPress={() => void tag(member.actorId)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Tag ${member.name}`}
+                          style={({ pressed }) => [
+                            styles.tagPick,
+                            { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
+                          ]}
+                        >
+                          <Text style={[styles.tagName, { color: t.fg }]}>{member.name}</Text>
+                          {member.handle && (
+                            <Text style={[styles.small, { color: t.dim }]}>@{member.handle}</Text>
+                          )}
+                        </Pressable>
+                      ))
+                    )}
+                  </ScrollView>
+
+                  <Button label="Done" t={t} onPress={() => setTagging(false)} />
+                </>
+              )}
+            </>
+          ) : (
             <Button
-              label="Remove my photo"
+              label="Report photo"
               t={t}
-              primary
               disabled={busy}
               onPress={() =>
-                act('Removed', () => api.removeOwn(photo.id), 'It is gone.')
+                act('Reported', () => api.report(photo.id), 'Someone will look at it.')
               }
             />
-          ) : (
-            <>
-              <Button
-                label="That's me — take it down"
-                t={t}
-                disabled={busy}
-                onPress={() =>
-                  act(
-                    'Asked',
-                    () => api.removalRequest(photo.id),
-                    'The host has 48 hours to answer, then it hides automatically.',
-                  )
-                }
-              />
-              <Button
-                label="Report"
-                t={t}
-                disabled={busy}
-                onPress={() =>
-                  act('Reported', () => api.report(photo.id), 'Someone will look at it.')
-                }
-              />
-              <Button
-                label="Block this person"
-                t={t}
-                disabled={busy}
-                onPress={() =>
-                  act(
-                    'Blocked',
-                    () => api.block(photo.id),
-                    'You will not see their photos. They are not told.',
-                  )
-                }
-              />
-            </>
           )}
-          <Button label="Close" t={t} onPress={onClose} />
+          {!tagging && <Button label="Close" t={t} onPress={onClose} />}
         </View>
       </View>
     </Modal>
@@ -3927,6 +4075,22 @@ const styles = StyleSheet.create({
   /* Roughly what the cover row and one card would have occupied, so the sheet
      does not have to stand up once it knows what it is. */
   sheetWaiting: { height: 160, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  /* Who is already named, as chips that come off when pressed. */
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  tagName: { fontSize: 14.5, fontWeight: '600' },
+  tagX: { fontSize: 16, lineHeight: 18 },
+  /* Bounded, so a room of thirty does not push the field off the sheet. */
+  tagList: { maxHeight: 220 },
+  tagPick: { paddingVertical: 11, borderBottomWidth: 1, gap: 2 },
 });
 
 /** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */
