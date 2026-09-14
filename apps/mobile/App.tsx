@@ -2149,7 +2149,17 @@ function EventScreen({
           the edge would return underneath it.
         */}
         <LinearGradient
-          colors={['transparent', t.bg]}
+          colors={[t.bgClear, t.bg]}
+          /*
+            Clear for the first third, then a short ramp.
+            
+            An even fade across the whole eighteen points is a soft edge, which
+            reads as the panel being out of focus rather than as it ending. The
+            bias keeps the glass looking like glass almost all the way down and
+            then resolves quickly — a crisp edge that happens to have no line in
+            it, which is the thing an even ramp cannot be.
+          */
+          locations={[0.34, 1]}
           style={styles.coverFoot}
           pointerEvents="none"
         />
@@ -3320,11 +3330,24 @@ function theme(dark: boolean) {
    * on `card` rather than to be as red as possible — a warning nobody can read
    * is decoration, and a shout on every screen stops meaning anything.
    */
+  /*
+   * `bgClear` is `bg` at zero alpha, and it exists because `'transparent'` is
+   * not the same thing.
+   *
+   * CSS transparent — and React Native's — is transparent *black*. A gradient
+   * from it to a near-white page interpolates through darkened greys on the way,
+   * so a fade that should dissolve instead smudges: the dirty-gradient problem,
+   * and the reason the foot of the album header looked soft rather than clean.
+   * Ramping alpha on the page's own colour keeps every intermediate step the
+   * colour it is going to be, and only its opacity changes.
+   */
   return dark
-    ? { bg: '#0d0f12', card: '#171a1f', line: '#272b33', fg: '#f2f4f7',
-        dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12', warn: '#ff7b70' }
-    : { bg: '#f7f8fa', card: '#ffffff', line: '#e3e6ea', fg: '#14171c',
-        dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff', warn: '#c23127' };
+    ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
+        fg: '#f2f4f7', dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12',
+        warn: '#ff7b70' }
+    : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
+        fg: '#14171c', dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff',
+        warn: '#c23127' };
 }
 
 /** How far the floating chrome sits from the screen's edges. */

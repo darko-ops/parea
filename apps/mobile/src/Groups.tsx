@@ -41,6 +41,8 @@ export type GroupTheme = {
   onAccent: string;
   /** The one red, for the two actions that take something away. */
   warn: string;
+  /** `bg` at zero alpha, for fading to the page without passing through grey. */
+  bgClear: string;
 };
 
 export type OpenableEvent = {

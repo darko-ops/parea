@@ -178,7 +178,26 @@ describe('what is above the first photograph', () => {
      * of the ramp; at 40 it would be white text on the page colour.
      */
     expect(APP).toMatch(/coverFoot: \{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 18 \}/);
-    expect(APP).toMatch(/colors=\{\['transparent', t\.bg\]\}/);
+
+    /*
+     * Ramping alpha on the page's own colour, never from `'transparent'`.
+     *
+     * CSS transparent — and React Native's — is transparent *black*, so a
+     * gradient from it to a near-white page interpolates through darkened greys
+     * on the way. The fade smudges instead of dissolving, which is the
+     * dirty-gradient problem and is why this looked soft rather than clean.
+     */
+    expect(APP).toMatch(/colors=\{\[t\.bgClear, t\.bg\]\}/);
+    expect(APP).toMatch(/bgClear: 'rgba\(247,248,250,0\)'/);
+    expect(APP).toMatch(/bgClear: 'rgba\(13,15,18,0\)'/);
+
+    /*
+     * And biased rather than even. An even fade across all eighteen points is a
+     * soft edge, which reads as the panel being out of focus rather than as it
+     * ending; holding it clear for the first third and then resolving quickly
+     * is a crisp edge that happens to have no line in it.
+     */
+    expect(APP).toMatch(/locations=\{\[0\.34, 1\]\}/);
 
     /*
      * After the scrim, not before. The scrim's bottom stop is dark, so drawn
