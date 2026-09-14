@@ -425,3 +425,67 @@ describe('the photo options', () => {
     expect(APP).toMatch(/feed\?\.photos\.find\(\(p\) => p\.id === actionsFor\.id\) \?\? actionsFor/);
   });
 });
+
+/**
+ * The emoji sheet's own two problems.
+ *
+ * Both are about a grid inside a sheet, which is a shape with two gestures and
+ * one finger: the grid wants every downward drag and the sheet wants some of
+ * them.
+ */
+describe('the emoji sheet', () => {
+  const PICKER = readFileSync(
+    fileURLToPath(new URL('../src/Emoji.tsx', import.meta.url).href),
+    'utf8',
+  );
+
+  it('draws every section pill the same size', () => {
+    /*
+     * Sized to its own word, "Food" was two-thirds the width of "Reactions", so
+     * the row read as a ragged set of unrelated things — and the selected pill
+     * changed width as the selection moved, so the row reflowed under a thumb.
+     *
+     * One constant, so a section named something longer is a change to a number
+     * rather than a row that quietly starts clipping.
+     */
+    expect(PICKER).toMatch(/const TAB = \d+;/);
+    expect(PICKER).toMatch(/tab: \{\s*width: TAB,\s*height: 32,/);
+    expect(PICKER).toMatch(/alignItems: 'center',\s*justifyContent: 'center',/);
+  });
+
+  it('never lets a label wrap or clip', () => {
+    // A label on two lines inside a 32pt pill is a label with its second half
+    // cut off.
+    expect(PICKER).toMatch(/numberOfLines=\{1\}/);
+    expect(PICKER).toMatch(/tabText: \{[^}]*textAlign: 'center'/);
+  });
+
+  it('closes on a downward swipe, but only when the grid has nothing to scroll', () => {
+    /*
+     * The whole of the problem: a downward drag inside the grid is a scroll, so
+     * a sheet that took every one would make the grid unscrollable. A drag at
+     * the top of an already-at-the-top grid has nothing to scroll, which is
+     * exactly when somebody means "put this away".
+     */
+    expect(PICKER).toMatch(/onMoveShouldSetPanResponderCapture: \(_evt, g\) =>\s*atTop\.current && g\.dy > 6 && g\.dy > Math\.abs\(g\.dx\)/);
+    expect(PICKER).toMatch(/if \(g\.dy > SWIPE \|\| g\.vy > FLING\) onClose\(\)/);
+    // Read from the scroll view rather than guessed.
+    expect(PICKER).toMatch(/atTop\.current = e\.nativeEvent\.contentOffset\.y <= 0/);
+  });
+
+  it('never claims a tap or a sideways drag', () => {
+    // Sideways is the section row; a tap is an emoji.
+    expect(PICKER).toMatch(/onStartShouldSetPanResponderCapture: \(\) => false/);
+  });
+
+  it('resets the flag when the section changes', () => {
+    // A new section starts at the top. Without this, switching after scrolling
+    // leaves the sheet refusing to close until somebody scrolls again.
+    expect(PICKER).toMatch(/atTop\.current = true;\s*setSection\(i\)/);
+  });
+
+  it('keeps the flag out of state', () => {
+    // As state it would rebuild the responder on every scroll frame.
+    expect(PICKER).toMatch(/const atTop = useRef\(true\)/);
+  });
+});
