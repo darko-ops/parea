@@ -362,7 +362,21 @@ export function PhotoViewer({
     );
     const added = [...pending]
       .filter(([emoji, on]) => on && !photo.reactions.some((r) => r.mine && r.emoji === emoji))
-      // Newest at the top, which is where the server would have put them.
+      /*
+       * Reversed, because a `Map` iterates in insertion order and this list
+       * reads newest first.
+       *
+       * With one reaction in flight it makes no difference, which is why this
+       * was wrong and looked fine. Leave two — react, react again before the
+       * first has come back — and the pair went in oldest-above-newest while
+       * the server was about to answer newest-above-oldest. So the second
+       * landed *below* the first and then swapped places a moment later, which
+       * reads as the app changing its mind about what you just did.
+       *
+       * The rule is that an optimistic row goes exactly where the server would
+       * have put it. Anywhere else is a correction somebody watches happen.
+       */
+      .reverse()
       .map(([emoji]) => ({ emoji, name: 'You', mine: true }));
     return [...added, ...kept];
   }, [pending, photo.reactions]);
@@ -372,14 +386,6 @@ export function PhotoViewer({
     [reactions],
   );
 
-  /*
-   * Oldest first, because the column is read upwards from the corner.
-   *
-   * The server answers newest first, which is the right order for a list that
-   * grows downwards and the wrong one for a list that grows up out of the
-   * bottom-left. Reversed once here rather than at the call site, so the
-   * `slice` that used to do it cannot quietly change which four are visible.
-   */
   /*
    * Newest first, which is the order the server already sends.
    *

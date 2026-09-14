@@ -195,6 +195,21 @@ describe('reacting to a photograph', () => {
     expect(APP).toMatch(/canReact=\{feed\?\.canPost \?\? false\}/);
   });
 
+  it('puts an optimistic reaction where the server would have put it', () => {
+    /*
+     * A `Map` iterates in insertion order and this list reads newest first.
+     *
+     * With one reaction in flight that makes no difference, which is why it was
+     * wrong and looked fine. Leave two — react, then react again before the
+     * first has come back — and the pair went in oldest-above-newest while the
+     * server was about to answer newest-above-oldest, so the second landed
+     * below the first and swapped places a moment later. That reads as the app
+     * changing its mind about what you just did.
+     */
+    expect(GESTURE).toMatch(/\.reverse\(\)\s*\.map\(\(\[emoji\]\) => \(\{ emoji, name: 'You', mine: true \}\)\)/);
+    expect(GESTURE).toMatch(/return \[\.\.\.added, \.\.\.kept\]/);
+  });
+
   it('draws the answer before the server has given one', () => {
     /*
      * A reaction used to wait on a POST *and* a refresh of the entire album
@@ -436,6 +451,42 @@ describe('the photo options', () => {
     const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
     expect(sheet).toMatch(/\.untagPhoto\(photo\.id, member\.actorId\)/);
     expect(sheet).toMatch(/api\.tagPhoto\(photo\.id, actorId\)/);
+  });
+
+  it('moves to the top of the screen once there is a keyboard', () => {
+    /*
+     * Tagging is the one thing in this sheet with a text field in it, and a
+     * bottom sheet with a keyboard over it is a list somebody is typing into
+     * that they cannot see: the field, the names and the chips were all under
+     * the keys.
+     *
+     * Only that state. The two menu buttons have no keyboard and belong where a
+     * sheet belongs.
+     */
+    expect(APP).toMatch(/tagging \? styles\.sheetTop : styles\.sheetBackdrop/);
+    expect(APP).toMatch(/sheetTop: \{ flex: 1, justifyContent: 'flex-start', paddingTop: 64/);
+    // Bounded, so a long roster scrolls inside the panel rather than growing it
+    // off the bottom and back under the keys it was moved to escape.
+    expect(APP).toMatch(/sheetTopPanel: \{[\s\S]{0,80}maxHeight: '70%'/);
+  });
+
+  it('puts a way off the keyboard on the keyboard', () => {
+    /*
+     * A search field with no submit has nothing to press to put the keys away,
+     * and tapping outside is the usual escape — except there is no outside
+     * here, because the sheet is the screen. iOS puts an accessory bar directly
+     * above the keys for this, which is where a thumb already is.
+     *
+     * The id is a constant: two literals that have to match is a pair that
+     * eventually does not.
+     */
+    expect(APP).toMatch(/const KEYBOARD_BAR = /);
+    expect(APP).toMatch(/inputAccessoryViewID=\{KEYBOARD_BAR\}/);
+    expect(APP).toMatch(/<InputAccessoryView nativeID=\{KEYBOARD_BAR\}>/);
+    expect(APP).toMatch(/onPress=\{Keyboard\.dismiss\}/);
+    // iOS only: `InputAccessoryView` is not implemented on Android, where the
+    // back key has always done this.
+    expect(APP).toMatch(/\{Platform\.OS === 'ios' && \(\s*<InputAccessoryView/);
   });
 
   it('shows the names as they are now, not as they were when opened', () => {

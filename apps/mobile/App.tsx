@@ -29,8 +29,11 @@ import {
   Easing,
   FlatList,
   Image,
+  InputAccessoryView,
+  Keyboard,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -1111,6 +1114,15 @@ const COVER = 196;
  * actually doing the work.
  */
 const PAGE_TOP = COVER;
+
+/**
+ * The id tying a field to the bar that sits over the keyboard.
+ *
+ * iOS matches `inputAccessoryViewID` on the input to `nativeID` on the view, so
+ * the two have to agree on a string. One constant, because two literals that
+ * have to match is a pair that eventually does not.
+ */
+const KEYBOARD_BAR = 'parea-keyboard-bar';
 
 function EventScreen({
   api,
@@ -3447,8 +3459,23 @@ function PhotoActions({
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose} transparent>
-      <View style={styles.sheetBackdrop}>
-        <View style={[styles.sheet, { backgroundColor: t.card }]}>
+      {/*
+        A sheet at the foot of the screen, until there is a keyboard.
+
+        Tagging is the one thing in here with a text field in it, and a bottom
+        sheet with a keyboard over it is a list somebody is typing into that
+        they cannot see — the field, the names and the chips were all under the
+        keys. So the tagging state goes to the top instead, where the keyboard
+        cannot reach it, and the two menu buttons stay where a sheet belongs.
+      */}
+      <View style={tagging ? styles.sheetTop : styles.sheetBackdrop}>
+        <View
+          style={[
+            styles.sheet,
+            tagging && styles.sheetTopPanel,
+            { backgroundColor: t.card },
+          ]}
+        >
           {/*
             Two menus, and which one you get is not a matter of taste.
 
@@ -3526,9 +3553,40 @@ function PhotoActions({
                     placeholderTextColor={t.dim}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                    inputAccessoryViewID={KEYBOARD_BAR}
                     style={[styles.input, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
                     accessibilityLabel="Who is in it?"
                   />
+
+                  {/*
+                    A way off the keyboard, on the keyboard.
+
+                    A search field with no submit has nothing to press to put the
+                    keys away — tapping outside is the usual escape and there is
+                    no outside here, because the sheet is the screen. iOS puts
+                    an accessory bar directly above the keys for exactly this,
+                    so the button is where somebody's thumb already is rather
+                    than at the far end of the panel.
+
+                    iOS only: `InputAccessoryView` is not implemented on
+                    Android, where the back key does this and always has.
+                  */}
+                  {Platform.OS === 'ios' && (
+                    <InputAccessoryView nativeID={KEYBOARD_BAR}>
+                      <View style={[styles.keyBar, { backgroundColor: t.card, borderTopColor: t.line }]}>
+                        <Pressable
+                          onPress={Keyboard.dismiss}
+                          accessibilityRole="button"
+                          accessibilityLabel="Hide the keyboard"
+                          hitSlop={10}
+                        >
+                          <Text style={[styles.keyBarDone, { color: t.accent }]}>Done</Text>
+                        </Pressable>
+                      </View>
+                    </InputAccessoryView>
+                  )}
 
                   {/*
                     The album's own people, filtered as you type.
@@ -4104,6 +4162,29 @@ const styles = StyleSheet.create({
   /* Bounded, so a room of thirty does not push the field off the sheet. */
   tagList: { maxHeight: 220 },
   tagPick: { paddingVertical: 11, borderBottomWidth: 1, gap: 2 },
+  /* The bar that rides on top of the keyboard. Right-aligned, because that is
+     where every system one puts its Done. */
+  keyBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderTopWidth: 1,
+  },
+  keyBarDone: { fontSize: 16, fontWeight: '600' },
+  /*
+   * The sheet, at the top, for the one state that has a keyboard under it.
+   *
+   * Clear of the status bar and the notch, and bounded so a long roster
+   * scrolls inside the panel rather than growing it off the bottom of the
+   * screen and back under the keys it was moved to escape.
+   */
+  sheetTop: { flex: 1, justifyContent: 'flex-start', paddingTop: 64, backgroundColor: '#000b' },
+  sheetTopPanel: {
+    marginHorizontal: 12,
+    borderRadius: 18,
+    maxHeight: '70%',
+  },
 });
 
 /** Rough, and rounded up: this number exists to prevent a surprise, not to be exact. */
