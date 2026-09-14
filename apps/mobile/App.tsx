@@ -65,7 +65,6 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
-import { CoverEdges } from './src/CoverEdges';
 import { Lately } from './src/Lately';
 import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
@@ -2076,19 +2075,6 @@ function EventScreen({
           // letter-on-a-colour every other doorless thing in the product gets.
           <View style={{ flex: 1, backgroundColor: lensFor(event.id).fill }} />
         )}
-        {/*
-          Where the photograph meets the page, as a panel of leaded glass.
-
-          Three of the cover's sides are the screen's own edges and only this
-          one borders anything, which is why it is the only one that gets
-          anything — softening the other three was a vignette nobody asked for.
-
-          Above the image so it has something to blur, and below the scrim so
-          the gradient still lands on the same forty points it was tuned
-          against. See `CoverEdges`.
-        */}
-        <CoverEdges />
-
         {/*
           Dark at the top and the bottom, clear through the middle.
 
