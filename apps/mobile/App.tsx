@@ -2745,37 +2745,50 @@ function EventScreen({
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}
           />
+
+          {/*
+            Inside the viewer's modal, not beside it.
+
+            This was a sibling of the `<Modal>` above, which on iOS means it
+            presented *underneath* a full-screen modal that was already up: the
+            sheet opened every time, was never visible, and then appeared over
+            the album the moment the photograph was swiped away. That last part
+            was reported as a bug and treated as one — the state is cleared on
+            close, which is still right — but the state was never the fault. A
+            sheet about a photograph belongs in the same layer as the
+            photograph.
+          */}
+          {actionsFor && (
+            <PhotoActions
+              api={api}
+              photo={
+                // Re-read, for the same reason the viewer re-reads: tagging
+                // refreshes the feed, and the copy taken when `⋯` was pressed
+                // would go on showing the names as they were before.
+                feed?.photos.find((p) => p.id === actionsFor.id) ?? actionsFor
+              }
+              /*
+                Who may be tagged: the people already in this album.
+
+                Not a search of everybody with an account. A tag is a claim
+                about somebody's face, and pointing at a person who cannot open
+                the album — and so cannot object — is the thing the server
+                refuses anyway. The picker offers what the server accepts.
+              */
+              members={feed?.members ?? []}
+              t={t}
+              onClose={() => setActionsFor(null)}
+              onChanged={async () => {
+                await refresh();
+                // Removing or hiding the photograph takes the viewer with it —
+                // there is nothing left underneath for it to be showing.
+                setSelected(null);
+              }}
+            />
+          )}
         </Modal>
       )}
 
-      {actionsFor && (
-        <PhotoActions
-          api={api}
-          photo={
-            // Re-read, for the same reason the viewer re-reads: tagging
-            // refreshes the feed, and the copy taken when `⋯` was pressed would
-            // go on showing the names as they were before.
-            feed?.photos.find((p) => p.id === actionsFor.id) ?? actionsFor
-          }
-          /*
-            Who may be tagged: the people already in this album.
-            
-            Not a search of everybody with an account. A tag is a claim about
-            somebody's face, and pointing at a person who cannot open the album
-            — and so cannot object — is the thing the server refuses anyway.
-            The picker offers what the server will accept.
-          */
-          members={feed?.members ?? []}
-          t={t}
-          onClose={() => setActionsFor(null)}
-          onChanged={async () => {
-            await refresh();
-            // Removing or hiding the photograph takes the viewer with it —
-            // there is nothing left underneath for it to be showing.
-            setSelected(null);
-          }}
-        />
-      )}
     </View>
   );
 }

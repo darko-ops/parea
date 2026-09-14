@@ -377,13 +377,32 @@ describe('reacting with anything', () => {
  * take it down, or say who is in it. Somebody else's — report it.
  */
 describe('the photo options', () => {
-  it('does not outlive the photograph it is about', () => {
+  it('is drawn inside the viewer’s modal, not beside it', () => {
     /*
-     * Opening `⋯` and then swiping out of the viewer left `actionsFor` set, so
-     * the sheet appeared over the album: a "remove my photo" prompt about a
-     * picture nobody was looking at any more. The viewer owns the sheet, so the
-     * viewer closing closes it.
+     * The bug, and the thing that hid it.
+     *
+     * The sheet was a sibling of the viewer's `<Modal>`, which on iOS means it
+     * presented *underneath* a full-screen modal that was already up. So `⋯`
+     * appeared to do nothing: the sheet opened every time and was never
+     * visible, and then turned up over the album the moment the photograph was
+     * swiped away.
+     *
+     * That last part was reported as a bug and treated as one — clearing the
+     * state on close, which is still right and is checked below. But the state
+     * was never the fault. A sheet about a photograph belongs in the same layer
+     * as the photograph.
      */
+    const modal = APP.slice(
+      APP.indexOf('{selected && ('),
+      APP.indexOf('</Modal>', APP.indexOf('{selected && (')),
+    );
+    expect(modal).toMatch(/<PhotoViewer/);
+    expect(modal).toMatch(/\{actionsFor && \(\s*<PhotoActions/);
+  });
+
+  it('does not outlive the photograph it is about', () => {
+    // Closing the viewer closes the sheet: a "remove my photo" prompt about a
+    // picture nobody is looking at is nobody's idea of a prompt.
     expect(APP).toMatch(/setSelected\(null\);\s*setActionsFor\(null\);/);
   });
 
