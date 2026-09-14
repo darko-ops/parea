@@ -31,16 +31,19 @@ import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  KeyboardAvoidingView,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
 
-import { REACTIONS, type Api, type FeedPhoto } from './api';
+import { REACTIONS, type Api, type FeedPhoto, type Message } from './api';
 import type { GroupTheme } from './Groups';
 
 /** As far in as a pinch will go. Beyond this a 2560px rendition is mush. */
@@ -68,6 +71,26 @@ const VISIBLE_REACTIONS = 4;
 const SAID_ROW = 22;
 const SAID_GAP = 6;
 
+/**
+ * How far a one-finger drag has to go before it means something.
+ *
+ * Only ever read at scale 1, where the picture fits and a drag has nothing else
+ * to do — zoomed in, the same finger is panning and none of this applies.
+ *
+ * Generous, because both outcomes are large: one leaves the photograph and the
+ * other opens a panel over it. A hair-trigger on either would fire on the
+ * flick somebody uses to scroll the album behind it.
+ */
+const SWIPE = 90;
+
+/**
+ * And how fast counts as meaning it regardless of distance.
+ *
+ * A short quick flick is the same intention as a long slow drag, which is the
+ * rule `SwipeBack` already follows for the same reason.
+ */
+const FLING = 0.7;
+
 const distance = (touches: { pageX: number; pageY: number }[]) => {
   const [a, b] = touches;
   return Math.hypot(a!.pageX - b!.pageX, a!.pageY - b!.pageY);
@@ -75,18 +98,35 @@ const distance = (touches: { pageX: number; pageY: number }[]) => {
 
 export function PhotoViewer({
   api,
+  eventId,
   photo,
+  comments,
   t,
   canReact,
+  canPost,
   onClose,
   onChanged,
   onOptions,
 }: {
   api: Api;
+  /** Which album, for posting a comment against this photograph. */
+  eventId: string;
   photo: FeedPhoto;
+  /**
+   * What has been said about this photograph, oldest first.
+   *
+   * The event's own thread, filtered to this picture. Comments are not a second
+   * kind of message and there is no second table: `event_message` has carried a
+   * `photo_id` since the web let somebody reply to a photograph, and this is
+   * the same rows read from the other end. A comment here is a line in the
+   * album's conversation that happens to be about a picture.
+   */
+  comments: Message[];
   t: GroupTheme;
   /** Whether this viewer may leave a reaction. The server's answer. */
   canReact: boolean;
+  /** Whether they may say something. The same answer, from the same place. */
+  canPost: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
   /** The `⋯`: remove, ask for it down, report, block. */
@@ -123,6 +163,19 @@ export function PhotoViewer({
   const lastTap = useRef(0);
 
   const [chrome, setChrome] = useState(true);
+  /**
+   * Whether the comments are open.
+   *
+   * A panel over the photograph rather than a screen of its own: what somebody
+   * is saying is about the picture, and a comment read without it in view is a
+   * remark about nothing. It covers the lower half and the picture stays above.
+   */
+  const [talking, setTalking] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  /** The `⋯` on the reaction column: an emoji off the system keyboard. */
+  const [picking, setPicking] = useState(false);
+  const [typed, setTyped] = useState('');
   /** The names column, kept scrolled to the newest. */
   const column = useRef<ScrollView>(null);
 
@@ -197,9 +250,23 @@ export function PhotoViewer({
             return;
           }
 
-          // One finger only pans a picture that is bigger than the screen.
-          // Otherwise the photograph slides around inside its own frame.
-          if (now.current.scale <= 1) return;
+          /*
+           * At fit, one finger is a vertical gesture rather than a pan.
+           *
+           * There is nothing to pan — the picture is already inside the screen —
+           * so this space was doing nothing, which is exactly why the two new
+           * gestures live here and not on top of something. Zoomed in, the
+           * branch below takes the finger back for panning and neither of them
+           * can fire.
+           *
+           * The photograph follows the finger at a third of the distance. Not
+           * for the animation: it is how somebody finds out the gesture exists,
+           * and how they discover mid-drag which way they are going.
+           */
+          if (now.current.scale <= 1) {
+            pan.setValue({ x: 0, y: g.dy / 3 });
+            return;
+          }
           if (!from.current) {
             from.current = { scale: now.current.scale, x: now.current.x, y: now.current.y, span: 0 };
           }
@@ -208,6 +275,30 @@ export function PhotoViewer({
         onPanResponderRelease: (_evt, g) => {
           const moved = Math.hypot(g.dx, g.dy) > TAP_SLOP;
           from.current = null;
+
+          /*
+           * Up leaves, down talks.
+           *
+           * Which is the opposite of the convention — a photo viewer usually
+           * dismisses downward — and it is the right way round here because of
+           * where the two things are. The comments are below the picture, so
+           * pulling down brings them up into view; the album is behind it, so
+           * pushing the photograph up off the screen puts it back. Both
+           * gestures move something in the direction it actually goes.
+           *
+           * Vertical only: `dy` has to beat `dx`, or a diagonal flick past a
+           * photograph closes it.
+           */
+          if (now.current.scale <= 1 && Math.abs(g.dy) > Math.abs(g.dx)) {
+            const far = Math.abs(g.dy) > SWIPE;
+            const flung = Math.abs(g.vy) > FLING;
+            if (far || flung) {
+              settle(1);
+              if (g.dy < 0) onClose();
+              else setTalking(true);
+              return;
+            }
+          }
 
           if (!moved) {
             const at = Date.now();
@@ -232,7 +323,7 @@ export function PhotoViewer({
           settle(now.current.scale);
         },
       }),
-    [pan, scale, settle, zoomTo],
+    [onClose, pan, scale, settle, zoomTo],
   );
 
   /*
@@ -286,6 +377,31 @@ export function PhotoViewer({
    * `slice` that used to do it cannot quietly change which four are visible.
    */
   const ordered = useMemo(() => [...reactions].reverse(), [reactions]);
+
+  /**
+   * Say something about this photograph.
+   *
+   * Into the album's own thread with the photo's id on it, which is what makes
+   * it a comment — there is no second table and no second endpoint. Cleared and
+   * closed optimistically, because the refresh below is what brings the line
+   * back and a box that empties only once the server answers feels broken on a
+   * train.
+   */
+  const post = useCallback(async () => {
+    const body = draft.trim();
+    if (!body || sending) return;
+    setSending(true);
+    try {
+      await api.postMessage(eventId, body, photo.id);
+      setDraft('');
+      await onChanged();
+    } catch {
+      // The draft survives, which is the whole recovery: somebody who wrote a
+      // sentence is not being asked to write it again.
+    } finally {
+      setSending(false);
+    }
+  }, [api, draft, eventId, onChanged, photo.id, sending]);
 
   const react = useCallback(
     async (emoji: string) => {
@@ -437,10 +553,156 @@ export function PhotoViewer({
                     <Text style={styles.keyText}>{emoji}</Text>
                   </Pressable>
                 ))}
+
+                {/*
+                  Anything else, off the system keyboard.
+
+                  Six was the whole vocabulary, chosen because a reaction should
+                  be one tap and a grid of two thousand emoji is not one tap.
+                  That argument is about the *default*, not about the ceiling —
+                  the six stay where they were and this is underneath them, so
+                  the common case costs exactly what it did and the rest is one
+                  press further.
+
+                  A `TextInput` rather than a picker of our own: every phone
+                  already has one, it is the one somebody has their recents in,
+                  and a grid we drew would be a worse copy of it that also has
+                  to be kept up to date with Unicode.
+                */}
+                <Pressable
+                  onPress={() => setPicking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="React with any emoji"
+                  style={({ pressed }) => [styles.key, { opacity: pressed ? 0.55 : 1 }]}
+                >
+                  <Text style={styles.keyMore}>⋯</Text>
+                </Pressable>
               </ScrollView>
             )}
           </View>
+
+          {/*
+            What has been said about this photograph, and a box to add to it.
+
+            The composer is on the glass rather than inside the panel, because it
+            is the thing somebody came to do and a comment box you have to open
+            a panel to find is a comment box nobody uses. Pulling down opens the
+            list above it; the box itself is always there.
+          */}
+          {canPost && !talking && (
+            <Pressable
+              onPress={() => setTalking(true)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                comments.length > 0
+                  ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
+                  : 'Add a comment'
+              }
+              style={styles.composerHint}
+            >
+              <Text style={styles.composerHintText} numberOfLines={1}>
+                {comments.length > 0
+                  ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
+                  : 'Add a comment'}
+              </Text>
+            </Pressable>
+          )}
         </>
+      )}
+
+      {talking && (
+        <KeyboardAvoidingView
+          style={styles.talk}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/*
+            The picture stays visible above it. A comment read without the
+            photograph in view is a remark about nothing.
+          */}
+          <Pressable style={styles.talkAway} onPress={() => setTalking(false)} />
+
+          <View style={styles.talkPanel}>
+            <View style={styles.talkGrip} />
+
+            <ScrollView
+              style={styles.talkScroll}
+              contentContainerStyle={styles.talkInner}
+              keyboardShouldPersistTaps="handled"
+            >
+              {comments.length === 0 ? (
+                <Text style={styles.talkEmpty}>
+                  Nothing said about this one yet.
+                </Text>
+              ) : (
+                comments.map((message) => (
+                  <View key={message.id} style={styles.talkRow}>
+                    <Text style={styles.talkWho} numberOfLines={1}>
+                      {message.author.mine ? 'You' : message.author.name}
+                    </Text>
+                    <Text style={styles.talkBody}>
+                      {message.deleted ? 'Message deleted' : message.body}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {canPost && (
+              <View style={styles.talkBox}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Say something about this photo"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  style={styles.talkInput}
+                  multiline
+                  autoFocus
+                  accessibilityLabel="Say something about this photo"
+                />
+                <Pressable
+                  onPress={() => void post()}
+                  disabled={!draft.trim() || sending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send"
+                  style={({ pressed }) => [
+                    styles.talkSend,
+                    {
+                      opacity: !draft.trim() || sending ? 0.4 : pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={styles.talkSendText}>{sending ? '…' : 'Send'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {/*
+        The emoji keyboard, borrowed.
+
+        An invisible input that takes focus, so the system keyboard opens on
+        whatever panel somebody last used — which for this is almost always the
+        emoji one. The first grapheme typed is the reaction; the server refuses
+        anything that is not exactly one, so a pasted sentence is a 400 rather
+        than a wall of text under somebody's photograph.
+      */}
+      {picking && (
+        <Pressable style={styles.pickAway} onPress={() => setPicking(false)}>
+          <TextInput
+            value={typed}
+            onChangeText={(next) => {
+              setTyped('');
+              setPicking(false);
+              const first = [...next][0];
+              if (first) void react(first);
+            }}
+            autoFocus
+            style={styles.pickInput}
+            accessibilityLabel="Type an emoji to react with"
+          />
+        </Pressable>
       )}
     </View>
   );
@@ -460,6 +722,81 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  /* The `⋯` that opens the system keyboard, at the foot of the six. */
+  keyMore: { fontSize: 20, lineHeight: 22, color: 'rgba(255,255,255,0.85)', fontWeight: '700' },
+  /*
+   * The comment box, on the glass rather than inside the panel.
+   *
+   * It is the thing somebody came here to do, and a box you have to open a
+   * panel to find is a box nobody uses. Left of the reaction column, clear of
+   * the names in the other corner.
+   */
+  composerHint: {
+    position: 'absolute',
+    left: 16,
+    right: 74,
+    bottom: 34,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(20,23,28,0.55)',
+  },
+  composerHintText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  /* The panel covers the lower half; the photograph stays above it. */
+  talk: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  talkAway: { flex: 1 },
+  talkPanel: {
+    maxHeight: '62%',
+    backgroundColor: 'rgba(12,14,18,0.94)',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 28,
+  },
+  /* The handle a sheet has, so it reads as something that came up and can go
+     back down. */
+  talkGrip: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 8,
+    marginBottom: 6,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  talkScroll: { flexGrow: 0 },
+  talkInner: { paddingHorizontal: 18, paddingVertical: 8, gap: 12 },
+  talkEmpty: { color: 'rgba(255,255,255,0.5)', fontSize: 14, paddingVertical: 12 },
+  talkRow: { gap: 2 },
+  talkWho: { color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: '600' },
+  talkBody: { color: '#fff', fontSize: 15, lineHeight: 21 },
+  talkBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+  },
+  talkInput: {
+    flex: 1,
+    maxHeight: 120,
+    color: '#fff',
+    fontSize: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  talkSend: { paddingVertical: 10 },
+  talkSendText: { color: '#6ea8fe', fontSize: 15, fontWeight: '700' },
+  /*
+   * The invisible input behind the emoji keyboard.
+   *
+   * One point across rather than `display: none`: a field with no size cannot
+   * take focus on iOS, and a field that cannot take focus does not open a
+   * keyboard. The backdrop above it is what closes the whole thing.
+   */
+  pickAway: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  pickInput: { position: 'absolute', bottom: 0, left: 0, width: 1, height: 1, opacity: 0.01 },
   /* Dark discs rather than bare glyphs: white on white is invisible, and a
      photograph can be any colour at all under either corner. */
   round: {

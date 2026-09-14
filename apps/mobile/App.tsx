@@ -2709,14 +2709,26 @@ function EventScreen({
         <Modal visible animationType="fade" onRequestClose={() => setSelected(null)}>
           <PhotoViewer
             api={api}
+            eventId={event.id}
             photo={
               // Re-read off the feed rather than held: a reaction refreshes the
               // feed, and the copy captured when the tile was tapped would go
               // on showing the counts as they were before the tap.
               feed?.photos.find((p) => p.id === selected.id) ?? selected
             }
+            /*
+              The album's own thread, filtered to this photograph.
+              
+              There is no second table and no second request: `event_message`
+              has carried a `photo_id` since the web let somebody reply to a
+              picture, and the feed has been sending those rows all along. A
+              comment is a line in the album's conversation that happens to be
+              about one of its photographs.
+            */
+            comments={(feed?.messages ?? []).filter((m) => m.photoId === selected.id)}
             t={t}
             canReact={feed?.canPost ?? false}
+            canPost={feed?.canPost ?? false}
             onClose={() => setSelected(null)}
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}

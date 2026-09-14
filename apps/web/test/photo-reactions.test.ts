@@ -262,3 +262,67 @@ describe('when the photograph goes', () => {
     expect((await db.select().from(schema.photoReactions)).length).toBe(0);
   });
 });
+
+/**
+ * What counts as an emoji, now that the set is open.
+ *
+ * The picker offered six and the route checked against those six, so the list
+ * was both the vocabulary and the validation. The app can reach the system
+ * keyboard now, which changes the question from "which emoji do we like" to "is
+ * this an emoji at all".
+ *
+ * The rule doing the real work is *one grapheme*. Without it the column under a
+ * photograph is an unmoderated text channel with no length limit and no report
+ * button, reached through a box labelled "pick an emoji" — which is the failure
+ * these cases exist to prevent, not the taste ones.
+ */
+describe('what may be reacted with', () => {
+  it('takes any single emoji, not just the six', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const emoji of ['❤️', '😂', '🦑', '🫠', '🇬🇷', '1️⃣', '👨‍👩‍👧‍👦', '🧑🏽‍🚀']) {
+      expect(isEmoji(emoji), `${emoji} should be allowed`).toBe(true);
+    }
+  });
+
+  it('refuses anything that is more than one of them', async () => {
+    /*
+     * Two emoji is a sentence, and a sentence is the thing a reaction is not.
+     * Sequences that *look* like several — a family, a profession with a skin
+     * tone — are one grapheme and pass above.
+     */
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of ['❤️❤️', '😂 ', ' 😂', '😂😂😂']) {
+      expect(isEmoji(value), `${JSON.stringify(value)} should be refused`).toBe(false);
+    }
+  });
+
+  it('refuses words, digits and empty strings', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of ['', 'a', '7', 'lol', 'nice photo', ' ', '\n']) {
+      expect(isEmoji(value), `${JSON.stringify(value)} should be refused`).toBe(false);
+    }
+  });
+
+  it('refuses anything that is not a string', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of [null, undefined, 42, {}, ['😂'], true]) {
+      expect(isEmoji(value)).toBe(false);
+    }
+  });
+
+  it('refuses a megabyte before it reaches the segmenter', async () => {
+    // The length bound is not really about length — the grapheme check already
+    // does that work — it is a cheap first refusal.
+    const { isEmoji } = await import('../src/reactions');
+    expect(isEmoji('😂'.repeat(100_000))).toBe(false);
+  });
+
+  it('still knows the offered six, for the picker that offers them', async () => {
+    // `isReaction` did not go away: the set is still what a picker opens with,
+    // and it is still the shared vocabulary between the two clients.
+    const { isReaction, REACTIONS } = await import('../src/reactions');
+    expect(REACTIONS).toHaveLength(6);
+    for (const emoji of REACTIONS) expect(isReaction(emoji)).toBe(true);
+    expect(isReaction('🦑')).toBe(false);
+  });
+});

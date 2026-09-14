@@ -159,8 +159,15 @@ export async function togglePhotoReaction(
  * How many of these a person may leave on one photograph.
  *
  * Not a rule about taste — it is the bound that stops one account turning a
- * picture into a wall of pills. Six is the whole offered set, so nobody
- * reaching it honestly has been stopped from anything.
+ * picture into a wall of pills.
+ *
+ * It used to come with a reassurance that is no longer true: six was the whole
+ * offered set, so nobody reaching it honestly had been stopped from anything.
+ * The picker reaches the system keyboard now, so six is a real limit somebody
+ * can hit while meaning well, and the seventh is refused with `too_many` rather
+ * than silently dropped. Kept at six anyway: a photograph carrying seven
+ * different reactions from one person is a photograph nobody else can read past
+ * that person, which is the thing the bound exists to prevent.
  */
 export const MAX_PER_PHOTO = 6;
 

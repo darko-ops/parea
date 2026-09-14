@@ -72,8 +72,16 @@ describe('the gesture', () => {
   });
 
   it('only pans a picture bigger than the screen', () => {
-    // Otherwise the photograph slides around inside its own frame.
-    expect(GESTURE).toMatch(/if \(now\.current\.scale <= 1\) return;/);
+    /*
+     * Otherwise the photograph slides around inside its own frame.
+     *
+     * At fit the same finger is a vertical gesture instead — up to leave, down
+     * to open the comments — and that space was free precisely because there is
+     * nothing to pan when the picture is already inside the screen. Zoomed in,
+     * this branch takes the finger back and neither gesture can fire.
+     */
+    expect(GESTURE).toMatch(/if \(now\.current\.scale <= 1\) \{\s*pan\.setValue/);
+    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\)/);
   });
 
   it('will not let the edges leave the glass', () => {
@@ -202,5 +210,107 @@ describe('reacting to a photograph', () => {
     // tap not landing. No hand-rolled rollback: the feed arriving is what puts
     // a refused tap back.
     expect(GESTURE).toMatch(/} catch \{\s*}\s*await onChanged\(\);/);
+  });
+});
+
+/**
+ * The two gestures at fit, the comments, and the open emoji set.
+ *
+ * All four live on the same screen and three of them are new surface on a view
+ * whose whole subject is one photograph — so what is guarded here is mostly
+ * what they must *not* do to each other.
+ */
+describe('what a finger means at fit', () => {
+  it('leaves upward and talks downward', () => {
+    /*
+     * The opposite of the convention — a photo viewer usually dismisses
+     * downward — and right for this screen because of where the two things are.
+     * The comments are below the picture, so pulling down brings them up; the
+     * album is behind it, so pushing the photograph up puts it back. Both move
+     * something in the direction it actually goes.
+     */
+    expect(GESTURE).toMatch(/if \(g\.dy < 0\) onClose\(\);\s*else setTalking\(true\)/);
+  });
+
+  it('refuses a diagonal', () => {
+    // A flick past a photograph would otherwise close it.
+    expect(GESTURE).toMatch(/Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\)/);
+  });
+
+  it('takes a flick as readily as a drag', () => {
+    // A short fast swipe is the same intention as a long slow one, which is the
+    // rule `SwipeBack` already follows.
+    expect(GESTURE).toMatch(/const far = Math\.abs\(g\.dy\) > SWIPE/);
+    expect(GESTURE).toMatch(/const flung = Math\.abs\(g\.vy\) > FLING/);
+  });
+
+  it('moves the photograph while the finger is down', () => {
+    // Not for the animation: it is how somebody finds out the gesture exists,
+    // and how they discover mid-drag which way they are going.
+    expect(GESTURE).toMatch(/pan\.setValue\(\{ x: 0, y: g\.dy \/ 3 \}\)/);
+  });
+});
+
+describe('what is said about one photograph', () => {
+  it('is the album’s own thread, not a second kind of message', () => {
+    /*
+     * `event_message` has carried a `photo_id` since the web let somebody reply
+     * to a picture. A comment here is a line in the album's conversation that
+     * happens to be about one of its photographs — no second table, no second
+     * endpoint, and it appears in the album's Talk tab where it belongs.
+     */
+    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id\)\}/);
+    expect(VIEWER).toMatch(/api\.postMessage\(eventId, body, photo\.id\)/);
+  });
+
+  it('keeps the box on the glass rather than inside the panel', () => {
+    // It is the thing somebody came here to do, and a comment box you have to
+    // open a panel to find is a comment box nobody uses.
+    expect(VIEWER).toMatch(/composerHint: \{\s*position: 'absolute'/);
+    expect(VIEWER).toMatch(/\{canPost && !talking && \(/);
+  });
+
+  it('keeps the photograph in view behind it', () => {
+    // A comment read without the picture in view is a remark about nothing.
+    expect(VIEWER).toMatch(/maxHeight: '62%'/);
+    expect(VIEWER).toMatch(/talkAway.*onPress=\{\(\) => setTalking\(false\)\}|onPress=\{\(\) => setTalking\(false\)\}/);
+  });
+
+  it('keeps the draft when sending fails', () => {
+    // Somebody who wrote a sentence is not being asked to write it again.
+    const post = VIEWER.slice(VIEWER.indexOf('const post = useCallback'), VIEWER.indexOf('const react = useCallback'));
+    expect(post).toMatch(/setDraft\(''\);\s*await onChanged\(\)/);
+    expect(post).not.toMatch(/catch[\s\S]{0,80}setDraft/);
+  });
+});
+
+describe('reacting with anything', () => {
+  it('keeps the six as the default and puts the rest behind one more press', () => {
+    /*
+     * Six was the whole vocabulary because a reaction should be one tap and a
+     * grid of two thousand emoji is not one tap. That argument is about the
+     * default, not the ceiling — the six stay exactly where they were.
+     */
+    expect(VIEWER).toMatch(/REACTIONS\.map\(\(emoji\)/);
+    expect(VIEWER).toMatch(/accessibilityLabel="React with any emoji"/);
+    expect(VIEWER).toMatch(/setPicking\(true\)/);
+  });
+
+  it('borrows the system keyboard rather than drawing a grid', () => {
+    /*
+     * Every phone has one, it is the one somebody's recents are in, and a grid
+     * we drew would be a worse copy that also has to be kept up to date with
+     * Unicode.
+     */
+    expect(VIEWER).toMatch(/<TextInput[\s\S]{0,300}accessibilityLabel="Type an emoji to react with"/);
+    // One point across rather than hidden: a field with no size cannot take
+    // focus on iOS, and one that cannot take focus opens no keyboard.
+    expect(VIEWER).toMatch(/pickInput: \{[^}]*width: 1, height: 1/);
+  });
+
+  it('takes the first grapheme and lets the server judge it', () => {
+    // A pasted sentence is a 400 rather than a wall of text under somebody's
+    // photograph — see `isEmoji` on the server.
+    expect(VIEWER).toMatch(/const first = \[\.\.\.next\]\[0\]/);
   });
 });
