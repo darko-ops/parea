@@ -129,17 +129,25 @@ describe('what replaced the old tab', () => {
 });
 
 /**
- * The header's picture, bled to the edge — handoff 2b.
+ * The header's picture, bled to the edge — handoff 2c.
  *
  * One row on this screen reaches the edge and every other row does not, which
  * is a thing that only stays true if the reason is written down. The picture
- * keeps the height and the left edge it already had and runs through the gutter
- * to the screen: circular where it starts, square where the screen cuts it off.
+ * runs through the gutter to the screen: circular where it starts, square where
+ * the screen cuts it off.
  *
- * The exception is the photograph's alone. A letter on a lens colour running
- * off the edge is a field of colour rather than a face — the bleed reads
- * because a photograph continues past the cut, and a flat fill has nothing to
- * continue — so the letter stays a 64pt circle inside the gutter.
+ * 2b drew it at 84 × 64 — the height it already had. 2c takes it to 124 × 104,
+ * on the argument that at 64 a face is a thumbnail, and that the gutter is what
+ * pays for the height without pushing the bio and the grid down. The height is
+ * the text block's: three lines come to roughly 104, so the two sides square
+ * off against each other instead of the picture floating beside the first line.
+ *
+ * The exception is the photograph's alone. A letter on a lens colour 124 wide
+ * running off the edge is a field of colour rather than a face — it reads as a
+ * banner somebody forgot to fill — so the letter stays a 64pt circle inside the
+ * gutter. The header therefore has two heights depending on whether there is a
+ * picture, which is intended: the taller one is a photograph and the shorter
+ * one is an absence.
  */
 describe('the header picture', () => {
   const PROFILE = readFileSync(
@@ -147,9 +155,9 @@ describe('the header picture', () => {
     'utf8',
   );
 
-  it('is 84 by 64, round on the left and square on the right', () => {
+  it('is 124 by 104, round on the left and square on the right', () => {
     expect(PROFILE).toMatch(
-      /avatar: \{\s*width: 84,\s*height: 64,\s*borderTopLeftRadius: 32,\s*borderBottomLeftRadius: 32,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
+      /avatar: \{\s*width: 124,\s*height: 104,\s*borderTopLeftRadius: 52,\s*borderBottomLeftRadius: 52,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
     );
   });
 
@@ -174,8 +182,12 @@ describe('the header picture', () => {
      * `justifyContent: 'space-between'` spreads its children inside the row's
      * box, which would leave the picture 20 points short of the edge however
      * the padding was arranged. `who` taking the space is what puts it flush.
+     *
+     * Centred rather than top-aligned since 2c: the picture is the height of
+     * the text block now, so aligning to the first line would hang it below the
+     * last one.
      */
-    expect(PROFILE).toMatch(/head: \{ flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 20, gap: 12 \}/);
+    expect(PROFILE).toMatch(/head: \{ flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 \}/);
     expect(PROFILE).toMatch(/who: \{ flex: 1, minWidth: 0 \}/);
   });
 
@@ -187,14 +199,24 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/<View style=\{\[styles\.avatarBlank, \{ backgroundColor: lens\.fill \}\]\}>/);
   });
 
-  it('keeps the square crop the rest of the product draws', () => {
+  it('crops for the largest place it is drawn', () => {
     /*
-     * `cover` on an 84×64 box crops a square file to 21:16. The picker still
-     * asks for a square, deliberately: the avatar is a circle everywhere else —
-     * the faces over a cover, the tiles in Lately, the rows in a thread — so
-     * widening the picker would fix this one row by making every other one
-     * wrong. This view centre-crops instead.
+     * The picker asked for a square, on the argument that the avatar is a
+     * circle everywhere else — the faces over a cover, the tiles in Lately, the
+     * rows in a thread — and a landscape file is cropped again by every one of
+     * them.
+     *
+     * That is true and it is the smaller loss. A circle takes the middle of a
+     * 6:5 frame, which for a face is the face. A square centre-cropped into a
+     * 124 × 104 box loses the top and bottom of what somebody framed — usually
+     * the top of their head, at the one size where it is unmistakable.
      */
-    expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
+    expect(PROFILE).toMatch(/aspect: \[6, 5\]/);
+    expect(PROFILE).not.toMatch(/aspect: \[1, 1\]/);
+  });
+
+  it('does not grow the letter with the box it is not in', () => {
+    // The fallback tile is still 64 points across, so its letter is still 25.
+    expect(PROFILE).toMatch(/avatarLetter: \{ fontSize: 25, fontWeight: '700' \}/);
   });
 });

@@ -727,7 +727,23 @@ function EditProfile({
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1],
+      /*
+       * 6:5, because the header draws it in a 124 × 104 box.
+       *
+       * This was square, on the argument that the avatar is a circle
+       * everywhere else in the product — the faces over a cover, the tiles in
+       * Lately, the rows in a thread — so a landscape file would be cropped
+       * again by every one of them. That is true and it is the smaller loss: a
+       * circle takes the middle of a 6:5 frame, which for a face is the face,
+       * where a square centre-cropped into a landscape box loses the top and
+       * bottom of what somebody framed — usually the top of their head, at the
+       * one size where it is unmistakable.
+       *
+       * So the crop is chosen for the largest place it is drawn, and the small
+       * round ones give up a little width. The endpoint re-encodes whatever
+       * arrives, so nothing downstream changes.
+       */
+      aspect: [6, 5],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -841,7 +857,7 @@ const styles = StyleSheet.create({
    * is what lets it end flush against the screen's edge instead of 20 points
    * short of it.
    */
-  head: { flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 20, gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 },
   /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
      corner glyphs and the name, which is what stops a 28pt name reading as a
      title bar. */
@@ -871,25 +887,25 @@ const styles = StyleSheet.create({
   friendHandle: { fontSize: 13 },
   friendGo: { fontSize: 20 },
   /*
-   * A photograph, bled to the edge.
+   * A photograph, bled to the edge, at the height of the words beside it.
    *
-   * 64 tall and 84 wide: it keeps the height and the left edge it had, then
-   * runs through the 20pt gutter to the screen. Round on the left, square where
-   * it meets the edge — the shape of a picture the screen has cut off rather
-   * than a badge that happens to be near it.
+   * 124 × 104, with the left cap rounded to half its height and the right side
+   * square where the screen cuts it off. At 64 a face is a thumbnail; 104 is
+   * about the smallest a photograph of a person is legible at on this screen,
+   * and taking the gutter back is what buys that height without pushing the bio
+   * and the grid down.
    *
-   * `contentFit="cover"` now crops to 21:16 from a square file, which the
-   * picker still takes at `aspect: [1, 1]`. That is deliberate: the avatar is a
-   * circle everywhere else in the product — the faces over a cover, the tiles
-   * in Lately, the rows in a thread — so the stored crop stays square and this
-   * one view centre-crops it. Widening the picker would fix this row by making
-   * every other one wrong.
+   * The height is not arbitrary either — the three lines beside it come to
+   * roughly 104 (a 31pt name, a handle at 17 over 3, the counts at 17 over 8),
+   * so the two sides square off against each other rather than the picture
+   * floating beside the first line. `alignItems: 'center'` on the row is the
+   * other half of that.
    */
   avatar: {
-    width: 84,
-    height: 64,
-    borderTopLeftRadius: 32,
-    borderBottomLeftRadius: 32,
+    width: 124,
+    height: 104,
+    borderTopLeftRadius: 52,
+    borderBottomLeftRadius: 52,
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
   },
