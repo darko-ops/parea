@@ -164,7 +164,7 @@ export function PersonView({
           {events.length > 0 && (
             <p className="you-counts">
               <span>
-                {events.length} {events.length === 1 ? 'event' : 'events'} with you
+                {events.length} {events.length === 1 ? 'album' : 'albums'} with you
               </span>
             </p>
           )}
@@ -208,7 +208,7 @@ export function PersonView({
       {events.length > 0 && (
         <section className="you-events">
           <div className="you-events-head">
-            <h2>Events</h2>
+            <h2>Albums</h2>
           </div>
           <div className="cards">
             {events.map((event) => (

@@ -92,7 +92,7 @@ export default function TermsPage() {
           </ul>
           <p className="muted">
             And do not do these things: harass anyone, use a link you were not
-            given, try to reach events you were not invited to, break or
+            given, try to reach albums you were not invited to, break or
             overload the service, scrape it, or use it to send messages to people
             who did not ask for them.
           </p>
@@ -102,19 +102,19 @@ export default function TermsPage() {
           <h2>Reporting, and what happens next</h2>
           <p className="muted">
             Every photo has a report action on it, and reports come to us rather
-            than to whoever created the event, because sometimes that is the
+            than to whoever created the album, because sometimes that is the
             person who is the problem. Reports are reviewed and acted on within
             24 hours.
           </p>
           <p className="muted">
             You can also ask for a photo of you to be taken down without an
             account and without having uploaded anything. That request goes to
-            whoever created the event, and if they have not answered within 48
+            whoever created the album, and if they have not answered within 48
             hours the photo is hidden automatically while they decide.
           </p>
           <p className="muted">
             You can block anyone. Blocking hides everything they upload from your
-            view and stops them joining events you created, and they are not
+            view and stops them joining albums you created, and they are not
             told.
           </p>
           <p className="muted">
@@ -134,11 +134,11 @@ export default function TermsPage() {
             What you do give us is the narrow permission needed to run the
             product: to store your photos, to make the smaller copies that let
             them be displayed, to strip the location metadata, and to show and
-            give them to the other people in the same event. That permission
+            give them to the other people in the same album. That permission
             exists so the product can work and ends when you delete the photo.
           </p>
           <p className="muted">
-            People in an event can download the full set, at full quality. That
+            People in an album can download the full set, at full quality. That
             is the entire point of Parea, and it means a copy of your photo can
             exist on someone else&rsquo;s computer after you delete it here.
             Deleting removes it from Parea; it cannot reach into a download
@@ -149,10 +149,10 @@ export default function TermsPage() {
         <section className="panel">
           <h2>Links are the key</h2>
           <p className="muted">
-            Anyone holding an event&rsquo;s link can see the photos in it and add
+            Anyone holding an album&rsquo;s link can see the photos in it and add
             their own. There is no other lock. Share links the way you would
             share a key: with the people who were there, and not in public. If a
-            link gets out, whoever created the event can rotate it, which
+            link gets out, whoever created the album can rotate it, which
             instantly invalidates the old one.
           </p>
         </section>

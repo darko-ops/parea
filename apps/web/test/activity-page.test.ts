@@ -175,7 +175,7 @@ describe('the feed', () => {
     // Verbatim. It is the one sentence on this page that explains what the
     // page is for, and it is read by people who have nothing to look at.
     expect(LIST).toContain(
-      'Nothing yet. When somebody adds photos to an event you are in, says',
+      'Nothing yet. When somebody adds photos to an album you are in, says',
     );
   });
 

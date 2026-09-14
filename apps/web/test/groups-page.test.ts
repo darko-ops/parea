@@ -231,7 +231,7 @@ describe('inside a group', () => {
   });
 
   it('says what leaving costs, which is what makes hiding it safe', () => {
-    expect(GROUP).toContain('Photos live in the events, not in the group.');
+    expect(GROUP).toContain('Photos live in the albums, not in the group.');
   });
 
   it('words its months and dates on the server', () => {

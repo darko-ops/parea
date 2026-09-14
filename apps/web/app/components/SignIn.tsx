@@ -118,7 +118,7 @@ export function SignIn({
       {title && <h1 className="auth-title">{title}</h1>}
       <p>{why}</p>
       <p className="muted">
-        No password — a code goes to your inbox. Your events follow you to
+        No password — a code goes to your inbox. Your albums follow you to
         another browser or a new phone.
       </p>
 

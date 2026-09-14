@@ -224,7 +224,7 @@ describe('the create button on a narrow screen', () => {
   it('says what it makes, for anyone who cannot see the pill', () => {
     // The `+` is decorative and the word carries the meaning, so the label has
     // to name the thing rather than leave a screen reader reading "plus".
-    expect(RAIL).toMatch(/aria-label="Create an event"/);
+    expect(RAIL).toMatch(/aria-label="Create an album"/);
     expect(RAIL).toMatch(/aria-hidden="true">\+</);
   });
 

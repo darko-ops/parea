@@ -234,7 +234,7 @@ export function FriendsView() {
         <h2>Your friends{friends.length > 0 && ` (${friends.length})`}</h2>
         {friends.length === 0 ? (
           <p className="muted">
-            Nobody yet. A friend is someone you can put straight into an event
+            Nobody yet. A friend is someone you can put straight into an album
             instead of sending them a link.
           </p>
         ) : (

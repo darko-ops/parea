@@ -116,7 +116,7 @@ describe('what the share panel promises the person receiving the link', () => {
    * reading it is deciding, on the strength of it, who to send it to.
    */
   it('is the plain truth for a public event', () => {
-    expect(promise(PUBLIC, true)).toMatch(/Anybody with this can open the event/);
+    expect(promise(PUBLIC, true)).toMatch(/Anybody with this can open the album/);
   });
 
   it('does not promise entry when entry has to be granted', () => {
@@ -129,7 +129,7 @@ describe('what the share panel promises the person receiving the link', () => {
     // Joins closed means nobody new gets in however the event is set, so this
     // is checked before the policy rather than after.
     for (const policy of [PUBLIC, PRIVATE]) {
-      expect(promise(policy, false), policy).toMatch(/The link is off for this event/);
+      expect(promise(policy, false), policy).toMatch(/The link is off for this album/);
     }
   });
 

@@ -115,11 +115,11 @@ describe('the closed list of what is collected', () => {
     // One phrase per kind, each distinguishing it from the others. The fourth
     // arrived after this test did, and the test is what made the page follow.
     expect(PRIVACY, 'nudge').toMatch(/have not added anything to/);
-    expect(PRIVACY, 'group_event').toMatch(/new event in a group/);
+    expect(PRIVACY, 'group_event').toMatch(/new album in a group/);
     expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
     expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come into a private/);
     expect(PROSE, 'friend_requested').toMatch(/somebody wants to be friends/);
-    expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an event/);
+    expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an album/);
     expect(PROSE, 'group_invited').toMatch(/somebody has asked you into a group/);
     // Distinguished from the one above by the verb, which is the whole
     // difference: one waits for an answer and this one does not.
@@ -208,11 +208,11 @@ describe('the closed list of what is collected', () => {
       device: /notification token/i,
       photo: /Photos and videos you upload/,
       observation: /[Ff]ive facts/,
-      event: /That you made an event/,
-      event_participant: /records that you are in that event/,
-      event_access_request: /asked to join a private event/,
-      group_member: /events and groups you are in/i,
-      group_join_request: /asked to join a private event or a group/,
+      event: /That you made an album/,
+      event_participant: /records that you are in that album/,
+      event_access_request: /asked to join a private album/,
+      group_member: /albums and groups you are in/i,
+      group_join_request: /asked to join a private album or a group/,
       report: /asked for a photo of you to be taken down/,
       block: /blocked somebody/,
       // Kept because the law requires it, and described at length in its own
@@ -221,8 +221,8 @@ describe('the closed list of what is collected', () => {
       moderation_action: /Child safety scanning/,
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
-      event_invite: /somebody invited you into an event/,
-      group_invite: /invited you into an event, or\s+into a group/,
+      event_invite: /somebody invited you into an album/,
+      group_invite: /invited you into an album, or\s+into a group/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
       // Which emoji, on which picture — and, since the viewer names people,
@@ -262,8 +262,8 @@ describe('the closed list of what is collected', () => {
     // Pinned to the sentence that was wrong, not to the words in it: the page
     // still says, truthfully, that visiting without opening an event records
     // nothing, and a looser pattern failed on that.
-    expect(PRIVACY).not.toMatch(/Browsing an event[^.]*creates no record/);
-    expect(PRIVACY).toMatch(/records that you are in that event/);
+    expect(PRIVACY).not.toMatch(/Browsing an album[^.]*creates no record/);
+    expect(PRIVACY).toMatch(/records that you are in that album/);
   });
 
   it('names every third party that handles data', () => {
@@ -396,14 +396,14 @@ describe('what showing a name beside a photograph discloses', () => {
     expect(namesThem, 'the event page no longer names contributors').toBe(true);
 
     expect(PROSE, 'the page does not say who can see your name').toMatch(
-      /everyone who can see that event can see that they are yours/,
+      /everyone who can see that album can see that they are yours/,
     );
   });
 
   it('keeps the distinction between looking and adding', () => {
-    // Looking at an event must not put somebody in the list, and the page has
+    // Looking at an album must not put somebody in the list, and the page has
     // to keep saying which of the two does — "who was there" and "who added
     // photographs" are different sets, and only one of them is published.
-    expect(PROSE).toMatch(/Looking at an event does not put you in that list/);
+    expect(PROSE).toMatch(/Looking at an album does not put you in that list/);
   });
 });

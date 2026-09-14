@@ -77,7 +77,7 @@ function metaFor(
   now: Date,
 ): string {
   const parts = [
-    `${group.eventCount} ${group.eventCount === 1 ? 'event' : 'events'}`,
+    `${group.eventCount} ${group.eventCount === 1 ? 'album' : 'albums'}`,
     `${group.memberCount} ${group.memberCount === 1 ? 'person' : 'people'}`,
   ];
   // Only when there is something to have been active about. "added to never"
@@ -133,8 +133,8 @@ export default async function GroupsPage() {
               <div className="clusters-lead">
                 <h2>The same people keep turning up.</h2>
                 <p>
-                  You have shared several events with these people. Keep everyone
-                  together for next time — the next event includes all of them
+                  You have shared several albums with these people. Keep everyone
+                  together for next time — the next album includes all of them
                   without a single invite.
                 </p>
               </div>
@@ -167,12 +167,12 @@ export default async function GroupsPage() {
               <p className="groups-none-lead">You are not in any groups yet.</p>
               <p>
                 Groups are for the people who keep turning up — once you have
-                shared a couple of events with the same faces, they show up here
+                shared a couple of albums with the same faces, they show up here
                 ready to keep together. Nothing to go on yet, so{' '}
                 <strong>New group</strong> above is the way to start one.
               </p>
               <a href="/events" className="button-like primary">
-                Your events
+                Your albums
               </a>
             </div>
           )
@@ -273,7 +273,7 @@ export default async function GroupsPage() {
                     }`}
                   >
                     {group.events.length === 0 ? (
-                      <span className="cover-none cover-empty">No events yet</span>
+                      <span className="cover-none cover-empty">No albums yet</span>
                     ) : (
                       group.events.map((event) => (
                         <a
