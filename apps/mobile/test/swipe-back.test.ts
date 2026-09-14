@@ -100,12 +100,12 @@ describe('the gesture', () => {
 
 describe('the screens it wraps', () => {
   it('is on every screen pushed over the tabs', () => {
-    for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs']) {
+    for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs', 'leaveLately']) {
       expect(APP).toMatch(new RegExp(`<SwipeBack onBack=\\{${back}\\}>`));
     }
-    // Event, group, group thread, person and door — every screen pushed over
-    // the tabs that has an arrow in its corner.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(5);
+    // Event, group, group thread, person, door and Lately — every screen
+    // pushed over the tabs that has an arrow in its corner.
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(6);
   });
 
   it('does not wrap the screens holding something half-typed', () => {

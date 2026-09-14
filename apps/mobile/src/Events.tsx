@@ -610,6 +610,8 @@ export function GroupsTab({
   onOpenGroupThread,
   onOpenEventThread,
   onGoToEvents,
+  waiting,
+  onOpenLately,
 }: {
   api: Api;
   /**
@@ -630,6 +632,16 @@ export function GroupsTab({
    * itself stays here because this is where the suggestions are.
    */
   openCreate?: number;
+  /**
+   * How many things are waiting on an answer, for the badge on the envelope.
+   *
+   * Held above this screen and passed down, because the count is a fact about
+   * the account rather than about this tab: it has to survive the tab being
+   * unmounted, and it has to be re-read when something is answered on the
+   * screen the envelope opens.
+   */
+  waiting: number;
+  onOpenLately: () => void;
   /**
    * Whether this tab is the one in front.
    *
@@ -749,11 +761,50 @@ export function GroupsTab({
           set beside a 30pt title was a second thing to read on the way to the
           rooms underneath it.
         */}
-        {groups !== null && making !== 'anyone' && (
-          <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
-            <Glyph name="plus" size={20} color={t.fg} />
+        <View style={styles.groupsActions}>
+          {/*
+            The door to Lately, beside the one that makes a room.
+            
+            Here rather than on a tab of its own: three tabs is the whole of
+            this app's navigation, and a fourth carrying a list that is usually
+            empty would cost a permanent quarter of the tab bar. A disc in a
+            heading row costs nothing when there is nothing.
+
+            The badge is hidden at zero, as the web's is. A badge that draws "0"
+            teaches people that the number means nothing, and an empty circle is
+            a claim that something is there.
+          */}
+          <RoundButton
+            t={t}
+            onPress={onOpenLately}
+            accessibilityLabel={
+              waiting > 0 ? `Lately, ${waiting} waiting on you` : 'Lately'
+            }
+          >
+            <Glyph name="envelope" size={20} color={t.fg} />
+            {waiting > 0 && (
+              <View
+                style={[
+                  styles.envelopeBadge,
+                  { backgroundColor: t.accent, borderColor: t.bg },
+                ]}
+              >
+                <Text style={[styles.envelopeCount, { color: t.onAccent }]}>
+                  {/* Past this the number stops being readable at 11.5pt and
+                      stops being actionable anyway — "a lot" is the same
+                      instruction as "99". */}
+                  {waiting > 99 ? '99+' : waiting}
+                </Text>
+              </View>
+            )}
           </RoundButton>
-        )}
+
+          {groups !== null && making !== 'anyone' && (
+            <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
+              <Glyph name="plus" size={20} color={t.fg} />
+            </RoundButton>
+          )}
+        </View>
       </View>
 
       {making === 'anyone' && (
@@ -1949,6 +2000,23 @@ const styles = StyleSheet.create({
   sayer: { fontWeight: '600' },
   saidWhen: { fontSize: 12.5 },
   /* A number on a group — it is busy and the number is the useful part. */
+  groupsActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
+     accent fill, same ink. The ring is the page behind it, so the badge reads
+     as sitting on top of the button rather than inside it. */
+  envelopeBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -6,
+    minWidth: 19,
+    height: 19,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  envelopeCount: { fontSize: 11.5, fontWeight: '700' },
   unreadPill: {
     minWidth: 19,
     height: 19,

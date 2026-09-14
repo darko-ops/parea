@@ -389,12 +389,63 @@ export type JoinRequest = {
  */
 export type PendingRequest = {
   key: string;
-  kind: 'invite' | 'friend' | 'join';
+  /*
+   * Four, not three.
+   *
+   * `group_invite` was missing here while the server had been sending it since
+   * groups gained invitations — so a group invitation arriving on a phone hit a
+   * lookup table with three keys in it and drew a card with no buttons, or
+   * threw reading a label off `undefined`. The one kind of ask that arrives
+   * from somebody you may not know yet was the one the app could not answer.
+   */
+  kind: 'invite' | 'friend' | 'join' | 'group_invite';
   id: string;
   eventId: string | null;
+  /** Which group, for the kind that has one. Null for the other three. */
+  groupId?: string | null;
   title: string;
   detail: string;
   at: string;
+  /**
+   * The picture on the card, presigned. Null draws the title's first letter.
+   *
+   * Whichever thing the card is *about*: an event for an invitation or a
+   * request to come in, a person for a friend request.
+   */
+  image?: string | null;
+  /** "2 hours ago", worded by the server. Present on Lately's copy. */
+  when?: string;
+};
+
+/**
+ * One line of what has already happened.
+ *
+ * The read half of Lately, and the mirror of the web's `ActivityRow`. Worded,
+ * dated and bucketed on the server — see `src/when.ts` there for why a phone's
+ * own clock is the wrong one to decide "Today" with.
+ */
+export type ActivityRow = {
+  id: string;
+  who: string;
+  what: string;
+  /** "4 hours ago". */
+  when: string;
+  /** Where to go, as a web path. Null for a line with nowhere to be. */
+  href: string | null;
+  /** A person's picture, or the event's newest photograph. */
+  image: string | null;
+  /** The photographs the line is about. Only `photos_added` has any. */
+  images: string[];
+  /** "Today", "Earlier this week", "March" — the server's words. */
+  bucket: string;
+  /** Arrived since the last look. */
+  unread: boolean;
+};
+
+/** Both halves of Lately, in the shape one request answers. */
+export type Lately = {
+  waiting: PendingRequest[];
+  items: ActivityRow[];
 };
 
 /**
@@ -836,9 +887,35 @@ export class Api {
   }
 
   /**
+   * Both halves of Lately, in one request.
+   *
+   * `requests()` above answers the top half on its own and stays that way —
+   * the bubble on Home wants nothing else. This screen wants both at once, and
+   * two round trips to draw one screen means the cards and the feed arrive
+   * separately, so it lays itself out twice. On a phone the second trip is the
+   * one that happens on a train.
+   */
+  activity(): Promise<Lately> {
+    return this.call<Lately>('/api/activity');
+  }
+
+  /**
+   * How many things are waiting, for the badge on the envelope.
+   *
+   * Its own small request rather than the length of the list above, because
+   * the badge is drawn on a tab somebody may never open and fetching fifty
+   * rows to render a number is fifty rows of somebody's data allowance for one
+   * digit. The same route the web rail's badge asks.
+   */
+  async waiting(): Promise<number> {
+    const { waiting } = await this.call<{ waiting: number }>('/api/invites');
+    return waiting ?? 0;
+  }
+
+  /**
    * Answer one, wherever it is answered.
    *
-   * The three routes disagree about the word for yes — a host *approves*
+   * The four routes disagree about the word for yes — a host *approves*
    * somebody into an event, where an invitation is *accepted* — and that
    * difference belongs here rather than in the screen, which should only know
    * that somebody pressed the left button or the right one.
@@ -847,6 +924,14 @@ export class Api {
     switch (request.kind) {
       case 'invite':
         return this.call(`/api/invites/${request.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: yes ? 'accept' : 'decline' }),
+        });
+      // Its own route, and not the one above: an event invitation and a group
+      // invitation are two tables, answered by two endpoints that each decide
+      // separately who may say yes.
+      case 'group_invite':
+        return this.call(`/api/group-invites/${request.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ action: yes ? 'accept' : 'decline' }),
         });

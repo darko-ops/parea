@@ -64,6 +64,7 @@ import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
 import { InviteCard } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
+import { Lately } from './src/Lately';
 import { PickPhotos } from './src/PickPhotos';
 import { Back, More, RoundButton } from './src/RoundButton';
 import { PhotoViewer } from './src/PhotoViewer';
@@ -178,6 +179,14 @@ type Route =
   | { screen: 'groupThread'; group: MyGroupDetail }
   | { screen: 'person'; handle: string }
   /**
+   * Lately, pushed over the tabs from the envelope in the Groups heading.
+   *
+   * A screen rather than a tab: three tabs is the whole of this app's
+   * navigation and a fourth carrying a list that is usually empty would cost a
+   * permanent quarter of the tab bar. See `Lately.tsx`.
+   */
+  | { screen: 'lately' }
+  /**
    * Making an album, in two steps.
    *
    * `pick` is the photographs — the screen that shows them, because choosing
@@ -235,6 +244,19 @@ export default function App() {
    */
   const [makeGroup, setMakeGroup] = useState(0);
   const [events, setEvents] = useState<EventListing[]>([]);
+  /**
+   * How many things are waiting on an answer, for the badge on the envelope.
+   *
+   * Held here rather than in the Groups tab because it is a fact about the
+   * account, not about that screen: the tab unmounts, Lately answers things
+   * that change it, and a push arriving while the app is open should be able to
+   * move it. One number, one owner.
+   *
+   * Its own small request rather than the length of `/api/requests` — the badge
+   * is drawn on a tab somebody may never open, and fetching fifty rows to
+   * render one digit is fifty rows of somebody's data allowance.
+   */
+  const [waiting, setWaiting] = useState(0);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -264,6 +286,12 @@ export default function App() {
    * a list on the device is a list of links this phone was sent, and a
    * reinstall loses it. Membership is the durable thing.
    */
+  const refreshWaiting = useCallback(async () => {
+    // Silent. A badge is the least important thing on the screen and a failed
+    // count must not become an error somebody has to read.
+    setWaiting(await api.waiting().catch(() => 0));
+  }, [api]);
+
   const refreshEvents = useCallback(async () => {
     const next = await api.myEvents().catch(() => null);
     if (next) setEvents(next);
@@ -396,6 +424,19 @@ export default function App() {
   /** The screens that change nothing on their way out. */
   const leaveToTabs = useCallback(() => setRoute({ screen: 'tabs' }), []);
 
+  /**
+   * Leaving Lately, which always changes the badge.
+   *
+   * Reading is what clears it — `/api/activity` moves `invites_seen_at` as a
+   * side effect of answering, the same way the web page does on render. So the
+   * count in hand is stale by the time somebody backs out, and the envelope
+   * would go on claiming there is something new until the app was relaunched.
+   */
+  const leaveLately = useCallback(() => {
+    void refreshWaiting();
+    setRoute({ screen: 'tabs' });
+  }, [refreshWaiting]);
+
   const handled = useRef<string | null>(null);
   const arrive = useCallback(
     async (url: string | null) => {
@@ -446,6 +487,7 @@ export default function App() {
       // is the common first launch and not an error.
       void refreshGroups();
       void refreshEvents();
+      void refreshWaiting();
       await arrive(await Linking.getInitialURL());
       // The notification equivalent of `getInitialURL`: the app may have been
       // launched by a tap, and that arrives here rather than on the listener.
@@ -460,7 +502,7 @@ export default function App() {
       subscription.remove();
       untap();
     };
-  }, [api, arrive, follow, refreshEvents, refreshGroups]);
+  }, [api, arrive, follow, refreshEvents, refreshGroups, refreshWaiting]);
 
   if (!ready) {
     return (
@@ -614,6 +656,29 @@ export default function App() {
         device already holds a link token for, so opening one from here is the
         same act as opening it from home.
       */}
+      {route.screen === 'lately' && (
+        <SwipeBack onBack={leaveLately}>
+          <Lately
+            api={api}
+            t={t}
+            onBack={leaveLately}
+            onAnswered={() => {
+              // An accepted invitation is an album on the home screen and
+              // possibly a group in the tab underneath, and it is one fewer
+              // thing on the badge. None of those are things Lately can see.
+              void refreshEvents();
+              void refreshGroups();
+              void refreshWaiting();
+            }}
+            onOpenEvent={(id) => {
+              const listing = events.find((e) => e.id === id);
+              if (listing) openListing(listing);
+            }}
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+          />
+        </SwipeBack>
+      )}
+
       {route.screen === 'person' && (
         <SwipeBack onBack={leaveToTabs}>
           <PersonScreen
@@ -709,6 +774,8 @@ export default function App() {
                 t={t}
                 active={tab === 'groups'}
                 openCreate={makeGroup}
+                waiting={waiting}
+                onOpenLately={() => setRoute({ screen: 'lately' })}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
                 // The album, opened on the conversation rather than on the

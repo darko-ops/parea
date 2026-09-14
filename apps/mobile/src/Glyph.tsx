@@ -29,6 +29,7 @@ export type GlyphName =
   | 'plus'
   | 'unlocked'
   | 'locked'
+  | 'envelope'
   | 'share'
   | 'download'
   | 'trash'
@@ -145,6 +146,20 @@ function paths(name: GlyphName) {
         <>
           <Rect x={4.5} y={11} width={15} height={9.5} rx={2} />
           <Path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+        </>
+      );
+
+    /*
+     * An envelope, because what arrives in Lately is somebody asking you to
+     * something — the same shape the world already uses for that, and the same
+     * two paths the web rail draws for `invites`. One glyph for one idea,
+     * whichever screen it is on.
+     */
+    case 'envelope':
+      return (
+        <>
+          <Rect x={3} y={5.5} width={18} height={13} rx={2} />
+          <Path d="m3.8 7 8.2 6 8.2-6" />
         </>
       );
 
