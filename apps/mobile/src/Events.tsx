@@ -704,6 +704,21 @@ export function GroupsTab({
     if (active) void load();
   }, [active, load]);
 
+  /*
+   * Collapsed again once the tab is left.
+   *
+   * The state above says this happens and, until this effect, it did not — the
+   * tabs stay mounted, so nothing was ever unmounting it. Left as a comment
+   * describing behaviour the code did not have, which is worse than no comment.
+   *
+   * `active` stays true while a screen is pushed over the tab, so opening a
+   * group and coming back keeps the list as it was. It collapses only when
+   * somebody genuinely goes elsewhere.
+   */
+  useEffect(() => {
+    if (!active) setAllGroups(false);
+  }, [active]);
+
   // Zero is the value nobody asked with — the tab opening normally, rather
   // than somebody arriving on it holding a press.
   useEffect(() => {
@@ -782,6 +797,27 @@ export function GroupsTab({
         .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
     [events],
   );
+
+  /*
+   * The whole screen, or none of it.
+   *
+   * The spinner used to sit under the heading, so the first paint was a title
+   * and two discs with an empty space below them, and the page proper arrived a
+   * round trip later. Two arrivals for one screen — and the heading is the part
+   * that tells you where you are, so it landed first and then sat above nothing
+   * while you waited.
+   *
+   * Only ever the first paint. `load` never puts `groups` back to null, so
+   * coming back to the tab redraws the page it had and fills in behind it,
+   * rather than blanking the screen on every switch.
+   */
+  if (groups === null) {
+    return (
+      <View style={styles.groupsLoading}>
+        <Waiting size={40} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -879,19 +915,13 @@ export function GroupsTab({
       )}
 
       {/*
-        Nothing under the title until all of it is ready.
-
         The event chats are built from `events`, a prop the tabs already hold,
-        so they were on screen a round trip before the groups they sit beneath —
-        the minor half of this tab arriving first and the rooms dropping in above
-        it afterwards, which pushed everything somebody was reading down the
-        page. The spinner covers the lot now, and the order it appears in is the
-        order it is written in.
+        so they would be on screen a round trip before the groups they sit
+        beneath — the minor half of this tab arriving first and the rooms
+        dropping in above it, pushing down whatever somebody had started
+        reading. The early return above is what stops that: nothing at all
+        until every part of this page can be drawn at once.
       */}
-      {groups === null ? (
-        <Waiting fill />
-      ) : (
-        <>
       {groups.length === 0 && clusters.length === 0 ? (
         /*
           Where groups come from, rather than a control that cannot work.
@@ -1066,8 +1096,6 @@ export function GroupsTab({
           Looking for one you are not in? Find searches groups that have chosen
           to be findable — you would still be asking to be let in.
         </Text>
-      )}
-        </>
       )}
     </ScrollView>
   );
@@ -2096,6 +2124,9 @@ const styles = StyleSheet.create({
   /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
      the two cannot drift apart. */
   roundSlot: { width: ROUND, height: ROUND },
+  /* The first paint, before there is a page to draw. Centred in the tab rather
+     than under a heading, because there is no heading yet. */
+  groupsLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   /* A row rather than a link: it is the foot of a list and it is the width of
      one, so a word floating on the left would read as a caption on the group
      above it. */
