@@ -262,17 +262,6 @@ function EventCard({
             transition={120}
           />
         )}
-        {/*
-          Only while it is true, which is an hour — see `isLive`. A badge that
-          stays up all day is a badge nobody reads, and "being added to now" is
-          the one claim on this screen worth interrupting a photograph for.
-        */}
-        {live && (
-          <View style={[styles.liveTag, { backgroundColor: t.card }]}>
-            <View style={[styles.liveDot, { backgroundColor: t.accent }]} />
-            <Text style={[styles.liveText, { color: t.fg }]}>Being added to now</Text>
-          </View>
-        )}
       </View>
 
       {faces.length > 0 && (
@@ -2131,24 +2120,6 @@ const styles = StyleSheet.create({
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
   bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
-  /* Small, quiet, and on the picture rather than beside the title: it is true
-     for an hour and it is about the photographs, not about the event. */
-  liveTag: {
-    position: 'absolute',
-    // 16 from the screen edge, which is where the column below it starts. It
-    // was 12 in from a cover that was itself inset by 20; against a full-bleed
-    // photograph the same number would sit almost on the edge of the glass.
-    left: 16,
-    top: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 999,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 4 },
-  liveText: { fontSize: 12.5, fontWeight: '600' },
   /* The card with nothing in it, which is mostly a button. Bordered, unlike
      the one that leads with a photograph: there is no picture to give it an
      edge, and a borderless block of text would not read as something to press. */

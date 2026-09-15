@@ -137,8 +137,6 @@ describe('the card the home list draws', () => {
     expect(EVENTS).toMatch(/byline: \{[^}]*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
     expect(EVENTS).toMatch(/under: \{ marginHorizontal: -4/);
-    // The tag rides on the photograph, so it is placed from the glass direct.
-    expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 16,/);
   });
 
   it('puts the creator’s name before the title, and quiets the title', () => {
