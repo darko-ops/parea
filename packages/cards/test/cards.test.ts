@@ -19,8 +19,8 @@ describe('ago', () => {
     [1, '1 min ago'],
     [20, '20 min ago'],
     [59, '59 min ago'],
-    [60, '1h ago'],
-    [60 * 23, '23h ago'],
+    [60, '1 hr ago'],
+    [60 * 23, '23 hr ago'],
     [60 * 24, '1 day ago'],
     [60 * 24 * 6, '6 days ago'],
     [60 * 24 * 7, '1 week ago'],
@@ -34,7 +34,7 @@ describe('ago', () => {
     // "an hour ago" for something 35 minutes old invites someone to think
     // they missed more than they did.
     expect(ago(minutesAgo(35), NOW)).toBe('35 min ago');
-    expect(ago(minutesAgo(119), NOW)).toBe('1h ago');
+    expect(ago(minutesAgo(119), NOW)).toBe('1 hr ago');
   });
 
   it('does not go backwards for a clock skewed into the future', () => {

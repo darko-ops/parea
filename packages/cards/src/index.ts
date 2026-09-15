@@ -9,7 +9,7 @@
  * that rounds differently on web and native is the same class of bug, quieter.
  *
  * Computed on the client rather than returned by the API on purpose: "20 min
- * ago" has to become "2h ago" on a screen someone left open, and a string baked
+ * ago" has to become "2 hr ago" on a screen someone left open, and a string baked
  * by the server is wrong from the moment it is sent.
  *
  * No dependencies, no platform assumptions. The mobile client cannot take
@@ -36,7 +36,10 @@ export function ago(from: Date, now: Date): string {
   if (minutes < 60) return `${minutes} min ago`;
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  // Spelled out for the same reason as `min` above, and spaced to match it: a
+  // ladder that reads "59 min ago" and then "2h ago" changes its mind about
+  // what kind of abbreviation it uses halfway up.
+  if (hours < 24) return `${hours} hr ago`;
 
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
