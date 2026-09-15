@@ -904,8 +904,21 @@ const styles = StyleSheet.create({
   avatar: {
     width: 124,
     height: 104,
-    borderTopLeftRadius: 52,
-    borderBottomLeftRadius: 52,
+    /*
+     * A rounded corner, not a semicircle.
+     *
+     * It was 52 — half the height — which makes the left edge a perfect arc and
+     * the whole thing a capsule cut in half. That reads as a badge or a pill,
+     * which is a shape for a label rather than for a photograph; at this size
+     * it also eats a visible bite out of whatever is on the left of the
+     * picture, which on a portrait is usually a shoulder.
+     *
+     * 26 is half of that: enough to be obviously rounded and to agree with the
+     * other soft corners on this screen, and not so much that the frame becomes
+     * the subject.
+     */
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
   },

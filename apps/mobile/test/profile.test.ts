@@ -155,10 +155,25 @@ describe('the header picture', () => {
     'utf8',
   );
 
-  it('is 124 by 104, round on the left and square on the right', () => {
+  it('is 124 by 104, rounded on the left and square on the right', () => {
+    /*
+     * The left radius was 52 — half the height, so a perfect arc and the whole
+     * thing a capsule cut in half. That reads as a badge rather than a
+     * photograph, and at this size it takes a visible bite out of whatever is
+     * on the left of the picture, which on a portrait is usually a shoulder.
+     *
+     * What the shape has to keep is the asymmetry: rounded where it starts,
+     * square where the screen cuts it off. That is what makes it a photograph
+     * continuing past the edge rather than a badge sitting near one — so the
+     * assertion is on the pattern, and the amount is free to be tuned.
+     */
     expect(PROFILE).toMatch(
-      /avatar: \{\s*width: 124,\s*height: 104,\s*borderTopLeftRadius: 52,\s*borderBottomLeftRadius: 52,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
+      /avatar: \{\s*width: 124,\s*height: 104,(?:\s*\/\*[\s\S]*?\*\/)?\s*borderTopLeftRadius: (\d+),\s*borderBottomLeftRadius: \1,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
     );
+    const radius = Number(PROFILE.match(/borderTopLeftRadius: (\d+),\s*borderBottomLeftRadius:/)?.[1]);
+    // Rounded at all, and short of the semicircle it was.
+    expect(radius).toBeGreaterThan(0);
+    expect(radius).toBeLessThan(52);
   });
 
   it('reaches the edge because the gutter moved onto the children', () => {

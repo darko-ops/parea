@@ -24,11 +24,26 @@ describe('the key a handle is unique under', () => {
     expect(handleKey('  SamJones ')).toBe('samjones');
   });
 
-  it('is not what gets stored', () => {
-    // The whole reason this is a separate function. `BlueChunkyMonkey` folded
-    // into storage comes back unreadable, and the capitals are doing the work
-    // the spaces are not allowed to do.
-    expect(generateHandle(() => 0)).toMatch(/[A-Z]/);
+  it('is what gets stored, now that handles are lowercase', () => {
+    /*
+     * This asserted the opposite: the column kept the case and `handleKey` was
+     * only what the unique index saw, because `BlueChunkyMonkey` folded into
+     * storage came back unreadable.
+     *
+     * The separator carries that now, so the two can be the same thing — and
+     * one spelling everywhere is worth more than the capitals were. `@SamJones`
+     * and `@samjones` being the same person who looks like two is a cost paid
+     * on every surface that prints a handle.
+     */
+    const generated = generateHandle(() => 0);
+    expect(generated).toBe(handleKey(generated));
+    expect(generated).not.toMatch(/[A-Z]/);
+  });
+
+  it('still folds what somebody types, so it cannot be two accounts', () => {
+    // The half of the old rule that was always right: comparing unfolded is a
+    // way to be impersonated rather than a way to be distinct.
+    expect(handleKey('  SamJones ')).toBe('samjones');
   });
 });
 
@@ -126,11 +141,17 @@ describe('the handle nobody typed', () => {
     return Array.from({ length: n }, () => generateHandle(random));
   };
 
-  it('is three words, capitalised so they can be read apart', () => {
-    // `hairytalllarry` has three `l`s in a row. The capitals are the only
-    // thing separating the words, which is why they survive to storage.
+  it('is three words, separated so they can be read apart', () => {
+    /*
+     * `hairytalllarry` has three `l`s in a row and is not a name anybody can
+     * read. The words were joined by their capitals, which did the work the
+     * spaces are not allowed to do — and then handles became lowercase, so a
+     * full stop does it instead.
+     *
+     * The shape is the point either way: three words a person can tell apart.
+     */
     for (const handle of sweep(400)) {
-      expect(handle, handle).toMatch(/^[A-Z][a-z]+[A-Z][a-z]+[A-Z][a-z]+$/);
+      expect(handle, handle).toMatch(/^[a-z]+\.[a-z]+\.[a-z]+$/);
     }
   });
 

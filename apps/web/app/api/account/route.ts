@@ -102,7 +102,16 @@ export async function PATCH(request: Request) {
           { status: 409 },
         );
       }
-      patch.handle = handle;
+      /*
+       * Folded, not stored as typed.
+       *
+       * A handle is one spelling everywhere: `@SamJones` and `@samjones` being
+       * the same person who looks like two is a cost paid on every surface that
+       * prints one. Somebody who types capitals gets their handle back in
+       * lowercase rather than an error about it — the rule is easy to state and
+       * there is nothing for them to fix.
+       */
+      patch.handle = handleKey(handle);
     }
   }
 
