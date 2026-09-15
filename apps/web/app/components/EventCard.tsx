@@ -26,6 +26,8 @@
  * photograph out of somebody.
  */
 
+import type { CSSProperties } from 'react';
+
 import type { CardEvent } from '@/cards';
 
 import { Face } from './Faces';
@@ -99,19 +101,26 @@ export function EventCard({ event }: { event: CardEvent }) {
         under it — a tall cover with the name beneath, which is what a shelf of
         events looks like when it is not trying to look like a listing.
       */}
-      <div className="card-cover">
+      {/*
+        The cover's own shape, where it has one.
+
+        Every card used to be a fixed letterbox, which is a landscape crop of a
+        portrait photograph on a column whose whole width was going spare. The
+        height is a custom property rather than a class, because the number is
+        the picture's and there is no sensible set of classes for "whatever this
+        one is". Absent — a photograph standing in for a cover, or a cover
+        stored before the shape was recorded — the stylesheet's own letterbox
+        stands, which is what those covers actually are.
+      */}
+      <div
+        className="card-cover"
+        style={
+          event.coverAspect
+            ? ({ '--card-aspect': String(event.coverAspect) } as CSSProperties)
+            : undefined
+        }
+      >
         {cover && <CoverImage src={cover.src} sources={cover.sources} />}
-        {/*
-          Only while it is true, which is an hour. A badge that stays up all
-          day is a badge nobody reads, and "being added to now" is the one
-          claim on this page worth interrupting a photograph for.
-        */}
-        {event.live && (
-          <span className="card-live">
-            <span className="card-live-dot" aria-hidden="true" />
-            Being added to now
-          </span>
-        )}
       </div>
 
       {/*
@@ -172,7 +181,9 @@ export function EventCard({ event }: { event: CardEvent }) {
         {/*
           Who and when, in that order, and the when is the evening rather than
           the upload — except on an event being added to now, where the recent
-          thing *is* the news. No caption on this line and none above it: a
+          thing *is* the news. That sentence is the whole of it now: the badge
+          over the photograph said the same thing louder, and one claim does not
+          need saying twice on one card. No caption on this line and none above it: a
           second sentence under the name is what made a photograph look like a
           listing. The event with no photographs still has one, because that
           card is text and the sentence is most of what it has.

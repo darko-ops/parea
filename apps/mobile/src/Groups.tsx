@@ -39,6 +39,10 @@ export type GroupTheme = {
   line: string;
   accent: string;
   onAccent: string;
+  /** The one red, for the two actions that take something away. */
+  warn: string;
+  /** `bg` at zero alpha, for fading to the page without passing through grey. */
+  bgClear: string;
 };
 
 export type OpenableEvent = {
@@ -118,7 +122,7 @@ export function GroupScreen({
   }, [api, groupId, load]);
 
   const leave = useCallback(() => {
-    Alert.alert('Leave this group?', 'You keep any event links you already have.', [
+    Alert.alert('Leave this group?', 'You keep any album links you already have.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
@@ -177,7 +181,7 @@ export function GroupScreen({
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           <Text style={[styles.body, { color: t.fg }]}>
             {group.canJoinDirectly
-              ? 'You were at one of this group’s events, so you can join without asking.'
+              ? 'You were at one of this group’s albums, so you can join without asking.'
               : 'Ask to join, and an admin will decide. Nothing here is visible until then.'}
           </Text>
           <Button
@@ -213,7 +217,7 @@ export function GroupScreen({
           )}
 
           <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-            <Text style={[styles.label, { color: t.fg }]}>Events</Text>
+            <Text style={[styles.label, { color: t.fg }]}>Albums</Text>
             {group.events.length === 0 ? (
               <Text style={[styles.body, { color: t.dim }]}>
                 Nothing yet. The next event someone makes in this group shows up
@@ -252,7 +256,7 @@ export function GroupScreen({
             is also the only producer of §12's second notification.
           */}
           <Button
-            label="New event in this group"
+            label="New album in this group"
             onPress={() => onCreateEvent(group.name)}
             t={t}
             primary

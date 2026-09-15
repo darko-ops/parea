@@ -260,13 +260,22 @@ describe('everyone leaves sign-in with a handle', () => {
     expect(handleProblem(handle!), handle!).toBeNull();
   });
 
-  it('keeps its capitals', async () => {
-    // The reason the unique index moved to `lower(handle)`. Folded on the way
-    // in, `HairyTallLarry` is stored as three `l`s in a row and the three
-    // words stop being readable as words.
+  it('arrives lowercase, with its words still readable apart', async () => {
+    /*
+     * This asserted capitals: `HairyTallLarry` folded on the way in is three
+     * `l`s in a row, and the words stop being readable as words. The capitals
+     * were doing the work the spaces are not allowed to do.
+     *
+     * Handles are lowercase everywhere now — `@SamJones` and `@samjones` being
+     * the same person who looks like two is a cost paid on every surface that
+     * prints one — so a full stop does that work instead, and what is stored is
+     * exactly what `handleKey` would return.
+     */
     const me = await actor();
     await signIn(db, 'sam@example.com', me);
-    expect(await handleOf(me)).toMatch(/^[A-Z][a-z]+[A-Z][a-z]+[A-Z][a-z]+$/);
+    const handle = await handleOf(me);
+    expect(handle).toMatch(/^[a-z]+\.[a-z]+\.[a-z]+$/);
+    expect(handle).toBe(handle!.toLowerCase());
   });
 
   it('does not reroll it on the next sign-in', async () => {

@@ -1,5 +1,15 @@
 # Untitled photo app — concept
 
+**The founding argument, kept as written.** The product it describes has since
+become more specific, and the rules that decide what gets built now live in
+[`charter.md`](./charter.md) — read that one to answer "should we build this".
+This one is still the best statement of the problem, of why the existing
+options do not resolve it, and of the reasoning that led here, which is why it
+is not being edited into agreement with what happened next.
+
+Two sections have been overtaken in particular: §2's "explicitly not" list, and
+§3's cut list. Both now rule out features that shipped. §4, §5 and §6 stand.
+
 Working document. Monetization deliberately left open.
 
 ## 1. The problem

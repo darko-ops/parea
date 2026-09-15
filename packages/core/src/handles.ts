@@ -6,15 +6,28 @@
  * handle is the other thing — one per person, and stable enough to be worth
  * remembering.
  *
- * Stored as written and compared folded. Those are two different questions and
- * conflating them costs one of the two answers: fold at the point of storage
- * and `BlueChunkyMonkey` comes back as `bluechunkymonkey`, which is where the
- * capitals were doing the work of the spaces — `hairytalllarry` has three `l`s
- * in a row and is not a name anyone can read. Compare unfolded and `Sam` and
- * `sam` become two accounts, which is a way to be impersonated rather than a
- * way to be distinct. So the column keeps the case and the unique index is on
- * `lower(handle)`; `handleKey` is what that index sees, and every lookup and
- * every taken-check goes through it.
+ * Lowercase, stored and compared. That is a change, and the argument it
+ * replaces is worth keeping because it was half right.
+ *
+ * The old rule was "stored as written, compared folded": the column kept the
+ * case and the unique index was on `lower(handle)`, so `Sam` and `sam` could
+ * not be two accounts — comparing unfolded is a way to be impersonated rather
+ * than a way to be distinct. That half still holds and `handleKey` still does
+ * it.
+ *
+ * What the case bought was readability in *generated* handles:
+ * `BlueChunkyMonkey` folded into storage is `bluechunkymonkey`, and
+ * `hairytalllarry` has three `l`s in a row and is not a name anyone can read.
+ * The capitals were doing the work the spaces are not allowed to do.
+ *
+ * So the separator does that work instead — `blue.chunky.monkey` — and the case
+ * can go. Which is the better trade: a handle is a thing people type at each
+ * other, read off a screen and say out loud, and `@SamJones` and `@samjones`
+ * being the same person who looks like two is a cost paid on every surface that
+ * prints one. One spelling, everywhere.
+ *
+ * Folding happens at the point of storage now, so nothing downstream has to
+ * remember: what is in the column is what `handleKey` would return.
  *
  * Pure and shared, because both clients validate before sending and the server
  * validates again before writing, and three implementations of "what is a legal
@@ -23,7 +36,25 @@
 
 /** Long enough for a name and a surname, short enough to fit beside a photo. */
 export const HANDLE_MAX = 30;
-export const HANDLE_MIN = 2;
+
+/**
+ * Short enough to be somebody's actual name, long enough to be a name at all.
+ *
+ * It was 2, which is the shortest thing that is not a single character — a
+ * bound against nothing rather than a decision. Two and three character handles
+ * are initials and abbreviations: they are the ones worth squatting on, they
+ * are the ones a stranger cannot tell apart at a glance in a byline, and there
+ * are only a few thousand of them in the alphabet this allows.
+ *
+ * Four is the smallest length that holds a short real name — `anna`, `alex`,
+ * `yiannis` cut down — which is the thing a handle is for.
+ *
+ * Nobody is grandfathered out: this bounds what may be *set*, and no existing
+ * handle is shorter than this. Generated ones are a colour, a manner and an
+ * animal, so they are nine characters at their shortest and cannot collide with
+ * the rule either.
+ */
+export const HANDLE_MIN = 4;
 
 /**
  * Words a handle may not be.
@@ -153,6 +184,15 @@ export const HANDLE_SPACE = COLOURS.length * MANNERS.length * ANIMALS.length;
  * generates, tries to write, and comes back here when it loses.
  */
 export function generateHandle(random: () => number = Math.random): string {
-  const pick = (list: readonly string[]) => list[Math.floor(random() * list.length)]!;
-  return `${pick(COLOURS)}${pick(MANNERS)}${pick(ANIMALS)}`;
+  const pick = (list: readonly string[]) => list[Math.floor(random() * list.length)]!.toLowerCase();
+  /*
+   * Joined on full stops rather than run together.
+   *
+   * The words used to be joined by their capitals — `BlueChunkyMonkey` — which
+   * read well and is not lowercase. Folded flat it is `bluechunkymonkey`, and
+   * `hairytalllarry` is three `l`s in a row and unreadable. The separator is
+   * what makes a lowercase handle legible, and a full stop is allowed
+   * everywhere in a handle except at either end.
+   */
+  return [pick(COLOURS), pick(MANNERS), pick(ANIMALS)].join('.');
 }

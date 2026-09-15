@@ -127,6 +127,21 @@ const OWNED: {
     column: 'actor_id',
     uniqueWith: ['photo_id', 'emoji'],
   },
+  /*
+   * Being tagged in a photograph, and having tagged somebody in one.
+   *
+   * Two columns, two different collisions, and only the first can have one:
+   * both actors tagged in the same picture is one person tagged twice, so the
+   * loser's row goes rather than moving — which the primary key requires
+   * anyway.
+   *
+   * `tagged_by` has no such problem. It is not part of any key, so it is a
+   * plain rewrite: the claim survives and simply has the surviving name on it.
+   * Dropping it instead would leave a tag whose author is nobody, which is
+   * exactly the state the schema note says must not exist.
+   */
+  { table: 'photo_tag', column: 'actor_id', uniqueWith: ['photo_id'] },
+  { table: 'photo_tag', column: 'tagged_by' },
   // Lines somebody has dismissed on Activity. Moved rather than dropped: the
   // feed is derived from rows that survive the merge, so a notification hidden
   // on the laptop would otherwise come back the moment the phone signs in —

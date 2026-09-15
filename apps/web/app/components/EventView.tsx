@@ -217,7 +217,7 @@ export function EventView({
   const atArrival = useRef(new Set(initial.photos.map((photo) => photo.id)));
 
   /*
-   * When this person last read the thread, per event.
+   * When this person last read the thread, per album.
    *
    * In `localStorage` rather than on the server, and that is a deliberate
    * limit rather than a shortcut: a read receipt on the server is a record of
@@ -415,7 +415,7 @@ export function EventView({
           {/* The way back, as a glyph and a hit area rather than a word: it is
               the one control here that is about the page rather than about the
               event. */}
-          <a href="/events" className="event-back" aria-label="Back to your events">
+          <a href="/events" className="event-back" aria-label="Back to your albums">
             {'\u2039'}
           </a>
 
@@ -534,8 +534,8 @@ export function EventView({
             <Menu
               label={
                 feed.event.waiting > 0
-                  ? `This event — ${feed.event.waiting} waiting`
-                  : 'This event'
+                  ? `This album — ${feed.event.waiting} waiting`
+                  : 'This album'
               }
               glyph="···"
               tone="quiet"
@@ -594,7 +594,7 @@ export function EventView({
                   )}
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
-                      Manage event
+                      Manage album
                       {feed.event.waiting > 0 && (
                         <span className="badge">{feed.event.waiting}</span>
                       )}
@@ -619,7 +619,7 @@ export function EventView({
           shape, and `?tab=` means a link to the roster is a link somebody can
           send and Back is the way out of it.
         */}
-        <nav className="event-tabs" aria-label="This event">
+        <nav className="event-tabs" aria-label="This album">
           {TABS.map(([id, label]) => (
             <a
               key={id}
@@ -1012,7 +1012,7 @@ function People({
             {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
           </h2>
           <p className="muted">
-            Invite everyone who was there so the event has every perspective.
+            Invite everyone who was there so the album has every perspective.
           </p>
         </div>
         <button type="button" onClick={onInvite}>

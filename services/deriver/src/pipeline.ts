@@ -213,9 +213,24 @@ export async function processPhoto(
     const keyOf = (d: { kind: DerivativeKind; format: ImageFormat }) =>
       derivativeKey(photo.eventId, hex, d.kind, d.format);
 
-    for (const derivative of derivatives) {
-      await objects.put(keyOf(derivative), derivative.bytes, derivative.mime);
-    }
+    /*
+     * Together, because they are seven independent round trips to storage and
+     * nothing downstream distinguishes the order they land in. One at a time
+     * put seven latencies end to end into every photograph, on a deriver that
+     * handles photographs one at a time — so it was seven round trips of the
+     * whole queue's waiting, per photo, for no ordering anybody relies on.
+     *
+     * `Promise.all` rejects on the first failure, which is what is wanted and
+     * is what the sequential loop did too: the throw leaves `processPhoto`
+     * before the row is promoted to `ready`, so the photo stays `pending` and
+     * the next poll has another go. The objects that did land are written over
+     * by that attempt, because their keys come from the content hash.
+     */
+    await Promise.all(
+      derivatives.map((derivative) =>
+        objects.put(keyOf(derivative), derivative.bytes, derivative.mime),
+      ),
+    );
 
     await db
       .update(schema.photos)

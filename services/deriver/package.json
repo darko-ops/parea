@@ -12,7 +12,8 @@
     "watch": "tsx src/index.ts watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "jobs": "tsx src/jobs.ts"
+    "jobs": "tsx src/jobs.ts",
+    "local": "node bin/local.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1106.0",

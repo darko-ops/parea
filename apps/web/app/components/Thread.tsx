@@ -312,7 +312,7 @@ function Composer({
         className="thread-field"
         rows={1}
         value={draft}
-        placeholder="Message everyone in this event…"
+        placeholder="Message everyone in this album…"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           // Enter posts, Shift+Enter is a new line. The opposite of a document

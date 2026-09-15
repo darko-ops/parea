@@ -33,7 +33,7 @@ const API = read('src/api.ts');
 describe('the tab', () => {
   it('sits between Events and Find', () => {
     /*
-     * Order is the argument, and the same one the web rail makes: Events is
+     * Order is the argument, and the same one the web rail makes: Albums is
      * what has already happened, Groups is the rooms you are already in, and
      * Find is the only tab that goes looking for something you are not part of
      * yet. After Find would file the places you belong under the heading for
@@ -41,7 +41,7 @@ describe('the tab', () => {
      */
     // The bar carries a glyph between the tab and its label now — the label
     // survives as the accessibility name, which is what these look for.
-    const events = APP.indexOf("['home', 'photos', 'Events']");
+    const events = APP.indexOf("['home', 'photos', 'Albums']");
     const groups = APP.indexOf("['groups', 'group', 'Groups']");
     const find = APP.indexOf("['search', 'search', 'Find']");
     expect(groups).toBeGreaterThan(-1);

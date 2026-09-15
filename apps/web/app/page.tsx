@@ -85,10 +85,10 @@ export default function CreatePage() {
   const [place, setPlace] = useState('');
   const [members, setMembers] = useState<Person[]>([]);
   /*
-   * The picture the event leads with, if they chose one.
+   * The picture the album leads with, if they chose one.
    *
-   * A `File` and not a URL: it is sent the moment the event exists, before the
-   * photographs are staged, so that an event has a face the first time anyone
+   * A `File` and not a URL: it is sent the moment the album exists, before the
+   * photographs are staged, so that an album has a face the first time anyone
    * sees it rather than whenever a queue of two hundred pictures reaches the
    * one that was going to be its cover.
    */
@@ -97,7 +97,7 @@ export default function CreatePage() {
    * Three switches, and only one of them is the access policy.
    *
    * `policyFor` turns "private" into the column that decides who can see it;
-   * the link and the phrase are separate facts about the event. There was a
+   * the link and the phrase are separate facts about the album. There was a
    * fourth — "manually approve members" — and it is gone with the policy it
    * set: approving people is not a variety of private, it is what private
    * does.
@@ -252,14 +252,14 @@ export default function CreatePage() {
           <div className="create">
             <form className="create-form" onSubmit={(e) => e.preventDefault()}>
               <div>
-                <h1>Create Event</h1>
+                <h1>Create Album</h1>
                 <p className="muted" style={{ margin: 0 }}>
                   Everyone who was there puts their photos in one place, and
                   everyone gets the full set.
                 </p>
               </div>
               <SignIn
-                why="Making an event needs an account, so the people you invite know whose event it is."
+                why="Making an album needs an account, so the people you invite know whose album it is."
                 onSignedIn={session.refresh}
               />
             </form>
@@ -276,7 +276,7 @@ export default function CreatePage() {
         <div className="create">
           <form className="create-form" onSubmit={create}>
             <div>
-              <h1>Create Event</h1>
+              <h1>Create Album</h1>
               <p className="muted" style={{ margin: 0 }}>
                 {step === 'photos'
                   ? 'Start with the photos. The questions are easier to answer with them on the screen.'
@@ -308,7 +308,7 @@ export default function CreatePage() {
                   </label>
                   <p className="field-help" style={{ margin: 0 }}>
                     {picked.length === 0
-                      ? 'Everything you took. They go up at full quality once the event has a name.'
+                      ? 'Everything you took. They go up at full quality once the album has a name.'
                       : `${picked.length} ${picked.length === 1 ? 'photo' : 'photos'} ready.`}
                   </p>
                 </div>
@@ -328,7 +328,7 @@ export default function CreatePage() {
                   </button>
                   {picked.length === 0 && (
                     <span className="field-help">
-                      You can add them afterwards, but an empty event stays empty.
+                      You can add them afterwards, but an empty album stays empty.
                     </span>
                   )}
                 </div>
@@ -402,7 +402,7 @@ export default function CreatePage() {
                   */}
                   <PlaceField value={place} onChange={setPlace} />
                   <p className="field-help">
-                    Only ever shown to people already in the event.
+                    Only ever shown to people already in the album.
                   </p>
                 </div>
 
@@ -472,7 +472,7 @@ export default function CreatePage() {
                     className="create-go"
                     disabled={busy || !name.trim()}
                   >
-                    {busy ? 'Creating…' : 'Create Event'}
+                    {busy ? 'Creating…' : 'Create album'}
                   </button>
                   <button
                     type="button"
@@ -573,8 +573,8 @@ function CoverPicker({
       </ul>
       <p className="field-help">
         {cover
-          ? 'This one leads, wherever the event is shown.'
-          : 'Optional. Without one the event leads with its newest photo.'}
+          ? 'This one leads, wherever the album is shown.'
+          : 'Optional. Without one the album leads with its newest photo.'}
       </p>
     </>
   );
@@ -651,5 +651,5 @@ async function explain(res: Response): Promise<string> {
   }
   return res.status >= 500
     ? `The server failed (${res.status}). Check /api/health for what is missing.`
-    : `Could not create the event (${res.status}).`;
+    : `Could not create the album (${res.status}).`;
 }

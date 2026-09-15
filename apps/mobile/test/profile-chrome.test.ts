@@ -186,16 +186,46 @@ describe('what the `+` makes', () => {
     expect(APP).not.toMatch(/setRoute\(\{ screen: 'create' \}\)/);
   });
 
-  it('hands the group off to the tab that holds the suggestions', () => {
+  it('draws something for somebody without an account', () => {
     /*
-     * The Groups tab's form comes with the people this actor keeps ending up
-     * in events with, which is the entire argument for making a group rather
-     * than an empty room to fill. A bare name-and-nobody form on the profile
-     * would be the problem that tab was written to avoid.
+     * The button did nothing, and this is why: the gate was written on
+     * `create`, which is the second step, and the first step drew only for
+     * `signedIn === true`. Nobody signed out could reach the gate, because
+     * reaching it meant passing the screen that refused them — so pressing
+     * "Create album" set the route to a screen no branch drew. No picker, no
+     * gate, no tabs. A blank page with nothing on it and no way back.
+     *
+     * The gate covers every step now, so the first one answers for the flow —
+     * through one predicate rather than a disjunction rewritten at each of its
+     * three call sites, which is how the steps came to disagree in the first
+     * place.
+     */
+    expect(APP).toMatch(/making\(route\) && signedIn !== true/);
+    expect(APP).toMatch(/route\.screen === 'pick' \|\| route\.screen === 'create'/);
+  });
+
+  it('waits rather than accusing somebody who is signed in', () => {
+    // `null` is the moment before the account request lands. A gate that
+    // flashed there would tell somebody signed in that they are not — so it
+    // waits, which is the one thing it must not do silently on a blank page.
+    const at = APP.indexOf("signedIn !== true");
+    expect(APP.slice(at, at + 600)).toMatch(/signedIn === null \? \(/);
+    expect(APP.slice(at, at + 600)).toMatch(/<Waiting size=\{40\} \/>/);
+  });
+
+  it('hands the group off through the tab that holds the suggestions', () => {
+    /*
+     * It still goes by way of the Groups tab rather than opening the page from
+     * the profile, and the reason has outlived the form it was written for: the
+     * clusters live on that tab, and landing there means somebody who pressed
+     * `+` meaning "a group with these people" sees them.
+     *
+     * The tab no longer unfolds a form; it opens the page, which is the one
+     * place a group is made from any entry point.
      */
     expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
     expect(APP).toMatch(/openCreate=\{makeGroup\}/);
-    expect(EVENTS).toMatch(/if \(openCreate > 0\) setMaking\('anyone'\);/);
+    expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
   });
 
   it('opens again on a second press', () => {

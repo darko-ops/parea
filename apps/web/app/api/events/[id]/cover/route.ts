@@ -32,22 +32,13 @@ import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 
 import { findEventById, guard, toResponse } from '@/access';
+import { coverAspect, coverSize, framingOf, orientedSize, regionFor } from '@/cover';
 import { getDb } from '@/db';
 import { requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
 
-/**
- * Wide, because that is the shape it is drawn in.
- *
- * A card is a landscape rectangle about 600 points across, so 1200 covers a
- * retina screen and nothing beyond it is ever seen. `attention` crops towards
- * whatever sharp thinks the subject is, which is the difference between a
- * group photograph and four foreheads.
- */
-const WIDTH = 1200;
-const HEIGHT = 800;
 /** A generous phone photograph. Past this it is not a cover. */
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -83,13 +74,48 @@ export async function POST(
     return NextResponse.json({ error: 'too_large' }, { status: 413 });
   }
 
+  const framing = framingOf(new URL(request.url));
+
+  /*
+   * The picture's own shape decides the cover's, so this is read for every
+   * upload rather than only for a framed one.
+   *
+   * A cover used to be 3:2 whatever arrived, which is a landscape crop of a
+   * portrait photograph on a screen whose whole width was going spare. What
+   * `coverSize` gives back is bounded — see `COVER_TALLEST` — so this is still
+   * one small wide-ish JPEG and never a client-chosen number of pixels.
+   */
+  const size = orientedSize(await sharp(incoming).metadata().catch(() => ({})));
+  const target = size ? coverSize(size) : null;
+
   let jpeg: Buffer;
   try {
-    jpeg = await sharp(incoming, { failOn: 'error' })
-      // Bakes in orientation, so a picture taken sideways is not stored
-      // sideways for everyone whose renderer lacks the tag to correct it.
-      .rotate()
-      .resize({ width: WIDTH, height: HEIGHT, fit: 'cover', position: 'attention' })
+    if (!target || !size) throw new Error('no dimensions');
+
+    // Bakes in orientation, so a picture taken sideways is not stored sideways
+    // for everyone whose renderer lacks the tag to correct it.
+    let pipeline = sharp(incoming, { failOn: 'error' }).rotate();
+
+    const region = framing ? regionFor(size, framing) : null;
+    if (region) pipeline = pipeline.extract(region);
+
+    jpeg = await pipeline
+      /*
+       * Still `cover`, and after an extract it is a straight scale: the region
+       * was cut to this ratio already.
+       *
+       * `attention` crops towards whatever sharp thinks the subject is, which
+       * is the difference between a group photograph and four foreheads — and
+       * it is the fallback now rather than the rule. Where the caller has said
+       * where to look, a strategy that looked somewhere else would overrule
+       * them by however many pixels the rounding left over.
+       */
+      .resize({
+        width: target.width,
+        height: target.height,
+        fit: 'cover',
+        position: region ? 'centre' : 'attention',
+      })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
   } catch {
@@ -108,7 +134,9 @@ export async function POST(
   await getStorage().putSmall(key, jpeg, 'image/jpeg');
   await db
     .update(schema.events)
-    .set({ coverKey: key })
+    // The shape goes with the key, because a card has to reserve the right
+    // space before the image arrives — see the column's own note.
+    .set({ coverKey: key, coverAspect: coverAspect(size) })
     .where(eq(schema.events.id, event.id));
 
   return NextResponse.json({ ok: true });
@@ -129,7 +157,7 @@ export async function DELETE(
 
   await db
     .update(schema.events)
-    .set({ coverKey: null })
+    .set({ coverKey: null, coverAspect: null })
     .where(eq(schema.events.id, event.id));
   if (event.coverKey) await getStorage().delete(event.coverKey).catch(() => {});
 

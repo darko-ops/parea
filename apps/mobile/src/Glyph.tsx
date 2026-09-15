@@ -10,12 +10,15 @@
  * Everything here is on a 24-unit grid at stroke width 2 with round caps and
  * joins, which is the convention `RailIcon` set and the only thing that makes
  * six drawings by different hands read as one family. The two strokes inside
- * the photo stack are 1.6: they are a picture inside a frame, and at the same
- * weight as the frame the tile reads as a scribble at 20 points.
+ * the photo stack are four-fifths of that: they are a picture inside a frame,
+ * and at the same weight as the frame the tile reads as a scribble at 20
+ * points.
  *
  * `stroke` rather than `fill` throughout — these are line drawings, and a
  * filled variant for the selected state would be a second set to keep in step.
- * Selection is said in colour, which is what the tab bar already does.
+ * A selected glyph is the same drawing in a heavier stroke, which is what the
+ * `weight` prop is for: one set of paths, and the tab bar asks for the bold
+ * cut of it the way type asks for a bold cut of a face.
  */
 
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
@@ -28,7 +31,13 @@ export type GlyphName =
   | 'search'
   | 'plus'
   | 'unlocked'
-  | 'locked';
+  | 'locked'
+  | 'envelope'
+  | 'face'
+  | 'share'
+  | 'download'
+  | 'trash'
+  | 'door';
 
 /**
  * One glyph, in one colour.
@@ -37,14 +46,23 @@ export type GlyphName =
  * grid and scaled by the viewBox, so a 22pt tab glyph and a 15pt padlock
  * beside a line of text are the same drawing at two sizes rather than two
  * drawings.
+ *
+ * `weight` is the stroke, and 2 is the family's own. Raising it is how the
+ * selected tab is drawn — the same shape, said louder. It is deliberately a
+ * number rather than a boolean: the two thin strokes inside the photo stack
+ * are authored at 1.6 against a 2 frame, and they scale with the frame rather
+ * than being pinned, so the picture inside the stack stays lighter than the
+ * stack at every weight.
  */
 export function Glyph({
   name,
   size = 22,
+  weight = 2,
   color,
 }: {
   name: GlyphName;
   size?: number;
+  weight?: number;
   color: string;
 }) {
   return (
@@ -54,16 +72,23 @@ export function Glyph({
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth={2}
+      strokeWidth={weight}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {paths(name)}
+      {paths(name, weight)}
     </Svg>
   );
 }
 
-function paths(name: GlyphName) {
+/**
+ * `weight` reaches here for the two strokes that are not the family's own: the
+ * horizon and the sun inside the photo stack, drawn at four-fifths of the
+ * frame so the tile reads as a stack rather than as a box full of lines. Held
+ * as a ratio so that relationship survives the bold cut.
+ */
+function paths(name: GlyphName, weight: number) {
+  const light = weight * 0.8;
   switch (name) {
     /*
       A photograph behind a photograph, which is what an event is — the frame
@@ -76,8 +101,8 @@ function paths(name: GlyphName) {
         <>
           <Rect x={8} y={4} width={12.5} height={12.5} rx={2} />
           <Path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
-          <Circle cx={12} cy={8} r={1.05} strokeWidth={1.6} />
-          <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={1.6} />
+          <Circle cx={12} cy={8} r={1.05} strokeWidth={light} />
+          <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={light} />
         </>
       );
     /* Saying something, rather than a speech bubble: the bubble is what an
@@ -141,6 +166,90 @@ function paths(name: GlyphName) {
         <>
           <Rect x={4.5} y={11} width={15} height={9.5} rx={2} />
           <Path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+        </>
+      );
+
+    /*
+     * A face, for the control that opens the emoji picker.
+     *
+     * Drawn rather than set as an emoji. A 🙂 in the button is a *particular*
+     * emoji sitting where a control should be — it reads as "react with this
+     * one" rather than "choose one", and it changes shape between platforms
+     * and font versions while every other control in this app is a 24-unit
+     * stroke that does not.
+     */
+    case 'face':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={8.5} />
+          <Path d="M8.6 14.2a4.2 4.2 0 0 0 6.8 0" />
+          <Path d="M9.3 9.6h.01" />
+          <Path d="M14.7 9.6h.01" />
+        </>
+      );
+
+    /*
+     * An envelope, because what arrives in Lately is somebody asking you to
+     * something — the same shape the world already uses for that, and the same
+     * two paths the web rail draws for `invites`. One glyph for one idea,
+     * whichever screen it is on.
+     */
+    case 'envelope':
+      return (
+        <>
+          <Rect x={3} y={5.5} width={18} height={13} rx={2} />
+          <Path d="m3.8 7 8.2 6 8.2-6" />
+        </>
+      );
+
+    /*
+     * The system share mark: a box you are lifting something out of.
+     *
+     * Deliberately the arrow-out-of-a-tray rather than the three linked dots.
+     * On a phone this control opens the OS sheet, and this is the shape iOS
+     * uses for that everywhere — a glyph somebody has to learn is a glyph that
+     * has failed at the one job an icon has.
+     */
+    case 'share':
+      return (
+        <>
+          <Path d="M12 3.5v11" />
+          <Path d="M8.5 7 12 3.5 15.5 7" />
+          <Path d="M6.5 11.5H5.5a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5h-1" />
+        </>
+      );
+
+    /* The same tray, receiving rather than giving: the arrow points in. */
+    case 'download':
+      return (
+        <>
+          <Path d="M12 3.5v11" />
+          <Path d="M8.5 11 12 14.5 15.5 11" />
+          <Path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+        </>
+      );
+
+    case 'trash':
+      return (
+        <>
+          <Path d="M4.5 6.5h15" />
+          <Path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5" />
+          <Path d="M6.5 6.5 7.4 19a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.5" />
+        </>
+      );
+
+    /*
+     * A door with a handle, for leaving. Not an arrow through a doorway, which
+     * is the same picture as "sign out" in half the apps on a phone and means
+     * something much larger than stepping out of one album.
+     */
+    case 'door':
+      return (
+        <>
+          <Path d="M6 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H6z" />
+          <Circle cx={13} cy={12} r={1.1} />
+          <Path d="M18.5 12H21" />
+          <Path d="M19.6 10.2 21.4 12l-1.8 1.8" />
         </>
       );
   }

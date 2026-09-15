@@ -22,7 +22,7 @@ export function CreateCard() {
           not a place to sign the product's name. Deliberately not the mark's
           opening two, so this does not rhyme with the empty-event card. */}
       <Lenses count={2} size={18} palette={CREATE_LENSES} />
-      <strong>Create Event</strong>
+      <strong>Create Album</strong>
       <span>
         Name it, say when it was, send the link. Nothing to sign up for at the
         other end to look.

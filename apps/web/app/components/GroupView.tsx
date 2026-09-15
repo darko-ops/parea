@@ -205,7 +205,7 @@ export function GroupView({ group }: { group: GroupData }) {
           <h1>{group.name}</h1>
           <p className="group-head-meta">
             {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'} ·{' '}
-            {group.events.length} {group.events.length === 1 ? 'event' : 'events'}
+            {group.events.length} {group.events.length === 1 ? 'album' : 'albums'}
             {group.role === 'admin' && ' · you run this'}
           </p>
         </div>
@@ -216,7 +216,7 @@ export function GroupView({ group }: { group: GroupData }) {
             aria-expanded={creating}
             onClick={() => setCreating((was) => !was)}
           >
-            New event here
+            New album here
           </button>
           {/*
             One item, and no "Manage group" beside it.
@@ -367,7 +367,7 @@ export function GroupView({ group }: { group: GroupData }) {
         <div className="group-empty">
           <p>Nothing yet.</p>
           <button type="button" className="group-new" onClick={() => setCreating(true)}>
-            New event here
+            New album here
           </button>
         </div>
       ) : (
@@ -432,8 +432,8 @@ export function GroupView({ group }: { group: GroupData }) {
         it and be frightened.
       */}
       <p className="group-note">
-        Photos live in the events, not in the group. Leaving stops the next one
-        reaching you — it takes nothing away from the events you were in.
+        Photos live in the albums, not in the group. Leaving stops the next one
+        reaching you — it takes nothing away from the albums you were in.
       </p>
 
       <SiteFooter />

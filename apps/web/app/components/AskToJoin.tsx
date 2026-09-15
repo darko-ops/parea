@@ -56,7 +56,7 @@ export function AskToJoin({
         {status === 'open' && (
           <>
             <p className="muted">
-              Asked. Whoever made this event decides who comes in, and you will
+              Asked. Whoever made this album decides who comes in, and you will
               be able to open this link once they have.
             </p>
             {/*
@@ -76,14 +76,14 @@ export function AskToJoin({
           // refreshing a page that is never going to change.
           <p className="muted">
             This one was not opened up to you. If that is a mistake, the person
-            who made the event is the one to ask.
+            who made the album is the one to ask.
           </p>
         )}
 
         {status === null && (
           <>
             <p className="muted">
-              This event is private. You have the link, which is the first half —
+              This album is private. You have the link, which is the first half —
               the person who made it lets people in one at a time.
             </p>
 

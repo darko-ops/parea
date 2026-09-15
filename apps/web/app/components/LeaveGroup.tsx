@@ -42,8 +42,8 @@ export function LeaveGroup({ groupId, name }: { groupId: string; name: string })
       {(close) => (
         <>
           <p className="menu-note">
-            Photos live in the events, not in the group. Leaving stops the next
-            one reaching you — it takes nothing away from the events you were
+            Photos live in the albums, not in the group. Leaving stops the next
+            one reaching you — it takes nothing away from the albums you were
             in.
           </p>
           <button

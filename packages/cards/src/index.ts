@@ -8,9 +8,9 @@
  * clients cannot come to disagree about what "Tonight" means. A relative time
  * that rounds differently on web and native is the same class of bug, quieter.
  *
- * Computed on the client rather than returned by the API on purpose: "20m ago"
- * has to become "2h ago" on a screen someone left open, and a string baked by
- * the server is wrong from the moment it is sent.
+ * Computed on the client rather than returned by the API on purpose: "20 min
+ * ago" has to become "2 hr ago" on a screen someone left open, and a string baked
+ * by the server is wrong from the moment it is sent.
  *
  * No dependencies, no platform assumptions. The mobile client cannot take
  * `@parea/core` — that would pull the schema and drizzle into a React Native
@@ -26,14 +26,20 @@
  */
 export function ago(from: Date, now: Date): string {
   // Clamped at zero because `from` comes from the server and `now` from the
-  // device, and those clocks disagree. "-3m ago" is worse than a small lie.
+  // device, and those clocks disagree. "-3 min ago" is worse than a small lie.
   const seconds = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 1000));
   const minutes = Math.floor(seconds / 60);
   if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  // `min` rather than `m`, which read as metres as often as minutes on a line
+  // that also carries a count of people. Spaced, because a three-letter
+  // abbreviation against a number is a word, not a unit suffix.
+  if (minutes < 60) return `${minutes} min ago`;
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  // Spelled out for the same reason as `min` above, and spaced to match it: a
+  // ladder that reads "59 min ago" and then "2h ago" changes its mind about
+  // what kind of abbreviation it uses halfway up.
+  if (hours < 24) return `${hours} hr ago`;
 
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
@@ -74,6 +80,34 @@ export function dateLabel(iso: string | null): string | null {
     day: 'numeric',
     month: 'short',
     timeZone: 'UTC',
+  }).format(date);
+}
+
+/**
+ * The same date, shorter, dated to the year, and in the reader's own timezone.
+ *
+ * "14 Sep 2026" rather than "Sat 14 Sep". The weekday goes and the year
+ * arrives, and the swap is the point: `dateLabel` dates an *evening*, where
+ * which night it was is half of what somebody is trying to remember and the
+ * year is usually this one. This dates a file in a grid somebody scrolls, where
+ * the weekday says nothing and the year is the whole question — an album people
+ * keep adding to holds photographs from several, and "14 Sep" alone is a date
+ * that quietly assumes an answer.
+ *
+ * Local rather than UTC, which is the other difference and the one that
+ * matters. `dateLabel` fixes the zone on purpose: an event's date is a day
+ * somebody chose, not an instant, and it must read the same in every timezone.
+ * A photograph's arrival *is* an instant, and one added at half past eleven at
+ * night is dated tomorrow by UTC — the wrong answer given confidently.
+ */
+export function shortDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   }).format(date);
 }
 
@@ -159,7 +193,7 @@ export type CardMeta = {
  * duplication that makes a design feel like a form.
  *
  * The newest event shows recency instead of place, because at the top of the
- * list "added to 20m ago" is the fact that makes someone open it. Everything
+ * list "added to 20 min ago" is the fact that makes someone open it. Everything
  * below shows place where it has one, since by then *where* tells events apart
  * better than *when*.
  */

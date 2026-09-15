@@ -128,7 +128,7 @@ export function HomeView({
             type="button"
             className="search-go"
             aria-expanded={open}
-            aria-label="Search your events"
+            aria-label="Search your albums"
             onClick={() => {
               if (open && query.trim() === '') setOpen(false);
               else setOpen(true);
@@ -141,8 +141,8 @@ export function HomeView({
             type="search"
             className="search-field"
             value={query}
-            placeholder="Search your events"
-            aria-label="Search your events"
+            placeholder="Search your albums"
+            aria-label="Search your albums"
             tabIndex={open ? 0 : -1}
             onChange={(e) => setQuery(e.target.value)}
             onBlur={collapse}
@@ -205,7 +205,7 @@ export function HomeView({
 
           {person && (
             <span className="people-filter">
-              Showing events with <b>{first(person.name)}</b> ·{' '}
+              Showing albums with <b>{first(person.name)}</b> ·{' '}
               <button type="button" className="link-button" onClick={() => setSelected(null)}>
                 clear
               </button>

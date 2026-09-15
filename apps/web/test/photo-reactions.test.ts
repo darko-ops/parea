@@ -262,3 +262,128 @@ describe('when the photograph goes', () => {
     expect((await db.select().from(schema.photoReactions)).length).toBe(0);
   });
 });
+
+/**
+ * What counts as an emoji, now that the set is open.
+ *
+ * The picker offered six and the route checked against those six, so the list
+ * was both the vocabulary and the validation. The app can reach the system
+ * keyboard now, which changes the question from "which emoji do we like" to "is
+ * this an emoji at all".
+ *
+ * The rule doing the real work is *one grapheme*. Without it the column under a
+ * photograph is an unmoderated text channel with no length limit and no report
+ * button, reached through a box labelled "pick an emoji" — which is the failure
+ * these cases exist to prevent, not the taste ones.
+ */
+describe('what may be reacted with', () => {
+  it('takes any single emoji, not just the six', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const emoji of ['❤️', '😂', '🦑', '🫠', '🇬🇷', '1️⃣', '👨‍👩‍👧‍👦', '🧑🏽‍🚀']) {
+      expect(isEmoji(emoji), `${emoji} should be allowed`).toBe(true);
+    }
+  });
+
+  it('refuses anything that is more than one of them', async () => {
+    /*
+     * Two emoji is a sentence, and a sentence is the thing a reaction is not.
+     * Sequences that *look* like several — a family, a profession with a skin
+     * tone — are one grapheme and pass above.
+     */
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of ['❤️❤️', '😂 ', ' 😂', '😂😂😂']) {
+      expect(isEmoji(value), `${JSON.stringify(value)} should be refused`).toBe(false);
+    }
+  });
+
+  it('refuses words, digits and empty strings', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of ['', 'a', '7', 'lol', 'nice photo', ' ', '\n']) {
+      expect(isEmoji(value), `${JSON.stringify(value)} should be refused`).toBe(false);
+    }
+  });
+
+  it('refuses anything that is not a string', async () => {
+    const { isEmoji } = await import('../src/reactions');
+    for (const value of [null, undefined, 42, {}, ['😂'], true]) {
+      expect(isEmoji(value)).toBe(false);
+    }
+  });
+
+  it('refuses a megabyte before it reaches the segmenter', async () => {
+    // The length bound is not really about length — the grapheme check already
+    // does that work — it is a cheap first refusal.
+    const { isEmoji } = await import('../src/reactions');
+    expect(isEmoji('😂'.repeat(100_000))).toBe(false);
+  });
+
+  it('still knows the offered six, for the picker that offers them', async () => {
+    // `isReaction` did not go away: the set is still what a picker opens with,
+    // and it is still the shared vocabulary between the two clients.
+    const { isReaction, REACTIONS } = await import('../src/reactions');
+    expect(REACTIONS).toHaveLength(6);
+    for (const emoji of REACTIONS) expect(isReaction(emoji)).toBe(true);
+    expect(isReaction('🦑')).toBe(false);
+  });
+});
+
+/**
+ * The two pushes a photograph can cause.
+ *
+ * Asserted against the routes rather than against Expo: what matters is who is
+ * told and who is not, and both mistakes are silent. Telling somebody about
+ * their own action spends a notification budget on nothing; failing to tell
+ * the person a claim was made about is the whole feature not happening.
+ */
+describe('who hears about a photograph', () => {
+  const read = async (path: string) =>
+    (await import('node:fs')).readFileSync(
+      (await import('node:url')).fileURLToPath(new URL(path, import.meta.url)),
+      'utf8',
+    );
+
+  it('tells the uploader about a comment, and never about their own', async () => {
+    const route = await read('../app/api/events/[id]/messages/route.ts');
+    expect(route).toMatch(/if \(photoId && uploaderId && uploaderId !== actorId\)/);
+    expect(route).toMatch(/notifyPhotoComment\(db, \{/);
+    // Only the uploader. Everybody else in the album finds out by opening it.
+    expect(route).toMatch(/toActorId: uploaderId/);
+  });
+
+  it('tells the person tagged, and never for a self-tag', async () => {
+    const route = await read('../app/api/photos/[id]/tags/route.ts');
+    expect(route).toMatch(/if \(target !== actorId\)/);
+    expect(route).toMatch(/notifyPhotoTagged\(db, \{/);
+    expect(route).toMatch(/toActorId: target/);
+  });
+
+  it('never makes the request wait on a push', async () => {
+    /*
+     * Fire-and-forget by design — see `notify.ts`. Somebody pressing Send must
+     * not wait on Expo, and must certainly not see an error because Expo is
+     * down: the comment and the tag are already written by this point.
+     */
+    for (const path of [
+      '../app/api/events/[id]/messages/route.ts',
+      '../app/api/photos/[id]/tags/route.ts',
+    ]) {
+      const route = await read(path);
+      expect(route, path).toMatch(/void notifyPhoto(Comment|Tagged)\(/);
+      expect(route, path).not.toMatch(/await notifyPhoto/);
+    }
+  });
+
+  it('sends the remark rather than the fact of one', async () => {
+    /*
+     * "Maya commented on your photo" makes somebody open the app to find out
+     * whether they wanted to, and most of the time the whole content of the
+     * notification is six words that could have been in it.
+     */
+    const push = await read('../../../packages/push/src/index.ts');
+    expect(push).toMatch(/case 'photo_comment':/);
+    expect(push).toMatch(/\$\{notification\.who\}: \$\{/);
+    // Trimmed by us, so it ends in an ellipsis rather than mid-word at
+    // whatever width the phone happens to be.
+    expect(push).toMatch(/said\.slice\(0, 80\)\.trimEnd\(\)/);
+  });
+});

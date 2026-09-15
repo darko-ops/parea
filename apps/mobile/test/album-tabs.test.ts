@@ -80,8 +80,13 @@ describe('one header, three panes', () => {
      * cover rather than at the top of the screen. Without the offset the
      * composer is lifted by exactly the height of the header too little.
      */
-    expect(APP).toMatch(/const PAGE_TOP = 248/);
-    expect(APP).toMatch(/page: \{ position: 'absolute', top: 248/);
+    /*
+     * The number moved when the header got shorter, which is the point of it
+     * being a name: `PAGE_TOP` is the header's height, the page is pinned to
+     * it, and the offset is the same value rather than a third copy of it.
+     */
+    expect(APP).toMatch(/const PAGE_TOP = COVER;/);
+    expect(APP).toMatch(/page: \{ position: 'absolute', top: PAGE_TOP,/);
     expect(SCREEN).toMatch(/keyboardOffset=\{PAGE_TOP\}/);
     expect(THREAD).toMatch(/keyboardVerticalOffset=\{keyboardOffset\}/);
   });
@@ -123,19 +128,81 @@ describe('the corners', () => {
   });
 });
 
-describe('the grid', () => {
-  it('is one photograph per row, not a contact sheet', () => {
-    /*
-     * Three columns of 121pt squares is good for finding a photograph you
-     * already know is in there and nothing like looking at one — and every
-     * square was a crop, since `cover` on a 1:1 tile takes the ends off
-     * anything shot in portrait.
-     */
-    expect(SCREEN).not.toMatch(/numColumns=\{3\}/);
-    expect(SCREEN).not.toMatch(/columnWrapperStyle/);
+describe('the two views', () => {
+  /*
+   * Both of these shipped at different times as *the* view, and the argument
+   * for each was right about a different moment.
+   *
+   * The contact sheet went first: three columns of 121pt squares is good for
+   * finding a photograph you already know is in there, nothing like looking at
+   * one, and every square was a crop since `cover` on a 1:1 tile takes the ends
+   * off anything shot in portrait. The column replaced it whole, and this file
+   * asserted the sheet was gone.
+   *
+   * Which was right about opening an album for the first time and wrong about
+   * opening one you have already seen, where you are looking for one particular
+   * picture among two hundred. So both are here, a swipe apart, and what these
+   * check is that neither has quietly become the other.
+   */
+  it('keeps the column at one photograph per row', () => {
     expect(APP).toMatch(/thumb: \{ width: '100%', aspectRatio: 4 \/ 5/);
     // Edge to edge, as the home cards are.
-    expect(APP).toMatch(/gridContent: \{ paddingBottom: 12, gap: 3 \}/);
+    expect(APP).toMatch(/gridContent: \{ paddingBottom: 12, gap: PHOTO_GAP \}/);
+  });
+
+  it('puts the grid back beside it, three across', () => {
+    expect(APP).toMatch(/const GRID_COLUMNS = 3;/);
+    expect(SCREEN).toMatch(/numColumns=\{GRID_COLUMNS\}/);
+    expect(SCREEN).toMatch(/columnWrapperStyle=\{styles\.gridRow\}/);
+    // Square, which is the trade a contact sheet makes.
+    expect(APP).toMatch(/gridShot: \{ width: '100%', aspectRatio: 1/);
+  });
+
+  it('opens on the grid, and the grid is the left-hand page', () => {
+    // Somebody opening an album they have already seen is looking for a
+    // particular photograph, and a screenful of nine beats a screenful of one.
+    expect(APP).toMatch(/useState<'grid' \| 'column'>\('grid'\)/);
+    const pager = SCREEN.slice(SCREEN.indexOf('ref={pager}'));
+    expect(pager.indexOf('renderItem={renderTile}')).toBeLessThan(
+      pager.indexOf('renderItem={renderColumn}'),
+    );
+  });
+
+  it('spaces both views by the same number', () => {
+    // A gap that differed between them would read as the swipe having changed
+    // the spacing rather than the layout — and `getItemLayout` adds it to a
+    // row's height, so the two have to agree by construction.
+    expect(APP).toMatch(/const PHOTO_GAP = 3;/);
+    expect(APP).toMatch(/gridRow: \{ gap: PHOTO_GAP \}/);
+  });
+
+  it('lands on the same photographs it left', () => {
+    /*
+     * A swipe at photograph 90 of 200 arriving at the top of the other view
+     * reads as the gesture having reloaded the album. `getItemLayout` on both
+     * is what lets either be scrolled to an index it has not drawn yet.
+     */
+    expect(APP).toMatch(/list\.scrollToIndex\(\{ index: anchor\.current, animated: false \}\)/);
+    expect(SCREEN).toMatch(/getItemLayout=\{gridLayout\}/);
+    expect(SCREEN).toMatch(/getItemLayout=\{columnLayout\}/);
+    expect(SCREEN).toMatch(/onViewableItemsChanged=\{onSeen\}/);
+  });
+
+  it('says which view is showing, and says it once', () => {
+    /*
+     * The indicator is what tells somebody the swipe exists at all, and that is
+     * the whole of its job. It had a white strip behind it — three pieces of
+     * chrome between the tabs and the photographs where two will do, and a
+     * white one in dark mode besides — and it drew the half you are *not* on as
+     * a track, which said the same thing twice.
+     *
+     * Only the side you are on is drawn now. The other half still takes its
+     * space, so the mark reads as which side rather than as a bar that moved.
+     */
+    expect(APP).toMatch(/viewBar: \{ paddingTop: 10, paddingBottom: 8 \}/);
+    expect(APP).not.toMatch(/viewBar: \{ backgroundColor/);
+    expect(APP).toMatch(/backgroundColor: view === which \? t\.fg : 'transparent'/);
+    expect(APP).toMatch(/viewSegment: \{ flex: 1, height: 4/);
   });
 
   it('draws the 1280 now that a row is the whole screen', () => {

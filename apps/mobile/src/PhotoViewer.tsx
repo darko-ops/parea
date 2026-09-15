@@ -31,16 +31,21 @@ import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  KeyboardAvoidingView,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
 
-import { REACTIONS, type Api, type FeedPhoto } from './api';
+import type { Api, FeedPhoto, Message } from './api';
+import { EmojiPicker } from './Emoji';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 
 /** As far in as a pinch will go. Beyond this a 2560px rendition is mush. */
@@ -68,6 +73,26 @@ const VISIBLE_REACTIONS = 4;
 const SAID_ROW = 22;
 const SAID_GAP = 6;
 
+/**
+ * How far a one-finger drag has to go before it means something.
+ *
+ * Only ever read at scale 1, where the picture fits and a drag has nothing else
+ * to do — zoomed in, the same finger is panning and none of this applies.
+ *
+ * Generous, because both outcomes are large: one leaves the photograph and the
+ * other opens a panel over it. A hair-trigger on either would fire on the
+ * flick somebody uses to scroll the album behind it.
+ */
+const SWIPE = 90;
+
+/**
+ * And how fast counts as meaning it regardless of distance.
+ *
+ * A short quick flick is the same intention as a long slow drag, which is the
+ * rule `SwipeBack` already follows for the same reason.
+ */
+const FLING = 0.7;
+
 const distance = (touches: { pageX: number; pageY: number }[]) => {
   const [a, b] = touches;
   return Math.hypot(a!.pageX - b!.pageX, a!.pageY - b!.pageY);
@@ -75,18 +100,35 @@ const distance = (touches: { pageX: number; pageY: number }[]) => {
 
 export function PhotoViewer({
   api,
+  eventId,
   photo,
+  comments,
   t,
   canReact,
+  canPost,
   onClose,
   onChanged,
   onOptions,
 }: {
   api: Api;
+  /** Which album, for posting a comment against this photograph. */
+  eventId: string;
   photo: FeedPhoto;
+  /**
+   * What has been said about this photograph, oldest first.
+   *
+   * The event's own thread, filtered to this picture. Comments are not a second
+   * kind of message and there is no second table: `event_message` has carried a
+   * `photo_id` since the web let somebody reply to a photograph, and this is
+   * the same rows read from the other end. A comment here is a line in the
+   * album's conversation that happens to be about a picture.
+   */
+  comments: Message[];
   t: GroupTheme;
   /** Whether this viewer may leave a reaction. The server's answer. */
   canReact: boolean;
+  /** Whether they may say something. The same answer, from the same place. */
+  canPost: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
   /** The `⋯`: remove, ask for it down, report, block. */
@@ -123,8 +165,18 @@ export function PhotoViewer({
   const lastTap = useRef(0);
 
   const [chrome, setChrome] = useState(true);
-  /** The names column, kept scrolled to the newest. */
-  const column = useRef<ScrollView>(null);
+  /**
+   * Whether the comments are open.
+   *
+   * A panel over the photograph rather than a screen of its own: what somebody
+   * is saying is about the picture, and a comment read without it in view is a
+   * remark about nothing. It covers the lower half and the picture stays above.
+   */
+  const [talking, setTalking] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  /** The face: our own emoji grid, since the system will not lend us its one. */
+  const [picking, setPicking] = useState(false);
 
   const settle = useCallback(
     (next: number) => {
@@ -197,9 +249,23 @@ export function PhotoViewer({
             return;
           }
 
-          // One finger only pans a picture that is bigger than the screen.
-          // Otherwise the photograph slides around inside its own frame.
-          if (now.current.scale <= 1) return;
+          /*
+           * At fit, one finger is a vertical gesture rather than a pan.
+           *
+           * There is nothing to pan — the picture is already inside the screen —
+           * so this space was doing nothing, which is exactly why the two new
+           * gestures live here and not on top of something. Zoomed in, the
+           * branch below takes the finger back for panning and neither of them
+           * can fire.
+           *
+           * The photograph follows the finger at a third of the distance. Not
+           * for the animation: it is how somebody finds out the gesture exists,
+           * and how they discover mid-drag which way they are going.
+           */
+          if (now.current.scale <= 1) {
+            pan.setValue({ x: 0, y: g.dy / 3 });
+            return;
+          }
           if (!from.current) {
             from.current = { scale: now.current.scale, x: now.current.x, y: now.current.y, span: 0 };
           }
@@ -208,6 +274,35 @@ export function PhotoViewer({
         onPanResponderRelease: (_evt, g) => {
           const moved = Math.hypot(g.dx, g.dy) > TAP_SLOP;
           from.current = null;
+
+          /*
+           * Down leaves, up talks.
+           *
+           * It was the other way round, on the argument that each gesture
+           * should move something in the direction it actually goes: the
+           * comments are below, so pull them up; the album is behind, so push
+           * the photograph away. That reasoning is sound and it loses, because
+           * it is reasoning — and nobody reasons about a swipe.
+           *
+           * Every photo viewer on this phone dismisses downward, and every
+           * sheet on it arrives from below when you pull up. Those are two
+           * habits somebody already has, and a screen that inverts both to be
+           * internally consistent is a screen where the first swipe does the
+           * wrong thing to everybody who has ever used a phone.
+           *
+           * Vertical only: `dy` has to beat `dx`, or a diagonal flick past a
+           * photograph closes it.
+           */
+          if (now.current.scale <= 1 && Math.abs(g.dy) > Math.abs(g.dx)) {
+            const far = Math.abs(g.dy) > SWIPE;
+            const flung = Math.abs(g.vy) > FLING;
+            if (far || flung) {
+              settle(1);
+              if (g.dy > 0) onClose();
+              else setTalking(true);
+              return;
+            }
+          }
 
           if (!moved) {
             const at = Date.now();
@@ -232,7 +327,7 @@ export function PhotoViewer({
           settle(now.current.scale);
         },
       }),
-    [pan, scale, settle, zoomTo],
+    [onClose, pan, scale, settle, zoomTo],
   );
 
   /*
@@ -267,7 +362,21 @@ export function PhotoViewer({
     );
     const added = [...pending]
       .filter(([emoji, on]) => on && !photo.reactions.some((r) => r.mine && r.emoji === emoji))
-      // Newest at the top, which is where the server would have put them.
+      /*
+       * Reversed, because a `Map` iterates in insertion order and this list
+       * reads newest first.
+       *
+       * With one reaction in flight it makes no difference, which is why this
+       * was wrong and looked fine. Leave two — react, react again before the
+       * first has come back — and the pair went in oldest-above-newest while
+       * the server was about to answer newest-above-oldest. So the second
+       * landed *below* the first and then swapped places a moment later, which
+       * reads as the app changing its mind about what you just did.
+       *
+       * The rule is that an optimistic row goes exactly where the server would
+       * have put it. Anywhere else is a correction somebody watches happen.
+       */
+      .reverse()
       .map(([emoji]) => ({ emoji, name: 'You', mine: true }));
     return [...added, ...kept];
   }, [pending, photo.reactions]);
@@ -278,14 +387,41 @@ export function PhotoViewer({
   );
 
   /*
-   * Oldest first, because the column is read upwards from the corner.
+   * Newest first, which is the order the server already sends.
    *
-   * The server answers newest first, which is the right order for a list that
-   * grows downwards and the wrong one for a list that grows up out of the
-   * bottom-left. Reversed once here rather than at the call site, so the
-   * `slice` that used to do it cannot quietly change which four are visible.
+   * This was reversed, so the column grew upward out of the corner with the
+   * most recent line closest to it. That was right while the list sat in the
+   * bottom-left of the glass and had a corner to grow out of; above the comment
+   * bar it is an ordinary list in an ordinary place, and an ordinary list reads
+   * downward from the newest — the same way the album's own conversation does,
+   * and everything else in the product.
    */
-  const ordered = useMemo(() => [...reactions].reverse(), [reactions]);
+  const ordered = reactions;
+
+  /**
+   * Say something about this photograph.
+   *
+   * Into the album's own thread with the photo's id on it, which is what makes
+   * it a comment — there is no second table and no second endpoint. Cleared and
+   * closed optimistically, because the refresh below is what brings the line
+   * back and a box that empties only once the server answers feels broken on a
+   * train.
+   */
+  const post = useCallback(async () => {
+    const body = draft.trim();
+    if (!body || sending) return;
+    setSending(true);
+    try {
+      await api.postMessage(eventId, body, photo.id);
+      setDraft('');
+      await onChanged();
+    } catch {
+      // The draft survives, which is the whole recovery: somebody who wrote a
+      // sentence is not being asked to write it again.
+    } finally {
+      setSending(false);
+    }
+  }, [api, draft, eventId, onChanged, photo.id, sending]);
 
   const react = useCallback(
     async (emoji: string) => {
@@ -388,60 +524,173 @@ export function PhotoViewer({
           */}
           <View style={styles.said} pointerEvents="box-none">
             <ScrollView
-              ref={column}
               style={styles.saidScroll}
               contentContainerStyle={styles.saidInner}
               showsVerticalScrollIndicator={false}
-              // Pinned to the newest, which is the end. Without animation:
-              // this fires on the first layout too, and a column that slides
-              // into place on open looks like something arriving late.
-              onContentSizeChange={() => column.current?.scrollToEnd({ animated: false })}
             >
               {ordered.map((r, i) => (
                 <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
+                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
                   <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
                     {r.mine ? 'You' : r.name}
                   </Text>
-                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
                 </View>
               ))}
             </ScrollView>
           </View>
 
-          <View style={styles.picker} pointerEvents="box-none">
-            {!canReact ? (
-              <Text style={styles.why}>Sign in{'\n'}to react</Text>
-            ) : (
-              <ScrollView
-                style={styles.pickerScroll}
-                contentContainerStyle={styles.pickerInner}
-                showsVerticalScrollIndicator={false}
-              >
-                {REACTIONS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => void react(emoji)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: mine.has(emoji) }}
-                    accessibilityLabel={
-                      mine.has(emoji) ? `Take back ${emoji}` : `React ${emoji}`
-                    }
-                    style={({ pressed }) => [
-                      styles.key,
-                      // Yours is filled rather than outlined: at this size a
-                      // 1pt border round an emoji is not a state anybody sees.
-                      mine.has(emoji) && styles.keyMine,
-                      { opacity: pressed ? 0.55 : 1 },
-                    ]}
-                  >
-                    <Text style={styles.keyText}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-          </View>
+          {/*
+            What has been said about this photograph, and a box to add to it.
+
+            The composer is on the glass rather than inside the panel, because it
+            is the thing somebody came to do and a comment box you have to open
+            a panel to find is a comment box nobody uses. Pulling down opens the
+            list above it; the box itself is always there.
+          */}
+          {!talking && (
+            <View style={styles.bar} pointerEvents="box-none">
+              {canPost && (
+                <Pressable
+                  onPress={() => setTalking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
+                      : 'Add a comment'
+                  }
+                  style={styles.composerHint}
+                >
+                  <Text style={styles.composerHintText} numberOfLines={1}>
+                    {comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
+                      : 'Add a comment'}
+                  </Text>
+                </Pressable>
+              )}
+
+              {/*
+                One face, and the whole keyboard behind it.
+
+                This was a column of six emoji with a `⋯` under them, offered
+                because a reaction should be one tap. The trouble is that six is
+                not the set anybody wants: it is the set we guessed, and the
+                seventh emoji somebody reaches for is the one they actually
+                mean. A column of six guesses takes the right-hand side of
+                somebody's photograph to save a press that only sometimes lands.
+
+                So: one control, always the same shape, and the picker behind it
+                is the one on their own phone with their own recents at the
+                front of it. The frequent emoji are still one tap away — theirs
+                rather than ours.
+              */}
+              {canReact ? (
+                <Pressable
+                  onPress={() => setPicking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="React to this photo"
+                  style={({ pressed }) => [styles.smiley, { opacity: pressed ? 0.55 : 1 }]}
+                >
+                  <Glyph name="face" size={22} color="#fff" />
+                </Pressable>
+              ) : (
+                <Text style={styles.why}>Sign in{'\n'}to react</Text>
+              )}
+            </View>
+          )}
         </>
       )}
+
+      {talking && (
+        <KeyboardAvoidingView
+          style={styles.talk}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/*
+            The picture stays visible above it. A comment read without the
+            photograph in view is a remark about nothing.
+          */}
+          <Pressable style={styles.talkAway} onPress={() => setTalking(false)} />
+
+          <View style={styles.talkPanel}>
+            <View style={styles.talkGrip} />
+
+            <ScrollView
+              style={styles.talkScroll}
+              contentContainerStyle={styles.talkInner}
+              keyboardShouldPersistTaps="handled"
+            >
+              {comments.length === 0 ? (
+                <Text style={styles.talkEmpty}>
+                  Nothing said about this one yet.
+                </Text>
+              ) : (
+                comments.map((message) => (
+                  <View key={message.id} style={styles.talkRow}>
+                    <Text style={styles.talkWho} numberOfLines={1}>
+                      {message.author.mine ? 'You' : message.author.name}
+                    </Text>
+                    <Text style={styles.talkBody}>
+                      {message.deleted ? 'Message deleted' : message.body}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {canPost && (
+              <View style={styles.talkBox}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Say something about this photo"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  style={styles.talkInput}
+                  multiline
+                  autoFocus
+                  accessibilityLabel="Say something about this photo"
+                />
+                <Pressable
+                  onPress={() => void post()}
+                  disabled={!draft.trim() || sending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send"
+                  style={({ pressed }) => [
+                    styles.talkSend,
+                    {
+                      opacity: !draft.trim() || sending ? 0.4 : pressed ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={styles.talkSendText}>{sending ? '…' : 'Send'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      )}
+
+      {/*
+        The picker, which is ours rather than the system's.
+
+        The first version of this focused an invisible `TextInput` so the phone
+        would open its emoji keyboard. It works and it opens *a* keyboard — the
+        last panel somebody used, which is usually but not always the emoji one,
+        and there is no public way to ask for that panel specifically. A grid of
+        our own can only produce emoji, which is the requirement, and never puts
+        a text field over somebody's photograph. See `Emoji.tsx` for what that
+        costs.
+      */}
+      {picking && (
+        <EmojiPicker
+          t={t}
+          onClose={() => setPicking(false)}
+          onPick={(emoji) => {
+            setPicking(false);
+            void react(emoji);
+          }}
+        />
+      )}
+
     </View>
   );
 }
@@ -460,6 +709,78 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  /*
+   * The comment box, on the glass rather than inside the panel.
+   *
+   * It is the thing somebody came here to do, and a box you have to open a
+   * panel to find is a box nobody uses. Left of the reaction column, clear of
+   * the names in the other corner.
+   */
+  /* The two of them on one line, so the list above has a single edge to sit
+     over rather than two controls at different heights. */
+  bar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  composerHint: {
+    flex: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(20,23,28,0.55)',
+  },
+  composerHintText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  /* The panel covers the lower half; the photograph stays above it. */
+  talk: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  talkAway: { flex: 1 },
+  talkPanel: {
+    maxHeight: '62%',
+    backgroundColor: 'rgba(12,14,18,0.94)',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 28,
+  },
+  /* The handle a sheet has, so it reads as something that came up and can go
+     back down. */
+  talkGrip: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 8,
+    marginBottom: 6,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  talkScroll: { flexGrow: 0 },
+  talkInner: { paddingHorizontal: 18, paddingVertical: 8, gap: 12 },
+  talkEmpty: { color: 'rgba(255,255,255,0.5)', fontSize: 14, paddingVertical: 12 },
+  talkRow: { gap: 2 },
+  talkWho: { color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: '600' },
+  talkBody: { color: '#fff', fontSize: 15, lineHeight: 21 },
+  talkBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+  },
+  talkInput: {
+    flex: 1,
+    maxHeight: 120,
+    color: '#fff',
+    fontSize: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  talkSend: { paddingVertical: 10 },
+  talkSendText: { color: '#6ea8fe', fontSize: 15, fontWeight: '700' },
   /* Dark discs rather than bare glyphs: white on white is invisible, and a
      photograph can be any colour at all under either corner. */
   round: {
@@ -472,13 +793,23 @@ const styles = StyleSheet.create({
   },
   roundGlyph: { color: '#fff', fontSize: 15, fontWeight: '600', lineHeight: 17 },
   /* Who reacted, bottom left. Room kept clear of the picker opposite. */
-  said: { position: 'absolute', left: 16, right: 84, bottom: 44 },
+  /*
+   * Above the comment bar, not in a corner beside it.
+   *
+   * It was bottom-left with the picker column opposite, so the two halves of
+   * "what people said" sat at either side of the glass with a gap of photograph
+   * between them. One column now, over the box that adds to it, which is where
+   * somebody looks when they are wondering what has been said.
+   */
+  said: { position: 'absolute', left: 16, right: 16, bottom: 88 },
   /* Exactly four rows tall, so a fifth is cut off and the column reads as
      something to scroll rather than as all there is. */
   saidScroll: { maxHeight: VISIBLE_REACTIONS * SAID_ROW + (VISIBLE_REACTIONS - 1) * SAID_GAP },
   /* `flex-end` so a list shorter than four rows sits against the bottom of the
      box rather than floating at the top of it. */
-  saidInner: { gap: SAID_GAP, justifyContent: 'flex-end', flexGrow: 1 },
+  /* Newest at the top, so the list starts where it starts. `flex-end` was for
+     a column that grew out of a corner. */
+  saidInner: { gap: SAID_GAP },
   saidRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   /* A handle, without the `@` — this is a byline, not a mention. Shadowed
      rather than sat on a panel: a slab behind every name would cover more of
@@ -497,23 +828,18 @@ const styles = StyleSheet.create({
   saidEmoji: { fontSize: 15 },
 
   /* The picker, bottom right: one column, scrolled. */
-  picker: { position: 'absolute', right: 12, bottom: 44, alignItems: 'center' },
-  /* Tall enough for four keys, so a fifth is visibly cut off and the column
-     reads as something to scroll rather than as all there is. */
-  pickerScroll: { maxHeight: 4 * 44 },
-  pickerInner: { gap: 6, paddingVertical: 2, alignItems: 'center' },
-  key: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  /* The same disc as the two in the top corners, at the end of the bar. */
+  smiley: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(20,23,28,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* Filled where it is yours. At 38pt a 1pt outline round an emoji is not a
-     state anybody notices. */
-  keyMine: { backgroundColor: 'rgba(255,255,255,0.28)' },
-  keyText: { fontSize: 19 },
+
+  /* Tall enough for four keys, so a fifth is visibly cut off and the column
+     reads as something to scroll rather than as all there is. */
   why: {
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,

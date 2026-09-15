@@ -16,11 +16,11 @@ const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
 describe('ago', () => {
   it.each([
     [0, 'just now'],
-    [1, '1m ago'],
-    [20, '20m ago'],
-    [59, '59m ago'],
-    [60, '1h ago'],
-    [60 * 23, '23h ago'],
+    [1, '1 min ago'],
+    [20, '20 min ago'],
+    [59, '59 min ago'],
+    [60, '1 hr ago'],
+    [60 * 23, '23 hr ago'],
     [60 * 24, '1 day ago'],
     [60 * 24 * 6, '6 days ago'],
     [60 * 24 * 7, '1 week ago'],
@@ -33,13 +33,13 @@ describe('ago', () => {
   it('rounds down rather than up', () => {
     // "an hour ago" for something 35 minutes old invites someone to think
     // they missed more than they did.
-    expect(ago(minutesAgo(35), NOW)).toBe('35m ago');
-    expect(ago(minutesAgo(119), NOW)).toBe('1h ago');
+    expect(ago(minutesAgo(35), NOW)).toBe('35 min ago');
+    expect(ago(minutesAgo(119), NOW)).toBe('1 hr ago');
   });
 
   it('does not go backwards for a clock skewed into the future', () => {
     // Timestamps come from the server and `now` from the browser, so this
-    // happens. "-3m ago" is worse than a small lie.
+    // happens. "-3 min ago" is worse than a small lie.
     expect(ago(new Date(NOW.getTime() + 60_000), NOW)).toBe('just now');
   });
 });
@@ -48,19 +48,19 @@ describe('metaFor', () => {
   const base = { memberCount: 6, place: null, lastActiveAt: minutesAgo(20).toISOString() };
 
   it('leads with the people, because that is the recruiting fact', () => {
-    expect(metaFor(base, { newest: true, now: NOW })).toBe('6 people · added to 20m ago');
+    expect(metaFor(base, { newest: true, now: NOW })).toBe('6 people · added to 20 min ago');
   });
 
   it('says recency on the newest even when it has a place', () => {
-    // At the top of the list, "added to 20m ago" is what makes someone open
+    // At the top of the list, "added to 20 min ago" is what makes someone open
     // it; further down, where tells events apart better than when.
     const withPlace = { ...base, place: 'The Flat' };
-    expect(metaFor(withPlace, { newest: true, now: NOW })).toContain('20m ago');
+    expect(metaFor(withPlace, { newest: true, now: NOW })).toContain('20 min ago');
     expect(metaFor(withPlace, { newest: false, now: NOW })).toBe('6 people · The Flat');
   });
 
   it('falls back to recency when there is no place', () => {
-    expect(metaFor(base, { newest: false, now: NOW })).toBe('6 people · added to 20m ago');
+    expect(metaFor(base, { newest: false, now: NOW })).toBe('6 people · added to 20 min ago');
   });
 
   it('never repeats the photo count', () => {

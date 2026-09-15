@@ -230,7 +230,7 @@ export function ProfileScreen({
         third `+` somebody meets in this app and the other two already taught
         it.
       */}
-      <View style={styles.bar}>
+      <View style={[styles.bar, styles.gutter]}>
         <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
           <More color={t.fg} />
         </RoundButton>
@@ -330,7 +330,7 @@ export function ProfileScreen({
               transition={120}
             />
           ) : (
-            <View style={[styles.avatar, styles.avatarBlank, { backgroundColor: lens.fill }]}>
+            <View style={[styles.avatarBlank, { backgroundColor: lens.fill }]}>
               <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
             </View>
           )}
@@ -342,9 +342,11 @@ export function ProfileScreen({
         most and somebody wrote it on purpose; an ellipsis in the middle of it
         says less than the third line would have.
       */}
-      {account?.bio && <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>}
+      {account?.bio && (
+        <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{account.bio}</Text>
+      )}
       {account === null && (
-        <Text style={[styles.bio, { color: t.dim }]}>
+        <Text style={[styles.bio, styles.gutter, { color: t.dim }]}>
           This device is not signed in. The albums below are the ones its links
           reach; signing in is what makes them a new phone away.
         </Text>
@@ -362,7 +364,7 @@ export function ProfileScreen({
         the bio should be.
       */}
       {account && (
-        <View style={styles.actions}>
+        <View style={[styles.actions, styles.gutter]}>
           <Pressable
             onPress={() => setEditing(true)}
             accessibilityRole="button"
@@ -397,7 +399,9 @@ export function ProfileScreen({
       {/* Not signed in: the card that asks is the screen, because there is no
           profile to draw and nothing for Settings to hold. */}
       {account === null && (
-        <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        <View style={styles.gutter}>
+          <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        </View>
       )}
 
       {/*
@@ -407,7 +411,7 @@ export function ProfileScreen({
         every tile is a grid that reads as captioned stock photography.
       */}
       {events.length > 0 && (
-        <View style={styles.grid}>
+        <View style={[styles.grid, styles.gutter]}>
           {events.map((event) => {
             const when = dateLabel(event.eventDate ?? event.firstPhotoAt);
             return (
@@ -723,7 +727,23 @@ function EditProfile({
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1],
+      /*
+       * 6:5, because the header draws it in a 124 × 104 box.
+       *
+       * This was square, on the argument that the avatar is a circle
+       * everywhere else in the product — the faces over a cover, the tiles in
+       * Lately, the rows in a thread — so a landscape file would be cropped
+       * again by every one of them. That is true and it is the smaller loss: a
+       * circle takes the middle of a 6:5 frame, which for a face is the face,
+       * where a square centre-cropped into a landscape box loses the top and
+       * bottom of what somebody framed — usually the top of their head, at the
+       * one size where it is unmistakable.
+       *
+       * So the crop is chosen for the largest place it is drawn, and the small
+       * round ones give up a little width. The endpoint re-encodes whatever
+       * arrives, so nothing downstream changes.
+       */
+      aspect: [6, 5],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -815,12 +835,29 @@ const styles = StyleSheet.create({
   /* `flexGrow` so that a short page — which, while it is loading, is the bar
      and a spinner — still fills the screen, and the spinner has a height to
      centre itself in. Inert once there is enough content to scroll. */
-  scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16, flexGrow: 1 },
+  /*
+   * The gutter is on the children now, not here.
+   *
+   * One row on this screen is allowed to reach the edge — the header, whose
+   * picture runs off it — and a container that insets everything cannot make an
+   * exception for one child. So `paddingHorizontal` moved down, and `gutter`
+   * below is the one value they all use.
+   */
+  scroll: { paddingTop: 72, paddingBottom: 110, gap: 16, flexGrow: 1 },
+  /* What every row keeps, and the header's picture is the only thing exempt
+     from. Named rather than repeated, so "the gutter" stays one number. */
+  gutter: { paddingHorizontal: 20 },
   /* Settings and `+`, in the two corners, above everything else. */
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  /* The glyph's own box, so the two corners are the same height. */
-  /* The words and the picture on one line, the words first. */
-  head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  /*
+   * The words and the picture on one line, the words first.
+   *
+   * `paddingLeft` only, and no `justifyContent`: the picture is pushed right by
+   * `who` taking the space rather than by the row spreading its children, which
+   * is what lets it end flush against the screen's edge instead of 20 points
+   * short of it.
+   */
+  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 },
   /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
      corner glyphs and the name, which is what stops a 28pt name reading as a
      title bar. */
@@ -849,8 +886,57 @@ const styles = StyleSheet.create({
   friendName: { fontSize: 15.5, fontWeight: '600' },
   friendHandle: { fontSize: 13 },
   friendGo: { fontSize: 20 },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
-  avatarBlank: { alignItems: 'center', justifyContent: 'center' },
+  /*
+   * A photograph, bled to the edge, at the height of the words beside it.
+   *
+   * 124 × 104, with the left cap rounded to half its height and the right side
+   * square where the screen cuts it off. At 64 a face is a thumbnail; 104 is
+   * about the smallest a photograph of a person is legible at on this screen,
+   * and taking the gutter back is what buys that height without pushing the bio
+   * and the grid down.
+   *
+   * The height is not arbitrary either — the three lines beside it come to
+   * roughly 104 (a 31pt name, a handle at 17 over 3, the counts at 17 over 8),
+   * so the two sides square off against each other rather than the picture
+   * floating beside the first line. `alignItems: 'center'` on the row is the
+   * other half of that.
+   */
+  avatar: {
+    width: 124,
+    height: 104,
+    /*
+     * A rounded corner, not a semicircle.
+     *
+     * It was 52 — half the height — which makes the left edge a perfect arc and
+     * the whole thing a capsule cut in half. That reads as a badge or a pill,
+     * which is a shape for a label rather than for a photograph; at this size
+     * it also eats a visible bite out of whatever is on the left of the
+     * picture, which on a portrait is usually a shoulder.
+     *
+     * 26 is half of that: enough to be obviously rounded and to agree with the
+     * other soft corners on this screen, and not so much that the frame becomes
+     * the subject.
+     */
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  /*
+   * The letter keeps the gutter, and keeps its circle.
+   *
+   * A flat lens colour running off the edge is a field of colour, not a face —
+   * the bleed works because a photograph continues past the cut, and a solid
+   * fill has nothing to continue.
+   */
+  avatarBlank: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarLetter: { fontSize: 25, fontWeight: '700' },
   bio: { fontSize: 15, lineHeight: 21 },
   actions: { flexDirection: 'row', gap: 8 },

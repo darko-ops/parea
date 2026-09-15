@@ -33,13 +33,26 @@ const TAB = code(
 );
 
 describe('which conversations appear', () => {
-  it('lists the evenings that belong to no group', () => {
+  it('lists every album somebody has spoken in, group or no group', () => {
     /*
-     * A grouped event's talk belongs under its group's block. Listing it in
-     * both places would make the busiest rooms the noisiest part of a screen
-     * whose whole job is to be scanned.
+     * This used to exclude grouped albums, on the argument that their talk
+     * belongs under the group's block and listing it twice would make the
+     * busiest rooms the noisiest part of a screen meant to be scanned.
+     *
+     * The premise was wrong, and the cost was a conversation with nowhere to
+     * be. A group's row carries *the group's own thread* — `ConversationLine`
+     * is fed the group, not an album inside it — so an album in a group had
+     * its talk drawn in neither place. Four messages in an evening, and the
+     * only way back to them was to remember which album it was and open its
+     * Talk tab.
+     *
+     * Nothing is listed twice, because the two lines were never the same line.
      */
-    expect(TAB).toMatch(/\.filter\(\(event\) => !event\.groupId && event\.lastMessage != null\)/);
+    expect(TAB).toMatch(/\.filter\(\(event\) => event\.lastMessage != null\)/);
+    expect(TAB).not.toMatch(/!event\.groupId && event\.lastMessage/);
+    // The group's row is still about the group, which is what makes the above
+    // safe rather than duplicative.
+    expect(EVENTS).toMatch(/<ConversationLine\s*line=\{group\}/);
   });
 
   it('orders them by what was last said, not by what was last uploaded', () => {
@@ -54,7 +67,7 @@ describe('which conversations appear', () => {
      * a room somebody is already in. Between the groups and the event chats it
      * read as a break in the list of places rather than as a remark about it.
      */
-    const order = ['groups.map((group)', 'GROUP CHATS', 'clusters.map((cluster)'];
+    const order = ['shown.map((group)', 'GROUP CHATS', 'clusters.map((cluster)'];
     const at = order.map((needle) => TAB.indexOf(needle));
     expect(at.every((i) => i > -1)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
@@ -89,19 +102,42 @@ describe('what the tab is called', () => {
 });
 
 describe('the tab arrives in one piece', () => {
-  it('waits for the groups before drawing the event chats', () => {
+  it('draws nothing at all until every part of it can be drawn', () => {
     /*
      * The event chats are built from `events`, a prop the tabs already hold, so
-     * they were on screen a round trip before the groups they sit beneath — the
-     * minor half of the tab first, with the rooms dropping in above it and
+     * they would be on screen a round trip before the groups they sit beneath —
+     * the minor half of the tab first, with the rooms dropping in above it and
      * pushing down whatever somebody had started reading.
+     *
+     * The gate used to sit *under* the heading, which fixed that and left a
+     * smaller version of the same thing: the first paint was a title and two
+     * discs over an empty space, and the page proper arrived a round trip
+     * later. Two arrivals for one screen, and the half that landed first was
+     * the half that only says where you are.
+     *
+     * So it is an early return now, above the `ScrollView` — before the title,
+     * before the buttons, before anything.
      */
-    const gate = TAB.indexOf('groups === null ?');
+    const gate = TAB.indexOf('if (groups === null) {');
+    const tree = TAB.indexOf('<ScrollView');
     expect(gate).toBeGreaterThan(-1);
-    // Everything that is not the title row sits inside that branch.
+    expect(tree).toBeGreaterThan(gate);
+    // Including the heading, which is the part this moved.
+    expect(TAB.indexOf('Your Parea')).toBeGreaterThan(gate);
     expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
     expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('groups.map((group)')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('shown.map((group)')).toBeGreaterThan(gate);
+  });
+
+  it('blanks the screen on the first paint only', () => {
+    /*
+     * `load` never puts `groups` back to null, so returning to the tab redraws
+     * the page it already had and fills in behind it. An early return that
+     * cleared on every refetch would flash the title away on every tab switch,
+     * which is a worse version of the problem it was written for.
+     */
+    expect(TAB).toMatch(/setGroups\(mine\)/);
+    expect(TAB).not.toMatch(/setGroups\(null\)/);
   });
 });
 
@@ -217,5 +253,37 @@ describe('what the server had to grow', () => {
   it('keeps a group’s messages on their own path', () => {
     expect(API).toMatch(/\/api\/groups\/\$\{groupId\}\/messages/);
     expect(API).toMatch(/\/api\/group-messages\/\$\{messageId\}/);
+  });
+});
+
+/**
+ * How many rooms the tab opens with.
+ *
+ * A group block is a name, a strip of covers and a line of conversation — about
+ * a hundred points each — so somebody in eight groups scrolled past six of them
+ * to reach the one-off conversations underneath, every single time they opened
+ * the tab.
+ */
+describe('the first three', () => {
+  it('draws three, then a way to the rest', () => {
+    expect(EVENTS).toMatch(/const GROUPS_SHOWN = 3;/);
+    expect(TAB).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
+    expect(TAB).toMatch(/>\s*All groups\s*</);
+    // And no button when there is nothing behind it.
+    expect(TAB).toMatch(/groups\.length > shown\.length && \(/);
+  });
+
+  it('picks the three most recently added to, not the first three it was sent', () => {
+    // An unsorted list from the server is arbitrary from this screen's point of
+    // view, and "the three you last did something in" is the only ordering that
+    // makes a cut of three worth having.
+    expect(TAB).toMatch(/b\.lastActiveAt \?\? ''\)\.localeCompare\(a\.lastActiveAt \?\? ''\)/);
+  });
+
+  it('opens in place rather than pushing another screen', () => {
+    // The full list is this same list. A second screen would be a second place
+    // where a group block is drawn.
+    expect(TAB).toMatch(/setAllGroups\(true\)/);
+    expect(TAB).toMatch(/allGroups \? ordered : ordered\.slice/);
   });
 });

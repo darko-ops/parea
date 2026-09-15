@@ -240,7 +240,7 @@ export function PersonScreen({
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Events</Text>
+        <Text style={[styles.label, { color: t.fg }]}>Albums</Text>
         {shared.length === 0 ? (
           /*
            * Two ways of having none, and they are different sentences.
@@ -253,7 +253,7 @@ export function PersonScreen({
            * list under it, and what is left is the plain one.
            */
           <Text style={[styles.body, { color: t.dim }]}>
-            {standing === 'friends' ? 'No Events Available Yet' : 'Nothing here yet'}
+            {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
           </Text>
         ) : (
           shared.map((event) => {

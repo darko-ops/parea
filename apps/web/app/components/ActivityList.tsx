@@ -87,7 +87,7 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="activity-empty">
-        Nothing yet. When somebody adds photos to an event you are in, says
+        Nothing yet. When somebody adds photos to an album you are in, says
         something about yours, or opens one to you, it turns up here.
       </p>
     );

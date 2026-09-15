@@ -4,7 +4,7 @@
  * Setting one and removing one were both already wired: the create screen
  * uploads a cover with the event, and the event screen had a button that
  * offered "Choose a photo" and "Remove it". What it did not do was *show* the
- * cover. So "Event cover" meant "there may or may not be one, press to find
+ * cover. So the row meant "there may or may not be one, press to find
  * out", "Remove it" was offered on events with nothing to remove, and after
  * choosing a picture nothing on the screen moved — the only way to learn
  * whether it took was to leave the event and come back.
@@ -28,7 +28,12 @@ const APP = read('App.tsx');
 const API = read('src/api.ts');
 
 /** The handler, without the rest of a 2000-line screen. */
-const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('if (autoWindow)'));
+/*
+ * From `sendCover` rather than from `editCover`: the upload moved out of the
+ * sheet's handler so that a picked photograph could go through the frame first,
+ * and the reload that proves the screen re-reads itself moved with it.
+ */
+const COVER = APP.slice(APP.indexOf('const sendCover'), APP.indexOf('if (autoWindow)'));
 
 /**
  * The row that opens it.
@@ -67,8 +72,48 @@ describe('the cover the event already has', () => {
      * so the old unconditional "Remove it" was harmless — and still wrong. A
      * destructive-styled button that does nothing teaches people that the red
      * text on this screen is decorative.
+     *
+     * `chosenCover` rather than `cover` since the fallback below landed, and
+     * the distinction is the whole point of there being two names: offering to
+     * remove a cover nobody set is the same bug in a new disguise.
      */
-    expect(COVER).toMatch(/if \(cover\) \{[\s\S]*?text: 'Remove it'/);
+    expect(COVER).toMatch(/if \(chosenCover\) \{[\s\S]*?text: 'Remove it'/);
+    expect(COVER).not.toMatch(/if \(cover\) \{/);
+    expect(COVER).toMatch(/text: chosenCover \? 'Choose a different photo'/);
+  });
+
+  it('falls back to the first photograph when nobody chose one', () => {
+    /*
+     * This reverses a rule that used to be written into the header — "never a
+     * photograph pulled out of the grid, that is a decision about which evening
+     * this was, made by an upload's timestamp".
+     *
+     * The objection was about *which* photograph, and it has been answered: the
+     * picker fixes the order now, so the one leading the grid is the one
+     * somebody put first rather than whichever phone finished uploading first.
+     * Borrowing it reads a decision instead of inventing one — and the album it
+     * replaces was a coloured letter on a screen full of photographs.
+     *
+     * `card` before `src` because the header is the width of the screen, and
+     * the 320 is only what exists before the deriver has run.
+     */
+    expect(APP).toMatch(
+      /const cover = chosenCover \?\? feed\?\.photos\[0\]\?\.card \?\? feed\?\.photos\[0\]\?\.src \?\? null;/,
+    );
+    // And the header draws that one, so the sheet's row and the screen behind
+    // it can never disagree about what the album leads with.
+    expect(APP).toMatch(/<View style=\{styles\.cover\}>\s*\{cover \? \(/);
+  });
+
+  it('says nothing under the row about what a cover is', () => {
+    /*
+     * The row *is* the photograph, at the size the album draws it. "What this
+     * event leads with everywhere" was a sentence explaining a picture sitting
+     * two inches from it, and the words were longer than the thing they
+     * described.
+     */
+    expect(ROW).not.toMatch(/What this event leads with|Leading with its newest/);
+    expect(ROW).toMatch(/Album cover/);
   });
 });
 
@@ -85,6 +130,20 @@ describe('after the change', () => {
      */
     const refreshes = COVER.match(/await refresh\(\)/g) ?? [];
     expect(refreshes).toHaveLength(2);
+  });
+
+  it('frames a picked photograph before sending it', () => {
+    /*
+     * The frame the create screen offers was missing from the one screen
+     * somebody opens *because* the cover is wrong. Before, not after: there is
+     * no undo on a cover, so an unframed upload is the version everybody else
+     * sees until it is replaced.
+     */
+    expect(APP).toMatch(/setFramingCover\(picked\.assets\[0\]\.uri\)/);
+    expect(APP).toMatch(/<CoverFramer/);
+    expect(APP).toMatch(/void sendCover\(uri, framing\)/);
+    // And nothing is sent if the frame is backed out of.
+    expect(APP).toMatch(/onCancel=\{\(\) => setFramingCover\(null\)\}/);
   });
 
   it('leaves the home screen to `onBack`', () => {

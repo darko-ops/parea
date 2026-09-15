@@ -32,7 +32,7 @@
  * safety property. So an empty list means two quite different things, and it
  * says which:
  *
- *   - **a friend with nothing shared** gets "No Events Available Yet", which
+ *   - **a friend with nothing shared** gets "No albums to show yet", which
  *     is about the two of you and is likely to change;
  *   - **anybody else** gets "Account Private", which is the honest answer to
  *     "why can I not see anything": not that they have nothing, but that what
@@ -164,7 +164,7 @@ export function PersonView({
           {events.length > 0 && (
             <p className="you-counts">
               <span>
-                {events.length} {events.length === 1 ? 'event' : 'events'} with you
+                {events.length} {events.length === 1 ? 'album' : 'albums'} with you
               </span>
             </p>
           )}
@@ -208,7 +208,7 @@ export function PersonView({
       {events.length > 0 && (
         <section className="you-events">
           <div className="you-events-head">
-            <h2>Events</h2>
+            <h2>Albums</h2>
           </div>
           <div className="cards">
             {events.map((event) => (
@@ -287,7 +287,7 @@ export function PersonView({
         */
         <section className="you-events">
           <p className="muted person-empty">
-            {standing === 'friends' ? 'No Events Available Yet' : 'Nothing here yet'}
+            {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
           </p>
         </section>
       )}

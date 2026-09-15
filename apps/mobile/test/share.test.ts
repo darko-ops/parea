@@ -9,6 +9,20 @@
  * Asserted against the source — the screen imports Expo modules at module
  * scope and needs a device, which is the boundary `api.test.ts` documents.
  * What is checked here is the two decisions, not the layout.
+ *
+ * ## The system sheet, and why it is gone
+ *
+ * This file used to assert `Share.share`, on the argument that the OS sheet
+ * knows which group chat these people use and picking somebody in it tells
+ * this app nothing about who they are. Both halves are still true, and the
+ * second one still governs: there is no contact list of our own anywhere in
+ * this product, and the assertions below keep it that way.
+ *
+ * What changed is the first half. The sheet is slower than the thing it
+ * replaces, it covers the screen, and where it puts the link depends on a grid
+ * of icons that is different on every phone. The common case is somebody with
+ * a conversation already open who wants the link in their hand. So the tap
+ * copies, and the only thing the app learns is still nothing.
  */
 
 import { readFileSync } from 'node:fs';
@@ -20,21 +34,35 @@ const app = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 
 const screen = app.slice(app.indexOf('function EventScreen('));
 
 describe('sharing an event from the event', () => {
-  it('hands it to the system sheet rather than drawing one', () => {
-    // The sheet knows which group chat these people use, and picking somebody
-    // in it tells this app nothing about who they are — which is why there is
-    // no contact list of our own anywhere in this product.
-    expect(screen).toMatch(/Share\.share\(\{ message: `\$\{webBase\}\/e\/\$\{event\.linkToken\}` \}\)/);
+  it('puts the link on the clipboard, and asks nobody who to send it to', () => {
+    expect(screen).toMatch(
+      /Clipboard\.setStringAsync\(`\$\{webBase\}\/e\/\$\{event\.linkToken\}`\)/,
+    );
+    // The rule the system sheet was keeping: this app never learns, stores or
+    // draws a list of the people somebody might send it to.
+    expect(app).not.toMatch(/expo-contacts|Contacts\./);
+  });
+
+  it('says that it copied', () => {
+    /*
+     * A clipboard is not a place anybody can look. A copy with no visible
+     * consequence is indistinguishable from a button that did nothing, and
+     * somebody who cannot tell taps it again and pastes into whatever they
+     * were writing.
+     */
+    expect(screen).toMatch(/setCopied\(true\)/);
+    expect(screen).toMatch(/setTimeout\(\(\) => setCopied\(false\)/);
+    expect(app).toMatch(/copied \? 'Link copied' : 'Copy link'/);
   });
 
   it('sends the link and nothing else', () => {
     /*
-     * No name in the message body: a shared link unfurls into a card carrying
-     * the event's title, so putting it in the text as well says it twice. And
-     * no spoken phrase — that is the other door, for somebody in the room.
+     * No name alongside it: a shared link unfurls into a card carrying the
+     * event's title, so putting it in the text as well says it twice. And no
+     * spoken phrase — that is the other door, for somebody in the room.
      */
-    const call = screen.slice(screen.indexOf('Share.share('), screen.indexOf('Share.share(') + 200);
-    expect(call).not.toMatch(/event\.name|code|phrase/);
+    const at = screen.indexOf('Clipboard.setStringAsync(');
+    expect(screen.slice(at, at + 200)).not.toMatch(/event\.name|code|phrase/);
   });
 
   it('takes the host it should link to rather than guessing one', () => {
@@ -82,7 +110,7 @@ describe('the create screen no longer shares at all', () => {
      * only path that sent them was the sheet's link, so the sheet going away is
      * what makes Post send them.
      */
-    expect(create).toMatch(/onCreated\(\{\s*id: created\.id/);
+    expect(create).toMatch(/onCreated\(\s*\{\s*id: created\.id/);
     expect(create).not.toMatch(/setMade|const \[made/);
   });
 

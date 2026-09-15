@@ -100,3 +100,37 @@ describe('against the payload the server actually sends', () => {
     }
   });
 });
+
+/**
+ * The two that are about a photograph.
+ *
+ * Both are new surface on a screen that already existed, and both are only
+ * useful if the tap lands somewhere — a notification that opens the app and
+ * leaves somebody on the home screen has told them something and then made them
+ * go and find it.
+ */
+describe('a comment, and being tagged', () => {
+  it('opens the album, which is as close as the app can get', () => {
+    /*
+     * Not the photograph. There is no screen that is one photograph reachable
+     * from cold: the viewer is something you get to *from* an album and it
+     * needs the feed the album loads. One tap short of the picture is the
+     * honest thing to do, and an id nothing can route to would be a field that
+     * looks like a feature until somebody taps it.
+     */
+    expect(notificationTarget({ kind: 'photo_comment', eventId: 'e1' })).toEqual({
+      screen: 'event',
+      eventId: 'e1',
+    });
+    expect(notificationTarget({ kind: 'photo_tagged', eventId: 'e1' })).toEqual({
+      screen: 'event',
+      eventId: 'e1',
+    });
+  });
+
+  it('goes nowhere without an event, rather than somewhere arbitrary', () => {
+    // The payload is written by a server that may be newer than the build.
+    expect(notificationTarget({ kind: 'photo_comment' })).toBeNull();
+    expect(notificationTarget({ kind: 'photo_tagged' })).toBeNull();
+  });
+});

@@ -74,3 +74,55 @@ describe('signing out gives the device back', () => {
     expect(prompt).toMatch(/api\.setToken\(null\)/);
   });
 });
+
+/**
+ * What sign-out has to take with it.
+ *
+ * The shell's own lists were cleared and the screen still showed groups and a
+ * profile, because the four tabs are kept mounted rather than unmounted — for
+ * speed, deliberately — and each one holds what it fetched. Clearing the
+ * shell's copies cleared the wrong copies.
+ *
+ * This is not a stale cache. It is the previous person's data on a phone that
+ * may have just been handed over, which is the reason the guard is a `key`
+ * rather than a list: a fifth thing to clear would be forgotten, and the
+ * failure would look exactly like this one.
+ */
+describe('what the tabs keep', () => {
+  const APP = readFileSync(
+    fileURLToPath(new URL('../App.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  it('discards every tab by changing the key they are mounted under', () => {
+    expect(APP).toMatch(/const \[identity, setIdentity\] = useState\(0\)/);
+    expect(APP).toMatch(/<View key=\{identity\} style=\{styles\.root\}>/);
+  });
+
+  it('bumps it on the way out, and on the way in', () => {
+    /*
+     * Both are a change of identity. A phone that was a guest, or was somebody
+     * else, must not carry their lists into the account that has just arrived —
+     * which is the same bug in the other direction and would have been left
+     * behind by a fix that only handled sign-out.
+     */
+    const out = APP.slice(APP.indexOf('const signOut'), APP.indexOf('const leaveEvent'));
+    expect(out).toMatch(/setIdentity\(\(n\) => n \+ 1\)/);
+    expect(out).toMatch(/setVisited\(new Set\(\['home'\]\)\)/);
+    // And the badge, which counts things waiting for an account that is gone.
+    expect(out).toMatch(/setWaiting\(0\)/);
+
+    const profile = APP.slice(APP.indexOf('onSignedIn={() => {'), APP.indexOf('onSignedOut={signOut}'));
+    expect(profile).toMatch(/setIdentity\(\(n\) => n \+ 1\)/);
+  });
+
+  it('still clears the token the client holds in memory', () => {
+    // The keychain and the in-memory copy are two places, and the next request
+    // would carry the second one happily.
+    const events = readFileSync(
+      fileURLToPath(new URL('../src/Events.tsx', import.meta.url).href),
+      'utf8',
+    );
+    expect(events).toMatch(/await signOutDevice\(\);[\s\S]{0,200}api\.setToken\(null\)/);
+  });
+});

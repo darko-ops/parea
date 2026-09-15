@@ -12,6 +12,10 @@ Most first-deploy failures are a secret that matches in two places out of three
 | `parea-img`, `parea-zip` | Cloudflare Workers | R2 reads are free from inside Cloudflare |
 | Deriver + jobs | Fly.io | needs libvips and libheif; will not run in a Worker |
 
+Running it on a laptop instead — where it kept dying with the terminal session
+that started it — is [Keeping the deriver up on a development
+machine](deriver-local.md).
+
 The native client is built and submitted separately — see
 [`apps/mobile/README.md`](../apps/mobile/README.md). The web app serves the two
 `.well-known` files its deep links depend on, but they 404 until
