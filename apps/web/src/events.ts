@@ -96,6 +96,11 @@ export type EventListing = {
    * key crossing that line is an internal address published.
    */
   coverKey: string | null;
+  /**
+   * The cover's shape, width over height, or null for one made before covers
+   * had one. A card reserves its space from this before the image arrives.
+   */
+  coverAspect: number | null;
   eventDate: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -170,6 +175,7 @@ export async function eventsFor(
       place: schema.events.place,
       caption: schema.events.caption,
       coverKey: schema.events.coverKey,
+      coverAspect: schema.events.coverAspect,
       eventDate: schema.events.eventDate,
       startsAt: schema.events.startsAt,
       endsAt: schema.events.endsAt,

@@ -49,6 +49,8 @@ type EventListing = {
   mosaic: string[];
   /** The one image the card draws, at the size it draws it. See `toCards`. */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
+  /** Its shape, width over height. Null for a cover stored before it had one. */
+  coverAspect?: number | null;
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
   /** The event's own day, for the card's date. Any of the three may be absent. */
@@ -393,6 +395,9 @@ export function AccountView() {
                 name: event.name,
                 photoCount: event.photoCount,
                 cover: event.cover,
+                // Only a cover has a shape of its own; a photograph standing in
+                // for one keeps the letterbox. `/api/events` carries it.
+                coverAspect: event.cover ? (event.coverAspect ?? null) : null,
                 caption: event.caption,
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,

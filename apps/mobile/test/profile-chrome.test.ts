@@ -201,9 +201,7 @@ describe('what the `+` makes', () => {
      * place.
      */
     expect(APP).toMatch(/making\(route\) && signedIn !== true/);
-    expect(APP).toMatch(
-      /route\.screen === 'pick' \|\| route\.screen === 'cover' \|\| route\.screen === 'create'/,
-    );
+    expect(APP).toMatch(/route\.screen === 'pick' \|\| route\.screen === 'create'/);
   });
 
   it('waits rather than accusing somebody who is signed in', () => {

@@ -109,15 +109,61 @@ describe('the form, once the photographs have been chosen', () => {
     // phrase resolved to a six-hour box.
     expect(form).not.toMatch(/WHEN</);
     expect(form).not.toMatch(/WHEN_OPTIONS|windowFor|eventDateFor/);
-    expect(form).toMatch(/windowOf\(chosen\)/);
+    // Off what is going in, not off what was chosen: the row under the cover
+    // can take photographs out, and dropping the last four of the night moves
+    // when the album ends.
+    expect(form).toMatch(/windowOf\(photos\)/);
   });
 
-  it('no longer asks for a cover', () => {
-    // It asked somebody to pick a leading photograph out of the library they
-    // had just picked photographs out of.
+  it('never asks which picture leads — the first one chosen does', () => {
+    /*
+     * It used to ask, as `EVENT COVER`: a whole second trip through the library
+     * to pick one of the pictures you had just picked, which is the same act
+     * twice. Then it asked again on a page of its own. The rule is the order of
+     * the selection, and the row on this screen is how it is changed.
+     */
     expect(form).not.toMatch(/EVENT COVER/);
     expect(form).not.toMatch(/ImagePicker/);
-    expect(form).toMatch(/const cover = chosen\[0\] \?\? null/);
+    expect(form).toMatch(/const cover = photos\[0\] \?\? null/);
+  });
+
+  it('asks how it is framed on arrival, once', () => {
+    /*
+     * Framing behind a control is framing most people never find, and the cover
+     * is the one thing on this screen everybody else sees. So the frame comes
+     * up by itself — and exactly once: the ref is set before the state change
+     * and never released, so React's pair of development invocations opens one
+     * framer rather than two.
+     */
+    expect(form).toMatch(/if \(asked\.current \|\| chosen\.length === 0\) return;/);
+    expect(form).toMatch(/asked\.current = true;\s*setFramerOpen\(true\);/);
+  });
+
+  it('frames the photograph already chosen, not one picked again', () => {
+    /*
+     * `allowsEditing` is the obvious answer and cannot be used: iOS offers that
+     * crop UI only as part of picking, so reaching for it means the whole camera
+     * roll in front of somebody who chose these pictures ten seconds ago.
+     */
+    expect(form).toMatch(/<CoverFramer/);
+    expect(form).toMatch(/uri=\{cover\.uri\}/);
+  });
+
+  it('takes a cancelled frame for an answer', () => {
+    // Backing out leaves the first photograph leading, centred, which is what
+    // the window would have shown anyway. It must not block the form or ask
+    // again.
+    expect(form).toMatch(/onCancel=\{\(\) => setFramerOpen\(false\)\}/);
+    expect(form).toMatch(/useState<CoverFraming>\(CENTRED\)/);
+  });
+
+  it('has no page between the picker and itself', () => {
+    // That page drew the cover in a 3:2 window and let somebody drag it. It
+    // was a whole step everybody paid for so that some people could pan a
+    // photograph, and the operating system already does it better.
+    expect(APP).not.toMatch(/screen: 'cover'/);
+    expect(APP).not.toMatch(/FrameCover/);
+    expect(APP).toMatch(/route\.screen === 'pick'[\s\S]{0,400}screen: 'create'/);
   });
 
   it('asks who is in it whether or not a run was detected', () => {
@@ -361,7 +407,9 @@ describe('what happens to the photographs', () => {
      */
     expect(APP).toMatch(/initialUpload/);
     expect(APP).toMatch(/await enqueue\(await resolveForUpload\(initialUpload\)\)/);
-    expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
+    // The form's list, not the picker's: the row under the cover has a ⊗ on
+    // every tile, so what arrives is not always what was chosen.
+    expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 
   it('are sent once, however often the effect re-runs', () => {

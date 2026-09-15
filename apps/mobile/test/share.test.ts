@@ -110,7 +110,7 @@ describe('the create screen no longer shares at all', () => {
      * only path that sent them was the sheet's link, so the sheet going away is
      * what makes Post send them.
      */
-    expect(create).toMatch(/onCreated\(\{\s*id: created\.id/);
+    expect(create).toMatch(/onCreated\(\s*\{\s*id: created\.id/);
     expect(create).not.toMatch(/setMade|const \[made/);
   });
 

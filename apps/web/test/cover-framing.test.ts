@@ -1,9 +1,13 @@
 /**
  * The half of the cover agreement that runs on the server.
  *
- * The phone shows somebody a 3:2 window over their photograph and lets them
- * drag it. Two numbers cross the wire — CSS `object-position` percentages — and
- * this is what turns them back into the same rectangle sharp has to cut.
+ * The phone shows somebody a frame over their photograph and lets them drag it.
+ * Two numbers cross the wire — CSS `object-position` percentages — and this is
+ * what turns them back into the same rectangle sharp has to cut.
+ *
+ * The frame is not one shape any more. A cover takes the picture's own, bounded
+ * at 3:2 one way and 4:5 the other, so most photographs are no longer cut at
+ * all and the ones that are lose far less.
  *
  * It is worth testing against real pixels rather than by reading the
  * arithmetic, because every way this can be wrong produces a perfectly valid
@@ -16,8 +20,11 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import {
-  COVER_HEIGHT,
+  COVER_TALLEST,
+  COVER_WIDEST,
   COVER_WIDTH,
+  coverAspect,
+  coverSize,
   framingOf,
   orientedSize,
   regionFor,
@@ -76,23 +83,52 @@ describe('the size to cut against', () => {
   });
 });
 
+describe('the shape a cover comes out', () => {
+  /*
+   * Every cover used to be 3:2, which is a landscape crop of a portrait
+   * photograph on a screen whose whole width was going spare — a shelf of short
+   * wide crops of tall narrow evenings. The picture decides now, within bounds
+   * that stop a panorama becoming a hairline or a screenshot becoming a card
+   * and a half tall.
+   */
+  it('follows the picture between the bounds', () => {
+    expect(coverAspect({ w: 4000, h: 3000 })).toBeCloseTo(4 / 3);
+    expect(coverAspect({ w: 3000, h: 3000 })).toBeCloseTo(1);
+  });
+
+  it('refuses to be wider than a card or taller than 4:5', () => {
+    // A panorama and a screenshot are the two that would break a shelf.
+    expect(coverAspect({ w: 9000, h: 1000 })).toBeCloseTo(COVER_WIDEST);
+    expect(coverAspect({ w: 1000, h: 9000 })).toBeCloseTo(COVER_TALLEST);
+  });
+
+  it('is always the same width, whatever the shape', () => {
+    // The height moves; the width is what a retina card needs and no more.
+    for (const size of [{ w: 4000, h: 3000 }, { w: 3000, h: 4000 }, { w: 9000, h: 1000 }]) {
+      expect(coverSize(size).width, JSON.stringify(size)).toBe(COVER_WIDTH);
+    }
+    expect(coverSize({ w: 1000, h: 9000 })).toEqual({ width: 1200, height: 1500 });
+  });
+});
+
 describe('the region', () => {
-  /** A tall photograph: all the slack is vertical, which is the common case. */
+  /** Taller than 4:5, so it is cut down to it — the common phone case. */
   const portrait = { w: 3000, h: 4000 };
 
   it('cuts the shape the output is', () => {
     const region = regionFor(portrait, { x: 50, y: 50 })!;
+    // 4:5 of a 3000-wide picture is 3750 tall, and there are 4000 to take it
+    // from — far less thrown away than the 2000 a 3:2 cover used to keep.
     expect(region.width).toBe(3000);
-    // 3000 wide at 3:2 is 2000 tall, and there are 4000 to choose it from.
-    expect(region.height).toBe(2000);
+    expect(region.height).toBe(3750);
   });
 
   it('puts the window where the percentage says', () => {
     // The percentage is of the overhang, not of the picture: 0 is flush to the
-    // top, 100 flush to the bottom, and the middle of a 2000px slack is 1000.
+    // top, 100 flush to the bottom, and half of a 250px slack is 125.
     expect(regionFor(portrait, { x: 50, y: 0 })!.top).toBe(0);
-    expect(regionFor(portrait, { x: 50, y: 50 })!.top).toBe(1000);
-    expect(regionFor(portrait, { x: 50, y: 100 })!.top).toBe(2000);
+    expect(regionFor(portrait, { x: 50, y: 50 })!.top).toBe(125);
+    expect(regionFor(portrait, { x: 50, y: 100 })!.top).toBe(250);
     // And never past the bottom edge.
     const bottom = regionFor(portrait, { x: 50, y: 100 })!;
     expect(bottom.top + bottom.height).toBe(portrait.h);
@@ -105,17 +141,24 @@ describe('the region', () => {
       expect(regionFor(portrait, { x, y: 50 })!.left).toBe(0);
     }
 
-    const wide = { w: 6000, h: 2000 }; // 3:1, slack only across
+    // 3:1 is wider than a card may be, so it is cut across and not down.
+    const wide = { w: 6000, h: 2000 };
     expect(regionFor(wide, { x: 0, y: 50 })!.left).toBe(0);
     expect(regionFor(wide, { x: 100, y: 50 })!.left).toBe(3000);
     expect(regionFor(wide, { x: 50, y: 50 })!.top).toBe(0);
   });
 
   it('is null when there is nothing to cut', () => {
-    // Exactly 3:2 has no overhang on either axis, and an `extract` of the whole
-    // image is a round trip that can only introduce a rounding error.
+    /*
+     * Anything already between the bounds keeps its whole self, which is most
+     * photographs now and was almost none of them before. An `extract` of the
+     * entire image is a round trip that can only introduce a rounding error.
+     */
     expect(regionFor({ w: 1500, h: 1000 }, { x: 50, y: 50 })).toBeNull();
     expect(regionFor({ w: 300, h: 200 }, { x: 0, y: 0 })).toBeNull();
+    // 4:3 — a perfectly ordinary phone photograph, uncut either way now.
+    expect(regionFor({ w: 4000, h: 3000 }, { x: 0, y: 0 })).toBeNull();
+    expect(regionFor({ w: 3000, h: 3000 }, { x: 100, y: 100 })).toBeNull();
   });
 });
 
@@ -124,9 +167,9 @@ describe('against real pixels', () => {
    * A photograph with a known landmark, cut the way the route cuts it.
    *
    * Three horizontal bands — red on top, green in the middle, blue at the
-   * bottom — in a 3:1 portrait, so the 3:2 window sees roughly one band at a
-   * time. What comes out says which band was chosen, which is the thing a
-   * person is actually deciding on that screen.
+   * bottom — in a 3:1 portrait, which is taller than a cover may be even now,
+   * so the window sees roughly one band at a time. What comes out says which
+   * band was chosen, which is the thing a person is deciding on that screen.
    */
   async function banded() {
     const w = 900;
@@ -148,14 +191,15 @@ describe('against real pixels', () => {
 
   /** What the route does, in the order the route does it. */
   async function cut(input: Buffer, framing: { x: number; y: number } | null) {
+    const size = orientedSize(await sharp(input).metadata())!;
+    const target = coverSize(size);
     let pipeline = sharp(input, { failOn: 'error' }).rotate();
-    const size = framing ? orientedSize(await sharp(input).metadata()) : null;
-    const region = size && framing ? regionFor(size, framing) : null;
+    const region = framing ? regionFor(size, framing) : null;
     if (region) pipeline = pipeline.extract(region);
     return pipeline
       .resize({
-        width: COVER_WIDTH,
-        height: COVER_HEIGHT,
+        width: target.width,
+        height: target.height,
         fit: 'cover',
         position: region ? 'centre' : 'attention',
       })
@@ -163,10 +207,16 @@ describe('against real pixels', () => {
       .toBuffer();
   }
 
-  /** The dominant channel at the middle of the output. */
+  /** The dominant channel at the middle of the output, whatever shape it is. */
   async function middle(jpeg: Buffer): Promise<'red' | 'green' | 'blue'> {
+    const meta = await sharp(jpeg).metadata();
     const { data } = await sharp(jpeg)
-      .extract({ left: COVER_WIDTH / 2 - 8, top: COVER_HEIGHT / 2 - 8, width: 16, height: 16 })
+      .extract({
+        left: Math.round(meta.width! / 2) - 8,
+        top: Math.round(meta.height! / 2) - 8,
+        width: 16,
+        height: 16,
+      })
       .raw()
       .toBuffer({ resolveWithObject: true });
     let r = 0;
@@ -187,14 +237,13 @@ describe('against real pixels', () => {
     expect(await middle(await cut(photo, { x: 50, y: 100 }))).toBe('blue');
   }, 30_000);
 
-  it('comes out the size a cover is, however it was framed', async () => {
+  it('comes out the shape the picture earned, however it was framed', async () => {
+    // 900 × 2700 is far taller than 4:5, so it is cut to 4:5 — 1200 × 1500 —
+    // rather than to the 1200 × 800 letterbox every cover used to be.
     const photo = await banded();
     for (const framing of [null, { x: 0, y: 0 }, { x: 100, y: 100 }]) {
       const meta = await sharp(await cut(photo, framing)).metadata();
-      expect([meta.width, meta.height], JSON.stringify(framing)).toEqual([
-        COVER_WIDTH,
-        COVER_HEIGHT,
-      ]);
+      expect([meta.width, meta.height], JSON.stringify(framing)).toEqual([1200, 1500]);
     }
   }, 30_000);
 

@@ -369,6 +369,18 @@ export type EventListing = {
    */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
   /**
+   * The cover's shape, width over height, or null.
+   *
+   * Null for a photograph standing in for a cover, and for a cover stored
+   * before the shape was recorded — both of which the card draws in the
+   * letterbox it always drew, which is what those covers are.
+   *
+   * Bounded on the way in by `coverAspect` on the server, and clamped again on
+   * the way out: it is a number off the wire, and one bad row should cost a
+   * card its shape rather than cost the screen its layout.
+   */
+  coverAspect?: number | null;
+  /**
    * The people in it, host first: whoever the card draws circles for.
    *
    * Four come back where the card draws three, so "and how many more" can be

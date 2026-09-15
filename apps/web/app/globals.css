@@ -814,9 +814,13 @@ button.secondary {
 
 @media (max-width: 700px) {
   .card-cover, .card-new, .card-empty { height: 260px; min-height: 260px; }
+  /* The shape wins over the breakpoint: a cover that knows how tall it is does
+     not want a phone-sized letterbox imposed on it either. */
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 @media (max-width: 460px) {
   .card-cover, .card-new, .card-empty { height: 300px; min-height: 300px; }
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -850,9 +854,16 @@ button.secondary {
 /* The cover. `--hairline` behind it rather than white: a cover that will not
    load — the URLs are signed and expire — leaves a flat grey rectangle the
    size of the picture rather than a hole in the grid or a broken glyph. */
+/* `--card-aspect` is the cover's own width-over-height, set inline by the card
+   for a cover that has one. The height is the fallback for everything else: a
+   photograph standing in for a cover, and covers stored before the shape was
+   recorded — which are 3:2, which is what 320px at this width is. */
 .card-cover {
   position: relative; height: 320px; border-radius: 16px; overflow: hidden;
   background: var(--hairline);
+}
+.card-cover[style*="--card-aspect"] {
+  height: auto; aspect-ratio: var(--card-aspect);
 }
 .card-cover picture { display: block; width: 100%; height: 100%; }
 .card-cover img {

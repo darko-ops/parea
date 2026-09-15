@@ -40,7 +40,7 @@ describe('the card the home list draws', () => {
      * it, which is one number to keep in step rather than four.
      */
     expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
-    expect(EVENTS).toMatch(/cover: \{ marginHorizontal: -20, overflow: 'hidden', height: 260/);
+    expect(EVENTS).toMatch(/cover: \{ marginHorizontal: -20, overflow: 'hidden'/);
     // No radius on it at all, rather than a smaller one.
     expect(EVENTS).not.toMatch(/cover: \{[^}]*borderRadius/);
   });
@@ -65,7 +65,7 @@ describe('the card the home list draws', () => {
     );
     expect(CARD).not.toMatch(/`@\$\{event\.creator\.handle\}`/);
     // Above the cover, not under it.
-    expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={styles.cover}>'));
+    expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={[styles.cover,'));
   });
 
   it('draws a letter rather than a silhouette where there is no picture', () => {
@@ -280,11 +280,11 @@ describe('the home list', () => {
     /*
      * This hides your own empty albums too, so the create flow must not depend
      * on the list: `onCreated` opens the event rather than returning to it —
-     * and hands it the photographs chosen two screens earlier, so the album it
-     * lands on is filling rather than empty.
+     * and hands it the photographs the form is holding, so the album it lands
+     * on is filling rather than empty.
      */
-    expect(APP).toMatch(/onCreated=\{\(created\) => \{[\s\S]{0,260}void open\(/);
-    expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
+    expect(APP).toMatch(/onCreated=\{\(created, photos\) => \{[\s\S]{0,260}void open\(/);
+    expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 });
 

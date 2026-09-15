@@ -26,9 +26,44 @@
  * off by an axis, or by an orientation — in a way no HTTP status reports.
  */
 
-/** The card's shape, and the size a cover is stored at. */
+/**
+ * How wide a cover is stored. The height follows the picture — see below.
+ *
+ * A card is about 600 points across, so 1200 covers a retina screen and nothing
+ * beyond it is ever seen.
+ */
 export const COVER_WIDTH = 1200;
-export const COVER_HEIGHT = 800;
+
+/**
+ * The shapes a cover is allowed to be, as width over height.
+ *
+ * Every cover used to be 3:2, which is the shape of a landscape photograph and
+ * the wrong shape for most of what a phone takes. A portrait picture lost its
+ * top and bottom to a letterbox on a screen whose whole width was available —
+ * so a shelf of albums was a row of short, wide crops of tall, narrow evenings.
+ *
+ * The bounds are what stop that becoming the opposite problem. Unbounded, a
+ * panorama is a hairline and somebody's 9:16 screenshot is a card and a half
+ * tall, and a list you scroll past one album at a time is not a shelf. 4:5 is
+ * the tallest: an ordinary phone portrait gives up a little top and bottom, and
+ * the next card still shows at the bottom of the screen.
+ */
+export const COVER_WIDEST = 3 / 2;
+export const COVER_TALLEST = 4 / 5;
+
+/** What a cover of this picture will be shaped like, once it is stored. */
+export function coverAspect(size: { w: number; h: number }): number {
+  const natural = size.w / size.h;
+  return Math.min(COVER_WIDEST, Math.max(COVER_TALLEST, natural));
+}
+
+/** And the pixels that shape comes to. */
+export function coverSize(size: { w: number; h: number }): {
+  width: number;
+  height: number;
+} {
+  return { width: COVER_WIDTH, height: Math.round(COVER_WIDTH / coverAspect(size)) };
+}
 
 export type CoverFraming = { x: number; y: number };
 
@@ -96,12 +131,13 @@ export function regionFor(
   size: { w: number; h: number },
   framing: CoverFraming,
 ): { left: number; top: number; width: number; height: number } | null {
-  const scale = Math.max(COVER_WIDTH / size.w, COVER_HEIGHT / size.h);
+  const target = coverSize(size);
+  const scale = Math.max(target.width / size.w, target.height / size.h);
 
   // What the output covers, measured back in the original's own pixels, and
   // never more of either axis than the original has.
-  const width = Math.min(size.w, Math.round(COVER_WIDTH / scale));
-  const height = Math.min(size.h, Math.round(COVER_HEIGHT / scale));
+  const width = Math.min(size.w, Math.round(target.width / scale));
+  const height = Math.min(size.h, Math.round(target.height / scale));
 
   const slack = { x: size.w - width, y: size.h - height };
   if (slack.x <= 0 && slack.y <= 0) return null;

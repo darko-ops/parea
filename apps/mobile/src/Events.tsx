@@ -39,6 +39,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import type {
@@ -91,6 +92,28 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  * ever disagree: two clients rounding "2 days ago" separately drift, and
  * nothing fails when they do.
  */
+/**
+ * The shapes a cover may be drawn at, as width over height.
+ *
+ * The same two bounds the encoder applies — `COVER_WIDEST` and `COVER_TALLEST`
+ * in `apps/web/src/cover.ts` — restated here rather than shared, because the
+ * only package both clients and the server can import is `@parea/cards` and
+ * this is a fact about storage rather than about a card. Clamped again on this
+ * side on purpose: the number comes off the wire, and one bad row should cost
+ * a card its shape rather than cost the screen its layout.
+ */
+const WIDEST = 3 / 2;
+const TALLEST = 4 / 5;
+
+/** How tall to draw a full-bleed cover of this shape. */
+function coverHeight(event: { coverAspect?: number | null }, width: number): number {
+  const aspect = event.coverAspect;
+  // Null is a cover from before the shape was recorded, or a photograph
+  // standing in for one. Both are the old letterbox, which is what 3:2 is.
+  if (!aspect || !Number.isFinite(aspect)) return width / WIDEST;
+  return width / Math.min(WIDEST, Math.max(TALLEST, aspect));
+}
+
 function EventCard({
   event,
   now,
@@ -159,6 +182,7 @@ function EventCard({
   }
 
   const live = isLive(event.lastActiveAt, now);
+  const { width } = useWindowDimensions();
   /*
    * The circles are everybody the host shared it with, and no longer the host.
    *
@@ -253,7 +277,17 @@ function EventCard({
         </Text>
       </Pressable>
 
-      <View style={styles.cover}>
+      {/*
+        As tall as the picture is, within bounds.
+
+        Every cover used to be drawn 260 high whatever it was, which is a
+        landscape crop of a portrait photograph on a screen whose whole width
+        was going spare — a shelf of short wide crops of tall narrow evenings.
+        The shape comes down with the listing rather than being measured here,
+        because a list that lays itself out again as each cover loads is a list
+        that jumps under a thumb.
+      */}
+      <View style={[styles.cover, { height: coverHeight(event, width) }]}>
         {event.cover && (
           <Image
             source={{ uri: event.cover.src }}
@@ -2064,7 +2098,7 @@ const styles = StyleSheet.create({
    * moving the gutter onto every text block separately, which is four places
    * to keep in step instead of one.
    */
-  cover: { marginHorizontal: -20, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
+  cover: { marginHorizontal: -20, overflow: 'hidden', backgroundColor: '#8881' },
   coverShot: { width: '100%', height: '100%' },
   /* Over the picture's bottom edge, not under it — see the note on the card.
      The negative margin is the overlap, and the row sits above the text it

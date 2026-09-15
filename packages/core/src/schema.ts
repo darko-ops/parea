@@ -19,6 +19,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -355,6 +356,20 @@ export const events = pgTable(
      * docs/csam-runbook.md carries the step that closes it.
      */
     coverKey: text('cover_key'),
+    /**
+     * The cover's shape, as width over height. Null for one made before this.
+     *
+     * Recorded rather than measured, because the card has to reserve the right
+     * space *before* the image loads: a home screen that lays itself out again
+     * when each cover arrives is a list that jumps under a thumb. Null means
+     * the old fixed 3:2, which is what every cover stored before this column
+     * actually is.
+     *
+     * Bounded by the encoder — see `coverAspect` in `apps/web/src/cover.ts` —
+     * so this is never a number a client has to defend itself against, but
+     * clients clamp anyway: it is a column, and a column is an input.
+     */
+    coverAspect: real('cover_aspect'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),

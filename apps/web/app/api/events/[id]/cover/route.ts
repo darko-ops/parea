@@ -32,13 +32,7 @@ import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 
 import { findEventById, guard, toResponse } from '@/access';
-import {
-  COVER_HEIGHT,
-  COVER_WIDTH,
-  framingOf,
-  orientedSize,
-  regionFor,
-} from '@/cover';
+import { coverAspect, coverSize, framingOf, orientedSize, regionFor } from '@/cover';
 import { getDb } from '@/db';
 import { requesterFor } from '@/session';
 import { getStorage } from '@/storage';
@@ -82,16 +76,27 @@ export async function POST(
 
   const framing = framingOf(new URL(request.url));
 
+  /*
+   * The picture's own shape decides the cover's, so this is read for every
+   * upload rather than only for a framed one.
+   *
+   * A cover used to be 3:2 whatever arrived, which is a landscape crop of a
+   * portrait photograph on a screen whose whole width was going spare. What
+   * `coverSize` gives back is bounded — see `COVER_TALLEST` — so this is still
+   * one small wide-ish JPEG and never a client-chosen number of pixels.
+   */
+  const size = orientedSize(await sharp(incoming).metadata().catch(() => ({})));
+  const target = size ? coverSize(size) : null;
+
   let jpeg: Buffer;
   try {
+    if (!target || !size) throw new Error('no dimensions');
+
     // Bakes in orientation, so a picture taken sideways is not stored sideways
     // for everyone whose renderer lacks the tag to correct it.
     let pipeline = sharp(incoming, { failOn: 'error' }).rotate();
 
-    // Read once, and only when somebody has asked for something the header can
-    // change the meaning of: an unframed upload needs no metadata pass at all.
-    const size = framing ? orientedSize(await sharp(incoming).metadata()) : null;
-    const region = size && framing ? regionFor(size, framing) : null;
+    const region = framing ? regionFor(size, framing) : null;
     if (region) pipeline = pipeline.extract(region);
 
     jpeg = await pipeline
@@ -106,8 +111,8 @@ export async function POST(
        * them by however many pixels the rounding left over.
        */
       .resize({
-        width: COVER_WIDTH,
-        height: COVER_HEIGHT,
+        width: target.width,
+        height: target.height,
         fit: 'cover',
         position: region ? 'centre' : 'attention',
       })
@@ -129,7 +134,9 @@ export async function POST(
   await getStorage().putSmall(key, jpeg, 'image/jpeg');
   await db
     .update(schema.events)
-    .set({ coverKey: key })
+    // The shape goes with the key, because a card has to reserve the right
+    // space before the image arrives — see the column's own note.
+    .set({ coverKey: key, coverAspect: coverAspect(size) })
     .where(eq(schema.events.id, event.id));
 
   return NextResponse.json({ ok: true });
@@ -150,7 +157,7 @@ export async function DELETE(
 
   await db
     .update(schema.events)
-    .set({ coverKey: null })
+    .set({ coverKey: null, coverAspect: null })
     .where(eq(schema.events.id, event.id));
   if (event.coverKey) await getStorage().delete(event.coverKey).catch(() => {});
 
