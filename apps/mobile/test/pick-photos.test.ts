@@ -94,7 +94,10 @@ describe('the form, once the photographs have been chosen', () => {
   const form = code(CREATE);
 
   it('asks four things and posts', () => {
-    expect(form).toMatch(/WHAT WAS IT\?/);
+    // `CAPTION`, not `WHAT WAS IT?`: the framed cover sits above this field
+    // now, and a caption is what words under a picture are called.
+    expect(form).toMatch(/CAPTION/);
+    expect(form).not.toMatch(/WHAT WAS IT\?/);
     expect(form).toMatch(/WHERE/);
     expect(form).toMatch(/WHO IS IN IT/);
     expect(form).toMatch(/WHO CAN SEE IT/);

@@ -1186,13 +1186,30 @@ export class Api {
     return this.call(`/api/events/${eventId}/cover`, { method: 'DELETE' });
   }
 
-  coverTarget(eventId: string): { url: string; headers: Record<string, string> } {
+  /**
+   * Where the cover is sent, and how it should sit when it gets there.
+   *
+   * `framing` is the two `object-position` percentages the cover screen drew
+   * its preview with. They travel in the query rather than the body because
+   * the body is the photograph — the native uploader streams it from disk and
+   * must not be asked to wrap it in anything.
+   *
+   * Omitted only by a caller with no way to ask, which is what leaves the
+   * route's `attention` crop in place for the web.
+   */
+  coverTarget(
+    eventId: string,
+    framing?: { x: number; y: number } | null,
+  ): { url: string; headers: Record<string, string> } {
     const headers: Record<string, string> = {
       'content-type': 'image/jpeg',
       'x-parea-client': this.client,
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
-    return { url: `${this.baseUrl}/api/events/${eventId}/cover`, headers };
+    const where = framing
+      ? `?cx=${Math.round(framing.x)}&cy=${Math.round(framing.y)}`
+      : '';
+    return { url: `${this.baseUrl}/api/events/${eventId}/cover${where}`, headers };
   }
 
   // --- people ----------------------------------------------------------

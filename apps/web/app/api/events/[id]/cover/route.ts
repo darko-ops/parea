@@ -32,22 +32,19 @@ import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 
 import { findEventById, guard, toResponse } from '@/access';
+import {
+  COVER_HEIGHT,
+  COVER_WIDTH,
+  framingOf,
+  orientedSize,
+  regionFor,
+} from '@/cover';
 import { getDb } from '@/db';
 import { requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
 
-/**
- * Wide, because that is the shape it is drawn in.
- *
- * A card is a landscape rectangle about 600 points across, so 1200 covers a
- * retina screen and nothing beyond it is ever seen. `attention` crops towards
- * whatever sharp thinks the subject is, which is the difference between a
- * group photograph and four foreheads.
- */
-const WIDTH = 1200;
-const HEIGHT = 800;
 /** A generous phone photograph. Past this it is not a cover. */
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -83,13 +80,37 @@ export async function POST(
     return NextResponse.json({ error: 'too_large' }, { status: 413 });
   }
 
+  const framing = framingOf(new URL(request.url));
+
   let jpeg: Buffer;
   try {
-    jpeg = await sharp(incoming, { failOn: 'error' })
-      // Bakes in orientation, so a picture taken sideways is not stored
-      // sideways for everyone whose renderer lacks the tag to correct it.
-      .rotate()
-      .resize({ width: WIDTH, height: HEIGHT, fit: 'cover', position: 'attention' })
+    // Bakes in orientation, so a picture taken sideways is not stored sideways
+    // for everyone whose renderer lacks the tag to correct it.
+    let pipeline = sharp(incoming, { failOn: 'error' }).rotate();
+
+    // Read once, and only when somebody has asked for something the header can
+    // change the meaning of: an unframed upload needs no metadata pass at all.
+    const size = framing ? orientedSize(await sharp(incoming).metadata()) : null;
+    const region = size && framing ? regionFor(size, framing) : null;
+    if (region) pipeline = pipeline.extract(region);
+
+    jpeg = await pipeline
+      /*
+       * Still `cover`, and after an extract it is a straight scale: the region
+       * was cut to this ratio already.
+       *
+       * `attention` crops towards whatever sharp thinks the subject is, which
+       * is the difference between a group photograph and four foreheads — and
+       * it is the fallback now rather than the rule. Where the caller has said
+       * where to look, a strategy that looked somewhere else would overrule
+       * them by however many pixels the rounding left over.
+       */
+      .resize({
+        width: COVER_WIDTH,
+        height: COVER_HEIGHT,
+        fit: 'cover',
+        position: region ? 'centre' : 'attention',
+      })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
   } catch {

@@ -32,8 +32,10 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
+import { CENTRED, CoverFrame, type CoverFraming } from './FrameCover';
 import { InvitePicker } from './InvitePeople';
 import type { Api, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
@@ -82,6 +84,7 @@ export function CreateEvent({
   groupName,
   recentPlaces = [],
   chosen = [],
+  framing = null,
   t,
   onCancel,
   onCreated,
@@ -108,6 +111,13 @@ export function CreateEvent({
    * real answer: an album can be made before the evening it is for.
    */
   chosen?: LibraryPhoto[];
+  /**
+   * How the cover sits in the card, from the screen before.
+   *
+   * Null for a caller that had nothing to frame. Carried rather than recomputed
+   * because it is somebody's decision, not a property of the picture.
+   */
+  framing?: CoverFraming | null;
   t: GroupTheme;
   onCancel: () => void;
   onCreated: (event: CreatedEvent) => void;
@@ -139,6 +149,7 @@ export function CreateEvent({
    * which one leads, which is what the numbered badges on those tiles mean.
    */
   const cover = chosen[0] ?? null;
+  const { width } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -217,7 +228,7 @@ export function CreateEvent({
          * The profile's avatar upload needs none of this: it comes from the
          * system picker, which already hands back a copy in our own sandbox.
          */
-        const target = api.coverTarget(created.id);
+        const target = api.coverTarget(created.id, framing);
         void sandboxCopy(cover.id)
           .then((local) => uploadCover(target.url, target.headers, local.uri))
           .catch(() => {});
@@ -258,7 +269,7 @@ export function CreateEvent({
     } finally {
       setBusy(false);
     }
-  }, [api, cover, groupId, invitees, isPrivate, name, onCreated, place, span]);
+  }, [api, cover, framing, groupId, invitees, isPrivate, name, onCreated, place, span]);
 
   /*
    * No share sheet between posting and the album.
@@ -329,8 +340,26 @@ export function CreateEvent({
         an evening after the fact.
       */}
 
+      {/*
+        The album, before anything is said about it.
+
+        Framed on the screen before and drawn here with the same two numbers, so
+        this is the card — not a preview of one. It sits above the caption for
+        the reason a caption sits under a photograph: the picture is the subject
+        and the words are about it.
+      */}
+      {cover && (
+        <View style={styles.coverRow}>
+          <CoverFrame
+            uri={cover.uri}
+            framing={framing ?? CENTRED}
+            width={width - 40}
+          />
+        </View>
+      )}
+
       <View style={styles.field}>
-        <Text style={[styles.fieldLabel, { color: t.dim }]}>WHAT WAS IT?</Text>
+        <Text style={[styles.fieldLabel, { color: t.dim }]}>CAPTION</Text>
         <TextInput
           value={name}
           onChangeText={setName}
@@ -510,6 +539,10 @@ const styles = StyleSheet.create({
   },
   headerSide: { fontSize: 16 },
   headerTitle: { fontSize: 16, fontWeight: '600' },
+  /* Inset by the page's own 20, unlike the full-bleed window on the screen
+     before: this one is inside a form, and a picture running to the glass in
+     the middle of a column of fields reads as a different screen starting. */
+  coverRow: { borderRadius: 14, overflow: 'hidden', marginBottom: 6 },
   field: { gap: 8 },
   fieldHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* All-caps and small: a section marker, not the question. The question is

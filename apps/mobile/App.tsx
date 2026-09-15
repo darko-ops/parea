@@ -63,6 +63,7 @@ import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
 import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
 import { CreateEvent } from './src/CreateEvent';
+import { FrameCover, type CoverFraming } from './src/FrameCover';
 import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
@@ -209,12 +210,39 @@ type Route =
    * cover, and the set to upload once the album exists.
    */
   | { screen: 'pick'; groupId?: string; groupName?: string }
+  /**
+   * Which photograph leads, and how it sits in the card.
+   *
+   * Between the two, and it exists because a card is a wide letterbox and a
+   * phone photograph is a tall rectangle: something is always cut off, and the
+   * only party who knew what mattered in the picture was never asked. It also
+   * took the cover away from an invisible rule — "whichever you touched first"
+   * — and gave it a control. See `FrameCover.tsx`.
+   */
+  | { screen: 'cover'; groupId?: string; groupName?: string; chosen: LibraryPhoto[] }
   | {
       screen: 'create';
       groupId?: string;
       groupName?: string;
       chosen: LibraryPhoto[];
+      /** From the screen before. Null only for a flow that skipped it. */
+      framing?: CoverFraming | null;
     };
+
+/**
+ * The three screens of making an album.
+ *
+ * One predicate rather than the same disjunction written at each of its three
+ * call sites — the account gate, the way out, and the re-check on the way in.
+ * A fourth step added to the flow and missed at one of them is a screen with no
+ * gate or no arrow, which is exactly how the first two steps came to disagree.
+ */
+function making(route: Route): route is Extract<
+  Route,
+  { screen: 'pick' | 'cover' | 'create' }
+> {
+  return route.screen === 'pick' || route.screen === 'cover' || route.screen === 'create';
+}
 
 export default function App() {
   const dark = useColorScheme() === 'dark';
@@ -430,8 +458,8 @@ export default function App() {
    * until the reply lands.
    */
   useEffect(() => {
-    if (route.screen === 'pick' || route.screen === 'create') void refreshAccount();
-  }, [route.screen, refreshAccount]);
+    if (making(route)) void refreshAccount();
+  }, [route, refreshAccount]);
 
   /**
    * What is left on screen after signing out.
@@ -501,9 +529,7 @@ export default function App() {
    */
   const leaveMaking = useCallback(() => {
     setRoute((was) =>
-      (was.screen === 'pick' || was.screen === 'create') && was.groupId
-        ? { screen: 'group', id: was.groupId }
-        : { screen: 'tabs' },
+      making(was) && was.groupId ? { screen: 'group', id: was.groupId } : { screen: 'tabs' },
     );
   }, []);
 
@@ -518,6 +544,28 @@ export default function App() {
   const backToPhotographs = useCallback(() => {
     setRoute((was) =>
       was.screen === 'create'
+        ? {
+            screen: 'cover',
+            groupId: was.groupId,
+            groupName: was.groupName,
+            chosen: was.chosen,
+          }
+        : was,
+    );
+  }, []);
+
+  /**
+   * Out of the cover screen, back to the grid.
+   *
+   * The selection does not survive it, which is the same as it has always been
+   * one step further along: `PickPhotos` opens on the camera roll rather than
+   * on what was chosen last time. Worth knowing rather than worth pretending —
+   * the step people actually go back for is the framing, and that one does
+   * survive, because `create` returns here holding its photographs.
+   */
+  const backToPicking = useCallback(() => {
+    setRoute((was) =>
+      was.screen === 'cover'
         ? { screen: 'pick', groupId: was.groupId, groupName: was.groupName }
         : was,
     );
@@ -651,7 +699,7 @@ export default function App() {
         prompt that flashes at somebody already signed in is worse than one that
         arrives a moment late. What it must not be is the blank page again.
       */}
-      {(route.screen === 'pick' || route.screen === 'create') && signedIn !== true && (
+      {making(route) && signedIn !== true && (
         <SwipeBack onBack={leaveMaking}>
           {signedIn === null ? (
             <View style={[styles.center, { backgroundColor: t.bg }]}>
@@ -695,7 +743,7 @@ export default function App() {
             onCancel={leaveMaking}
             onNext={(chosen) =>
               setRoute({
-                screen: 'create',
+                screen: 'cover',
                 groupId: route.groupId,
                 groupName: route.groupName,
                 chosen,
@@ -703,6 +751,24 @@ export default function App() {
             }
           />
         </SwipeBack>
+      )}
+
+      {route.screen === 'cover' && signedIn === true && (
+        <FrameCover
+          chosen={route.chosen}
+          t={t}
+          dark={dark}
+          onCancel={backToPicking}
+          onNext={(photos, framing) =>
+            setRoute({
+              screen: 'create',
+              groupId: route.groupId,
+              groupName: route.groupName,
+              chosen: photos,
+              framing,
+            })
+          }
+        />
       )}
 
       {route.screen === 'create' && signedIn === true && (
@@ -717,10 +783,11 @@ export default function App() {
           groupId={route.groupId}
           groupName={route.groupName}
           chosen={route.chosen}
+          framing={route.framing}
           t={t}
-          // Back to the photographs, not out of the flow: somebody on the form
-          // who wants a different picture has not changed their mind about
-          // making an album.
+          // Back to the cover, not out of the flow: somebody on the form who
+          // wants a different picture has not changed their mind about making
+          // an album.
           onCancel={backToPhotographs}
           onCreated={(created) => {
             void refreshGroups();

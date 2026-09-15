@@ -195,10 +195,14 @@ describe('what the `+` makes', () => {
      * "Create album" set the route to a screen no branch drew. No picker, no
      * gate, no tabs. A blank page with nothing on it and no way back.
      *
-     * The gate covers both steps now, so the first one answers for the flow.
+     * The gate covers every step now, so the first one answers for the flow —
+     * through one predicate rather than a disjunction rewritten at each of its
+     * three call sites, which is how the steps came to disagree in the first
+     * place.
      */
+    expect(APP).toMatch(/making\(route\) && signedIn !== true/);
     expect(APP).toMatch(
-      /\(route\.screen === 'pick' \|\| route\.screen === 'create'\) && signedIn !== true/,
+      /route\.screen === 'pick' \|\| route\.screen === 'cover' \|\| route\.screen === 'create'/,
     );
   });
 
