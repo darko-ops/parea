@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -76,16 +77,40 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  * too small to recognise anybody in, plus a panel of chrome around them.
  *
  * What replaced them is one picture and the people. A tall cover, the faces of
- * whoever was there overlapping its bottom edge, and two lines underneath. No
- * border, no card, no strip: the photograph *is* the card.
+ * whoever was there overlapping its bottom edge. No border, no card: the
+ * photograph *is* the card.
  *
  * The faces overlap on purpose. A row of circles floating below a picture
  * reads as metadata; the same row half over it reads as who was there, which
  * is how somebody actually recognises an evening.
  *
- * The photograph count is gone from the face of it and kept in the
- * accessibility label, because "how many photographs" is a fact somebody
- * navigating by screen reader has no other way to get.
+ * ## What sits above the photograph, and what sits below it
+ *
+ * The words moved. They were two lines under the cover — the host's name run
+ * into the album's title, then the date — which made a column of cards you had
+ * to scroll past to find out what any of them were. Above the picture now, and
+ * in the order somebody reads them:
+ *
+ *   1. A rule line. The date and the photograph count, monospaced and
+ *      upper-cased, with a hairline running from where the words stop to the
+ *      edge of the column. The label on the outside of the box; it is what
+ *      gives every card the same top edge whatever its date's length.
+ *   2. The title, at 24 points. The name of an evening is how somebody
+ *      recognises it, and on a screen of covers from four different holidays
+ *      it is the only thing that tells them apart at a glance.
+ *   3. The byline: the creator's face and handle, pressable, and beside it a
+ *      quiet sentence about the album — "You", how many people, and how long
+ *      ago somebody last added to it while that is still happening.
+ *
+ * Under the photograph, after the faces, is the sheet: a strip of the next few
+ * photographs inside, pushed along sideways, ending in a tile saying how many
+ * more there are. It answers "is this worth opening" without a request, and it
+ * is a strip rather than a grid on purpose — a grid under a cover is the
+ * mosaic this card was rewritten to get away from.
+ *
+ * There is no live chip. A coloured dot and the word beside it is the loudest
+ * thing on a card whose subject is somebody else's photograph, and the byline
+ * says the same thing in words the reader was going to read anyway.
  *
  * `ago`, `dateLabel`, `isLive` and `CARD_FACES` come from `@parea/cards`. The
  * words around them are this file's, and what is shared is the part that could
@@ -208,7 +233,63 @@ function EventCard({
   const hostCounted = event.faces.length > others.length ? 1 : 0;
   const moreFaces = Math.max(0, event.memberCount - hostCounted - faces.length);
   const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
-  const host = event.mine ? 'You' : event.creator.name;
+
+  /*
+   * The rule line's left end: when it was, and how much of it there is.
+   *
+   * Both facts are the same *kind* of fact — measurements of the album rather
+   * than things about the people in it — which is why they share a line and
+   * why that line is set in a monospaced face. It reads as a caption on an
+   * archive box, and the eye skips it until it wants it, which is the correct
+   * priority for a date on a wall of photographs.
+   */
+  const measured = [date, plural(event.photoCount, 'photo')].filter(Boolean).join(' · ');
+
+  /*
+   * The byline's tail: who is in it, and whether anything is still arriving.
+   *
+   * "You" first and only on your own, because that is the one fact about the
+   * album that is about the reader. The count of people follows — the circles
+   * over the cover show whose faces, and this says how many, which is the half
+   * a row of four circles cannot say. Recency last, and only while it is being
+   * added to: an evening from March does not need telling you it has stopped.
+   *
+   * There is no longer a `live` chip on the rule above. A coloured dot and the
+   * word beside it is the loudest thing on a card whose subject is somebody
+   * else's photograph, and the sentence here already says the same thing in
+   * words the reader was going to read anyway.
+   */
+  const about = [
+    event.mine ? 'You' : null,
+    plural(event.memberCount, 'person', 'people'),
+    live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  /*
+   * The sheet: a strip of what is actually inside, under the cover.
+   *
+   * The card led with one photograph and stopped, which asks somebody to open
+   * an album to find out whether it is worth opening. Four thumbnails answer
+   * that without a request — not as a mosaic, which is the arrangement this
+   * card was built to get away from, but as a strip below the cover that reads
+   * as contents rather than as a second, smaller cover.
+   *
+   * `slice(1)` because the first entry of `mosaic` is always the photograph
+   * the card is already leading with: the server prepends the cover to it, and
+   * where there is no cover the lead is `mosaic[0]` drawn larger. Either way
+   * the strip starts at the second.
+   */
+  const sheet = event.mosaic.slice(1);
+  /*
+   * And how many it is not showing.
+   *
+   * Counted against the strip rather than against everything visible: the
+   * cover above is the album's face, and the tile says "four here, this many
+   * more" about the strip it sits at the end of.
+   */
+  const rest = Math.max(0, event.photoCount - sheet.length);
 
   /*
    * Whose evening this is, above the photograph rather than under it.
@@ -234,6 +315,44 @@ function EventCard({
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
       {/*
+        The measurements, and a rule running off to the edge of the column.
+
+        A hairline that starts where the words stop is what makes a stack of
+        these read as entries in a ledger rather than as a feed: it gives every
+        card the same top edge whatever length its date happens to be, and it
+        does it without drawing a box round anything.
+
+        `aria-hidden` in spirit — the same two facts are in the card's own
+        accessible name, and a screen reader that stops on this line reads the
+        photograph count twice on the way past.
+      */}
+      <View style={styles.measured} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Text style={[styles.measuredText, { color: t.dim }]} numberOfLines={1}>
+          {measured}
+        </Text>
+        <View style={[styles.rule, { backgroundColor: t.line }]} />
+      </View>
+
+      {/*
+        The title, above the photograph and set like a headline.
+
+        It used to sit under the cover at 18 points, on the argument that it
+        was no longer the first thing on the card and should stop competing
+        with the picture. What that actually produced was a wall of pictures
+        you had to scroll past to find out what any of them were: the name of
+        an evening is how somebody recognises it, and on a screen of covers
+        from four different holidays it is the only thing that tells them
+        apart at a glance.
+
+        Two lines rather than one. A long name — "Sunday lunch at the Kostas'"
+        — is a real name people give albums, and truncating it at the first
+        line loses exactly the end that distinguishes it.
+      */}
+      <Text style={[styles.cardTitle, { color: t.fg }]} numberOfLines={2}>
+        {event.name}
+      </Text>
+
+      {/*
         The byline goes to the person, not to the album.
 
         A face and a name at the top of a card is the one thing on this screen
@@ -247,35 +366,56 @@ function EventCard({
         name and a face and no profile, and a control that does nothing is worse
         than a label that never promised to.
       */}
-      <Pressable
-        onPress={
-          event.creator.handle
-            ? () => onOpenPerson(event.creator.handle!)
-            : undefined
-        }
-        disabled={!event.creator.handle}
-        accessibilityRole={event.creator.handle ? 'button' : 'text'}
-        accessibilityLabel={event.creator.handle ? `${by}, see their profile` : by}
-        style={styles.byline}
-      >
-        {event.creator.avatarUrl ? (
-          <Image
-            source={{ uri: event.creator.avatarUrl }}
-            style={[styles.bylineFace, { backgroundColor: t.line }]}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
-            <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
-              {initialOf(event.creator.name ?? event.creator.handle)}
-            </Text>
-          </View>
-        )}
-        <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
-          {by}
+      <View style={styles.byline}>
+        {/*
+          Only the face and the name open the person.
+
+          The row carries a sentence about the album beside them now — how many
+          people, and whether anything is still arriving — and a control that
+          stretches under that sentence sends somebody to a profile they were
+          not reaching for. So the touch target is the two things that are
+          actually about a person, and the rest of the row belongs to the card.
+        */}
+        <Pressable
+          onPress={
+            event.creator.handle
+              ? () => onOpenPerson(event.creator.handle!)
+              : undefined
+          }
+          disabled={!event.creator.handle}
+          accessibilityRole={event.creator.handle ? 'button' : 'text'}
+          accessibilityLabel={event.creator.handle ? `${by}, see their profile` : by}
+          style={styles.bylineWho}
+        >
+          {event.creator.avatarUrl ? (
+            <Image
+              source={{ uri: event.creator.avatarUrl }}
+              style={[styles.bylineFace, { backgroundColor: t.line }]}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
+              <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
+                {initialOf(event.creator.name ?? event.creator.handle)}
+              </Text>
+            </View>
+          )}
+          <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
+            {by}
+          </Text>
+        </Pressable>
+
+        {/*
+          Led by the separator rather than joined to the name by one, so the
+          two shrink independently: a long handle takes the room it needs and
+          this line loses its tail, rather than one string being truncated on
+          behalf of both.
+        */}
+        <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
+          {`· ${about}`}
         </Text>
-      </Pressable>
+      </View>
 
       {/*
         As tall as the picture is, within bounds.
@@ -326,74 +466,65 @@ function EventCard({
         </View>
       )}
 
-      <View style={styles.under}>
-        {/*
-          The name, then the evening, on one line.
+      {sheet.length > 0 && (
+        /*
+          What is inside, as a strip you can push along.
 
-          Whose evening it was is read first: the picture at the top is theirs,
-          and both ends of the card being about the same person is what makes
-          the middle of it an evening rather than a listing. The title follows
-          on the same baseline, which is what turns two stacked facts into one
-          sentence — "You, at Ana's birthday" rather than a label above a
-          heading.
+          Horizontal rather than wrapped: a grid of thumbnails under a cover is
+          the mosaic this card was rewritten to get away from — it turns a
+          photograph into a listing, and it claims a fixed amount of the screen
+          whether or not there is anything worth claiming it for. A strip is
+          one row tall however much is in the album, and running off the right
+          edge is what says there is more.
 
-          Nested `Text` rather than a row of two.
+          Square, and hard against each other at 6 points apart. These are
+          contact-sheet frames rather than pictures in their own right — the
+          cover above is the picture — so they are cropped to a common shape
+          and given no corner of their own.
 
-          A `flexDirection: 'row'` would need `alignItems: 'baseline'` to stop
-          a 13pt name floating against an 18pt title, and it would then have to
-          be told which of the two may shrink. Inside one `Text` the baseline
-          is the text engine's problem, and `numberOfLines={1}` truncates the
-          line as a line — so a long title runs out of room rather than
-          squeezing the name that introduces it.
+          Hidden from the screen reader whole. Every tile is the same album the
+          card already announces, and four unnamed images between the card and
+          the next one is four stops on the way to nothing.
+        */
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.sheet}
+          contentContainerStyle={styles.sheetRow}
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+        >
+          {sheet.map((src) => (
+            /*
+              Each tile opens the album, like everything else on the card.
 
-          This line used to print both names — "both, always", on the reasoning
-          that printing one makes the reader guess which they have. The byline
-          above the photograph carries the handle now, so printing it again
-          here says the same unique thing twice on one card and leaves the name
-          looking like a label for it.
-
-          What is left is the half the byline does not have: what somebody is
-          called, which is what a reader recognises. On your own events that is
-          "You" — your own name read back at you on a wall of your own evenings
-          is the screen describing you to yourself.
-        */}
-        <Text numberOfLines={1}>
-          {host && (
-            <Text style={[styles.small, { color: t.dim }]}>{host}  </Text>
+              The strip takes the touch before the card's own `Pressable` sees
+              it — a scroll view has to, or it could not be scrolled — so
+              without this the one part of the card made entirely of
+              photographs would be the one part that does nothing.
+            */
+            <Pressable key={src} onPress={onPress}>
+              <Image
+                source={{ uri: src }}
+                style={[styles.sheetTile, { backgroundColor: t.line }]}
+                contentFit="cover"
+                transition={120}
+              />
+            </Pressable>
+          ))}
+          {rest > 0 && (
+            <View
+              style={[
+                styles.sheetTile,
+                styles.sheetRest,
+                { backgroundColor: t.card, borderColor: t.line },
+              ]}
+            >
+              <Text style={[styles.sheetRestText, { color: t.dim }]}>+{rest}</Text>
+            </View>
           )}
-          <Text style={[styles.eventName, { color: t.fg }]}>{event.name}</Text>
-        </Text>
-        {/*
-          When first, then who — and at the same size as the host line above
-          it rather than a step larger.
-
-          The order is the change: the date is what tells one evening from
-          another on a wall of them, and a count of people is the same shape of
-          fact on every card, so leading with "6 people" put the interchangeable
-          half first. The when is the evening itself rather than the upload,
-          except while it is being added to, where the recent thing *is* the
-          news and takes the slot.
-
-          Sized with the host's name and handle because the three lines are one
-          block: a name, then two quiet facts about it. At `body` this line
-          competed with the title for the second-loudest thing on the card.
-
-          Still no caption here: a second sentence under the name is what made
-          a photograph look like a listing.
-
-          The second half is how many photographs, where it used to be how many
-          people. The circles above already say who is in it — and say it with
-          their faces, which is the half of that fact worth having — so the
-          number was the same thing twice on one card. How much there is to
-          look at is not written anywhere else, and it is what tells an evening
-          somebody has added to from one with a cover and little behind it.
-        */}
-        <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-          {live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : (date ?? '')}
-          {live || date ? ' · ' : ''}
-          {plural(event.photoCount, 'photo')}
-        </Text>
-      </View>
+        </ScrollView>
+      )}
     </Pressable>
   );
 }
@@ -2066,7 +2197,19 @@ const styles = StyleSheet.create({
      ended up underneath the chrome. */
   /* `flexGrow` so a page that is still loading fills the screen and the
      spinner has somewhere to be the middle of. Inert once there are cards. */
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14, flexGrow: 1 },
+  /*
+   * 26 between cards, where it was 14.
+   *
+   * A card is four blocks tall now — a rule, a title, a byline, a photograph
+   * and a strip — and at 14 the strip of one album sat as close to the rule of
+   * the next as its own title sat to its own cover. The gap between two cards
+   * has to be larger than any gap inside one, or the column stops reading as
+   * separate evenings.
+   *
+   * `paddingBottom` grows with it: the last card's strip has to clear the
+   * floating tab bubble, which is 28 from the bottom and about 70 tall.
+   */
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: 132, gap: 26, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /*
    * The wordmark's row, which is not `headRow`.
@@ -2134,7 +2277,55 @@ const styles = StyleSheet.create({
   faceShot: { width: '100%', height: '100%' },
   faceLetter: { fontSize: 8.5, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
-  under: { marginHorizontal: -4, paddingTop: 8, gap: 2 },
+  /*
+   * The rule line above a card: the measurements, then a hairline to the edge.
+   *
+   * `marginHorizontal: -4` is the card's column, the same number the byline,
+   * the faces and the title all answer to — see the note below on measuring
+   * from the glass rather than from the scroll.
+   */
+  measured: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -4, marginBottom: 6 },
+  /*
+   * Monospaced, which is the only face in this product that is.
+   *
+   * Deliberately the exception rather than a drift: everything else on a card
+   * is somebody's evening described in words, and this line is two numbers and
+   * a date — the label on the outside of the box. A monospaced small-cap line
+   * is what that reads as, and at 10.5 points with a wide letter-spacing it is
+   * quiet enough that nobody has to read it who is not looking for it.
+   *
+   * `Menlo` on iOS and `monospace` on Android: React Native has no `ui-
+   * monospace` keyword, and a missing family silently falls back to the system
+   * face — which would make the one deliberate exception look like a bug.
+   */
+  measuredText: {
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  rule: { flex: 1, height: 1 },
+  /* The album's name, above its photograph. 24 with the tracking pulled in:
+     at this size the default spacing reads as loose, and a title is the one
+     line on the card set as a headline rather than as text. */
+  cardTitle: {
+    marginHorizontal: -4,
+    marginBottom: 2,
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+  },
+  /* The strip under the cover. Full-bleed like the photograph above it, with
+     the column's own gutter restored as padding *inside* the scroll — so the
+     first tile lines up with the title and the last one runs off the edge
+     rather than stopping short of it. */
+  sheet: { marginHorizontal: -20, marginTop: 10 },
+  sheetRow: { paddingHorizontal: 20, gap: 6 },
+  sheetTile: { width: 76, height: 76 },
+  sheetRest: { borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  sheetRestText: { fontSize: 12, fontWeight: '600' },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
   /*
@@ -2155,8 +2346,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: -4,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
+  /* The part of the row that is a person, and therefore a control. Shrinks
+     before the line beside it does, because a handle truncated to "kostopo…"
+     is still recognisable and "· 8 peo…" is not a fact. */
+  bylineWho: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   /*
    * A rounded square, not a circle.
    *
@@ -2173,7 +2368,10 @@ const styles = StyleSheet.create({
   bylineFace: { width: 28, height: 28, borderRadius: 7, overflow: 'hidden' },
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
-  bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
+  bylineName: { flexShrink: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
+  /* Takes what the name leaves, and loses its tail rather than its head: the
+     count of people is at the front because it is the half somebody reads. */
+  bylineAbout: { flex: 1, minWidth: 0, fontSize: 13 },
   /* The card with nothing in it, which is mostly a button. Bordered, unlike
      the one that leads with a photograph: there is no picture to give it an
      edge, and a borderless block of text would not read as something to press. */
