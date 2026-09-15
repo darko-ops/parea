@@ -120,7 +120,7 @@ describe('the relative time is derived once, on the server', () => {
     // return the tail of that sentence and not a whole one.
     const now = new Date('2026-08-15T12:00:00Z');
     expect(ago(new Date('2026-08-14T12:00:00Z'), now)).toBe('1 day ago');
-    expect(ago(new Date('2026-08-15T11:40:00Z'), now)).toBe('20m ago');
+    expect(ago(new Date('2026-08-15T11:40:00Z'), now)).toBe('20 min ago');
   });
 });
 

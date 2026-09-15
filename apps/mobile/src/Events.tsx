@@ -375,7 +375,7 @@ function emptyLine(memberCount: number): string {
 const EMPTY_LENSES = ['#ffb3b8', '#9db2f0'] as const;
 
 /**
- * A clock that ticks once a minute, for the "20m ago" on each card.
+ * A clock that ticks once a minute, for the "20 min ago" on each card.
  *
  * A phone left on this screen should not still claim the top event was added
  * to twenty minutes ago an hour later. Once a minute is the coarsest interval

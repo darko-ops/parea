@@ -340,7 +340,7 @@ export async function GET(
        *
        * It is a relative time, and the head is rendered on the server before
        * it is hydrated in the client: two clocks, one of which is somebody's
-       * laptop. A minute's disagreement between them is "59m ago" against "1h
+       * laptop. A minute's disagreement between them is "59 min ago" against "1h
        * ago", which React resolves by throwing the tree away. The client
        * re-reads this string every time it polls, so it stays honest.
        */

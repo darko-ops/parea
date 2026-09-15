@@ -8,9 +8,9 @@
  * clients cannot come to disagree about what "Tonight" means. A relative time
  * that rounds differently on web and native is the same class of bug, quieter.
  *
- * Computed on the client rather than returned by the API on purpose: "20m ago"
- * has to become "2h ago" on a screen someone left open, and a string baked by
- * the server is wrong from the moment it is sent.
+ * Computed on the client rather than returned by the API on purpose: "20 min
+ * ago" has to become "2h ago" on a screen someone left open, and a string baked
+ * by the server is wrong from the moment it is sent.
  *
  * No dependencies, no platform assumptions. The mobile client cannot take
  * `@parea/core` — that would pull the schema and drizzle into a React Native
@@ -26,11 +26,14 @@
  */
 export function ago(from: Date, now: Date): string {
   // Clamped at zero because `from` comes from the server and `now` from the
-  // device, and those clocks disagree. "-3m ago" is worse than a small lie.
+  // device, and those clocks disagree. "-3 min ago" is worse than a small lie.
   const seconds = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 1000));
   const minutes = Math.floor(seconds / 60);
   if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  // `min` rather than `m`, which read as metres as often as minutes on a line
+  // that also carries a count of people. Spaced, because a three-letter
+  // abbreviation against a number is a word, not a unit suffix.
+  if (minutes < 60) return `${minutes} min ago`;
 
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -187,7 +190,7 @@ export type CardMeta = {
  * duplication that makes a design feel like a form.
  *
  * The newest event shows recency instead of place, because at the top of the
- * list "added to 20m ago" is the fact that makes someone open it. Everything
+ * list "added to 20 min ago" is the fact that makes someone open it. Everything
  * below shows place where it has one, since by then *where* tells events apart
  * better than *when*.
  */
