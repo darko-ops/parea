@@ -137,10 +137,60 @@ describe('one album at a time', () => {
      * state back, so a filtered queue would erase the other album's items the
      * first time this one saved.
      */
-    expect(QUEUE).toMatch(/i\.status === 'presigned' && \(!eventId \|\| i\.eventId === eventId\)/);
+    expect(QUEUE).toMatch(
+      /\(i\.status === 'presigned' \|\| i\.status === 'uploaded'\) &&\s*\(!eventId \|\| i\.eventId === eventId\)/,
+    );
     expect(QUEUE).toMatch(/i\.status === 'pending' && \(!eventId \|\| i\.eventId === eventId\)/);
     // And nothing in the client narrows the state before constructing a queue.
     expect(APP).not.toMatch(/state\.items\.filter/);
+  });
+});
+
+describe('the run that ends with work left', () => {
+  /*
+   * The silent case, and the one that put four of eight photographs nowhere.
+   *
+   * `run` used to stop after a single failed attempt per item, leaving it
+   * `pending` with its retries unspent. That is not `failed`, so no count
+   * reported it; the run was not paused, so it was not waiting for a network
+   * either. This screen computed "nothing to say", cleared the line and emptied
+   * the bar, and the photographs waited for somebody to reopen the album.
+   *
+   * The queue spends its attempts in one run now. This is the belt: whatever is
+   * still outstanding when a run finishes gets counted and gets a button.
+   */
+  it('counts what is still outstanding, not only what failed', () => {
+    expect(APP).toMatch(
+      /const unfinished = queue\.waitingFor\(event\.id\) \? 0 : queue\.pendingIn\(event\.id\);/,
+    );
+    expect(APP).toMatch(/const stuckNow = failed \+ unfinished;/);
+    expect(APP).toMatch(/setStuck\(\{ failed: stuckNow, stale \}\)/);
+  });
+
+  it('says so, rather than clearing the line', () => {
+    expect(APP).toMatch(/stuckNow > 0\s*\?\s*`\$\{stuckNow\} didn't upload`/);
+  });
+
+  it('lets the button run them even though none reached failed', () => {
+    // `retryFailed` returns 0 when nothing is terminal yet. Bailing on that was
+    // how the case with no message also ended up with no remedy.
+    expect(APP).toMatch(
+      /if \(woken === 0 && queue\.pendingIn\(event\.id\) === 0\) return;/,
+    );
+  });
+
+  it('spends the attempts inside one run, because nothing calls it twice', () => {
+    // Both clients call `run` once per batch and neither watches for
+    // leftovers, so a budget only spendable across runs was a budget of one.
+    expect(QUEUE).toMatch(/const again = this\.retryable\(eventId\);/);
+    expect(QUEUE).toMatch(/await this\.wait\(RETRY_BACKOFF_MS \* retries\);/);
+  });
+
+  it('picks up bytes that are up but unconfirmed', () => {
+    // `uploaded` was written and never read: not `pending`, so never
+    // presigned; not `presigned`, so never pushed. A crash between the PUT and
+    // the confirmation stranded the photograph in the queue for good.
+    expect(QUEUE).toMatch(/if \(item\.status !== 'uploaded'\) \{/);
   });
 });
 

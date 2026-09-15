@@ -1444,11 +1444,27 @@ function EventScreen({
          */
         const failed = queue.failedIn(event.id).length;
         const stale = queue.staleIn(event.id).length;
-        setStuck({ failed, stale });
+        /*
+         * Outstanding with the run over, and not because the signal went.
+         *
+         * A run spends the whole retry budget before it returns now, so this is
+         * the residue: a grant the server would not replace, a presign that
+         * came back short. Rare — and it still has to be counted, because
+         * `pending` after a finished run is the one state no sentence below
+         * covered. That is how half a batch went missing without a word: four
+         * of eight photographs neither failed nor waiting for a network, so the
+         * line computed "nothing to say", cleared itself, and emptied the bar.
+         *
+         * Folded in with the failures because it asks a person for the same
+         * thing, which is to press the button under it.
+         */
+        const unfinished = queue.waitingFor(event.id) ? 0 : queue.pendingIn(event.id);
+        const stuckNow = failed + unfinished;
+        setStuck({ failed: stuckNow, stale });
         const note = queue.waitingFor(event.id)
           ? `${queue.pendingIn(event.id)} waiting for a connection`
-          : failed > 0
-            ? `${failed} didn't upload`
+          : stuckNow > 0
+            ? `${stuckNow} didn't upload`
             : stale > 0
               ? // Their bytes are gone rather than refused, so "try again" is
                 // the wrong advice: the photograph has to be picked again.
@@ -1492,7 +1508,14 @@ function EventScreen({
    */
   const retryStuck = useCallback(async () => {
     const queue = openQueue(await loadQueue());
-    if (queue.retryFailed(event.id) === 0) return;
+    /*
+     * `retryFailed` wakes the terminal ones. An item merely left pending has
+     * attempts on the clock already and needs nothing but another run — and
+     * returning early because nothing had reached `failed` was how the one case
+     * with no message also ended up with no remedy.
+     */
+    const woken = queue.retryFailed(event.id);
+    if (woken === 0 && queue.pendingIn(event.id) === 0) return;
     await saveQueue(queue.state);
     setQueueStatus('Trying again…');
     setStuck({ failed: 0, stale: 0 });

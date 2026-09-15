@@ -135,6 +135,11 @@ export type Deps = {
   complete(photoId: string): Promise<unknown>;
   save(state: QueueState): Promise<void>;
   now?(): number;
+  /**
+   * Injectable for tests, which must not spend the retry backoff in real
+   * seconds. Defaults to `setTimeout`.
+   */
+  sleep?(ms: number): Promise<void>;
 };
 
 /** Higher hurts throughput on cellular and multiplies memory pressure. */
@@ -143,6 +148,14 @@ export const CONCURRENCY = 3;
 export const MAX_ATTEMPTS = 4;
 /** Re-presign rather than upload if the URL is this close to expiring. */
 const EXPIRY_MARGIN_MS = 30_000;
+/**
+ * How long a run waits before re-attempting what just failed.
+ *
+ * Multiplied by the round, so 1s, 2s, 3s. Long enough that a blip is waited
+ * out rather than raced, short enough that somebody watching the bar does not
+ * read the pause as the upload having stopped.
+ */
+export const RETRY_BACKOFF_MS = 1000;
 /**
  * How many times one run will go back for fresh grants.
  *
@@ -325,6 +338,31 @@ export class UploadQueue {
     return this.deps.now?.() ?? Date.now();
   }
 
+  /**
+   * Items this run failed and could sensibly attempt again.
+   *
+   * `attempts > 0` is what tells them from the other kinds of `pending`. An
+   * item sent back for a fresh grant spent nothing and belongs to the
+   * represign count; an item no presign has reached yet is not a retry, and
+   * treating it as one would loop without consuming anything — the same spin
+   * the represign bound exists to stop.
+   */
+  private retryable(eventId?: string): number {
+    return this.items.filter(
+      (i) =>
+        (i.status === 'pending' || i.status === 'uploaded') &&
+        i.attempts > 0 &&
+        i.attempts < MAX_ATTEMPTS &&
+        (!eventId || i.eventId === eventId),
+    ).length;
+  }
+
+  private wait(ms: number): Promise<void> {
+    return this.deps.sleep
+      ? this.deps.sleep(ms)
+      : new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   add(eventId: string, files: Omit<QueueItem, 'status' | 'attempts' | 'eventId'>[]) {
     for (const file of files) {
       // Same asset queued twice in one session is a double-tap, not intent.
@@ -371,20 +409,39 @@ export class UploadQueue {
     // from "nobody has opened that album yet".
     this.scope = eventId;
     try {
-      // Bounded, and a loop rather than a self-call. Re-presigning is the
-      // legitimate answer to a grant that went stale while the phone was
-      // locked, and one extra round covers it. Recursing until no item needs
-      // one assumed the fresh grant would be usable — a server handing back
-      // an already-expired grant, or a device with a badly wrong clock, made
-      // it spin forever with no attempt consumed and nothing logged. Stopping
-      // leaves the items pending, which the next run picks up.
-      for (let round = 0; round <= MAX_REPRESIGN_ROUNDS; round++) {
+      /*
+       * Rounds, until there is nothing left this run can usefully do.
+       *
+       * Two quite different reasons to go round again, counted separately
+       * because only one of them spends anything.
+       *
+       * A grant that went stale while the phone was locked costs no attempt,
+       * so it needs a bound of its own or it is a spin: a server handing back
+       * an already-expired grant, or a device with a badly wrong clock, would
+       * loop here forever with nothing consumed and nothing logged.
+       *
+       * A failed upload does spend an attempt, and this loop is the only thing
+       * that ever spends the second one. `MAX_ATTEMPTS` reads like four tries
+       * and used to buy exactly one: the round loop stopped the moment nothing
+       * needed re-presigning, which left a failed item `pending` for a next run
+       * that neither client makes. Both call `run` once per batch and neither
+       * watches for leftovers, so one blip parked a photograph until somebody
+       * reopened the album — and said nothing on the way out, because `pending`
+       * with attempts to spare is neither `failed` nor waiting for a network,
+       * so the status line cleared itself and the bar emptied. Eight photos
+       * chosen, four in the album, no error anywhere.
+       */
+      let represigns = 0;
+      let retries = 0;
+      for (;;) {
         this.needsRepresign = false;
         await this.presignPending(eventId);
 
         let next = 0;
         const workable = this.items.filter(
-          (i) => i.status === 'presigned' && (!eventId || i.eventId === eventId),
+          (i) =>
+            (i.status === 'presigned' || i.status === 'uploaded') &&
+            (!eventId || i.eventId === eventId),
         );
         const worker = async () => {
           // Stops the other workers too: once one request has found no
@@ -398,9 +455,21 @@ export class UploadQueue {
           Array.from({ length: Math.min(CONCURRENCY, workable.length) }, worker),
         );
 
-        // Only items sent back for a fresh grant, never failures — and never
-        // while the network is gone, which would presign into the same wall.
-        if (!this.needsRepresign || this.paused) break;
+        // The network is gone. Presigning again would walk into the same wall,
+        // and the items are untouched and pending for whenever it is back.
+        if (this.paused) break;
+
+        if (this.needsRepresign && ++represigns > MAX_REPRESIGN_ROUNDS) break;
+
+        const again = this.retryable(eventId);
+        if (!this.needsRepresign && again === 0) break;
+
+        if (again > 0) {
+          // A backstop only: an item that reaches `MAX_ATTEMPTS` becomes
+          // `failed` and stops being retryable, so `again` runs out first.
+          if (++retries >= MAX_ATTEMPTS) break;
+          await this.wait(RETRY_BACKOFF_MS * retries);
+        }
       }
     } finally {
       this.running = false;
@@ -447,32 +516,61 @@ export class UploadQueue {
   }
 
   private async push(item: QueueItem): Promise<void> {
-    // A URL that expired while the phone was locked is not a failure — the
-    // photo is fine, the grant went stale. Send it back for a new one.
-    if (item.expiresAt && item.expiresAt - this.now() < EXPIRY_MARGIN_MS) {
-      item.status = 'pending';
-      delete item.uploadUrl;
-      delete item.expiresAt;
-      this.needsRepresign = true;
+    /*
+     * `uploaded` means the bytes are in storage and nobody has been told.
+     *
+     * It was a state written and never read: not `pending`, so nothing
+     * presigned it; not `presigned`, so nothing pushed it. A run that ended
+     * between the PUT and the confirmation — a crash, a `complete` that came
+     * back 500 — left the item there permanently. It counted as outstanding in
+     * every progress bar for as long as the queue survived, and the photograph
+     * reached the album only when the deriver gave up waiting half an hour
+     * later and read the object anyway.
+     *
+     * What is outstanding for such an item is the confirmation, so that is all
+     * this does for it. Sending the bytes a second time would be a second
+     * object, a second row, and a second charge against the event's quota for
+     * one photograph.
+     */
+    if (item.status !== 'uploaded') {
+      // A URL that expired while the phone was locked is not a failure — the
+      // photo is fine, the grant went stale. Send it back for a new one.
+      if (item.expiresAt && item.expiresAt - this.now() < EXPIRY_MARGIN_MS) {
+        item.status = 'pending';
+        delete item.uploadUrl;
+        delete item.expiresAt;
+        this.needsRepresign = true;
+        await this.deps.save(this.state);
+        return;
+      }
+
+      try {
+        await this.deps.upload(item);
+      } catch (err) {
+        this.fail(item, err);
+        await this.deps.save(this.state);
+        return;
+      }
+      item.status = 'uploaded';
       await this.deps.save(this.state);
-      return;
     }
 
     try {
-      await this.deps.upload(item);
-      item.status = 'uploaded';
-      await this.deps.save(this.state);
-
       await this.deps.complete(item.photoId!);
       item.status = 'done';
       delete item.error;
     } catch (err) {
-      this.fail(item, err);
+      // Same reasoning as above, for the failure that lands in the same place:
+      // the bytes are up and only the word about them did not get through, so
+      // the next attempt is another `complete`. `pending` would presign again
+      // and re-upload a photograph that is already there.
+      if (this.fail(item, err) === 'pending') item.status = 'uploaded';
     }
     await this.deps.save(this.state);
   }
 
-  private fail(item: QueueItem, err: unknown): void {
+  /** Records the failure and returns the state it left the item in. */
+  private fail(item: QueueItem, err: unknown): QueueItemStatus {
     if (err instanceof Offline) {
       // No attempt was spent, because none was made. The item is untouched
       // apart from the note, and the run stops rather than eating the retry
@@ -482,7 +580,7 @@ export class UploadQueue {
       // What actually threw. `Offline` is a reading of the failure, not a
       // report of it — see `cause`.
       if (err.message) item.cause = err.message;
-      return;
+      return item.status;
     }
 
     item.attempts += 1;
@@ -490,10 +588,11 @@ export class UploadQueue {
     if (err instanceof SourceGone) {
       // No attempt will find the bytes again, so do not spend three more.
       item.status = 'stale';
-      return;
+      return item.status;
     }
-    // Back to pending so the next run retries; retries are safe because the
-    // server addresses objects by content.
+    // Back to pending so this run, or the next one, tries again; retries are
+    // safe because the server addresses objects by content.
     item.status = item.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+    return item.status;
   }
 }

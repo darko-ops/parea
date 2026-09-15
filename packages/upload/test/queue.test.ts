@@ -14,6 +14,7 @@ import {
   MAX_ATTEMPTS,
   MAX_REPRESIGN_ROUNDS,
   Offline,
+  RETRY_BACKOFF_MS,
   SourceGone,
   UploadQueue,
   type Deps,
@@ -66,6 +67,10 @@ function harness(overrides: Partial<Deps> = {}): Harness {
       // mutations rewrite history and hide resume bugs.
       saved.push(JSON.parse(JSON.stringify(state)));
     },
+    // A run now spends its whole retry budget before it returns, and the waits
+    // between attempts are real seconds on a phone. Nothing here is testing
+    // `setTimeout`, so they are taken instantly.
+    async sleep() {},
     ...overrides,
   };
 
@@ -132,12 +137,12 @@ describe('the happy path', () => {
 
 describe('surviving a kill', () => {
   it('resumes from persisted state without duplicating completed work', async () => {
-    // Die after the second upload, then reopen from what was on disk.
-    let uploads = 0;
+    // One file the server will not take, in a batch of three. It spends its
+    // attempts and goes to disk `failed`; reopening from that must not redo the
+    // two that worked, and must not lose them either.
     const first = harness({
       async upload(item) {
-        uploads++;
-        if (uploads === 2) throw new Error('process died');
+        if (item.source.includes('photo-2')) throw new Error('process died');
         first.uploaded.push(item.source);
       },
     });
@@ -157,8 +162,18 @@ describe('surviving a kill', () => {
   });
 
   it('loses nothing when the crash lands between upload and complete', async () => {
-    // The nastiest window: bytes are in storage but the server has not been
-    // told. Retrying must finish the job, not skip it.
+    /*
+     * The nastiest window, and the state on disk inside it says `uploaded`:
+     * the bytes are in storage and the server has not been told.
+     *
+     * That state used to be a dead end. `run` looked at `pending` items and at
+     * `presigned` ones, and `uploaded` is neither — so the photograph sat in
+     * the saved queue forever, counted as outstanding by every progress bar,
+     * and reached the album only when the deriver gave up waiting half an hour
+     * later and read the object anyway. This resumes from the snapshot a crash
+     * actually leaves rather than from the one after the failure was recorded,
+     * which is what let that go unnoticed.
+     */
     const first = harness({
       async complete() {
         throw new Error('killed before complete');
@@ -168,12 +183,18 @@ describe('surviving a kill', () => {
     queueA.add('event-1', [file(1)]);
     await queueA.run();
 
+    const crashed = first.saved.find((s) => s.items[0]!.status === 'uploaded');
+    expect(crashed, 'the window is persisted at all').toBeDefined();
+
     const second = harness();
-    const queueB = new UploadQueue(second.deps, first.saved.at(-1)!);
+    const queueB = new UploadQueue(second.deps, crashed!);
     await queueB.run();
 
     expect(queueB.doneCount).toBe(1);
     expect(second.completed).toHaveLength(1);
+    // The confirmation is what was outstanding, so that is all that was sent.
+    expect(second.uploaded, 'the bytes are not sent a second time').toHaveLength(0);
+    expect(second.presignCalls, 'nor is a second row reserved for them').toBe(0);
   });
 
   it('a resumed queue with nothing left to do is a no-op', async () => {
@@ -249,7 +270,7 @@ describe('failure', () => {
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1), file(2), file(3)]);
 
-    for (let i = 0; i < MAX_ATTEMPTS + 1; i++) await queue.run();
+    await queue.run();
 
     expect(queue.failedCount).toBe(1);
     expect(queue.doneCount, 'a partial upload is partial photos, not zero').toBe(2);
@@ -264,7 +285,7 @@ describe('failure', () => {
     });
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1)]);
-    for (let i = 0; i < MAX_ATTEMPTS; i++) await queue.run();
+    await queue.run();
     expect(queue.state.items[0]!.error).toMatch(/connection lost/);
   });
 
@@ -277,9 +298,151 @@ describe('failure', () => {
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1), file(2)]);
     await queue.run();
-    // Still pending, not failed: offline is a retry-later, not a give-up.
-    expect(queue.pendingCount).toBe(2);
-    expect(queue.state.items.every((i) => i.attempts === 1)).toBe(true);
+    /*
+     * Spent its attempts and stopped, rather than stopping after one.
+     *
+     * A `presign` that throws a plain `Error` is an ordinary failure — the
+     * platform layer throws `Offline` when it means a missing network, and
+     * that path is tested below and still consumes nothing. So this ends
+     * `failed`, which is the state with a remedy attached: the clients caption
+     * it "2 didn't upload" and put a "Try again" under it. It used to end
+     * `pending` with three attempts unspent and nothing watching, which no
+     * screen has a way to report and no person has a way to resolve.
+     */
+    expect(queue.failedCount).toBe(2);
+    expect(queue.pendingCount).toBe(0);
+    expect(queue.state.items.every((i) => i.attempts === MAX_ATTEMPTS)).toBe(true);
+  });
+});
+
+/**
+ * Eight photographs chosen, four in the album, and nothing said about it.
+ *
+ * `MAX_ATTEMPTS` reads like four tries and used to buy exactly one. `run` went
+ * round again only for grants that had gone stale; an item that failed for any
+ * other reason went back to `pending` with its attempts unspent, and the loop
+ * stopped. Nothing picked it up, because nothing calls `run` a second time —
+ * both clients call it once per batch and neither watches for leftovers — so
+ * the photograph waited for somebody to reopen the album.
+ *
+ * And it waited silently, which is the worse half. `pending` with attempts to
+ * spare is not `failed`, so no count reported it; the run was not `paused`, so
+ * it was not waiting for a network either. The phone's status line computed
+ * "nothing to say", cleared itself, and emptied the bar. Half a batch was
+ * missing with no error, no count, and no button.
+ */
+describe('spending the attempts it says it has', () => {
+  it('retries inside one run, so a blip does not cost a photograph', async () => {
+    // One transient failure each, of the kind that is over by the next try.
+    const flaked = new Set<string>();
+    const h = harness({
+      async upload(item) {
+        if (!flaked.has(item.id)) {
+          flaked.add(item.id);
+          throw new Error('upload failed: 503');
+        }
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', Array.from({ length: 8 }, (_, i) => file(i)));
+
+    await queue.run();
+
+    expect(queue.doneCount, 'all eight, not the four that got lucky').toBe(8);
+    expect(queue.pendingCount).toBe(0);
+    expect(queue.failedCount).toBe(0);
+  });
+
+  it('waits between attempts rather than racing the same failure', async () => {
+    const waits: number[] = [];
+    const h = harness({
+      async upload() {
+        throw new Error('upload failed: 500');
+      },
+      async sleep(ms) {
+        waits.push(ms);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+
+    await queue.run();
+
+    // One wait before each attempt after the first, widening: a blip is waited
+    // out rather than raced, and four tries in a few hundred milliseconds
+    // against one bad second is how a whole batch used to be lost at once.
+    expect(waits).toEqual([
+      RETRY_BACKOFF_MS,
+      RETRY_BACKOFF_MS * 2,
+      RETRY_BACKOFF_MS * 3,
+    ]);
+    expect(queue.state.items[0]!.attempts).toBe(MAX_ATTEMPTS);
+  });
+
+  it('ends with something a screen can report, not silence', async () => {
+    /*
+     * The contract the clients read. `failed` has a sentence and a button
+     * behind it; `pending` after a finished run has neither, and that is the
+     * state this used to stop in.
+     */
+    const h = harness({
+      async upload() {
+        throw new Error('upload failed: 500');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1), file(2)]);
+
+    await queue.run();
+
+    expect(queue.failedIn('event-1')).toHaveLength(2);
+    expect(queue.pendingIn('event-1'), 'nothing left in a state nobody reads').toBe(0);
+    expect(queue.waitingFor('event-1'), 'and not blamed on the network').toBe(false);
+  });
+
+  it('still leaves an offline batch alone', async () => {
+    // The one failure that must not spend anything. Retrying inside the run
+    // would be a tight loop against a network that is not there, which is the
+    // thing the pause exists to prevent.
+    let tries = 0;
+    const h = harness({
+      async upload() {
+        tries += 1;
+        throw new Offline();
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1), file(2), file(3)]);
+
+    await queue.run();
+
+    expect(tries).toBeLessThanOrEqual(CONCURRENCY);
+    expect(queue.pendingCount).toBe(3);
+    expect(queue.state.items.every((i) => i.attempts === 0)).toBe(true);
+    expect(queue.waitingForNetwork).toBe(true);
+  });
+
+  it('does not re-send bytes that are already up', async () => {
+    // A `complete` that flakes is a confirmation to send again, not a
+    // photograph. Going back through `pending` would presign a second row and
+    // PUT the same object beside the first, against the event's own quota.
+    let completes = 0;
+    const h = harness({
+      async complete(photoId) {
+        completes += 1;
+        if (completes === 1) throw new Error('complete failed: 502');
+        h.completed.push(photoId);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+
+    await queue.run();
+
+    expect(queue.doneCount).toBe(1);
+    expect(h.uploaded, 'one PUT, not two').toHaveLength(1);
+    expect(h.presignCalls, 'one row reserved, not two').toBe(1);
   });
 });
 
@@ -546,6 +709,7 @@ describe('a venue with no signal', () => {
         },
         complete: async () => {},
         save: async () => {},
+        sleep: async () => {},
         ...overrides,
       },
     };
@@ -624,10 +788,11 @@ describe('a venue with no signal', () => {
       },
       complete: async () => {},
       save: async () => {},
+      sleep: async () => {},
     });
     queue.add('ev', [file(1)]);
 
-    for (let i = 0; i < MAX_ATTEMPTS; i++) await queue.run();
+    await queue.run();
 
     expect(queue.failedCount).toBe(1);
     expect(queue.waitingForNetwork).toBe(false);
