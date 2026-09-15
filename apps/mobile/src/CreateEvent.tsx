@@ -36,7 +36,7 @@ import {
 
 import { Image as ExpoImage } from 'expo-image';
 
-import { CENTRED, CoverFramer, coverAspect, type CoverFraming } from './CoverFramer';
+import { CENTRED, CoverFramer, CoverShot, type CoverFraming } from './CoverFramer';
 import { InvitePicker } from './InvitePeople';
 import type { Api, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
@@ -436,15 +436,12 @@ export function CreateEvent({
           accessibilityLabel="Change how the cover is framed"
           style={({ pressed }) => [styles.coverRow, { opacity: pressed ? 0.85 : 1 }]}
         >
-          <ExpoImage
-            source={{ uri: cover.uri }}
-            style={{ width: width - 40, height: (width - 40) / coverAspect(shape) }}
-            contentFit="cover"
-            contentPosition={{ left: `${framing.x}%`, top: `${framing.y}%` }}
-            transition={120}
-            onLoad={(event) =>
-              setShape({ w: event.source.width, h: event.source.height })
-            }
+          <CoverShot
+            uri={cover.uri}
+            natural={shape}
+            framing={framing}
+            width={width - 40}
+            onNatural={setShape}
           />
           <View style={[styles.coverDo, { backgroundColor: t.card }]}>
             <Text style={[styles.coverDoText, { color: t.fg }]}>Reframe</Text>

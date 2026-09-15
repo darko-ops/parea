@@ -28,7 +28,12 @@ const APP = read('App.tsx');
 const API = read('src/api.ts');
 
 /** The handler, without the rest of a 2000-line screen. */
-const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('if (autoWindow)'));
+/*
+ * From `sendCover` rather than from `editCover`: the upload moved out of the
+ * sheet's handler so that a picked photograph could go through the frame first,
+ * and the reload that proves the screen re-reads itself moved with it.
+ */
+const COVER = APP.slice(APP.indexOf('const sendCover'), APP.indexOf('if (autoWindow)'));
 
 /**
  * The row that opens it.
@@ -125,6 +130,20 @@ describe('after the change', () => {
      */
     const refreshes = COVER.match(/await refresh\(\)/g) ?? [];
     expect(refreshes).toHaveLength(2);
+  });
+
+  it('frames a picked photograph before sending it', () => {
+    /*
+     * The frame the create screen offers was missing from the one screen
+     * somebody opens *because* the cover is wrong. Before, not after: there is
+     * no undo on a cover, so an unframed upload is the version everybody else
+     * sees until it is replaced.
+     */
+    expect(APP).toMatch(/setFramingCover\(picked\.assets\[0\]\.uri\)/);
+    expect(APP).toMatch(/<CoverFramer/);
+    expect(APP).toMatch(/void sendCover\(uri, framing\)/);
+    // And nothing is sent if the frame is backed out of.
+    expect(APP).toMatch(/onCancel=\{\(\) => setFramingCover\(null\)\}/);
   });
 
   it('leaves the home screen to `onBack`', () => {

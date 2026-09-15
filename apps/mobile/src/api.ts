@@ -1211,15 +1211,18 @@ export class Api {
    */
   coverTarget(
     eventId: string,
-    framing?: { x: number; y: number } | null,
+    framing?: { x: number; y: number; zoom?: number } | null,
   ): { url: string; headers: Record<string, string> } {
     const headers: Record<string, string> = {
       'content-type': 'image/jpeg',
       'x-parea-client': this.client,
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
+    // Rounded to two places rather than to an integer: zoom is a multiplier and
+    // 1 to 4 is the whole of its range, so whole numbers would be four settings.
     const where = framing
-      ? `?cx=${Math.round(framing.x)}&cy=${Math.round(framing.y)}`
+      ? `?cx=${Math.round(framing.x)}&cy=${Math.round(framing.y)}` +
+        `&cz=${(framing.zoom ?? 1).toFixed(2)}`
       : '';
     return { url: `${this.baseUrl}/api/events/${eventId}/cover${where}`, headers };
   }

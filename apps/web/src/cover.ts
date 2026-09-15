@@ -22,6 +22,11 @@
  * decoded, downsampled, possibly rotated copy of what the server will read off
  * the original.
  *
+ * Zoom rides along as a third number rather than forcing a rectangle after all.
+ * It shrinks the window the percentages place, so the two conventions compose
+ * instead of one replacing the other, and a client that sends no zoom is asking
+ * for exactly what it always asked for.
+ *
  * Kept out of the route because this is the part that can be quietly wrong —
  * off by an axis, or by an orientation — in a way no HTTP status reports.
  */
@@ -65,7 +70,29 @@ export function coverSize(size: { w: number; h: number }): {
   return { width: COVER_WIDTH, height: Math.round(COVER_WIDTH / coverAspect(size)) };
 }
 
-export type CoverFraming = { x: number; y: number };
+export type CoverFraming = {
+  x: number;
+  y: number;
+  /**
+   * How far in, where 1 is the whole frame's worth of picture.
+   *
+   * Position alone could not say "closer": the two percentages place a window
+   * whose *size* was fixed at whatever covered the frame, so a face at the far
+   * end of a room had no way to become the subject. This shrinks the window and
+   * the percentages go on placing it, which is why zooming needs no second
+   * convention — the same numbers mean the same thing, of a smaller rectangle.
+   */
+  zoom: number;
+};
+
+/**
+ * How far in a cover may be framed.
+ *
+ * Past this the stored 1200px is being made out of fewer than 1200 source
+ * pixels for any ordinary phone photograph, and a cover that is softer than the
+ * picture it came from is not a closer look at it.
+ */
+export const COVER_MAX_ZOOM = 4;
 
 /**
  * The framing a request asked for, or null for one that did not.
@@ -92,7 +119,20 @@ export function framingOf(url: URL): CoverFraming | null {
   const y = Number(raw.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   if (x < 0 || x > 100 || y < 0 || y > 100) return null;
-  return { x, y };
+
+  /*
+   * Absent is 1, which is the whole point of it being absent.
+   *
+   * Zoom arrived after position did, and a client that predates it is not
+   * asking for anything wrong — it is asking for exactly the framing it always
+   * asked for. Present and unusable is a different thing and refuses the lot,
+   * for the reason the range check above does.
+   */
+  const rawZoom = url.searchParams.get('cz');
+  if (rawZoom === null || rawZoom.trim() === '') return { x, y, zoom: 1 };
+  const zoom = Number(rawZoom);
+  if (!Number.isFinite(zoom) || zoom < 1 || zoom > COVER_MAX_ZOOM) return null;
+  return { x, y, zoom };
 }
 
 /**
@@ -133,11 +173,19 @@ export function regionFor(
 ): { left: number; top: number; width: number; height: number } | null {
   const target = coverSize(size);
   const scale = Math.max(target.width / size.w, target.height / size.h);
+  const zoom = Math.min(COVER_MAX_ZOOM, Math.max(1, framing.zoom));
 
-  // What the output covers, measured back in the original's own pixels, and
-  // never more of either axis than the original has.
-  const width = Math.min(size.w, Math.round(target.width / scale));
-  const height = Math.min(size.h, Math.round(target.height / scale));
+  /*
+   * What the output covers, measured back in the original's own pixels, and
+   * never more of either axis than the original has.
+   *
+   * Divided by the zoom, which is the whole of zooming: a smaller window on the
+   * same picture, scaled up to the same stored size. The shape does not change
+   * with it — `coverSize` already decided that from the photograph — so a
+   * closer crop is still the card's own rectangle.
+   */
+  const width = Math.min(size.w, Math.round(target.width / scale / zoom));
+  const height = Math.min(size.h, Math.round(target.height / scale / zoom));
 
   const slack = { x: size.w - width, y: size.h - height };
   if (slack.x <= 0 && slack.y <= 0) return null;

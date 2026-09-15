@@ -48,10 +48,25 @@ import {
 import type { GroupTheme } from './Groups';
 import type { LibraryPhoto } from './library';
 
-/** Where the window sits over the picture, as `object-position` percentages. */
-export type CoverFraming = { x: number; y: number };
+/**
+ * Where the window sits over the picture, and how much of it the window holds.
+ *
+ * `x` and `y` are the `object-position` percentages; `zoom` shrinks the window
+ * they place, so the two compose rather than one replacing the other. See
+ * `apps/web/src/cover.ts`, which cuts the stored cover from the same numbers.
+ */
+export type CoverFraming = { x: number; y: number; zoom: number };
 
-export const CENTRED: CoverFraming = { x: 50, y: 50 };
+export const CENTRED: CoverFraming = { x: 50, y: 50, zoom: 1 };
+
+/**
+ * How far in somebody may frame.
+ *
+ * Past this the stored 1200px is being made from fewer than 1200 source pixels
+ * of an ordinary phone photograph, and a cover softer than the picture it came
+ * from is not a closer look at it. The server clamps to the same number.
+ */
+export const MAX_ZOOM = 4;
 
 /**
  * The shapes a cover may be, as width over height.
@@ -69,6 +84,80 @@ export const COVER_TALLEST = 4 / 5;
 export function coverAspect(natural: { w: number; h: number } | null): number {
   if (!natural || natural.h <= 0) return COVER_WIDEST;
   return Math.min(COVER_WIDEST, Math.max(COVER_TALLEST, natural.w / natural.h));
+}
+
+/**
+ * Where the picture sits, and how big it is drawn, for a given framing.
+ *
+ * One formula, two renderers: this screen draws the overhang dimmed around the
+ * frame, and the form draws the same placement clipped to it. Written twice they
+ * would agree until somebody changed one, and the symptom would be a preview
+ * that is not the cover — which is the exact failure this whole mechanism
+ * exists to prevent.
+ */
+export function placement(
+  natural: { w: number; h: number },
+  box: { w: number; h: number },
+  framing: CoverFraming,
+): { w: number; h: number; slackX: number; slackY: number; left: number; top: number } {
+  const scale = Math.max(box.w / natural.w, box.h / natural.h) * framing.zoom;
+  const w = natural.w * scale;
+  const h = natural.h * scale;
+  const slackX = Math.max(0, w - box.w);
+  const slackY = Math.max(0, h - box.h);
+  return {
+    w,
+    h,
+    slackX,
+    slackY,
+    left: -slackX * (framing.x / 100),
+    top: -slackY * (framing.y / 100),
+  };
+}
+
+/**
+ * The cover as the card will draw it: clipped to the frame, nothing outside.
+ *
+ * What the form shows above the caption. Not `contentFit` and
+ * `contentPosition`, which was enough while position was the only thing being
+ * chosen and cannot express a zoom — the window's *size* moves now, and only
+ * `placement` knows it.
+ */
+export function CoverShot({
+  uri,
+  natural,
+  framing,
+  width,
+  onNatural,
+}: {
+  uri: string;
+  /** Null until the picture has decoded, which is what `onNatural` reports. */
+  natural: { w: number; h: number } | null;
+  framing: CoverFraming;
+  width: number;
+  onNatural?: (size: { w: number; h: number }) => void;
+}) {
+  const box = { w: width, h: width / coverAspect(natural) };
+  const shot = natural ? placement(natural, box, framing) : null;
+
+  return (
+    <View style={{ width: box.w, height: box.h, overflow: 'hidden' }}>
+      <Image
+        source={{ uri }}
+        style={
+          shot
+            ? { position: 'absolute', left: shot.left, top: shot.top, width: shot.w, height: shot.h }
+            : { width: box.w, height: box.h }
+        }
+        // Only until it has been measured; `shot` sizes it exactly after that.
+        contentFit="cover"
+        transition={120}
+        onLoad={(event: ImageLoadEventData) =>
+          onNatural?.({ w: event.source.width, h: event.source.height })
+        }
+      />
+    </View>
+  );
 }
 
 export function CoverFramer({
@@ -119,6 +208,8 @@ export function CoverFramer({
     (photo: LibraryPhoto) => {
       if (photo.id === chosen) return;
       setChosen(photo.id);
+      // Zoom goes back with the position: it was how close somebody stood to a
+      // different picture.
       setFraming(photo.id === coverId ? initial : CENTRED);
       // Another picture, another shape — and the frame is sized off this.
       setNatural(null);
@@ -144,14 +235,19 @@ export function CoverFramer({
   );
 
 
-  /** The picture at the size that covers the frame, and what hangs over it. */
-  const shot = useMemo(() => {
-    if (!natural) return null;
-    const scale = Math.max(frame.w / natural.w, frame.h / natural.h);
-    const w = natural.w * scale;
-    const h = natural.h * scale;
-    return { w, h, slackX: Math.max(0, w - frame.w), slackY: Math.max(0, h - frame.h) };
-  }, [natural, frame.w, frame.h]);
+  /**
+   * The picture at the size it is drawn, and what hangs over the frame.
+   *
+   * `zoom` multiplies the scale that merely covers the frame, so 1 is "as
+   * little as will do" and everything above it is overhang to drag through.
+   * That is also why zoom makes framing meaningful for a photograph already
+   * inside the bounds: at 1 there is nothing to move, and at 2 there is half
+   * the picture.
+   */
+  const shot = useMemo(
+    () => (natural ? placement(natural, frame, framing) : null),
+    [natural, frame, framing],
+  );
 
   /*
    * Built once and read through refs. `PanResponder.create` on every render
@@ -162,7 +258,11 @@ export function CoverFramer({
   shotRef.current = shot;
   const framingRef = useRef(framing);
   framingRef.current = framing;
-  const start = useRef(initial);
+  /** The framing, and the gesture offset, as they were when the hand last settled. */
+  const start = useRef({ framing: initial, dx: 0, dy: 0 });
+  /** The finger spread a pinch began at, or null while one finger is down. */
+  const pinch = useRef<{ span: number; zoom: number } | null>(null);
+  const fingers = useRef(0);
 
   const pan = useMemo(
     () =>
@@ -170,11 +270,49 @@ export function CoverFramer({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
-          start.current = framingRef.current;
+          start.current = { framing: framingRef.current, dx: 0, dy: 0 };
+          pinch.current = null;
+          fingers.current = 0;
         },
-        onPanResponderMove: (_event, gesture) => {
+        onPanResponderMove: (event, gesture) => {
           const current = shotRef.current;
           if (!current) return;
+          const touches = event.nativeEvent.touches;
+
+          /*
+           * Re-based whenever the hand changes shape.
+           *
+           * `gesture.dx` counts from the first finger down, and a second finger
+           * landing or leaving does not reset it — so without this, lifting one
+           * finger after a pinch makes the picture leap by however far the
+           * gesture had travelled. Everything is measured from the last moment
+           * the touch count was stable instead.
+           */
+          if (touches.length !== fingers.current) {
+            fingers.current = touches.length;
+            start.current = {
+              framing: framingRef.current,
+              dx: gesture.dx,
+              dy: gesture.dy,
+            };
+            pinch.current = null;
+          }
+
+          if (touches.length >= 2) {
+            const span = spanOf(touches[0]!, touches[1]!);
+            // The first move with two fingers down only records where they
+            // started; zooming from a span of nothing is a jump to the cap.
+            if (!pinch.current || pinch.current.span <= 0) {
+              pinch.current = { span, zoom: start.current.framing.zoom };
+              return;
+            }
+            setFraming((was) => ({
+              ...was,
+              zoom: clampZoom((pinch.current!.zoom * span) / pinch.current!.span),
+            }));
+            return;
+          }
+
           /*
            * A finger moving right shows more of the picture's left, so the
            * percentage goes down — the frame travels the opposite way to the
@@ -182,18 +320,22 @@ export function CoverFramer({
            * rather than dragging a box across it.
            *
            * An axis with no overhang stays centred rather than dividing by
-           * zero: a 3:2 photograph has nothing to reveal sideways.
+           * zero: a photograph inside the bounds, at zoom 1, has nothing to
+           * reveal either way.
            */
-          setFraming({
+          const dx = gesture.dx - start.current.dx;
+          const dy = gesture.dy - start.current.dy;
+          setFraming((was) => ({
+            ...was,
             x:
               current.slackX > 0
-                ? clamp(start.current.x - (gesture.dx / current.slackX) * 100)
+                ? clamp(start.current.framing.x - (dx / current.slackX) * 100)
                 : 50,
             y:
               current.slackY > 0
-                ? clamp(start.current.y - (gesture.dy / current.slackY) * 100)
+                ? clamp(start.current.framing.y - (dy / current.slackY) * 100)
                 : 50,
-          });
+          }));
         },
       }),
     [],
@@ -206,8 +348,8 @@ export function CoverFramer({
   // Where the frame sits in the stage, and the picture relative to it.
   const frameLeft = (stage.w - frame.w) / 2;
   const frameTop = (stage.h - frame.h) / 2;
-  const left = shot ? frameLeft - shot.slackX * (framing.x / 100) : frameLeft;
-  const top = shot ? frameTop - shot.slackY * (framing.y / 100) : frameTop;
+  const left = frameLeft + (shot?.left ?? 0);
+  const top = frameTop + (shot?.top ?? 0);
 
   const movable = Boolean(shot && (shot.slackX > 0 || shot.slackY > 0));
 
@@ -272,8 +414,8 @@ export function CoverFramer({
 
         <Text style={styles.hint}>
           {movable
-            ? 'Drag the photo to choose what shows on the card.'
-            : 'This one fits the card exactly — nothing to move.'}
+            ? 'Drag to move it, pinch to zoom in.'
+            : 'This one fits the card exactly. Pinch to zoom in.'}
         </Text>
 
         {/*
@@ -330,6 +472,18 @@ export function CoverFramer({
 
 function clamp(value: number): number {
   return Math.min(100, Math.max(0, value));
+}
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(1, value));
+}
+
+/** How far apart two fingers are. */
+function spanOf(
+  a: { pageX: number; pageY: number },
+  b: { pageX: number; pageY: number },
+): number {
+  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
 const styles = StyleSheet.create({

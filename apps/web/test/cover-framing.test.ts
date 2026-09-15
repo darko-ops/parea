@@ -20,6 +20,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type CoverFraming,
   COVER_TALLEST,
   COVER_WIDEST,
   COVER_WIDTH,
@@ -34,9 +35,19 @@ const url = (query: string) => new URL(`https://parea.test/api/events/e/cover${q
 
 describe('what the caller asked for', () => {
   it('reads a framing off the query', () => {
-    expect(framingOf(url('?cx=25&cy=80'))).toEqual({ x: 25, y: 80 });
-    expect(framingOf(url('?cx=0&cy=0'))).toEqual({ x: 0, y: 0 });
-    expect(framingOf(url('?cx=100&cy=100'))).toEqual({ x: 100, y: 100 });
+    // Zoom defaults to 1 when it is not asked for, which is what every client
+    // that predates it is asking for.
+    expect(framingOf(url('?cx=25&cy=80'))).toEqual({ x: 25, y: 80, zoom: 1 });
+    expect(framingOf(url('?cx=0&cy=0'))).toEqual({ x: 0, y: 0, zoom: 1 });
+    expect(framingOf(url('?cx=100&cy=100&cz=2.5'))).toEqual({ x: 100, y: 100, zoom: 2.5 });
+  });
+
+  it('refuses a zoom it cannot use, having been sent one', () => {
+    // Absent is a client that never knew about zoom. Present and unusable is a
+    // bug, and answering it with a plausible crop is how the bug survives.
+    for (const bad of ['?cx=50&cy=50&cz=0', '?cx=50&cy=50&cz=99', '?cx=50&cy=50&cz=x']) {
+      expect(framingOf(url(bad)), bad).toBeNull();
+    }
   });
 
   it('is null for a caller that cannot frame', () => {
@@ -114,9 +125,11 @@ describe('the shape a cover comes out', () => {
 describe('the region', () => {
   /** Taller than 4:5, so it is cut down to it — the common phone case. */
   const portrait = { w: 3000, h: 4000 };
+  /** Position only. Zoom has a describe of its own below. */
+  const at = (x: number, y: number) => ({ x, y, zoom: 1 });
 
   it('cuts the shape the output is', () => {
-    const region = regionFor(portrait, { x: 50, y: 50 })!;
+    const region = regionFor(portrait, at(50, 50))!;
     // 4:5 of a 3000-wide picture is 3750 tall, and there are 4000 to take it
     // from — far less thrown away than the 2000 a 3:2 cover used to keep.
     expect(region.width).toBe(3000);
@@ -126,11 +139,11 @@ describe('the region', () => {
   it('puts the window where the percentage says', () => {
     // The percentage is of the overhang, not of the picture: 0 is flush to the
     // top, 100 flush to the bottom, and half of a 250px slack is 125.
-    expect(regionFor(portrait, { x: 50, y: 0 })!.top).toBe(0);
-    expect(regionFor(portrait, { x: 50, y: 50 })!.top).toBe(125);
-    expect(regionFor(portrait, { x: 50, y: 100 })!.top).toBe(250);
+    expect(regionFor(portrait, at(50, 0))!.top).toBe(0);
+    expect(regionFor(portrait, at(50, 50))!.top).toBe(125);
+    expect(regionFor(portrait, at(50, 100))!.top).toBe(250);
     // And never past the bottom edge.
-    const bottom = regionFor(portrait, { x: 50, y: 100 })!;
+    const bottom = regionFor(portrait, at(50, 100))!;
     expect(bottom.top + bottom.height).toBe(portrait.h);
   });
 
@@ -138,14 +151,14 @@ describe('the region', () => {
     // A tall photograph has nothing to give sideways. Dragging across it must
     // not creep, which is what applying the percentage to the full width would.
     for (const x of [0, 50, 100]) {
-      expect(regionFor(portrait, { x, y: 50 })!.left).toBe(0);
+      expect(regionFor(portrait, at(x, 50))!.left).toBe(0);
     }
 
     // 3:1 is wider than a card may be, so it is cut across and not down.
     const wide = { w: 6000, h: 2000 };
-    expect(regionFor(wide, { x: 0, y: 50 })!.left).toBe(0);
-    expect(regionFor(wide, { x: 100, y: 50 })!.left).toBe(3000);
-    expect(regionFor(wide, { x: 50, y: 50 })!.top).toBe(0);
+    expect(regionFor(wide, at(0, 50))!.left).toBe(0);
+    expect(regionFor(wide, at(100, 50))!.left).toBe(3000);
+    expect(regionFor(wide, at(50, 50))!.top).toBe(0);
   });
 
   it('is null when there is nothing to cut', () => {
@@ -154,11 +167,11 @@ describe('the region', () => {
      * photographs now and was almost none of them before. An `extract` of the
      * entire image is a round trip that can only introduce a rounding error.
      */
-    expect(regionFor({ w: 1500, h: 1000 }, { x: 50, y: 50 })).toBeNull();
-    expect(regionFor({ w: 300, h: 200 }, { x: 0, y: 0 })).toBeNull();
+    expect(regionFor({ w: 1500, h: 1000 }, at(50, 50))).toBeNull();
+    expect(regionFor({ w: 300, h: 200 }, at(0, 0))).toBeNull();
     // 4:3 — a perfectly ordinary phone photograph, uncut either way now.
-    expect(regionFor({ w: 4000, h: 3000 }, { x: 0, y: 0 })).toBeNull();
-    expect(regionFor({ w: 3000, h: 3000 }, { x: 100, y: 100 })).toBeNull();
+    expect(regionFor({ w: 4000, h: 3000 }, at(0, 0))).toBeNull();
+    expect(regionFor({ w: 3000, h: 3000 }, at(100, 100))).toBeNull();
   });
 });
 
@@ -190,7 +203,7 @@ describe('against real pixels', () => {
   }
 
   /** What the route does, in the order the route does it. */
-  async function cut(input: Buffer, framing: { x: number; y: number } | null) {
+  async function cut(input: Buffer, framing: CoverFraming | null) {
     const size = orientedSize(await sharp(input).metadata())!;
     const target = coverSize(size);
     let pipeline = sharp(input, { failOn: 'error' }).rotate();
@@ -230,21 +243,59 @@ describe('against real pixels', () => {
     return r > g && r > b ? 'red' : g > b ? 'green' : 'blue';
   }
 
+  const at = (x: number, y: number, zoom = 1) => ({ x, y, zoom });
+
+  /** The dominant channel a few rows down from the top of the output. */
+  async function topEdge(jpeg: Buffer): Promise<'red' | 'green' | 'blue'> {
+    const meta = await sharp(jpeg).metadata();
+    const strip = await sharp(jpeg)
+      .extract({ left: Math.round(meta.width! / 2) - 8, top: 4, width: 16, height: 16 })
+      .jpeg()
+      .toBuffer();
+    return middle(strip);
+  }
+
   it('shows the top of the picture at 0 and the bottom at 100', async () => {
     const photo = await banded();
-    expect(await middle(await cut(photo, { x: 50, y: 0 }))).toBe('red');
-    expect(await middle(await cut(photo, { x: 50, y: 50 }))).toBe('green');
-    expect(await middle(await cut(photo, { x: 50, y: 100 }))).toBe('blue');
+    expect(await middle(await cut(photo, at(50, 0)))).toBe('red');
+    expect(await middle(await cut(photo, at(50, 50)))).toBe('green');
+    expect(await middle(await cut(photo, at(50, 100)))).toBe('blue');
   }, 30_000);
 
   it('comes out the shape the picture earned, however it was framed', async () => {
     // 900 × 2700 is far taller than 4:5, so it is cut to 4:5 — 1200 × 1500 —
-    // rather than to the 1200 × 800 letterbox every cover used to be.
+    // rather than to the 1200 × 800 letterbox every cover used to be. Zooming
+    // takes a smaller window of the same picture and does not change that: the
+    // shape is the photograph's, and the zoom is how close you stand to it.
     const photo = await banded();
-    for (const framing of [null, { x: 0, y: 0 }, { x: 100, y: 100 }]) {
+    for (const framing of [null, at(0, 0), at(100, 100), at(50, 50, 3)]) {
       const meta = await sharp(await cut(photo, framing)).metadata();
       expect([meta.width, meta.height], JSON.stringify(framing)).toEqual([1200, 1500]);
     }
+  }, 30_000);
+
+  it('takes a smaller window of the same picture as it zooms', async () => {
+    /*
+     * The arithmetic could be wrong in a way that still produces a valid JPEG
+     * of the right size — dividing the wrong term, or the position twice — so
+     * this measures what actually comes out: at 1× the middle band fills the
+     * frame and its neighbours crowd the edges; at 3× there is nothing but the
+     * middle band, edge to edge.
+     */
+    const photo = await banded();
+
+    const plain = await cut(photo, at(50, 50));
+    const close = await cut(photo, at(50, 50, 3));
+
+    // Both still centred on green, or the zoom has moved the window as well as
+    // resized it.
+    expect(await middle(plain)).toBe('green');
+    expect(await middle(close)).toBe('green');
+
+    // The corner is the test. Zoomed out, the top of the frame is red; zoomed
+    // in, it is green all the way up.
+    expect(await topEdge(plain)).toBe('red');
+    expect(await topEdge(close)).toBe('green');
   }, 30_000);
 
   it('follows the picture a viewer sees, not the one on disk', async () => {
@@ -261,7 +312,7 @@ describe('against real pixels', () => {
       .toBuffer();
     expect((await sharp(sideways).metadata()).orientation).toBe(6);
 
-    expect(await middle(await cut(sideways, { x: 50, y: 0 }))).toBe('red');
-    expect(await middle(await cut(sideways, { x: 50, y: 100 }))).toBe('blue');
+    expect(await middle(await cut(sideways, at(50, 0)))).toBe('red');
+    expect(await middle(await cut(sideways, at(50, 100)))).toBe('blue');
   }, 30_000);
 });

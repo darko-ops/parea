@@ -115,6 +115,74 @@ describe('trying another photograph in the frame', () => {
   });
 });
 
+describe('zoom', () => {
+  it('shrinks the window the percentages place', () => {
+    /*
+     * Position alone could not say "closer": the two percentages placed a
+     * window whose size was whatever covered the frame, so a face at the far
+     * end of a room had no way to become the subject. Multiplying the scale is
+     * the whole mechanism, which is why zooming needed no second convention.
+     */
+    expect(FRAMER).toMatch(/Math\.max\(box\.w \/ natural\.w, box\.h \/ natural\.h\) \* framing\.zoom/);
+    expect(COVER).toMatch(/Math\.round\(target\.width \/ scale \/ zoom\)/);
+    expect(COVER).toMatch(/Math\.round\(target\.height \/ scale \/ zoom\)/);
+  });
+
+  it('is bounded the same on both sides', () => {
+    // Past this the stored 1200px is made from fewer than 1200 source pixels,
+    // and a cover softer than its photograph is not a closer look at it.
+    expect(FRAMER).toMatch(/export const MAX_ZOOM = 4;/);
+    expect(COVER).toMatch(/export const COVER_MAX_ZOOM = 4;/);
+    expect(COVER).toMatch(/Math\.min\(COVER_MAX_ZOOM, Math\.max\(1, framing\.zoom\)\)/);
+  });
+
+  it('treats an absent zoom as 1 rather than as a mistake', () => {
+    // A client that predates zoom is asking for exactly the framing it always
+    // asked for. Present and unusable is a different thing and refuses the lot.
+    expect(COVER).toMatch(/if \(rawZoom === null \|\| rawZoom\.trim\(\) === ''\) return \{ x, y, zoom: 1 \};/);
+  });
+
+  it('re-bases the drag when the hand changes shape', () => {
+    /*
+     * `gesture.dx` counts from the first finger down and does not reset when a
+     * second lands or leaves, so lifting one finger after a pinch made the
+     * picture leap by however far the gesture had travelled.
+     */
+    expect(FRAMER).toMatch(/if \(touches\.length !== fingers\.current\)/);
+    expect(FRAMER).toMatch(/dx: gesture\.dx,/);
+    expect(FRAMER).toMatch(/const dx = gesture\.dx - start\.current\.dx;/);
+  });
+
+  it('does not jump to the cap on the first pinch frame', () => {
+    // The first move with two fingers down only records where they started;
+    // dividing by a span of nothing is a zoom straight to the limit.
+    expect(FRAMER).toMatch(/if \(!pinch\.current \|\| pinch\.current\.span <= 0\)/);
+  });
+});
+
+describe('the preview and the frame agree', () => {
+  it('draw the same placement from one formula', () => {
+    /*
+     * The form clips it to the frame; the crop screen draws the overhang dimmed
+     * around it. Written twice they would agree until somebody changed one, and
+     * the symptom is a preview that is not the cover — which is the exact
+     * failure this mechanism exists to prevent.
+     */
+    expect(FRAMER).toMatch(/export function placement\(/);
+    const framer = FRAMER.slice(FRAMER.indexOf('export function CoverFramer'));
+    expect(framer).toMatch(/placement\(natural, frame, framing\)/);
+    expect(FRAMER).toMatch(/natural \? placement\(natural, box, framing\) : null/);
+  });
+
+  it('is what the form draws, rather than a contentPosition of its own', () => {
+    // `contentFit` and `contentPosition` were enough while position was the only
+    // thing chosen, and cannot express a zoom: the window's size moves now.
+    const FORM = read('src/CreateEvent.tsx');
+    expect(FORM).toMatch(/<CoverShot/);
+    expect(FORM).not.toMatch(/contentPosition/);
+  });
+});
+
 describe('the frame somebody confirms', () => {
   it('is the shape the cover will be, not a fixed letterbox', () => {
     // Otherwise the frame is a promise the stored cover does not keep.
