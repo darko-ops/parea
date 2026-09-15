@@ -38,6 +38,7 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -45,6 +46,7 @@ import {
 } from 'react-native';
 
 import type { GroupTheme } from './Groups';
+import type { LibraryPhoto } from './library';
 
 /** Where the window sits over the picture, as `object-position` percentages. */
 export type CoverFraming = { x: number; y: number };
@@ -70,24 +72,59 @@ export function coverAspect(natural: { w: number; h: number } | null): number {
 }
 
 export function CoverFramer({
-  uri,
+  photos,
+  coverId,
   initial = CENTRED,
   t,
   onCancel,
   onConfirm,
 }: {
-  /** The photograph leading the album. */
-  uri: string;
+  /**
+   * Everything going into the album, so another one can be tried.
+   *
+   * Which photograph leads is a question you cannot answer without seeing it
+   * in the frame — a picture that is the obvious choice in a grid of
+   * thumbnails is often the wrong one once it is a card, and finding that out
+   * used to mean backing out of here, tapping a different tile, and coming in
+   * again to look.
+   */
+  photos: LibraryPhoto[];
+  /** Which of them leads at the moment. */
+  coverId: string;
   /** Where it sat last time, for somebody coming back to change their mind. */
   initial?: CoverFraming;
   t: GroupTheme;
   onCancel: () => void;
-  onConfirm: (framing: CoverFraming) => void;
+  /**
+   * Both answers at once, and only on `Use`.
+   *
+   * Trying a photograph in the frame is not choosing it: Cancel has to put back
+   * the cover *and* the framing this opened with, which it cannot do if trying
+   * one had already changed the album.
+   */
+  onConfirm: (coverId: string, framing: CoverFraming) => void;
 }) {
   const { width, height } = useWindowDimensions();
 
+  const [chosen, setChosen] = useState(coverId);
+  // The framing that arrived describes the photograph that arrived. Trying
+  // another starts it centred, which is the only honest default for a picture
+  // nobody has framed.
   const [framing, setFraming] = useState<CoverFraming>(initial);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+
+  const cover = photos.find((photo) => photo.id === chosen) ?? photos[0] ?? null;
+
+  const tryPhoto = useCallback(
+    (photo: LibraryPhoto) => {
+      if (photo.id === chosen) return;
+      setChosen(photo.id);
+      setFraming(photo.id === coverId ? initial : CENTRED);
+      // Another picture, another shape — and the frame is sized off this.
+      setNatural(null);
+    },
+    [chosen, coverId, initial],
+  );
 
   /*
    * The frame is the card, and the stage is bigger than the frame.
@@ -183,7 +220,8 @@ export function CoverFramer({
           </Pressable>
           <Text style={styles.barTitle}>Cover</Text>
           <Pressable
-            onPress={() => onConfirm(framing)}
+            onPress={() => cover && onConfirm(cover.id, framing)}
+            disabled={!cover}
             hitSlop={12}
             accessibilityRole="button"
           >
@@ -198,7 +236,7 @@ export function CoverFramer({
             deciding that has to be able to see it.
           */}
           <Image
-            source={{ uri }}
+            source={{ uri: cover?.uri ?? '' }}
             style={{
               position: 'absolute',
               left,
@@ -237,6 +275,54 @@ export function CoverFramer({
             ? 'Drag the photo to choose what shows on the card.'
             : 'This one fits the card exactly — nothing to move.'}
         </Text>
+
+        {/*
+          The album, so a different photograph can be tried in the frame.
+
+          No ⊗ here, unlike the same row on the form. This screen is about which
+          picture leads and how it sits; throwing one out of the album is a
+          different decision, and offering it on a black screen next to a
+          control that only changes what is *shown* would put two very different
+          outcomes a thumb's width apart.
+        */}
+        {photos.length > 1 && (
+          <View style={styles.strip}>
+            <Text style={styles.stripLabel}>IN THIS ALBUM</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.stripRow}
+            >
+              {photos.map((photo) => {
+                const leading = photo.id === chosen;
+                return (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => tryPhoto(photo)}
+                    accessibilityRole="button"
+                    accessibilityLabel={leading ? 'Cover photo' : 'Try this as the cover'}
+                    accessibilityState={{ selected: leading }}
+                    style={[
+                      styles.thumb,
+                      {
+                        borderColor: leading ? t.accent : 'transparent',
+                        borderWidth: leading ? 2 : 0,
+                        opacity: leading ? 1 : 0.65,
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: photo.uri }}
+                      style={styles.thumbShot}
+                      contentFit="cover"
+                      transition={100}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -276,4 +362,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 24,
   },
+  /* At the foot rather than under the hint, so the frame stays centred in the
+     screen however many photographs the album has. */
+  strip: { position: 'absolute', left: 0, right: 0, bottom: 40, gap: 10 },
+  stripLabel: {
+    color: '#ffffff8c',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    paddingHorizontal: 20,
+  },
+  stripRow: { paddingHorizontal: 20, paddingRight: 28, gap: 10 },
+  thumb: { width: 58, height: 58, borderRadius: 8, overflow: 'hidden' },
+  thumbShot: { width: '100%', height: '100%' },
 });

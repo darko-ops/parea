@@ -76,6 +76,45 @@ describe('what the card draws', () => {
   });
 });
 
+describe('trying another photograph in the frame', () => {
+  it('offers the album on the crop screen too', () => {
+    /*
+     * Which picture leads is a question you cannot answer from a grid of
+     * thumbnails: the obvious choice there is often the wrong one once it is a
+     * card, and finding that out used to mean backing out, tapping a different
+     * tile, and coming in again to look.
+     */
+    expect(FRAMER).toMatch(/IN THIS ALBUM/);
+    expect(FRAMER).toMatch(/onPress=\{\(\) => tryPhoto\(photo\)\}/);
+    expect(FRAMER).toMatch(/photos\.length > 1 &&/);
+  });
+
+  it('changes nothing until Use', () => {
+    // Trying one is not choosing it, so Cancel has to put back both the cover
+    // and the framing this opened with — which it cannot do if trying one had
+    // already changed the album.
+    expect(FRAMER).toMatch(/onConfirm: \(coverId: string, framing: CoverFraming\) => void;/);
+    expect(FRAMER).toMatch(/onConfirm\(cover\.id, framing\)/);
+  });
+
+  it('starts an untried photograph centred', () => {
+    // The framing that arrived describes the photograph that arrived. Carrying
+    // it to another is a crop somebody chose for a different picture.
+    expect(FRAMER).toMatch(/setFraming\(photo\.id === coverId \? initial : CENTRED\)/);
+  });
+
+  it('does not offer to throw one out from here', () => {
+    /*
+     * The ⊗ stays on the form. This screen is about which picture leads and how
+     * it sits; removing one from the album is a different outcome, and putting
+     * the two a thumb's width apart on a black screen is how somebody loses a
+     * photograph while choosing a cover.
+     */
+    const strip = FRAMER.slice(FRAMER.indexOf('IN THIS ALBUM'));
+    expect(strip).not.toMatch(/removeMark|Remove photo/);
+  });
+});
+
 describe('the frame somebody confirms', () => {
   it('is the shape the cover will be, not a fixed letterbox', () => {
     // Otherwise the frame is a promise the stored cover does not keep.

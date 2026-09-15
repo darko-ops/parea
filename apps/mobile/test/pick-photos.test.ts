@@ -139,14 +139,28 @@ describe('the form, once the photographs have been chosen', () => {
     expect(form).toMatch(/asked\.current = true;\s*setFramerOpen\(true\);/);
   });
 
-  it('frames the photograph already chosen, not one picked again', () => {
+  it('frames the photographs already chosen, not ones picked again', () => {
     /*
      * `allowsEditing` is the obvious answer and cannot be used: iOS offers that
      * crop UI only as part of picking, so reaching for it means the whole camera
      * roll in front of somebody who chose these pictures ten seconds ago.
+     *
+     * The album goes in with it, so a different one can be tried in the frame —
+     * which is the only place the question "does this work as a card" can
+     * actually be answered.
      */
     expect(form).toMatch(/<CoverFramer/);
-    expect(form).toMatch(/uri=\{cover\.uri\}/);
+    expect(form).toMatch(/photos=\{photos\}/);
+    expect(form).toMatch(/coverId=\{cover\.id\}/);
+  });
+
+  it('treats a photograph kept from the frame as a promotion', () => {
+    // One path to "which one leads", so the cover cannot become a second fact
+    // that disagrees with the order of the list.
+    expect(form).toMatch(/if \(picked\) promote\(picked\);/);
+    // And the framing lands after it, because `promote` centres what it is
+    // handed.
+    expect(form).toMatch(/if \(picked\) promote\(picked\);\s*setFraming\(next\);/);
   });
 
   it('takes a cancelled frame for an answer', () => {

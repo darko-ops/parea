@@ -454,11 +454,29 @@ export function CreateEvent({
 
       {framerOpen && cover && (
         <CoverFramer
-          uri={cover.uri}
+          photos={photos}
+          coverId={cover.id}
           initial={framing}
           t={t}
           onCancel={() => setFramerOpen(false)}
-          onConfirm={(next) => {
+          onConfirm={(id, next) => {
+            /*
+             * A photograph tried in the frame and kept is a promotion, so it
+             * goes through the same path the row below uses — which is what
+             * keeps "the first one leads" true rather than making the cover a
+             * second, separate fact that could disagree with the order.
+             *
+             * `promote` centres the framing, because it is about to be given a
+             * picture it has no framing for. So the framing is set after it,
+             * and this order is the whole of why it works.
+             *
+             * Skipped when the cover did not change, which is the common case:
+             * it would reorder an array to the same order and re-measure a
+             * shape that has not moved, for one visible flicker of the
+             * preview.
+             */
+            const picked = id === cover.id ? null : photos.find((photo) => photo.id === id);
+            if (picked) promote(picked);
             setFraming(next);
             setFramerOpen(false);
           }}
