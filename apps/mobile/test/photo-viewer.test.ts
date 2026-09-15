@@ -426,10 +426,80 @@ describe('the photo options', () => {
     expect(APP).toMatch(/Tag 'em/);
   });
 
-  it('offers reporting, when it is not', () => {
-    expect(APP).toMatch(/label="Report photo"/);
+  /*
+   * The four things Guideline 1.2 asks of an app carrying other people's
+   * uploads: a filtering method, a way to report, a way to block, and
+   * published contact details. Two of them are not code and the other two are
+   * these rows.
+   *
+   * This used to assert `label="Report photo"` and nothing else, and it passed
+   * for as long as reporting was the only one of the three that was wired.
+   * `api.block` and `api.removalRequest` existed in the client the whole time
+   * and no screen called either — which is exactly the shape of bug a test
+   * naming one label cannot see. So it names the calls now: a row somebody can
+   * press is the claim, and the call underneath it is the evidence.
+   */
+  it('offers taking it down, reporting and blocking, when it is not', () => {
     const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
     expect(sheet).toMatch(/photo\.mine \? \(/);
+    expect(sheet).toMatch(/api\.removalRequest\(photo\.id\)/);
+    expect(sheet).toMatch(/api\.report\(photo\.id\)/);
+    expect(sheet).toMatch(/api\.block\(photo\.id\)/);
+  });
+
+  it('asks twice before blocking, and says what it costs', () => {
+    // Destructive and silent, so it gets the platform's own confirmation
+    // rather than a label that changes under the finger. The second press
+    // says `Block`, not `OK`.
+    const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
+    expect(sheet).toMatch(/const confirmBlock = \(\) =>\s*Alert\.alert\(/);
+    expect(sheet).toMatch(/style: 'destructive'/);
+    expect(sheet).toMatch(/They are not told/);
+  });
+
+  it('does not offer an undo it does not have', () => {
+    /*
+     * `DELETE /api/blocks` exists and nothing on either client calls it, and
+     * it is keyed by a photograph of the person being unblocked — which the
+     * block has just hidden. Until a block list exists somewhere, the
+     * confirmation must not tell somebody the door opens again.
+     */
+    // `code` first: the reason there is no undo is written in a comment two
+    // lines above the confirmation, and a test that reads comments would pass
+    // on the explanation while the screen made the promise.
+    const sheet = code(
+      APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---')),
+    );
+    expect(sheet).not.toMatch(/undo it in Settings|You can undo/i);
+  });
+
+  it('tells one story about a takedown on both clients', () => {
+    /*
+     * These sentences are a promise — the 48 hours is a deadline the auto-hide
+     * job actually keeps — and they are the only account somebody gets of what
+     * became of a report they made. Two clients describing one outcome
+     * differently is worse than either description on its own.
+     *
+     * There is no package both clients already depend on where three strings
+     * could live (`@parea/core` carries a database driver, which is not going
+     * into a React Native bundle for this), so they are duplicated. This is
+     * what holds the copies together: it reads the web's own `DONE` and
+     * asserts the app says the same words. Change one and this fails, which is
+     * the point — rewording is allowed, rewording one of them is not.
+     */
+    const web = readFileSync(
+      fileURLToPath(new URL('../../web/app/components/PhotoView.tsx', import.meta.url).href),
+      'utf8',
+    );
+    const sentences = [
+      'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
+      'Reported. Someone will look at it.',
+      'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+    ];
+    for (const said of sentences) {
+      expect(web).toContain(said);
+      expect(APP).toContain(said);
+    }
   });
 
   it('tags from the album’s own people, not from everybody', () => {
