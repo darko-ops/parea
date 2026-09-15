@@ -10,12 +10,15 @@
  * Everything here is on a 24-unit grid at stroke width 2 with round caps and
  * joins, which is the convention `RailIcon` set and the only thing that makes
  * six drawings by different hands read as one family. The two strokes inside
- * the photo stack are 1.6: they are a picture inside a frame, and at the same
- * weight as the frame the tile reads as a scribble at 20 points.
+ * the photo stack are four-fifths of that: they are a picture inside a frame,
+ * and at the same weight as the frame the tile reads as a scribble at 20
+ * points.
  *
  * `stroke` rather than `fill` throughout — these are line drawings, and a
  * filled variant for the selected state would be a second set to keep in step.
- * Selection is said in colour, which is what the tab bar already does.
+ * A selected glyph is the same drawing in a heavier stroke, which is what the
+ * `weight` prop is for: one set of paths, and the tab bar asks for the bold
+ * cut of it the way type asks for a bold cut of a face.
  */
 
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
@@ -43,14 +46,23 @@ export type GlyphName =
  * grid and scaled by the viewBox, so a 22pt tab glyph and a 15pt padlock
  * beside a line of text are the same drawing at two sizes rather than two
  * drawings.
+ *
+ * `weight` is the stroke, and 2 is the family's own. Raising it is how the
+ * selected tab is drawn — the same shape, said louder. It is deliberately a
+ * number rather than a boolean: the two thin strokes inside the photo stack
+ * are authored at 1.6 against a 2 frame, and they scale with the frame rather
+ * than being pinned, so the picture inside the stack stays lighter than the
+ * stack at every weight.
  */
 export function Glyph({
   name,
   size = 22,
+  weight = 2,
   color,
 }: {
   name: GlyphName;
   size?: number;
+  weight?: number;
   color: string;
 }) {
   return (
@@ -60,16 +72,23 @@ export function Glyph({
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth={2}
+      strokeWidth={weight}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {paths(name)}
+      {paths(name, weight)}
     </Svg>
   );
 }
 
-function paths(name: GlyphName) {
+/**
+ * `weight` reaches here for the two strokes that are not the family's own: the
+ * horizon and the sun inside the photo stack, drawn at four-fifths of the
+ * frame so the tile reads as a stack rather than as a box full of lines. Held
+ * as a ratio so that relationship survives the bold cut.
+ */
+function paths(name: GlyphName, weight: number) {
+  const light = weight * 0.8;
   switch (name) {
     /*
       A photograph behind a photograph, which is what an event is — the frame
@@ -82,8 +101,8 @@ function paths(name: GlyphName) {
         <>
           <Rect x={8} y={4} width={12.5} height={12.5} rx={2} />
           <Path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
-          <Circle cx={12} cy={8} r={1.05} strokeWidth={1.6} />
-          <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={1.6} />
+          <Circle cx={12} cy={8} r={1.05} strokeWidth={light} />
+          <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={light} />
         </>
       );
     /* Saying something, rather than a speech bubble: the bubble is what an

@@ -1072,17 +1072,45 @@ export default function App() {
                   key={id}
                   style={[
                     styles.tab,
-                    // Translucent, not the page colour: over a blur an opaque
-                    // fill reads as a patch stuck on the glass. See the note on
-                    // `tab` in the stylesheet.
-                    tab === id && { backgroundColor: dark ? '#ffffff1f' : '#0000000f' },
+                    /*
+                     * The selected capsule is filled, where it used to be a
+                     * wash of black or white over the glass.
+                     *
+                     * The wash was chosen so the fill would not read as a
+                     * patch stuck on the blur, and it worked at the cost of
+                     * the thing a tab bar is for: over a bright photograph
+                     * running under the bubble, a 6%-black capsule with an
+                     * accent-coloured line drawing in it is two faint things,
+                     * and which tab you are on was a question you had to look
+                     * twice to answer. A solid fill is legible over whatever
+                     * the glass happens to be sampling, which on this screen
+                     * is other people's photographs and therefore anything.
+                     */
+                    tab === id && { backgroundColor: TAB_ON },
                   ]}
                   onPress={() => setTab(id)}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: tab === id }}
                   accessibilityLabel={label}
                 >
-                  <Glyph name={glyph} size={22} color={tab === id ? t.accent : t.dim} />
+                  {/*
+                    White, and a stroke heavier than the family's own.
+
+                    Both, because one without the other is half a state: the
+                    colour is what separates the selected glyph from the four
+                    grey ones, and the weight is what keeps a line drawing from
+                    thinning out once it is reversed — white on a dark fill
+                    optically loses about as much as the extra half-unit puts
+                    back. White rather than `onAccent`, which is near-black in
+                    the dark scheme: this is ink on a fill that is deliberately
+                    the same blue in both, so the ink is the same in both too.
+                  */}
+                  <Glyph
+                    name={glyph}
+                    size={22}
+                    weight={tab === id ? 2.5 : 2}
+                    color={tab === id ? '#ffffff' : t.dim}
+                  />
                 </Pressable>
               ))}
             </BlurView>
@@ -4352,6 +4380,24 @@ function theme(dark: boolean) {
         warn: '#c23127' };
 }
 
+/**
+ * The fill behind the selected tab, in both schemes.
+ *
+ * One colour rather than a pair, which is the unusual part. Everything else in
+ * this file takes its colours from `theme` and changes with the scheme — but
+ * the tab bubble is glass, and what it is sampling is whatever photograph is
+ * scrolling under it rather than the page. A fill that lightened in the dark
+ * scheme would be lightening against a background that is not reliably dark,
+ * and the ink on it is white in both cases, so the fill has to carry white in
+ * both cases.
+ *
+ * A step deeper than the light scheme's accent (#1a5fd0) rather than either
+ * scheme's exactly: white on it is 7.8:1, which holds up over a bright cover
+ * showing through the blur, and it still reads as the product's blue rather
+ * than as a navy the rest of the app does not have.
+ */
+const TAB_ON = '#17509f';
+
 /** How far the floating chrome sits from the screen's edges. */
 const FLOAT_INSET = 14;
 /** How far the tab bubble sits above the bottom, clear of the home indicator. */
@@ -4723,9 +4769,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 8,
   },
-  /* Each tab is a capsule inside the capsule, which is what makes the selected
-     one legible without a second colour: the fill is the page's own background
-     showing through the bar, the way the system tab bar seats its selection. */
+  /* Each tab is a capsule inside the capsule, and the selected one is filled —
+     see `TAB_ON`. It used to be a wash of the page's own colour through the
+     glass, the way the system tab bar seats its selection; the system can
+     afford that because its bar sits over a page it controls, and this one
+     sits over other people's photographs. */
   /* The glyph is centred in the capsule and 22 points across, which is the
      size the web rail draws the same drawings at. The vertical padding is what
      the four labels used to need and is kept: the bubble's height is the one

@@ -380,11 +380,18 @@ function EventCard({
 
           Still no caption here: a second sentence under the name is what made
           a photograph look like a listing.
+
+          The second half is how many photographs, where it used to be how many
+          people. The circles above already say who is in it — and say it with
+          their faces, which is the half of that fact worth having — so the
+          number was the same thing twice on one card. How much there is to
+          look at is not written anywhere else, and it is what tells an evening
+          somebody has added to from one with a cover and little behind it.
         */}
         <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
           {live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : (date ?? '')}
           {live || date ? ' · ' : ''}
-          {plural(event.memberCount, 'person', 'people')}
+          {plural(event.photoCount, 'photo')}
         </Text>
       </View>
     </Pressable>
@@ -2150,7 +2157,20 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
     paddingBottom: 8,
   },
-  bylineFace: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
+  /*
+   * A rounded square, not a circle.
+   *
+   * The profile's own picture is a rounded rectangle, and this is the same
+   * person's face on the card that leads to it — a circle here and a soft
+   * corner there is two shapes for one thing. The radius is a quarter of the
+   * box, which is the proportion the profile's 104 by 26 already sets, so the
+   * 28pt one on a card and the big one on a profile are the same corner at two
+   * sizes rather than two decisions.
+   *
+   * The small circles further down the card stay circles: they are a crowd
+   * read as an overlapping row, and that row only works as circles.
+   */
+  bylineFace: { width: 28, height: 28, borderRadius: 7, overflow: 'hidden' },
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
   bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },

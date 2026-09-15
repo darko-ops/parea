@@ -57,16 +57,24 @@ describe('the grid they are all on', () => {
   it('is 24 units at stroke 2, with round caps and joins', () => {
     // The convention `RailIcon` set, and the only thing that makes six
     // drawings by different hands read as one family.
+    //
+    // The weight is a prop now — the selected tab asks for a heavier cut of
+    // the same drawing rather than for a second set of paths — so what is
+    // pinned here is the default it falls back to when nobody asks.
     expect(GLYPH).toMatch(/viewBox="0 0 24 24"/);
-    expect(GLYPH).toMatch(/strokeWidth=\{2\}/);
+    expect(GLYPH).toMatch(/weight = 2,/);
+    expect(GLYPH).toMatch(/strokeWidth=\{weight\}/);
     expect(GLYPH).toMatch(/strokeLinecap="round"/);
     expect(GLYPH).toMatch(/strokeLinejoin="round"/);
   });
 
   it('makes the exception where a picture sits inside a frame', () => {
     // At the frame's weight the photo tile reads as a scribble at 20 points.
-    expect(GLYPH).toMatch(/<Circle cx=\{12\} cy=\{8\} r=\{1\.05\} strokeWidth=\{1\.6\} \/>/);
-    expect(GLYPH).toMatch(/M8\.2 15\.1l3\.4-3\.2 2\.3 2\.1 1\.9-1\.6 4\.7 4\.1" strokeWidth=\{1\.6\}/);
+    // Held as a fraction of the frame rather than as 1.6 so that the picture
+    // stays lighter than the frame in the bold cut too.
+    expect(GLYPH).toMatch(/const light = weight \* 0\.8;/);
+    expect(GLYPH).toMatch(/<Circle cx=\{12\} cy=\{8\} r=\{1\.05\} strokeWidth=\{light\} \/>/);
+    expect(GLYPH).toMatch(/M8\.2 15\.1l3\.4-3\.2 2\.3 2\.1 1\.9-1\.6 4\.7 4\.1" strokeWidth=\{light\}/);
   });
 
   it('says the padlock’s two states with one stroke', () => {
