@@ -3596,18 +3596,27 @@ function Action({
   );
 }
 
-/** One action in the sheet: what it does, and one line about what that means. */
+/**
+ * One action in the sheet: what it does, and one line about what that means.
+ *
+ * `danger` colours the label and nothing else — the same reading `Action`
+ * takes above: a red label says which row this is, and the barrier is the
+ * confirmation behind it rather than the colour. The note stays dim, because
+ * it is the sentence that has to be read calmly.
+ */
 function Row({
   label,
   note,
   onPress,
   disabled,
+  danger,
   t,
 }: {
   label: string;
   note: string;
   onPress: () => void;
   disabled?: boolean;
+  danger?: boolean;
   t: Theme;
 }) {
   return (
@@ -3615,6 +3624,7 @@ function Row({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityState={{ disabled: disabled === true }}
       style={({ pressed }) => [
         styles.sheetRow,
         {
@@ -3624,13 +3634,35 @@ function Row({
         },
       ]}
     >
-      <Text style={[styles.coverTitleText, { color: t.fg }]}>{label}</Text>
+      <Text
+        style={[styles.coverTitleText, { color: disabled ? t.dim : danger ? t.warn : t.fg }]}
+      >
+        {label}
+      </Text>
       <Text style={[styles.coverNote, { color: t.dim }]}>{note}</Text>
     </Pressable>
   );
 }
 
 // --- per-photo safety actions -------------------------------------------------
+
+/**
+ * What each of the three says once it has happened.
+ *
+ * The same sentences the web says, and deliberately the same: they are the
+ * only account somebody gets of what became of a report they made, and the 48
+ * hours in the first is a promise the auto-hide job actually keeps. The other
+ * copy is `DONE` in `apps/web/app/components/PhotoView.tsx`, which says the
+ * same thing about rewording them — two clients telling one person two
+ * different stories about what blocking did is worse than either story.
+ */
+const DONE = {
+  removal:
+    'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
+  report: 'Reported. Someone will look at it.',
+  block:
+    'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+} as const;
 
 /**
  * The same set as the web photo page — remove your own, or ask/report/block
@@ -3676,6 +3708,37 @@ function PhotoActions({
       setBusy(false);
     }
   };
+
+  /*
+   * Blocking asks twice, and the second press says what it does.
+   *
+   * An alert rather than the web's swap-the-label-in-place, because that is
+   * what a destructive confirmation is on a phone and because this sheet has
+   * no room to grow a second state. The wording is the cost, not the act: you
+   * stop seeing them and they are not told — a block somebody thinks is a
+   * report is a block they will not use on the person they most want to stop
+   * seeing.
+   *
+   * It does not offer an undo, because there is not one. `DELETE /api/blocks`
+   * exists and no screen on either client calls it, and it is keyed by a
+   * photograph of the person being unblocked — which the block has just hidden.
+   * Saying "you can undo this in Settings" would be the product promising
+   * something no button does. Until a block list exists somewhere, this says
+   * what it does and stops there.
+   */
+  const confirmBlock = () =>
+    Alert.alert(
+      'Block this person?',
+      'Their photographs disappear from every album you share, here and anywhere else. They are not told, and nobody else is affected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: () => void act('Blocked', () => api.block(photo.id), DONE.block),
+        },
+      ],
+    );
 
   /*
    * Who is already named, and who is left to name.
@@ -3884,14 +3947,47 @@ function PhotoActions({
               )}
             </>
           ) : (
-            <Button
-              label="Report photo"
-              t={t}
-              disabled={busy}
-              onPress={() =>
-                act('Reported', () => api.report(photo.id), 'Someone will look at it.')
-              }
-            />
+            /*
+              Somebody else's photograph, and the three things you may
+              legitimately want to do about it.
+
+              Only `Report` was here, which left the app one of the four things
+              Guideline 1.2 asks for short — and, the rating aside, left the
+              person in a picture with nothing to press. The endpoints and the
+              client methods have both existed all along; nothing called them.
+
+              `Row` rather than `Button` because each of these needs its one
+              line. What separates asking the host from reporting to us is not
+              visible in either label, and a block that does not say it is
+              silent is one people do not use on the person they most want to
+              stop seeing.
+            */
+            <>
+              <Row
+                label="That's me — take it down"
+                note="Asks whoever made the album, without saying who asked. Hidden automatically if they do not answer."
+                t={t}
+                disabled={busy}
+                onPress={() =>
+                  act('Asked', () => api.removalRequest(photo.id), DONE.removal)
+                }
+              />
+              <Row
+                label="Report"
+                note="Comes to us rather than to the host."
+                t={t}
+                disabled={busy}
+                onPress={() => act('Reported', () => api.report(photo.id), DONE.report)}
+              />
+              <Row
+                label="Block this person"
+                note="Hides everything they have added, here and everywhere else."
+                danger
+                t={t}
+                disabled={busy}
+                onPress={confirmBlock}
+              />
+            </>
           )}
           {!tagging && <Button label="Close" t={t} onPress={onClose} />}
         </View>
