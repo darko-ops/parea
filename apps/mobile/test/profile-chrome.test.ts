@@ -186,6 +186,31 @@ describe('what the `+` makes', () => {
     expect(APP).not.toMatch(/setRoute\(\{ screen: 'create' \}\)/);
   });
 
+  it('draws something for somebody without an account', () => {
+    /*
+     * The button did nothing, and this is why: the gate was written on
+     * `create`, which is the second step, and the first step drew only for
+     * `signedIn === true`. Nobody signed out could reach the gate, because
+     * reaching it meant passing the screen that refused them — so pressing
+     * "Create album" set the route to a screen no branch drew. No picker, no
+     * gate, no tabs. A blank page with nothing on it and no way back.
+     *
+     * The gate covers both steps now, so the first one answers for the flow.
+     */
+    expect(APP).toMatch(
+      /\(route\.screen === 'pick' \|\| route\.screen === 'create'\) && signedIn !== true/,
+    );
+  });
+
+  it('waits rather than accusing somebody who is signed in', () => {
+    // `null` is the moment before the account request lands. A gate that
+    // flashed there would tell somebody signed in that they are not — so it
+    // waits, which is the one thing it must not do silently on a blank page.
+    const at = APP.indexOf("signedIn !== true");
+    expect(APP.slice(at, at + 600)).toMatch(/signedIn === null \? \(/);
+    expect(APP.slice(at, at + 600)).toMatch(/<Waiting size=\{40\} \/>/);
+  });
+
   it('hands the group off through the tab that holds the suggestions', () => {
     /*
      * It still goes by way of the Groups tab rather than opening the page from

@@ -113,6 +113,38 @@ describe('what the screen says', () => {
   });
 });
 
+/**
+ * The way off the page, which for a while there was not one.
+ *
+ * `+` on Home or You asks the Groups tab to open this page, by way of a
+ * counter — a counter rather than a flag because pressing `+` twice has to
+ * open it twice. But the tab tree is drawn only while the route is `tabs`, so
+ * pushing the page unmounts it, and Cancel mounted it again with the counter
+ * still standing: the effect that reads it ran a second time and pushed the
+ * page straight back over the tab it had just returned to.
+ *
+ * So Cancel did nothing, every time, and the page had no gesture either. The
+ * only way out of a group somebody had decided not to make was to kill the app.
+ */
+describe('leaving without making one', () => {
+  it('spends the request when it opens the page', () => {
+    // Or the tab reopens it the moment the page closes, forever.
+    expect(APP).toMatch(/setMakeGroup\(0\);\s*setRoute\(\{ screen: 'newGroup' \}\);/);
+  });
+
+  it('still opens again on the next press', () => {
+    // Spending it must not disarm the `+`. The counter goes back up.
+    expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
+    expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
+  });
+
+  it('has a Cancel and a gesture, not one or the other', () => {
+    expect(PAGE).toMatch(/<Pressable onPress=\{onCancel\} hitSlop=\{12\}/);
+    const at = APP.indexOf("route.screen === 'newGroup'");
+    expect(APP.slice(at, at + 200)).toMatch(/<SwipeBack onBack=\{leaveToTabs\}>/);
+  });
+});
+
 describe('New group', () => {
   it('is offered in every state, including the empty one', () => {
     /*

@@ -417,6 +417,23 @@ export default function App() {
   }, [refreshAccount]);
 
   /**
+   * Asked again on the way into making an album.
+   *
+   * The launch answer is `false` for a request that failed as much as for a
+   * device with no account — `refreshAccount` cannot tell them apart and errs
+   * safe, which is right. What is not right is carrying that around all day: it
+   * runs once, so one flaky moment at launch put a sign-in gate in front of
+   * somebody who was signed in the whole time, for the rest of the session.
+   *
+   * This is the one flow the answer decides, so it is the one worth re-asking
+   * at. Nothing flashes while it is in flight — `signedIn` keeps its old value
+   * until the reply lands.
+   */
+  useEffect(() => {
+    if (route.screen === 'pick' || route.screen === 'create') void refreshAccount();
+  }, [route.screen, refreshAccount]);
+
+  /**
    * What is left on screen after signing out.
    *
    * The keychain is cleared by the card that asked; this is the other half —
@@ -469,6 +486,42 @@ export default function App() {
 
   /** The screens that change nothing on their way out. */
   const leaveToTabs = useCallback(() => setRoute({ screen: 'tabs' }), []);
+
+  /**
+   * Out of making an album, from either of its two steps.
+   *
+   * Where the photographs' own Cancel goes, and now also where the gesture and
+   * the sign-in gate go — one answer, so a screen cannot grow a way out that
+   * lands somewhere its arrow does not. Back to the group when the album was
+   * started from inside one, because that is the room it was going to live in.
+   *
+   * Reads the route through the setter rather than closing over it: the gate
+   * sits outside the branch that has it narrowed, and a stale `groupId` here
+   * would put somebody back in the wrong room.
+   */
+  const leaveMaking = useCallback(() => {
+    setRoute((was) =>
+      (was.screen === 'pick' || was.screen === 'create') && was.groupId
+        ? { screen: 'group', id: was.groupId }
+        : { screen: 'tabs' },
+    );
+  }, []);
+
+  /**
+   * Back to the photographs, not out of the flow.
+   *
+   * What the form's Cancel has always done, and now what its gesture does too:
+   * somebody on the form who wants a different picture has not changed their
+   * mind about making an album. Swiping here has to agree with the control in
+   * the corner, or the two are different screens wearing one title.
+   */
+  const backToPhotographs = useCallback(() => {
+    setRoute((was) =>
+      was.screen === 'create'
+        ? { screen: 'pick', groupId: was.groupId, groupName: was.groupName }
+        : was,
+    );
+  }, []);
 
   /**
    * Leaving Lately, which always changes the badge.
@@ -582,49 +635,74 @@ export default function App() {
         </SwipeBack>
       )}
 
-      {route.screen === 'create' && signedIn === false && (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <AccountCard
-            api={api}
-            t={t}
-            Button={Button}
-            gate
-            why="Making an album needs an account, so the people you invite know whose album it is."
-            onSignedIn={() => {
-              void refreshAccount();
-              void refreshEvents();
-            }}
-          />
-        </ScrollView>
+      {/*
+        The sign-in gate, on both steps of making an album rather than the last.
+
+        It used to be on `create` alone, which is a screen nobody signed out can
+        reach: the flow begins at `pick`, and `pick` rendered only for
+        `signedIn === true`. So pressing "Create album" without an account set
+        the route to a screen with no branch to draw it — no picker, no gate,
+        no tabs, nothing. A blank page with no arrow, no Cancel and, until the
+        gesture below, no way off it at all. The button read as broken because
+        from the outside it was.
+
+        `null` gets the spinner rather than the gate, for the reason
+        `refreshAccount` states: the answer is one request away, and a sign-in
+        prompt that flashes at somebody already signed in is worse than one that
+        arrives a moment late. What it must not be is the blank page again.
+      */}
+      {(route.screen === 'pick' || route.screen === 'create') && signedIn !== true && (
+        <SwipeBack onBack={leaveMaking}>
+          {signedIn === null ? (
+            <View style={[styles.center, { backgroundColor: t.bg }]}>
+              <Waiting size={40} />
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.scroll}>
+              <Pressable onPress={leaveMaking} hitSlop={12} accessibilityRole="button">
+                <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
+              </Pressable>
+              <AccountCard
+                api={api}
+                t={t}
+                Button={Button}
+                gate
+                why="Making an album needs an account, so the people you invite know whose album it is."
+                onSignedIn={() => {
+                  void refreshAccount();
+                  void refreshEvents();
+                }}
+              />
+            </ScrollView>
+          )}
+        </SwipeBack>
       )}
 
       {/*
         Step one: the photographs.
 
         Gated on an account for the same reason the form is — making an album is
-        the one thing here that needs one — so the card below answers for both
+        the one thing here that needs one — so the card above answers for both
         steps and this never opens on somebody who would be refused at the end.
+        It used to say "the card below", which was true of a card that only
+        drew on the second step and therefore never drew at all.
       */}
       {route.screen === 'pick' && signedIn === true && (
-        <PickPhotos
-          t={t}
-          Button={Button}
-          onCancel={() =>
-            setRoute(
-              route.groupId
-                ? { screen: 'group', id: route.groupId }
-                : { screen: 'tabs' },
-            )
-          }
-          onNext={(chosen) =>
-            setRoute({
-              screen: 'create',
-              groupId: route.groupId,
-              groupName: route.groupName,
-              chosen,
-            })
-          }
-        />
+        <SwipeBack onBack={leaveMaking}>
+          <PickPhotos
+            t={t}
+            Button={Button}
+            onCancel={leaveMaking}
+            onNext={(chosen) =>
+              setRoute({
+                screen: 'create',
+                groupId: route.groupId,
+                groupName: route.groupName,
+                chosen,
+              })
+            }
+          />
+        </SwipeBack>
       )}
 
       {route.screen === 'create' && signedIn === true && (
@@ -643,13 +721,7 @@ export default function App() {
           // Back to the photographs, not out of the flow: somebody on the form
           // who wants a different picture has not changed their mind about
           // making an album.
-          onCancel={() =>
-            setRoute({
-              screen: 'pick',
-              groupId: route.groupId,
-              groupName: route.groupName,
-            })
-          }
+          onCancel={backToPhotographs}
           onCreated={(created) => {
             void refreshGroups();
             void open(
@@ -704,20 +776,22 @@ export default function App() {
         same act as opening it from home.
       */}
       {route.screen === 'newGroup' && (
-        <NewGroup
-          api={api}
-          t={t}
-          dark={dark}
-          people={route.people}
-          suggestedName={route.suggestedName}
-          onCancel={leaveToTabs}
-          onCreated={(id) => {
-            // The tab behind it is holding a list without this in it, and the
-            // group is about to be on screen — so both, before the push.
-            void refreshGroups();
-            setRoute({ screen: 'group', id });
-          }}
-        />
+        <SwipeBack onBack={leaveToTabs}>
+          <NewGroup
+            api={api}
+            t={t}
+            dark={dark}
+            people={route.people}
+            suggestedName={route.suggestedName}
+            onCancel={leaveToTabs}
+            onCreated={(id) => {
+              // The tab behind it is holding a list without this in it, and the
+              // group is about to be on screen — so both, before the push.
+              void refreshGroups();
+              setRoute({ screen: 'group', id });
+            }}
+          />
+        </SwipeBack>
       )}
 
       {route.screen === 'lately' && (
@@ -847,7 +921,25 @@ export default function App() {
                 waiting={waiting}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
                 onCreateAlbum={() => setRoute({ screen: 'pick' })}
-                onCreateGroup={() => setRoute({ screen: 'newGroup' })}
+                onCreateGroup={() => {
+                  /*
+                   * Spent on the way in, and that is the whole of this fix.
+                   *
+                   * `makeGroup` is how a `+` on Home or You asks this tab to
+                   * open the page — a counter, because pressing `+` twice has
+                   * to open it twice. But the tabs are drawn only while the
+                   * route is `tabs`, so pushing this page unmounts them, and
+                   * coming back mounts them again: the effect below reran on a
+                   * counter still standing at one and pushed the page straight
+                   * back over the tab it had just returned to.
+                   *
+                   * From the outside that is a Cancel that does nothing, on a
+                   * page that had no gesture either — the only way out of a
+                   * group you had decided not to make was to kill the app.
+                   */
+                  setMakeGroup(0);
+                  setRoute({ screen: 'newGroup' });
+                }}
                 onCreateGroupFrom={(cluster) =>
                   setRoute({
                     screen: 'newGroup',
