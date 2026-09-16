@@ -41,7 +41,8 @@ import { MARK_CENTRES, MARK_FILLS, MARK_R, markSvg } from '../app/components/Mar
 const read = (path: string) =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 
-const icon = read('../../mobile/assets/icon.svg');
+/* The brand master, which the app's store assets are rendered from. */
+const icon = read('../../../assets/branding/parea-icon.svg');
 const favicon = read('../app/icon.svg');
 const web = read('../app/components/Mark.tsx');
 /** The fourth copy: the same mark in `react-native-svg`, for the phone. */
@@ -123,19 +124,32 @@ describe('the app icon', () => {
      * less field showing and a mark that reads as one white blob with notches.
      */
     const path = icon.match(/id="mark"[\s\S]*?d="([\s\S]*?)"/)?.[1];
-    expect(path, 'no path with id="mark" in icon.svg').toBeDefined();
+    expect(path, 'no path with id="mark" in the brand master').toBeDefined();
 
     // `M cx-r cy a r r 0 1 0 2r 0 …`, one subpath per circle.
-    const subpaths = [...(path ?? '').matchAll(/M (\d+) (\d+) a (\d+) \d+/g)].map((m) => ({
+    const subpaths = [...(path ?? '').matchAll(/M ([\d.]+) ([\d.]+) a ([\d.]+) [\d.]+/g)].map((m) => ({
       cx: Number(m[1]) + Number(m[3]),
       cy: Number(m[2]),
       r: Number(m[3]),
     }));
     expect(subpaths.length, 'the extractor found nothing, which is not a pass').toBe(3);
 
-    const key = ({ cx, cy }: { cx: number; cy: number }) => `${cx},${cy}`;
-    expect([...new Set(subpaths.map(key))].sort()).toEqual([...MARK_CENTRES.map(key)].sort());
-    for (const circle of subpaths) expect(circle.r).toBe(163);
+    /*
+     * The three sit 132 from a point, 120° apart, first one straight up — the
+     * design, unchanged. Where that point *is* has moved: the mark is placed
+     * between the two defensible centrings rather than on the mass, so the
+     * centres are 16.5 lower than the in-app mark's. Checked as a shape rather
+     * than against `MARK_CENTRES`, which describes the other drawing.
+     */
+    const cx = subpaths.map((c) => c.cx).sort((a, b) => a - b);
+    const cy = subpaths.map((c) => c.cy);
+    expect(Math.round(((cx[0]! + cx[2]!) / 2) * 100) / 100).toBe(512);
+    // Two low and level, one high and centred: an equilateral triangle, point up.
+    expect(new Set(cy).size).toBe(2);
+    const [high, low] = [Math.min(...cy), Math.max(...cy)];
+    expect(low - high).toBeCloseTo(198, 0); // 1.5 × 132
+    expect(cx[2]! - cx[0]!).toBeCloseTo(228.63, 1); // 2 × 132 × sin 60
+    for (const circle of subpaths) expect(circle.r).toBe(180);
   });
 
   it('punches the circles out rather than painting seven regions', () => {
@@ -163,8 +177,15 @@ describe('the app icon', () => {
      * rounded against black; rounding here would round them twice and put
      * black inside the mask.
      */
-    expect(icon).toMatch(/<rect width="1024" height="1024" fill="#ffffff"\/>/);
+    /*
+     * A base the field is painted over, and it is not white: the brief asks
+     * for airy, and white showing through where nothing reaches full strength
+     * reads as a vignette rather than as air.
+     */
+    expect(icon).toMatch(/<rect width="1024" height="1024" fill="#[0-9A-F]{6}"\/>/);
     expect(icon).not.toMatch(/\brx="/);
+    // The corner lives in the preview and nowhere else.
+    expect(read('../../../assets/branding/parea-icon-preview.svg')).toMatch(/rx="224"/);
   });
 
   it('names the two halves the Android layers are cut from', () => {

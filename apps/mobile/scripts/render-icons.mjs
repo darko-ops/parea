@@ -1,7 +1,13 @@
 /**
- * Render every store asset from `assets/icon.svg`.
+ * Render every store asset from the brand master.
  *
  *   npm run icons --workspace @parea/mobile
+ *
+ * The master is `assets/branding/parea-icon.svg` at the root of the repository,
+ * which `scripts/build-brand.mjs` generates. It used to be a copy of the same
+ * drawing living next door in `assets/icon.svg`, and a copy is how the app icon
+ * and the website come to disagree in a screenshot a year later — the failure
+ * `brand.test.ts` opens by describing. One file, read from both places.
  *
  * Run it after changing the SVG. The PNGs are committed — EAS builds do not
  * run this, and an icon that only exists on the machine of whoever last
@@ -44,8 +50,10 @@ import { fileURLToPath } from 'node:url';
 
 import sharp from 'sharp';
 
-const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets');
-const SOURCE = join(ASSETS, 'icon.svg');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ASSETS = join(HERE, '..', 'assets');
+/** The brand master, two levels up and shared with everything else that draws it. */
+const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon.svg');
 
 /**
  * Fraction of the canvas Android's most aggressive mask keeps.
