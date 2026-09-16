@@ -2672,20 +2672,62 @@ function EventScreen({
    * sheet makes — and the reason the column is a swipe away rather than gone.
    */
   const renderTile = useCallback(
-    ({ item }: { item: FeedPhoto }) => (
-      <Pressable
-        style={{ width: gridTile, height: gridTile }}
-        onPress={() => setSelected(item)}
-      >
-        <ExpoImage
-          source={{ uri: item.card ?? item.src }}
-          style={styles.gridShot}
-          contentFit="cover"
-          transition={120}
-        />
-      </Pressable>
-    ),
-    [gridTile],
+    ({ item }: { item: FeedPhoto }) => {
+      const who = item.by ? byline.get(item.by) : undefined;
+      return (
+        <Pressable
+          style={{ width: gridTile, height: gridTile }}
+          onPress={() => setSelected(item)}
+        >
+          <ExpoImage
+            source={{ uri: item.card ?? item.src }}
+            style={styles.gridShot}
+            contentFit="cover"
+            transition={120}
+          />
+          {/*
+            Whose photograph it is, and nothing else.
+
+            The column says it with a face and a handle; a tile is a third of
+            the screen and the handle does not fit — at 129 points "kostopoulou"
+            is either four pixels tall or most of the picture. The face alone
+            still answers the question this view makes hardest to answer, which
+            is "who took all of these": a contact sheet of two hundred
+            photographs by five people is five colours repeating down it, and
+            the pattern is legible long before any single face is.
+
+            Not a control. A 16pt target inside a 129pt tile is a place where
+            the tile stops opening the photograph for no reason a thumb can
+            predict, so this is decoration and the whole tile stays one press.
+          */}
+          {who && (
+            <View pointerEvents="none" style={styles.gridBy}>
+              {who.avatarUrl ? (
+                <ExpoImage
+                  source={{ uri: who.avatarUrl }}
+                  style={styles.gridFace}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.gridFace,
+                    styles.gridFaceBlank,
+                    { backgroundColor: lensFor(who.key).fill },
+                  ]}
+                >
+                  <Text style={[styles.gridInitial, { color: lensFor(who.key).ink }]}>
+                    {initialOf(who.name)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </Pressable>
+      );
+    },
+    [byline, gridTile],
   );
 
   /**
@@ -4818,7 +4860,19 @@ const styles = StyleSheet.create({
        and the corners are inset by ten each. */
     maxWidth: '62%',
   },
-  tileFace: { width: 24, height: 24, borderRadius: 12 },
+  /*
+   * A rounded square, not a circle.
+   *
+   * The same corner the home card's byline uses, and the profile's own picture
+   * before it: a quarter of the box, so 24 and 28 and 104 are one decision at
+   * three sizes. A circle here and a soft corner two screens away is two
+   * shapes for one thing — somebody's face — and the album is reached *from*
+   * the card that already draws it the other way.
+   *
+   * The overlapping crowd over a cover stays circular. That row only reads as
+   * a crowd because the circles overlap, which squares do not do.
+   */
+  tileFace: { width: 24, height: 24, borderRadius: 6 },
   tileFaceBlank: { alignItems: 'center', justifyContent: 'center' },
   tileInitial: { fontSize: 11, fontWeight: '700' },
   tileHandle: {
@@ -5025,6 +5079,33 @@ const styles = StyleSheet.create({
      this row must not try to distribute them. */
   gridRow: { gap: PHOTO_GAP, justifyContent: 'flex-start' },
   gridShot: { width: '100%', height: '100%', backgroundColor: '#8883' },
+  /*
+   * The face in a tile's corner, with a shadow under it.
+   *
+   * The column's byline needs no shadow because its handle has one and the two
+   * read together. Alone on a photograph the face has to hold its own edge, and
+   * a pale avatar on a bright sky is otherwise a smudge — so the shadow is on
+   * the wrapper rather than the image, which is what lets the picture keep its
+   * corners clipped while the shadow falls outside them.
+   */
+  gridBy: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    borderRadius: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
+  },
+  /* 16 rather than the column's 24: a tile is a third of the screen, and the
+     same face drawn at the same size would be a fifth of the photograph. The
+     corner is a quarter of the box, as everywhere else this product draws
+     somebody. */
+  gridFace: { width: 16, height: 16, borderRadius: 4 },
+  gridFaceBlank: { alignItems: 'center', justifyContent: 'center' },
+  gridInitial: { fontSize: 8, fontWeight: '700' },
   /*
    * The bar that says which view is showing, and nothing else.
    *

@@ -256,6 +256,63 @@ describe('the two views', () => {
     expect(SHOW).not.toMatch(/setView\(/);
   });
 
+  it('says whose photograph each one is, in both views', () => {
+    /*
+     * The column has said it for a while — a face and a handle in the top-left
+     * corner. The grid said nothing, which is the view that makes the question
+     * hardest to answer: a contact sheet of two hundred photographs by five
+     * people gives no clue which are whose.
+     *
+     * The face alone there, because a tile is a third of the screen and a
+     * handle does not fit — at 129 points "kostopoulou" is either four pixels
+     * tall or most of the picture. What survives is the part that works at
+     * that size: five colours repeating down a sheet is a pattern legible long
+     * before any single face is.
+     */
+    expect(APP).toMatch(/gridFace: \{ width: 16, height: 16, borderRadius: 4 \}/);
+    const TILE = APP.slice(APP.indexOf('const renderTile'), APP.indexOf('const renderColumn'));
+    expect(TILE).toMatch(/const who = item\.by \? byline\.get\(item\.by\) : undefined;/);
+    // The letter on their own lens where there is no picture, which is the
+    // rule every face in this product follows — never a silhouette.
+    expect(TILE).toMatch(/backgroundColor: lensFor\(who\.key\)\.fill/);
+    // And no handle beside it.
+    expect(TILE).not.toMatch(/who\.handle/);
+    /*
+     * Decoration, not a control. A 16pt target inside a 129pt tile is a place
+     * where the tile stops opening the photograph for no reason a thumb can
+     * predict.
+     */
+    expect(TILE).toMatch(/<View pointerEvents="none" style=\{styles\.gridBy\}>/);
+    /*
+     * And it holds its own edge. The column's face needs no shadow because its
+     * handle has one and the two read together; alone on a bright sky a pale
+     * avatar is a smudge. On the wrapper rather than the image, so the picture
+     * keeps its clipped corners while the shadow falls outside them.
+     */
+    expect(APP).toMatch(/gridBy: \{[\s\S]*?shadowOpacity: 0\.35,/);
+  });
+
+  it('draws those faces as rounded squares, like every other face', () => {
+    /*
+     * A quarter of the box, which is the proportion the profile's own picture
+     * sets at 104 by 26 and the home card's byline repeats at 28 by 7. One
+     * decision at four sizes rather than four.
+     *
+     * The album's face was a circle, and the album is reached *from* the card
+     * that draws the same person square — two shapes for one thing, a screen
+     * apart.
+     */
+    expect(APP).toMatch(/tileFace: \{ width: 24, height: 24, borderRadius: 6 \}/);
+    expect(APP).toMatch(/gridFace: \{ width: 16, height: 16, borderRadius: 4 \}/);
+    const EVENTS = read('src/Events.tsx');
+    expect(EVENTS).toMatch(/bylineFace: \{ width: 28, height: 28, borderRadius: 7/);
+    /*
+     * The overlapping crowd over a cover stays circular: that row only reads as
+     * a crowd because the circles overlap, which squares do not do.
+     */
+    expect(EVENTS).toMatch(/borderRadius: 12,\s*\n\s*borderWidth: 1\.5,\s*\n\s*marginRight: -6,/);
+  });
+
   it('draws the 1280 now that a row is the whole screen', () => {
     // 393 points is 1179 device pixels on a 3× phone, which the 640 that was
     // right for a third of a row cannot fill.
