@@ -216,42 +216,59 @@ describe('the cover the event already has', () => {
     expect(APP).toMatch(/<View style=\{styles\.cover\}>\s*\{cover \? \(/);
   });
 
-  it('lets the caption be changed, under the picture it sits beside', () => {
+  it('lets the album be renamed, under the picture it is named beside', () => {
     /*
-     * The create screen asks for a caption and nothing could change it
-     * afterwards — so it was the one thing you had to get right in the thirty
-     * seconds before you sent the link, on a screen where you had not yet seen
-     * a single photograph. The route has accepted the field all along; the app
-     * did not declare it on the feed and had nowhere to put it.
+     * The create screen asks for a name and nothing could touch it afterwards
+     * — so it was the one thing you had to get right in the thirty seconds
+     * before you sent the link, on a screen where you had not yet seen a
+     * single photograph of the evening you were naming. The route has accepted
+     * the field since albums had one.
      *
      * Directly below the cover, because the two are the album's face: the
-     * picture and the sentence under it, which is how a card draws them.
+     * picture and the words on it, which is how a card draws them.
      */
-    expect(API).toMatch(/setCaption\(eventId: string, caption: string\)/);
-    expect(API).toMatch(/caption: string \| null;/);
-    expect(APP).toMatch(/function CaptionCard\(/);
-    expect(APP).toMatch(/caption=\{feed\?\.event\.caption \?\? null\}/);
+    expect(API).toMatch(/setName\(eventId: string, name: string\)/);
+    expect(APP).toMatch(/function NameCard\(/);
+    expect(APP).toMatch(/name=\{feed\?\.event\.name \?\? event\.name\}/);
     const sheet = ROW.slice(ROW.indexOf('Album cover'));
-    expect(sheet.indexOf('<CaptionCard')).toBeGreaterThan(-1);
+    expect(sheet.indexOf('<NameCard')).toBeGreaterThan(-1);
+
+    /*
+     * Empty is not a name. The route refuses it — what an album is called on a
+     * card, in a notification and in the thread, and "" in all of those is a
+     * blank space nobody can point at — and refusing it here is the difference
+     * between a button that does nothing and a button that is not offered.
+     */
+    expect(APP).toMatch(/const dirty = trimmed !== '' && trimmed !== name\.trim\(\);/);
+    // The route's own ceiling, so the keys stop rather than the server saying
+    // `invalid_name` to something already typed.
+    expect(APP).toMatch(/maxLength=\{120\}/);
 
     /*
      * Its own component because it holds a draft, and a draft in `HostSheet`
      * would be reset by every feed poll, every cover landing and every policy
-     * press. A field somebody is halfway through typing into must not be one
-     * of the things a refresh may move.
+     * press. It follows the server only while nobody is typing, which also
+     * covers somebody renaming it from the website while this is open.
      */
-    expect(APP).toMatch(/setDraft\(\(was\) => \(was === known\.current \? next : was\)\)/);
+    expect(APP).toMatch(/setDraft\(\(was\) => \(was === known\.current \? name : was\)\)/);
     /*
      * Saved on a button, not on blur. The sheet scrolls and the keyboard
-     * dismisses, and neither is somebody saying they are done — a caption that
-     * saved itself on the way past would write a half-typed line to everybody's
-     * home screen.
+     * dismisses, and neither is somebody saying they are done — a name that
+     * saved itself on the way past would rename the album on everybody's home
+     * screen halfway through a word.
      */
     expect(APP).toMatch(/\{dirty && \(/);
-    expect(APP).toMatch(/draft\.trim\(\) \? 'Save caption' : 'Remove caption'/);
-    // The route's own ceiling, so the keys stop rather than the server saying
-    // `invalid_caption` to something already typed.
-    expect(APP).toMatch(/maxLength=\{200\}/);
+    expect(APP).toMatch(/label=\{busy \? 'Saving…' : 'Save name'\}/);
+  });
+
+  it('draws the name the server has, not the one the screen opened with', () => {
+    /*
+     * `event` is the summary this screen was opened with — a copy made when
+     * the album was first reached, which does not move when somebody renames
+     * it. Now that renaming happens here, the header taking the name from that
+     * copy would show the old one until you left and came back.
+     */
+    expect(APP).toMatch(/\{feed\?\.event\.name \?\? event\.name\}/);
   });
 
   it('says nothing under the row about what a cover is', () => {

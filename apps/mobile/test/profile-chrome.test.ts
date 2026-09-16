@@ -38,15 +38,23 @@ describe('the two corners', () => {
      * The album's own settings are behind a `⋯` in its corner and have been
      * since the slabs came off that screen.
      */
-    expect(SCREEN).toMatch(/styles\.bar\b/);
+    expect(SCREEN).toMatch(/<PageHead/);
     expect(SCREEN).toMatch(/accessibilityLabel="Settings"/);
     // The `⋯` itself lives in `RoundButton` now, so that every corner drawing
     // one agrees about its size — the profile's was 22pt and the album's 16.
     expect(SCREEN).toMatch(/<More color=\{t\.fg\} \/>/);
     expect(read('src/RoundButton.tsx')).toMatch(/⋯/);
-    // And it is the first thing in the bar, which is the left-hand corner.
-    const bar = SCREEN.slice(SCREEN.indexOf('styles.bar'), SCREEN.indexOf('styles.headLower'));
-    expect(bar.indexOf('Settings')).toBeLessThan(bar.indexOf('New album or group'));
+    /*
+     * And it is the head's `left`, which is the leading corner. The row is
+     * `PageHead` now — the same one every tab opens with, with the product's
+     * name between the two discs — so the corner is named rather than implied
+     * by which child comes first.
+     */
+    const head = SCREEN.slice(SCREEN.indexOf('<PageHead'), SCREEN.indexOf('styles.headLower'));
+    expect(head.indexOf('left={')).toBeGreaterThan(-1);
+    expect(head.indexOf('Settings')).toBeGreaterThan(head.indexOf('left={'));
+    expect(head.indexOf('Settings')).toBeLessThan(head.indexOf('right={'));
+    expect(head.indexOf('New album or group')).toBeGreaterThan(head.indexOf('right={'));
   });
 
   it('is the only place settings is reached from', () => {

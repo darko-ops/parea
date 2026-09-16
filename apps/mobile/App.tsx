@@ -3174,8 +3174,17 @@ function EventScreen({
       </RoundButton>
 
       <View style={styles.coverTitle} pointerEvents="box-none">
+        {/*
+          The feed's name before the route's.
+
+          `event` is the summary this screen was opened with — a copy made when
+          the album was first reached, which does not move when somebody
+          renames it. Now that renaming happens on this screen, taking the name
+          from the copy would leave the header showing the old one until you
+          left and came back.
+        */}
         <Text style={styles.coverName} numberOfLines={2}>
-          {event.name}
+          {feed?.event.name ?? event.name}
         </Text>
         <View style={styles.coverMeta}>
           <Faces members={feed?.members ?? []} />
@@ -3551,8 +3560,8 @@ function EventScreen({
           onEditCover={framer}
           onRemoveCover={feed?.event.coverUrl ? removeCover : null}
           coverBusy={sendingCover}
-          caption={feed?.event.caption ?? null}
-          onCaptionSaved={refresh}
+          name={feed?.event.name ?? event.name}
+          onNameSaved={refresh}
           /*
             The frame, rendered *inside* the sheet's modal rather than beside it.
 
@@ -3949,8 +3958,8 @@ function HostSheet({
   onRemoveCover,
   coverBusy,
   coverFramer,
-  caption,
-  onCaptionSaved,
+  name,
+  onNameSaved,
   onPolicy,
   onGroup,
   onOpenGroup,
@@ -3992,10 +4001,10 @@ function HostSheet({
    * longer one on `PhotoActions`, which is the same mistake made once already.
    */
   coverFramer: React.ReactNode;
-  /** The album's current line, or null where there is none. */
-  caption: string | null;
+  /** What the album is currently called, as the server has it. */
+  name: string;
   /** Re-reads the feed, so the header behind the sheet catches up. */
-  onCaptionSaved: () => void | Promise<void>;
+  onNameSaved: () => void | Promise<void>;
   onPolicy: (value: 'public' | 'private') => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
@@ -4194,19 +4203,19 @@ function HostSheet({
             )}
 
             {/*
-              The line under the album's name, under the picture it sits beside.
+              What it is called, under the picture it is called beside.
 
               The create screen asks for this and nothing has been able to
-              change it since — so a caption was the one thing you had to get
+              change it since — so the name was the one thing you had to get
               right in the thirty seconds before you sent the link, on a screen
-              where you had not yet seen a single photograph. The route has
-              accepted the field all along.
+              where you had not yet seen a single photograph of the evening you
+              were naming. The route has accepted the field all along.
 
               Directly below the cover because the two are the album's face:
-              the picture and the sentence under it, which is how a card draws
-              them and how the album's own header does.
+              the picture and the words on it, which is how a card draws them
+              and how the album's own header does.
             */}
-            {host && <CaptionCard api={api} t={t} event={event} caption={caption} onSaved={onCaptionSaved} />}
+            {host && <NameCard api={api} t={t} event={event} name={name} onSaved={onNameSaved} />}
 
             {/*
               The other door into a private album, and the one the app did not
@@ -4846,7 +4855,13 @@ function PhotoActions({
 // --- chrome -------------------------------------------------------------------
 
 /**
- * The album's caption, changed after the fact.
+ * What the album is called, changed after the fact.
+ *
+ * The create screen asks for a name and nothing could touch it afterwards, so
+ * it was the one thing you had to get right in the thirty seconds before you
+ * sent the link — on a screen where you had not yet seen a single photograph
+ * of the evening you were naming. The route has accepted the field since
+ * albums had one.
  *
  * Its own component because it holds a draft, and a draft in `HostSheet` would
  * be reset every time anything else on that sheet changed — the sheet is
@@ -4856,23 +4871,23 @@ function PhotoActions({
  *
  * Saved on a button rather than on blur. Blur is ambiguous here: the sheet
  * scrolls, the keyboard dismisses, and neither of those is somebody saying
- * they are done — and a caption that saved itself on the way past would write
- * a half-typed line to everybody's home screen.
+ * they are done — and a name that saved itself on the way past would rename
+ * the album on everybody's home screen halfway through a word.
  */
-function CaptionCard({
+function NameCard({
   api,
   t,
   event,
-  caption,
+  name,
   onSaved,
 }: {
   api: Api;
   t: Theme;
   event: SavedEvent;
-  caption: string | null;
+  name: string;
   onSaved: () => void | Promise<void>;
 }) {
-  const [draft, setDraft] = useState(caption ?? '');
+  const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -4881,26 +4896,33 @@ function CaptionCard({
    *
    * The feed lands after this mounts and can land again at any time. Without
    * this the field would show whatever it was born with; with it applied
-   * unconditionally, a poll landing mid-sentence would take the sentence away.
-   * So it moves only when the draft still matches what the server last said.
+   * unconditionally, a poll landing mid-word would take the word away. So it
+   * moves only when the draft still matches what the server last said — which
+   * also covers somebody renaming it from the website while this is open.
    */
-  const known = useRef(caption ?? '');
+  const known = useRef(name);
   useEffect(() => {
-    const next = caption ?? '';
-    setDraft((was) => (was === known.current ? next : was));
-    known.current = next;
-  }, [caption]);
+    setDraft((was) => (was === known.current ? name : was));
+    known.current = name;
+  }, [name]);
 
-  const dirty = draft.trim() !== (caption ?? '').trim();
+  const trimmed = draft.trim();
+  /*
+   * Empty is not a name. The route refuses it — "what an album is called on a
+   * card, in a notification and in the thread, and '' in all of those is a
+   * blank space nobody can point at" — and refusing it here is the difference
+   * between a button that does nothing and a button that is not offered.
+   */
+  const dirty = trimmed !== '' && trimmed !== name.trim();
 
   const save = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      await api.setCaption(event.id, draft.trim());
+      await api.setName(event.id, draft.trim());
       await onSaved();
     } catch {
-      setError('Could not save it. Try again in a moment.');
+      setError('Could not rename it. Try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -4908,34 +4930,36 @@ function CaptionCard({
 
   return (
     <View style={[styles.sheetRow, { backgroundColor: t.card, borderColor: t.line }]}>
-      <Text style={[styles.label, { color: t.fg }]}>Caption</Text>
+      <Text style={[styles.label, { color: t.fg }]}>Album name</Text>
       {/*
-        What it is for, in the words of where it shows up. "Caption" alone is
-        a field name; this says which screen the sentence lands on, which is
-        the thing somebody needs to know before writing one.
+        Where it shows up, rather than what the field is called. "Name" alone
+        is a label; this says what renaming actually moves, which is the thing
+        somebody wants to know before doing it to a link they have already sent.
       */}
       <Text style={[styles.small, { color: t.dim }]}>
-        A line under the album's name, wherever it is shown.
+        What it is called everywhere — on cards, in notifications and in the
+        conversation. The link keeps working.
       </Text>
       <TextInput
         value={draft}
         onChangeText={setDraft}
-        placeholder="Three days, one memory card"
+        placeholder="Naxos, August"
         placeholderTextColor={t.dim}
-        multiline
-        /* The route's own ceiling. Stopping the keys at 200 is kinder than
-           accepting 240 and answering `invalid_caption`. */
-        maxLength={200}
-        style={[styles.input, styles.captionField, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
-        accessibilityLabel="The album's caption"
+        /* The route's own ceiling. Stopping the keys at 120 is kinder than
+           accepting 160 and answering `invalid_name`. */
+        maxLength={120}
+        returnKeyType="done"
+        onSubmitEditing={() => dirty && void save()}
+        style={[styles.input, styles.nameField, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
+        accessibilityLabel="The album's name"
       />
       {/*
-        Only once there is something to save. A button that is always there
+        Only once there is a change worth saving. A button that is always there
         and usually does nothing is a button people stop reading.
       */}
       {dirty && (
         <Button
-          label={busy ? 'Saving…' : draft.trim() ? 'Save caption' : 'Remove caption'}
+          label={busy ? 'Saving…' : 'Save name'}
           onPress={() => void save()}
           t={t}
           primary
@@ -5373,12 +5397,10 @@ const styles = StyleSheet.create({
   /* Taller than a single-line field and top-aligned, because a caption is a
      sentence: two hundred characters is three lines on this width, and a box
      that shows one of them hides most of what somebody wrote. */
-  captionField: {
-    minHeight: 76,
-    marginTop: 8,
-    marginBottom: 4,
-    textAlignVertical: 'top',
-  },
+  /* One line, unlike the caption box this replaced: a name is a name, and a
+     three-line field invites a sentence into a slot that shows one line
+     everywhere it is drawn. */
+  nameField: { marginTop: 8, marginBottom: 4 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   /* A kept-alive tab. `position: 'absolute'` so the four of them stack rather
      than sitting in a column — only one is ever visible, and a hidden sibling

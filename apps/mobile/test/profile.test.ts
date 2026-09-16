@@ -185,11 +185,19 @@ describe('the header picture', () => {
      */
     expect(PROFILE).not.toMatch(/scroll: \{[^}]*paddingHorizontal/);
     expect(PROFILE).toMatch(/gutter: \{ paddingHorizontal: 20 \}/);
-    for (const row of ['styles.bar', 'styles.bio', 'styles.actions', 'styles.grid']) {
+    for (const row of ['styles.bio', 'styles.actions', 'styles.grid']) {
       expect(PROFILE, `${row} must keep the gutter`).toMatch(
         new RegExp(`\\[${row.replace('.', '\\.')}, styles\\.gutter`),
       );
     }
+    /*
+     * `styles.bar` was a fourth. The corners row is `PageHead` now — shared
+     * with three other tabs that place it differently — so it wears the gutter
+     * on a wrapper rather than carrying one of its own.
+     */
+    expect(PROFILE, 'the head row must keep the gutter').toMatch(
+      /<View style=\{styles\.gutter\}>\s*\n\s*<PageHead/,
+    );
   });
 
   it('is pushed right by the words, not by a space-between', () => {

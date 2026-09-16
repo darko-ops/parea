@@ -57,6 +57,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
+import { PageHead } from './PageHead';
 import { MARK_FILLS } from './Mark';
 import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
@@ -817,43 +818,33 @@ export function HomeTab({
         two things in one place and one thing in another is the sort of
         difference nobody can learn: either `+` makes what you ask it for.
       */}
-      <View style={styles.markRow}>
-        {/*
-          Held open, so the name is centred on the screen rather than on what is
-          left of it.
+      {/*
+        The product's name and the one thing you can make from here.
 
-          The `+` is 36 points and the name sat between the edge and it, which
-          put its middle 18 points left of the screen's — close enough to read
-          as centred and not be, which is the version that looks like a mistake.
-          A slot the size of the button on the other side is the only way to get
-          it right without measuring anything.
-        */}
-        <View style={styles.roundSlot} />
+        `Start one` was a word on the title's baseline and is a `+` now — the
+        same 36pt bordered circle the Groups tab makes a group with and the
+        album screen adds photographs with. Three tabs, one shape for "make
+        something here".
 
-        {/*
-          The product's name, in the product's face.
+        It opens the same two choices the profile's `+` does. One glyph meaning
+        two things in one place and one thing in another is the sort of
+        difference nobody can learn: either `+` makes what you ask it for.
 
-          It said "Events", which is the software's word for what is underneath
-          rather than the name of the thing somebody opened. The web has said
-          `parea` in Garet on every page for as long as it has had a rail, and
-          a client that names itself differently is two products.
-
-          Lowercase in the style rather than typed that way, exactly as the web
-          does it: the markup says the proper noun, so a screen reader says
-          "Parea", and the type says how it is drawn.
-        */}
-        <View style={styles.centred}>
-          <Wordmark color={t.fg} />
-        </View>
-
-        <RoundButton
-          t={t}
-          onPress={() => setStarting(true)}
-          accessibilityLabel="New album or group"
-        >
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
-      </View>
+        The row itself is `PageHead` now, which every tab shares — see the note
+        there on why this stopped holding a slot open opposite the button.
+      */}
+      <PageHead
+        color={t.fg}
+        right={
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        }
+      />
 
       {starting && (
         <StartSomething
@@ -1241,91 +1232,90 @@ export function GroupsTab({
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
     >
-      <View style={styles.groupsHead}>
-        {/* "Your Parea" rather than "Groups": the tab holds the rooms and the
-            conversations, and the word for all of that together is the one the
-            product is named after. */}
-        <Text style={[styles.h1, { color: t.fg }]}>Your Parea</Text>
-        {/*
-          A filled disc rather than an outlined word.
+      {/*
+        The same head every tab has, with this one's two controls in it.
 
-          Here in every state, including the empty one: somebody with no groups
-          is who most needs to know one can be made. It is a glyph now because
-          the screen's heading row is a heading and one action, and "New group"
-          set beside a 30pt title was a second thing to read on the way to the
-          rooms underneath it.
-        */}
-        <View style={styles.groupsActions}>
-          {/*
-            The door to Lately, beside the one that makes a room.
+        It said "Your Parea" at 30 points, chosen over "Groups" because the tab
+        holds the rooms and the conversations and the word for all of that is
+        the one the product is named after. Both were the same mistake at
+        different volumes: a line naming the tab you just pressed, above the
+        rooms you pressed it to reach. The bar already says where you are.
+      */}
+      <PageHead
+        color={t.fg}
+        right={
+          <>
+              {/*
+                The door to Lately, beside the one that makes a room.
             
-            Here rather than on a tab of its own: three tabs is the whole of
-            this app's navigation, and a fourth carrying a list that is usually
-            empty would cost a permanent quarter of the tab bar. A disc in a
-            heading row costs nothing when there is nothing.
+                Here rather than on a tab of its own: three tabs is the whole of
+                this app's navigation, and a fourth carrying a list that is usually
+                empty would cost a permanent quarter of the tab bar. A disc in a
+                heading row costs nothing when there is nothing.
 
-            The badge is hidden at zero, as the web's is. A badge that draws "0"
-            teaches people that the number means nothing, and an empty circle is
-            a claim that something is there.
-          */}
-          <RoundButton
-            t={t}
-            onPress={onOpenLately}
-            accessibilityLabel={
-              waiting > 0 ? `Lately, ${waiting} waiting on you` : 'Lately'
-            }
-          >
-            <Glyph name="envelope" size={20} color={t.fg} />
-            {waiting > 0 && (
-              <View
-                style={[
-                  styles.envelopeBadge,
-                  { backgroundColor: t.accent, borderColor: t.bg },
-                ]}
+                The badge is hidden at zero, as the web's is. A badge that draws "0"
+                teaches people that the number means nothing, and an empty circle is
+                a claim that something is there.
+              */}
+              <RoundButton
+                t={t}
+                onPress={onOpenLately}
+                accessibilityLabel={
+                  waiting > 0 ? `Lately, ${waiting} waiting on you` : 'Lately'
+                }
               >
-                <Text style={[styles.envelopeCount, { color: t.onAccent }]}>
-                  {/* Past this the number stops being readable at 11.5pt and
-                      stops being actionable anyway — "a lot" is the same
-                      instruction as "99". */}
-                  {waiting > 99 ? '99+' : waiting}
-                </Text>
-              </View>
-            )}
-          </RoundButton>
+                <Glyph name="envelope" size={20} color={t.fg} />
+                {waiting > 0 && (
+                  <View
+                    style={[
+                      styles.envelopeBadge,
+                      { backgroundColor: t.accent, borderColor: t.bg },
+                    ]}
+                  >
+                    <Text style={[styles.envelopeCount, { color: t.onAccent }]}>
+                      {/* Past this the number stops being readable at 11.5pt and
+                          stops being actionable anyway — "a lot" is the same
+                          instruction as "99". */}
+                      {waiting > 99 ? '99+' : waiting}
+                    </Text>
+                  </View>
+                )}
+              </RoundButton>
 
-          {/*
-            The `+`'s place is held even when the `+` is not there.
+              {/*
+                The `+`'s place is held even when the `+` is not there.
 
-            It is hidden twice — while the groups are still arriving, and while
-            the create form is open — and the envelope beside it is in a row
-            that lays out from the right. So the envelope was drawn where the
-            `+` belongs and then slid left the moment the groups landed, which
-            on a cold open is the first thing on the screen and it moves.
+                It is hidden twice — while the groups are still arriving, and while
+                the create form is open — and the envelope beside it is in a row
+                that lays out from the right. So the envelope was drawn where the
+                `+` belongs and then slid left the moment the groups landed, which
+                on a cold open is the first thing on the screen and it moves.
 
-            A control that is in a different place for the first half-second is
-            a control somebody reaches for and misses.
-          */}
-          {/*
-            The same `+` as Home and You, making the same two things.
+                A control that is in a different place for the first half-second is
+                a control somebody reaches for and misses.
+              */}
+              {/*
+                The same `+` as Home and You, making the same two things.
 
-            It made a group and only a group, because it is on the groups tab —
-            which is the reasoning that produces an app where one glyph means
-            two things in one place and one thing in another. Nobody can learn
-            that: either `+` makes what you ask it for.
-          */}
-          {groups !== null ? (
-            <RoundButton
-              t={t}
-              onPress={() => setStarting(true)}
-              accessibilityLabel="New album or group"
-            >
-              <Glyph name="plus" size={20} color={t.fg} />
-            </RoundButton>
-          ) : (
-            <View style={styles.roundSlot} />
-          )}
-        </View>
-      </View>
+                It made a group and only a group, because it is on the groups tab —
+                which is the reasoning that produces an app where one glyph means
+                two things in one place and one thing in another. Nobody can learn
+                that: either `+` makes what you ask it for.
+              */}
+              {groups !== null ? (
+                <RoundButton
+                  t={t}
+                  onPress={() => setStarting(true)}
+                  accessibilityLabel="New album or group"
+                >
+                  <Glyph name="plus" size={20} color={t.fg} />
+                </RoundButton>
+              ) : (
+                <View style={styles.roundSlot} />
+              )}
+          </>
+        }
+      />
 
       {starting && (
         <StartSomething
@@ -1842,7 +1832,16 @@ export function SearchTab({
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.h1, { color: t.fg }]}>Find</Text>
+      {/*
+        The name, and nothing beside it.
+
+        It said "Find" at 30 points above a search field, on the tab whose own
+        glyph is a magnifier — a title saying what the field below it already
+        says. This tab makes nothing, so the head is the wordmark alone, which
+        is also what keeps the field starting at the same height here as the
+        first card does on Home.
+      */}
+      <PageHead color={t.fg} />
 
       <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
         <Glyph name="search" size={17} color={t.dim} />
@@ -2371,19 +2370,6 @@ const styles = StyleSheet.create({
    */
   scroll: { padding: 20, paddingTop: 72, paddingBottom: 132, gap: 26, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  /*
-   * The wordmark's row, which is not `headRow`.
-   *
-   * `alignItems: 'baseline'` is right for a title beside a button and wrong for
-   * this: the name is set in a face with its own metrics, so aligning the disc
-   * to its baseline hangs the button low. Centred on the row instead, which is
-   * what the eye reads as level.
-   */
-  markRow: { flexDirection: 'row', alignItems: 'center' },
-  /* Takes the space the two discs leave, so the middle of the name is the
-     middle of the screen. The word centres itself inside it — see
-     `Wordmark.tsx`, which has no intrinsic width to centre by. */
-  centred: { flex: 1 },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
   headActions: { flexDirection: 'row', alignItems: 'baseline', gap: 18 },
@@ -2619,7 +2605,10 @@ const styles = StyleSheet.create({
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
   groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
-  groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  /* `flex-end`, now that there is nothing on the left of it. The row was a
+     title and two discs pushed apart; without the title, `space-between` would
+     spread the two discs across the screen. */
+  groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12 },
   groupBlock: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* The door: small, because the evenings under it are what the block is for.

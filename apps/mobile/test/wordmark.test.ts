@@ -19,6 +19,8 @@ const read = (name: string) =>
 
 const EVENTS = read('src/Events.tsx');
 const MARK = read('src/Wordmark.tsx');
+/** The row every tab opens with, which used to be four different rows. */
+const HEAD = read('src/PageHead.tsx');
 
 /* The wordmark's prose names `fontWeight` as the thing it refuses, so the
    assertion that it is not used has to look at code rather than at commentary
@@ -32,12 +34,37 @@ const WEB_CSS = read('../web/app/globals.css');
 
 describe('the name', () => {
   it('is the product’s, not the screen’s contents', () => {
-    expect(EVENTS).toMatch(/<Wordmark color=\{t\.fg\} \/>/);
+    expect(HEAD).toMatch(/<Wordmark color=\{color\}/);
     const home = EVENTS.slice(
       EVENTS.indexOf('export function HomeTab'),
       EVENTS.indexOf('export function GroupsTab'),
     );
     expect(home).not.toMatch(/>Events</);
+  });
+
+  it('opens every tab, in the same place on each', () => {
+    /*
+     * Four tabs used to open four ways: the wordmark between a slot and a `+`
+     * on Home, "Your Parea" at 30 points beside two discs on Groups, "Find"
+     * above a search field, and two discs with nothing between them on the
+     * profile.
+     *
+     * Two of those were page titles, and a page title on a tab bar's own
+     * destination names the thing you just pressed — the bar already says
+     * where you are, in a picture nobody has to read. What was worth keeping
+     * is the half that is not a title: the name of the product.
+     */
+    for (const [name, source] of [
+      ['Home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function GroupsTab'))],
+      ['Groups', EVENTS.slice(EVENTS.indexOf('export function GroupsTab'), EVENTS.indexOf('function GroupBlock'))],
+      ['Find', EVENTS.slice(EVENTS.indexOf('export function SearchTab'), EVENTS.indexOf('function Result('))],
+      ['Profile', read('src/Profile.tsx')],
+    ] as const) {
+      expect(source, `${name} should open with the wordmark`).toMatch(/<PageHead/);
+    }
+    // And neither of the two titles survives.
+    expect(EVENTS).not.toMatch(/>Your Parea</);
+    expect(EVENTS).not.toMatch(/\}\]}>Find</);
   });
 
   it('is read aloud as the proper noun, however it is drawn', () => {
@@ -103,34 +130,52 @@ describe('the face it is set in', () => {
 });
 
 describe('where it sits', () => {
-  it('is centred on the screen, not on what the button leaves', () => {
+  it('is centred on the screen, not on what the buttons leave', () => {
     /*
-     * The `+` is 36 points. With the name simply pushed to the left of it, the
-     * middle of the word sat 18 points left of the middle of the screen —
-     * close enough to read as centred and not be, which is the version that
-     * looks like a mistake rather than a decision.
+     * With the name simply pushed to the left of a 36pt `+`, the middle of the
+     * word sat 18 points left of the middle of the screen — close enough to
+     * read as centred and not be, which is the version that looks like a
+     * mistake rather than a decision.
      *
-     * A slot the size of the button on the other side is what makes it exact,
-     * and it is sized from the same constant so the two cannot drift.
+     * Home fixed that by holding a slot exactly the width of its button. That
+     * works for one control and stops at two: Groups has an envelope *and* a
+     * `+`, and a single-disc slot opposite them would be the same half-disc
+     * error in the other direction. Equal flex on both sides centres it
+     * whatever each side holds, with no caller measuring anything.
      */
-    const row = EVENTS.slice(EVENTS.indexOf('<View style={styles.markRow}>'), EVENTS.indexOf('</View>', EVENTS.indexOf('<View style={styles.markRow}>')) + 400);
-    expect(row).toMatch(/<View style=\{styles\.roundSlot\} \/>/);
-    expect(row).toMatch(/<View style=\{styles\.centred\}>\s*<Wordmark/);
-    expect(EVENTS).toMatch(/centred: \{ flex: 1 \}/);
+    expect(HEAD).toMatch(/side: \{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 \}/);
+    expect(HEAD).toMatch(/<View style=\{styles\.side\}>\{left\}<\/View>/);
+    expect(HEAD).toMatch(/<View style=\{\[styles\.side, styles\.trailing\]\}>\{right\}<\/View>/);
+    /*
+     * And the word is given a width. `Wordmark` is an SVG and cannot size
+     * itself to its content, so the default `100%` would fill a flex parent
+     * and re-centre inside that instead of sitting between two equal sides.
+     */
+    expect(HEAD).toMatch(/const WORD = \d+;/);
+    expect(HEAD).toMatch(/width=\{WORD\}/);
     // The word centres itself inside that space: SVG has no intrinsic width,
     // so `textAlign` has nothing to act on and `textAnchor` does the job.
     expect(MARK).toMatch(/textAnchor="middle"/);
     expect(MARK).toMatch(/x="50%"/);
-    expect(EVENTS).toMatch(/roundSlot: \{ width: ROUND, height: ROUND \}/);
   });
 
-  it('does not hang the button off the name’s baseline', () => {
+  it('does not hang the buttons off the name’s baseline', () => {
     /*
-     * `headRow` aligns on the baseline, which is right for a title beside a
-     * button and wrong here: the name is set in a face with its own metrics, so
-     * a disc aligned to its baseline sits visibly low.
+     * Baseline alignment is right for a title beside a button and wrong here:
+     * the name is set in a face with its own metrics, so a disc aligned to its
+     * baseline sits visibly low.
      */
-    expect(EVENTS).toMatch(/markRow: \{ flexDirection: 'row', alignItems: 'center' \}/);
+    expect(HEAD).toMatch(/alignItems: 'center', minHeight: ROUND/);
+  });
+
+  it('starts every tab’s content at the same height', () => {
+    /*
+     * The row is as tall as a disc whether or not it holds one, so Find —
+     * which makes nothing and has no controls — does not begin its search
+     * field higher up the screen than Home begins its first card.
+     */
+    expect(HEAD).toMatch(/minHeight: ROUND/);
+    expect(HEAD).toMatch(/import \{ ROUND \} from '\.\/RoundButton'/);
   });
 });
 

@@ -62,6 +62,7 @@ import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
+import { PageHead } from './PageHead';
 import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import type { GroupTheme } from './Groups';
@@ -216,7 +217,11 @@ export function ProfileScreen({
     <ScrollView contentContainerStyle={styles.scroll}>
       {/*
         The two things that are not about looking at this profile, in the two
-        corners, above everything that is.
+        corners, with the product's name between them.
+
+        The name is what the other three tabs open with, and this one used to
+        open with two discs and a gap. Same row, same height, same place — see
+        `PageHead`.
 
         Settings used to be half of the row under the bio, which put the
         product's two destructive verbs beside `Edit profile` and gave the
@@ -230,18 +235,24 @@ export function ProfileScreen({
         third `+` somebody meets in this app and the other two already taught
         it.
       */}
-      <View style={[styles.bar, styles.gutter]}>
-        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
-          <More color={t.fg} />
-        </RoundButton>
-
-        <RoundButton
-          t={t}
-          onPress={() => setCreating(true)}
-          accessibilityLabel="New album or group"
-        >
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
+      <View style={styles.gutter}>
+        <PageHead
+          color={t.fg}
+          left={
+            <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
+              <More color={t.fg} />
+            </RoundButton>
+          }
+          right={
+            <RoundButton
+              t={t}
+              onPress={() => setCreating(true)}
+              accessibilityLabel="New album or group"
+            >
+              <Glyph name="plus" size={20} color={t.fg} />
+            </RoundButton>
+          }
+        />
       </View>
 
       {/*
@@ -848,7 +859,6 @@ const styles = StyleSheet.create({
      from. Named rather than repeated, so "the gutter" stays one number. */
   gutter: { paddingHorizontal: 20 },
   /* Settings and `+`, in the two corners, above everything else. */
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   /*
    * The words and the picture on one line, the words first.
    *

@@ -89,10 +89,20 @@ describe('which conversations appear', () => {
 });
 
 describe('what the tab is called', () => {
-  it('is "Your Parea", not "Groups"', () => {
-    // The tab holds the rooms and the conversations, and the word for all of
-    // that together is the one the product is named after.
-    expect(TAB).toMatch(/>Your Parea</);
+  it('is not called anything', () => {
+    /*
+     * It said "Your Parea", which was chosen over "Groups" because the tab
+     * holds the rooms and the conversations and the word for all of that is
+     * the one the product is named after. Both were the same mistake at
+     * different volumes: a 30pt line naming the tab you just pressed, above
+     * the rooms you pressed it to reach.
+     *
+     * What opens it now is what opens every tab — the product's name, in the
+     * same place, from `PageHead`.
+     */
+    expect(TAB).not.toMatch(/>Your Parea</);
+    expect(TAB).not.toMatch(/>Groups</);
+    expect(TAB).toMatch(/<PageHead/);
   });
 
   it('calls the one-off conversations group chats', () => {
@@ -122,8 +132,9 @@ describe('the tab arrives in one piece', () => {
     const tree = TAB.indexOf('<ScrollView');
     expect(gate).toBeGreaterThan(-1);
     expect(tree).toBeGreaterThan(gate);
-    // Including the heading, which is the part this moved.
-    expect(TAB.indexOf('Your Parea')).toBeGreaterThan(gate);
+    // Including the head, which is the part this moved. It was the "Your
+    // Parea" heading; it is the wordmark row now, and the rule is the same.
+    expect(TAB.indexOf('<PageHead')).toBeGreaterThan(gate);
     expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
     expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
     expect(TAB.indexOf('shown.map((group)')).toBeGreaterThan(gate);

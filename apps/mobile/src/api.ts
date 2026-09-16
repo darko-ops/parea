@@ -111,15 +111,14 @@ export type FeedPhoto = {
 export type Feed = {
   event: {
     id: string;
-    name: string;
     /**
-     * The host's line under the name, or null.
+     * What it is called, as the server currently has it.
      *
-     * The server has sent this all along and this client never declared it, so
-     * a caption written on the create screen could be read by the website and
-     * by nobody on a phone — and there was nowhere to change one.
+     * Read rather than taken from the `SavedEvent` the screen was opened with:
+     * that one is a copy made when the album was first reached and does not
+     * move when somebody renames it. The header follows this.
      */
-    caption: string | null;
+    name: string;
     uploadsOpen: boolean;
     canAdminister: boolean;
     /**
@@ -1392,22 +1391,24 @@ export class Api {
   }
 
   /**
-   * The line under the album's name, changed after the fact.
+   * What the album is called, changed after the fact.
    *
    * Same endpoint and same field the create screen writes and the web's manage
-   * screen edits — the route has accepted `caption` since events had one. What
+   * screen edits — the route has accepted `name` since events had one. What
    * was missing was any way to reach it from a phone once the album existed,
    * which made it the one thing you had to get right in the thirty seconds
-   * before anybody arrived.
+   * before anybody arrived, on a screen where you had not yet seen a single
+   * photograph.
    *
-   * An empty string clears it. The route turns `''` into null rather than
-   * storing a blank, which is the difference between a caption somebody
-   * removed and one they never wrote.
+   * The one field on that route that cannot be emptied: it is what an album is
+   * called on a card, in a notification and in the thread, and a blank in all
+   * of those is a space nobody can point at. The route refuses `''` and
+   * anything past 120, and the screen refuses both first.
    */
-  setCaption(eventId: string, caption: string): Promise<unknown> {
+  setName(eventId: string, name: string): Promise<unknown> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ caption }),
+      body: JSON.stringify({ name }),
     });
   }
 
