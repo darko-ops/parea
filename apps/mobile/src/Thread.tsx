@@ -164,19 +164,24 @@ export function Thread({
     [actions, onChanged],
   );
 
+  /**
+   * Deletes, without asking a second time.
+   *
+   * It used to open its own "Delete this message?" alert, which meant two
+   * native alerts in a row: the long-press menu, and then this one raised from
+   * inside that menu's own dismissal. iOS presents the second on a view
+   * controller that is already going away, so it never appeared — you held
+   * your message, chose Delete, and nothing happened at all.
+   *
+   * One alert is also the better shape regardless. Long-pressing a message and
+   * choosing a red item is already a deliberate act, and the consequence — it
+   * leaves a gap rather than vanishing — belongs in front of the decision
+   * rather than in a second panel after it. See the menu in `Row`.
+   */
   const remove = useCallback(
-    (id: string) => {
-      Alert.alert('Delete this message?', 'It leaves a gap saying it was deleted.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await actions.remove(id).catch(() => {});
-            await onChanged();
-          },
-        },
-      ]);
+    async (id: string) => {
+      await actions.remove(id).catch(() => {});
+      await onChanged();
     },
     [actions, onChanged],
   );
@@ -263,7 +268,7 @@ export function Thread({
               t={t}
               canReact={actions.react != null}
               onReact={(emoji) => void react(item.id, emoji)}
-              onDelete={() => remove(item.id)}
+              onDelete={() => void remove(item.id)}
               onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
             />
           )}
@@ -363,6 +368,24 @@ function Row({
   const mine = message.author.mine;
   const lens = lensFor(message.author.key);
 
+  /**
+   * What you can do to your own message, and the consequence of the worse one.
+   *
+   * One alert rather than two. Delete used to raise a second "are you sure"
+   * from inside this one's dismissal, which iOS presents on a view controller
+   * that is already going away — so it never appeared, and holding a message
+   * and choosing Delete did nothing at all. The sentence that second panel
+   * existed to say is this one's message now, which is where somebody making
+   * the decision can actually read it.
+   */
+  const menu = useCallback(() => {
+    Alert.alert('Your message', 'Deleting it leaves a gap saying it was deleted.', [
+      { text: 'Edit', onPress: () => setEditing(message.body) },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [message.body, onDelete]);
+
   return (
     <View style={[styles.row, mine && styles.rowMine]}>
       {message.author.avatarUrl ? (
@@ -420,21 +443,36 @@ function Row({
           </View>
         ) : (
           <Pressable
-            // Long press rather than a menu glyph on every message: three dots
-            // beside each of your own is a permanent invitation to delete
-            // them, and on this width it competes with the name and the time
-            // for one line.
-            onLongPress={
+            /*
+              Long press rather than a menu glyph on every message: three dots
+              beside each of your own is a permanent invitation to delete them,
+              and on this width it competes with the name and the time for one
+              line.
+
+              `delayLongPress` is shortened from the 500ms default. This is the
+              only way to reach either verb, and half a second of holding still
+              on a scrolling list is long enough that people let go first and
+              conclude there is nothing there.
+            */
+            onLongPress={mine ? menu : undefined}
+            delayLongPress={320}
+            accessibilityRole={mine ? 'button' : 'text'}
+            /*
+              And a second way to the same menu, for somebody who cannot hold a
+              finger still. A long press is invisible to a screen reader and
+              impossible for some people to perform; the actions rotor is where
+              iOS puts the alternative.
+            */
+            accessibilityActions={
+              mine ? [{ name: 'longpress', label: 'Edit or delete' }] : undefined
+            }
+            onAccessibilityAction={
               mine
-                ? () =>
-                    Alert.alert('Your message', undefined, [
-                      { text: 'Edit', onPress: () => setEditing(message.body) },
-                      { text: 'Delete', style: 'destructive', onPress: onDelete },
-                      { text: 'Cancel', style: 'cancel' },
-                    ])
+                ? (e) => {
+                    if (e.nativeEvent.actionName === 'longpress') menu();
+                  }
                 : undefined
             }
-            accessibilityRole={mine ? 'button' : 'text'}
           >
             {mine ? (
               <View style={[styles.bubble, { backgroundColor: t.accent }]}>

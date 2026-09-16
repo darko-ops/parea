@@ -19,6 +19,22 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const THREAD = read('src/Thread.tsx');
+
+/**
+ * The text between two anchors, and an error rather than a silent pass when
+ * one of them has been renamed.
+ *
+ * `slice(indexOf(a), indexOf(b))` with a stale anchor is `slice(n, -1)` — the
+ * whole rest of the file — so the assertions go on passing while describing
+ * something else entirely. That has already happened twice in this suite.
+ */
+const between = (source: string, from: string, to: string): string => {
+  const start = source.indexOf(from);
+  const end = source.indexOf(to);
+  if (start < 0) throw new Error(`anchor not found: ${from}`);
+  if (end < 0) throw new Error(`anchor not found: ${to}`);
+  return source.slice(start, end);
+};
 const API = read('src/api.ts');
 const APP = read('App.tsx');
 
@@ -175,6 +191,51 @@ describe('the rules carried over from the web', () => {
     expect(GROUP).toMatch(/\$\{m\.id\}:\$\{m\.deleted \? 1 : 0\}:\$\{m\.body\}/);
     expect(GROUP).toMatch(/if \(next !== shape\.current\) \{/);
     expect(GROUP).toMatch(/if \(messagesRef\.current === null\) \{/);
+  });
+
+  it('offers edit and delete on a long press, in one alert', () => {
+    /*
+     * It was two native alerts in a row: the menu, and then a "Delete this
+     * message?" raised from inside that menu's own dismissal. iOS presents the
+     * second on a view controller that is already going away, so it never
+     * appeared — you held your message, chose Delete, and nothing happened at
+     * all.
+     *
+     * One alert is the better shape regardless. Long-pressing a message and
+     * choosing a red item is already a deliberate act, and the consequence —
+     * it leaves a gap rather than vanishing — belongs in front of the decision
+     * rather than in a second panel after it.
+     */
+    expect(THREAD).toMatch(
+      /Alert\.alert\('Your message', 'Deleting it leaves a gap saying it was deleted\.', \[/,
+    );
+    expect(THREAD).toMatch(/text: 'Delete', style: 'destructive', onPress: onDelete/);
+    // `remove` deletes rather than asking again, which is what made the chain.
+    const removeFn = between(THREAD, 'const remove = useCallback', 'const mention = useMemo');
+    expect(removeFn).not.toMatch(/Alert\.alert/);
+    expect(removeFn).toMatch(/await actions\.remove\(id\)/);
+
+    /*
+     * Only on your own, and only by holding: three dots beside each of your
+     * own messages is a permanent invitation to delete them, and on this width
+     * it competes with the name and the time for one line.
+     */
+    expect(THREAD).toMatch(/onLongPress=\{mine \? menu : undefined\}/);
+    /*
+     * Shortened from the 500ms default. This is the only way to reach either
+     * verb, and half a second of holding still on a scrolling list is long
+     * enough that people let go first and conclude there is nothing there.
+     */
+    expect(THREAD).toMatch(/delayLongPress=\{320\}/);
+    /*
+     * And a second way to the same menu. A long press is invisible to a screen
+     * reader and impossible for some people to perform; the actions rotor is
+     * where iOS puts the alternative.
+     */
+    expect(THREAD).toMatch(/accessibilityActions=\{[\s\S]{0,80}label: 'Edit or delete'/);
+    expect(THREAD).toMatch(/actionName === 'longpress'\) menu\(\)/);
+    // One menu, reached two ways, rather than the alert written out twice.
+    expect(THREAD.match(/Alert\.alert\('Your message'/g) ?? []).toHaveLength(1);
   });
 
   it('keeps the draft when a post fails', () => {
