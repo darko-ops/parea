@@ -443,6 +443,53 @@ export type GroupDoor = {
   canJoinDirectly: boolean;
 };
 
+/**
+ * One album in a group, as the room draws it.
+ *
+ * The four bare columns this used to be — id, name, token, a date — were
+ * enough to render a blue word, which is what the group screen did with them
+ * in a product whose subject is photographs. Everything added here is what
+ * makes a row recognisable: the picture, how much of it there is, who was
+ * there. The same shape the web's group page has been drawing all along.
+ */
+export type GroupAlbum = {
+  id: string;
+  name: string;
+  /** Presigned, or null for an album with nothing in it yet. */
+  cover: string | null;
+  photoCount: number;
+  /** Up to three contributor pictures. Null where somebody has none. */
+  faces: (string | null)[];
+  /** Everybody in it, which is not the same as everybody who put something in. */
+  people: number;
+  /** ISO. The album's own date where it has one, else when it last moved. */
+  at: string;
+  /** Arrived since this person last looked. Zero draws no pip. */
+  fresh: number;
+  /** What opening it needs — see the note on `GroupEvent` on the server. */
+  linkToken: string;
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+/** Somebody in a group. */
+export type GroupPerson = {
+  actorId: string;
+  name: string;
+  /** The name a face is captioned with, where a full one would not fit. */
+  firstName: string;
+  /**
+   * Without the `@`, and null for somebody with no profile to open.
+   *
+   * `name` already falls back to `@handle` where there is no display name,
+   * which is right for a caption and useless for navigation. Null is how a
+   * face says it cannot be pressed.
+   */
+  handle: string | null;
+  avatarUrl: string | null;
+  role: 'member' | 'admin';
+};
+
 export type GroupRoom = {
   id: string;
   name: string;
@@ -450,15 +497,9 @@ export type GroupRoom = {
   member: true;
   role: 'member' | 'admin';
   findable: boolean;
-  events: {
-    id: string;
-    name: string;
-    linkToken: string;
-    eventDate: string | null;
-    createdAt: string;
-    startsAt: string | null;
-    endsAt: string | null;
-  }[];
+  events: GroupAlbum[];
+  /** Everybody in it, admins first. Empty for a group being read as a door. */
+  people: GroupPerson[];
 };
 
 export type GroupView = GroupDoor | GroupRoom;

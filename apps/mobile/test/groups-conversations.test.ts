@@ -225,9 +225,28 @@ describe('a group’s own thread', () => {
   });
 
   it('carries the summary it already has rather than re-fetching a title', () => {
-    // Re-reading a name, a member count and a lens to render a header is a
-    // spinner where a name should be.
-    expect(APP).toMatch(/screen: 'groupThread'; group: MyGroupDetail/);
+    /*
+     * Re-reading a name and a member count to render a header is a spinner
+     * where a name should be.
+     *
+     * The route carries what the bar needs rather than a whole
+     * `MyGroupDetail`, because there are two ways in now: the Groups tab holds
+     * one of those, and the group's own page holds a `GroupRoom`. Each
+     * satisfies this shape without inventing the other's fields, and the
+     * screen was reading four properties off the larger one anyway.
+     */
+    expect(APP).toMatch(
+      /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
+    );
+    expect(GROUP_THREAD).toMatch(
+      /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
+    );
+    // And the room itself opens it, which it could not before: the thread was
+    // reachable only from the envelope on the Groups tab, so a group opened
+    // from a search result or from one of its albums had the talking sealed off.
+    expect(APP).toMatch(/onOpenThread=\{\(group\) =>/);
+    const GROUPS = read('src/Groups.tsx');
+    expect(GROUPS).toMatch(/onPress=\{\(\) => onOpenThread\(group\)\}/);
   });
 });
 

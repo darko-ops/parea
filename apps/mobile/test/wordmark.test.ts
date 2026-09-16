@@ -197,11 +197,29 @@ describe('what the product calls an album', () => {
     }
   });
 
-  it('says it on the tab bar, and in the two headings', () => {
+  it('says it on the tab bar, and wherever a screen names the things', () => {
     expect(read('App.tsx')).toMatch(/\['home', 'photos', 'Albums'\]/);
-    for (const name of ['src/Groups.tsx', 'src/Person.tsx']) {
-      expect(read(name), name).toMatch(/>Albums</);
-    }
+    expect(read('src/Person.tsx')).toMatch(/>Albums</);
+    /*
+     * `Groups.tsx` lost its `Albums` heading when the room's archive stopped
+     * being a card with a title on it — the months head the runs now, and a
+     * section heading over them would be a label for a thing already labelled.
+     * The word still has to be the one people read.
+     */
+    const GROUPS = read('src/Groups.tsx');
+    expect(GROUPS).toMatch(/New album in this group/);
+    expect(GROUPS).toMatch(/'album' : 'albums'/);
+    /*
+     * And never the schema's word where somebody reads it.
+     *
+     * Checked against the shapes a label actually takes rather than by hunting
+     * the word between any `>` and `<`: in TSX those two characters bound
+     * arrow functions and JSX tags as readily as text, so a loose pattern
+     * matches `onOpenEvent` and `group.events` and fails on the prop names the
+     * routes are deliberately still called.
+     */
+    expect(GROUPS).not.toMatch(/>\s*Events?\s*</);
+    expect(GROUPS).not.toMatch(/label="[^"]*\bevent\b/i);
   });
 
   it('leaves the schema’s word where the schema uses it', () => {

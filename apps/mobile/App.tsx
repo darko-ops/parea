@@ -209,7 +209,15 @@ type Route =
    * re-fetching all three to render a title bar is a spinner where a name
    * should be.
    */
-  | { screen: 'groupThread'; group: MyGroupDetail }
+  | {
+      screen: 'groupThread';
+      /*
+       * What the bar needs, which both ways in already have: the Groups tab
+       * holds a `MyGroupDetail` and the group's own page holds a `GroupRoom`,
+       * and each satisfies this without inventing the other's fields.
+       */
+      group: { id: string; name: string; memberCount: number; eventCount: number };
+    }
   | { screen: 'person'; handle: string }
   /**
    * Lately, pushed over the tabs from the envelope in the Groups heading.
@@ -807,6 +815,25 @@ export default function App() {
             onBack={leaveGroup}
             onOpenEvent={open}
             onCreateEvent={(name) => setRoute({ screen: 'pick', groupId: route.id, groupName: name })}
+            /*
+              Into the room's own conversation, from the room.
+
+              It was reachable only from the envelope on the Groups tab, so a
+              group opened from a search result or from one of its albums was a
+              room with the talking sealed off.
+            */
+            onOpenThread={(group) =>
+              setRoute({
+                screen: 'groupThread',
+                group: {
+                  id: group.id,
+                  name: group.name,
+                  memberCount: group.memberCount,
+                  eventCount: group.events.length,
+                },
+              })
+            }
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             Button={Button}
           />
         </SwipeBack>

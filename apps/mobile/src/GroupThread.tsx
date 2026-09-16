@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
-import type { Api, Message, MyGroupDetail } from './api';
+import type { Api, Message } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Thread } from './Thread';
@@ -45,7 +45,17 @@ export function GroupThread({
   onOpenGroup,
 }: {
   api: Api;
-  group: MyGroupDetail;
+  /**
+   * Enough to draw the bar, and no more.
+   *
+   * It took a whole `MyGroupDetail` — faces, a last message, an unread count,
+   * a last-active timestamp — and read four fields off it. That was fine while
+   * the Groups tab was the only way in, since that screen already held one;
+   * the group's own page now opens this too, and it has a `GroupRoom` rather
+   * than a summary. Asking for what is used lets both hand over what they have
+   * without either inventing the rest.
+   */
+  group: { id: string; name: string; memberCount: number; eventCount: number };
   t: GroupTheme;
   dark: boolean;
   onBack: () => void;

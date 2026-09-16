@@ -189,3 +189,119 @@ describe('what it costs at launch', () => {
     expect(plain).not.toContain('detail=1');
   });
 });
+
+/**
+ * The room itself, which was a list of blue words.
+ *
+ * Opening a group showed its name, a member count, and a card containing each
+ * album's name as a link with a raw date beside it — a directory, in a product
+ * whose subject is photographs, describing the one place a group's photographs
+ * accumulate.
+ *
+ * The server could already answer this properly. The web's group page has been
+ * drawing covers, counts and month headings out of `groupArchive` for a while;
+ * it calls that function directly, being a server component, and the route the
+ * app asks was still returning four bare columns from `groupEvents`.
+ */
+describe('what a group shows when you open it', () => {
+  const GROUPS = read('src/Groups.tsx');
+  const ROUTE = readFileSync(
+    fileURLToPath(new URL('../../web/app/api/groups/[id]/route.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it('answers with the archive the web page already draws', () => {
+    expect(ROUTE).toMatch(/groupArchive\(db, group\.id, actorId, since\)/);
+    expect(ROUTE).toMatch(/groupPeople\(db, group\.id\)/);
+    expect(ROUTE).not.toMatch(/groupEvents\(/);
+    /*
+     * Null `since` means never looked, which has to mean everything is new
+     * rather than nothing: the epoch, not `now`. The same rule the web page
+     * follows, and getting it backwards would silently mark a whole group read.
+     */
+    expect(ROUTE).toMatch(/invitesSeenAtFor\(db, actorId\)\) \?\? new Date\(0\)/);
+  });
+
+  it('carries what opening an album needs, not only what drawing one does', () => {
+    /*
+     * The web navigates to a route by id. The native client cannot: opening an
+     * album means handing the screen a summary, and the album then presents a
+     * credential and asks the library for the photographs taken while the
+     * evening was on. Without the window it falls through to the system picker
+     * for every album reached through a group — which is most of them once a
+     * group exists, and the reason it would is invisible.
+     */
+    const SERVER = readFileSync(
+      fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SERVER).toMatch(/linkToken: schema\.events\.linkToken,\s*\n\s*startsAt: schema\.events\.startsAt,/);
+    expect(GROUPS).toMatch(/startsAt: event\.startsAt,/);
+  });
+
+  it('draws each album as its picture rather than as a link', () => {
+    expect(GROUPS).toMatch(/function AlbumRow\(/);
+    expect(GROUPS).toMatch(/album\.cover && \(/);
+    // Full-bleed against the scroll's gutter, like the cards on the home list:
+    // the photograph is the row.
+    expect(GROUPS).toMatch(/album: \{ marginHorizontal: -20 \}/);
+    /*
+     * One shape down the page rather than each album's own. A column of covers
+     * at their natural heights is a ladder of different rectangles, which reads
+     * as a feed; the home list is the place that keeps an evening's proportions.
+     */
+    expect(GROUPS).toMatch(/albumShot: \{ width: '100%', aspectRatio: 4 \/ 5/);
+    // And what is in it, which the old row could not say at all.
+    expect(GROUPS).toMatch(/'Nothing in it yet'/);
+    expect(GROUPS).toMatch(/album\.photoCount === 1 \? 'photo' : 'photos'/);
+  });
+
+  it('heads contiguous runs with the month, rather than collecting them', () => {
+    /*
+     * The list arrives newest-first, so a month's albums are already together;
+     * a map keyed by month would quietly reorder them if that ever stopped
+     * being true. This draws the same heading twice instead, which is visibly
+     * wrong rather than silently rearranged — the rule the web page follows.
+     */
+    expect(GROUPS).toMatch(/function monthsOf\(/);
+    expect(GROUPS).toMatch(/if \(last && last\.label === label\) last\.events\.push\(event\)/);
+    // The year only where it is not this one: "August 2024" tells two summers
+    // apart, and "August 2026" in September 2026 is noise.
+    expect(GROUPS).toMatch(/at\.getUTCFullYear\(\) === now\.getUTCFullYear\(\) \? \{\} : \{ year: 'numeric' \}/);
+    // Set like the rule over a card on the home list: the two are the same kind
+    // of line, and a second treatment for one idea is how a product gets two.
+    expect(GROUPS).toMatch(/monthLabel: \{[\s\S]*?textTransform: 'uppercase',/);
+  });
+
+  it('shows who is in the room, as faces', () => {
+    /*
+     * The count says how many; this says who, which is the half somebody
+     * recognises a room by. A row that scrolls rather than a wrapped block: a
+     * group of thirty would otherwise push the albums off the bottom.
+     */
+    expect(GROUPS).toMatch(/group\.people\.map\(\(person\) => \{/);
+    expect(GROUPS).toMatch(/\{person\.firstName\}/);
+    // Rounded squares, like every other face in this product — a quarter of
+    // the box, as the profile's own picture and the home card's byline are.
+    expect(GROUPS).toMatch(/personFace: \{ width: 44, height: 44, borderRadius: 11/);
+    /*
+     * Pressable only where there is a profile to open. `name` falls back to
+     * `@handle` for somebody with no display name, which is right for a caption
+     * and useless for navigation — so the handle travels separately, and null
+     * is how a face says it cannot be pressed.
+     */
+    expect(GROUPS).toMatch(/onPress=\{person\.handle \? \(\) => onOpenPerson\(person\.handle!\) : undefined\}/);
+    expect(GROUPS).toMatch(/disabled=\{!person\.handle\}/);
+  });
+
+  it('keeps the room’s own face a letter, never a borrowed photograph', () => {
+    /*
+     * Older than this screen and unchanged by it: a picture from one evening
+     * standing for the room says that evening is the room. The albums below
+     * carry the photographs; the crest is the group's letter on its lens.
+     */
+    const identity = GROUPS.slice(GROUPS.indexOf('styles.identity'), GROUPS.indexOf('!group.member'));
+    expect(identity).toMatch(/styles\.crest/);
+    expect(identity).not.toMatch(/cover|Image/);
+  });
+});

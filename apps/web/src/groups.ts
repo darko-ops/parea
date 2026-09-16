@@ -573,6 +573,20 @@ const FRESH = (actorId: string, since: Date) => sql<number>`(
 export type GroupEvent = {
   id: string;
   name: string;
+  /**
+   * What a client needs to *open* it, as distinct from what it needs to draw.
+   *
+   * The web has neither, because it navigates to a route by id. The native
+   * client cannot: opening an album there means handing the screen a summary,
+   * and the album then presents a credential and asks the library for the
+   * photographs taken while the evening was on. Without the token it has
+   * nothing to present; without the window it falls through to the system
+   * picker for every album reached through a group, which is most of them once
+   * a group exists — and the reason it would is invisible.
+   */
+  linkToken: string;
+  startsAt: string | null;
+  endsAt: string | null;
   /** Presigned, or null for an event with nothing in it yet. */
   cover: string | null;
   photoCount: number;
@@ -607,6 +621,9 @@ export async function groupArchive(
     .select({
       id: schema.events.id,
       name: schema.events.name,
+      linkToken: schema.events.linkToken,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
       capEpoch: schema.events.capEpoch,
       coverKey: schema.events.coverKey,
       eventDate: schema.events.eventDate,
@@ -651,6 +668,9 @@ export async function groupArchive(
     rows.map(async (row) => ({
       id: row.id,
       name: row.name,
+      linkToken: row.linkToken,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       cover: await eventCover(row),
       photoCount: row.photoCount,
       faces: await Promise.all((row.faceKeys ?? []).map((key) => avatarUrl(key))),
@@ -696,6 +716,8 @@ export type GroupPerson = {
   name: string;
   /** The first name only, for the label under a face. */
   firstName: string;
+  /** Without the `@`, and null for somebody who has no profile to open. */
+  handle: string | null;
   avatarUrl: string | null;
   role: 'member' | 'admin';
 };
@@ -733,6 +755,16 @@ export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[
         actorId: row.actorId,
         name,
         firstName: name.replace(/^@/, '').split(/\s+/)[0]!,
+        /*
+         * The handle on its own, and null for somebody who has none.
+         *
+         * `name` already falls back to `@handle` for a person with no display
+         * name, which is right for a caption and useless for navigation: a
+         * client opening somebody's profile needs the handle *as* a handle,
+         * and there is no profile at all for an actor without one. Null is how
+         * a face says it cannot be pressed.
+         */
+        handle: row.handle,
         avatarUrl: await avatarUrl(row.avatarKey),
         role: row.role,
       };
