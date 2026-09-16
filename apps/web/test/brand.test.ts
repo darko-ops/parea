@@ -1,19 +1,35 @@
 /**
  * The mark is drawn four times, and the four must be the same drawing.
  *
- * Once as the app icon the stores raster, once as the site's favicon, once as
- * a React component the pages render inline, and once inside the link-preview
- * image. Nobody notices these drifting. All four keep working, all four look
- * like the logo, and the discrepancy surfaces in a screenshot with the app
- * icon beside the website a year later.
+ * Once as the site's favicon, once as a React component the pages render
+ * inline, once in `react-native-svg` for the phone, and once inside the
+ * link-preview image. Nobody notices these drifting. All four keep working,
+ * all four look like the logo, and the discrepancy surfaces in a screenshot
+ * with one beside another a year later.
  *
- * It had already happened. This file used to check two of the four, and the
- * one nobody was checking — the preview image — had invented its own palette:
+ * It had already happened. This file used to check two of them, and the one
+ * nobody was checking — the preview image — had invented its own palette:
  * three flat circles at 72% alpha in colours appearing nowhere else, letting
  * the browser composite the overlaps that every other copy paints explicitly.
  * The comment at the top of that file said the geometry was "the same six
  * numbers", and the geometry was; everything else was not. So the numbers are
- * compared rather than trusted, and now all four are.
+ * compared rather than trusted.
+ *
+ * ## The app icon was a fifth, and is now its own drawing
+ *
+ * It is the same three circles on the same three centres, and everything else
+ * about it is different: the circles are white holes punched out of a coloured
+ * field rather than coloured shapes on white, and the radius is 163 rather
+ * than 200 because a hole wants more field around it than a shape wants page.
+ *
+ * That is a deliberate split and not drift, which is why it is asserted below
+ * rather than merely excused. What it costs is exactly what this file exists
+ * to prevent — the icon beside the website no longer match — and the other
+ * four have not been brought across because the mark they draw is used at
+ * 16 to 48 points on white pages, where three white circles are nothing at
+ * all. Carrying the new one over means making it a badge: the field, its
+ * corners and all, wherever the bare glyph is today. That is a change to
+ * every screen the mark appears on and wants deciding on its own.
  */
 
 import { readFileSync } from 'node:fs';
@@ -46,7 +62,6 @@ function circlesIn(svg: string) {
 }
 
 describe.each([
-  ['the app icon', icon],
   ['the favicon', favicon],
   ['the preview image', preview],
 ])('%s', (_name, svg) => {
@@ -85,6 +100,78 @@ describe.each([
      */
     expect(svg).not.toMatch(/rgba\(|opacity=|fill-opacity|mix-blend-mode/);
     expect(svg).toMatch(/clip-path=/);
+  });
+});
+
+/**
+ * The app icon, which is the same geometry saying the opposite thing.
+ *
+ * Checked rather than skipped. An untested fifth copy is how the preview image
+ * came to have its own palette, and "it is allowed to differ" is not the same
+ * claim as "it differs in these ways" — the second is the one worth writing
+ * down, because it is the one that fails when somebody changes the icon by
+ * hand instead of re-rendering it.
+ */
+describe('the app icon', () => {
+  it('keeps the three centres, on a radius of its own', () => {
+    /*
+     * The centres are the design — three points 132 from a middle at 120°
+     * apart, first one straight up — and they have not moved. The radius has:
+     * 200 was chosen when the mark was a small coloured shape that needed
+     * every pixel of colour it could get at 16px, and here the colour is the
+     * field and the circles are the absence of it, so tighter circles mean
+     * less field showing and a mark that reads as one white blob with notches.
+     */
+    const path = icon.match(/id="mark"[\s\S]*?d="([\s\S]*?)"/);
+    expect(path, 'no path with id="mark" in icon.svg').not.toBeNull();
+
+    // `M cx-r cy a r r 0 1 0 2r 0 …`, one subpath per circle.
+    const subpaths = [...path![1].matchAll(/M (\d+) (\d+) a (\d+) \d+/g)].map((m) => ({
+      cx: Number(m[1]) + Number(m[3]),
+      cy: Number(m[2]),
+      r: Number(m[3]),
+    }));
+    expect(subpaths.length, 'the extractor found nothing, which is not a pass').toBe(3);
+
+    const key = ({ cx, cy }: { cx: number; cy: number }) => `${cx},${cy}`;
+    expect([...new Set(subpaths.map(key))].sort()).toEqual([...MARK_CENTRES.map(key)].sort());
+    for (const circle of subpaths) expect(circle.r).toBe(163);
+  });
+
+  it('punches the circles out rather than painting seven regions', () => {
+    /*
+     * One path, three subpaths, `evenodd`. A region covered an odd number of
+     * times is white and an even number is not painted at all, so the three
+     * lenses are holes and the field shows through them — which is why no two
+     * of them are the same colour and none of them had to be chosen.
+     *
+     * The seven explicit fills existed because the mark used to sit on white,
+     * where a transparent overlap would have been white too and the lenses
+     * would have vanished. There is nothing to invent on a field.
+     */
+    expect(icon).toMatch(/fill-rule="evenodd"/);
+    expect(icon).not.toMatch(/clip-path=/);
+    for (const fill of FILLS) {
+      expect(icon, `${fill} should no longer be in the icon`).not.toContain(fill);
+    }
+  });
+
+  it('is full bleed, with no corner of its own', () => {
+    /*
+     * iOS rounds the corners itself and App Store Connect rejects an alpha
+     * channel. The artwork this came from was drawn with its corners already
+     * rounded against black; rounding here would round them twice and put
+     * black inside the mask.
+     */
+    expect(icon).toMatch(/<rect width="1024" height="1024" fill="#ffffff"\/>/);
+    expect(icon).not.toMatch(/\brx="/);
+  });
+
+  it('names the two halves the Android layers are cut from', () => {
+    // `render-icons.mjs` takes them apart by id. It used to pattern-match a
+    // white fill and broke the first time this file changed.
+    expect(icon).toMatch(/<g id="field">/);
+    expect(icon).toMatch(/id="mark"/);
   });
 });
 

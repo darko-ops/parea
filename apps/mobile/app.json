@@ -66,6 +66,7 @@
       "package": "photos.parea",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-background.png",
         "backgroundColor": "#ffffff"
       },
       "intentFilters": [

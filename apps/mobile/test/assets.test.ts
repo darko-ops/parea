@@ -59,6 +59,9 @@ describe('store assets', () => {
     expect(config.expo.android.adaptiveIcon.foregroundImage).toBe(
       './assets/adaptive-icon.png',
     );
+    expect(config.expo.android.adaptiveIcon.backgroundImage).toBe(
+      './assets/adaptive-background.png',
+    );
     expect(config.expo.web.favicon).toBe('./assets/favicon.png');
   });
 
@@ -76,10 +79,31 @@ describe('store assets', () => {
 
     expect(adaptive.width).toBe(1024);
     expect(adaptive.height).toBe(1024);
-    // Opaque here means a white card floating inside the launcher's mask,
-    // whatever `backgroundColor` says. The background is Android's to draw.
+    /*
+     * Opaque here means a card floating inside the launcher's mask, whatever
+     * is behind it. The foreground is the mark and nothing else.
+     */
     expect(adaptive.hasAlpha).toBe(true);
     expect(config.expo.android.adaptiveIcon.backgroundColor).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  it('gives Android the field as a background layer, not a flat colour', async () => {
+    /*
+     * The mark is a hole in a field now rather than a coloured shape on white,
+     * and that decides which half of an adaptive icon gets what. White circles
+     * over a flat `backgroundColor` would be nothing at all; the field is the
+     * background, the mark is the foreground, and the launcher masking the
+     * pair is what the two layers are for.
+     *
+     * Full bleed and opaque, because the mask can be a circle and a background
+     * that stops short of the corners loses its edges on the devices that
+     * round hardest.
+     */
+    const background = await png(config.expo.android.adaptiveIcon.backgroundImage);
+
+    expect(background.width).toBe(1024);
+    expect(background.height).toBe(1024);
+    expect(background.hasAlpha).toBe(false);
   });
 
   it('have a favicon at all', async () => {
