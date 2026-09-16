@@ -3403,6 +3403,67 @@ function EventScreen({
           onEditCover={framer}
           onRemoveCover={feed?.event.coverUrl ? removeCover : null}
           coverBusy={sendingCover}
+          /*
+            The frame, rendered *inside* the sheet's modal rather than beside it.
+
+            This is the trap the photograph's own `⋯` sheet has a paragraph
+            about further down, and it is the same one: on iOS a modal
+            presented while a full-screen modal is already up presents
+            underneath it. As a sibling of `<HostSheet>` this opened every time
+            and was never visible — and then appeared over the album the moment
+            the sheet was dismissed, which is exactly how the older bug read.
+            A screen about the cover belongs in the same layer as the row that
+            opens it.
+
+            Passed as an element rather than by giving `HostSheet` six more
+            props: everything it needs — the album's photographs, the feed, the
+            upload — lives out here, and threading all of it through a
+            presentational component to have it rebuilt on the other side would
+            put the cover's logic in two files.
+          */
+          coverFramer={
+            /*
+              Two ways into the same screen, and both of them belong here.
+
+              The library one fires only for an album with nothing in it —
+              there are no photographs of its own to offer, so the only picture
+              there could be is one off the camera roll. Its row of thumbnails
+              draws nothing, because there is no selection to try instead; what
+              it is here for is the frame and the zoom.
+            */
+            framingCover ? (
+              <CoverFramer
+                photos={[{ id: 'picked', uri: framingCover }]}
+                coverId="picked"
+                t={t}
+                onCancel={() => setFramingCover(null)}
+                onConfirm={(_id, framing) => {
+                  const uri = framingCover;
+                  setFramingCover(null);
+                  void sendCover(uri, framing);
+                }}
+              />
+            ) : framingAlbum && coverChoices.length > 0 ? (
+              <CoverFramer
+                photos={coverChoices}
+                /*
+                  `coverPhotoId` is null for a cover set before it was recorded
+                  and for one chosen off the camera roll. Both fall back to the
+                  photograph the album leads with, which is what the person
+                  opening this is looking at.
+                */
+                coverId={feed?.event.coverPhotoId ?? coverChoices[0]!.id}
+                initial={feed?.event.coverFraming ?? undefined}
+                stripLabel="IN THIS ALBUM"
+                t={t}
+                onCancel={() => setFramingAlbum(false)}
+                onConfirm={(id, framing) => {
+                  setFramingAlbum(false);
+                  void sendAlbumCover(id, framing);
+                }}
+              />
+            ) : null
+          }
           onPolicy={async (value) => {
             setPolicy(value);
             setPolicyError(null);
@@ -3470,47 +3531,6 @@ function EventScreen({
         just chosen out of the library and there is no album selection to try
         instead. What it is here for is the frame and the zoom.
       */}
-      {framingCover && (
-        <CoverFramer
-          photos={[{ id: 'picked', uri: framingCover }]}
-          coverId="picked"
-          t={t}
-          onCancel={() => setFramingCover(null)}
-          onConfirm={(_id, framing) => {
-            const uri = framingCover;
-            setFramingCover(null);
-            void sendCover(uri, framing);
-          }}
-        />
-      )}
-
-      {/*
-        The same screen, on the album's own photographs.
-
-        Opened by the cover row in the `⋯` sheet, seeded with the picture the
-        cover was cut from and the position it was left at — so somebody who
-        wants to shift an existing cover two inches to the left can, which is
-        the thing this whole mechanism was missing.
-
-        `coverPhotoId` is null for a cover set before it was recorded and for
-        one chosen off the camera roll. Both fall back to the photograph the
-        album leads with, which is what the person opening this is looking at.
-      */}
-      {framingAlbum && coverChoices.length > 0 && (
-        <CoverFramer
-          photos={coverChoices}
-          coverId={feed?.event.coverPhotoId ?? coverChoices[0]!.id}
-          initial={feed?.event.coverFraming ?? undefined}
-          stripLabel="IN THIS ALBUM"
-          t={t}
-          onCancel={() => setFramingAlbum(false)}
-          onConfirm={(id, framing) => {
-            setFramingAlbum(false);
-            void sendAlbumCover(id, framing);
-          }}
-        />
-      )}
-
       {selected && (
         <Modal visible animationType="fade" onRequestClose={() => setSelected(null)}>
           <PhotoViewer
@@ -3755,6 +3775,7 @@ function HostSheet({
   onEditCover,
   onRemoveCover,
   coverBusy,
+  coverFramer,
   onPolicy,
   onGroup,
   onOpenGroup,
@@ -3788,6 +3809,14 @@ function HostSheet({
   onRemoveCover: (() => void) | null;
   /** Whether a photograph is on its way up as the cover. */
   coverBusy: boolean;
+  /**
+   * The cover frame, when it is open — drawn inside this sheet's own modal.
+   *
+   * Handed over as an element because a modal presented from outside this one
+   * presents *underneath* it on iOS. See the note at the call site, and the
+   * longer one on `PhotoActions`, which is the same mistake made once already.
+   */
+  coverFramer: React.ReactNode;
   onPolicy: (value: 'public' | 'private') => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
@@ -4134,6 +4163,10 @@ function HostSheet({
           </ScrollView>
         </View>
       </View>
+
+      {/* Over the sheet, in the sheet's own layer. See the note at the call
+          site: presented from outside this modal it would open underneath it. */}
+      {coverFramer}
     </Modal>
   );
 }

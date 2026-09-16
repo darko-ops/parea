@@ -88,6 +88,47 @@ describe('the cover the event already has', () => {
     expect(COVER).toMatch(/Alert\.alert\(\s*'Remove the cover\?'/);
   });
 
+  it('opens the frame in the sheet’s own layer, not beside it', () => {
+    /*
+     * The trap this file's neighbour already has a paragraph about, walked
+     * into a second time: on iOS a modal presented while a full-screen modal
+     * is already up presents *underneath* it. The cover row lives inside the
+     * `⋯` sheet, which is a `<Modal>` — so a `<CoverFramer>` mounted as that
+     * sheet's sibling opened every single time and was never visible, and then
+     * appeared over the album the moment the sheet was dismissed.
+     *
+     * It worked before only because the row opened an `Alert.alert`, which is
+     * a native alert and draws over anything.
+     *
+     * So the frame is handed to the sheet as an element and rendered inside
+     * its modal, the way the photograph's own `⋯` sheet is rendered inside the
+     * viewer's. Both ways in go through it — the album's photographs, and the
+     * camera roll for an album that has none — because both would present
+     * underneath.
+     */
+    expect(APP).toMatch(/coverFramer=\{/);
+    expect(APP).toMatch(/coverFramer: React\.ReactNode;/);
+    const SHEET = APP.slice(APP.indexOf('function HostSheet'), APP.indexOf('function PhotoActions'));
+    expect(SHEET).toMatch(/\{coverFramer\}\s*\n\s*<\/Modal>/);
+    /*
+     * And nothing renders one anywhere else on this screen.
+     *
+     * Checked by indentation, which is crude and is the thing that actually
+     * distinguishes the two cases: inside the prop every `<CoverFramer` sits
+     * fourteen columns in, and one mounted as a sibling of `<HostSheet>` in
+     * this screen's own return sits at eight. Counting them would not catch
+     * it — the bug moves a framer rather than adding one.
+     *
+     * Worth a source check because the failure is invisible in a simulator
+     * until somebody presses the row: the component mounts, the state is
+     * right, and the screen simply does not appear.
+     */
+    const SCREEN = APP.slice(APP.indexOf('function EventScreen'), APP.indexOf('function HostSheet'));
+    const mounts = SCREEN.match(/\n( *)<CoverFramer/g) ?? [];
+    expect(mounts).toHaveLength(2);
+    for (const mount of mounts) expect(mount).toBe('\n              <CoverFramer');
+  });
+
   it('opens the frame on the album, not on the camera roll', () => {
     /*
      * The cover row used to open an alert whose first action opened the camera
