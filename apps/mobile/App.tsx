@@ -2010,7 +2010,15 @@ function EventScreen({
    * worth offering in bulk does not apply to one.
    */
   const saveOne = useCallback(
-    async (photo: FeedPhoto) => {
+    /**
+     * Answers whether it landed, which the corner button has no use for and
+     * the sheet does: there the control is a row of words with a photograph
+     * behind it, and a label that says "Saving…" and then goes back to
+     * "Download" is indistinguishable from one that did nothing. The sheet
+     * closes on a yes, which is the acknowledgement — it puts the photograph
+     * back in front of somebody who has just said they want to keep it.
+     */
+    async (photo: FeedPhoto): Promise<boolean> => {
       setSavingOne(photo.id);
       try {
         const { saved } = await saveToCameraRoll(
@@ -2018,6 +2026,7 @@ function EventScreen({
           () => {},
         );
         if (saved === 0) throw new Error('not saved');
+        return true;
       } catch (err) {
         Alert.alert(
           'Could not save it',
@@ -2025,6 +2034,7 @@ function EventScreen({
             ? err.message
             : 'Try again in a moment.',
         );
+        return false;
       } finally {
         setSavingOne(null);
       }
@@ -3645,6 +3655,22 @@ function EventScreen({
               */
               members={feed?.members ?? []}
               t={t}
+              /*
+                The same save the column view puts in a photograph's corner.
+
+                Reached from the viewer, which is where somebody looking at one
+                picture actually is: the corner button lives on a row in a list
+                they have already scrolled past by the time they decide they
+                want it, and the viewer's own chrome is a `⋯` and nothing else.
+                One function behind both, so "saved" means the same thing
+                either way — the camera's own file, not a rendition.
+              */
+              onDownload={() => {
+                void saveOne(actionsFor).then((saved) => {
+                  if (saved) setActionsFor(null);
+                });
+              }}
+              downloading={savingOne === actionsFor.id}
               onClose={() => setActionsFor(null)}
               onChanged={async () => {
                 await refresh();
@@ -4341,11 +4367,17 @@ function PhotoActions({
   photo,
   members,
   t,
+  onDownload,
+  downloading,
   onClose,
   onChanged,
 }: {
   api: Api;
   photo: FeedPhoto;
+  /** Into the camera roll. The album screen owns it — see `saveOne`. */
+  onDownload: () => void;
+  /** Whether this one is on its way there. */
+  downloading: boolean;
   /** The album's own people — the only ones who may be tagged. */
   members: Member[];
   t: Theme;
@@ -4461,6 +4493,34 @@ function PhotoActions({
             it. That is the whole of it — what a person can do about a
             photograph depends entirely on whether they put it there.
           */}
+          {/*
+            Keeping a copy, above everything else in here.
+
+            The only thing in this sheet that is not about taking something
+            away — removing a photograph, asking for it to come down,
+            reporting it, blocking somebody — and the only one most people will
+            ever press. Under three destructive rows it would be the safe
+            action buried beneath the dangerous ones, which is backwards.
+
+            Offered whoever the photograph belongs to. Saving somebody else's
+            picture out of an album you are in is the same thing the column
+            view has always offered from its corner, and the same thing
+            "Download album" does in bulk; a rule that let you keep all of them
+            and not one of them would be a rule about nothing.
+
+            Not while tagging: that state replaces the menu with a field and a
+            list of names, and a save button under it belongs to a sheet that
+            is not on screen.
+          */}
+          {!tagging && (
+            <Button
+              label={downloading ? 'Saving…' : 'Download'}
+              t={t}
+              disabled={busy || downloading}
+              onPress={onDownload}
+            />
+          )}
+
           {photo.mine ? (
             <>
               {!tagging ? (

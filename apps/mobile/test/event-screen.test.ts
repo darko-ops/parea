@@ -362,10 +362,53 @@ describe('a photograph in an album', () => {
      * wants the photograph, and the size argument that makes smaller copies
      * worth offering in bulk does not apply to one.
      */
-    const save = APP.slice(APP.indexOf('const saveOne'), APP.indexOf('const editCover'));
+    /*
+     * The end of the slice used to be `const editCover`, which was renamed when
+     * the cover row started opening the frame directly — so `indexOf` returned
+     * -1 and this had been reading the whole rest of the file, quietly passing
+     * on matches from anywhere in it. Bounded on the thing that actually
+     * follows `saveOne` now.
+     */
+    const save = APP.slice(APP.indexOf('const saveOne'), APP.indexOf('const sendCover'));
     expect(save).toMatch(/url: photo\.original/);
     expect(save).not.toMatch(/Alert\.alert\([\s\S]{0,80}Save \$\{/);
     expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
+  });
+
+  it('offers the same save from the photograph’s own menu', () => {
+    /*
+     * The corner button lives on a row in a list, which somebody looking at
+     * one picture in the viewer has already scrolled past by the time they
+     * decide they want it — and the viewer's own chrome is a `⋯` and nothing
+     * else. One function behind both, so "saved" means the same thing either
+     * way: the camera's own file, not a rendition.
+     */
+    expect(APP).toMatch(/onDownload=\{\(\) => \{/);
+    expect(APP).toMatch(/downloading=\{savingOne === actionsFor\.id\}/);
+    const SHEET = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('function Pane'));
+    /*
+     * Above everything else in there. It is the only action in that sheet that
+     * is not about taking something away — remove, ask down, report, block —
+     * and the only one most people will ever press; under three destructive
+     * rows it would be the safe action buried beneath the dangerous ones.
+     */
+    expect(SHEET.indexOf('label={downloading')).toBeLessThan(SHEET.indexOf("label=\"Remove photo\""));
+    expect(SHEET.indexOf('label={downloading')).toBeLessThan(SHEET.indexOf("label=\"Report\""));
+    /*
+     * Offered whoever the photograph belongs to: saving somebody else's
+     * picture out of an album you are in is what the corner button has always
+     * done, and what "Download album" does in bulk. A rule that let you keep
+     * all of them and not one of them would be a rule about nothing.
+     */
+    expect(SHEET).toMatch(/\{!tagging && \(\s*\n\s*<Button\s*\n\s*label=\{downloading/);
+    /*
+     * And the sheet closes when it lands. A label that says "Saving…" and then
+     * goes back to "Download" is indistinguishable from one that did nothing,
+     * so the dismissal is the acknowledgement — it puts the photograph back in
+     * front of somebody who has just said they want to keep it.
+     */
+    expect(APP).toMatch(/if \(saved\) setActionsFor\(null\);/);
+    expect(APP).toMatch(/async \(photo: FeedPhoto\): Promise<boolean> => \{/);
   });
 
   it('says what has happened to a photograph, and nothing when nothing has', () => {
