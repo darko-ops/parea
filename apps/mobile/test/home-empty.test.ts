@@ -152,28 +152,48 @@ describe('the card the home list draws', () => {
      */
     expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
     expect(EVENTS).toMatch(/measured: \{[^}]*marginHorizontal: -4,/);
-    expect(EVENTS).toMatch(/cardTitle: \{\s*\n\s*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/byline: \{[^}]*marginHorizontal: -4,/);
+    /*
+     * The name is on the photograph now rather than in the column, so it
+     * measures from the screen directly — 16, which is the same edge the two
+     * lines above it sit on, reached by a different sum.
+     */
+    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?right: 16,/);
     expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
   });
 
-  it('leads with the album’s name, above the photograph', () => {
+  it('puts the album’s name in the corner of its own photograph', () => {
     /*
-     * The title spent a while under the cover at 18 points, on the argument
-     * that it was no longer the first thing on the card and should stop
-     * competing with the picture. What that produced was a wall of pictures
-     * you had to scroll past to find out what any of them were: the name of
-     * an evening is how somebody recognises it, and on a screen of covers
-     * from four different holidays it is the only thing telling them apart.
+     * The name is *about* the picture, so it goes on it.
+     *
+     * It has now been in three places. Under the cover at 18 points, which
+     * made a wall of pictures you had to scroll past to find out what any of
+     * them were; above the byline at 24, which fixed that and left the top of
+     * every card as three stacked lines before the photograph arrived — a
+     * rule, a headline, a face and a handle. On the cover there is one quiet
+     * measurement and the person whose evening it was, and the name is where
+     * the thing it names is.
+     *
+     * Bottom right, because the faces overlap the opposite corner: the two
+     * ends of that edge are already spoken for separately.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
     const title = CARD.indexOf('styles.cardTitle');
-    expect(title).toBeGreaterThan(CARD.indexOf('styles.measured}'));
-    expect(title).toBeLessThan(CARD.indexOf('styles.byline}'));
-    expect(title).toBeLessThan(CARD.indexOf('<View style={[styles.cover,'));
+    expect(title).toBeGreaterThan(CARD.indexOf('<View style={[styles.cover,'));
+    expect(title).toBeLessThan(CARD.indexOf('styles.faces}'));
+    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?position: 'absolute',[\s\S]*?textAlign: 'right',/);
+    /*
+     * White with a shadow rather than a bar behind it: a block of chrome
+     * across the foot of somebody's photograph is a caption that has become
+     * furniture, and the gradient does the work of making white legible.
+     */
+    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?color: '#fff',/);
+    expect(CARD).toMatch(/colors=\{\['rgba\(0,0,0,0\)', 'rgba\(0,0,0,0\.42\)'\]\}/);
+    // Clear through the top two-thirds, which is most of the picture.
+    expect(CARD).toMatch(/locations=\{\[0\.62, 1\]\}/);
     // Set like a headline, with the tracking pulled in at this size.
     expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?fontSize: 24,[\s\S]*?letterSpacing: -0\.4,/);
     /*

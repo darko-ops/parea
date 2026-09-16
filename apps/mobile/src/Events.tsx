@@ -28,6 +28,7 @@
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   Alert,
@@ -98,13 +99,17 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  *      upper-cased, with a hairline running from where the words stop to the
  *      edge of the column. The label on the outside of the box; it is what
  *      gives every card the same top edge whatever its date's length.
- *   2. The title, at 24 points. The name of an evening is how somebody
- *      recognises it, and on a screen of covers from four different holidays
- *      it is the only thing that tells them apart at a glance.
- *   3. The byline: the creator's face and handle, pressable, and — only while
+ *   2. The byline: the creator's face and handle, pressable, and — only while
  *      somebody is still adding to it — how long ago the last picture landed.
  *      No count of people: the circles over the cover are the people, drawn as
  *      their faces, which is the version of that fact somebody reads.
+ *
+ * The album's name is not in that column. It sat there at 24 points for a
+ * while, which made the top of every card three stacked lines before the
+ * photograph arrived; it is in the bottom-right corner of the cover now, at
+ * the same size, because the name is *about* the picture. Bottom right because
+ * the faces overlap the opposite corner, so the two ends of that edge are
+ * already spoken for separately.
  *
  * Under the photograph, after the faces, is the sheet: the next three
  * photographs inside, in a row, ending in a tile saying how many more there
@@ -446,25 +451,6 @@ function EventCard({
       </View>
 
       {/*
-        The title, above the photograph and set like a headline.
-
-        It used to sit under the cover at 18 points, on the argument that it
-        was no longer the first thing on the card and should stop competing
-        with the picture. What that actually produced was a wall of pictures
-        you had to scroll past to find out what any of them were: the name of
-        an evening is how somebody recognises it, and on a screen of covers
-        from four different holidays it is the only thing that tells them
-        apart at a glance.
-
-        Two lines rather than one. A long name — "Sunday lunch at the Kostas'"
-        — is a real name people give albums, and truncating it at the first
-        line loses exactly the end that distinguishes it.
-      */}
-      <Text style={[styles.cardTitle, { color: t.fg }]} numberOfLines={2}>
-        {event.name}
-      </Text>
-
-      {/*
         The byline goes to the person, not to the album.
 
         A face and a name at the top of a card is the one thing on this screen
@@ -554,6 +540,45 @@ function EventCard({
             transition={120}
           />
         )}
+
+        {/*
+          Just enough shadow at the foot to carry the name, and nothing across
+          the middle.
+
+          The same weak ramp the album's own column uses over its photographs,
+          and weaker than the one over a group's album rows: these are the
+          pictures themselves rather than chrome, and darkening one to label it
+          is the product having an opinion about somebody's photograph. Clear
+          through the top two-thirds, which is most of it.
+        */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.42)']}
+          locations={[0.62, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+
+        {/*
+          The album's name, in the corner of its own photograph.
+
+          It sat above the byline, in the text column, at the same size it is
+          here — which made the top of every card three stacked lines before
+          the picture arrived: a rule, a headline, a face and a handle. The
+          name is *about* the photograph, so it goes on it, and what is left
+          above is one quiet measurement and the person whose evening it was.
+
+          Bottom right, where the faces are not. They overlap the cover's
+          bottom-left corner, so the two ends of that edge are already spoken
+          for separately; right-aligned and held to three-quarters of the width
+          so a long name runs up rather than across into them.
+
+          Two lines rather than one. "Sunday lunch at the Kostas'" is a real
+          name people give albums, and truncating at the first line loses
+          exactly the end that distinguishes it.
+        */}
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {event.name}
+        </Text>
       </View>
 
       {faces.length > 0 && (
@@ -2441,16 +2466,39 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   rule: { flex: 1, height: 1 },
-  /* The album's name, above its photograph. 24 with the tracking pulled in:
-     at this size the default spacing reads as loose, and a title is the one
-     line on the card set as a headline rather than as text. */
+  /*
+   * The album's name, in the corner of its own photograph.
+   *
+   * The same 24 with the same tracking pulled in — at this size the default
+   * spacing reads as loose, and this is the one line on the card set as a
+   * headline rather than as text. What changed is where it is and therefore
+   * what it is drawn in: white with a shadow rather than `fg`, because it now
+   * lies on a picture whose colours are nobody's to predict.
+   *
+   * The shadow rather than a bar behind it. A block of chrome across the foot
+   * of somebody's photograph is a caption that has become furniture, and the
+   * gradient above already does the work of making white legible.
+   *
+   * Inset 16 from the left and right of the screen — the scroll's 20 less the
+   * 4 the text column steps back by, so the name lines up with the byline
+   * above it rather than with the photograph's own edge.
+   */
   cardTitle: {
-    marginHorizontal: -4,
-    marginBottom: 2,
+    position: 'absolute',
+    right: 16,
+    bottom: 14,
+    /* Short of the faces overlapping the opposite corner, so a long name runs
+       to a second line rather than across into them. */
+    maxWidth: '76%',
+    textAlign: 'right',
     fontSize: 24,
     lineHeight: 28,
     fontWeight: '700',
     letterSpacing: -0.4,
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 10,
   },
   /* The row under the cover: three photographs and a count, edge to edge.
 
