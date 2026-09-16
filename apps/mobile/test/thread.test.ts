@@ -91,15 +91,90 @@ describe('the rules carried over from the web', () => {
   });
 
   it('invites a first message rather than reporting an empty one', () => {
-    // "Nothing said yet" describes the state somebody can already see.
+    /*
+     * "Nothing said yet" describes the state somebody can already see. One
+     * line now, where it was a heading and a paragraph explaining what a
+     * conversation is for: nobody needs telling, and what an empty room needs
+     * is a reason to say the first thing.
+     */
+    /*
+     * Comments stripped: the note beside this state argues against the
+     * sentences it replaced, and prose about a phrase is not the phrase.
+     */
     const empty = THREAD.slice(
-      THREAD.indexOf('<View style={styles.empty}>'),
+      THREAD.indexOf('live.length === 0'),
       THREAD.indexOf('<FlatList'),
-    );
-    expect(empty).toMatch(/Talk about the moment/);
-    expect(empty).toMatch(/Ask for a missing photo/);
+    ).replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(empty).toMatch(/Say something before this gets awkward\./);
+    expect(empty).not.toMatch(/Ask for a missing photo/);
     // Not a report of the state somebody can already see.
     expect(empty).not.toMatch(/No messages|Nothing said yet|nothing here/i);
+  });
+
+  it('does not claim a thread is empty before it has arrived', () => {
+    /*
+     * An empty conversation and an unfetched one are the same shape and mean
+     * opposite things. Both callers handed over `[]` for both, so opening a
+     * conversation said "nothing has been said here" for as long as the
+     * request took — and then the conversation appeared underneath the
+     * sentence denying it existed.
+     *
+     * The distinction lives in `Thread` because the thing that has to change
+     * is what gets drawn, and only `Thread` draws it.
+     */
+    expect(THREAD).toMatch(/messages: Message\[\] \| null;/);
+    expect(THREAD).toMatch(/\{messages === null \? \(/);
+    expect(THREAD).toMatch(/\(messages \?\? \[\]\)\.filter/);
+    // The album's Talk pane is the one that was showing it. `feed?.messages ??
+    // []` is right for every other reader of that value and wrong for this one.
+    const APP = read('App.tsx');
+    expect(APP).toMatch(/messages=\{feed \? messages : null\}/);
+  });
+
+  it('keeps a group’s thread current while somebody is reading it', () => {
+    /*
+     * It asked once on mount and then only when the thread was scrolled to the
+     * bottom or something was posted, so a message from anybody else arrived
+     * whenever the reader happened to move — which from the other side looks
+     * like the conversation being minutes behind. The album's thread gets its
+     * refreshes from the feed the photographs are already polling; a group has
+     * no feed, which is why nothing was doing this.
+     */
+    const GROUP = read('src/GroupThread.tsx');
+    expect(GROUP).toMatch(/setInterval\(\(\) => \{\s*\n\s*if \(AppState\.currentState === 'active'\) void load\(\);\s*\n\s*\}, 4000\)/);
+    expect(GROUP).toMatch(/return \(\) => clearInterval\(timer\);/);
+    /*
+     * Only while the app is in front: a poll that keeps running in somebody's
+     * pocket is a request every four seconds for a screen nobody is reading,
+     * and the answer would be stale by the time they looked anyway.
+     */
+    expect(GROUP).toMatch(/import \{ AppState,/);
+  });
+
+  it('polls without eating the thread it is polling for', () => {
+    /*
+     * Three things a poll has to avoid that a one-shot load never did.
+     *
+     * A slow answer must not overwrite a fast one that came after it, or a
+     * message appears and then vanishes for four seconds — the sort of thing
+     * people report as "it deleted my message".
+     *
+     * A tick that found nothing new must not replace the array anyway: every
+     * row of an inverted list re-renders when it does, four times a minute,
+     * for no change. Ids, bodies and tombstones, because an edit and a delete
+     * both move the signature where a length comparison would miss them.
+     *
+     * And a dropped request must not replace a conversation somebody is
+     * reading with "this is not available". That sentence is true of a 404 on
+     * the first load and is not worth saying on the strength of one
+     * unreachable moment; the next tick says it again if it is true.
+     */
+    const GROUP = read('src/GroupThread.tsx');
+    expect(GROUP).toMatch(/const mine = \+\+asked\.current;/);
+    expect(GROUP.match(/if \(mine !== asked\.current\) return;/g) ?? []).toHaveLength(2);
+    expect(GROUP).toMatch(/\$\{m\.id\}:\$\{m\.deleted \? 1 : 0\}:\$\{m\.body\}/);
+    expect(GROUP).toMatch(/if \(next !== shape\.current\) \{/);
+    expect(GROUP).toMatch(/if \(messagesRef\.current === null\) \{/);
   });
 
   it('keeps the draft when a post fails', () => {

@@ -3430,7 +3430,16 @@ function EventScreen({
         ) : pane === 'talk' ? (
           <Thread
             actions={eventThread}
-            messages={messages}
+            /*
+              Null until the feed lands, not an empty conversation.
+
+              `messages` is `feed?.messages ?? []` because every other reader
+              of it wants a list to count — but handing that to the thread made
+              the album's Talk pane claim "nothing has been said here" for the
+              length of the first request, and then contradict itself when the
+              feed arrived.
+            */
+            messages={feed ? messages : null}
             canPost={feed?.canPost ?? false}
             // This event's contributors and nobody else — the rule the web's
             // mention list follows, and the reason it is safe for a text

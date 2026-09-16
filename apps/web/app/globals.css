@@ -2218,9 +2218,12 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
   padding: 40px 0;
 }
-.thread-empty h2 { font-size: 21px; font-weight: 700; margin: 0; }
+/* No heading any more. It was a 21pt title over a paragraph, which is a screen
+   describing itself; what is left is one quiet line, set at the weight of the
+   furniture around it and read once. */
 .thread-empty p {
-  margin: 0; font-size: 14.5px; color: var(--dim); max-width: 480px; line-height: 1.5;
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--dim);
+  max-width: 480px; line-height: 1.5;
 }
 .thread-composer {
   display: flex; flex-direction: column; gap: 8px;

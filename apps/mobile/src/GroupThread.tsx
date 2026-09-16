@@ -24,15 +24,14 @@
  * and asking is what marks it read.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import type { Api, Message, MyGroupDetail } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Thread } from './Thread';
-import { Waiting } from './Waiting';
 
 /** Where the page begins, under the header. See `PAGE_TOP` in `App.tsx`. */
 const HEAD = 112;
@@ -56,21 +55,85 @@ export function GroupThread({
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Which request is the newest, and what the thread last looked like.
+   *
+   * Both exist because this is polled now. `asked` makes a slow answer unable
+   * to overwrite a fast one that came after it — otherwise a message could
+   * appear and then vanish for four seconds, which is the sort of thing people
+   * report as "it deleted my message". `shape` is what stops a tick that found
+   * nothing new from replacing the array anyway: every row of an inverted list
+   * re-renders when it does, four times a minute, for no change.
+   */
+  const asked = useRef(0);
+  const shape = useRef<string | null>(null);
+  /** What `load` reads to decide whether a failure has anything to lose. */
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
   const load = useCallback(async () => {
+    const mine = ++asked.current;
     try {
       const { messages: list } = await api.groupMessages(group.id);
-      setMessages(list);
+      if (mine !== asked.current) return;
+      /*
+       * Ids, bodies and tombstones — everything a row draws that can change.
+       * An edit and a delete both move this, which a length comparison would
+       * miss.
+       */
+      const next = list.map((m) => `${m.id}:${m.deleted ? 1 : 0}:${m.body}`).join('\n');
+      if (next !== shape.current) {
+        shape.current = next;
+        setMessages(list);
+      }
       setError(null);
     } catch {
-      // A 404 here is most often "you are no longer in this group", which is
-      // the same sentence as "there is nothing to show".
-      setError('This conversation is not available.');
-      setMessages([]);
+      if (mine !== asked.current) return;
+      /*
+       * Only where there was nothing to lose.
+       *
+       * A failed poll used to be the same as a failed first load, which on a
+       * schedule means one unreachable moment replaces a conversation somebody
+       * is reading with "this is not available". A 404 here is most often "you
+       * are no longer in this group" — true and worth saying, but not worth
+       * saying on the strength of one dropped request when the thread is
+       * already on screen. The next tick will say it again if it is true.
+       */
+      if (messagesRef.current === null) {
+        setError('This conversation is not available.');
+        setMessages([]);
+      }
     }
   }, [api, group.id]);
 
+
   useEffect(() => {
     void load();
+  }, [load]);
+
+  /*
+   * And again, while somebody is looking at it.
+   *
+   * This screen asked once, on mount, and then only when the thread was
+   * scrolled to the bottom or something was posted — so a message from anybody
+   * else arrived whenever the reader happened to move, which from the other
+   * side looks like the conversation being minutes behind. The album's thread
+   * gets its refreshes from the feed the photographs are already polling; a
+   * group has no feed, which is why nothing was doing this.
+   *
+   * Four seconds, and only while the app is in front. A poll that keeps
+   * running in somebody's pocket is a request every four seconds for a screen
+   * nobody is reading, and the answer would be stale by the time they looked
+   * anyway — the mount above re-reads on the way back.
+   *
+   * `load` swallows its own failures and replaces rather than clears, so a
+   * tick that cannot reach the server leaves what is on screen alone.
+   */
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void load();
+    }, 4000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const actions = useMemo(
@@ -129,16 +192,19 @@ export function GroupThread({
         </View>
       </View>
 
-      {messages === null ? (
-        <View style={styles.centre}>
-          <Waiting size={40} />
-        </View>
-      ) : error ? (
+      {error ? (
         <View style={styles.centre}>
           <Text style={[styles.error, { color: t.dim }]}>{error}</Text>
         </View>
       ) : (
         <Thread
+          /*
+            Null while the first request is out, which `Thread` draws as a
+            wait rather than as an empty room. It used to be handled here — the
+            whole body replaced by a spinner — and moving it down is what makes
+            the album's Talk pane behave the same way, since that one had no
+            equivalent and showed the invitation instead.
+          */
           actions={actions}
           messages={messages}
           /*

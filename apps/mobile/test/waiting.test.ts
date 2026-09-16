@@ -147,7 +147,14 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
       'src/Profile.tsx',
     ]) {
@@ -174,7 +181,14 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
     ]) {
       expect(read(name), `${name} draws both`).not.toMatch(/<ActivityIndicator/);

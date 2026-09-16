@@ -55,6 +55,7 @@ import { ago } from '@parea/cards';
 import { ApiError, REACTIONS, type Message, type Roster } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
+import { Waiting } from './Waiting';
 
 /** Somebody the mention list may offer: a contributor to this event. */
 export type Mentionable = { key: string; name: string; mine: boolean };
@@ -89,7 +90,19 @@ export function Thread({
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
-  messages: Message[];
+  /**
+   * The conversation, or null while nobody knows yet.
+   *
+   * Null is the whole reason this is not simply an array. An empty thread and
+   * an unfetched one are the same shape and mean opposite things, and both
+   * callers were handing over `[]` for both — so opening a conversation showed
+   * "nothing has been said here" for as long as the request took, and then the
+   * conversation appeared underneath the sentence denying it existed.
+   *
+   * The distinction lives here rather than at the two call sites because the
+   * thing that has to change is what gets *drawn*, and only this file draws it.
+   */
+  messages: Message[] | null;
   /** Whether this viewer may post. The server's answer, never a guess. */
   canPost: boolean;
   /** This event's contributors, for the mention list. Never anybody else. */
@@ -121,7 +134,7 @@ export function Thread({
    * keeps and so does this.
    */
   const live = useMemo(
-    () => messages.filter((m) => !m.deleted || m.body === '').reverse(),
+    () => (messages ?? []).filter((m) => !m.deleted || m.body === '').reverse(),
     [messages],
   );
 
@@ -203,18 +216,32 @@ export function Thread({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardOffset}
     >
-      {live.length === 0 ? (
+      {messages === null ? (
+        /*
+          Nothing said, rather than "nothing has been said".
+
+          A thread that has not arrived is not an empty one, and drawing the
+          invitation while the request is out is the screen making a claim it
+          cannot support yet — one that is contradicted a moment later by the
+          messages appearing underneath it.
+        */
+        <View style={styles.empty}>
+          <Waiting size={40} />
+        </View>
+      ) : live.length === 0 ? (
         /*
           An invitation rather than a report of emptiness. "Nothing said yet"
           describes the state somebody can already see; this says what the
           space is for, which is the only thing that turns an empty box into a
           first message.
+
+          One line, where it was a heading and a paragraph explaining what a
+          conversation is for. Nobody needs telling; what an empty room needs
+          is a reason to say the first thing, and the joke is the reason.
         */
         <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: t.fg }]}>Talk about the moment</Text>
-          <Text style={[styles.emptyBody, { color: t.dim }]}>
-            Ask for a missing photo, share what happened or let everyone know
-            when you have added yours.
+          <Text style={[styles.emptyTitle, { color: t.dim }]}>
+            Say something before this gets awkward.
           </Text>
         </View>
       ) : (
@@ -583,8 +610,12 @@ const styles = StyleSheet.create({
      grows upwards from it. */
   list: { padding: 14, paddingHorizontal: 16, gap: 16 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '700' },
-  emptyBody: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  /* Quieter than the heading it replaced, and centred as one line.
+
+     It was 20pt bold with a paragraph under it, which is a title — and a title
+     is a thing a screen says about itself. This is a nudge, so it is set at
+     the weight of the rest of the furniture and left to be read once. */
+  emptyTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10 },
   /* Your own, mirrored. The avatar stays — a thread where one person has no
      face reads as a system message rather than as somebody talking. */

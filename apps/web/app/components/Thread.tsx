@@ -195,11 +195,14 @@ export function Thread({
           */
           <div className="thread-empty">
             <Mark size={48} />
-            <h2>Talk about the moment</h2>
-            <p>
-              Ask for a missing photo, share what happened or let everyone know
-              when you’ve added yours.
-            </p>
+            {/*
+              One line, where it was a heading and a paragraph explaining what
+              a conversation is for. Nobody needs telling; what an empty room
+              needs is a reason to say the first thing, and the joke is the
+              reason. The same words the app says, because it is the same empty
+              room.
+            */}
+            <p>Say something before this gets awkward.</p>
           </div>
         )}
 
