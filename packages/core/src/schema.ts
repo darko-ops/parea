@@ -11,6 +11,7 @@
 
 import { relations, sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   customType,
@@ -370,6 +371,46 @@ export const events = pgTable(
      * clients clamp anyway: it is a column, and a column is an input.
      */
     coverAspect: real('cover_aspect'),
+    /**
+     * Which photograph the cover was cut from, and where the window sat.
+     *
+     * None of this is needed to *draw* a cover — `coverKey` is the finished
+     * JPEG. It is needed to edit one. Without it, "change the cover" could only
+     * open the camera roll, because the screen had no way to say which picture
+     * the current cover was or how it had been framed; so every visit started
+     * from nothing, and shifting an existing cover a little to the left was not
+     * something the product could offer at all.
+     *
+     * `set null` rather than cascade: a cover outlives the photograph it was
+     * cut from, because it is its own object. What is lost when that row goes
+     * is only the ability to reopen the frame on it, which is the honest
+     * outcome — the picture it was made of is not in the album any more.
+     *
+     * Null on all four for a cover set before this existed, and for one chosen
+     * off the camera roll. Both mean the same thing to a client: show what is
+     * there, and start from the album's own photographs if somebody wants to
+     * change it.
+     */
+    /*
+     * The return type is written out because `photo` points back at `event`,
+     * and a cycle of two inferred table types is one TypeScript will not
+     * unwind — it gives up and calls both `any`, which silently un-types every
+     * query in the repository. Drizzle's documented answer, and the only place
+     * in this schema that needs it.
+     */
+    coverPhotoId: uuid('cover_photo_id').references((): AnyPgColumn => photos.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * The `object-position` percentages and the zoom, as `CoverFraming`.
+     *
+     * Stored rather than recomputed because they cannot be recomputed: the
+     * stored cover is the *result* of applying them, and nothing about the
+     * finished JPEG says where in the original it came from.
+     */
+    coverX: real('cover_x'),
+    coverY: real('cover_y'),
+    coverZoom: real('cover_zoom'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),

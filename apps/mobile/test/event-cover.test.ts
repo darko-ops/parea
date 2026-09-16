@@ -29,9 +29,10 @@ const API = read('src/api.ts');
 
 /** The handler, without the rest of a 2000-line screen. */
 /*
- * From `sendCover` rather than from `editCover`: the upload moved out of the
- * sheet's handler so that a picked photograph could go through the frame first,
- * and the reload that proves the screen re-reads itself moved with it.
+ * From `sendCover` to the next unrelated thing on the screen, which is now five
+ * callbacks rather than two: the upload, gathering what the album can be
+ * fronted by, sending one of those, opening the frame, and taking the cover
+ * off. They are contiguous on purpose — a cover is one subject.
  */
 const COVER = APP.slice(APP.indexOf('const sendCover'), APP.indexOf('if (autoWindow)'));
 
@@ -69,17 +70,86 @@ describe('the cover the event already has', () => {
   it('offers removal only when there is something to remove', () => {
     /*
      * The endpoint treats a DELETE against an event with no cover as a no-op,
-     * so the old unconditional "Remove it" was harmless — and still wrong. A
-     * destructive-styled button that does nothing teaches people that the red
+     * so an unconditional "Remove" is harmless — and still wrong. A
+     * destructive-styled control that does nothing teaches people that the red
      * text on this screen is decorative.
      *
-     * `chosenCover` rather than `cover` since the fallback below landed, and
-     * the distinction is the whole point of there being two names: offering to
-     * remove a cover nobody set is the same bug in a new disguise.
+     * It is its own row under the picture now rather than the second action in
+     * an alert: the ordinary action goes straight to the frame, so there is no
+     * alert left to keep the rare one a press behind. Null rather than a
+     * disabled row — offering to undo something nobody did is the same bug in
+     * a new disguise.
      */
-    expect(COVER).toMatch(/if \(chosenCover\) \{[\s\S]*?text: 'Remove it'/);
-    expect(COVER).not.toMatch(/if \(cover\) \{/);
-    expect(COVER).toMatch(/text: chosenCover \? 'Choose a different photo'/);
+    expect(APP).toMatch(/onRemoveCover=\{feed\?\.event\.coverUrl \? removeCover : null\}/);
+    expect(ROW).toMatch(/\{host && onRemoveCover && \(/);
+    expect(ROW).toMatch(/Remove cover/);
+    // And it asks before it acts, which the alert's `destructive` style used
+    // to be doing on its behalf.
+    expect(COVER).toMatch(/Alert\.alert\(\s*'Remove the cover\?'/);
+  });
+
+  it('opens the frame on the album, not on the camera roll', () => {
+    /*
+     * The cover row used to open an alert whose first action opened the camera
+     * roll — so "change the cover" meant "choose another picture", every time,
+     * from a screen that could not show what the cover currently was or where
+     * it sat. Nudging an existing cover a little to the left was not something
+     * the product could do at all.
+     *
+     * It opens the frame directly now, on the photograph the cover was cut
+     * from, at the position it was left at, with the rest of the album
+     * underneath to try instead.
+     */
+    expect(APP).toMatch(/coverId=\{feed\?\.event\.coverPhotoId \?\? coverChoices\[0\]!\.id\}/);
+    expect(APP).toMatch(/initial=\{feed\?\.event\.coverFraming \?\? undefined\}/);
+    expect(APP).toMatch(/photos=\{coverChoices\}/);
+    /*
+     * `full` rather than the thumbnail the strip draws: a tile is 320 pixels
+     * across and a cover cut from it would be a cover of a thumbnail.
+     */
+    expect(COVER).toMatch(/full: photo\.full,/);
+    /*
+     * An album with nothing in it has nothing to offer, so that one still
+     * opens the library — it is the only picture there could be.
+     */
+    expect(COVER).toMatch(/if \(coverChoices\.length > 0\) \{\s*\n\s*setFramingAlbum\(true\);/);
+    expect(COVER).toMatch(/launchImageLibraryAsync/);
+  });
+
+  it('keeps the photograph’s bytes off the origin', () => {
+    /*
+     * Down from storage and back up, rather than a "make the cover out of photo
+     * X" endpoint. `apps/web/src/storage/index.ts` opens by saying in capitals
+     * that the app tier is handed a storage client with no method that returns
+     * bytes, so that no photograph is ever routed through the Next.js origin —
+     * and such an endpoint would be exactly that route. The download here is
+     * client ↔ storage, straight to a presigned URL.
+     */
+    expect(COVER).toMatch(/await fetchForCover\(photo\.full, photoId\)/);
+    expect(COVER).toMatch(/await sendCover\(file\.uri, framing, photoId\)/);
+    const PLATFORM = read('src/platform.ts');
+    expect(PLATFORM).toMatch(/export async function fetchForCover/);
+    // One upload's worth of file, in the cache, deleted either way.
+    expect(PLATFORM).toMatch(/new File\(Paths\.cache, `parea-cover-\$\{id\}\.jpg`\)/);
+    expect(COVER).toMatch(/file\?\.delete\(\)/);
+  });
+
+  it('records what the cover was cut from, so the frame can reopen on it', () => {
+    /*
+     * Nothing about the finished JPEG says which photograph it came from or
+     * where the window sat — it is the *result* of applying them. Without the
+     * four columns, every visit to the frame would start from nothing.
+     */
+    const SCHEMA = readFileSync(
+      fileURLToPath(new URL('../../../packages/core/src/schema.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SCHEMA).toMatch(/coverPhotoId: uuid\('cover_photo_id'\)/);
+    expect(SCHEMA).toMatch(/coverX: real\('cover_x'\)/);
+    // `set null`, because a cover outlives the photograph it was cut from.
+    expect(SCHEMA).toMatch(/cover_photo_id'\)\.references\([\s\S]{0,80}onDelete: 'set null'/);
+    expect(API).toMatch(/coverPhotoId: string \| null/);
+    expect(API).toMatch(/if \(photoId\) query\.set\('photo', photoId\)/);
   });
 
   it('falls back to the first photograph when nobody chose one', () => {
@@ -142,6 +212,9 @@ describe('after the change', () => {
     expect(APP).toMatch(/setFramingCover\(picked\.assets\[0\]\.uri\)/);
     expect(APP).toMatch(/<CoverFramer/);
     expect(APP).toMatch(/void sendCover\(uri, framing\)/);
+    // And the id goes with it where there is one, so next time the frame
+    // reopens on this picture rather than on nothing.
+    expect(APP).toMatch(/void sendAlbumCover\(id, framing\)/);
     // And nothing is sent if the frame is backed out of.
     expect(APP).toMatch(/onCancel=\{\(\) => setFramingCover\(null\)\}/);
   });

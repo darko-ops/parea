@@ -336,6 +336,30 @@ export async function GET(
        */
       coverUrl: await coverSrc(event.coverKey),
       /*
+       * What the cover was cut from, and where the window sat on it.
+       *
+       * So that "change the cover" opens on the picture it is currently made
+       * of, framed as it was left, rather than on an empty camera roll. Both
+       * are null for a cover set before this was recorded and for one chosen
+       * off the camera roll — and a client reads either as "start from the
+       * album's own photographs", which is the right answer to both.
+       *
+       * An id rather than a URL, because the client already holds every
+       * photograph in this response: it is a key into `photos` below, and
+       * presigning a second copy of one of them would be a second capability
+       * granted for a picture already granted.
+       *
+       * Sent to everybody rather than only to whoever can change it, on the
+       * same reasoning as `coverUrl` directly above: it is one id and three
+       * numbers, and a field that appears and disappears depending on who is
+       * asking is a second thing to get wrong.
+       */
+      coverPhotoId: event.coverPhotoId,
+      coverFraming:
+        event.coverX === null || event.coverY === null
+          ? null
+          : { x: event.coverX, y: event.coverY, zoom: event.coverZoom ?? 1 },
+      /*
        * Worded here rather than in the browser.
        *
        * It is a relative time, and the head is rendered on the server before

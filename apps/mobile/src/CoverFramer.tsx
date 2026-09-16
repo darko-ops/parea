@@ -46,7 +46,6 @@ import {
 } from 'react-native';
 
 import type { GroupTheme } from './Groups';
-import type { LibraryPhoto } from './library';
 
 /**
  * Where the window sits over the picture, and how much of it the window holds.
@@ -56,6 +55,23 @@ import type { LibraryPhoto } from './library';
  * `apps/web/src/cover.ts`, which cuts the stored cover from the same numbers.
  */
 export type CoverFraming = { x: number; y: number; zoom: number };
+
+/**
+ * A picture this screen can put in the frame.
+ *
+ * Two fields, because two very different things are offered here: photographs
+ * chosen off the camera roll on the way into a new album, and photographs
+ * already in an existing one. `uri` is whatever draws — a `ph://` asset or a
+ * signed URL — and `full` is what should be *sent* when it is not the same
+ * thing, which is the remote case: the thumbnail in the strip is 320 pixels
+ * across and a cover cut from it would be a cover of a thumbnail.
+ */
+export type CoverCandidate = {
+  id: string;
+  uri: string;
+  /** What to upload, where that is not `uri`. The local case leaves it unset. */
+  full?: string;
+};
 
 export const CENTRED: CoverFraming = { x: 50, y: 50, zoom: 1 };
 
@@ -165,24 +181,42 @@ export function CoverFramer({
   coverId,
   initial = CENTRED,
   t,
+  stripLabel = 'IN THIS ALBUM',
   onCancel,
   onConfirm,
 }: {
   /**
-   * Everything going into the album, so another one can be tried.
+   * The photographs another one can be tried from.
    *
    * Which photograph leads is a question you cannot answer without seeing it
    * in the frame — a picture that is the obvious choice in a grid of
    * thumbnails is often the wrong one once it is a card, and finding that out
    * used to mean backing out of here, tapping a different tile, and coming in
    * again to look.
+   *
+   * An id and something to draw, and deliberately no more. This began as
+   * `LibraryPhoto[]`, which is a camera roll asset — right for the create
+   * screen, where the album does not exist yet, and wrong for the other caller
+   * this screen now has: changing the cover of an album that is already there
+   * frames its *own* photographs, which live on the server and arrive as
+   * signed URLs. Narrowing the prop to what is actually drawn is what lets one
+   * screen serve both without learning the difference.
    */
-  photos: LibraryPhoto[];
+  photos: CoverCandidate[];
   /** Which of them leads at the moment. */
   coverId: string;
   /** Where it sat last time, for somebody coming back to change their mind. */
   initial?: CoverFraming;
   t: GroupTheme;
+  /**
+   * What the row of thumbnails is.
+   *
+   * "IN THIS ALBUM" is true of both callers and reads differently in each: on
+   * the create screen it is the photographs about to be uploaded, and on an
+   * existing album it is the ones already there. The default is the older
+   * caller's words.
+   */
+  stripLabel?: string;
   onCancel: () => void;
   /**
    * Both answers at once, and only on `Use`.
@@ -205,7 +239,7 @@ export function CoverFramer({
   const cover = photos.find((photo) => photo.id === chosen) ?? photos[0] ?? null;
 
   const tryPhoto = useCallback(
-    (photo: LibraryPhoto) => {
+    (photo: CoverCandidate) => {
       if (photo.id === chosen) return;
       setChosen(photo.id);
       // Zoom goes back with the position: it was how close somebody stood to a
@@ -429,7 +463,7 @@ export function CoverFramer({
         */}
         {photos.length > 1 && (
           <View style={styles.strip}>
-            <Text style={styles.stripLabel}>IN THIS ALBUM</Text>
+            <Text style={styles.stripLabel}>{stripLabel}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}

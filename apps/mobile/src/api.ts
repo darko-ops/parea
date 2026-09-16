@@ -136,6 +136,19 @@ export type Feed = {
      * depending on who is asking, which is a second thing to get wrong.
      */
     coverUrl: string | null;
+    /**
+     * Which photograph the cover was cut from, and where the window sat.
+     *
+     * So that changing the cover opens on the picture it is currently made of,
+     * framed as it was left. Both are null for a cover set before this was
+     * recorded and for one chosen off the camera roll — and either way the
+     * answer is the same: start from the album's own photographs.
+     *
+     * An id rather than a URL: it is a key into `photos` below, which this
+     * response already carries.
+     */
+    coverPhotoId: string | null;
+    coverFraming: { x: number; y: number; zoom: number } | null;
     /** When the event was, ISO — what the line under the name dates it by. */
     startsAt: string | null;
   };
@@ -1215,18 +1228,31 @@ export class Api {
   coverTarget(
     eventId: string,
     framing?: { x: number; y: number; zoom?: number } | null,
+    /**
+     * Which of the album's photographs these bytes are, when they are one.
+     *
+     * Recorded by the route so the frame can be reopened on it. Omitted for a
+     * picture off the camera roll, which has no id here to give — and the
+     * route writes null in that case rather than leaving the last one standing.
+     */
+    photoId?: string | null,
   ): { url: string; headers: Record<string, string> } {
     const headers: Record<string, string> = {
       'content-type': 'image/jpeg',
       'x-parea-client': this.client,
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
-    // Rounded to two places rather than to an integer: zoom is a multiplier and
-    // 1 to 4 is the whole of its range, so whole numbers would be four settings.
-    const where = framing
-      ? `?cx=${Math.round(framing.x)}&cy=${Math.round(framing.y)}` +
-        `&cz=${(framing.zoom ?? 1).toFixed(2)}`
-      : '';
+    const query = new URLSearchParams();
+    if (framing) {
+      query.set('cx', String(Math.round(framing.x)));
+      query.set('cy', String(Math.round(framing.y)));
+      // Rounded to two places rather than to an integer: zoom is a multiplier
+      // and 1 to 4 is the whole of its range, so whole numbers would be four
+      // settings.
+      query.set('cz', (framing.zoom ?? 1).toFixed(2));
+    }
+    if (photoId) query.set('photo', photoId);
+    const where = query.size > 0 ? `?${query}` : '';
     return { url: `${this.baseUrl}/api/events/${eventId}/cover${where}`, headers };
   }
 

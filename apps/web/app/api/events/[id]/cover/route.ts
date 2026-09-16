@@ -27,7 +27,7 @@
  */
 
 import { schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 
@@ -41,6 +41,10 @@ export const runtime = 'nodejs';
 
 /** A generous phone photograph. Past this it is not a cover. */
 const MAX_BYTES = 25 * 1024 * 1024;
+
+/** Shape-checked before it reaches the database, which is where a `uuid`
+    column would otherwise raise on a string that is not one. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** One per event, replaced rather than accumulated. Under its own prefix. */
 const keyFor = (eventId: string) => `ev/${eventId}/cover.jpg`;
@@ -74,7 +78,36 @@ export async function POST(
     return NextResponse.json({ error: 'too_large' }, { status: 413 });
   }
 
-  const framing = framingOf(new URL(request.url));
+  const url = new URL(request.url);
+  const framing = framingOf(url);
+
+  /*
+   * Which photograph this was cut from, when the caller knows.
+   *
+   * Recorded so that "change the cover" can reopen the frame on the picture it
+   * is currently made of, at the position it was left at. Nothing about the
+   * finished JPEG says either — it is the *result* of a crop — so if this is
+   * not stored the only thing a client can offer is starting again.
+   *
+   * Verified against this event rather than trusted. The id decides nothing
+   * about the bytes, which arrived in the body and are re-encoded either way,
+   * so a wrong one cannot produce a cover of somebody else's photograph. What
+   * it would do is leave a row claiming this album's cover came from an album
+   * the reader cannot see, and hand back a presigned thumbnail of it next time
+   * somebody opened the frame — so it is checked, and an id that does not
+   * belong here is simply not written down.
+   */
+  const claimed = url.searchParams.get('photo');
+  const from =
+    claimed && UUID.test(claimed)
+      ? (
+          await db
+            .select({ id: schema.photos.id })
+            .from(schema.photos)
+            .where(and(eq(schema.photos.id, claimed), eq(schema.photos.eventId, event.id)))
+            .limit(1)
+        )[0]?.id ?? null
+      : null;
 
   /*
    * The picture's own shape decides the cover's, so this is read for every
@@ -136,7 +169,22 @@ export async function POST(
     .update(schema.events)
     // The shape goes with the key, because a card has to reserve the right
     // space before the image arrives — see the column's own note.
-    .set({ coverKey: key, coverAspect: coverAspect(size) })
+    .set({
+      coverKey: key,
+      coverAspect: coverAspect(size),
+      /*
+       * Written on every upload, including as nulls.
+       *
+       * A cover replaced from the camera roll has no photograph behind it and
+       * the last one may have had — leaving the old row in place would reopen
+       * the frame on a picture this cover was not made from, which is worse
+       * than offering nothing.
+       */
+      coverPhotoId: from,
+      coverX: framing?.x ?? null,
+      coverY: framing?.y ?? null,
+      coverZoom: framing?.zoom ?? null,
+    })
     .where(eq(schema.events.id, event.id));
 
   return NextResponse.json({ ok: true });
@@ -157,7 +205,14 @@ export async function DELETE(
 
   await db
     .update(schema.events)
-    .set({ coverKey: null, coverAspect: null })
+    .set({
+      coverKey: null,
+      coverAspect: null,
+      coverPhotoId: null,
+      coverX: null,
+      coverY: null,
+      coverZoom: null,
+    })
     .where(eq(schema.events.id, event.id));
   if (event.coverKey) await getStorage().delete(event.coverKey).catch(() => {});
 

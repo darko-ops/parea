@@ -16,6 +16,9 @@
  * quietly hand back a picture of somebody's ceiling.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
@@ -32,6 +35,73 @@ import {
 } from '../src/cover';
 
 const url = (query: string) => new URL(`https://parea.test/api/events/e/cover${query}`);
+
+const read = (path: string) =>
+  readFileSync(fileURLToPath(new URL(path, import.meta.url).href), 'utf8');
+
+const ROUTE = read('../app/api/events/[id]/cover/route.ts');
+
+/**
+ * What the server remembers about a cover, beyond the cover.
+ *
+ * None of it is needed to *draw* one — `coverKey` is the finished JPEG. It is
+ * needed to edit one: nothing about the result of a crop says which photograph
+ * it came from or how it was framed, so without these columns "change the
+ * cover" could only ever open an empty picker, and nudging an existing cover
+ * two inches to the left was not something the product could offer at all.
+ */
+describe('where a cover came from', () => {
+  it('records the photograph and the framing, and verifies the photograph', () => {
+    /*
+     * The id decides nothing about the bytes — those arrived in the body and
+     * are re-encoded either way — so a wrong one cannot produce a cover of
+     * somebody else's photograph. What it would do is leave a row claiming
+     * this album's cover came from an album the reader cannot see, and hand
+     * back a presigned thumbnail of it the next time somebody opened the
+     * frame. So it is checked against this event, and an id that does not
+     * belong here is simply not written down.
+     */
+    expect(ROUTE).toMatch(/const claimed = url\.searchParams\.get\('photo'\)/);
+    expect(ROUTE).toMatch(/eq\(schema\.photos\.eventId, event\.id\)/);
+    // Shape-checked first: a `uuid` column raises on a string that is not one.
+    expect(ROUTE).toMatch(/claimed && UUID\.test\(claimed\)/);
+    /*
+     * Written on every upload, including as nulls. A cover replaced from the
+     * camera roll has no photograph behind it and the last one may have had,
+     * and leaving the old row standing would reopen the frame on a picture
+     * this cover was not made from — which is worse than offering nothing.
+     */
+    expect(ROUTE).toMatch(/coverPhotoId: from,\s*\n\s*coverX: framing\?\.x \?\? null,/);
+    // And it all goes when the cover does.
+    expect(ROUTE).toMatch(/coverKey: null,\s*\n\s*coverAspect: null,\s*\n\s*coverPhotoId: null,/);
+  });
+
+  it('hands both back on the feed, so a client can reopen the frame', () => {
+    const FEED = read('../app/api/events/[id]/photos/route.ts');
+    expect(FEED).toMatch(/coverPhotoId: event\.coverPhotoId,/);
+    /*
+     * An id rather than a URL: the client already holds every photograph in
+     * that response, so this is a key into it — presigning a second copy would
+     * be a second capability granted for a picture already granted.
+     */
+    expect(FEED).toMatch(
+      /coverFraming:\s*\n\s*event\.coverX === null \|\| event\.coverY === null/,
+    );
+  });
+
+  it('keeps the photograph’s bytes off the origin', () => {
+    /*
+     * There is deliberately no "make the cover out of photo X" endpoint.
+     * `storage/index.ts` opens by saying in capitals that the app tier is
+     * handed a client with no method that returns bytes, so that no photograph
+     * is ever routed through the Next.js origin — and such an endpoint would
+     * be exactly that route. The phone downloads the photograph straight from
+     * storage and sends it back, which is client ↔ storage in both directions.
+     */
+    expect(ROUTE).toMatch(/await request\.arrayBuffer\(\)/);
+    expect(ROUTE).not.toMatch(/presignGet|getStorage\(\)\.get\b/);
+  });
+});
 
 describe('what the caller asked for', () => {
   it('reads a framing off the query', () => {

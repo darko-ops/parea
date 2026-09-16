@@ -258,6 +258,34 @@ export async function uploadItem(item: QueueItem): Promise<void> {
  * exists, and a cover that does not arrive leaves it looking exactly as it
  * would have looked without one.
  */
+/**
+ * A photograph already in the album, brought down so it can go back up as a cover.
+ *
+ * Two round trips for bytes that are already on the server, which looks
+ * wasteful and is the only thing available. `apps/web/src/storage/index.ts`
+ * opens with the reason in capitals: the interface handed to the app tier has
+ * no method that returns bytes, deliberately, so that no photograph can ever be
+ * routed through the Next.js origin. A "make the cover out of photo X" endpoint
+ * would be exactly that route, and the invariant is worth more than the
+ * megabyte.
+ *
+ * The download is client ↔ storage, which is the movement the invariant is
+ * built to preserve — a presigned URL, straight to R2, nothing in between.
+ *
+ * `full` rather than the original: 2560 pixels on the long edge against a
+ * stored cover of 1200, so there is nothing to gain from the camera's own file
+ * and several megabytes to lose on somebody's data plan.
+ *
+ * Into the cache rather than documents, and deleted by the caller once it has
+ * been sent: this file exists for the length of one upload.
+ */
+export async function fetchForCover(url: string, id: string): Promise<File> {
+  const target = new File(Paths.cache, `parea-cover-${id}.jpg`);
+  if (target.exists) target.delete();
+  await File.downloadFileAsync(url, target);
+  return target;
+}
+
 export async function uploadCover(
   url: string,
   headers: Record<string, string>,

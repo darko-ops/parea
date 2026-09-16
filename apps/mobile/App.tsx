@@ -95,6 +95,7 @@ import {
   BACKGROUND_UPLOAD_SUPPORTED,
   loadActorToken,
   pushAlreadyAsked,
+  fetchForCover,
   registerForPush,
   launchNotification,
   loadEvents,
@@ -2040,10 +2041,14 @@ function EventScreen({
    * picked here now goes through the same frame, and only then goes up.
    */
   const [framingCover, setFramingCover] = useState<string | null>(null);
+  /** Whether the frame is open on the album's own photographs. */
+  const [framingAlbum, setFramingAlbum] = useState(false);
+  /** The album photograph on its way up as a cover, if one is. */
+  const [sendingCover, setSendingCover] = useState(false);
 
   const sendCover = useCallback(
-    async (uri: string, framing: CoverFraming) => {
-      const target = api.coverTarget(event.id, framing);
+    async (uri: string, framing: CoverFraming, photoId?: string | null) => {
+      const target = api.coverTarget(event.id, framing, photoId);
       try {
         await uploadCover(target.url, target.headers, uri);
         // The screen draws the cover now, so it has to be re-read: without this
@@ -2060,53 +2065,144 @@ function EventScreen({
     [api, event.id, refresh],
   );
 
-  const editCover = useCallback(() => {
-    const actions: Parameters<typeof Alert.alert>[2] = [
-      {
-        text: chosenCover ? 'Choose a different photo' : 'Choose a photo',
-        onPress: async () => {
-          const picked = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsMultipleSelection: false,
-            // Re-encoded out of the picker, which is most of the difference
-            // between a two-megabyte request and a twelve-megabyte one. The
-            // server re-encodes again, to the size it actually draws.
-            quality: 0.8,
-            exif: false,
-          });
-          if (picked.canceled || !picked.assets[0]) return;
-          // Framed before it is sent, not after — there is no undo on a cover,
-          // and the version everybody else sees would be the unframed one.
-          setFramingCover(picked.assets[0].uri);
-        },
-      },
-    ];
+  /**
+   * The photographs this album can be fronted by, and which of them it is.
+   *
+   * `full` rather than the thumbnail the strip draws: the tile is 320 pixels
+   * across and a cover cut from it would be a cover of a thumbnail. `card` is
+   * the fallback for a photograph the deriver has not reached yet, and `src`
+   * after that.
+   */
+  const coverChoices = useMemo(
+    () =>
+      (feed?.photos ?? []).map((photo) => ({
+        id: photo.id,
+        uri: photo.card ?? photo.src,
+        full: photo.full,
+      })),
+    [feed?.photos],
+  );
 
-    if (chosenCover) {
-      actions.push({
-        text: 'Remove it',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.removeCover(event.id);
-            await refresh();
-          } catch {
-            Alert.alert('Could not remove the cover', 'Try again in a moment.');
-          }
-        },
-      });
+  /**
+   * One of the album's own photographs, made into the cover.
+   *
+   * Down and back up, which looks wasteful and is the only thing available:
+   * `apps/web/src/storage/index.ts` opens by saying, in capitals, that the app
+   * tier is handed a storage client with no method that returns bytes — so
+   * that no photograph can ever be routed through the Next.js origin. A "make
+   * the cover out of photo X" endpoint would be exactly that route. The
+   * download here is client ↔ storage, straight to a presigned URL, which is
+   * the movement the invariant exists to preserve.
+   *
+   * The id goes up with it so the frame can be reopened on this picture next
+   * time. See `coverTarget`.
+   */
+  const sendAlbumCover = useCallback(
+    async (photoId: string, framing: CoverFraming) => {
+      const photo = coverChoices.find((choice) => choice.id === photoId);
+      if (!photo) return;
+      setSendingCover(true);
+      let file: Awaited<ReturnType<typeof fetchForCover>> | null = null;
+      try {
+        file = await fetchForCover(photo.full, photoId);
+        await sendCover(file.uri, framing, photoId);
+      } catch {
+        Alert.alert('Could not set the cover', 'Try again in a moment.');
+      } finally {
+        // One upload's worth of file. `sendCover` has either sent it or
+        // reported that it could not, and either way nothing reads it again.
+        try {
+          file?.delete();
+        } catch {
+          // A cache file that will not delete is the operating system's to
+          // clear, and not worth a second error on top of the first.
+        }
+        setSendingCover(false);
+      }
+    },
+    [coverChoices, sendCover],
+  );
+
+  /**
+   * Framing the album's own photographs, rather than picking a new one.
+   *
+   * The `⋯` sheet's cover row used to open an alert whose first action opened
+   * the camera roll — so "change the cover" meant "choose another picture",
+   * every time, from a screen that could not show what the cover currently was
+   * or where it sat. Nudging an existing cover a little to the left was not
+   * something the product could do at all.
+   *
+   * It opens the frame directly now, on the photograph the cover was cut from,
+   * at the position it was left at, with the rest of the album underneath to
+   * try instead. `coverPhotoId` and `coverFraming` come down with the feed for
+   * exactly this; both are null for a cover set before they were recorded, and
+   * that falls back to the photograph the album leads with, centred — which is
+   * what somebody is looking at anyway.
+   *
+   * The camera roll is gone from this path, and that is a real narrowing. Two
+   * reasons, and the second is the one that decided it. A cover is a picture of
+   * the evening and the evening is in the album, so reaching outside it is the
+   * unusual case dressed as the default. And a cover taken from outside never
+   * goes through the deriver, which is where the child-safety scan lives —
+   * `schema.ts` names that as the one gap in the pipeline. A cover made from a
+   * photograph already in the album has been scanned by construction.
+   *
+   * An album with nothing in it has nothing to offer, so that one still opens
+   * the library: it is the only picture there could be.
+   */
+  const framer = useCallback(() => {
+    if (coverChoices.length > 0) {
+      setFramingAlbum(true);
+      return;
     }
+    void (async () => {
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: false,
+        // Re-encoded out of the picker, which is most of the difference between
+        // a two-megabyte request and a twelve-megabyte one. The server
+        // re-encodes again, to the size it actually draws.
+        quality: 0.8,
+        exif: false,
+      });
+      if (picked.canceled || !picked.assets[0]) return;
+      // Framed before it is sent, not after — there is no undo on a cover, and
+      // the version everybody else sees would be the unframed one.
+      setFramingCover(picked.assets[0].uri);
+    })();
+  }, [coverChoices.length]);
 
-    actions.push({ text: 'Cancel', style: 'cancel' });
-
+  /**
+   * Taking the cover off, which is now its own row rather than an alert.
+   *
+   * It used to be the second action in the sheet the cover row opened, which
+   * was the right shape while that sheet existed — the rare destructive action
+   * one press further away than the ordinary one. The ordinary one is the frame
+   * now and opens directly, so there is no sheet left to hide this in, and a
+   * row of its own under the picture is where it belongs. Still asks first,
+   * which the alert's `destructive` style was doing on its behalf.
+   */
+  const removeCover = useCallback(() => {
     Alert.alert(
-      'Album cover',
-      chosenCover
-        ? 'The picture the album leads with, wherever it is shown.'
-        : 'Choose the picture the album leads with. Without one it leads with its newest photograph.',
-      actions,
+      'Remove the cover?',
+      'The album goes back to leading with its first photograph.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.removeCover(event.id);
+              await refresh();
+            } catch {
+              Alert.alert('Could not remove the cover', 'Try again in a moment.');
+            }
+          },
+        },
+      ],
     );
-  }, [api, chosenCover, event.id, refresh]);
+  }, [api, event.id, refresh]);
 
   const messages = feed?.messages ?? [];
 
@@ -3304,7 +3400,9 @@ function EventScreen({
           onSaveAll={saveAll}
           onDelete={deleteAlbum}
           onLeave={leaveAlbum}
-          onEditCover={editCover}
+          onEditCover={framer}
+          onRemoveCover={feed?.event.coverUrl ? removeCover : null}
+          coverBusy={sendingCover}
           onPolicy={async (value) => {
             setPolicy(value);
             setPolicyError(null);
@@ -3374,7 +3472,7 @@ function EventScreen({
       */}
       {framingCover && (
         <CoverFramer
-          photos={[{ id: 'picked', uri: framingCover, takenAt: null }]}
+          photos={[{ id: 'picked', uri: framingCover }]}
           coverId="picked"
           t={t}
           onCancel={() => setFramingCover(null)}
@@ -3382,6 +3480,33 @@ function EventScreen({
             const uri = framingCover;
             setFramingCover(null);
             void sendCover(uri, framing);
+          }}
+        />
+      )}
+
+      {/*
+        The same screen, on the album's own photographs.
+
+        Opened by the cover row in the `⋯` sheet, seeded with the picture the
+        cover was cut from and the position it was left at — so somebody who
+        wants to shift an existing cover two inches to the left can, which is
+        the thing this whole mechanism was missing.
+
+        `coverPhotoId` is null for a cover set before it was recorded and for
+        one chosen off the camera roll. Both fall back to the photograph the
+        album leads with, which is what the person opening this is looking at.
+      */}
+      {framingAlbum && coverChoices.length > 0 && (
+        <CoverFramer
+          photos={coverChoices}
+          coverId={feed?.event.coverPhotoId ?? coverChoices[0]!.id}
+          initial={feed?.event.coverFraming ?? undefined}
+          stripLabel="IN THIS ALBUM"
+          t={t}
+          onCancel={() => setFramingAlbum(false)}
+          onConfirm={(id, framing) => {
+            setFramingAlbum(false);
+            void sendAlbumCover(id, framing);
           }}
         />
       )}
@@ -3628,6 +3753,8 @@ function HostSheet({
   onDelete,
   onLeave,
   onEditCover,
+  onRemoveCover,
+  coverBusy,
   onPolicy,
   onGroup,
   onOpenGroup,
@@ -3651,6 +3778,16 @@ function HostSheet({
   onDelete: () => void;
   onLeave: () => void;
   onEditCover: () => void;
+  /**
+   * Take the cover off, or null where there is nothing to take off.
+   *
+   * Null rather than a disabled row: an album leading with its first
+   * photograph has no cover set, and offering to remove one would be offering
+   * to undo something nobody did.
+   */
+  onRemoveCover: (() => void) | null;
+  /** Whether a photograph is on its way up as the cover. */
+  coverBusy: boolean;
   onPolicy: (value: 'public' | 'private') => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
@@ -3810,7 +3947,41 @@ function HostSheet({
                 )}
                 <View style={styles.coverWords}>
                   <Text style={[styles.coverTitleText, { color: t.fg }]}>Album cover</Text>
+                  {/*
+                    What the row does, which it never said.
+
+                    It used to open an alert that asked the question again, so
+                    the row itself could get away with a title. It opens the
+                    frame directly now, and a photograph with one word beside
+                    it does not say whether pressing it changes the picture or
+                    merely shows it larger.
+                  */}
+                  <Text style={[styles.coverHint, { color: t.dim }]}>
+                    {coverBusy ? 'Setting it…' : 'Move the frame, or pick another'}
+                  </Text>
                 </View>
+              </Pressable>
+            )}
+
+            {/*
+              Taking it off, under the picture it would take off.
+
+              This was the second action in the alert the row above used to
+              open — the rare destructive one, kept a press further away than
+              the ordinary one. The ordinary one goes straight to the frame
+              now, so there is no alert left to keep this in, and the rule it
+              was following is served instead by where it sits: below the
+              picture, in the quieter type, and it still asks before it acts.
+            */}
+            {host && onRemoveCover && (
+              <Pressable
+                onPress={onRemoveCover}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Remove the album cover"
+                style={({ pressed }) => [styles.coverOff, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={[styles.coverOffText, { color: t.warn }]}>Remove cover</Text>
               </Pressable>
             )}
 
@@ -4929,6 +5100,15 @@ const styles = StyleSheet.create({
   coverShot: { width: 66, height: 44, borderRadius: 8, backgroundColor: '#8883' },
   coverEmpty: { width: 66, height: 44, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
   coverWords: { flex: 1, gap: 2 },
+  /* Under the title, in the quieter type: the row is a picture and one line
+     of words, and the line has to carry what pressing it does. */
+  coverHint: { fontSize: 13, lineHeight: 18 },
+  /* Not a button. A bordered control for "remove" beside a bordered control
+     for "change" is two objects of equal weight offering a common action and
+     a rare destructive one; a line of red text under the picture is read by
+     whoever is looking for it and by nobody else. */
+  coverOff: { paddingVertical: 10, paddingHorizontal: 4, alignSelf: 'flex-start' },
+  coverOffText: { fontSize: 14.5, fontWeight: '600' },
   coverTitleText: { fontSize: 16, fontWeight: '600' },
   coverNote: { fontSize: 13 },
   /* Above the sheet, at the album's own back-button inset — so leaving the
