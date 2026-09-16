@@ -112,6 +112,14 @@ export type Feed = {
   event: {
     id: string;
     name: string;
+    /**
+     * The host's line under the name, or null.
+     *
+     * The server has sent this all along and this client never declared it, so
+     * a caption written on the create screen could be read by the website and
+     * by nobody on a phone — and there was nowhere to change one.
+     */
+    caption: string | null;
     uploadsOpen: boolean;
     canAdminister: boolean;
     /**
@@ -596,6 +604,8 @@ export type Person = {
   displayName: string | null;
   /** Presigned for an hour. The storage key never crosses this boundary. */
   avatar: string | null;
+  /** The line they wrote about themselves, which the site has always shown. */
+  bio: string | null;
   standing: Standing;
   /** Only when they are the one waiting: the id the answer goes to. */
   requestId: string | null;
@@ -1378,6 +1388,26 @@ export class Api {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ accessPolicy }),
+    });
+  }
+
+  /**
+   * The line under the album's name, changed after the fact.
+   *
+   * Same endpoint and same field the create screen writes and the web's manage
+   * screen edits — the route has accepted `caption` since events had one. What
+   * was missing was any way to reach it from a phone once the album existed,
+   * which made it the one thing you had to get right in the thirty seconds
+   * before anybody arrived.
+   *
+   * An empty string clears it. The route turns `''` into null rather than
+   * storing a blank, which is the difference between a caption somebody
+   * removed and one they never wrote.
+   */
+  setCaption(eventId: string, caption: string): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ caption }),
     });
   }
 

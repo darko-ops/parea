@@ -199,7 +199,16 @@ describe('what the product calls an album', () => {
 
   it('says it on the tab bar, and wherever a screen names the things', () => {
     expect(read('App.tsx')).toMatch(/\['home', 'photos', 'Albums'\]/);
-    expect(read('src/Person.tsx')).toMatch(/>Albums</);
+    /*
+     * `Person.tsx` lost its `Albums` heading with its bordered cards: the
+     * shelf is a wall of covers now, the way the viewer's own profile draws
+     * one, and a heading over the only thing on the screen labels nothing.
+     * The word still has to be the one people read.
+     */
+    const PERSON = read('src/Person.tsx');
+    expect(PERSON).toMatch(/'album' : 'albums'/);
+    expect(PERSON).toMatch(/No albums to show yet/);
+    expect(PERSON).not.toMatch(/>\s*Events?\s*</);
     /*
      * `Groups.tsx` lost its `Albums` heading when the room's archive stopped
      * being a card with a title on it — the months head the runs now, and a

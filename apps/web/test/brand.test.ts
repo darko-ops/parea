@@ -122,11 +122,11 @@ describe('the app icon', () => {
      * field and the circles are the absence of it, so tighter circles mean
      * less field showing and a mark that reads as one white blob with notches.
      */
-    const path = icon.match(/id="mark"[\s\S]*?d="([\s\S]*?)"/);
-    expect(path, 'no path with id="mark" in icon.svg').not.toBeNull();
+    const path = icon.match(/id="mark"[\s\S]*?d="([\s\S]*?)"/)?.[1];
+    expect(path, 'no path with id="mark" in icon.svg').toBeDefined();
 
     // `M cx-r cy a r r 0 1 0 2r 0 …`, one subpath per circle.
-    const subpaths = [...path![1].matchAll(/M (\d+) (\d+) a (\d+) \d+/g)].map((m) => ({
+    const subpaths = [...(path ?? '').matchAll(/M (\d+) (\d+) a (\d+) \d+/g)].map((m) => ({
       cx: Number(m[1]) + Number(m[3]),
       cy: Number(m[2]),
       r: Number(m[3]),

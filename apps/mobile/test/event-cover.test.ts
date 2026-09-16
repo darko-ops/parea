@@ -216,6 +216,44 @@ describe('the cover the event already has', () => {
     expect(APP).toMatch(/<View style=\{styles\.cover\}>\s*\{cover \? \(/);
   });
 
+  it('lets the caption be changed, under the picture it sits beside', () => {
+    /*
+     * The create screen asks for a caption and nothing could change it
+     * afterwards — so it was the one thing you had to get right in the thirty
+     * seconds before you sent the link, on a screen where you had not yet seen
+     * a single photograph. The route has accepted the field all along; the app
+     * did not declare it on the feed and had nowhere to put it.
+     *
+     * Directly below the cover, because the two are the album's face: the
+     * picture and the sentence under it, which is how a card draws them.
+     */
+    expect(API).toMatch(/setCaption\(eventId: string, caption: string\)/);
+    expect(API).toMatch(/caption: string \| null;/);
+    expect(APP).toMatch(/function CaptionCard\(/);
+    expect(APP).toMatch(/caption=\{feed\?\.event\.caption \?\? null\}/);
+    const sheet = ROW.slice(ROW.indexOf('Album cover'));
+    expect(sheet.indexOf('<CaptionCard')).toBeGreaterThan(-1);
+
+    /*
+     * Its own component because it holds a draft, and a draft in `HostSheet`
+     * would be reset by every feed poll, every cover landing and every policy
+     * press. A field somebody is halfway through typing into must not be one
+     * of the things a refresh may move.
+     */
+    expect(APP).toMatch(/setDraft\(\(was\) => \(was === known\.current \? next : was\)\)/);
+    /*
+     * Saved on a button, not on blur. The sheet scrolls and the keyboard
+     * dismisses, and neither is somebody saying they are done — a caption that
+     * saved itself on the way past would write a half-typed line to everybody's
+     * home screen.
+     */
+    expect(APP).toMatch(/\{dirty && \(/);
+    expect(APP).toMatch(/draft\.trim\(\) \? 'Save caption' : 'Remove caption'/);
+    // The route's own ceiling, so the keys stop rather than the server saying
+    // `invalid_caption` to something already typed.
+    expect(APP).toMatch(/maxLength=\{200\}/);
+  });
+
   it('says nothing under the row about what a cover is', () => {
     /*
      * The row *is* the photograph, at the size the album draws it. "What this

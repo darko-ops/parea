@@ -27,6 +27,7 @@
  * apart is how a screen becomes a way to ask whether somebody exists.
  */
 
+import { dateLabel } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Image,
@@ -35,11 +36,17 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import type { GroupTheme } from './Groups';
+import { initialOf, lensFor } from './lens';
 import { Waiting } from './Waiting';
+
+/** The shelf's shape, matching the one the viewer's own profile draws. */
+const COLUMNS = 2;
+const GAP = 10;
 
 /** What we call somebody: their name if they gave one, else the handle. */
 function nameOf(person: Person): string {
@@ -76,6 +83,8 @@ export function PersonScreen({
     disabled?: boolean;
   }) => React.ReactElement;
 }) {
+  const { width } = useWindowDimensions();
+
   const [person, setPerson] = useState<Person | null>(null);
   const [shared, setShared] = useState<SharedEvent[]>([]);
   const [albums, setAlbums] = useState<ProfileAlbum[]>([]);
@@ -180,161 +189,250 @@ export function PersonScreen({
   }
 
   const name = nameOf(person);
-  const initial = name.replace('@', '').slice(0, 1).toUpperCase();
+  /*
+   * The letter and its colour, keyed on the handle exactly as the viewer's
+   * own profile keys its own — so somebody is the same colour on their page
+   * as they are in a thread, in a group's people row and over a cover.
+   */
+  const lens = lensFor(person.handle);
+
+  /** The tile edge, from the window rather than a constant, as the profile's is. */
+  const tile = Math.floor((width - 40 - GAP * (COLUMNS - 1)) / COLUMNS);
+
+  /**
+   * One shelf, from two lists that arrive separately.
+   *
+   * `shared` is the viewer's own albums filtered to the ones this person is
+   * also in, so every row of it is already in `events` and carries a cover, a
+   * count and a date this app fetched for itself. `albums` is everything they
+   * made that the first list does not already hold, and a locked one carries a
+   * name and nothing else — see `albumsBy` on the server.
+   *
+   * Drawn as one grid because they are one thing to the person reading: what
+   * this person has. The two were separate cards under separate headings,
+   * which said more about where the data came from than about them.
+   */
+  const shelf = [
+    ...shared.map((event) => {
+      const mine = events.find((e) => e.id === event.id);
+      return {
+        id: event.id,
+        name: event.name,
+        cover: mine?.cover?.src ?? event.thumb,
+        photoCount: mine?.photoCount ?? null,
+        at: mine?.eventDate ?? mine?.firstPhotoAt ?? event.lastActiveAt,
+        locked: false,
+        open: mine ? () => onOpenEvent(mine) : null,
+        album: null as ProfileAlbum | null,
+      };
+    }),
+    ...albums.map((album) => ({
+      id: album.id,
+      name: album.name,
+      cover: album.thumb,
+      photoCount: album.photoCount,
+      at: album.eventDate,
+      locked: album.locked,
+      open: null,
+      album,
+    })),
+  ];
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Pressable onPress={onBack}>
-        <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
+      <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+        <Text style={[styles.back, { color: t.accent }]}>‹</Text>
       </Pressable>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+      {/*
+        The same head their own profile has: the name and the handle on the
+        left, the picture bleeding off the right edge.
+
+        It was a bordered card with a 64pt circle in it — a row in a settings
+        list, for the one screen in the product that is a person. Somebody
+        arriving here from a byline should find the same shape they find on
+        their own page, because it is the same kind of page.
+      */}
+      <View style={styles.head}>
         <View style={styles.who}>
-          {person.avatar ? (
-            <Image source={{ uri: person.avatar }} style={styles.face} />
-          ) : (
-            /* A letter, the same fallback the web uses. An avatar URL is
-               presigned and expires, and a broken image frame is worse than
-               never having drawn one. */
-            <View style={[styles.face, styles.faceBlank, { backgroundColor: t.line }]}>
-              <Text style={[styles.label, { color: t.dim }]}>{initial}</Text>
-            </View>
+          <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
+            {name}
+          </Text>
+          {/* Always, and not only under a display name: the handle is the
+              durable half and the thing this page is reached by. */}
+          <Text style={[styles.handle, { color: t.dim }]} numberOfLines={1}>
+            @{person.handle}
+          </Text>
+          {/*
+            One number, and it counts the viewer's own shelf: how many of your
+            albums this person is also in.
+
+            Deliberately not the three their own profile prints. Their totals
+            are not on this page — a profile that said "41 albums · 900 photos"
+            would make search a way to measure strangers, which is the whole
+            reason being findable leads to being able to ask and no further.
+            The web's version of this screen says the same thing in the same
+            words.
+          */}
+          {shared.length > 0 && (
+            <Text style={[styles.counts, { color: t.dim }]}>
+              {shared.length} {shared.length === 1 ? 'album' : 'albums'} with you
+            </Text>
           )}
-          <View style={styles.whoText}>
-            <Text style={[styles.h1, { color: t.fg }]}>{name}</Text>
-            {/* The handle under the name, always: it is the durable one, and
-                the name above it is whatever they last chose to show. */}
-            <Text style={[styles.small, { color: t.dim }]}>@{person.handle}</Text>
-          </View>
         </View>
 
-        {standing === 'self' && (
-          <Text style={[styles.body, { color: t.dim }]}>This is you.</Text>
-        )}
-        {standing === 'friends' && (
-          <Text style={[styles.body, { color: t.dim }]}>Friends.</Text>
-        )}
-        {/*
-          "Asked" is what a refusal says too. `/api/friends` answers a repeat
-          ask with the status it already holds, so a no is said once rather
-          than becoming something to press past — and announcing the decline
-          every time this screen opened would be the product saying it for
-          them, over and over.
-        */}
-        {standing === 'asked' && (
-          <Text style={[styles.body, { color: t.dim }]}>Asked.</Text>
-        )}
-        {standing === 'none' && (
-          <Button label="Add friend" onPress={ask} t={t} primary disabled={busy} />
-        )}
-        {standing === 'asking' && (
-          <View style={styles.answerRow}>
-            <Text style={[styles.body, { color: t.dim, flex: 1 }]}>
-              {name} asked to be friends.
+        {person.avatar ? (
+          <Image
+            source={{ uri: person.avatar }}
+            style={[styles.avatar, { backgroundColor: t.line }]}
+          />
+        ) : (
+          /* A letter on their own lens, never a silhouette — the rule every
+             face in this product follows, and the same one the viewer's own
+             profile applies to itself. */
+          <View style={[styles.avatarBlank, { backgroundColor: lens.fill }]}>
+            <Text style={[styles.avatarLetter, { color: lens.ink }]}>
+              {initialOf(name)}
             </Text>
-            <Button label="Accept" onPress={() => void answer(true)} t={t} primary disabled={busy} />
-            <Button label="Decline" onPress={() => void answer(false)} t={t} disabled={busy} />
           </View>
         )}
-        {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
       </View>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Albums</Text>
-        {shared.length === 0 ? (
-          /*
-           * Two ways of having none, and they are different sentences.
-           *
-           * A friend with nothing shared is told it is not there *yet*, which
-           * is a fact about the two of you and likely to change. Anybody else
-           * used to be told the account was private — the honest answer while
-           * this screen listed nothing a stranger was not already in. Their
-           * albums are listed below now, so that sentence would contradict the
-           * list under it, and what is left is the plain one.
-           */
-          <Text style={[styles.body, { color: t.dim }]}>
-            {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
-          </Text>
-        ) : (
-          shared.map((event) => {
-            const mine = events.find((e) => e.id === event.id);
-            return (
-              <Pressable
-                key={event.id}
-                style={styles.eventRow}
-                disabled={!mine}
-                onPress={() => mine && onOpenEvent(mine)}
-              >
-                {event.thumb ? (
-                  <Image source={{ uri: event.thumb }} style={styles.thumb} />
-                ) : (
-                  <View style={[styles.thumb, styles.faceBlank, { backgroundColor: t.line }]}>
-                    <Text style={[styles.small, { color: t.dim }]}>
-                      {event.name.slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.eventText}>
-                  <Text style={[styles.body, { color: mine ? t.accent : t.fg }]}>
-                    {event.name}
-                  </Text>
-                  {event.caption && (
-                    <Text style={[styles.small, { color: t.dim }]}>{event.caption}</Text>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })
+      {person.bio && <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{person.bio}</Text>}
+
+      {/*
+        Where Edit profile and Share profile sit on your own, there is one
+        control here and it is the only thing you can do about somebody.
+
+        The quiet standings are worn as a label rather than offered as a
+        button: "Friends" and "Asked" are states, and a control that reports a
+        state is a control somebody presses to find out it does nothing. The
+        one that is genuinely somebody's to answer — they asked you — is two
+        buttons, because it is the one case with a decision in it.
+      */}
+      <View style={[styles.actions, styles.gutter]}>
+        {standing === 'none' && (
+          <Pressable
+            onPress={ask}
+            disabled={busy}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.action,
+              { borderColor: t.fg, opacity: busy ? 0.5 : pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Text style={[styles.actionText, { color: t.fg }]}>Add friend</Text>
+          </Pressable>
+        )}
+        {(standing === 'friends' || standing === 'asked') && (
+          <View
+            style={[styles.action, { borderColor: t.line, backgroundColor: t.card }]}
+            accessibilityRole="text"
+          >
+            <Text style={[styles.actionText, { color: t.dim }]}>
+              {standing === 'friends' ? 'Friends' : 'Asked'}
+            </Text>
+          </View>
+        )}
+        {standing === 'asking' && (
+          <>
+            <Pressable
+              onPress={() => void answer(true)}
+              disabled={busy}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.action,
+                { borderColor: t.fg, opacity: busy ? 0.5 : pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={[styles.actionText, { color: t.fg }]}>Accept</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void answer(false)}
+              disabled={busy}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.action,
+                { borderColor: t.line, backgroundColor: t.card, opacity: busy ? 0.5 : pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={[styles.actionText, { color: t.dim }]}>Decline</Text>
+            </Pressable>
+          </>
         )}
       </View>
 
-      {albums.length > 0 && (
-        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-          <Text style={[styles.label, { color: t.fg }]}>
-            {shared.length > 0 ? 'Their other albums' : 'Albums'}
-          </Text>
-          {albums.map((album) => {
-            const status = asked[album.id];
+      {standing === 'asking' && (
+        <Text style={[styles.small, styles.gutter, { color: t.dim }]}>
+          {name} asked to be friends.
+        </Text>
+      )}
+      {error && <Text style={[styles.small, styles.gutter, { color: t.dim }]}>{error}</Text>}
+
+      {/*
+        The shelf, in the grid their own profile uses.
+
+        Two cards of text rows became one wall of covers, which is the point of
+        the screen: what this person has is photographs, and a list of names in
+        a bordered panel is a directory of them.
+      */}
+      {shelf.length === 0 ? (
+        <Text style={[styles.body, styles.gutter, { color: t.dim }]}>
+          {/*
+            Two ways of having none, and they are different sentences. A friend
+            with nothing shared is told it is not there *yet*, which is a fact
+            about the two of you and likely to change.
+          */}
+          {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
+        </Text>
+      ) : (
+        <View style={[styles.grid, styles.gutter]}>
+          {shelf.map((item) => {
+            const status = item.album ? asked[item.album.id] : undefined;
+            const when = dateLabel(item.at);
             return (
-              <View key={album.id} style={styles.eventRow}>
-                {album.thumb ? (
-                  <Image source={{ uri: album.thumb }} style={styles.thumb} />
-                ) : (
-                  /*
-                    A locked album has no thumbnail to draw, and it is not a
-                    picture that failed: an empty square, which is what is
-                    actually being said. The letter stands in for an unlocked
-                    one that simply has no cover yet.
-                  */
-                  <View style={[styles.thumb, styles.faceBlank, { backgroundColor: t.line }]}>
-                    <Text style={[styles.small, { color: t.dim }]}>
-                      {album.locked ? '' : album.name.slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.eventText}>
-                  <Text style={[styles.body, { color: t.fg }]}>{album.name}</Text>
-                  <Text style={[styles.small, { color: t.dim }]}>
-                    {album.locked
-                      ? 'Private'
-                      : album.photoCount === null || album.photoCount === 0
-                        ? 'No photos yet'
-                        : `${album.photoCount} ${album.photoCount === 1 ? 'photo' : 'photos'}`}
-                  </Text>
-                </View>
-                {album.locked &&
-                  (status ? (
-                    <Text style={[styles.small, { color: t.dim }]}>
-                      {status === 'approved' ? 'Let in' : 'Asked'}
-                    </Text>
+              <View key={item.id} style={{ width: tile }}>
+                <Pressable
+                  onPress={
+                    item.open ??
+                    (item.locked && item.album && !status
+                      ? () => void askToJoin(item.album!)
+                      : undefined)
+                  }
+                  disabled={!item.open && !(item.locked && item.album && !status)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    item.locked ? `${item.name}, private. Ask to join` : item.name
+                  }
+                >
+                  {item.cover ? (
+                    <Image source={{ uri: item.cover }} style={styles.tile} />
                   ) : (
-                    <Button
-                      label="Ask to join"
-                      onPress={() => void askToJoin(album)}
-                      t={t}
-                      disabled={busy}
-                    />
-                  ))}
+                    /*
+                      A locked album has no thumbnail to draw and it is not a
+                      picture that failed: a dashed empty tile, which is what is
+                      actually being said. The same tile stands in for an
+                      unlocked one that simply has no cover yet.
+                    */
+                    <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]} />
+                  )}
+                </Pressable>
+                <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={[styles.tileMeta, { color: t.dim }]} numberOfLines={1}>
+                  {item.locked
+                    ? status
+                      ? status === 'approved'
+                        ? 'Let in'
+                        : 'Asked'
+                      : 'Private · ask to join'
+                    : item.photoCount === null || item.photoCount === 0
+                      ? 'Nothing in it yet'
+                      : when
+                        ? `${when} · ${item.photoCount}`
+                        : `${item.photoCount} ${item.photoCount === 1 ? 'photo' : 'photos'}`}
+                </Text>
               </View>
             );
           })}
@@ -346,18 +444,58 @@ export function PersonScreen({
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: 20, paddingTop: 72, gap: 14 },
-  card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
-  h1: { fontSize: 24, fontWeight: '700' },
-  label: { fontSize: 15, fontWeight: '600' },
+  /*
+   * No horizontal padding on the scroll itself, because the picture runs off
+   * the right edge. Everything that is not the picture wears `gutter`, which
+   * is the same trade the viewer's own profile makes for the same reason.
+   */
+  scroll: { paddingTop: 72, paddingBottom: 132, gap: 14 },
+  gutter: { paddingHorizontal: 20 },
+  back: { fontSize: 28, lineHeight: 30, paddingHorizontal: 20 },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13 },
-  who: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  whoText: { flex: 1, gap: 2 },
-  face: { width: 64, height: 64, borderRadius: 32 },
-  faceBlank: { alignItems: 'center', justifyContent: 'center' },
-  answerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  eventRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  eventText: { flex: 1, gap: 2 },
-  thumb: { width: 44, height: 44, borderRadius: 10 },
+  /* The name block and the picture, the picture bleeding off the right. */
+  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20 },
+  who: { flex: 1, minWidth: 0, gap: 3, paddingRight: 16 },
+  name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
+  handle: { fontSize: 15 },
+  counts: { fontSize: 15 },
+  /*
+   * The same picture the viewer's own profile draws, at the same size and with
+   * the same corner: rounded on the left, square on the right, because it runs
+   * off the edge of the screen rather than sitting on it.
+   */
+  avatar: {
+    width: 124,
+    height: 104,
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  /* The letter keeps the gutter and keeps its own shape: a flat lens colour
+     running off the edge is a field of colour, not a face. */
+  avatarBlank: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: { fontSize: 25, fontWeight: '700' },
+  bio: { fontSize: 15, lineHeight: 21 },
+  /* One control where the profile has two, and it fills the row on its own. */
+  actions: { flexDirection: 'row', gap: 8 },
+  action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  actionText: { fontSize: 15, fontWeight: '600' },
+  /* Two across with gutters: these are separate albums, not one object the
+     way a wall of photographs would be. */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  tile: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' },
+  tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
+  /* Under the picture rather than over it: a scrim block across the bottom of
+     every tile is a grid that reads as captioned stock photography. */
+  tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
+  tileMeta: { fontSize: 12.5, marginTop: 1 },
 });

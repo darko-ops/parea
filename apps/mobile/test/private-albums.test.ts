@@ -137,10 +137,31 @@ describe('somebody else’s albums, on their page', () => {
   });
 
   it('draws no picture and no count for a locked one', () => {
-    // The server sends neither — see `albumsBy` — and the screen must not
-    // invent a placeholder that reads as a photograph either.
-    expect(PERSON).toMatch(/album\.locked \? '' :/);
-    expect(PERSON).toMatch(/album\.locked\s*\n?\s*\? 'Private'/);
+    /*
+     * The server sends neither — see `albumsBy` — and the screen must not
+     * invent a placeholder that reads as a photograph either.
+     *
+     * The tile is dashed rather than a letter on a filled square, which it was
+     * when the row was a 44pt thumbnail beside a name. At a tile's size a
+     * letter on a grey block is a cover somebody chose badly; a dashed outline
+     * is the thing that is actually being said, and it is what the viewer's
+     * own shelf already draws for an album with nothing in it.
+     */
+    expect(PERSON).toMatch(/styles\.tile, styles\.tileEmpty/);
+    expect(PERSON).toMatch(/tileEmpty: \{ borderWidth: 1, borderStyle: 'dashed'/);
+    expect(PERSON).toMatch(/item\.locked\s*\n?\s*\? status/);
+    expect(PERSON).toMatch(/'Private · ask to join'/);
+    /*
+     * And the two lists become one shelf, with `locked` carried across rather
+     * than inferred from a missing cover — an unlocked album with no cover yet
+     * looks identical from the outside and is not private.
+     *
+     * Asserted against the file rather than a slice of it: `indexOf('return (')`
+     * finds the error branch near the top, which is how this came back empty
+     * and passed nothing on the way in.
+     */
+    expect(PERSON).toMatch(/locked: album\.locked,/);
+    expect(PERSON).toMatch(/locked: false,/);
   });
 });
 

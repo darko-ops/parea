@@ -54,6 +54,16 @@ export async function GET(
       // Presigned, an hour, like every other avatar that crosses this
       // boundary. The key itself never does.
       avatar: await avatarUrl(person.avatarKey),
+      /*
+       * The line they wrote about themselves, which the web page has drawn
+       * all along and this route was dropping on the floor.
+       *
+       * `profileFor` was already selecting it — the same decision about who
+       * has a page decides who has a bio, so there is nothing further to
+       * weigh here. What it cost was the app's version of this screen being a
+       * name and a button where the site has a person.
+       */
+      bio: person.bio,
       standing: person.standing,
       requestId: person.requestId,
     },

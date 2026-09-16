@@ -3551,6 +3551,8 @@ function EventScreen({
           onEditCover={framer}
           onRemoveCover={feed?.event.coverUrl ? removeCover : null}
           coverBusy={sendingCover}
+          caption={feed?.event.caption ?? null}
+          onCaptionSaved={refresh}
           /*
             The frame, rendered *inside* the sheet's modal rather than beside it.
 
@@ -3947,6 +3949,8 @@ function HostSheet({
   onRemoveCover,
   coverBusy,
   coverFramer,
+  caption,
+  onCaptionSaved,
   onPolicy,
   onGroup,
   onOpenGroup,
@@ -3988,6 +3992,10 @@ function HostSheet({
    * longer one on `PhotoActions`, which is the same mistake made once already.
    */
   coverFramer: React.ReactNode;
+  /** The album's current line, or null where there is none. */
+  caption: string | null;
+  /** Re-reads the feed, so the header behind the sheet catches up. */
+  onCaptionSaved: () => void | Promise<void>;
   onPolicy: (value: 'public' | 'private') => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
@@ -4184,6 +4192,21 @@ function HostSheet({
                 <Text style={[styles.coverOffText, { color: t.warn }]}>Remove cover</Text>
               </Pressable>
             )}
+
+            {/*
+              The line under the album's name, under the picture it sits beside.
+
+              The create screen asks for this and nothing has been able to
+              change it since — so a caption was the one thing you had to get
+              right in the thirty seconds before you sent the link, on a screen
+              where you had not yet seen a single photograph. The route has
+              accepted the field all along.
+
+              Directly below the cover because the two are the album's face:
+              the picture and the sentence under it, which is how a card draws
+              them and how the album's own header does.
+            */}
+            {host && <CaptionCard api={api} t={t} event={event} caption={caption} onSaved={onCaptionSaved} />}
 
             {/*
               The other door into a private album, and the one the app did not
@@ -4823,6 +4846,108 @@ function PhotoActions({
 // --- chrome -------------------------------------------------------------------
 
 /**
+ * The album's caption, changed after the fact.
+ *
+ * Its own component because it holds a draft, and a draft in `HostSheet` would
+ * be reset every time anything else on that sheet changed — the sheet is
+ * re-rendered by the feed poll, by a cover landing, by the policy pills. A
+ * field somebody is halfway through typing into must not be one of the things
+ * a refresh is allowed to move.
+ *
+ * Saved on a button rather than on blur. Blur is ambiguous here: the sheet
+ * scrolls, the keyboard dismisses, and neither of those is somebody saying
+ * they are done — and a caption that saved itself on the way past would write
+ * a half-typed line to everybody's home screen.
+ */
+function CaptionCard({
+  api,
+  t,
+  event,
+  caption,
+  onSaved,
+}: {
+  api: Api;
+  t: Theme;
+  event: SavedEvent;
+  caption: string | null;
+  onSaved: () => void | Promise<void>;
+}) {
+  const [draft, setDraft] = useState(caption ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Follows the server, but only while nobody is typing.
+   *
+   * The feed lands after this mounts and can land again at any time. Without
+   * this the field would show whatever it was born with; with it applied
+   * unconditionally, a poll landing mid-sentence would take the sentence away.
+   * So it moves only when the draft still matches what the server last said.
+   */
+  const known = useRef(caption ?? '');
+  useEffect(() => {
+    const next = caption ?? '';
+    setDraft((was) => (was === known.current ? next : was));
+    known.current = next;
+  }, [caption]);
+
+  const dirty = draft.trim() !== (caption ?? '').trim();
+
+  const save = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setCaption(event.id, draft.trim());
+      await onSaved();
+    } catch {
+      setError('Could not save it. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  }, [api, draft, event.id, onSaved]);
+
+  return (
+    <View style={[styles.sheetRow, { backgroundColor: t.card, borderColor: t.line }]}>
+      <Text style={[styles.label, { color: t.fg }]}>Caption</Text>
+      {/*
+        What it is for, in the words of where it shows up. "Caption" alone is
+        a field name; this says which screen the sentence lands on, which is
+        the thing somebody needs to know before writing one.
+      */}
+      <Text style={[styles.small, { color: t.dim }]}>
+        A line under the album's name, wherever it is shown.
+      </Text>
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        placeholder="Three days, one memory card"
+        placeholderTextColor={t.dim}
+        multiline
+        /* The route's own ceiling. Stopping the keys at 200 is kinder than
+           accepting 240 and answering `invalid_caption`. */
+        maxLength={200}
+        style={[styles.input, styles.captionField, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
+        accessibilityLabel="The album's caption"
+      />
+      {/*
+        Only once there is something to save. A button that is always there
+        and usually does nothing is a button people stop reading.
+      */}
+      {dirty && (
+        <Button
+          label={busy ? 'Saving…' : draft.trim() ? 'Save caption' : 'Remove caption'}
+          onPress={() => void save()}
+          t={t}
+          primary
+          disabled={busy}
+        />
+      )}
+      {error && <Text style={[styles.small, { color: t.warn }]}>{error}</Text>}
+    </View>
+  );
+}
+
+/**
  * One tab, kept alive while another is in front of it.
  *
  * `display: 'none'` rather than unmounting, which is the whole point: the tab
@@ -5245,6 +5370,15 @@ const styles = StyleSheet.create({
   /* --- the sheet behind `⋯` ---------------------------------------------- */
   sheetScroll: { gap: 10, paddingBottom: 10 },
   sheetRow: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 2 },
+  /* Taller than a single-line field and top-aligned, because a caption is a
+     sentence: two hundred characters is three lines on this width, and a box
+     that shows one of them hides most of what somebody wrote. */
+  captionField: {
+    minHeight: 76,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlignVertical: 'top',
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   /* A kept-alive tab. `position: 'absolute'` so the four of them stack rather
      than sitting in a column — only one is ever visible, and a hidden sibling
