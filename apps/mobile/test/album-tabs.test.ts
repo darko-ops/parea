@@ -154,8 +154,23 @@ describe('the two views', () => {
     expect(APP).toMatch(/const GRID_COLUMNS = 3;/);
     expect(SCREEN).toMatch(/numColumns=\{GRID_COLUMNS\}/);
     expect(SCREEN).toMatch(/columnWrapperStyle=\{styles\.gridRow\}/);
-    // Square, which is the trade a contact sheet makes.
-    expect(APP).toMatch(/gridShot: \{ width: '100%', aspectRatio: 1/);
+    /*
+     * Square, which is the trade a contact sheet makes — and sized rather than
+     * flexed.
+     *
+     * The tile was `flex: 1`, which is right for every row but the last one and
+     * wrong there: `numColumns` does not pad a short final row, so an album of
+     * seven ended with a single tile taking the whole width of the screen, a
+     * square the size of three at the foot of the sheet. A width makes the last
+     * row start at the left and stop where it runs out, which is what a grid
+     * does.
+     */
+    expect(APP).toMatch(
+      /const gridTile = \(width - PHOTO_GAP \* \(GRID_COLUMNS - 1\)\) \/ GRID_COLUMNS;/,
+    );
+    expect(APP).toMatch(/style=\{\{ width: gridTile, height: gridTile \}\}/);
+    expect(APP).toMatch(/gridShot: \{ width: '100%', height: '100%'/);
+    expect(APP).not.toMatch(/gridTile: \{ flex: 1 \}/);
   });
 
   it('opens on the grid, and the grid is the left-hand page', () => {
@@ -173,7 +188,14 @@ describe('the two views', () => {
     // the spacing rather than the layout — and `getItemLayout` adds it to a
     // row's height, so the two have to agree by construction.
     expect(APP).toMatch(/const PHOTO_GAP = 3;/);
-    expect(APP).toMatch(/gridRow: \{ gap: PHOTO_GAP \}/);
+    expect(APP).toMatch(/gridRow: \{ gap: PHOTO_GAP, justifyContent: 'flex-start' \}/);
+    /*
+     * And the row height the layout promises is the one the tiles actually
+     * take. It was `width / 3 + PHOTO_GAP` against an actual `(width - 2 *
+     * PHOTO_GAP) / 3` — five points of drift per row, compounding down a long
+     * album until `scrollToIndex` landed somewhere else.
+     */
+    expect(APP).toMatch(/const gridRowHeight = gridTile \+ PHOTO_GAP;/);
   });
 
   it('lands on the same photographs it left', () => {
@@ -188,21 +210,50 @@ describe('the two views', () => {
     expect(SCREEN).toMatch(/onViewableItemsChanged=\{onSeen\}/);
   });
 
-  it('says which view is showing, and says it once', () => {
+  it('names the two views with a drawing of each, and lets you press one', () => {
     /*
-     * The indicator is what tells somebody the swipe exists at all, and that is
-     * the whole of its job. It had a white strip behind it — three pieces of
-     * chrome between the tabs and the photographs where two will do, and a
-     * white one in dark mode besides — and it drew the half you are *not* on as
-     * a track, which said the same thing twice.
+     * It was two 4pt bars with the one you were on filled — an indicator
+     * rather than a control, on the reasoning that the gesture is the swipe
+     * and this only had to say the swipe existed. It never did say that: a
+     * short mark under a row of tabs reads as a tab underline, which is a
+     * thing that *reports* where you are, so nobody learned there was a second
+     * view to reach.
      *
-     * Only the side you are on is drawn now. The other half still takes its
-     * space, so the mark reads as which side rather than as a bar that moved.
+     * Each glyph is a small drawing of the layout it opens. The literal icon
+     * is the right one here for once: both views hold the same photographs and
+     * differ only in how they are laid out, so a diagram of the layout is a
+     * complete description of the difference.
      */
-    expect(APP).toMatch(/viewBar: \{ paddingTop: 10, paddingBottom: 8 \}/);
+    const GLYPH = read('src/Glyph.tsx');
+    expect(GLYPH).toMatch(/case 'grid':/);
+    expect(GLYPH).toMatch(/case 'portrait':/);
+    // Four squares, not nine: a 3×3 at 18 points is a texture, not a grid.
+    expect((GLYPH.match(/<Rect x=\{(?:4|13)\} y=\{(?:4|13)\} width=\{7\} height=\{7\}/g) ?? []))
+      .toHaveLength(4);
+
+    expect(APP).toMatch(/\['grid', 'grid', 'Grid'\]/);
+    expect(APP).toMatch(/\['column', 'portrait', 'One at a time'\]/);
+    expect(APP).toMatch(/onPress=\{\(\) => showView\(which\)\}/);
+    // Still says which one you are on, in the pairing the tab bubble uses.
+    expect(APP).toMatch(/color=\{view === which \? t\.fg : t\.dim\}/);
+    expect(APP).toMatch(/weight=\{view === which \? 2\.4 : 1\.8\}/);
+    // A target rather than a picture: 34 against an 18pt glyph.
+    expect(APP).toMatch(/viewSegment: \{ flex: 1, height: 34/);
     expect(APP).not.toMatch(/viewBar: \{ backgroundColor/);
-    expect(APP).toMatch(/backgroundColor: view === which \? t\.fg : 'transparent'/);
-    expect(APP).toMatch(/viewSegment: \{ flex: 1, height: 4/);
+  });
+
+  it('presses and swipes into the same code path', () => {
+    /*
+     * The button scrolls the pager rather than setting the state directly, so
+     * the animation lands on `onPaged` — which is what carries the anchor
+     * across to the list arriving. Otherwise the press would be a shortcut that
+     * skipped the half of the work somebody would notice missing.
+     */
+    expect(APP).toMatch(
+      /pager\.current\?\.scrollTo\(\{ x: which === 'column' \? width : 0, animated: true \}\)/,
+    );
+    const SHOW = APP.slice(APP.indexOf('const showView ='), APP.indexOf('const onPaged ='));
+    expect(SHOW).not.toMatch(/setView\(/);
   });
 
   it('draws the 1280 now that a row is the whole screen', () => {

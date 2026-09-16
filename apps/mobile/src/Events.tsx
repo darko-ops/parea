@@ -28,7 +28,7 @@
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -52,8 +52,11 @@ import type {
   MyGroupDetail,
   ThreadLine,
 } from './api';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+
 import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
+import { MARK_FILLS } from './Mark';
 import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import { Wordmark } from './Wordmark';
@@ -158,6 +161,63 @@ const SHEET_GAP = 3;
  * a column of them stops scanning.
  */
 const sheetTile = (width: number) => (width - SHEET_GAP * (SHEET_TILES - 1)) / SHEET_TILES;
+
+/**
+ * The wash behind the "+N" on the end of a card's strip.
+ *
+ * It was `card` over `line` — white on a white page, and in the dark scheme a
+ * dark grey square, which is what a photograph looks like when it has failed
+ * to load. The one tile in the row that is not a photograph was reading as the
+ * one that had broken.
+ *
+ * So it is the mark's own three colours instead, poured rather than drawn: the
+ * mint underneath, a pink bloom where the mark's top circle sits and a blue one
+ * where its lower-left circle sits, each fading out so the three meet in the
+ * middle the way the logo's lenses do. Stained glass rather than a logo — the
+ * shapes are gone and only the colour is left, which is the most the product
+ * may say in a slot that belongs to somebody else's photographs.
+ *
+ * The positions are `MARK_CENTRES` rescaled to a unit square: pink above,
+ * blue and mint below it. Restated as fractions rather than imported, because
+ * what is shared with the mark is the palette and the arrangement, not the
+ * geometry — this is a square and the mark is drawn in a 1024 box with room
+ * around it.
+ *
+ * No alpha on the fills themselves. The mark's own note applies: transparency
+ * would decide the blend for us, and multiply turns pink over mint into a
+ * muddy neutral. The gradients fade a colour to *nothing*, so where two meet
+ * the one underneath is what shows.
+ */
+function SheetGlass() {
+  /*
+   * Ids unique to this instance, for exactly the reason `Mark` does the same:
+   * `react-native-svg` resolves paint references against a registry that is
+   * not per-`Svg` on every platform, so several of these mounted at once — one
+   * per card, on a scrolling list — can end up painting with each other's
+   * gradients.
+   */
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+      <Defs>
+        <RadialGradient id={`${id}p`} cx="50%" cy="20%" r="75%">
+          <Stop offset="0" stopColor={MARK_FILLS.pink} stopOpacity="1" />
+          <Stop offset="1" stopColor={MARK_FILLS.pink} stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id={`${id}b`} cx="18%" cy="82%" r="75%">
+          <Stop offset="0" stopColor={MARK_FILLS.blue} stopOpacity="1" />
+          <Stop offset="1" stopColor={MARK_FILLS.blue} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      {/* The mint is the ground rather than a third bloom: three fades over
+          nothing leave the corners empty, and an empty corner on a tile in a
+          row of photographs is the broken-image look this replaced. */}
+      <Rect width="100%" height="100%" fill={MARK_FILLS.mint} />
+      <Rect width="100%" height="100%" fill={`url(#${id}b)`} />
+      <Rect width="100%" height="100%" fill={`url(#${id}p)`} />
+    </Svg>
+  );
+}
 
 /** How tall to draw a full-bleed cover of this shape. */
 function coverHeight(event: { coverAspect?: number | null }, width: number): number {
@@ -581,10 +641,9 @@ function EventCard({
               accessibilityRole="button"
               accessibilityLabel={`${plural(rest, 'more photo')} in ${event.name}`}
             >
-              <View
-                style={[styles.sheetRest, { backgroundColor: t.card, borderColor: t.line }]}
-              >
-                <Text style={[styles.sheetRestText, { color: t.dim }]}>+{rest}</Text>
+              <View style={styles.sheetRest}>
+                <SheetGlass />
+                <Text style={styles.sheetRestText}>+{rest}</Text>
               </View>
             </Pressable>
           )}
@@ -2402,14 +2461,28 @@ const styles = StyleSheet.create({
      `sheetTile`. */
   sheet: { flexDirection: 'row', gap: SHEET_GAP, marginHorizontal: -20, marginTop: 10 },
   sheetShot: { width: '100%', height: '100%' },
+  /* No border any more: the glass behind it is the tile's edge, and a hairline
+     round a block of colour in a row of borderless photographs was the one
+     thing on the strip drawn as an object. */
   sheetRest: {
     width: '100%',
     height: '100%',
-    borderWidth: 1,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sheetRestText: { fontSize: 13, fontWeight: '600' },
+  /*
+   * Dark plum, and the same in both schemes.
+   *
+   * It read `dim` on the page's own card colour, which followed the scheme
+   * because its background did. The glass does not: the mark's colours are the
+   * mark's colours at midnight, so the ink on them has to be fixed too.
+   *
+   * Dark enough to clear 4.5:1 on all three — 6.9:1 on the blue, which is the
+   * deepest of them, and better on the other two. A mid-tone that looked right
+   * on the mint would be unreadable where the pink bloom is brightest.
+   */
+  sheetRestText: { fontSize: 13, fontWeight: '700', color: '#2f2440' },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
   /*

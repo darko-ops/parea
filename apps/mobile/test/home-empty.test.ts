@@ -251,6 +251,50 @@ describe('the card the home list draws', () => {
     expect(code(CARD)).not.toMatch(/ScrollView/);
   });
 
+  it('pours the mark’s colours behind the count, rather than a grey square', () => {
+    /*
+     * The "+N" tile was `card` over `line` — white on a white page, and in the
+     * dark scheme a dark grey square, which is what a photograph looks like
+     * when it has failed to load. The one tile in the row that is not a
+     * photograph was reading as the one that had broken.
+     *
+     * The mark's own three colours instead, poured rather than drawn: mint
+     * underneath, a pink bloom where the mark's top circle sits and a blue one
+     * where its lower-left circle sits, each fading out so the three meet in
+     * the middle the way the logo's lenses do. Stained glass rather than a
+     * logo — the shapes are gone and only the colour is left, which is the
+     * most the product may say in a slot that belongs to somebody else's
+     * photographs.
+     */
+    const GLASS = EVENTS.slice(
+      EVENTS.indexOf('function SheetGlass'),
+      EVENTS.indexOf('function coverHeight'),
+    );
+    for (const fill of ['MARK_FILLS.pink', 'MARK_FILLS.blue', 'MARK_FILLS.mint']) {
+      expect(GLASS).toContain(fill);
+    }
+    expect(EVENTS).toMatch(/import \{ MARK_FILLS \} from '\.\/Mark';/);
+    /*
+     * The mint is the ground rather than a third bloom: three fades over
+     * nothing leave the corners empty, and an empty corner on a tile in a row
+     * of photographs is the broken-image look this replaced.
+     */
+    expect(GLASS).toMatch(/<Rect width="100%" height="100%" fill=\{MARK_FILLS\.mint\} \/>/);
+    /*
+     * Ids unique to the instance, for the reason `Mark` does the same:
+     * `react-native-svg` resolves paint references against a registry that is
+     * not per-`Svg` on every platform, and there is one of these per card on a
+     * scrolling list.
+     */
+    expect(GLASS).toMatch(/useId\(\)\.replace\(/);
+    /*
+     * And the ink is fixed rather than following the scheme. The mark's
+     * colours are the mark's colours at midnight, so what reads on them is the
+     * same at midnight too.
+     */
+    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#2f2440' \}/);
+  });
+
   it('sends a thumbnail to its own photograph and the count to the grid', () => {
     /*
      * A tile is a picture of a specific thing, and pressing a picture of a

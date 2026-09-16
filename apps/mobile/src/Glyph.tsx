@@ -37,7 +37,9 @@ export type GlyphName =
   | 'share'
   | 'download'
   | 'trash'
-  | 'door';
+  | 'door'
+  | 'grid'
+  | 'portrait';
 
 /**
  * One glyph, in one colour.
@@ -237,6 +239,41 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M6.5 6.5 7.4 19a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.5" />
         </>
       );
+
+    /*
+     * The two ways of looking at an album, as the shape each one makes.
+     *
+     * Not a camera and a filmstrip, or any other picture of what is inside:
+     * both views hold the same photographs, and the only difference between
+     * them is the layout. So each glyph is a small drawing of its own layout,
+     * which is the rare case where the literal icon is also the right one —
+     * somebody who has seen either view recognises its diagram immediately.
+     *
+     * Four squares rather than nine. Three across is what the grid actually
+     * draws, and a 3×3 of squares at 18 points is nine shapes with a stroke
+     * between them, which at this size is a texture rather than a grid. Two by
+     * two says "tiled" with room for the corners to stay square.
+     */
+    case 'grid':
+      return (
+        <>
+          <Rect x={4} y={4} width={7} height={7} rx={1.2} />
+          <Rect x={13} y={4} width={7} height={7} rx={1.2} />
+          <Rect x={4} y={13} width={7} height={7} rx={1.2} />
+          <Rect x={13} y={13} width={7} height={7} rx={1.2} />
+        </>
+      );
+    /*
+     * One tall frame, which is what the other view gives a photograph: the
+     * full width of the screen at 4:5, one at a time.
+     *
+     * Deliberately empty. The photo-stack glyph puts a horizon and a sun
+     * inside its frame because it has to say "photographs" to somebody who has
+     * not opened anything; this one sits beside that view's own pictures and
+     * only has to say "this shape".
+     */
+    case 'portrait':
+      return <Rect x={6.5} y={3} width={11} height={18} rx={1.6} />;
 
     /*
      * A door with a handle, for leaving. Not an arrow through a doorway, which

@@ -1091,20 +1091,18 @@ export default function App() {
                   style={[
                     styles.tab,
                     /*
-                     * The selected capsule is filled, where it used to be a
-                     * wash of black or white over the glass.
+                     * A wash of the page's own value, not a colour.
                      *
-                     * The wash was chosen so the fill would not read as a
-                     * patch stuck on the blur, and it worked at the cost of
-                     * the thing a tab bar is for: over a bright photograph
-                     * running under the bubble, a 6%-black capsule with an
-                     * accent-coloured line drawing in it is two faint things,
-                     * and which tab you are on was a question you had to look
-                     * twice to answer. A solid fill is legible over whatever
-                     * the glass happens to be sampling, which on this screen
-                     * is other people's photographs and therefore anything.
+                     * Translucent on purpose: over a blur an opaque fill reads
+                     * as a patch stuck on the glass. And grey rather than the
+                     * accent — a filled blue capsule is the loudest thing on a
+                     * screen of other people's photographs, and a tab bar is
+                     * chrome. What makes the selected one legible is the glyph
+                     * inside it, which is the page's full-strength foreground
+                     * against four in `dim`; the capsule only has to say where
+                     * the foreground one is seated.
                      */
-                    tab === id && { backgroundColor: TAB_ON },
+                    tab === id && { backgroundColor: dark ? '#ffffff1f' : '#0000000f' },
                   ]}
                   onPress={() => setTab(id)}
                   accessibilityRole="tab"
@@ -1112,22 +1110,26 @@ export default function App() {
                   accessibilityLabel={label}
                 >
                   {/*
-                    White, and a stroke heavier than the family's own.
+                    The page's foreground, and a stroke heavier than the
+                    family's own.
 
-                    Both, because one without the other is half a state: the
-                    colour is what separates the selected glyph from the four
-                    grey ones, and the weight is what keeps a line drawing from
-                    thinning out once it is reversed — white on a dark fill
-                    optically loses about as much as the extra half-unit puts
-                    back. White rather than `onAccent`, which is near-black in
-                    the dark scheme: this is ink on a fill that is deliberately
-                    the same blue in both, so the ink is the same in both too.
+                    Both, because one without the other is half a state. The
+                    four unselected glyphs are `dim`, so the selected one steps
+                    up to `fg` — the same distance between a heading and the
+                    line under it, said in a picture — and the extra half-unit
+                    of stroke is what carries that distance at 22 points, where
+                    a two-step change in value alone is easy to miss on a bar
+                    sitting over a bright photograph.
+
+                    `fg` rather than the accent. Colour on this bar would be
+                    the only colour in the chrome, and the photographs running
+                    underneath it are the things entitled to have one.
                   */}
                   <Glyph
                     name={glyph}
                     size={22}
                     weight={tab === id ? 2.5 : 2}
-                    color={tab === id ? '#ffffff' : t.dim}
+                    color={tab === id ? t.fg : t.dim}
                   />
                 </Pressable>
               ))}
@@ -2494,7 +2496,25 @@ function EventScreen({
    * `getItemLayout`, `scrollToIndex` warns rather than arrives.
    */
   const columnRow = width * (5 / 4) + PHOTO_GAP;
-  const gridRowHeight = width / GRID_COLUMNS + PHOTO_GAP;
+  /*
+   * One tile, measured rather than flexed.
+   *
+   * `gridTile` was `flex: 1`, which is right for every row but the last one
+   * and wrong there: `numColumns` does not pad a short final row, so an album
+   * of seven photographs ended with a single tile taking the whole width of
+   * the screen — a square the size of three, at the foot of a contact sheet.
+   * Two left over were half a screen each. Giving the tile a width makes the
+   * last row start at the left and stop where it runs out, which is what a
+   * grid does.
+   *
+   * The gaps come out of the width before it is divided. They did not before,
+   * and the row height `getItemLayout` promised was `width / 3 + PHOTO_GAP`
+   * against an actual `(width - 2 * PHOTO_GAP) / 3` — five points of drift per
+   * row, compounding down a long album until `scrollToIndex` landed somewhere
+   * else. One number now, and both readings take it from here.
+   */
+  const gridTile = (width - PHOTO_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+  const gridRowHeight = gridTile + PHOTO_GAP;
   const columnLayout = useCallback(
     (_data: unknown, index: number) => ({
       length: columnRow,
@@ -2510,6 +2530,22 @@ function EventScreen({
       return { length: gridRowHeight, offset: gridRowHeight * row, index };
     },
     [gridRowHeight],
+  );
+
+  /**
+   * Go to one of the two views, from the control under the tabs.
+   *
+   * Scrolls the pager rather than setting the state directly, so that the two
+   * ways in agree by construction: the animation lands on `onPaged`, which is
+   * what carries the anchor across to the list arriving — pressing and swiping
+   * therefore do exactly the same thing, rather than the button being a
+   * shortcut that skips the half of the work somebody would notice missing.
+   */
+  const showView = useCallback(
+    (which: 'grid' | 'column') => {
+      pager.current?.scrollTo({ x: which === 'column' ? width : 0, animated: true });
+    },
+    [width],
   );
 
   /**
@@ -2541,7 +2577,10 @@ function EventScreen({
    */
   const renderTile = useCallback(
     ({ item }: { item: FeedPhoto }) => (
-      <Pressable style={styles.gridTile} onPress={() => setSelected(item)}>
+      <Pressable
+        style={{ width: gridTile, height: gridTile }}
+        onPress={() => setSelected(item)}
+      >
         <ExpoImage
           source={{ uri: item.card ?? item.src }}
           style={styles.gridShot}
@@ -2550,7 +2589,7 @@ function EventScreen({
         />
       </Pressable>
     ),
-    [],
+    [gridTile],
   );
 
   /**
@@ -3060,25 +3099,52 @@ function EventScreen({
               no side gutter for the same reason the cards have none.
             */}
             {/*
-              Which view is showing, as one mark under the tabs.
+              Which view is showing — and, now, how to change it.
 
-              An indicator rather than a control: the gesture is the swipe, and
-              this is what tells somebody the swipe exists at all. Only the side
-              you are on is drawn — the other half is laid out and left empty,
-              so the mark reads as *which side*, which is the only thing worth
-              knowing here. Drawing the empty half as a track said the same
-              thing twice and made a rule of it.
+              It was two 4pt bars with the one you were on filled: an indicator
+              rather than a control, on the reasoning that the gesture is the
+              swipe and this only had to say the swipe existed. It never did
+              say that. A short mark under a row of tabs is read as a tab
+              underline, which is a thing that *reports* where you are, so
+              nobody learned there was a second view to reach.
+
+              Two glyphs, each a small drawing of the layout it opens — a
+              2×2 of squares, and one tall frame. The literal icon is the right
+              one here for once: both views hold the same photographs and
+              differ only in how they are laid out, so a diagram of the layout
+              is a complete description.
+
+              And they are pressable, which is the other half of the fix. The
+              swipe still works and is still the faster way; a control that
+              names the two views is what makes somebody try it.
             */}
             <View style={styles.viewBar}>
               <View style={styles.viewTrack}>
-                {(['grid', 'column'] as const).map((which) => (
-                  <View
+                {(
+                  [
+                    ['grid', 'grid', 'Grid'],
+                    ['column', 'portrait', 'One at a time'],
+                  ] as const
+                ).map(([which, glyph, label]) => (
+                  <Pressable
                     key={which}
-                    style={[
-                      styles.viewSegment,
-                      { backgroundColor: view === which ? t.fg : 'transparent' },
-                    ]}
-                  />
+                    onPress={() => showView(which)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: view === which }}
+                    accessibilityLabel={label}
+                    style={styles.viewSegment}
+                  >
+                    <Glyph
+                      name={glyph}
+                      size={18}
+                      /* The same pairing the tab bubble uses: the one you are
+                         on steps up to `fg` and gains half a unit of stroke,
+                         because at 18 points a change of value alone is easy
+                         to miss. */
+                      weight={view === which ? 2.4 : 1.8}
+                      color={view === which ? t.fg : t.dim}
+                    />
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -4438,24 +4504,6 @@ function theme(dark: boolean) {
         warn: '#c23127' };
 }
 
-/**
- * The fill behind the selected tab, in both schemes.
- *
- * One colour rather than a pair, which is the unusual part. Everything else in
- * this file takes its colours from `theme` and changes with the scheme — but
- * the tab bubble is glass, and what it is sampling is whatever photograph is
- * scrolling under it rather than the page. A fill that lightened in the dark
- * scheme would be lightening against a background that is not reliably dark,
- * and the ink on it is white in both cases, so the fill has to carry white in
- * both cases.
- *
- * A step deeper than the light scheme's accent (#1a5fd0) rather than either
- * scheme's exactly: white on it is 7.8:1, which holds up over a bright cover
- * showing through the blur, and it still reads as the product's blue rather
- * than as a navy the rest of the app does not have.
- */
-const TAB_ON = '#17509f';
-
 /** How far the floating chrome sits from the screen's edges. */
 const FLOAT_INSET = 14;
 /** How far the tab bubble sits above the bottom, clear of the home indicator. */
@@ -4766,9 +4814,13 @@ const styles = StyleSheet.create({
   /* The pager holds two full-width pages, so it must not shrink to its
      content: without `flex` the lists have no height to scroll inside. */
   pager: { flex: 1 },
-  gridRow: { gap: PHOTO_GAP },
-  gridTile: { flex: 1 },
-  gridShot: { width: '100%', aspectRatio: 1, backgroundColor: '#8883' },
+  /* `flex-start`, so a last row of one or two starts at the left edge and
+     stops. The default is `stretch`, which on a row of fixed-width children
+     does nothing — but it is the pairing that matters: the tiles are sized in
+     the component (see `gridTile` there, which needs the screen's width) and
+     this row must not try to distribute them. */
+  gridRow: { gap: PHOTO_GAP, justifyContent: 'flex-start' },
+  gridShot: { width: '100%', height: '100%', backgroundColor: '#8883' },
   /*
    * The bar that says which view is showing, and nothing else.
    *
@@ -4777,12 +4829,15 @@ const styles = StyleSheet.create({
    * mode besides. What is left is the space, which the album's own background
    * shows through.
    */
-  viewBar: { paddingTop: 10, paddingBottom: 8 },
-  viewTrack: { flexDirection: 'row', gap: 4, paddingHorizontal: 20 },
-  /* Both halves are laid out; only the one you are on is drawn. The other
-     holds its space so that the mark reads as a side rather than as a bar that
-     moved. */
-  viewSegment: { flex: 1, height: 4, borderRadius: 2 },
+  viewBar: { paddingTop: 6, paddingBottom: 6 },
+  /* The two halves of the screen, each with its glyph in the middle of it: the
+     left one opens the view on the left and the right one the view on the
+     right, so where the control sits is also what it does. */
+  viewTrack: { flexDirection: 'row', paddingHorizontal: 20 },
+  /* Tall enough to be a target rather than a picture. 34 against an 18pt glyph
+     is 8 points of slop each side, which is what stops a press at the top of a
+     scrolling album from landing on the first row of photographs instead. */
+  viewSegment: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center' },
   h1: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
@@ -4827,11 +4882,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 8,
   },
-  /* Each tab is a capsule inside the capsule, and the selected one is filled —
-     see `TAB_ON`. It used to be a wash of the page's own colour through the
-     glass, the way the system tab bar seats its selection; the system can
-     afford that because its bar sits over a page it controls, and this one
-     sits over other people's photographs. */
+  /* Each tab is a capsule inside the capsule, which is what seats the selected
+     one without a second colour: the fill is a wash of the page's own value
+     through the glass, the way the system tab bar does it. The glyph inside is
+     what actually says which tab you are on — see the note at the call site. */
   /* The glyph is centred in the capsule and 22 points across, which is the
      size the web rail draws the same drawings at. The vertical padding is what
      the four labels used to need and is kept: the bubble's height is the one

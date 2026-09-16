@@ -89,6 +89,35 @@ describe('the grid they are all on', () => {
     expect(rects).toHaveLength(2);
   });
 
+  it('says the selected tab in value and weight, not in colour', () => {
+    /*
+     * The capsule under the selected glyph is a wash of the page's own value
+     * through the glass — translucent, because over a blur an opaque fill
+     * reads as a patch stuck on it, and grey because a filled blue capsule is
+     * the loudest thing on a screen of other people's photographs. A tab bar
+     * is chrome.
+     *
+     * What makes the selected one legible is the glyph: `fg` against four in
+     * `dim`, plus half a unit of stroke, because at 22 points a change of
+     * value alone is easy to miss on a bar sitting over a bright cover.
+     */
+    const APP = read('App.tsx');
+    expect(APP).toMatch(
+      /tab === id && \{ backgroundColor: dark \? '#ffffff1f' : '#0000000f' \}/,
+    );
+    expect(APP).toMatch(/color=\{tab === id \? t\.fg : t\.dim\}/);
+    expect(APP).toMatch(/weight=\{tab === id \? 2\.5 : 2\}/);
+    /*
+     * No accent on the bubble, and no opaque colour standing in for one. The
+     * pattern wants exactly six hex digits before the quote, so the two
+     * eight-digit washes above — which are values at an alpha, not colours —
+     * do not match it.
+     */
+    const BAR = APP.slice(APP.indexOf('<View style={styles.tabShell}>'), APP.indexOf('</BlurView>'));
+    expect(BAR).not.toMatch(/t\.accent/);
+    expect(BAR).not.toMatch(/#[0-9a-f]{6}['"]/i);
+  });
+
   it('is drawn rather than imported from an icon set', () => {
     // An icon package is a font or a thousand paths for the six shapes this
     // product draws, and a borrowed set never quite matches the web's.
