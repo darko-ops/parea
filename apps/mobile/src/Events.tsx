@@ -101,10 +101,10 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  *   2. The title, at 24 points. The name of an evening is how somebody
  *      recognises it, and on a screen of covers from four different holidays
  *      it is the only thing that tells them apart at a glance.
- *   3. The byline: the creator's face and handle, pressable, and beside it a
- *      quiet sentence about the album — how many people, and how long ago
- *      somebody last added to it while that is still happening. Nothing at all
- *      where the album is only theirs, because the handle has said it.
+ *   3. The byline: the creator's face and handle, pressable, and — only while
+ *      somebody is still adding to it — how long ago the last picture landed.
+ *      No count of people: the circles over the cover are the people, drawn as
+ *      their faces, which is the version of that fact somebody reads.
  *
  * Under the photograph, after the faces, is the sheet: the next three
  * photographs inside, in a row, ending in a tile saying how many more there
@@ -343,30 +343,28 @@ function EventCard({
   const measured = [date, plural(event.photoCount, 'photo')].filter(Boolean).join(' · ');
 
   /*
-   * The byline's tail: how many people, and whether anything is still arriving.
+   * The byline's tail: whether anything is still arriving, and nothing else.
    *
-   * Nothing at all for an album nobody else is in. It said "demetri · You · 1
-   * person", which is the same person counted three ways on one line — the
-   * handle names them, "You" says it is theirs, and "1 person" says they are
-   * the only one, so two of the three are noise. A solo album is just the
-   * handle; the count appears when there is somebody to count.
+   * It has lost two things in two passes, and for the same reason both times.
+   * First "demetri · You · 1 person", which counted one person three ways —
+   * the handle names them, "You" says it is theirs, "1 person" says they are
+   * the only one. Now the count of people goes altogether: the circles over
+   * the cover are the people, drawn as their faces, which is the version of
+   * that fact somebody actually reads. A number beside the handle was the same
+   * thing again in a worse form, and it was there on every card, so it cost
+   * the line its silence for nothing.
    *
-   * "You" is gone with it rather than kept for the shared case. On a shared
-   * album of your own the byline is already your own handle, which says whose
-   * it is more precisely than the word does.
+   * What is left is the one thing nothing else on the card says: that somebody
+   * added to it half an hour ago. Only while that is true — an evening from
+   * March does not need telling you it has stopped — so on most cards the tail
+   * is empty and the byline is a handle on its own, which is what a byline is.
    *
-   * Recency last, and only while it is being added to: an evening from March
-   * does not need telling you it has stopped. There is no `live` chip on the
-   * rule above either — a coloured dot and the word beside it is the loudest
-   * thing on a card whose subject is somebody else's photograph, and this says
-   * the same thing in words the reader was going to read anyway.
+   * There is no `live` chip on the rule above either. A coloured dot and the
+   * word beside it is the loudest thing on a card whose subject is somebody
+   * else's photograph, and this says the same thing in words the reader was
+   * going to read anyway.
    */
-  const about = [
-    event.memberCount > 1 ? plural(event.memberCount, 'person', 'people') : null,
-    live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const about = live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : '';
 
   /*
    * The sheet: a strip of what is actually inside, under the cover.
@@ -525,10 +523,16 @@ function EventCard({
           two shrink independently: a long handle takes the room it needs and
           this line loses its tail, rather than one string being truncated on
           behalf of both.
+
+          Drawn only when there is something to say. Most cards have nothing —
+          an album stops being live within a day — and a `·` on its own after a
+          handle reads as a line that failed to load.
         */}
-        <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
-          {`· ${about}`}
-        </Text>
+        {about !== '' && (
+          <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
+            {`· ${about}`}
+          </Text>
+        )}
       </View>
 
       {/*

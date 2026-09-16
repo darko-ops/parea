@@ -94,18 +94,30 @@ describe('the card the home list draws', () => {
      */
     expect(CARD.match(/>\s*\{by\}\s*</g) ?? []).toHaveLength(1);
     /*
-     * And the sentence beside it names nobody, not even the reader.
+     * And nothing beside it counts anybody.
      *
-     * It said "demetri · You · 1 person", which is one person counted three
-     * ways on a single line: the handle names them, "You" says it is theirs,
-     * and "1 person" says they are the only one. A solo album is the handle
-     * alone; the count appears when there is somebody to count.
+     * The tail has lost two things in two passes, for the same reason both
+     * times. First "demetri · You · 1 person", which counted one person three
+     * ways: the handle names them, "You" says it is theirs, "1 person" says
+     * they are the only one. Then the count of people altogether — the circles
+     * over the cover *are* the people, drawn as their faces, which is the
+     * version of that fact somebody reads, and a number beside the handle was
+     * the same thing again in a worse form on every card.
+     *
+     * What is left is the one thing nothing else on the card says: that
+     * somebody added to it half an hour ago, and only while that is true.
      */
     expect(CARD).toMatch(
-      /event\.memberCount > 1 \? plural\(event\.memberCount, 'person', 'people'\) : null,/,
+      /const about = live \? `added to \$\{ago\(new Date\(event\.lastActiveAt\), now\)\}` : '';/,
     );
     expect(CARD).not.toMatch(/'You'/);
-    expect(CARD).not.toMatch(/creator\.name : null/);
+    expect(CARD).not.toMatch(/memberCount, 'person', 'people'/);
+    /*
+     * And the separator goes with it. Most cards have nothing to say here — an
+     * album stops being live within a day — and a `·` on its own after a
+     * handle reads as a line that failed to load.
+     */
+    expect(CARD).toMatch(/\{about !== '' && \(/);
   });
 
   it('leaves the host out of the circles and scales them to 70%', () => {
