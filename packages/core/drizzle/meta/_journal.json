@@ -218,6 +218,20 @@
       "when": 1789525755579,
       "tag": "0030_cover_framing",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789590118600,
+      "tag": "0031_contribute_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789590134082,
+      "tag": "0032_drop_uploads_open",
+      "breakpoints": true
     }
   ]
 }

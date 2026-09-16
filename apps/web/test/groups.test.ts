@@ -593,7 +593,7 @@ describe('authorize, on group facts alone', () => {
           capEpoch: 1,
           accessPolicy: 'private',
           joinsOpen: false,
-          uploadsOpen: true,
+          contributePolicy: 'everyone',
           createdBy: 'someone-else',
           groupId: 'g',
           deletedAt: null,

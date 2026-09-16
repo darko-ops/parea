@@ -98,6 +98,7 @@ export async function GET(
     members,
     invited,
     contributeDecision,
+    uploadDecision,
     accountActorId,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
@@ -173,6 +174,15 @@ export async function GET(
     // Not `viewerId != null`, which is true for a guest — the composer would
     // have been drawn for somebody the server was always going to refuse.
     decide(db, event, 'contribute', requester),
+    /*
+     * And the same question about photographs, which is no longer the same
+     * answer: `upload` is `contribute` plus the album's own setting about who
+     * may add. Asked here so that both clients draw the add button from the
+     * server's decision rather than each re-deriving it from the policy — the
+     * rule that makes "two clients, one protocol" mean the decision is taken
+     * once.
+     */
+    decide(db, event, 'upload', requester),
     currentAccountActorId(),
   ]);
 
@@ -303,7 +313,7 @@ export async function GET(
     event: {
       id: event.id,
       name: event.name,
-      uploadsOpen: event.uploadsOpen,
+      contributePolicy: event.contributePolicy,
       canAdminister,
       waiting: waitingRow?.n ?? 0,
       groupId: event.groupId,
@@ -376,6 +386,15 @@ export async function GET(
     roster: rosterFrom(members, invited, photoCounts(rows)),
     messages,
     canPost: contributeDecision.allow && accountActorId != null,
+    /*
+     * Whether *this* person may add photographs, which is a different question
+     * from whether they may speak — see the note beside the decision above.
+     * Both clients drew their add button off `uploadsOpen`, which answered a
+     * question about the album rather than about the reader: on a host-only
+     * album that would have offered the button to everybody and refused it at
+     * the server.
+     */
+    canAdd: uploadDecision.allow && accountActorId != null,
     arriving,
     count: photos.length,
     photos,

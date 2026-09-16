@@ -14,10 +14,16 @@
  */
 
 import { PRIVATE, PUBLIC } from '@parea/core';
+import { CONTRIBUTE_EVERYONE } from '@parea/core';
 import { ACCEPT_ATTRIBUTE } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ACCESS_OPTIONS, AccessChoice, type AccessPolicy } from './AccessChoice';
+import {
+  CONTRIBUTE_OPTIONS,
+  ContributeChoice,
+  type ContributePolicy,
+} from './ContributeChoice';
 import { coverBytes } from './coverBytes';
 import { useImageFailure } from './useImageFailure';
 
@@ -49,7 +55,7 @@ export function ManageView({
   initial: {
     name: string;
     joinsOpen: boolean;
-    uploadsOpen: boolean;
+    contributePolicy: string;
     accessPolicy: string;
     caption: string | null;
     code: string | null;
@@ -63,7 +69,10 @@ export function ManageView({
   const [access, setAccess] = useState<AccessPolicy>(
     (ACCESS_OPTIONS.find((o) => o.value === initial.accessPolicy)?.value ?? PUBLIC),
   );
-  const [uploadsOpen, setUploadsOpen] = useState(initial.uploadsOpen);
+  const [contribute, setContribute] = useState<ContributePolicy>(
+    CONTRIBUTE_OPTIONS.find((o) => o.value === initial.contributePolicy)?.value ??
+      CONTRIBUTE_EVERYONE,
+  );
   const [reports, setReports] = useState<PendingReport[]>([]);
   const [link, setLink] = useState(initial.url);
   const [code, setCode] = useState(initial.code);
@@ -325,7 +334,7 @@ export function ManageView({
 
   async function setSwitch(patch: {
     joinsOpen?: boolean;
-    uploadsOpen?: boolean;
+    contributePolicy?: ContributePolicy;
     accessPolicy?: AccessPolicy;
   }) {
     setBusy('switch');
@@ -338,7 +347,7 @@ export function ManageView({
       if (!res.ok) throw new Error('Could not save that.');
       const next = await res.json();
       setJoinsOpen(next.joinsOpen);
-      setUploadsOpen(next.uploadsOpen);
+      setContribute(next.contributePolicy);
       // Read back rather than assumed: the server is the one that decides
       // whether a policy is a policy, and it answers with what it stored.
       setAccess(next.accessPolicy);
@@ -745,20 +754,27 @@ export function ManageView({
               {joinsOpen ? 'On' : 'Off'}
             </button>
           </div>
-          <div className="switch">
-            <span>
-              People can still add photos
-              <br />
-              <span className="muted">Late photos are usually the point.</span>
-            </span>
-            <button
-              className="secondary"
-              disabled={busy === 'switch'}
-              onClick={() => setSwitch({ uploadsOpen: !uploadsOpen })}
-            >
-              {uploadsOpen ? 'On' : 'Off'}
-            </button>
-          </div>
+        </section>
+      )}
+
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>Who can add photos</h2>
+          {/*
+            Its own panel rather than a switch among the others, because it is
+            the same *kind* of question as "who can see it" and now has the
+            same shape of answer. It was "People can still add photos", on or
+            off — two of these three settings collapsed into one value and the
+            third unsayable.
+          */}
+          <ContributeChoice
+            value={contribute}
+            disabled={busy === 'switch'}
+            onChange={(next) => {
+              if (next !== contribute) void setSwitch({ contributePolicy: next });
+            }}
+            note="Nothing already added is removed, whichever of the three this is."
+          />
         </section>
       )}
 

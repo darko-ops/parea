@@ -9,12 +9,22 @@
 
 import { Offline, type PresignRequest, type PresignResponse } from '@parea/upload';
 
+/**
+ * Who may add photographs to an album.
+ *
+ * Three answers where there was a boolean. `everyone` defers to who can see
+ * it; `host` is the person who made it and a group's admins; `nobody` closes
+ * the album to everybody including its maker.
+ */
+export type ContributePolicy = 'everyone' | 'host' | 'nobody';
+
 export type EventSummary = {
   id: string;
   name: string;
   linkToken: string;
   capEpoch: number;
-  uploadsOpen: boolean;
+  /** Who may add photographs: `everyone`, `host` or `nobody`. */
+  contributePolicy: ContributePolicy;
   startsAt: string | null;
   endsAt: string | null;
 };
@@ -119,7 +129,14 @@ export type Feed = {
      * move when somebody renames it. The header follows this.
      */
     name: string;
-    uploadsOpen: boolean;
+    /**
+     * Who may add photographs, as the album has it.
+     *
+     * A different question from whether *you* may — see `canAdd` below, which
+     * is the server's decision about the reader. This one is for the settings
+     * sheet, which has to show which of the three is currently chosen.
+     */
+    contributePolicy: ContributePolicy;
     canAdminister: boolean;
     /**
      * Who can see it, as it stands: `public` or `private`.
@@ -225,6 +242,14 @@ export type Feed = {
    * always going to refuse.
    */
   canPost: boolean;
+  /**
+   * Whether *this* person may add photographs.
+   *
+   * The server's decision rather than a fact about the album, which is what
+   * `uploadsOpen` was: on a host-only album that would have drawn the add
+   * button for everybody and had it refused on the way up.
+   */
+  canAdd: boolean;
 };
 
 /** Somebody in an event: a name, a face, and whether it is their event. */
@@ -814,6 +839,8 @@ export class Api {
     createdByName?: string;
     /** Two values and no others. Omitted means public. */
     accessPolicy?: 'public' | 'private';
+    /** Who may add photographs. Absent means `everyone`, as it always was. */
+    contributePolicy?: ContributePolicy;
   }): Promise<{ id: string; name: string; linkToken: string; url: string; code: string | null }> {
     return this.call('/api/events', {
       method: 'POST',
@@ -1383,6 +1410,21 @@ export class Api {
    * ones already in — the screen says so, because "private" sounds like it
    * should mean the opposite.
    */
+  /**
+   * Who may add photographs, changed after the fact.
+   *
+   * The same endpoint the access policy goes through and for the same reason:
+   * it is one field on the album, and the route refuses a value `authorize`
+   * would not recognise rather than storing it — a typo in the column seals
+   * the album rather than opening it.
+   */
+  setContributePolicy(eventId: string, contributePolicy: ContributePolicy): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ contributePolicy }),
+    });
+  }
+
   setAccessPolicy(eventId: string, accessPolicy: 'public' | 'private'): Promise<unknown> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',

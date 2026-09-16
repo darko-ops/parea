@@ -4,7 +4,10 @@ import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CONTRIBUTE_EVERYONE } from '@parea/core';
+
 import { policyFor } from './components/AccessChoice';
+import { ContributeChoice, type ContributePolicy } from './components/ContributeChoice';
 import { MemberPicker, type Person } from './components/MemberPicker';
 import { PlaceField } from './components/PlaceField';
 import { Shell } from './components/Shell';
@@ -103,6 +106,9 @@ export default function CreatePage() {
    * does.
    */
   const [isPrivate, setIsPrivate] = useState(false);
+  /* Everyone, which is what an album is usually for. The other two are
+     choices somebody makes on purpose. */
+  const [contribute, setContribute] = useState<ContributePolicy>(CONTRIBUTE_EVERYONE);
   const [linkJoins, setLinkJoins] = useState(true);
   const [passPhrase, setPassPhrase] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -168,6 +174,7 @@ export default function CreatePage() {
             caption: caption.trim() || undefined,
             place: place.trim() || undefined,
             accessPolicy: policyFor({ isPrivate }),
+            contributePolicy: contribute,
             linkJoins,
             passPhrase,
             // Ignored by the server unless this person is in that group.
@@ -418,6 +425,22 @@ export default function CreatePage() {
                   */}
                   <MemberPicker picked={members} onChange={setMembers} />
                 </div>
+
+                <fieldset className="field">
+                  <legend className="field-label">WHO CAN ADD PHOTOS</legend>
+                  {/*
+                    Asked when the album is made, and changeable afterwards on
+                    the manage screen — the same component in both, so the
+                    words are written once.
+
+                    Here rather than left to the default because it is the one
+                    decision on this form that somebody can only discover by
+                    being surprised: an evening where one person had the camera
+                    is an ordinary thing to want, and an album that quietly
+                    accepts everybody's photographs is not what they meant.
+                  */}
+                  <ContributeChoice value={contribute} onChange={setContribute} />
+                </fieldset>
 
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>

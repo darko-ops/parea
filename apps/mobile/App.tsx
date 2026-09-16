@@ -53,6 +53,7 @@ import {
   ApiError,
   tokenFromInput,
   type ClusterPerson,
+  type ContributePolicy,
   type EventListing,
   type Feed,
   type FeedPhoto,
@@ -63,6 +64,7 @@ import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
 import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
+import { ContributeChoice } from './src/ContributeChoice';
 import { CoverFramer, type CoverFraming } from './src/CoverFramer';
 import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
@@ -1556,6 +1558,14 @@ function EventScreen({
    */
   const [policy, setPolicy] = useState<'public' | 'private' | null>(null);
   const [policyError, setPolicyError] = useState<string | null>(null);
+  /**
+   * Who may add, while the change is in the air — the same trick the pills
+   * above use, for the same reason: one round trip is long enough for a tap to
+   * feel ignored. Null means "whatever the feed says", which is every load.
+   */
+  const [adding, setAdding] = useState<ContributePolicy | null>(null);
+  const [savingContribute, setSavingContribute] = useState(false);
+  const [contributeError, setContributeError] = useState<string | null>(null);
 
   useEffect(() => {
     void libraryAccess().then(setAccess);
@@ -1586,6 +1596,7 @@ function EventScreen({
       // The server has spoken, so the local guess is no longer needed. Left
       // standing, it would outrank a change made on another device.
       setPolicy(null);
+      setAdding(null);
       setFeedError(null);
     } catch (err) {
       // Stale data beats an error screen over photos you already had, so a
@@ -3224,9 +3235,24 @@ function EventScreen({
       <View style={[styles.page, { backgroundColor: t.bg }]}>
         <View style={styles.tabRow}>
           {tabs}
+          {/*
+            Dimmed on the server's answer about *this* reader, not on a fact
+            about the album.
+
+            It read `uploadsOpen`, which is a property of the album and was the
+            same for everybody. With three settings that stops being true: on a
+            host-only album everybody would have been offered the button and
+            refused on the way up, which is the shape of failure that teaches
+            people the app is unreliable rather than that the album is closed.
+
+            `feed` is null on the first frame, and `canAdd` is undefined then.
+            Left enabled in that moment on purpose: a control that starts
+            disabled and enables itself is a control somebody has already
+            decided does not work.
+          */}
           <Pressable
             onPress={add}
-            disabled={feed?.event.uploadsOpen === false}
+            disabled={feed ? !feed.canAdd : false}
             accessibilityRole="button"
             accessibilityLabel="Add photos"
             style={({ pressed }) => [
@@ -3234,7 +3260,7 @@ function EventScreen({
               {
                 backgroundColor: t.card,
                 borderColor: t.line,
-                opacity: feed?.event.uploadsOpen === false ? 0.4 : pressed ? 0.7 : 1,
+                opacity: feed && !feed.canAdd ? 0.4 : pressed ? 0.7 : 1,
               },
             ]}
           >
@@ -3633,6 +3659,26 @@ function EventScreen({
               />
             ) : null
           }
+          adding={adding ?? feed?.event.contributePolicy ?? 'everyone'}
+          savingContribute={savingContribute}
+          contributeError={contributeError}
+          onContribute={async (value) => {
+            setAdding(value);
+            setContributeError(null);
+            setSavingContribute(true);
+            try {
+              await api.setContributePolicy(event.id, value);
+              // Not because the pills need it — they answered the press
+              // already — but because the add button at the foot of the album
+              // is drawn from `canAdd`, which only the server can decide.
+              await refresh();
+            } catch {
+              setAdding(null);
+              setContributeError('Could not change that. Try again in a moment.');
+            } finally {
+              setSavingContribute(false);
+            }
+          }}
           onPolicy={async (value) => {
             setPolicy(value);
             setPolicyError(null);
@@ -3971,6 +4017,10 @@ function HostSheet({
   name,
   onNameSaved,
   onPolicy,
+  adding,
+  savingContribute,
+  contributeError,
+  onContribute,
   onGroup,
   onOpenGroup,
 }: {
@@ -4016,6 +4066,11 @@ function HostSheet({
   /** Re-reads the feed, so the header behind the sheet catches up. */
   onNameSaved: () => void | Promise<void>;
   onPolicy: (value: 'public' | 'private') => void;
+  /** Who may add photographs, as chosen or as the feed has it. */
+  adding: ContributePolicy;
+  savingContribute: boolean;
+  contributeError: string | null;
+  onContribute: (value: ContributePolicy) => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
 }) {
@@ -4296,6 +4351,33 @@ function HostSheet({
                   </Text>
                 )}
                 {policyError && <Text style={[styles.small, { color: t.dim }]}>{policyError}</Text>}
+              </View>
+            )}
+
+            {/*
+              Who can add photographs, which is not the same question as who
+              can see it and used to be answered by a switch that was on or
+              off. Two of these three were that switch's "on"; the third — you
+              put the photographs in and everybody else looks — could not be
+              said at all.
+
+              Its own card beside the visibility one because it is the same
+              kind of question, and host-only because it decides what everybody
+              else can do.
+            */}
+            {host && (
+              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+                <Text style={[styles.label, { color: t.fg }]}>Who can add photos</Text>
+                <ContributeChoice
+                  t={t}
+                  value={adding}
+                  disabled={savingContribute}
+                  onChange={onContribute}
+                  note="Nothing already added is removed, whichever of the three this is."
+                />
+                {contributeError && (
+                  <Text style={[styles.small, { color: t.warn }]}>{contributeError}</Text>
+                )}
               </View>
             )}
 

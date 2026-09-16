@@ -86,7 +86,7 @@ export async function POST(
   });
 
   try {
-    await guard(db, event, 'contribute', requester);
+    await guard(db, event, 'upload', requester);
   } catch (err) {
     return toResponse(err);
   }

@@ -12,7 +12,29 @@
 
 import { timingSafeEqual } from 'node:crypto';
 
-export type Capability = 'view' | 'contribute' | 'download' | 'administer';
+/**
+ * `upload` is `contribute` plus the album's own answer about photographs.
+ *
+ * They were one capability, and six routes checked it: posting a message,
+ * reacting to a message, reacting to a photograph, presigning an upload,
+ * completing one, and the feed's own "may I speak". That was tolerable while
+ * the only setting was a boolean meaning "this album is finished" — closing it
+ * closing the conversation too is at least arguable.
+ *
+ * It stops being arguable at three settings. "Only the host adds photographs"
+ * is a thing people want for an evening where one person had the camera, and
+ * it must not mean "only the host may speak" — everybody else is there to look
+ * and to say something about what they are looking at.
+ *
+ * So the split is: `contribute` is being entitled to take part, and `upload`
+ * is that plus permission to put photographs in. Everything that was a message
+ * or a reaction stays on the first; the two upload routes move to the second.
+ *
+ * What changes for an album already closed: its conversation reopens. That is
+ * the honest reading of a setting called "who can add photos" — the album is
+ * finished, and the people in it can still talk about it.
+ */
+export type Capability = 'view' | 'contribute' | 'upload' | 'download' | 'administer';
 
 /**
  * `hasAccount` is required rather than optional on purpose. Every call site has
@@ -29,7 +51,7 @@ export type PolicyEvent = {
   capEpoch: number;
   accessPolicy: string;
   joinsOpen: boolean;
-  uploadsOpen: boolean;
+  contributePolicy: string;
   createdBy: string;
   groupId: string | null;
   deletedAt: Date | null;
@@ -56,6 +78,7 @@ export type DenyReason =
   | 'stale_capability'
   | 'joins_closed'
   | 'uploads_closed'
+  | 'host_only'
   | 'not_administrator'
   | 'sign_in_required'
   | 'approval_required';
@@ -102,6 +125,39 @@ export const PUBLIC = 'public';
 export const PRIVATE = 'private';
 
 const KNOWN_POLICIES: readonly string[] = [PUBLIC, PRIVATE];
+
+/**
+ * Whoever the album is open to can add to it.
+ *
+ * Deliberately deferred rather than restated: on a private album that is the
+ * people in it, and on a public one it is whoever holds the link. Saying it
+ * twice is how the two settings come to disagree, and the day they do the
+ * wrong one wins silently.
+ */
+export const CONTRIBUTE_EVERYONE = 'everyone';
+
+/**
+ * The person who made it, and a group's admins where it belongs to one.
+ *
+ * The case the boolean could not say. An evening where one person took the
+ * photographs and everybody else is there to look at them is not the same as a
+ * closed album, and offering only "open" and "closed" made it one or the other.
+ *
+ * Group admins are included because `administer` already treats them as the
+ * host of anything in their group — an album nobody in the group could add to
+ * except its original maker would strand the room's own archive the day that
+ * person left.
+ */
+export const CONTRIBUTE_HOST = 'host';
+
+/** Nobody, the maker included. An album that is finished is finished. */
+export const CONTRIBUTE_NOBODY = 'nobody';
+
+const KNOWN_CONTRIBUTE: readonly string[] = [
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
+];
 
 export function authorize(
   actor: PolicyActor,
@@ -211,16 +267,36 @@ export function authorize(
   const alreadyIn = isParticipant || isGroupMember || isCreator;
   if (!event.joinsOpen && !alreadyIn) return deny('joins_closed');
 
-  // Adding photos names who added them, on every event and whatever its access
+  // Taking part names who took part, on every event and whatever its access
   // policy. Viewing a link-open event stays anonymous; contributing does not,
   // because an upload is the one action here that puts someone else's bytes in
-  // front of strangers and has to be attributable afterwards.
-  if (capability === 'contribute' && !signedIn) {
+  // front of strangers and has to be attributable afterwards — and a message
+  // addresses a room.
+  if ((capability === 'contribute' || capability === 'upload') && !signedIn) {
     return deny('sign_in_required');
   }
 
-  if (capability === 'contribute' && !event.uploadsOpen) {
-    return deny('uploads_closed');
+  if (capability === 'upload') {
+    /*
+     * Fail closed on an unrecognised policy, exactly as the access policy does
+     * above: a value nobody has taught this function about must shut the album
+     * rather than open it. It is also what makes the migration off
+     * `uploads_open` safe in either order.
+     */
+    if (!KNOWN_CONTRIBUTE.includes(event.contributePolicy)) return deny('uploads_closed');
+
+    if (event.contributePolicy === CONTRIBUTE_NOBODY) return deny('uploads_closed');
+
+    /*
+     * `host` is the creator and a group's admins, and nobody else — including
+     * people who are otherwise fully in the album. It is the one setting here
+     * that denies somebody who can see everything and was invited by name, so
+     * it gets a reason of its own: "closed" and "not yours to add to" are
+     * different sentences and a client should be able to say which.
+     */
+    if (event.contributePolicy === CONTRIBUTE_HOST && !(isCreator || isGroupAdmin)) {
+      return deny('host_only');
+    }
   }
 
   return ALLOW;
@@ -243,6 +319,7 @@ export function denyStatus(reason: DenyReason): 404 | 403 {
     case 'stale_capability':
     case 'joins_closed':
     case 'uploads_closed':
+    case 'host_only':
     case 'not_administrator':
     // 403, not 404: every path that reaches this has already presented a real
     // credential, so the event's existence is not being disclosed by saying

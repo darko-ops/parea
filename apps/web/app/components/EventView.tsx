@@ -78,7 +78,7 @@ type Feed = {
   event: {
     id: string;
     name: string;
-    uploadsOpen: boolean;
+
     canAdminister: boolean;
     groupId: string | null;
     groupName: string | null;
@@ -110,6 +110,17 @@ type Feed = {
   messages: Message[];
   /** Whether this viewer may post — `contribute`, and signed in. */
   canPost: boolean;
+  /*
+   * Whether *this* reader may add photographs, which is the server's decision
+   * rather than a fact about the album. It was `event.uploadsOpen`, which
+   * answered a question about the album: on a host-only one that would have
+   * drawn the add button for everybody and had it refused at the server.
+   *
+   * Beside `canPost` rather than inside `event`, because the two are the same
+   * kind of thing — what this person may do — and neither is a property of the
+   * album.
+   */
+  canAdd: boolean;
   /** Uploaded and not yet through the deriver — anybody's, not just this tab's. */
   arriving: number;
   count: number;
@@ -458,7 +469,7 @@ export function EventView({
           </div>
 
           <div className="event-actions">
-            {feed.event.uploadsOpen && session.account && (
+            {feed.canAdd && session.account && (
               /*
                 A label, not a button that calls `.click()`. A label *is* the
                 control for the input it names, so keyboard, pointer and screen
@@ -635,7 +646,7 @@ export function EventView({
           ))}
         </nav>
 
-        {feed.event.uploadsOpen && session.account && (
+        {feed.canAdd && session.account && (
           <input
             id="add-photos"
             className="visually-hidden"
@@ -660,7 +671,7 @@ export function EventView({
 
       {tab === 'photos' && (
         <div className="event-body">
-          {feed.event.uploadsOpen && session.known && !session.account && (
+          {feed.canAdd && session.known && !session.account && (
             // Adding names who added. Shown here rather than behind a link to
             // /account, because being sent away mid-task loses the picker they
             // were about to use — and on a phone, the photos they had chosen.
@@ -724,7 +735,7 @@ export function EventView({
             onPick={togglePick}
             people={feed.people}
             lead={
-              feed.event.uploadsOpen && session.account && !picked ? (
+              feed.canAdd && session.account && !picked ? (
                 <label htmlFor="add-photos" className="tile-add">
                   <span className="tile-add-lenses" aria-hidden="true">
                     <span />

@@ -36,9 +36,10 @@ import {
 
 import { Image as ExpoImage } from 'expo-image';
 
+import { ContributeChoice } from './ContributeChoice';
 import { CENTRED, CoverFramer, CoverShot, type CoverFraming } from './CoverFramer';
 import { InvitePicker } from './InvitePeople';
-import type { Api, InvitablePerson } from './api';
+import type { Api, ContributePolicy, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
 import { uploadCover } from './platform';
 import { sandboxCopy, windowOf, type LibraryPhoto } from './library';
@@ -179,6 +180,9 @@ export function CreateEvent({
   const ready = Boolean(name.trim());
   /** Public unless the creator says otherwise — a forwarded link still works. */
   const [isPrivate, setIsPrivate] = useState(false);
+  /* Everyone, which is what an album is usually for. The other two are
+     choices somebody makes on purpose. */
+  const [contribute, setContribute] = useState<ContributePolicy>('everyone');
   /**
    * Who gets asked, held until there is an album to ask them into.
    *
@@ -258,6 +262,7 @@ export function CreateEvent({
         startsAt,
         endsAt,
         accessPolicy: isPrivate ? 'private' : 'public',
+        contributePolicy: contribute,
       });
       /*
        * Sent, not waited for.
@@ -681,6 +686,27 @@ export function CreateEvent({
               ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
               : 'Anyone can see it, no account needed. Adding photos always needs one.'}
           </Text>
+
+          {/*
+            And who can add to it, which is a different question and was not
+            asked at all.
+
+            Every album accepted everybody's photographs, and the only way to
+            change that was a switch on the manage screen that turned uploading
+            off for everyone including the host. An evening where one person
+            had the camera is an ordinary thing to want and there was no way to
+            say it — which is the kind of setting people find out about by
+            being surprised.
+
+            The same component and the same three answers the settings sheet
+            uses. Asked here because it is cheap to answer while the album is
+            being named, and changeable afterwards because the first thirty
+            seconds is the worst moment to decide anything.
+          */}
+          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+            WHO CAN ADD PHOTOS
+          </Text>
+          <ContributeChoice t={t} value={contribute} onChange={setContribute} />
       </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}

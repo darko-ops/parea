@@ -7,6 +7,9 @@
  */
 
 import {
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
   PRIVATE,
   PUBLIC,
   newLinkToken,
@@ -44,6 +47,7 @@ type Body = {
    * 'request_access' (private, the host lets each person in). Public default.
    */
   accessPolicy?: unknown;
+  contributePolicy?: unknown;
   /**
    * Whether the link admits anybody who holds it. Off means only the people
    * the host adds get in — the same switch as `joinsOpen` on the manage
@@ -258,6 +262,27 @@ export async function POST(request: Request) {
   }
   const accessPolicy = requested as (typeof OFFERED)[number];
 
+  /*
+   * Who may add photographs, decided at the same moment and by the same rule:
+   * unrecognised values are refused rather than defaulted, because `authorize`
+   * fails closed on a policy it does not know and a typo reaching the column
+   * would seal the album its maker had just created.
+   *
+   * Absent means `everyone`, which is what every album has always been and
+   * what an album is usually for. The other two are chosen on purpose.
+   */
+  const wantsContribute =
+    body.contributePolicy === undefined ? CONTRIBUTE_EVERYONE : body.contributePolicy;
+  const CONTRIBUTE_OFFERED = [
+    CONTRIBUTE_EVERYONE,
+    CONTRIBUTE_HOST,
+    CONTRIBUTE_NOBODY,
+  ] as const;
+  if (!CONTRIBUTE_OFFERED.includes(wantsContribute as (typeof CONTRIBUTE_OFFERED)[number])) {
+    return NextResponse.json({ error: 'invalid_contribute_policy' }, { status: 400 });
+  }
+  const contributePolicy = wantsContribute as (typeof CONTRIBUTE_OFFERED)[number];
+
   // Creating inside a group is the whole point of having one: its members get
   // access without anyone re-solving "how do I reach everyone" (design §3).
   let groupId: string | null = null;
@@ -276,6 +301,7 @@ export async function POST(request: Request) {
       linkToken: newLinkToken(),
       createdBy: actorId,
       accessPolicy,
+      contributePolicy,
       eventDate: asDateString(body.eventDate),
       // Typed by the host, never derived from the photos — there is no
       // location in them to derive from, by design (§7.6).

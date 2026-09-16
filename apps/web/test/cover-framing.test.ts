@@ -386,3 +386,106 @@ describe('against real pixels', () => {
     expect(await middle(await cut(sideways, at(50, 100)))).toBe('blue');
   }, 30_000);
 });
+
+/**
+ * Who can add photographs, which is not who can see it.
+ *
+ * It was `uploads_open`, a boolean, and two of the three things people want
+ * from it were the same value: open meant "whoever the album is open to" and
+ * closed meant "nobody at all". The third — the host puts the photographs in
+ * and everybody else comes to look — could not be said, so an evening where
+ * one person had the camera had to be either open to everybody's photographs
+ * or closed to the camera's owner as well.
+ */
+describe('the setting that says who may add', () => {
+  const CREATE = read('../app/api/events/route.ts');
+  const PATCH = read('../app/api/events/[id]/route.ts');
+  const FEED = read('../app/api/events/[id]/photos/route.ts');
+
+  it('is refused rather than defaulted when it is not one of the three', () => {
+    /*
+     * The rule the access policy already follows, and the reason it matters
+     * more here than for most validation: `authorize` fails closed on a value
+     * it does not recognise, so a typo reaching the column seals the album
+     * rather than opening it — and the person it locks out is whoever had just
+     * made it.
+     */
+    for (const [name, source] of [['create', CREATE], ['patch', PATCH]] as const) {
+      expect(source, name).toMatch(/invalid_contribute_policy/);
+    }
+    // Absent means `everyone`, which is what every album has always been.
+    expect(CREATE).toMatch(
+      /body\.contributePolicy === undefined \? CONTRIBUTE_EVERYONE : body\.contributePolicy/,
+    );
+  });
+
+  it('is asked at both ends, in one set of words', () => {
+    /*
+     * The create screen and the manage screen share a component, so a phone
+     * and a browser cannot come to describe one setting differently — which is
+     * the failure the four copies of the mark are checked against, in the one
+     * place it would be read rather than looked at.
+     */
+    const CHOICE = read('../app/components/ContributeChoice.tsx');
+    expect(CHOICE).toMatch(/CONTRIBUTE_OPTIONS/);
+    expect(read('../app/page.tsx')).toMatch(/<ContributeChoice/);
+    expect(read('../app/components/ManageView.tsx')).toMatch(/<ContributeChoice/);
+    // The first option points back at the other setting rather than restating
+    // it: the two compose, and saying it twice is how they come to disagree.
+    expect(CHOICE).toMatch(/Anyone who can see the album can add to it/);
+  });
+
+  it('gates uploading without gating the conversation', () => {
+    /*
+     * `contribute` and `upload` were one capability, checked by six routes:
+     * posting a message, three kinds of reaction, presigning an upload and
+     * completing one. Tolerable while the only setting was "this album is
+     * finished"; not tolerable at three, because "only the host adds
+     * photographs" must not mean "only the host may speak".
+     */
+    expect(read('../app/api/events/[id]/uploads/route.ts')).toMatch(
+      /guard\(db, event, 'upload', requester\)/,
+    );
+    expect(read('../app/api/uploads/[id]/complete/route.ts')).toMatch(
+      /guard\(db, event, 'upload', requester\)/,
+    );
+    // And the three that are speech stay where they were.
+    for (const route of [
+      '../app/api/events/[id]/messages/route.ts',
+      '../app/api/messages/[id]/reactions/route.ts',
+      '../app/api/photos/[id]/reactions/route.ts',
+    ]) {
+      expect(read(route), route).toMatch(/guard\(db, event, 'contribute', requester\)/);
+    }
+  });
+
+  it('answers whether this reader may add, rather than whether the album is open', () => {
+    /*
+     * Both clients drew their add button off `uploadsOpen`, which is a fact
+     * about the album and was the same for everybody. On a host-only album
+     * that would offer the button to all of them and refuse it on the way up —
+     * the shape of failure that teaches people the app is unreliable rather
+     * than that the album is closed.
+     */
+    expect(FEED).toMatch(/decide\(db, event, 'upload', requester\)/);
+    expect(FEED).toMatch(/canAdd: uploadDecision\.allow && accountActorId != null/);
+    // Both frames, because the page draws the first and the route replaces it.
+    expect(read('../app/event/[id]/page.tsx')).toMatch(/canAdd:/);
+  });
+
+  it('carries the old column across rather than defaulting it', () => {
+    /*
+     * A generated drop-and-add would reopen every album in the database to its
+     * viewers on deploy, including the ones somebody had deliberately closed,
+     * and say nothing about it.
+     */
+    const MIGRATION = read('../../../packages/core/drizzle/0031_contribute_policy.sql');
+    expect(MIGRATION).toMatch(
+      /SET "contribute_policy" = CASE WHEN "uploads_open" THEN 'everyone' ELSE 'nobody' END/,
+    );
+    // And the boolean goes only after the data is out of it.
+    expect(read('../../../packages/core/drizzle/0032_drop_uploads_open.sql')).toMatch(
+      /DROP COLUMN "uploads_open"/,
+    );
+  });
+});

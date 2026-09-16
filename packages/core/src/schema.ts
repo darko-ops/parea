@@ -437,7 +437,32 @@ export const events = pgTable(
       .notNull()
       .default('public'),
     joinsOpen: boolean('joins_open').notNull().default(true),
-    uploadsOpen: boolean('uploads_open').notNull().default(true),
+    /**
+     * Who may add photographs, which is a different question from who may look.
+     *
+     * This was `uploads_open`, a boolean, and two of its three meanings were
+     * the same value: open meant "whoever the album is open to", closed meant
+     * "nobody at all", and the case somebody actually asks for — *I* put the
+     * photographs in and everybody else looks — could not be said.
+     *
+     * The three, and they compose with `access_policy` rather than repeating
+     * it. `everyone` defers: whoever can see the album can add to it, which on
+     * a private one is the people in it and on a public one is whoever holds
+     * the link. `host` is the creator and a group's admins. `nobody` closes it
+     * to everybody including the person who made it — an album that is
+     * finished is finished for them too.
+     *
+     * Plain text with no CHECK, for the same reason `access_policy` is:
+     * `authorize` denies any value it does not recognise, so an unknown string
+     * here closes the album rather than opening it. Which is what makes the
+     * migration off the boolean safe in either order — a row not yet backfilled
+     * reads as closed, not as open to all comers.
+     */
+    contributePolicy: text('contribute_policy', {
+      enum: ['everyone', 'host', 'nobody'],
+    })
+      .notNull()
+      .default('everyone'),
     /** Hard cap of one nudge, enforced in the schema so config can't lose it. */
     nudgedAt: timestamp('nudged_at', { withTimezone: true }),
     /** Retention lever; null when grouped. Populated but not enforced in v1. */

@@ -193,7 +193,6 @@ export default async function EventPage({
           event: {
             id: event.id,
             name: event.name,
-            uploadsOpen: event.uploadsOpen,
             canAdminister,
       waiting: waitingRow?.n ?? 0,
             groupId: event.groupId,
@@ -231,6 +230,16 @@ export default async function EventPage({
     // server was always going to refuse.
     canPost:
       (await decide(db, event, 'contribute', requester)).allow &&
+      (await currentAccountActorId()) != null,
+    /*
+     * And the same question about photographs, which is no longer the same
+     * answer: `upload` is `contribute` plus the album's own setting about who
+     * may add. Both frames again — present here and in
+     * `/api/events/[id]/photos`, because this page draws the first one and
+     * that route replaces it.
+     */
+    canAdd:
+      (await decide(db, event, 'upload', requester)).allow &&
       (await currentAccountActorId()) != null,
           arriving: pending?.n ?? 0,
           count: photos.length,

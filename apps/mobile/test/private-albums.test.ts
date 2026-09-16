@@ -27,6 +27,9 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
+
+const code = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const DOOR = read('src/Door.tsx');
 const CREATE = read('src/CreateEvent.tsx');
 const PERSON = read('src/Person.tsx');
@@ -235,5 +238,73 @@ describe('adding people to an album', () => {
     // into it — the same gate the route applies.
     expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
     expect(APP).toMatch(/\{host && <InviteCard/);
+  });
+});
+
+/**
+ * Who can add photographs, on a phone.
+ *
+ * The same three answers the website asks, in the same words, in the two
+ * places it asks them — a phone and a browser describing one setting
+ * differently is two products.
+ */
+describe('who can add photos', () => {
+  const CHOICE = read('src/ContributeChoice.tsx');
+  const CREATE = read('src/CreateEvent.tsx');
+
+  it('is asked when the album is made and again in its settings', () => {
+    /*
+     * It was asked in neither. Every album accepted everybody's photographs,
+     * and the only lever was a switch on the web's manage screen that turned
+     * uploading off for everyone including the host.
+     */
+    expect(CREATE).toMatch(/<ContributeChoice/);
+    expect(CREATE).toMatch(/contributePolicy: contribute,/);
+    expect(APP).toMatch(/<ContributeChoice/);
+    expect(APP).toMatch(/api\.setContributePolicy\(event\.id, value\)/);
+  });
+
+  it('says the same three things the website says', () => {
+    const WEB = readFileSync(
+      fileURLToPath(new URL('../../web/app/components/ContributeChoice.tsx', import.meta.url).href),
+      'utf8',
+    );
+    for (const label of ['Everyone', 'Only me', 'Nobody']) {
+      expect(CHOICE, label).toContain(`label: '${label}'`);
+      expect(WEB, label).toContain(`label: '${label}'`);
+    }
+    // And each says what happens rather than what the setting is called.
+    expect(CHOICE).toMatch(/You add the photographs and everybody else comes to look/);
+    expect(CHOICE).toMatch(/The conversation stays open either way/);
+  });
+
+  it('answers the press before the server does, and defers afterwards', () => {
+    /*
+     * The trick the visibility pills already use: one round trip is long
+     * enough for a tap to feel ignored, so the choice is held locally and
+     * dropped the moment a feed lands. Null means "whatever the server says",
+     * which is the state on every load and after every refresh.
+     */
+    expect(APP).toMatch(/const \[adding, setAdding\] = useState<ContributePolicy \| null>\(null\)/);
+    expect(APP).toMatch(/adding=\{adding \?\? feed\?\.event\.contributePolicy \?\? 'everyone'\}/);
+    expect(APP).toMatch(/setPolicy\(null\);\s*\n\s*setAdding\(null\);/);
+  });
+
+  it('dims the add button on the server’s answer about this reader', () => {
+    /*
+     * It read `uploadsOpen`, which is a fact about the album and the same for
+     * everybody. On a host-only album that would offer the button to all of
+     * them and refuse it on the way up — the shape of failure that teaches
+     * people the app is unreliable rather than that the album is closed.
+     *
+     * Left enabled while the feed is still arriving: a control that starts
+     * disabled and enables itself is a control somebody has already decided
+     * does not work.
+     */
+    expect(APP).toMatch(/disabled=\{feed \? !feed\.canAdd : false\}/);
+    // Comments stripped: the note beside the button names the field it
+    // replaced, and prose about a property is not a read of one.
+    expect(code(APP)).not.toMatch(/uploadsOpen/);
+    expect(read('src/api.ts')).toMatch(/canAdd: boolean;/);
   });
 });
