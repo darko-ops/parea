@@ -99,14 +99,21 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  *      recognises it, and on a screen of covers from four different holidays
  *      it is the only thing that tells them apart at a glance.
  *   3. The byline: the creator's face and handle, pressable, and beside it a
- *      quiet sentence about the album — "You", how many people, and how long
- *      ago somebody last added to it while that is still happening.
+ *      quiet sentence about the album — how many people, and how long ago
+ *      somebody last added to it while that is still happening. Nothing at all
+ *      where the album is only theirs, because the handle has said it.
  *
- * Under the photograph, after the faces, is the sheet: a strip of the next few
- * photographs inside, pushed along sideways, ending in a tile saying how many
- * more there are. It answers "is this worth opening" without a request, and it
- * is a strip rather than a grid on purpose — a grid under a cover is the
- * mosaic this card was rewritten to get away from.
+ * Under the photograph, after the faces, is the sheet: the next three
+ * photographs inside, in a row, ending in a tile saying how many more there
+ * are. It answers "is this worth opening" without a request. Three because the
+ * row does not scroll — it sits inside the vertical scroll that is the home
+ * page, and two scrollers competing for one drag means the page sometimes does
+ * not move when somebody flicks it — and a row rather than a block, because a
+ * block of thumbnails under a cover is the mosaic this card was rewritten to
+ * get away from.
+ *
+ * Each of the three opens the photograph it is a picture of; the count tile
+ * and the rest of the card open the album itself.
  *
  * There is no live chip. A coloured dot and the word beside it is the loudest
  * thing on a card whose subject is somebody else's photograph, and the byline
@@ -130,6 +137,28 @@ const plural = (n: number, one: string, many = `${one}s`) =>
 const WIDEST = 3 / 2;
 const TALLEST = 4 / 5;
 
+/**
+ * The strip under a cover: how many tiles wide, and the hairline between them.
+ *
+ * Four slots — three photographs and the count — and the gap is the album's
+ * own `PHOTO_GAP`. Restated here rather than imported from `App.tsx`, which
+ * imports this file: the number is 3 in both places because a strip of an
+ * album's contents should be spaced like the album it opens.
+ */
+const SHEET_TILES = 4;
+const SHEET_GAP = 3;
+
+/**
+ * How large one of those tiles is, on a screen this wide.
+ *
+ * Measured rather than left to `flex: 1`, which was the first attempt and is
+ * wrong for a row whose length varies: an album with four photographs in it
+ * has two tiles and no count, and equal flex would draw those two half a
+ * screen tall each. A card's strip has to be the same height on every card or
+ * a column of them stops scanning.
+ */
+const sheetTile = (width: number) => (width - SHEET_GAP * (SHEET_TILES - 1)) / SHEET_TILES;
+
 /** How tall to draw a full-bleed cover of this shape. */
 function coverHeight(event: { coverAspect?: number | null }, width: number): number {
   const aspect = event.coverAspect;
@@ -143,14 +172,22 @@ function EventCard({
   event,
   now,
   t,
-  onPress,
+  onOpen,
   onOpenPerson,
 }: {
   event: EventListing;
   /** One clock for every card on screen, so none disagree about the minute. */
   now: Date;
   t: TabTheme;
-  onPress: () => void;
+  /**
+   * Open the album, at a photograph or at the top of it.
+   *
+   * One callback rather than two, because the card has three things that open
+   * it and only one of them is about a particular picture: the card itself and
+   * the "+N" tile land on the grid, and a tile in the strip lands on the
+   * photograph it is a picture of.
+   */
+  onOpen: (photo?: string) => void;
   /**
    * The byline, which is a person and should behave like one.
    *
@@ -178,7 +215,7 @@ function EventCard({
   if (event.photoCount === 0) {
     return (
       <Pressable
-        onPress={onPress}
+        onPress={() => onOpen()}
         accessibilityRole="button"
         accessibilityLabel={label}
         style={[styles.empty, { backgroundColor: t.card, borderColor: t.line }]}
@@ -246,22 +283,26 @@ function EventCard({
   const measured = [date, plural(event.photoCount, 'photo')].filter(Boolean).join(' · ');
 
   /*
-   * The byline's tail: who is in it, and whether anything is still arriving.
+   * The byline's tail: how many people, and whether anything is still arriving.
    *
-   * "You" first and only on your own, because that is the one fact about the
-   * album that is about the reader. The count of people follows — the circles
-   * over the cover show whose faces, and this says how many, which is the half
-   * a row of four circles cannot say. Recency last, and only while it is being
-   * added to: an evening from March does not need telling you it has stopped.
+   * Nothing at all for an album nobody else is in. It said "demetri · You · 1
+   * person", which is the same person counted three ways on one line — the
+   * handle names them, "You" says it is theirs, and "1 person" says they are
+   * the only one, so two of the three are noise. A solo album is just the
+   * handle; the count appears when there is somebody to count.
    *
-   * There is no longer a `live` chip on the rule above. A coloured dot and the
-   * word beside it is the loudest thing on a card whose subject is somebody
-   * else's photograph, and the sentence here already says the same thing in
-   * words the reader was going to read anyway.
+   * "You" is gone with it rather than kept for the shared case. On a shared
+   * album of your own the byline is already your own handle, which says whose
+   * it is more precisely than the word does.
+   *
+   * Recency last, and only while it is being added to: an evening from March
+   * does not need telling you it has stopped. There is no `live` chip on the
+   * rule above either — a coloured dot and the word beside it is the loudest
+   * thing on a card whose subject is somebody else's photograph, and this says
+   * the same thing in words the reader was going to read anyway.
    */
   const about = [
-    event.mine ? 'You' : null,
-    plural(event.memberCount, 'person', 'people'),
+    event.memberCount > 1 ? plural(event.memberCount, 'person', 'people') : null,
     live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : null,
   ]
     .filter(Boolean)
@@ -276,20 +317,33 @@ function EventCard({
    * card was built to get away from, but as a strip below the cover that reads
    * as contents rather than as a second, smaller cover.
    *
-   * `slice(1)` because the first entry of `mosaic` is always the photograph
-   * the card is already leading with: the server prepends the cover to it, and
-   * where there is no cover the lead is `mosaic[0]` drawn larger. Either way
-   * the strip starts at the second.
-   */
-  const sheet = event.mosaic.slice(1);
-  /*
-   * And how many it is not showing.
+   * `slice(1, 4)` because the first entry of `mosaic` is always the picture the
+   * card is already leading with — the server prepends a chosen cover to it,
+   * and where there is none the lead is `mosaic[0]` drawn larger — and because
+   * three is as many as the row holds.
    *
-   * Counted against the strip rather than against everything visible: the
-   * cover above is the album's face, and the tile says "four here, this many
-   * more" about the strip it sits at the end of.
+   * Three and not four. The row does not scroll (see below), so its width is
+   * the screen's and every tile it adds makes all of them smaller; four
+   * photographs plus the count tile is five things across a phone, at which
+   * point none of them is large enough to recognise anybody in and the strip
+   * stops doing the one job it has.
    */
-  const rest = Math.max(0, event.photoCount - sheet.length);
+  const sheet = event.mosaic.slice(1, 4);
+  /*
+   * And how many photographs are not on the card at all.
+   *
+   * Four are: the cover and the three in the strip. Counting only the strip
+   * would say "+4 more" about an album of seven while showing four of them,
+   * which is the sort of arithmetic a reader does by eye and catches.
+   *
+   * The cover counts even when it is a chosen one — a separate object with no
+   * photograph row behind it, so strictly it is not one of the `photoCount`.
+   * In practice a host crops a cover out of a picture that is also in the
+   * album, so the reader sees it twice and counts it once, and being right
+   * about the object model here would read as an off-by-one.
+   */
+  const rest = Math.max(0, event.photoCount - 1 - sheet.length);
+  const tile = sheetTile(width);
 
   /*
    * Whose evening this is, above the photograph rather than under it.
@@ -313,7 +367,7 @@ function EventCard({
   const byLens = lensFor(event.creator.handle ?? event.creator.name ?? event.id);
 
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable onPress={() => onOpen()} accessibilityRole="button" accessibilityLabel={label}>
       {/*
         The measurements, and a rule running off to the edge of the column.
 
@@ -468,62 +522,73 @@ function EventCard({
 
       {sheet.length > 0 && (
         /*
-          What is inside, as a strip you can push along.
+          What is inside, as a row of three under the cover.
 
-          Horizontal rather than wrapped: a grid of thumbnails under a cover is
-          the mosaic this card was rewritten to get away from — it turns a
-          photograph into a listing, and it claims a fixed amount of the screen
-          whether or not there is anything worth claiming it for. A strip is
-          one row tall however much is in the album, and running off the right
-          edge is what says there is more.
+          A fixed row and not a scroller. It was a horizontal `ScrollView`,
+          which is wrong on this screen for a reason that has nothing to do
+          with how it looks: it sits inside the vertical scroll that is the
+          home page, and a horizontal gesture that starts on a photograph is
+          within a few degrees of the vertical one that moves the page. Two
+          scrollers competing for the same drag means the page sometimes does
+          not move when somebody flicks it, which is the least forgivable
+          failure a feed can have.
 
-          Square, and hard against each other at 6 points apart. These are
-          contact-sheet frames rather than pictures in their own right — the
-          cover above is the picture — so they are cropped to a common shape
-          and given no corner of their own.
+          So the row shows what fits and says the rest as a number. Each tile
+          takes an equal quarter and is square, which lets the strip meet the
+          screen's edges the way the cover above it does rather than stopping
+          short at a fixed 76 points.
 
-          Hidden from the screen reader whole. Every tile is the same album the
-          card already announces, and four unnamed images between the card and
-          the next one is four stops on the way to nothing.
+          Not a grid. A block of thumbnails under a cover is the mosaic this
+          card was rewritten to get away from — it turns a photograph into a
+          listing, and it claims the same height whether or not there is
+          anything worth claiming it for.
         */
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.sheet}
-          contentContainerStyle={styles.sheetRow}
-          importantForAccessibility="no-hide-descendants"
-          accessibilityElementsHidden
-        >
-          {sheet.map((src) => (
+        <View style={styles.sheet}>
+          {sheet.map((photo) => (
             /*
-              Each tile opens the album, like everything else on the card.
+              Straight to that photograph, not to the top of the album.
 
-              The strip takes the touch before the card's own `Pressable` sees
-              it — a scroll view has to, or it could not be scrolled — so
-              without this the one part of the card made entirely of
-              photographs would be the one part that does nothing.
+              The tile is a picture of a specific thing and pressing a picture
+              of a specific thing should arrive at it — landing on the grid
+              instead asks somebody to find again what they had already found
+              and pointed at. `id` is never null here: only `mosaic[0]` can be
+              a chosen cover, and the strip starts at the second.
             */
-            <Pressable key={src} onPress={onPress}>
+            <Pressable
+              key={photo.id}
+              style={{ width: tile, height: tile }}
+              onPress={() => onOpen(photo.id!)}
+              accessibilityRole="button"
+              accessibilityLabel={`A photograph in ${event.name}`}
+            >
               <Image
-                source={{ uri: src }}
-                style={[styles.sheetTile, { backgroundColor: t.line }]}
+                source={{ uri: photo.src }}
+                style={[styles.sheetShot, { backgroundColor: t.line }]}
                 contentFit="cover"
                 transition={120}
               />
             </Pressable>
           ))}
           {rest > 0 && (
-            <View
-              style={[
-                styles.sheetTile,
-                styles.sheetRest,
-                { backgroundColor: t.card, borderColor: t.line },
-              ]}
+            /*
+              And the tile on the end opens the album itself, which is the
+              grid: it is the one control on the card that is about the
+              photographs it is *not* showing, so it goes where they all are.
+            */
+            <Pressable
+              style={{ width: tile, height: tile }}
+              onPress={() => onOpen()}
+              accessibilityRole="button"
+              accessibilityLabel={`${plural(rest, 'more photo')} in ${event.name}`}
             >
-              <Text style={[styles.sheetRestText, { color: t.dim }]}>+{rest}</Text>
-            </View>
+              <View
+                style={[styles.sheetRest, { backgroundColor: t.card, borderColor: t.line }]}
+              >
+                <Text style={[styles.sheetRestText, { color: t.dim }]}>+{rest}</Text>
+              </View>
+            </Pressable>
           )}
-        </ScrollView>
+        </View>
       )}
     </Pressable>
   );
@@ -581,7 +646,14 @@ export function HomeTab({
   events: EventListing[];
   loading: boolean;
   t: TabTheme;
-  onOpen: (event: EventListing) => void;
+  /**
+   * Open an album, at a photograph or at the top of it.
+   *
+   * The second argument is what the strip under a cover needs: a tile there is
+   * a picture of one photograph, and pressing it should arrive at that
+   * photograph rather than at the grid it is somewhere inside.
+   */
+  onOpen: (event: EventListing, photo?: string) => void;
   onRefresh: () => Promise<void>;
   onCreate: () => void;
   /** A byline on a card is a person; pressing one opens them. */
@@ -748,7 +820,7 @@ export function HomeTab({
           now={now}
           onOpenPerson={onOpenPerson}
           t={t}
-          onPress={() => onOpen(event)}
+          onOpen={(photo) => onOpen(event, photo)}
         />
       ))}
 
@@ -2317,15 +2389,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.4,
   },
-  /* The strip under the cover. Full-bleed like the photograph above it, with
-     the column's own gutter restored as padding *inside* the scroll — so the
-     first tile lines up with the title and the last one runs off the edge
-     rather than stopping short of it. */
-  sheet: { marginHorizontal: -20, marginTop: 10 },
-  sheetRow: { paddingHorizontal: 20, gap: 6 },
-  sheetTile: { width: 76, height: 76 },
-  sheetRest: { borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  sheetRestText: { fontSize: 12, fontWeight: '600' },
+  /* The row under the cover: three photographs and a count, edge to edge.
+
+     Full-bleed like the photograph above it rather than inset to the text
+     column, because it is made of the same thing the photograph is. Four tiles
+     with the same hairline the album's own grid uses — it is a strip of one
+     album's contents, and matching the spacing of the grid it opens is what
+     keeps it reading as a preview of that rather than as four cards.
+
+     The tiles are sized in the card rather than here: they are a quarter of
+     the screen, which is a number this stylesheet does not have. See
+     `sheetTile`. */
+  sheet: { flexDirection: 'row', gap: SHEET_GAP, marginHorizontal: -20, marginTop: 10 },
+  sheetShot: { width: '100%', height: '100%' },
+  sheetRest: {
+    width: '100%',
+    height: '100%',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetRestText: { fontSize: 13, fontWeight: '600' },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
   /*

@@ -152,11 +152,24 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
     expect(API).not.toMatch(/avatarKey,/);
   });
 
-  it('sends the cover as a URL, at the front of the mosaic', () => {
+  it('sends the cover as a URL, at the front of the mosaic, with a null id', () => {
     // Both clients draw an event by its mosaic, so the cover leads by being
     // first in it rather than by a second field each of them has to learn.
     expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
-    expect(API).toMatch(/mosaic: \[\.\.\.\(cover \? \[cover\] : \[\]\), \.\.\.mosaic\]/);
+    expect(API).toMatch(
+      /mosaic: \[\.\.\.\(cover \? \[\{ id: null, src: cover \}\] : \[\]\), \.\.\.mosaic\]/,
+    );
+    /*
+     * The id is null because there is nothing to name: a chosen cover is its
+     * own object under `ev/<id>/cover.jpg`, re-encoded by sharp on the way in,
+     * with no photograph row behind it.
+     *
+     * Which makes the null the answer to the one question a client has about
+     * the first entry — is the picture this card leads with one of the album's
+     * photographs, or a separate image standing in front of them. Every entry
+     * after it is a photograph, and carries the id a tap needs to open it.
+     */
+    expect(API).toMatch(/listing\.mosaic\.map\(async \(photo\) => \(\{\s*\n\s*id: photo\.id,/);
   });
 
   it('answers whether a cover is set, on the event feed', () => {

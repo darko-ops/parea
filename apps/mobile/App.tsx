@@ -169,6 +169,18 @@ type Route =
        */
       pane?: Pane;
       /**
+       * Which photograph to open on top of the grid, if any.
+       *
+       * Set by the strip of thumbnails under a card on the home screen: a tile
+       * there is a picture of one photograph, and pressing it should arrive at
+       * that photograph rather than at the grid it is somewhere inside.
+       *
+       * Not set by a link, ever. The photograph is named by its id, and an id
+       * in a URL is a thing to guess at; the album screen looks it up in the
+       * feed it fetches, so a value that names nothing simply opens the grid.
+       */
+      photo?: string;
+      /**
        * Library ids to upload on arrival.
        *
        * Set only by the create flow. The album used to be handed a *window* and
@@ -322,9 +334,9 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(
-    async (event: SavedEvent, pane?: Pane, upload?: string[]) => {
+    async (event: SavedEvent, pane?: Pane, upload?: string[], photo?: string) => {
       setRemembered(await rememberEvent(event));
-      setRoute({ screen: 'event', event, pane, upload });
+      setRoute({ screen: 'event', event, pane, upload, photo });
     },
     [],
   );
@@ -359,14 +371,19 @@ export default function App() {
   }, [api]);
 
   const openListing = useCallback(
-    (event: EventListing) =>
-      open({
-        id: event.id,
-        name: event.name,
-        linkToken: event.linkToken,
-        startsAt: event.startsAt,
-        endsAt: event.endsAt,
-      }),
+    (event: EventListing, photo?: string) =>
+      open(
+        {
+          id: event.id,
+          name: event.name,
+          linkToken: event.linkToken,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+        },
+        undefined,
+        undefined,
+        photo,
+      ),
     [open],
   );
 
@@ -644,6 +661,7 @@ export default function App() {
             api={api}
             event={route.event}
             initialPane={route.pane}
+            initialPhoto={route.photo}
             initialUpload={route.upload}
             webBase={API_BASE}
             t={t}
@@ -1324,6 +1342,7 @@ function EventScreen({
   api,
   event,
   initialPane,
+  initialPhoto,
   initialUpload,
   webBase,
   t,
@@ -1340,6 +1359,14 @@ function EventScreen({
   event: SavedEvent;
   /** Which pane to land on. See the `useState` below for why it is optional. */
   initialPane?: Pane;
+  /**
+   * Which photograph to open on top of the grid, if any.
+   *
+   * Set by a tile in the strip under a home card, which is a picture of one
+   * photograph and should arrive at it. Acted on once, when the feed that can
+   * resolve an id into a photograph first lands — see the effect below.
+   */
+  initialPhoto?: string;
   /**
    * Library ids to send as soon as this opens.
    *
@@ -1412,6 +1439,20 @@ function EventScreen({
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
+  /**
+   * Whether `initialPhoto` has been spent.
+   *
+   * A ref rather than state: it is read and written inside the effect below and
+   * nothing renders differently for it, so putting it in state would schedule a
+   * second pass for a value nobody draws.
+   *
+   * Spent on the first feed whether or not the photograph was in it. An id that
+   * names nothing is a card drawn against a thumbnail the album no longer has —
+   * somebody removed it between the home screen loading and the tap — and the
+   * right answer there is the grid, not a viewer that springs open two polls
+   * later when an unrelated photograph happens to match.
+   */
+  const landed = useRef(false);
   /** The `⋯` sheet inside the viewer: remove, ask down, report, block. */
   const [actionsFor, setActionsFor] = useState<FeedPhoto | null>(null);
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
@@ -1456,6 +1497,23 @@ function EventScreen({
   useEffect(() => {
     void libraryAccess().then(setAccess);
   }, []);
+
+  /**
+   * Open the photograph somebody pointed at, once the feed can name it.
+   *
+   * The id arrives with the route and the photograph itself does not exist on
+   * this screen until the feed lands, so this waits rather than the caller
+   * doing so — the home card has a thumbnail and an id, and fetching an album's
+   * whole feed to hand over one row would put the wait on the tap instead of
+   * behind the screen that is already opening.
+   */
+  useEffect(() => {
+    if (!feed || landed.current) return;
+    landed.current = true;
+    if (!initialPhoto) return;
+    const photo = feed.photos.find((p) => p.id === initialPhoto);
+    if (photo) setSelected(photo);
+  }, [feed, initialPhoto]);
 
   const [feedError, setFeedError] = useState<string | null>(null);
 

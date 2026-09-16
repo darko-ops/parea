@@ -404,17 +404,20 @@ export type EventListing = {
   /** Whose event it is, in the two names the card prints together. */
   creator: { name: string | null; handle: string | null; avatarUrl: string | null };
   /**
-   * Signed thumbnail URLs, most recent first, at most four.
+   * The images the card can draw, the one it leads with first.
    *
    * Signed by the server: this client has no image secret and must not have
    * one. They expire with the event's `cap_epoch`, so rotating a link stops
    * the old thumbnails resolving along with everything else.
    *
-   * The card leads with `cover` now rather than arranging these four, and this
-   * stays because the response still carries it — the field is what the
-   * `/api/events` mosaic was for, and nothing else reads it yet.
+   * `id` is the photograph's, and it is null on exactly one entry: a chosen
+   * cover, which is its own re-encoded object rather than a row in the album.
+   * So the first entry answers the question a card needs answered — whether
+   * the picture it leads with is one of the photographs or a separate image in
+   * front of them — and every entry after it is a photograph the strip under
+   * the cover can draw and open.
    */
-  mosaic: string[];
+  mosaic: { id: string | null; src: string }[];
 } & ThreadLine;
 
 /** A group as a stranger sees it: a door, never the room. */

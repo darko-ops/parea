@@ -31,9 +31,12 @@ import { SiteFooter } from './SiteFooter';
 /**
  * What `/api/events` hands back, narrowed to what a card needs.
  *
- * `mosaic` arrives already signed — the URLs are signed against the event's
- * `cap_epoch`, so rotating a link stops its thumbnails resolving, and nothing
- * on this side could sign one anyway.
+ * `cover` arrives already signed — against the event's `cap_epoch`, so
+ * rotating a link stops it resolving, and nothing on this side could sign one
+ * anyway. The response also carries a `mosaic`, which this screen has never
+ * drawn and no longer declares: it is the native card's strip of thumbnails,
+ * and a narrowed type that lists fields nobody here reads is a shape to keep
+ * in step for nothing.
  */
 type EventListing = {
   id: string;
@@ -46,7 +49,6 @@ type EventListing = {
   /** Uploaded and not yet through the deriver. */
   arrivingCount: number;
   photoCount: number;
-  mosaic: string[];
   /** The one image the card draws, at the size it draws it. See `toCards`. */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
   /** Its shape, width over height. Null for a cover stored before it had one. */

@@ -92,9 +92,20 @@ export async function GET() {
         // cannot sign anything — it has no image secret and must not — and a
         // storage key is an internal address that has no business crossing
         // this boundary at all.
+        /*
+         * Each entry carries the photograph's id beside its URL.
+         *
+         * It used to be the URL alone, which was enough while the mosaic was
+         * four tiles that opened the album. The native card draws a strip of
+         * them under the cover now and a tap on one opens *that* photograph,
+         * and a signed URL is not a thing the album screen can look a
+         * photograph up by — it expires with `cap_epoch`, and the feed the
+         * album fetches signs its own.
+         */
         const mosaic = await Promise.all(
-          listing.mosaic.map((photo) =>
-            imageSrc(
+          listing.mosaic.map(async (photo) => ({
+            id: photo.id,
+            src: await imageSrc(
               {
                 eventId: listing.id,
                 storageKey: photo.storageKey,
@@ -103,7 +114,7 @@ export async function GET() {
               'thumb',
               listing.capEpoch,
             ),
-          ),
+          })),
         );
         /*
          * The avatar leaves as a URL, and the key does not leave at all.
@@ -140,8 +151,16 @@ export async function GET() {
            * second rule about which image wins. `coverKey` is destructured out
            * above and never reaches the response: it is a storage key, and the
            * paragraph above about photo keys applies to it word for word.
+           *
+           * With a null id, which is the honest answer and a useful one. A
+           * chosen cover is its own object under `ev/<id>/cover.jpg` — sharp
+           * re-encodes the bytes on the way in, so there is no photograph row
+           * behind it to name. The null is therefore exactly the question a
+           * client wants answered about the first entry: is the picture this
+           * card leads with one of the album's photographs, or a separate
+           * image standing in front of them.
            */
-          mosaic: [...(cover ? [cover] : []), ...mosaic],
+          mosaic: [...(cover ? [{ id: null, src: cover }] : []), ...mosaic],
           /*
            * The single image the web's card leads with, at the size it is
            * drawn — `grid`, not one of the `thumb`s above. The mosaic stays

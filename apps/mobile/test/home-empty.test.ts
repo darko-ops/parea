@@ -94,11 +94,17 @@ describe('the card the home list draws', () => {
      */
     expect(CARD.match(/>\s*\{by\}\s*</g) ?? []).toHaveLength(1);
     /*
-     * And the sentence beside it does not print a name at all. "You" is the
-     * one exception and it is about the reader, not about the host — whose
-     * name is the word directly to its left.
+     * And the sentence beside it names nobody, not even the reader.
+     *
+     * It said "demetri · You · 1 person", which is one person counted three
+     * ways on a single line: the handle names them, "You" says it is theirs,
+     * and "1 person" says they are the only one. A solo album is the handle
+     * alone; the count appears when there is somebody to count.
      */
-    expect(CARD).toMatch(/const about = \[\s*event\.mine \? 'You' : null,/);
+    expect(CARD).toMatch(
+      /event\.memberCount > 1 \? plural\(event\.memberCount, 'person', 'people'\) : null,/,
+    );
+    expect(CARD).not.toMatch(/'You'/);
     expect(CARD).not.toMatch(/creator\.name : null/);
   });
 
@@ -197,37 +203,81 @@ describe('the card the home list draws', () => {
     expect(CARD).toMatch(/live \? `added to \$\{ago\(/);
   });
 
-  it('shows what is inside as a strip, and says how much it is not showing', () => {
+  it('shows what is inside as a row of three, and counts what it leaves out', () => {
     /*
      * The card led with one photograph and stopped, which asks somebody to
      * open an album to find out whether it is worth opening.
      *
-     * Horizontal rather than wrapped: a grid of thumbnails under a cover is
-     * the mosaic this card was rewritten to get away from. `slice(1)` because
-     * the first entry of `mosaic` is always the photograph the card is already
-     * leading with — the server prepends the cover to it, and where there is
-     * no cover the lead is `mosaic[0]` drawn larger.
+     * `slice(1, 4)` because the first entry of `mosaic` is always the picture
+     * the card is already leading with — the server prepends a chosen cover to
+     * it, and where there is none the lead is `mosaic[0]` drawn larger — and
+     * because three is as many as a row that does not scroll can hold without
+     * every tile becoming too small to recognise anybody in.
      */
-    expect(EVENTS).toMatch(/const sheet = event\.mosaic\.slice\(1\);/);
-    expect(EVENTS).toMatch(/const rest = Math\.max\(0, event\.photoCount - sheet\.length\);/);
-    expect(EVENTS).toMatch(/sheetTile: \{ width: 76, height: 76 \}/);
-    // Full-bleed like the cover above it, with the column's gutter restored
-    // inside the scroll so the first tile lines up with the title.
-    expect(EVENTS).toMatch(/sheet: \{ marginHorizontal: -20, marginTop: 10 \}/);
-    expect(EVENTS).toMatch(/sheetRow: \{ paddingHorizontal: 20, gap: 6 \}/);
+    expect(EVENTS).toMatch(/const sheet = event\.mosaic\.slice\(1, 4\);/);
+    /*
+     * Four photographs are on the card: the cover and the three beside it. An
+     * album of seven therefore ends "+3", and counting only the strip would
+     * have said "+4 more" while showing four of them — arithmetic a reader
+     * does by eye and catches.
+     */
+    expect(EVENTS).toMatch(
+      /const rest = Math\.max\(0, event\.photoCount - 1 - sheet\.length\);/,
+    );
+    /*
+     * And it does not scroll sideways.
+     *
+     * It sits inside the vertical scroll that *is* the home page, and a
+     * horizontal drag starting on a photograph is within a few degrees of the
+     * vertical one that moves the page. Two scrollers competing for the same
+     * gesture means the page sometimes does not move when somebody flicks it.
+     */
+    expect(EVENTS).toMatch(/sheet: \{ flexDirection: 'row', gap: SHEET_GAP, marginHorizontal: -20/);
+    /*
+     * And the tiles are measured rather than flexed. Equal flex would draw the
+     * two tiles of a four-photograph album half a screen tall each; a card's
+     * strip has to be the same height on every card or a column of them stops
+     * scanning.
+     */
+    expect(EVENTS).toMatch(
+      /const sheetTile = \(width: number\) =>\s*\(width - SHEET_GAP \* \(SHEET_TILES - 1\)\) \/ SHEET_TILES;/,
+    );
+    expect(EVENTS).toMatch(/style=\{\{ width: tile, height: tile \}\}/);
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
+    // Comments stripped: the note beside the row explains why it is not one.
+    expect(code(CARD)).not.toMatch(/ScrollView/);
+  });
+
+  it('sends a thumbnail to its own photograph and the count to the grid', () => {
     /*
-     * Each tile opens the album. A scroll view takes the touch before the
-     * card's own `Pressable` sees it — it has to, or it could not be scrolled
-     * — so without this the one part of the card made entirely of photographs
-     * would be the one part that does nothing.
+     * A tile is a picture of a specific thing, and pressing a picture of a
+     * specific thing should arrive at it — landing on the grid instead asks
+     * somebody to find again what they had already found and pointed at. The
+     * "+N" tile is the one control on the card that is about the photographs
+     * it is *not* showing, so that one goes where they all are.
      */
-    expect(CARD).toMatch(/\{sheet\.map\(\(src\) => \([\s\S]{0,700}<Pressable key=\{src\} onPress=\{onPress\}>/);
-    // And it is one stop for a screen reader, not four unnamed images.
-    expect(CARD).toMatch(/style=\{styles\.sheet\}[\s\S]{0,200}accessibilityElementsHidden/);
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    expect(CARD).toMatch(/onPress=\{\(\) => onOpen\(photo\.id!\)\}/);
+    expect(CARD).toMatch(/\{rest > 0 && \([\s\S]{0,500}onPress=\{\(\) => onOpen\(\)\}/);
+    // And the card itself still opens the album, as everything else on it does.
+    expect(CARD).toMatch(/<Pressable onPress=\{\(\) => onOpen\(\)\} accessibilityRole="button"/);
+
+    /*
+     * The id reaches the album screen as a route field and is spent on the
+     * first feed that lands — whether or not the photograph was in it. An id
+     * that names nothing is a thumbnail the album no longer has, and the right
+     * answer there is the grid rather than a viewer that springs open two polls
+     * later when something else happens to match.
+     */
+    expect(APP).toMatch(/initialPhoto=\{route\.photo\}/);
+    expect(APP).toMatch(/if \(!feed \|\| landed\.current\) return;\s*\n\s*landed\.current = true;/);
+    expect(APP).toMatch(/feed\.photos\.find\(\(p\) => p\.id === initialPhoto\)/);
   });
 });
 
@@ -382,7 +432,7 @@ describe('pressing a byline', () => {
     );
     // Comments stripped: the prose between the two explains the nesting, and
     // 400 characters of it is longer than the markup being checked.
-    expect(code(CARD)).toMatch(/<Pressable onPress=\{onPress\}[\s\S]{0,900}<Pressable/);
+    expect(code(CARD)).toMatch(/<Pressable onPress=\{\(\) => onOpen\(\)\}[\s\S]{0,900}<Pressable/);
     // And the photograph's byline stopped being untouchable for exactly this.
     const tile = APP.slice(APP.indexOf('style={styles.tileBy}') - 400, APP.indexOf('style={styles.tileBy}'));
     expect(tile).not.toMatch(/pointerEvents="none"[\s\S]{0,40}tileBy/);
