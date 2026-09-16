@@ -29,6 +29,8 @@ const APP = read('App.tsx');
 const API = read('src/api.ts');
 const LATELY = read('src/Lately.tsx');
 const EVENTS = read('src/Events.tsx');
+/** The head row every tab opens with, and the disc that opens Lately. */
+const HEAD = read('src/PageHead.tsx');
 /* The bubble on Home is gone; what survives of that file is the vocabulary. */
 const ANSWERS = read('src/answers.ts');
 
@@ -36,16 +38,38 @@ const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('the door', () => {
-  it('is a disc in the Groups heading, not a tab', () => {
+  it('is a disc in the head row, not a tab', () => {
     /*
      * The tab bar is four entries and stays four. A notification tab would be
      * a permanent quarter of it spent on a screen that is usually empty, which
      * is the trade `Requests.tsx` refused and this does not reopen.
      */
-    expect(EVENTS).toMatch(/<Glyph name="envelope"/);
-    expect(EVENTS).toMatch(/onPress=\{onOpenLately\}/);
+    expect(HEAD).toMatch(/<Glyph name="envelope"/);
     expect(code(APP)).not.toMatch(/type Tab = [^;]*'lately'/);
     expect(APP).toMatch(/type Tab = 'home' \| 'groups' \| 'search' \| 'profile'/);
+  });
+
+  it('is in the same corner of every tab, not only the one that listed it', () => {
+    /*
+     * It lived on Groups alone, which is where the asks happened to be listed
+     * rather than where somebody would look for them: the one control in the
+     * product that says *somebody is waiting on you* was behind a tab you had
+     * to already be on.
+     *
+     * Opposite the `+` on all three. Making is the thing you came to do,
+     * answering is the thing that came to you, and one corner each is what
+     * stops either from being hunted for.
+     */
+    expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
+      .toHaveLength(3);
+    expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(3);
+    // And each `+` is the head's `left`, which is the leading corner.
+    for (const tab of ['HomeTab', 'GroupsTab', 'SearchTab']) {
+      const body = EVENTS.slice(EVENTS.indexOf(`export function ${tab}`));
+      const head = body.slice(body.indexOf('<PageHead'), body.indexOf('/>', body.indexOf('right={')));
+      expect(head.indexOf('left={'), tab).toBeLessThan(head.indexOf('right={'));
+      expect(head.indexOf('New album or group'), tab).toBeLessThan(head.indexOf('right={'));
+    }
   });
 
   it('carries the count, and nothing at zero', () => {
@@ -55,9 +79,10 @@ describe('the door', () => {
      * rest of the app uses for unread, with the page colour ringing it so it
      * reads as sitting on the disc rather than inside it.
      */
-    expect(EVENTS).toMatch(/\{waiting > 0 && \(/);
-    expect(EVENTS).toMatch(/\{waiting > 99 \? '99\+' : waiting\}/);
-    expect(EVENTS).toMatch(/envelopeBadge: \{[\s\S]{0,200}minWidth: 19/);
+    expect(HEAD).toMatch(/\{count > 0 && \(/);
+    expect(HEAD).toMatch(/\{count > 99 \? '99\+' : count\}/);
+    expect(HEAD).toMatch(/badge: \{[\s\S]{0,240}minWidth: 19/);
+    expect(HEAD).toMatch(/borderColor: t\.bg/);
   });
 
   it('takes the count from above rather than fetching its own', () => {

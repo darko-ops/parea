@@ -170,12 +170,12 @@ describe('where it sits', () => {
 
   it('starts every tab’s content at the same height', () => {
     /*
-     * The row is as tall as a disc whether or not it holds one, so Find —
-     * which makes nothing and has no controls — does not begin its search
-     * field higher up the screen than Home begins its first card.
+     * The row is as tall as a disc whether or not it holds one, so a tab that
+     * loses a control does not begin its content higher up the screen than one
+     * that keeps both.
      */
     expect(HEAD).toMatch(/minHeight: ROUND/);
-    expect(HEAD).toMatch(/import \{ ROUND \} from '\.\/RoundButton'/);
+    expect(HEAD).toMatch(/import \{ ROUND, RoundButton \} from '\.\/RoundButton'/);
   });
 });
 

@@ -963,6 +963,8 @@ export default function App() {
                 events={events}
                 loading={loadingEvents}
                 t={t}
+                waiting={waiting}
+                onOpenLately={() => setRoute({ screen: 'lately' })}
                 onOpen={openListing}
                 onRefresh={refreshEvents}
                 onCreate={() => setRoute({ screen: 'pick' })}
@@ -1035,9 +1037,17 @@ export default function App() {
                 api={api}
                 events={events}
                 t={t}
+                waiting={waiting}
                 onOpen={openListing}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+                onOpenLately={() => setRoute({ screen: 'lately' })}
+                onCreateAlbum={() => setRoute({ screen: 'pick' })}
+                onCreateGroup={() => {
+                  setTab('groups');
+                  setMakeGroup((n) => n + 1);
+                }}
+                Button={Button}
               />
             </Pane>
           )}

@@ -57,7 +57,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
-import { PageHead } from './PageHead';
+import { Notifications, PageHead } from './PageHead';
 import { MARK_FILLS } from './Mark';
 import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
@@ -724,8 +724,10 @@ export function HomeTab({
   events,
   loading,
   t,
+  waiting,
   onOpen,
   onRefresh,
+  onOpenLately,
   onCreate,
   onCreateGroup,
   onOpenPerson,
@@ -744,6 +746,10 @@ export function HomeTab({
    */
   onOpen: (event: EventListing, photo?: string) => void;
   onRefresh: () => Promise<void>;
+  /** How many things are waiting on an answer, for the badge on the envelope. */
+  waiting: number;
+  /** Into Lately, from the corner every tab now keeps it in. */
+  onOpenLately: () => void;
   onCreate: () => void;
   /** A byline on a card is a person; pressing one opens them. */
   onOpenPerson: (handle: string) => void;
@@ -819,23 +825,21 @@ export function HomeTab({
         difference nobody can learn: either `+` makes what you ask it for.
       */}
       {/*
-        The product's name and the one thing you can make from here.
+        Make something on the left, answer something on the right.
 
-        `Start one` was a word on the title's baseline and is a `+` now — the
-        same 36pt bordered circle the Groups tab makes a group with and the
-        album screen adds photographs with. Three tabs, one shape for "make
-        something here".
+        The `+` was on the right and the envelope was on the Groups tab only,
+        which put the two in the same corner on one screen and neither in a
+        predictable place. They are opposite each other on all three now:
+        making is the thing you came to do, answering is the thing that came to
+        you, and one corner each is what stops either from being hunted for.
 
-        It opens the same two choices the profile's `+` does. One glyph meaning
-        two things in one place and one thing in another is the sort of
+        The `+` opens the same two choices the profile's does. One glyph
+        meaning two things in one place and one thing in another is the sort of
         difference nobody can learn: either `+` makes what you ask it for.
-
-        The row itself is `PageHead` now, which every tab shares — see the note
-        there on why this stopped holding a slot open opposite the button.
       */}
       <PageHead
         color={t.fg}
-        right={
+        left={
           <RoundButton
             t={t}
             onPress={() => setStarting(true)}
@@ -844,6 +848,7 @@ export function HomeTab({
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
       />
 
       {starting && (
@@ -1233,88 +1238,42 @@ export function GroupsTab({
       }
     >
       {/*
-        The same head every tab has, with this one's two controls in it.
+        The same head every tab has, with its controls in the same corners.
 
         It said "Your Parea" at 30 points, chosen over "Groups" because the tab
         holds the rooms and the conversations and the word for all of that is
         the one the product is named after. Both were the same mistake at
         different volumes: a line naming the tab you just pressed, above the
         rooms you pressed it to reach. The bar already says where you are.
+
+        The envelope used to be here and nowhere else, beside the `+`. Both
+        have moved: making is on the left of the name on every tab, answering
+        is on the right.
       */}
       <PageHead
         color={t.fg}
-        right={
-          <>
-              {/*
-                The door to Lately, beside the one that makes a room.
-            
-                Here rather than on a tab of its own: three tabs is the whole of
-                this app's navigation, and a fourth carrying a list that is usually
-                empty would cost a permanent quarter of the tab bar. A disc in a
-                heading row costs nothing when there is nothing.
+        left={
+          /*
+            The `+`'s place is held even when the `+` is not there.
 
-                The badge is hidden at zero, as the web's is. A badge that draws "0"
-                teaches people that the number means nothing, and an empty circle is
-                a claim that something is there.
-              */}
-              <RoundButton
-                t={t}
-                onPress={onOpenLately}
-                accessibilityLabel={
-                  waiting > 0 ? `Lately, ${waiting} waiting on you` : 'Lately'
-                }
-              >
-                <Glyph name="envelope" size={20} color={t.fg} />
-                {waiting > 0 && (
-                  <View
-                    style={[
-                      styles.envelopeBadge,
-                      { backgroundColor: t.accent, borderColor: t.bg },
-                    ]}
-                  >
-                    <Text style={[styles.envelopeCount, { color: t.onAccent }]}>
-                      {/* Past this the number stops being readable at 11.5pt and
-                          stops being actionable anyway — "a lot" is the same
-                          instruction as "99". */}
-                      {waiting > 99 ? '99+' : waiting}
-                    </Text>
-                  </View>
-                )}
-              </RoundButton>
-
-              {/*
-                The `+`'s place is held even when the `+` is not there.
-
-                It is hidden twice — while the groups are still arriving, and while
-                the create form is open — and the envelope beside it is in a row
-                that lays out from the right. So the envelope was drawn where the
-                `+` belongs and then slid left the moment the groups landed, which
-                on a cold open is the first thing on the screen and it moves.
-
-                A control that is in a different place for the first half-second is
-                a control somebody reaches for and misses.
-              */}
-              {/*
-                The same `+` as Home and You, making the same two things.
-
-                It made a group and only a group, because it is on the groups tab —
-                which is the reasoning that produces an app where one glyph means
-                two things in one place and one thing in another. Nobody can learn
-                that: either `+` makes what you ask it for.
-              */}
-              {groups !== null ? (
-                <RoundButton
-                  t={t}
-                  onPress={() => setStarting(true)}
-                  accessibilityLabel="New album or group"
-                >
-                  <Glyph name="plus" size={20} color={t.fg} />
-                </RoundButton>
-              ) : (
-                <View style={styles.roundSlot} />
-              )}
-          </>
+            It is hidden while the groups are still arriving, and on a cold
+            open this row is the first thing on the screen — a control that
+            appears half a second late, in a row that lays out around it, is a
+            control somebody reaches for and misses.
+          */
+          groups !== null ? (
+            <RoundButton
+              t={t}
+              onPress={() => setStarting(true)}
+              accessibilityLabel="New album or group"
+            >
+              <Glyph name="plus" size={20} color={t.fg} />
+            </RoundButton>
+          ) : (
+            <View style={styles.roundSlot} />
+          )
         }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
       />
 
       {starting && (
@@ -1774,17 +1733,30 @@ export function SearchTab({
   api,
   events,
   t,
+  waiting,
   onOpen,
   onOpenGroup,
   onOpenPerson,
+  onOpenLately,
+  onCreateAlbum,
+  onCreateGroup,
+  Button,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
+  /** How many things are waiting on an answer, for the badge on the envelope. */
+  waiting: number;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
   onOpenPerson: (handle: string) => void;
+  onOpenLately: () => void;
+  /** The `+`'s two halves. Nothing is made until one of them is picked. */
+  onCreateAlbum: () => void;
+  onCreateGroup: () => void;
+  Button: ButtonComponent;
 }) {
+  const [starting, setStarting] = useState(false);
   const [scope, setScope] = useState<Scope>('people');
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
@@ -1833,15 +1805,37 @@ export function SearchTab({
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       {/*
-        The name, and nothing beside it.
+        The same two corners, on the tab that had neither.
 
         It said "Find" at 30 points above a search field, on the tab whose own
         glyph is a magnifier — a title saying what the field below it already
-        says. This tab makes nothing, so the head is the wordmark alone, which
-        is also what keeps the field starting at the same height here as the
-        first card does on Home.
+        says. What replaces it is the head the other tabs have, controls
+        included: a `+` that is missing from one screen in three is a `+`
+        somebody has to remember the whereabouts of.
       */}
-      <PageHead color={t.fg} />
+      <PageHead
+        color={t.fg}
+        left={
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+      />
+
+      {starting && (
+        <StartSomething
+          t={t}
+          Button={Button}
+          onClose={() => setStarting(false)}
+          onAlbum={onCreateAlbum}
+          onGroup={onCreateGroup}
+        />
+      )}
 
       <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
         <Glyph name="search" size={17} color={t.dim} />
@@ -2605,10 +2599,6 @@ const styles = StyleSheet.create({
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
   groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
-  /* `flex-end`, now that there is nothing on the left of it. The row was a
-     title and two discs pushed apart; without the title, `space-between` would
-     spread the two discs across the screen. */
-  groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 12 },
   groupBlock: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* The door: small, because the evenings under it are what the block is for.
@@ -2647,7 +2637,6 @@ const styles = StyleSheet.create({
   sayer: { fontWeight: '600' },
   saidWhen: { fontSize: 12.5 },
   /* A number on a group — it is busy and the number is the useful part. */
-  groupsActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
      the two cannot drift apart. */
   roundSlot: { width: ROUND, height: ROUND },
@@ -2672,19 +2661,6 @@ const styles = StyleSheet.create({
   /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
      accent fill, same ink. The ring is the page behind it, so the badge reads
      as sitting on top of the button rather than inside it. */
-  envelopeBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -6,
-    minWidth: 19,
-    height: 19,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  envelopeCount: { fontSize: 11.5, fontWeight: '700' },
   unreadPill: {
     minWidth: 19,
     height: 19,
