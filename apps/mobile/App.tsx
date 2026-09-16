@@ -1400,6 +1400,29 @@ function EventScreen({
   /** Which single photograph is on its way to the camera roll, if any. */
   const [savingOne, setSavingOne] = useState<string | null>(null);
   /**
+   * "Saved to your photos", for as long as it takes to read it.
+   *
+   * Saving one photograph said nothing at all when it worked. The glyph dimmed
+   * for a second and came back, which is indistinguishable from a control that
+   * did nothing — and the place the photograph lands is another app, so there
+   * was no way to find out short of leaving this one.
+   *
+   * A note rather than an alert. An alert is a thing you have to dismiss, and
+   * making somebody press OK to acknowledge that a button they pressed did
+   * what it said is a second gesture charged for the first. The failure still
+   * gets one, because that is a thing they have to decide about.
+   */
+  const [savedNote, setSavedNote] = useState(false);
+  /** So that saving a second photograph restarts the note rather than
+      inheriting however much was left of the first one's welcome. */
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    [],
+  );
+  /**
    * What is stuck in *this* album, as numbers rather than as a sentence.
    *
    * The sentence is for reading; these are for deciding what to offer under it.
@@ -2012,11 +2035,12 @@ function EventScreen({
   const saveOne = useCallback(
     /**
      * Answers whether it landed, which the corner button has no use for and
-     * the sheet does: there the control is a row of words with a photograph
-     * behind it, and a label that says "Saving…" and then goes back to
-     * "Download" is indistinguishable from one that did nothing. The sheet
-     * closes on a yes, which is the acknowledgement — it puts the photograph
-     * back in front of somebody who has just said they want to keep it.
+     * the sheet does: a menu that stays open over the photograph after the one
+     * thing you asked it for is done is a menu you have to dismiss twice.
+     *
+     * The acknowledgement is `savedNote`, not the dismissal. Closing on its
+     * own would only mean "something happened", and something happening is
+     * also what a failure looks like from there.
      */
     async (photo: FeedPhoto): Promise<boolean> => {
       setSavingOne(photo.id);
@@ -2026,6 +2050,9 @@ function EventScreen({
           () => {},
         );
         if (saved === 0) throw new Error('not saved');
+        setSavedNote(true);
+        if (savedTimer.current) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setSavedNote(false), 2200);
         return true;
       } catch (err) {
         Alert.alert(
@@ -2227,6 +2254,28 @@ function EventScreen({
   useEffect(() => {
     if (feed && seen === null) setSeen(feed.messages.length);
   }, [feed, seen]);
+
+  /**
+   * The note itself, built once and drawn in two layers.
+   *
+   * Not a component and not two copies of the markup: the save is pressed from
+   * the album and from inside the photograph's viewer, which is a modal, and a
+   * view in this tree cannot be seen from inside one. So the element is made
+   * here and placed on both sides of that boundary — see the two comments at
+   * the placements.
+   *
+   * `pointerEvents="none"` throughout. It says a thing happened; it is not
+   * something to press, and for two seconds it sits over the corner of
+   * somebody's photograph.
+   */
+  const saved = savedNote ? (
+    <View style={styles.savedShell} pointerEvents="none">
+      <BlurView intensity={18} tint="light" style={styles.savedNote}>
+        <Glyph name="download" size={15} color="#14171c" />
+        <Text style={styles.savedText}>Saved to your photos</Text>
+      </BlurView>
+    </View>
+  ) : null;
 
   const unread = seen === null ? 0 : Math.max(0, messages.length - seen);
   const latest = messages[messages.length - 1] ?? null;
@@ -3405,6 +3454,17 @@ function EventScreen({
       </View>
 
       {/*
+        In the album's own layer, and only while nothing is in front of it.
+
+        The same rule the cover frame and the photograph's `⋯` sheet both
+        follow: on iOS a view in this tree is *behind* a full-screen modal, so
+        a note drawn here while the viewer is up would be invisible — and the
+        viewer is exactly where one of the two saves is pressed. It is drawn
+        again inside that modal, below.
+      */}
+      {!selected && saved}
+
+      {/*
         One line, over the cover, when somebody says something while you
         are looking at the photographs. It is the whole of the notification
         this screen needs: who, what they said, and how many are waiting.
@@ -3414,7 +3474,7 @@ function EventScreen({
         underneath it, and on the roster it would sit over the first two
         people for no reason.
       */}
-      {pane === 'photos' && latest && unread > 0 && !bannerGone && (
+      {pane === 'photos' && latest && unread > 0 && !bannerGone && !savedNote && (
         <Pressable
           onPress={() => setPane('talk')}
           accessibilityRole="button"
@@ -3623,6 +3683,13 @@ function EventScreen({
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}
           />
+
+          {/*
+            And here, for the same reason the sheet below is here: the save is
+            pressed from that sheet, and a note drawn in the album's own tree
+            would be behind this modal at the moment it had something to say.
+          */}
+          {saved}
 
           {/*
             Inside the viewer's modal, not beside it.
@@ -5100,6 +5167,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: 'rgba(255,255,255,0.93)',
   },
+  /*
+   * The saved note, at the foot rather than at the top.
+   *
+   * The unread banner has the top of this screen, and the two can be up at
+   * once — somebody saves a photograph in an album whose conversation is
+   * moving. Stacking them would be two white slabs in one corner; the banner
+   * is also the only one of the two that can be pressed, so it keeps the place
+   * a thumb goes.
+   *
+   * Above where the viewer's own chrome sits, because this is drawn inside
+   * that modal as well as in the album behind it.
+   */
+  savedShell: {
+    position: 'absolute',
+    bottom: 112,
+    left: 12,
+    right: 12,
+    zIndex: 5,
+    alignItems: 'center',
+  },
+  /* Light in both themes, like the banner and for the same reason: it sits
+     over a photograph rather than over the page, so it takes its contrast from
+     the picture underneath and not from whichever theme the phone is in. */
+  savedNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 999,
+    overflow: 'hidden',
+    paddingVertical: 9,
+    paddingHorizontal: 15,
+    backgroundColor: 'rgba(255,255,255,0.93)',
+  },
+  savedText: { fontSize: 14, fontWeight: '600', color: '#14171c' },
   bannerFace: { width: 24, height: 24, borderRadius: 12 },
   bannerFaceLetter: { fontSize: 11, fontWeight: '700' },
   bannerText: { flex: 1, minWidth: 0, fontSize: 14 },

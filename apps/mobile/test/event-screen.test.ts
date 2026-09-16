@@ -402,13 +402,71 @@ describe('a photograph in an album', () => {
      */
     expect(SHEET).toMatch(/\{!tagging && \(\s*\n\s*<Button\s*\n\s*label=\{downloading/);
     /*
-     * And the sheet closes when it lands. A label that says "Saving…" and then
-     * goes back to "Download" is indistinguishable from one that did nothing,
-     * so the dismissal is the acknowledgement — it puts the photograph back in
-     * front of somebody who has just said they want to keep it.
+     * And the sheet closes when it lands: a menu that stays open over the
+     * photograph after the one thing you asked it for is done is a menu you
+     * have to dismiss twice.
      */
     expect(APP).toMatch(/if \(saved\) setActionsFor\(null\);/);
     expect(APP).toMatch(/async \(photo: FeedPhoto\): Promise<boolean> => \{/);
+  });
+
+  it('says so when a photograph lands, in whichever layer is in front', () => {
+    /*
+     * Saving one said nothing at all when it worked: the glyph dimmed for a
+     * second and came back, which is indistinguishable from a control that did
+     * nothing — and the place the photograph lands is another app, so there
+     * was no way to find out short of leaving this one.
+     *
+     * A note rather than an alert. An alert is a thing you have to dismiss,
+     * and making somebody press OK to acknowledge that a button did what it
+     * said is a second gesture charged for the first. The failure still gets
+     * one, because that is a thing they have to decide about.
+     */
+    expect(APP).toMatch(/setSavedNote\(true\);/);
+    expect(APP).toMatch(/setTimeout\(\(\) => setSavedNote\(false\), 2200\)/);
+    expect(APP).toMatch(/Saved to your photos/);
+    // Restarted rather than inherited, so a second save gets a full welcome.
+    expect(APP).toMatch(/if \(savedTimer\.current\) clearTimeout\(savedTimer\.current\);/);
+    /*
+     * Drawn on both sides of the modal boundary. One of the two saves is
+     * pressed from the sheet inside the photograph's viewer, and a view in the
+     * album's own tree is behind that modal — the same rule the cover frame
+     * and `PhotoActions` follow.
+     */
+    expect(APP).toMatch(/\{!selected && saved\}/);
+    expect(APP).toMatch(/\{saved\}\s*\n\s*\n\s*\{\/\*/);
+    // And it never takes a touch: for two seconds it lies over the corner of
+    // somebody's photograph.
+    expect(APP).toMatch(/<View style=\{styles\.savedShell\} pointerEvents="none">/);
+    /*
+     * The unread banner keeps the top of the screen and the place a thumb
+     * goes, since it is the only one of the two that can be pressed. Two white
+     * slabs in one corner is what the foot avoids.
+     */
+    expect(APP).toMatch(/!bannerGone && !savedNote &&/);
+    expect(APP).toMatch(/savedShell: \{[\s\S]*?bottom: 112,/);
+  });
+
+  it('asks only to add to the camera roll, not to read it', () => {
+    /*
+     * It asked for the whole library to put one file into it, which was wrong
+     * twice. It contradicted `library.ts`, where read access is an upgrade
+     * offered only after somebody has contributed once and the app works
+     * without it. And on iOS the two are separate authorisations, so anybody
+     * who had declined that upgrade could never save a photograph again — the
+     * request came back `granted: false` and the alert said "Try again in a
+     * moment" for as long as they were willing to.
+     *
+     * Safe for `Asset.create`, which is what runs under it: the native side
+     * performs a change request and takes the id off
+     * `placeholderForCreatedAsset`, never fetching the asset back — which is
+     * the operation add-only would refuse.
+     */
+    const PLATFORM = read('src/platform.ts');
+    expect(PLATFORM).toMatch(/MediaLibrary\.requestPermissionsAsync\(true, \['photo'\]\)/);
+    // The library's own read ask is a different question and stays as it was.
+    const LIBRARY = read('src/library.ts');
+    expect(LIBRARY).toMatch(/requestPermissionsAsync\(false, \['photo'\]\)/);
   });
 
   it('says what has happened to a photograph, and nothing when nothing has', () => {

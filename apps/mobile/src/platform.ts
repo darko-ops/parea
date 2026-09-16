@@ -441,7 +441,28 @@ export async function saveToCameraRoll(
   urls: { id: string; url: string; mime: string }[],
   onProgress: (done: number, total: number) => void,
 ): Promise<{ saved: number; failed: number }> {
-  const permission = await MediaLibrary.requestPermissionsAsync(false, ['photo']);
+  /*
+   * Write-only, which is all this does.
+   *
+   * It asked for the whole library — `writeOnly: false` — to put one file
+   * into it, and that was wrong twice over. It contradicted the deliberate
+   * shape of `library.ts`, where read access is an upgrade offered only after
+   * somebody has contributed once and the app works without it; and on iOS the
+   * two are separate authorisations, so anybody who had declined that upgrade
+   * could never save a photograph again. The request came back `granted:
+   * false` and the alert said "Try again in a moment" for as long as they were
+   * willing to.
+   *
+   * `true` maps to `PHAccessLevel.addOnly`, which iOS tracks apart from
+   * read-write and will prompt for on its own. Somebody who has already
+   * granted the full library is covered by it and sees nothing.
+   *
+   * Safe for `Asset.create`, which is the thing that runs under it: the native
+   * side performs a change request and takes the id off
+   * `placeholderForCreatedAsset`. It never fetches the asset back, which is
+   * the operation add-only would refuse.
+   */
+  const permission = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
   if (!permission.granted) throw new Error('Permission to save photos was declined.');
 
   let saved = 0;
