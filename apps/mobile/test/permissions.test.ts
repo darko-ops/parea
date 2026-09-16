@@ -132,3 +132,66 @@ describe('permissions', () => {
     }
   });
 });
+
+/**
+ * Nothing calls a media-library method that exists and throws.
+ *
+ * `expo-media-library` 57 kept every legacy name exported from the package
+ * root and replaced each body with `throw errorOnLegacyMethodUse(...)`. So
+ * `MediaLibrary.createAssetAsync(uri)` type-checks, resolves at import, and
+ * fails at the moment somebody presses the button — which is how saving a
+ * photograph to the camera roll came to be broken for everyone while the code
+ * still read as correct.
+ *
+ * It hid inside a `try` that turns any throw into a failed *file* rather than
+ * a failed feature. That is right for the bulk save — one unreachable
+ * photograph out of two hundred should not end the download — and it meant a
+ * dead API read exactly like a network problem: "Try again in a moment", about
+ * something no amount of trying would fix.
+ *
+ * ## Derived, like the rest of this file
+ *
+ * The list of dead names is read out of the package's own compiled
+ * `legacyWarnings`, so a future version that retires more of them is caught on
+ * the upgrade rather than whenever somebody next presses the control. There is
+ * nothing here for anyone to remember to update.
+ */
+describe('the media library API the app actually calls', () => {
+  const dead = (() => {
+    const js = readFileSync(
+      fileURLToPath(new URL('../../../node_modules/expo-media-library/build/legacyWarnings.js', import.meta.url).href),
+      'utf8',
+    );
+    return [...js.matchAll(/export async function (\w+)\(/g)].map((m) => m[1]!);
+  })();
+
+  it('found the package’s list of methods that throw', () => {
+    // A guard on the guard: if the package reorganises and this comes back
+    // empty, every assertion below would pass by describing nothing.
+    expect(dead).toContain('createAssetAsync');
+    expect(dead.length).toBeGreaterThan(5);
+  });
+
+  it('calls none of them', () => {
+    const sources = ['App.tsx', 'src/platform.ts', 'src/library.ts'].map((name) => ({
+      name,
+      text: readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8'),
+    }));
+    for (const { name, text } of sources) {
+      // Comments stripped: the note beside the fixed call names the method it
+      // replaced, and prose about a dead API is not a call to one.
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const method of dead) {
+        expect(`${name}: ${code.includes(`MediaLibrary.${method}(`)}`).toBe(`${name}: false`);
+      }
+    }
+  });
+
+  it('saves through the API that replaced it', () => {
+    const platform = readFileSync(
+      fileURLToPath(new URL('../src/platform.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(platform).toMatch(/await MediaLibrary\.Asset\.create\(target\.uri\)/);
+  });
+});

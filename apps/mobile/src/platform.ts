@@ -455,7 +455,23 @@ export async function saveToCameraRoll(
       const target = new File(Paths.cache, `parea-${entry.id}${extensionFor(entry.mime)}`);
       if (target.exists) target.delete();
       await File.downloadFileAsync(entry.url, target);
-      await MediaLibrary.createAssetAsync(target.uri);
+      /*
+       * `Asset.create`, not `createAssetAsync`.
+       *
+       * The old name is still exported from the package root in
+       * expo-media-library 57 and is a stub whose entire body throws —
+       * "@deprecated … This method will throw in runtime". So every save
+       * failed, for everybody, at the last step: the file downloaded, the
+       * permission was granted, and the alert said "Try again in a moment"
+       * about something no amount of trying would fix.
+       *
+       * Worth knowing how it hid. The call is inside a `try` that turns any
+       * throw into a failed *file* rather than a failed feature, which is
+       * right for the bulk save — one unreachable photograph out of two
+       * hundred should not end the download — and it meant a dead API read
+       * exactly like a network problem.
+       */
+      await MediaLibrary.Asset.create(target.uri);
       target.delete();
       saved++;
     } catch {
