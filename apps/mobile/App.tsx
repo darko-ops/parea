@@ -989,6 +989,7 @@ export default function App() {
                 // actor can already open — and never off a group.
                 events={events}
                 t={t}
+                dark={dark}
                 active={tab === 'chats'}
                 waiting={waiting}
                 onOpenLately={() => setRoute({ screen: 'lately' })}

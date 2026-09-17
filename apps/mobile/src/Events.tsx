@@ -1005,6 +1005,7 @@ export function ChatsTab({
   events,
   t,
   active,
+  dark,
   onOpenGroupThread,
   onOpenEventThread,
   onGoToEvents,
@@ -1023,6 +1024,8 @@ export function ChatsTab({
   onCreateGroup: () => void;
   Button: ButtonComponent;
   active: boolean;
+  /** For the trough behind the two tabs, which has no token in the theme. */
+  dark: boolean;
   onOpenGroupThread: (group: MyGroupDetail) => void;
   onOpenEventThread: (event: EventListing) => void;
   onGoToEvents: () => void;
@@ -1033,6 +1036,23 @@ export function ChatsTab({
   const [starting, setStarting] = useState(false);
   /** What is being looked for on this tab, if anything. */
   const [query, setQuery] = useState('');
+  /*
+   * Which of the two the tab is showing.
+   *
+   * They were stacked: every group chat, then every album's comments under a
+   * second heading. Two lists that grow at different rates and for different
+   * reasons — a handful of groups that changes about never, and one row per
+   * album anybody has spoken in, which is one row per evening forever. So the
+   * short list sat on top of the long one and pushed it off the screen, and
+   * the second heading was reachable only by scrolling past the first list
+   * entirely.
+   *
+   * Not reset on leaving the tab, unlike the query below. A search is
+   * something somebody is in the middle of; which half of their conversations
+   * they were last reading is a place, and coming back to a different one is
+   * the tab moving under them.
+   */
+  const [side, setSide] = useState<'chats' | 'comments'>('chats');
 
   const load = useCallback(async () => {
     setGroups(await api.myGroupsDetailed().catch(() => []));
@@ -1140,6 +1160,31 @@ export function ChatsTab({
 
   const nothing = groups.length === 0 && albumChats.length === 0 && looking === '';
 
+  /*
+   * What each tab says about itself.
+   *
+   * Two different numbers depending on what somebody is doing. Normally it is
+   * how much is waiting — the reason to press the tab you are not on. While a
+   * search is running it is how many matched, because otherwise a search that
+   * found nothing on this side and four on the other side looks, from here,
+   * exactly like a search that found nothing at all.
+   */
+  const waitingIn = (rooms: { unreadCount: number }[]) =>
+    rooms.reduce((n, room) => n + room.unreadCount, 0);
+  const sides: { id: 'chats' | 'comments'; label: string; count: number }[] = [
+    {
+      id: 'chats',
+      label: 'Chats',
+      count: looking ? groupChats.length : waitingIn(groupChats),
+    },
+    {
+      id: 'comments',
+      label: 'Comments',
+      count: looking ? albumChats.length : waitingIn(albumChats),
+    },
+  ];
+  const showing = side === 'chats' ? groupChats : albumChats;
+
   return (
     <ScrollView
       contentContainerStyle={styles.groupsScroll}
@@ -1212,6 +1257,51 @@ export function ChatsTab({
         </View>
       )}
 
+      {/*
+        Two tabs, where two headings used to stack.
+
+        The trough-and-pill the album's own panes use, said in words rather
+        than glyphs: there is no picture for "the conversations about my
+        albums" that anybody would read correctly, and at two items there is
+        room for the words.
+
+        The number on a tab is what is waiting on it, which is the reason to
+        press the one you are not on — and, while a search is running, how many
+        matched instead. Without that second behaviour a search finding nothing
+        here and four on the other side looks exactly like a search finding
+        nothing at all.
+      */}
+      {!nothing && (
+        <View style={[styles.sides, { backgroundColor: dark ? '#ffffff14' : '#eef0f4' }]}>
+          {sides.map(({ id, label, count }) => {
+            const on = side === id;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => setSide(id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={
+                  count > 0
+                    ? `${label}, ${count} ${looking ? 'matching' : 'waiting'}`
+                    : label
+                }
+                style={[styles.sideTab, on && [styles.sideTabOn, { backgroundColor: t.card }]]}
+              >
+                <Text
+                  style={[styles.sideText, on && styles.sideTextOn, { color: on ? t.fg : t.dim }]}
+                >
+                  {label}
+                </Text>
+                {count > 0 && (
+                  <Text style={[styles.sideCount, { color: on ? t.accent : t.dim }]}>{count}</Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {nothing ? (
         /*
          * Where conversations come from, rather than a control that cannot
@@ -1236,29 +1326,40 @@ export function ChatsTab({
       ) : (
         <>
           {/*
-            The standing conversations, above the ones about a single evening.
+            One list, whichever tab is showing.
 
-            Every group, spoken in or not. A group is a handful of people who
-            keep turning up and there are a handful of groups; a silent one is
-            a room somebody might be the first to say something in, and hiding
-            it until they have would mean going to Find to start.
+            The rows are the same shape on both sides — a tile, a name, and the
+            last thing said — because a group's chat and an album's comments
+            are two kinds of room and one kind of row. What differs is the tile
+            and what a tap opens: a letter on the group's own colour, or the
+            album's cover.
+
+            Every group is listed, spoken in or not. There are a handful of
+            them and a silent one is a room somebody might be the first to
+            speak in; hiding it until they had would mean going to Find to
+            start. Albums are listed only where somebody has spoken, because
+            there are hundreds of them and a page of "nobody has said anything"
+            is a page of nothing.
           */}
-          {groupChats.length > 0 && (
+          {showing.length > 0 && (
             <View style={{ gap: 2 }}>
-              <Text style={[styles.sectionLabel, { color: t.dim }]}>GROUP CHATS</Text>
-              {groupChats.map((group, i) => {
-                const lens = lensFor(group.id);
+              {showing.map((room, i) => {
+                const group = side === 'chats' ? (room as MyGroupDetail) : null;
+                const album = side === 'chats' ? null : (room as EventListing);
+                const lens = lensFor(room.id);
                 return (
                   <Pressable
-                    key={group.id}
-                    onPress={() => onOpenGroupThread(group)}
+                    key={room.id}
+                    onPress={() =>
+                      group ? onOpenGroupThread(group) : onOpenEventThread(album!)
+                    }
                     accessibilityRole="button"
-                    accessibilityLabel={`${group.name}, conversation`}
+                    accessibilityLabel={`${room.name}, conversation`}
                     style={({ pressed }) => [
                       styles.chatRow,
                       // No rule under the last one: a divider at the foot of a
                       // list is a line under nothing.
-                      i < groupChats.length - 1 && {
+                      i < showing.length - 1 && {
                         borderBottomWidth: 1,
                         borderBottomColor: t.line,
                       },
@@ -1266,27 +1367,48 @@ export function ChatsTab({
                     ]}
                   >
                     {/*
-                      A letter on the group's own colour, hashed from its id and
-                      the same on every screen and every device. Never a
-                      photograph: a group has no picture of its own, and
-                      borrowing one out of an evening inside it would put
-                      something from a room on the way in to it.
+                      An album leads with its cover. A group never does: it has
+                      no picture of its own, and borrowing one out of an evening
+                      inside it would put something from a room on the way in to
+                      it. So a group is a letter on the colour its id hashes to,
+                      the same on every screen and every device.
                     */}
-                    <View
-                      style={[styles.chatThumb, styles.chatLetter, { backgroundColor: lens.fill }]}
-                    >
-                      <Text style={[styles.chatInitial, { color: lens.ink }]}>
-                        {initialOf(group.name)}
-                      </Text>
-                    </View>
+                    {album?.cover ? (
+                      <Image
+                        source={{ uri: album.cover.src }}
+                        style={[styles.chatThumb, { backgroundColor: t.line }]}
+                        contentFit="cover"
+                        transition={120}
+                      />
+                    ) : group ? (
+                      <View
+                        style={[styles.chatThumb, styles.chatLetter, { backgroundColor: lens.fill }]}
+                      >
+                        <Text style={[styles.chatInitial, { color: lens.ink }]}>
+                          {initialOf(room.name)}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.chatThumb, { backgroundColor: lens.fill }]} />
+                    )}
                     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                       <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                        {group.name}
+                        {room.name}
                       </Text>
+                      {/*
+                        A count on a group and a dot on an album's comments: a
+                        group is busy and the number is the useful part, where a
+                        comment board is usually one or two lines and a number
+                        there is precision nobody asked for.
+
+                        And only a group says so when it is silent. An album
+                        with nothing said is not in this list at all.
+                      */}
                       <ConversationLine
-                        line={group}
-                        fallback="Nobody has said anything yet."
+                        line={room}
+                        fallback={group ? 'Nobody has said anything yet.' : undefined}
                         t={t}
+                        dot={!group}
                       />
                     </View>
                   </Pressable>
@@ -1296,74 +1418,32 @@ export function ChatsTab({
           )}
 
           {/*
-            And the conversations about one evening.
-
-            Talk, not chats, and that is the whole of the second fix.
-
-            This heading read GROUP CHATS once, over exactly this list — the
-            groups' own threads were not on the tab at all, they were the last
-            line of a block. Correcting it to ALBUM CHATS fixed which rows were
-            under it and invented a third name for the thread: an album calls
-            this Talk on its own tab, and a line of it anchored to a
-            photograph used to be called a comment.
-
-            There are two threads in this product, not three. A photo comment
-            is a line in the album's thread carrying a `photo_id` — the same
-            table, the same unread count, filtered. So there are two words:
-            chat is what you have with people, talk is what you have about a
-            night, and a photograph shows the part of that talk about it.
+            And what an empty side says, which is not the same sentence as an
+            empty tab.
           */}
-          {albumChats.length > 0 && (
-            <View style={{ gap: 2 }}>
-              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM COMMENTS</Text>
-              {albumChats.map((event, i) => (
-                <Pressable
-                  key={event.id}
-                  onPress={() => onOpenEventThread(event)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${event.name}, conversation`}
-                  style={({ pressed }) => [
-                    styles.chatRow,
-                    i < albumChats.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: t.line,
-                    },
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  {event.cover ? (
-                    <Image
-                      source={{ uri: event.cover.src }}
-                      style={[styles.chatThumb, { backgroundColor: t.line }]}
-                      contentFit="cover"
-                      transition={120}
-                    />
-                  ) : (
-                    <View style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]} />
-                  )}
-                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                    <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                      {event.name}
-                    </Text>
-                    <ConversationLine line={event} t={t} dot />
-                  </View>
-                </Pressable>
-              ))}
-            </View>
+          {looking === '' && showing.length === 0 && (
+            <Text style={[styles.body, { color: t.dim }]}>
+              {side === 'chats'
+                ? 'You are not in any groups yet. Find is where they live — the ones you are in, and a way to look for the ones you are not.'
+                : 'Nothing said about an album yet. Every album has a comment board, and the first thing anybody says opens it.'}
+            </Text>
           )}
 
           {/*
-            Said once, for both sections at once.
+            When a search finds nothing on the side you are looking at.
 
-            A search that matches nothing should say so rather than leaving a
-            head, a field and an empty page — which reads as the tab having
-            failed to load rather than as an answer.
+            A head, a field and an empty page reads as the tab having failed to
+            load rather than as an answer. And it says whether the other tab
+            has any, because that tab's own number already says how many — this
+            is the sentence that sends somebody to look at it.
           */}
-          {looking !== '' && groupChats.length === 0 && albumChats.length === 0 && (
+          {looking !== '' && showing.length === 0 && (
             <Text style={[styles.body, { color: t.dim }]}>
-              Nothing here matches “{query.trim()}”. This searches the chats and
-              the comment boards you are part of — the groups themselves are on
-              Find.
+              Nothing in your {side === 'chats' ? 'chats' : 'comments'} matches “
+              {query.trim()}”.{' '}
+              {(side === 'chats' ? albumChats.length : groupChats.length) > 0
+                ? `Your ${side === 'chats' ? 'comments' : 'chats'} have some.`
+                : 'The groups themselves are on Find.'}
             </Text>
           )}
         </>
@@ -2768,6 +2848,33 @@ const styles = StyleSheet.create({
   /* The one-off evenings, under a label rather than a heading: they are the
      minor half of this screen and a 30pt title would say otherwise. */
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  /* --- the two halves of this tab ----------------------------------------
+
+     The trough-and-pill the album's own panes use, to the same metrics — one
+     control said twice in the product should not be two slightly different
+     shapes. Words rather than glyphs because there is no picture for "the
+     conversations about my albums" anybody would read correctly, and at two
+     items there is room for words. */
+  sides: { flexDirection: 'row', gap: 4, borderRadius: 10, padding: 3 },
+  sideTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  sideTabOn: {
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  sideText: { fontSize: 15 },
+  sideTextOn: { fontWeight: '600' },
+  sideCount: { fontSize: 13, fontWeight: '700' },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred
