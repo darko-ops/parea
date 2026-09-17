@@ -63,7 +63,7 @@ import {
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
-import { AccountCard, GroupsTab, HomeTab, SearchTab } from './src/Events';
+import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
 import { ContributeChoice } from './src/ContributeChoice';
 import { CoverFramer, type CoverFraming } from './src/CoverFramer';
 import { CreateEvent } from './src/CreateEvent';
@@ -137,7 +137,7 @@ type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
  * was a card inside You, under the name field — which put the thing the
  * product treats as persistent identity in a drawer with the settings.
  */
-type Tab = 'home' | 'groups' | 'search' | 'profile';
+type Tab = 'home' | 'chats' | 'search' | 'profile';
 
 /**
  * Which pane of an event is up — its photographs, its conversation, or who is
@@ -972,7 +972,7 @@ export default function App() {
                 onCreate={() => setRoute({ screen: 'pick' })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateGroup={() => {
-                  setTab('groups');
+                  setTab('search');
                   setMakeGroup((n) => n + 1);
                 }}
                 // The join screen's only way in, now that the pill above the tab
@@ -981,29 +981,61 @@ export default function App() {
               />
             </Pane>
           )}
-          {visited.has('groups') && (
-            <Pane showing={tab === 'groups'}>
-              <GroupsTab
+          {visited.has('chats') && (
+            <Pane showing={tab === 'chats'}>
+              <ChatsTab
                 api={api}
-                // The covers under each group's name come off this list — the
-                // albums this actor can already open — and never off the group.
-                // See the note at the top of `GroupsTab`.
+                // The album conversations come off this list — the albums this
+                // actor can already open — and never off a group.
                 events={events}
                 t={t}
-                active={tab === 'groups'}
+                active={tab === 'chats'}
+                waiting={waiting}
+                onOpenLately={() => setRoute({ screen: 'lately' })}
+                onCreateAlbum={() => setRoute({ screen: 'pick' })}
+                /*
+                 * Making a group happens on Find, which is where the groups
+                 * are. This hands the tab over and asks it to open the page.
+                 */
+                onCreateGroup={() => {
+                  setTab('search');
+                  setMakeGroup((n) => n + 1);
+                }}
+                Button={Button}
+                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
+                // The album, opened on the conversation rather than on the
+                // photographs — the one entry point allowed to ask for that.
+                onOpenEventThread={(listing) => {
+                  void open(listing, 'talk');
+                }}
+                onGoToEvents={() => setTab('home')}
+              />
+            </Pane>
+          )}
+          {visited.has('search') && (
+            <Pane showing={tab === 'search'}>
+              <SearchTab
+                api={api}
+                events={events}
+                t={t}
+                active={tab === 'search'}
                 openCreate={makeGroup}
                 waiting={waiting}
+                onOpen={openListing}
+                onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
+                onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
                 onCreateAlbum={() => setRoute({ screen: 'pick' })}
                 onCreateGroup={() => {
                   /*
                    * Spent on the way in, and that is the whole of this fix.
                    *
-                   * `makeGroup` is how a `+` on Home or You asks this tab to
+                   * `makeGroup` is how a `+` on another tab asks this one to
                    * open the page — a counter, because pressing `+` twice has
                    * to open it twice. But the tabs are drawn only while the
                    * route is `tabs`, so pushing this page unmounts them, and
-                   * coming back mounts them again: the effect below reran on a
+                   * coming back mounts them again: the effect reran on a
                    * counter still standing at one and pushed the page straight
                    * back over the tab it had just returned to.
                    *
@@ -1022,34 +1054,6 @@ export default function App() {
                   })
                 }
                 Button={Button}
-                onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
-                // The album, opened on the conversation rather than on the
-                // photographs — the one entry point allowed to ask for that.
-                onOpenEventThread={(listing) => {
-                  void open(listing, 'talk');
-                }}
-                onGoToEvents={() => setTab('home')}
-              />
-            </Pane>
-          )}
-          {visited.has('search') && (
-            <Pane showing={tab === 'search'}>
-              <SearchTab
-                api={api}
-                events={events}
-                t={t}
-                waiting={waiting}
-                onOpen={openListing}
-                onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-                onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
-                onOpenLately={() => setRoute({ screen: 'lately' })}
-                onCreateAlbum={() => setRoute({ screen: 'pick' })}
-                onCreateGroup={() => {
-                  setTab('groups');
-                  setMakeGroup((n) => n + 1);
-                }}
-                Button={Button}
               />
             </Pane>
           )}
@@ -1065,7 +1069,7 @@ export default function App() {
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateEvent={() => setRoute({ screen: 'pick' })}
                 onCreateGroup={() => {
-                  setTab('groups');
+                  setTab('search');
                   setMakeGroup((n) => n + 1);
                 }}
                 onSignedIn={() => {
@@ -1121,7 +1125,7 @@ export default function App() {
               {(
                 [
                   ['home', 'photos', 'Albums'],
-                  ['groups', 'group', 'Groups'],
+                  ['chats', 'group', 'Chats'],
                   ['search', 'search', 'Find'],
                   ['profile', 'profile', 'You'],
                 ] as [Tab, GlyphName, string][]

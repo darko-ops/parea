@@ -46,7 +46,7 @@ describe('the door', () => {
      */
     expect(HEAD).toMatch(/<Glyph name="envelope"/);
     expect(code(APP)).not.toMatch(/type Tab = [^;]*'lately'/);
-    expect(APP).toMatch(/type Tab = 'home' \| 'groups' \| 'search' \| 'profile'/);
+    expect(APP).toMatch(/type Tab = 'home' \| 'chats' \| 'search' \| 'profile'/);
   });
 
   it('is in the same corner of every tab, not only the one that listed it', () => {
@@ -64,7 +64,7 @@ describe('the door', () => {
       .toHaveLength(3);
     expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(3);
     // And each `+` is the head's `left`, which is the leading corner.
-    for (const tab of ['HomeTab', 'GroupsTab', 'SearchTab']) {
+    for (const tab of ['HomeTab', 'ChatsTab', 'SearchTab']) {
       const body = EVENTS.slice(EVENTS.indexOf(`export function ${tab}`));
       const head = body.slice(body.indexOf('<PageHead'), body.indexOf('/>', body.indexOf('right={')));
       expect(head.indexOf('left={'), tab).toBeLessThan(head.indexOf('right={'));

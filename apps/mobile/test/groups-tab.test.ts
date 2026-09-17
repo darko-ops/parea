@@ -1,5 +1,12 @@
 /**
- * The Groups tab, and the two rules about it that look like omissions.
+ * The groups, and the two rules about them that look like omissions.
+ *
+ * They had a tab of their own until recently, above the conversations going on
+ * inside them. They are a section of Find now — the page whose whole subject is
+ * locating a room, showing the ones you are in above a field for the ones you
+ * are not — and the tab they used to share is the conversations alone. So the
+ * slice these assertions run over is `SearchTab`, and everything they were
+ * protecting is unchanged by the move.
  *
  * **There is no Create group button.** `POST /api/groups` requires a
  * `fromEventId` and refuses without one, because a group is something you
@@ -42,19 +49,19 @@ describe('the tab', () => {
     // The bar carries a glyph between the tab and its label now — the label
     // survives as the accessibility name, which is what these look for.
     const events = APP.indexOf("['home', 'photos', 'Albums']");
-    const groups = APP.indexOf("['groups', 'group', 'Groups']");
+    const chats = APP.indexOf("['chats', 'group', 'Chats']");
     const find = APP.indexOf("['search', 'search', 'Find']");
-    expect(groups).toBeGreaterThan(-1);
-    expect(events).toBeLessThan(groups);
-    expect(groups).toBeLessThan(find);
+    expect(chats).toBeGreaterThan(-1);
+    expect(events).toBeLessThan(chats);
+    expect(chats).toBeLessThan(find);
   });
 
   it('is one of the four the Tab type allows', () => {
     // A tab bar entry with no matching branch renders an empty screen, which
     // typechecking would catch — this catches the reverse, a branch nobody can
     // reach because the bar never offers it.
-    expect(APP).toMatch(/type Tab = 'home' \| 'groups' \| 'search' \| 'profile'/);
-    expect(APP).toMatch(/tab === 'groups'/);
+    expect(APP).toMatch(/type Tab = 'home' \| 'chats' \| 'search' \| 'profile'/);
+    expect(APP).toMatch(/tab === 'chats'/);
   });
 
   it('does not leave a second copy of the list inside You', () => {
@@ -66,17 +73,34 @@ describe('the tab', () => {
   });
 });
 
-describe('what the screen may do', () => {
-  const tab = EVENTS.slice(
-    EVENTS.indexOf('export function GroupsTab'),
-    EVENTS.indexOf('export function SearchTab'),
-  );
+/**
+ * A slice that refuses to be empty.
+ *
+ * `indexOf` answers -1 for a name that has been renamed, and `slice(-1, n)`
+ * then reads something other than the thing under test — quietly, and every
+ * assertion over it passes. That has happened twice in this suite.
+ */
+/**
+ * Source with its line wrapping taken out.
+ *
+ * Almost every sentence a person reads in this app is a JSX text node, and
+ * Prettier breaks those wherever the column runs out — so a regex for a phrase
+ * fails on the copy being *reflowed*, which changes nothing anybody sees. Two
+ * assertions in this suite have been fixed by hand for exactly that.
+ */
+const flat = (source: string) => source.replace(/\s+/g, ' ');
 
-  it('found the tab at all', () => {
-    // Every assertion below is over this slice, and a rename upstream would
-    // empty it and pass all of them silently.
-    expect(tab).not.toBe('');
-  });
+function between(source: string, from: string, to: string): string {
+  const start = source.indexOf(from);
+  const end = source.indexOf(to, start + 1);
+  if (start < 0) throw new Error(`no ${from}`);
+  if (end < 0) throw new Error(`no ${to} after ${from}`);
+  return source.slice(start, end);
+}
+
+describe('what the screen may do', () => {
+  // Find, which is where the groups live. See the note at the top.
+  const tab = between(EVENTS, 'export function SearchTab', 'function Result(');
 
   it('offers to create a group, beside the people it would be made with', () => {
     /*
@@ -89,7 +113,7 @@ describe('what the screen may do', () => {
      * the clusters beside it is the thing that was refused, so the guard is
      * that the screen reads them.
      */
-    expect(tab).toMatch(/New group/);
+    expect(tab).toMatch(/<StartSomething/);
     expect(tab).toMatch(/api\.clusters\(\)/);
     expect(tab).toMatch(/<ClusterCard/);
   });
@@ -102,8 +126,8 @@ describe('what the screen may do', () => {
   });
 
   it('says where groups come from when there is nothing to recognise', () => {
-    expect(EVENTS).toMatch(/You are not in any groups yet/);
-    expect(EVENTS).toMatch(/Groups are for the people who keep turning up/);
+    expect(flat(EVENTS)).toMatch(/You are not in any groups yet/);
+    expect(flat(EVENTS)).toMatch(/Groups are for the people who keep turning up/);
   });
 
   it('draws the door as a letter, never as a photograph', () => {
@@ -112,11 +136,7 @@ describe('what the screen may do', () => {
      * group's name is a letter on the lens colour its id hashes to, and
      * nothing about a group is ever drawn from a picture.
      */
-    const block = EVENTS.slice(
-      EVENTS.indexOf('function GroupBlock'),
-      EVENTS.indexOf('const COVER_STRIP'),
-    );
-    expect(block).not.toBe('');
+    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
     expect(block).toMatch(/groupTile/);
     expect(block).toMatch(/lensFor\(group\.id\)/);
   });
@@ -143,10 +163,7 @@ describe('what the screen may do', () => {
      * album list, or a person's own avatar. A photograph reaching this screen
      * under any other name fails here.
      */
-    const block = EVENTS.slice(
-      EVENTS.indexOf('function GroupBlock'),
-      EVENTS.indexOf('const COVER_STRIP'),
-    );
+    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
     // `!` allowed in the path: the tiles are filtered on `album.cover` before
     // they are drawn, so the assertion inside the map is not a second check.
     const sources = [...block.matchAll(/uri:\s*([A-Za-z.?!]+)/g)].map((m) => m[1]);
@@ -169,7 +186,7 @@ describe('what the screen may do', () => {
     // group's photographs because it never asks anybody for any.
     expect(tab).toMatch(/events: EventListing\[\]/);
     expect(tab).not.toMatch(/mosaic|coverUrl/);
-    expect(APP).toMatch(/<GroupsTab[\s\S]{0,400}events=\{events\}/);
+    expect(APP).toMatch(/<SearchTab[\s\S]{0,400}events=\{events\}/);
   });
 });
 

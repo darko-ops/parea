@@ -231,7 +231,7 @@ describe('what the `+` makes', () => {
      * The tab no longer unfolds a form; it opens the page, which is the one
      * place a group is made from any entry point.
      */
-    expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
+    expect(APP).toMatch(/setTab\('search'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
     expect(APP).toMatch(/openCreate=\{makeGroup\}/);
     expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
   });

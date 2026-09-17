@@ -944,65 +944,37 @@ export function HomeTab({
  */
 
 /**
- * The rooms you are in, drawn as what is in them.
+ * Every conversation this person is in, and nothing else.
  *
- * This was a directory: a letter tile, a name, a line of counts, repeated. A
- * list of rooms with no photographs in it, on a tab of a product whose whole
- * subject is photographs — so the one screen that should have made somebody
- * want to open a group looked like a settings list of them.
+ * This tab used to be two things at once: the rooms you are in, drawn as
+ * blocks of covers, *and* the talk going on in them. The rooms have moved to
+ * Find — see `SearchTab` — and what is left is the thing the tab was always
+ * being used as.
  *
- * Each group is now its evenings: three recent covers under its name, and how
- * many more there are on the third one. The name and the date of the newest
- * event are the line under it, because "Sunday roast, added to 2 days ago,
- * Ana's birthday" is what tells you whether there is anything new in there.
+ * The split is not tidiness. A group block was a name, a strip of three covers
+ * and one line of conversation, about a hundred points each, so three groups
+ * filled the screen and the album chats began below the fold. The talk was
+ * underneath the furniture. And a group's own thread appeared only as the last
+ * line of its block, which is why the section heading beneath could say GROUP
+ * CHATS over a list that contained none of them.
  *
- * ## The door is still a letter
+ * ## Two kinds of room, one kind of row
  *
- * The tile beside the name is a letter on the group's lens colour, hashed from
- * its id, and it stays that way: a group has no picture of its own, and giving
- * it one out of an event inside it would put a photograph from a room on the
- * thing that is merely the way in.
+ * A group's chat is the standing one — the people who keep turning up, talking
+ * between evenings. An album's chat is about a particular night. They are
+ * different enough to be sections and similar enough to be the same row: a
+ * tile, a name, and the last thing said.
  *
- * The strip below it is not that, and the difference is where the pictures
- * come from. Those covers are read off `events` — this actor's own listing,
- * the albums they can already open — and never off the group. So a group shows
- * somebody the evenings *they* were at, three at a time; somebody who was
- * never in one of its events, or who has since been removed from it, has no
- * listing for it and sees an empty slot where that cover would be. The server
- * is not asked for a group's photographs and does not answer with any.
- *
- * ## Groups are made here, and what makes that safe
- *
- * This tab used to refuse a create action outright, and the argument was good:
- * a group is something you notice afterwards, and an empty group you then have
- * to fill is a distribution problem with no photographs in it.
- *
- * What changed is not the argument but what sits beside the button — the
- * people this actor keeps ending up in the same events as, from
- * `/api/groups/clusters`. Creating is confirming a set of people who already
- * exist rather than inventing one. The suggestion is one quiet line above a
- * rule now rather than a card: it is a remark about the list above it, and a
- * bordered box gave it the weight of a room you are already in.
- *
- * The roll-up from an event has not gone anywhere; it is still in the event's
- * `⋯` sheet and still the only path that moves an event under a group.
+ * Every group is listed, spoken in or not. There are a handful of them and a
+ * silent one is a room you might be the first to say something in. Albums are
+ * listed only where somebody has spoken, because there are hundreds of them
+ * and a list of "Nobody has said anything yet" is a list of nothing.
  */
-/**
- * How many group blocks the tab opens with.
- *
- * Each is a name, a strip of covers and a line of conversation — about a
- * hundred points — so this is the number that fits under the heading without
- * pushing the one-off conversations off the screen entirely.
- */
-const GROUPS_SHOWN = 3;
-
-export function GroupsTab({
+export function ChatsTab({
   api,
   events,
   t,
-  openCreate = 0,
   active,
-  onOpenGroup,
   onOpenGroupThread,
   onOpenEventThread,
   onGoToEvents,
@@ -1010,94 +982,30 @@ export function GroupsTab({
   onOpenLately,
   onCreateAlbum,
   onCreateGroup,
-  onCreateGroupFrom,
   Button,
 }: {
   api: Api;
-  /**
-   * This actor's own albums, for the covers under each group's name.
-   *
-   * Passed in rather than fetched: the tabs already hold this list, and it is
-   * the list of what this person can reach — which is exactly the bound that
-   * makes drawing a photograph here safe. See the note at the top.
-   */
   events: EventListing[];
   t: TabTheme;
-  /**
-   * Bumped by somebody who asked to make a group from another tab.
-   *
-   * A counter rather than a boolean: the profile's `+` can be pressed twice,
-   * and the second press has to open the form again after the first was
-   * cancelled — which a flag that is already `true` cannot say. The form
-   * itself stays here because this is where the suggestions are.
-   */
-  openCreate?: number;
-  /**
-   * How many things are waiting on an answer, for the badge on the envelope.
-   *
-   * Held above this screen and passed down, because the count is a fact about
-   * the account rather than about this tab: it has to survive the tab being
-   * unmounted, and it has to be re-read when something is answered on the
-   * screen the envelope opens.
-   */
   waiting: number;
   onOpenLately: () => void;
-  /** The picker, for the half of `+` that makes an evening rather than a room. */
   onCreateAlbum: () => void;
-  /** The page that makes a group. Opened with nobody chosen. */
   onCreateGroup: () => void;
-  /** The same page, holding the people a cluster suggested. */
-  onCreateGroupFrom: (cluster: Cluster) => void;
-  /** The app's one button, for the sheet the `+` opens. */
   Button: ButtonComponent;
-  /**
-   * Whether this tab is the one in front.
-   *
-   * Kept-alive tabs do not refetch on their own, and this one has the most to
-   * go stale: a group made from the profile's `+`, an event rolled into a
-   * group, somebody else saying something in one. Returning re-reads quietly —
-   * `load` never clears what it holds, so the rooms stay on screen while the
-   * fresh answer is on its way.
-   */
   active: boolean;
-  onOpenGroup: (groupId: string) => void;
-  /** A group's own conversation, which is not the same place as the group. */
   onOpenGroupThread: (group: MyGroupDetail) => void;
-  /** An event's conversation — the album, opened on its Talk pane. */
   onOpenEventThread: (event: EventListing) => void;
-  /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
-  const [clusters, setClusters] = useState<Cluster[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  /*
-   * Which card is open as a form, or `'anyone'` for the one `New group` opens
-   * with nobody in it. One at a time: two half-filled forms on one screen is
-   * two things to cancel and a question about which Create belongs to which.
-   */
-
-  /**
-   * Whether the list is showing all of them or the first few.
-   *
-   * Resets when the tab is left, which is deliberate: expanding is a thing you
-   * do to find one room, not a preference about how this screen looks. Coming
-   * back to a page scrolled past six group blocks is the state it was expanded
-   * to get out of.
-   */
-  const [allGroups, setAllGroups] = useState(false);
-  /** The `+` sheet, the same one Home and You open. */
+  /** The `+` sheet, the same one Home and Find open. */
   const [starting, setStarting] = useState(false);
   /** What is being looked for on this tab, if anything. */
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
-    const [mine, found] = await Promise.all([
-      api.myGroupsDetailed().catch(() => []),
-      api.clusters().catch(() => ({ clusters: [], also: [] })),
-    ]);
-    setGroups(mine);
-    setClusters(found.clusters);
+    setGroups(await api.myGroupsDetailed().catch(() => []));
   }, [api]);
 
   // On arrival, and on every return to the tab. Not on the switches away.
@@ -1105,20 +1013,8 @@ export function GroupsTab({
     if (active) void load();
   }, [active, load]);
 
-  /*
-   * Collapsed again once the tab is left.
-   *
-   * The state above says this happens and, until this effect, it did not — the
-   * tabs stay mounted, so nothing was ever unmounting it. Left as a comment
-   * describing behaviour the code did not have, which is worse than no comment.
-   *
-   * `active` stays true while a screen is pushed over the tab, so opening a
-   * group and coming back keeps the list as it was. It collapses only when
-   * somebody genuinely goes elsewhere.
-   */
   useEffect(() => {
     if (!active) {
-      setAllGroups(false);
       // A search is something somebody is in the middle of, not a setting.
       // Leaving the tab and coming back should be this tab, not the last thing
       // typed into it — a stale query hides most of the screen on arrival with
@@ -1127,77 +1023,18 @@ export function GroupsTab({
     }
   }, [active]);
 
-  // Zero is the value nobody asked with — the tab opening normally, rather
-  // than somebody arriving on it holding a press.
-  useEffect(() => {
-    if (openCreate > 0) onCreateGroup();
-    // `onCreateGroup` is a route change and is stable; including it would fire
-    // this on every render of the shell above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openCreate]);
-
   const refresh = useCallback(async () => {
     setRefreshing(true);
     await load();
     setRefreshing(false);
   }, [load]);
 
-  /** This actor's albums, filed under the group they belong to, newest first. */
-  const byGroup = useMemo(() => {
-    const map = new Map<string, EventListing[]>();
-    for (const event of events) {
-      if (!event.groupId) continue;
-      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
-    }
-    return map;
-  }, [events]);
-
-  /*
-   * Every album somebody has spoken in, newest conversation first.
-   *
-   * Sorted by when something was last *said*. A list of conversations ordered
-   * by upload time puts a silent album full of photographs above the one
-   * somebody is talking in, which is the wrong answer on a tab about talking.
-   *
-   * ## Only the ones somebody has actually spoken in
-   *
-   * These used to list whether or not anything had been said, on the argument
-   * that an empty chat is a door and hiding it until somebody speaks means
-   * nobody ever does. In practice it filled the section with rows reading
-   * "Nobody has said anything yet" — a list of absences under a heading that
-   * promises conversations. The door is still the album's own Talk tab.
-   *
-   * ## Including the ones inside a group
-   *
-   * This filtered grouped albums out, on the argument that their talk "belongs
-   * under the group" and listing it twice would make the busiest rooms the
-   * noisiest part of a screen meant to be scanned. The premise was wrong.
-   *
-   * A group's row shows *the group's own thread* — `ConversationLine` is fed
-   * the group, not an album in it. So an album inside a group has a
-   * conversation that appears nowhere on this tab: not on its group's row,
-   * which is talking about something else, and not here. Four messages in an
-   * evening and the only way back to them was to remember which album it was
-   * and open its Talk tab.
-   *
-   * Nothing is listed twice, because the two lines were never the same line.
-   */
-  /**
-   * The three most recently added to, unless somebody asked for the rest.
-   *
-   * `lastActiveAt` is null for a group nothing has happened in yet, and those
-   * go last rather than first — an empty room is the least useful thing this
-   * screen can lead with.
-   */
   /*
    * Searching this tab, over what it already holds.
    *
-   * Local rather than a round trip: every group and every album on this screen
-   * is in memory by the time it draws, and asking the server would cost the
-   * one thing that makes a search field feel like one — that the list narrows
+   * Local rather than a round trip: every conversation on this screen is in
+   * memory by the time it draws, and asking the server would cost the one
+   * thing that makes a search field feel like one — that the list narrows
    * while you type rather than a moment after you stop.
    *
    * It reads what was last *said* as well as the names. Somebody looking for a
@@ -1212,47 +1049,56 @@ export function GroupsTab({
     [looking],
   );
 
-  const shown = useMemo(() => {
-    const ordered = [...(groups ?? [])].sort((a, b) =>
-      (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
-    );
-    const found = ordered.filter((group) =>
-      matches(group.name, group.lastMessage?.body, group.lastMessage?.author),
-    );
-    /*
-     * The three-and-a-button cap is about a long list nobody asked to see.
-     * Somebody searching asked, so a fourth match held behind "Show all" would
-     * be a search that found something and did not say so.
-     */
-    if (looking) return found;
-    return allGroups ? found : found.slice(0, GROUPS_SHOWN);
-  }, [allGroups, groups, looking, matches]);
+  /*
+   * The standing conversations, by when something was last said in them.
+   *
+   * A group nobody has spoken in has no message to sort by and goes last,
+   * behind every group that has one — `lastActiveAt` would sort it by album
+   * activity, which is the other tab's subject and not this one's.
+   */
+  const groupChats = useMemo(
+    () =>
+      (groups ?? [])
+        .filter((group) =>
+          matches(group.name, group.lastMessage?.body, group.lastMessage?.author),
+        )
+        .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? '')),
+    [groups, matches],
+  );
 
-  const loose = useMemo(
+  /*
+   * Every album somebody has spoken in, newest conversation first.
+   *
+   * Sorted by when something was last *said*. A list of conversations ordered
+   * by upload time puts a silent album full of photographs above the one
+   * somebody is talking in, which is the wrong answer on a tab about talking.
+   *
+   * Grouped albums are here too, and not only the one-offs. An album inside a
+   * group has a conversation that belongs to that evening rather than to the
+   * room, and holding it back left it reachable only by remembering which
+   * album it was and opening its Talk tab.
+   */
+  const albumChats = useMemo(
     () =>
       events
         .filter((event) => event.lastMessage != null)
         .filter((event) =>
           matches(event.name, event.lastMessage?.body, event.lastMessage?.author),
         )
-        // By when something was last said. No fallback needed now that a row
-        // without a message is not a row.
         .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
     [events, matches],
   );
 
   /*
-   * The whole screen, or none of it.
+   * Nothing at all until every part of this page can be drawn at once.
    *
-   * The spinner used to sit under the heading, so the first paint was a title
-   * and two discs with an empty space below them, and the page proper arrived a
-   * round trip later. Two arrivals for one screen — and the heading is the part
-   * that tells you where you are, so it landed first and then sat above nothing
-   * while you waited.
+   * The album chats are built from `events`, a prop the tabs already hold, so
+   * they would be on screen a round trip before the group chats above them —
+   * the minor half of the tab arriving first, with the rest dropping in on top
+   * and pushing down whatever somebody had started reading.
    *
    * Only ever the first paint. `load` never puts `groups` back to null, so
-   * coming back to the tab redraws the page it had and fills in behind it,
-   * rather than blanking the screen on every switch.
+   * coming back to the tab redraws the page it had and fills in behind it.
    */
   if (groups === null) {
     return (
@@ -1262,48 +1108,30 @@ export function GroupsTab({
     );
   }
 
+  const nothing = groups.length === 0 && albumChats.length === 0 && looking === '';
+
   return (
     <ScrollView
       contentContainerStyle={styles.groupsScroll}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
     >
       {/*
-        The same head every tab has, with its controls in the same corners.
-
-        It said "Your Parea" at 30 points, chosen over "Groups" because the tab
-        holds the rooms and the conversations and the word for all of that is
-        the one the product is named after. Both were the same mistake at
-        different volumes: a line naming the tab you just pressed, above the
-        rooms you pressed it to reach. The bar already says where you are.
-
-        The envelope used to be here and nowhere else, beside the `+`. Both
-        have moved: making is on the left of the name on every tab, answering
-        is on the right.
+        The same head every tab has, with its controls in the same corners:
+        making on the left of the name, answering on the right.
       */}
       <PageHead
         color={t.fg}
         left={
-          /*
-            The `+`'s place is held even when the `+` is not there.
-
-            It is hidden while the groups are still arriving, and on a cold
-            open this row is the first thing on the screen — a control that
-            appears half a second late, in a row that lays out around it, is a
-            control somebody reaches for and misses.
-          */
-          groups !== null ? (
-            <RoundButton
-              t={t}
-              onPress={() => setStarting(true)}
-              accessibilityLabel="New album or group"
-            >
-              <Glyph name="plus" size={20} color={t.fg} />
-            </RoundButton>
-          ) : (
-            <View style={styles.roundSlot} />
-          )
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
         }
         right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
       />
@@ -1321,26 +1149,22 @@ export function GroupsTab({
       {/*
         The same field Find has, because it is the same gesture.
 
-        Hidden when there is nothing yet to search: on a tab holding no rooms
-        and no conversations, a search box is a control that cannot succeed,
-        sitting above the paragraph explaining that there is nothing here.
-
-        `search` rather than `default` as the return key, and no
-        autocorrect — this matches names people chose and words people typed,
-        neither of which a dictionary should be allowed an opinion about.
+        Hidden where there is nothing to search: on a tab with no rooms and no
+        conversations it is a control that cannot succeed, sitting above the
+        paragraph explaining why there is nothing here.
       */}
-      {(groups.length > 0 || loose.length > 0 || looking !== '') && (
+      {!nothing && (
         <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
           <Glyph name="search" size={17} color={t.dim} />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search your groups and chats"
+            placeholder="Search your conversations"
             placeholderTextColor={t.dim}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            accessibilityLabel="Search your groups and chats"
+            accessibilityLabel="Search your conversations"
             style={[styles.fieldText, { color: t.fg }]}
           />
           {query !== '' && (
@@ -1358,30 +1182,18 @@ export function GroupsTab({
         </View>
       )}
 
-      {/*
-        The event chats are built from `events`, a prop the tabs already hold,
-        so they would be on screen a round trip before the groups they sit
-        beneath — the minor half of this tab arriving first and the rooms
-        dropping in above it, pushing down whatever somebody had started
-        reading. The early return above is what stops that: nothing at all
-        until every part of this page can be drawn at once.
-      */}
-      {groups.length === 0 && clusters.length === 0 ? (
+      {nothing ? (
         /*
-          Where groups come from, rather than a control that cannot work.
-          Somebody here with none has not failed at anything — they have not
-          yet had the second evening with the same people, which is the moment
-          a group is for.
-        */
+         * Where conversations come from, rather than a control that cannot
+         * work. Somebody here with none has not failed at anything — they have
+         * not shared an evening yet, which is where every thread in this
+         * product starts.
+         */
         <View style={{ gap: 12 }}>
-          <Text style={[styles.label, { color: t.fg }]}>
-            You are not in any groups yet.
-          </Text>
+          <Text style={[styles.label, { color: t.fg }]}>No conversations yet.</Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            Groups are for the people who keep turning up — once you have shared
-            a couple of albums with the same faces, they show up here ready to
-            keep together. Nothing to go on yet, so the button above is the way
-            to start one.
+            Every album has a thread, and so does every group. Share an evening
+            with somebody and this is where the talking about it lives.
           </Text>
           <Pressable
             onPress={onGoToEvents}
@@ -1393,185 +1205,130 @@ export function GroupsTab({
         </View>
       ) : (
         <>
-          {shown.map((group) => (
-            <GroupBlock
-              key={group.id}
-              group={group}
-              albums={byGroup.get(group.id) ?? []}
-              t={t}
-              onPress={() => onOpenGroup(group.id)}
-              onOpenThread={() => onOpenGroupThread(group)}
-            />
-          ))}
+          {/*
+            The standing conversations, above the ones about a single evening.
+
+            Every group, spoken in or not. A group is a handful of people who
+            keep turning up and there are a handful of groups; a silent one is
+            a room somebody might be the first to say something in, and hiding
+            it until they have would mean going to Find to start.
+          */}
+          {groupChats.length > 0 && (
+            <View style={{ gap: 2 }}>
+              <Text style={[styles.sectionLabel, { color: t.dim }]}>GROUP CHATS</Text>
+              {groupChats.map((group, i) => {
+                const lens = lensFor(group.id);
+                return (
+                  <Pressable
+                    key={group.id}
+                    onPress={() => onOpenGroupThread(group)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${group.name}, conversation`}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      // No rule under the last one: a divider at the foot of a
+                      // list is a line under nothing.
+                      i < groupChats.length - 1 && {
+                        borderBottomWidth: 1,
+                        borderBottomColor: t.line,
+                      },
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    {/*
+                      A letter on the group's own colour, hashed from its id and
+                      the same on every screen and every device. Never a
+                      photograph: a group has no picture of its own, and
+                      borrowing one out of an evening inside it would put
+                      something from a room on the way in to it.
+                    */}
+                    <View
+                      style={[styles.chatThumb, styles.chatLetter, { backgroundColor: lens.fill }]}
+                    >
+                      <Text style={[styles.chatInitial, { color: lens.ink }]}>
+                        {initialOf(group.name)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
+                        {group.name}
+                      </Text>
+                      <ConversationLine
+                        line={group}
+                        fallback="Nobody has said anything yet."
+                        t={t}
+                      />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
           {/*
-            The rest, behind a word.
+            And the conversations about one evening.
 
-            A group block is a name, a strip of covers and a line of
-            conversation — a hundred points of screen each — so somebody in
-            eight groups scrolled past six of them to reach the one-off
-            conversations underneath, every time. Three is what fits above the
-            fold beside the heading, and three is also about how many rooms
-            anybody is actually in this week.
-
-            Ordered by `lastActiveAt`, so the three are the ones most recently
-            added to rather than the three oldest, which is what an unsorted
-            list from the server happened to give.
-
-            Expanded in place rather than on a screen of its own: the full list
-            is this same list, and pushing a second copy of it would mean two
-            places where a group block is drawn.
+            This heading read GROUP CHATS once, over exactly this list — the
+            groups' own threads were not on the tab at all, they were the last
+            line of a block. It is the two sections it always claimed to be.
           */}
-          {!looking && groups.length > shown.length && (
-            <Pressable
-              onPress={() => setAllGroups(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`All groups, ${groups.length}`}
-              style={({ pressed }) => [styles.allGroups, { borderColor: t.line, opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Text style={[styles.allGroupsText, { color: t.fg }]}>
-                All groups
-              </Text>
-              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{groups.length}</Text>
-            </Pressable>
+          {albumChats.length > 0 && (
+            <View style={{ gap: 2 }}>
+              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM CHATS</Text>
+              {albumChats.map((event, i) => (
+                <Pressable
+                  key={event.id}
+                  onPress={() => onOpenEventThread(event)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${event.name}, conversation`}
+                  style={({ pressed }) => [
+                    styles.chatRow,
+                    i < albumChats.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: t.line,
+                    },
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  {event.cover ? (
+                    <Image
+                      source={{ uri: event.cover.src }}
+                      style={[styles.chatThumb, { backgroundColor: t.line }]}
+                      contentFit="cover"
+                      transition={120}
+                    />
+                  ) : (
+                    <View style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]} />
+                  )}
+                  <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
+                      {event.name}
+                    </Text>
+                    <ConversationLine line={event} t={t} dot />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/*
+            Said once, for both sections at once.
+
+            A search that matches nothing should say so rather than leaving a
+            head, a field and an empty page — which reads as the tab having
+            failed to load rather than as an answer.
+          */}
+          {looking !== '' && groupChats.length === 0 && albumChats.length === 0 && (
+            <Text style={[styles.body, { color: t.dim }]}>
+              Nothing here matches “{query.trim()}”. This searches the
+              conversations you are part of — the groups themselves are on Find.
+            </Text>
           )}
         </>
-      )}
-
-      {/*
-        The conversations that belong to no group.
-
-        An evening with the same six people every month becomes a group and its
-        talk moves under that group's block. An evening that never will — a
-        wedding, somebody's leaving do, the one barbecue — still has a thread,
-        and before this it was reachable only by remembering which album it was
-        inside. This is the other half of "one tab for every conversation".
-
-        Grouped albums are here too. They were held back on the grounds that
-        their talk belongs under the group — but a group's row carries the
-        group's own thread, so an album's conversation had nowhere at all to
-        appear. See `loose` above.
-      */}
-      {loose.length > 0 && (
-        <View style={{ gap: 2 }}>
-          {/*
-            What this section holds, which is not what it used to say.
-
-            It read GROUP CHATS, over a list of *album* conversations — the
-            groups' own threads are on their blocks above, one line each. So
-            the tab had a heading promising the one thing under it that was not
-            there, and the question it produced was the obvious one: why are my
-            groups' chats not in the group chats.
-
-            "EVENT CHATS" was rejected here once and stays rejected — `event`
-            is the schema's word and no reader of this product sees it. The
-            reader's word for the thing these belong to is album.
-          */}
-          <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM CHATS</Text>
-          {loose.map((event, i) => (
-            <Pressable
-              key={event.id}
-              onPress={() => onOpenEventThread(event)}
-              accessibilityRole="button"
-              accessibilityLabel={`${event.name}, conversation`}
-              style={({ pressed }) => [
-                styles.chatRow,
-                // No rule under the last one: a divider at the foot of a list
-                // is a line under nothing.
-                i < loose.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.line },
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              {event.cover ? (
-                <Image
-                  source={{ uri: event.cover.src }}
-                  style={[styles.chatThumb, { backgroundColor: t.line }]}
-                  contentFit="cover"
-                  transition={120}
-                />
-              ) : (
-                <View
-                  style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]}
-                />
-              )}
-              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                  {event.name}
-                </Text>
-                <ConversationLine line={event} t={t} dot />
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {/*
-        Said once, for both lists at once.
-
-        A search that matches nothing should say so rather than leaving a head,
-        a field and an empty page — which reads as the tab having failed to
-        load rather than as an answer.
-      */}
-      {looking !== '' && shown.length === 0 && loose.length === 0 && (
-        <Text style={[styles.body, { color: t.dim }]}>
-          Nothing here matches “{query.trim()}”. This searches the groups you
-          are in and the conversations you are part of — Find is where the
-          groups you are not in live.
-        </Text>
-      )}
-
-      {/*
-        What the product noticed, as one line at the foot of everything it
-        already knows about.
-
-        Below the conversations rather than between them. It is the one thing
-        on this tab that is a suggestion rather than a room somebody is
-        already in, and sitting it between the groups and the event chats put
-        an offer in the middle of a list of places — which read as a break in
-        the list rather than as a remark about it.
-
-        Never more than two, and a cluster whose people are already gathered
-        in one of these groups is dropped by the server — which is what lets
-        this stay without needing a way to dismiss it.
-      */}
-      {/*
-        A cluster opens the same page the `+` does, holding its people and its
-        suggested name. It used to unfold a form in its place, which meant two
-        ways to make a group with two layouts and two sets of copy — and the
-        one reachable from a suggestion was the one that could not search.
-      */}
-      {!looking &&
-        clusters.map((cluster) => (
-          <ClusterCard
-            key={cluster.key}
-            cluster={cluster}
-            onMake={() => onCreateGroupFrom(cluster)}
-            t={t}
-          />
-        ))}
-
-      {/*
-        Where the other kind of group is. Discovery lives on Find and stays
-        there — this tab is the rooms you are in, and a second list of rooms
-        you are not would make it two screens wearing one title.
-      */}
-      {!looking && groups.length > 0 && (
-        <Text style={[styles.small, { color: t.dim, paddingTop: 6 }]}>
-          Looking for one you are not in? Find searches groups that have chosen
-          to be findable — you would still be asking to be let in.
-        </Text>
       )}
     </ScrollView>
   );
 }
-
-/**
- * One group: its door, its evenings, and what has just happened in it.
- *
- * Three blocks of one thing rather than a row — the covers are the reason this
- * screen exists now, and a strip 96 points tall is a photograph where a 44pt
- * thumbnail beside a name was a bullet point.
- */
 function GroupBlock({
   group,
   albums,
@@ -1800,6 +1557,15 @@ function ConversationLine({
 const COVER_STRIP = 3;
 
 /**
+ * How many group blocks Find opens with.
+ *
+ * Each is a name, a strip of covers and a line of conversation — about a
+ * hundred points — so this is the number that fits under the search field
+ * before somebody is scrolling past their own rooms to reach the box.
+ */
+const GROUPS_SHOWN = 3;
+
+/**
  * Find — one field, scoped by chips.
  *
  * It was three bordered cards, each with a heading, each with a paragraph of
@@ -1837,24 +1603,38 @@ export function SearchTab({
   waiting,
   onOpen,
   onOpenGroup,
+  onOpenGroupThread,
   onOpenPerson,
   onOpenLately,
   onCreateAlbum,
   onCreateGroup,
+  onCreateGroupFrom,
+  active,
+  openCreate = 0,
   Button,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
+  /** Whether this is the tab on screen. The rooms below are reloaded on arrival. */
+  active: boolean;
   /** How many things are waiting on an answer, for the badge on the envelope. */
   waiting: number;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
+  onOpenGroupThread: (group: MyGroupDetail) => void;
   onOpenPerson: (handle: string) => void;
   onOpenLately: () => void;
   /** The `+`'s two halves. Nothing is made until one of them is picked. */
   onCreateAlbum: () => void;
   onCreateGroup: () => void;
+  onCreateGroupFrom: (cluster: Cluster) => void;
+  /**
+   * A counter, bumped when a `+` on another tab asks this one to open the
+   * make-a-group page. Zero is the value nobody asked with — the tab opening
+   * normally, rather than somebody arriving on it holding a press.
+   */
+  openCreate?: number;
   Button: ButtonComponent;
 }) {
   const [starting, setStarting] = useState(false);
@@ -1862,6 +1642,49 @@ export function SearchTab({
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
   const [people, setPeople] = useState<InvitablePerson[]>([]);
+
+  /*
+   * The rooms this person is already in, which is what this page is when
+   * nobody is searching it.
+   *
+   * They were a tab of their own, sitting above the conversations going on
+   * inside them — so the talk began below the fold, and one tab carried two
+   * subjects under one name. Here they are the resting state of the page whose
+   * whole job is finding a room: the ones you have, and a field for the ones
+   * you do not.
+   *
+   * Null until the first answer, which is how this tells "still asking" from
+   * "none" — the difference between a spinner and a paragraph about what
+   * groups are for.
+   */
+  const [mine, setMine] = useState<MyGroupDetail[] | null>(null);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [allGroups, setAllGroups] = useState(false);
+
+  const loadMine = useCallback(async () => {
+    const [rooms, found] = await Promise.all([
+      api.myGroupsDetailed().catch(() => []),
+      api.clusters().catch(() => ({ clusters: [], also: [] })),
+    ]);
+    setMine(rooms);
+    setClusters(found.clusters);
+  }, [api]);
+
+  // On arrival, and on every return to the tab. Not on the switches away.
+  useEffect(() => {
+    if (active) void loadMine();
+  }, [active, loadMine]);
+
+  useEffect(() => {
+    if (!active) setAllGroups(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (openCreate > 0) onCreateGroup();
+    // `onCreateGroup` is a route change and is stable; including it would fire
+    // this on every render of the shell above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreate]);
 
   /**
    * One box, and which namespace it is asking is the chip.
@@ -1902,6 +1725,33 @@ export function SearchTab({
 
   const unplaced = events.filter((event) => !event.place).length;
   const asked = query.trim().length >= 2;
+
+  /** This actor's albums, filed under the group they belong to, newest first. */
+  const byGroup = useMemo(() => {
+    const map = new Map<string, EventListing[]>();
+    for (const event of events) {
+      if (!event.groupId) continue;
+      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+    }
+    return map;
+  }, [events]);
+
+  /*
+   * The three most recently added to, unless somebody asked for the rest.
+   *
+   * `lastActiveAt` is null for a group nothing has happened in yet, and those
+   * go last rather than first — an empty room is the least useful thing this
+   * section can lead with.
+   */
+  const rooms = useMemo(() => {
+    const ordered = [...(mine ?? [])].sort((a, b) =>
+      (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
+    );
+    return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
+  }, [allGroups, mine]);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -1996,6 +1846,102 @@ export function SearchTab({
           );
         })}
       </View>
+
+      {/*
+        Your own rooms, under the box that finds other people's.
+
+        Only while nobody is searching. A query on this page has an answer, and
+        leaving an unrelated list of rooms beneath that answer would make the
+        one thing on screen that did not match the tallest thing on screen —
+        somebody searching "ana" wants the two people called Ana, not the two
+        people and a hundred points of Fam Jam.
+
+        So this is the page at rest: the groups you have, and a field for the
+        ones you do not.
+      */}
+      {!asked && mine === null && (
+        <View style={styles.groupsLoading}>
+          <Waiting size={40} />
+        </View>
+      )}
+
+      {!asked && mine !== null && (
+        <>
+          {mine.length > 0 && (
+            <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
+          )}
+
+          {rooms.map((group) => (
+            <GroupBlock
+              key={group.id}
+              group={group}
+              albums={byGroup.get(group.id) ?? []}
+              t={t}
+              onPress={() => onOpenGroup(group.id)}
+              onOpenThread={() => onOpenGroupThread(group)}
+            />
+          ))}
+
+          {/*
+            The rest, behind a word.
+
+            A group block is a name, a strip of covers and a line of
+            conversation — a hundred points of screen each — so somebody in
+            eight groups would scroll past six of them to reach the bottom of
+            their own page. Three is about how many rooms anybody is in this
+            week, and expanding in place rather than on a screen of its own
+            keeps one place where a group block is drawn.
+          */}
+          {mine.length > rooms.length && (
+            <Pressable
+              onPress={() => setAllGroups(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`All groups, ${mine.length}`}
+              style={({ pressed }) => [
+                styles.allGroups,
+                { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={[styles.allGroupsText, { color: t.fg }]}>All groups</Text>
+              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{mine.length}</Text>
+            </Pressable>
+          )}
+
+          {/*
+            What the product noticed, at the foot of the rooms it already knows
+            about. Never more than two, and a cluster whose people are already
+            gathered in one of these groups is dropped by the server — which is
+            what lets this stay without needing a way to dismiss it.
+
+            A cluster opens the same page the `+` does, holding its people and
+            its suggested name.
+          */}
+          {clusters.map((cluster) => (
+            <ClusterCard
+              key={cluster.key}
+              cluster={cluster}
+              onMake={() => onCreateGroupFrom(cluster)}
+              t={t}
+            />
+          ))}
+
+          {mine.length === 0 && clusters.length === 0 && (
+            /*
+              Where groups come from, rather than a control that cannot work.
+              Somebody here with none has not failed at anything — they have
+              not yet had the second evening with the same people, which is the
+              moment a group is for.
+            */
+            <Text style={[styles.body, { color: t.dim }]}>
+              You are not in any groups yet. Groups are for the people who keep
+              turning up — once you have shared a couple of albums with the same
+              faces, they show up here ready to keep together. The box above
+              finds the ones that have chosen to be findable; you would still be
+              asking to be let in.
+            </Text>
+          )}
+        </>
+      )}
 
       <View style={styles.results}>
         {scope === 'people' &&
@@ -2765,6 +2711,11 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
+  /* The same square an album's cover fills, holding a letter instead. Centred
+     and set larger than the 28pt tile on a group block: the glyph is sized to
+     its tile, not to the product. */
+  chatLetter: { alignItems: 'center', justifyContent: 'center' },
+  chatInitial: { fontSize: 17, fontWeight: '600' },
   chatName: { fontSize: 15, fontWeight: '600' },
   /* --- Find -------------------------------------------------------------
      One field, three chips, and rows under a hairline. Everything here

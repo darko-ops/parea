@@ -25,12 +25,37 @@ const API = read('src/api.ts');
 const THREAD = read('src/Thread.tsx');
 const GROUP_THREAD = read('src/GroupThread.tsx');
 
+const flat = (source: string) => source.replace(/\s+/g, ' ');
+
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-const TAB = code(
-  EVENTS.slice(EVENTS.indexOf('export function GroupsTab'), EVENTS.indexOf('function GroupBlock')),
-);
+/**
+ * A slice that refuses to be empty. `indexOf` answers -1 for a renamed anchor
+ * and `slice` then reads something other than the thing under test — silently,
+ * with every assertion over it passing.
+ */
+function between(source: string, from: string, to: string): string {
+  const start = source.indexOf(from);
+  const end = source.indexOf(to, start + 1);
+  if (start < 0) throw new Error(`no ${from}`);
+  if (end < 0) throw new Error(`no ${to} after ${from}`);
+  return source.slice(start, end);
+}
+
+/** The Chats tab: every conversation, and nothing else. */
+const TAB = code(between(EVENTS, 'export function ChatsTab', 'function GroupBlock'));
+
+/**
+ * Find, which is where the rooms themselves went.
+ *
+ * The two used to be one tab — the groups drawn as blocks of covers, with the
+ * talk going on in them underneath. That put a hundred points of furniture per
+ * group above the conversations, and left a group's own thread appearing only
+ * as the last line of its block. So the rooms are the resting state of the page
+ * whose subject is finding a room, and the tab they left is the talking.
+ */
+const FIND = code(between(EVENTS, 'export function SearchTab', 'function Result('));
 
 describe('which conversations appear', () => {
   it('lists every album somebody has spoken in, group or no group', () => {
@@ -63,14 +88,18 @@ describe('which conversations appear', () => {
 
   it('puts the suggestion at the foot, below the rooms', () => {
     /*
-     * A cluster is the one thing on this tab that is a suggestion rather than
-     * a room somebody is already in. Between the groups and the event chats it
-     * read as a break in the list of places rather than as a remark about it.
+     * A cluster is the one thing on the page that is a suggestion rather than a
+     * room somebody is already in. Above the rooms it would be an offer over a
+     * list of places; it belongs after them, as a remark about them.
+     *
+     * It followed the groups to Find, because a suggestion to make a group is
+     * only useful beside the groups.
      */
-    const order = ['shown.map((group)', 'ALBUM CHATS', 'clusters.map((cluster)'];
-    const at = order.map((needle) => TAB.indexOf(needle));
+    const order = ['rooms.map((group)', 'All groups', 'clusters.map((cluster)'];
+    const at = order.map((needle) => FIND.indexOf(needle));
     expect(at.every((i) => i > -1)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
+    expect(TAB).not.toMatch(/<ClusterCard/);
   });
 
   it('leaves out an event nobody has spoken in', () => {
@@ -121,7 +150,14 @@ describe('what the tab is called', () => {
      */
     expect(TAB).toMatch(/>ALBUM CHATS</);
     expect(TAB).not.toMatch(/EVENT CHATS/);
-    expect(TAB).not.toMatch(/GROUP CHATS</);
+    /*
+     * And GROUP CHATS is now a heading over the group chats, which is what it
+     * always said it was. The two sections are the fix: the groups' threads
+     * were never in this list — they were the last line of a block in a tab
+     * that has since become Find.
+     */
+    expect(TAB).toMatch(/>GROUP CHATS</);
+    expect(TAB.indexOf('GROUP CHATS')).toBeLessThan(TAB.indexOf('ALBUM CHATS'));
   });
 });
 
@@ -143,15 +179,17 @@ describe('the tab arrives in one piece', () => {
      * before the buttons, before anything.
      */
     const gate = TAB.indexOf('if (groups === null) {');
+    expect(gate).toBeGreaterThan(-1);
     const tree = TAB.indexOf('<ScrollView');
     expect(gate).toBeGreaterThan(-1);
     expect(tree).toBeGreaterThan(gate);
     // Including the head, which is the part this moved. It was the "Your
     // Parea" heading; it is the wordmark row now, and the rule is the same.
     expect(TAB.indexOf('<PageHead')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
     expect(TAB.indexOf('ALBUM CHATS')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('shown.map((group)')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('groupChats.map((group')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('albumChats.map((event')).toBeGreaterThan(gate);
   });
 
   it('blanks the screen on the first paint only', () => {
@@ -161,7 +199,7 @@ describe('the tab arrives in one piece', () => {
      * cleared on every refetch would flash the title away on every tab switch,
      * which is a worse version of the problem it was written for.
      */
-    expect(TAB).toMatch(/setGroups\(mine\)/);
+    expect(TAB).toMatch(/setGroups\(await api\.myGroupsDetailed\(\)/);
     expect(TAB).not.toMatch(/setGroups\(null\)/);
   });
 });
@@ -171,7 +209,9 @@ describe('one conversation, as one line', () => {
     // A group block and an event-chat row are the same sentence about two
     // kinds of room; written twice they drift.
     expect(EVENTS).toMatch(/function ConversationLine\(/);
-    expect(EVENTS.match(/<ConversationLine/g) ?? []).toHaveLength(2);
+    // Three: a group's row and an album's row on Chats, and the foot of a
+    // group block on Find.
+    expect(EVENTS.match(/<ConversationLine/g) ?? []).toHaveLength(3);
   });
 
   it('carries unread in the ink as well as in the badge', () => {
@@ -202,8 +242,11 @@ describe('where a row goes', () => {
   it('separates the room from its conversation', () => {
     // The block is the group — its people and its evenings. The line at the
     // foot is the talk, which is a different screen.
-    expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroup\(group\.id\)\}/);
-    expect(TAB).toMatch(/onOpenThread=\{\(\) => onOpenGroupThread\(group\)\}/);
+    expect(FIND).toMatch(/onPress=\{\(\) => onOpenGroup\(group\.id\)\}/);
+    expect(FIND).toMatch(/onOpenThread=\{\(\) => onOpenGroupThread\(group\)\}/);
+    // And on Chats a group's row is only ever the conversation — the room
+    // itself is a page you reach from Find.
+    expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroupThread\(group\)\}/);
   });
 
   it('opens an event chat on the conversation rather than the photographs', () => {
@@ -311,24 +354,24 @@ describe('what the server had to grow', () => {
 describe('the first three', () => {
   it('draws three, then a way to the rest', () => {
     expect(EVENTS).toMatch(/const GROUPS_SHOWN = 3;/);
-    expect(TAB).toMatch(/found\.slice\(0, GROUPS_SHOWN\)/);
-    expect(TAB).toMatch(/>\s*All groups\s*</);
+    expect(FIND).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
+    expect(FIND).toMatch(/>\s*All groups\s*</);
     // And no button when there is nothing behind it.
-    expect(TAB).toMatch(/groups\.length > shown\.length && \(/);
+    expect(FIND).toMatch(/mine\.length > rooms\.length && \(/);
   });
 
   it('picks the three most recently added to, not the first three it was sent', () => {
     // An unsorted list from the server is arbitrary from this screen's point of
     // view, and "the three you last did something in" is the only ordering that
     // makes a cut of three worth having.
-    expect(TAB).toMatch(/b\.lastActiveAt \?\? ''\)\.localeCompare\(a\.lastActiveAt \?\? ''\)/);
+    expect(FIND).toMatch(/b\.lastActiveAt \?\? ''\)\.localeCompare\(a\.lastActiveAt \?\? ''\)/);
   });
 
   it('opens in place rather than pushing another screen', () => {
     // The full list is this same list. A second screen would be a second place
     // where a group block is drawn.
-    expect(TAB).toMatch(/setAllGroups\(true\)/);
-    expect(TAB).toMatch(/allGroups \? found : found\.slice/);
+    expect(FIND).toMatch(/setAllGroups\(true\)/);
+    expect(FIND).toMatch(/allGroups \? ordered : ordered\.slice/);
   });
 });
 
@@ -363,36 +406,33 @@ describe('finding one', () => {
     expect(TAB).toMatch(/!looking \|\| fields\.some/);
   });
 
-  it('shows every match rather than the first three', () => {
-    /*
-     * The three-and-a-button cap exists for a long list nobody asked to see.
-     * Somebody searching asked — a fourth match held behind "All groups" is a
-     * search that found something and did not say so.
-     */
-    expect(TAB).toMatch(/if \(looking\) return found;/);
-    expect(TAB).toMatch(/\{!looking && groups\.length > shown\.length/);
-  });
-
-  it('drops the suggestions while a search is on', () => {
-    // A cluster is an offer, not an answer. Leaving it under a query makes the
-    // one thing on screen that did not match the loudest thing on screen.
-    expect(TAB).toMatch(/\{!looking &&\s*clusters\.map\(\(cluster\)/);
-    expect(TAB).toMatch(/\{!looking && groups\.length > 0 && \(/);
+  it('searches both sections at once', () => {
+    // One field over the whole tab, rather than a field per heading. The
+    // question is "where was that said", and somebody asking it does not
+    // already know whether it was an evening or the room.
+    expect(TAB.match(/<TextInput/g) ?? []).toHaveLength(1);
+    expect(TAB).toMatch(/groupChats = useMemo/);
+    expect(TAB).toMatch(/albumChats = useMemo/);
   });
 
   it('says so when nothing matches', () => {
     // A head, a field and an empty page reads as the tab having failed to
     // load, rather than as an answer.
-    expect(TAB).toMatch(/looking !== '' && shown\.length === 0 && loose\.length === 0/);
+    expect(TAB).toMatch(
+      /looking !== '' && groupChats\.length === 0 && albumChats\.length === 0/,
+    );
     expect(TAB).toMatch(/Nothing here matches/);
     // And points at the one place the thing they want might still be.
-    expect(TAB).toMatch(/Find is where the/);
+    expect(flat(TAB)).toMatch(/the groups themselves are on Find/);
   });
 
   it('does not offer a search where there is nothing to search', () => {
     // On a tab with no rooms and no conversations, a search box is a control
     // that cannot succeed, sitting over the paragraph saying why.
-    expect(TAB).toMatch(/groups\.length > 0 \|\| loose\.length > 0 \|\| looking !== ''/);
+    expect(TAB).toMatch(/\{!nothing && \(/);
+    expect(TAB).toMatch(
+      /const nothing = groups\.length === 0 && albumChats\.length === 0 && looking === ''/,
+    );
   });
 
   it('forgets the query on the way out', () => {

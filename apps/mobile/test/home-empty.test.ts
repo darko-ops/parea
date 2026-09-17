@@ -25,7 +25,7 @@ const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const HOME = code(
-  EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function GroupsTab')),
+  EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab')),
 );
 
 describe('the card the home list draws', () => {
@@ -380,7 +380,7 @@ describe('switching tabs', () => {
      * stays on screen until the new one lands.
      */
     expect(APP).toMatch(/active=\{tab === 'profile'\}/);
-    expect(APP).toMatch(/active=\{tab === 'groups'\}/);
+    expect(APP).toMatch(/active=\{tab === 'chats'\}/);
     for (const source of [PROFILE, EVENTS]) {
       expect(source).toMatch(/if \(active\) void load\(\);/);
     }
@@ -454,7 +454,7 @@ describe('the home list', () => {
      * still be a room you can walk into.
      */
     const GROUPS = code(
-      EVENTS.slice(EVENTS.indexOf('export function GroupsTab'), EVENTS.indexOf('function GroupBlock')),
+      EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock')),
     );
     expect(GROUPS).not.toMatch(/photoCount > 0/);
   });

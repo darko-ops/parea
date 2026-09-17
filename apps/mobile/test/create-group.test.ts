@@ -29,6 +29,11 @@ const FORM = read('src/CreateGroup.tsx');
 const PAGE = read('src/NewGroup.tsx');
 const EVENTS = read('src/Events.tsx');
 const APP = read('App.tsx');
+/** The Chats tab, which is what the old Groups tab became. */
+const CHATS = EVENTS.slice(
+  EVENTS.indexOf('export function ChatsTab'),
+  EVENTS.indexOf('function GroupBlock'),
+);
 const API = read('src/api.ts');
 
 describe('where the clusters come from', () => {
@@ -134,7 +139,7 @@ describe('leaving without making one', () => {
 
   it('still opens again on the next press', () => {
     // Spending it must not disarm the `+`. The counter goes back up.
-    expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
+    expect(APP).toMatch(/setTab\('search'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
     expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
   });
 
@@ -154,15 +159,23 @@ describe('New group', () => {
      * condition does not mention the list's length.
      */
     /*
-     * A ternary, not a guard: the `+` is hidden while the groups are arriving,
-     * and the envelope beside it sits in a row laid out from the right. Without
-     * something holding the place, the envelope was drawn where the `+` belongs
-     * and slid left the moment the groups landed. A control that is somewhere
-     * else for the first half-second is one somebody reaches for and misses.
+     * And the head is not drawn half-formed.
+     *
+     * The `+` used to be hidden while the groups were arriving, with an empty
+     * disc holding its place — because the envelope beside it sits in a row
+     * laid out from the right, so without the placeholder it was drawn where
+     * the `+` belongs and slid left the moment the groups landed. A control
+     * that is somewhere else for the first half-second is one somebody reaches
+     * for and misses.
+     *
+     * The early return is what guarantees that now, and it is the stronger
+     * version of the same rule: nothing on the tab is drawn — not the head,
+     * not the controls — until every part of it can be drawn at once. So there
+     * is no half-second in which a `+` could be missing from a row that has
+     * already laid itself out.
      */
-    expect(EVENTS).toMatch(/groups !== null \? \(/);
-    expect(EVENTS).toMatch(/<View style=\{styles\.roundSlot\} \/>/);
-    expect(EVENTS).toMatch(/roundSlot: \{ width: ROUND, height: ROUND \}/);
+    expect(CHATS).toMatch(/if \(groups === null\) \{/);
+    expect(CHATS.indexOf('if (groups === null)')).toBeLessThan(CHATS.indexOf('<PageHead'));
     expect(EVENTS).not.toMatch(/groups\.length > 0 && [\s\S]{0,80}New group/);
   });
 
@@ -173,7 +186,7 @@ describe('New group', () => {
      * one place and one thing in another, which nobody can learn.
      */
     expect(EVENTS).toMatch(/onPress=\{\(\) => setStarting\(true\)\}[\s\S]{0,120}New album or group/);
-    const tab = EVENTS.slice(EVENTS.indexOf('export function GroupsTab'));
+    const tab = EVENTS.slice(EVENTS.indexOf('export function SearchTab'));
     expect(tab).toMatch(/<StartSomething/);
   });
 

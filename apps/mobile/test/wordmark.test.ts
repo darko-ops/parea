@@ -37,7 +37,7 @@ describe('the name', () => {
     expect(HEAD).toMatch(/<Wordmark color=\{color\}/);
     const home = EVENTS.slice(
       EVENTS.indexOf('export function HomeTab'),
-      EVENTS.indexOf('export function GroupsTab'),
+      EVENTS.indexOf('export function ChatsTab'),
     );
     expect(home).not.toMatch(/>Events</);
   });
@@ -55,8 +55,8 @@ describe('the name', () => {
      * is the half that is not a title: the name of the product.
      */
     for (const [name, source] of [
-      ['Home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function GroupsTab'))],
-      ['Groups', EVENTS.slice(EVENTS.indexOf('export function GroupsTab'), EVENTS.indexOf('function GroupBlock'))],
+      ['Home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab'))],
+      ['Chats', EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock'))],
       ['Find', EVENTS.slice(EVENTS.indexOf('export function SearchTab'), EVENTS.indexOf('function Result('))],
       ['Profile', read('src/Profile.tsx')],
     ] as const) {
