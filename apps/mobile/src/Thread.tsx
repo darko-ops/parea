@@ -329,7 +329,7 @@ export function Thread({
           </>
         ) : (
           <Text style={[styles.error, { color: t.dim }]}>
-            Only people who can add photos can post. Everyone in the event can
+            Only people who can add photos can post. Everyone in the album can
             read it.
           </Text>
         )}

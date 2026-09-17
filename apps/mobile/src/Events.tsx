@@ -866,11 +866,11 @@ export function HomeTab({
       {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           {/* No longer points at `Open a link`, which is not on this screen
-              any more. An event somebody sends you opens itself when you tap
+              any more. An album somebody sends you opens itself when you tap
               it, so the only thing left for this card to offer is the one
               action that is here. */}
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Events you are sent open when you tap the link,
+            Nothing here yet. Albums you are sent open when you tap the link,
             and the ones you make show up here.
           </Text>
           <Button label="Create album" onPress={onCreate} t={t} primary />
@@ -1292,7 +1292,7 @@ export function GroupsTab({
           </Text>
           <Text style={[styles.body, { color: t.dim }]}>
             Groups are for the people who keep turning up — once you have shared
-            a couple of events with the same faces, they show up here ready to
+            a couple of albums with the same faces, they show up here ready to
             keep together. Nothing to go on yet, so the button above is the way
             to start one.
           </Text>
@@ -1987,7 +1987,7 @@ export function SearchTab({
         "and this is what it will never return" means anything.
       */}
       <Text style={[styles.footnote, { color: t.dim }]}>
-        Handles and findable groups only. Events and photos are never
+        Handles and findable groups only. Albums and photos are never
         searchable — the only way into one is being sent it.
       </Text>
     </ScrollView>
@@ -2249,7 +2249,7 @@ export function AccountCard({
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
         <Text style={[styles.body, { color: t.dim }]}>{account.email}</Text>
         <Text style={[styles.small, { color: t.dim }]}>
-          Your events and groups follow you to a new phone. That is all an
+          Your albums and groups follow you to a new phone. That is all an
           account does here.
         </Text>
         {/* Sign out above delete, and only one of them is permanent. Both are

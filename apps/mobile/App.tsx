@@ -3337,7 +3337,7 @@ function EventScreen({
               >
                 <Text style={[styles.body, { color: t.fg }]}>
                   Next time we can find them for you — pick out the photos from
-                  the event so you do not have to scroll. Your photos stay on
+                  the evening so you do not have to scroll. Your photos stay on
                   your phone; only the ones you choose are uploaded.
                 </Text>
                 <Button
@@ -4431,7 +4431,7 @@ function HostSheet({
                 ) : (
                   <>
                     <Text style={[styles.body, { color: t.fg }]}>
-                      Do this often with these people? A group keeps the events
+                      Do this often with these people? A group keeps the albums
                       together, so you only send the link once.
                     </Text>
                     <Button

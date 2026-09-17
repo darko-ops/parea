@@ -179,7 +179,7 @@ export function NewGroup({
           />
           {suggestedName !== '' && (
             <Text style={[styles.hint, { color: t.dim }]}>
-              Suggested from the event you were all at — change it to anything.
+              Suggested from the evening you were all at — change it to anything.
             </Text>
           )}
 

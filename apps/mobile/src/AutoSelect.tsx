@@ -126,7 +126,7 @@ export function AutoSelect({
             {suggestion.confidence === 'low' && suggestion.candidates.length > 0 && (
               <Text style={[styles.body, { color: t.dim }]}>
                 Nothing is selected — we could not tell which of these were from
-                the event, so this is your call rather than ours.
+                the evening, so this is your call rather than ours.
               </Text>
             )}
 

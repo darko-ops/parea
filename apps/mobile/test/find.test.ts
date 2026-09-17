@@ -56,7 +56,10 @@ describe('the shape', () => {
      * what a search returns.
      */
     const foot = TAB.slice(TAB.indexOf('styles.footnote'));
-    expect(foot).toMatch(/Events and photos are never\s*\n?\s*searchable/);
+    // "Albums", not "Events": the schema's word in a sentence a person reads,
+    // which is the half of that rule `wordmark.test.ts` was only checking in
+    // quoted strings.
+    expect(foot).toMatch(/Albums and photos are never\s*\n?\s*searchable/);
     expect(TAB.match(/never\s*\n?\s*searchable|never are/g) ?? []).toHaveLength(1);
   });
 });

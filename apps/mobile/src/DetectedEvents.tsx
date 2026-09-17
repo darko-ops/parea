@@ -114,7 +114,7 @@ export function DetectedEvents({
         <Text style={[styles.label, { color: t.fg }]}>Was it last night?</Text>
         <Text style={[styles.small, { color: t.dim }]}>
           If you let Parea look at your photos, it can find the ones you took
-          together and start the event from them — so nobody has to scroll.
+          together and start the album from them — so nobody has to scroll.
           Nothing is uploaded until you pick it.
         </Text>
         <Pressable

@@ -210,35 +210,62 @@ describe('what left the home screen with it', () => {
  * everybody's messages, and no improvement to anything anybody sees.
  */
 describe('what the product calls an album', () => {
+  /*
+   * Every screen, rather than the nine somebody listed once.
+   *
+   * Four of the strings this suite missed were in files that were not on the
+   * old list at all — `AutoSelect`, `DetectedEvents`, `NewGroup`, `PageHead` —
+   * which is the failure mode of a hand-kept list of things to check: it is
+   * right on the day it is written and silently narrows every time the app
+   * grows a screen.
+   */
   const SCREENS = [
     'App.tsx',
-    'src/Events.tsx',
-    'src/CreateEvent.tsx',
-    'src/Groups.tsx',
-    'src/Person.tsx',
-    'src/Profile.tsx',
-    'src/Thread.tsx',
-    'src/Lately.tsx',
-    'src/InvitePeople.tsx',
+    ...[
+      'AutoSelect.tsx', 'CoverFramer.tsx', 'CreateEvent.tsx', 'CreateGroup.tsx',
+      'DetectedEvents.tsx', 'Door.tsx', 'Events.tsx', 'GroupThread.tsx', 'Groups.tsx',
+      'InvitePeople.tsx', 'Lately.tsx', 'NewGroup.tsx', 'PageHead.tsx', 'Person.tsx',
+      'PhotoViewer.tsx', 'PickPhotos.tsx', 'Profile.tsx', 'StartSomething.tsx',
+      'Thread.tsx',
+    ].map((name) => `src/${name}`),
   ];
 
-  it('says album in every string a person reads', () => {
+  it('says album in every word a person reads', () => {
     /*
-     * Quoted strings only, and identifiers are exempt: `eventId`, `EventListing`
-     * and `/api/events` are the schema's word doing the schema's job, and
-     * renaming those is a different and much larger thing than renaming a
-     * label.
+     * Text a person reads comes in two shapes and this used to check one.
+     *
+     * Quoted strings were covered. JSX text nodes — the words between two tags
+     * — were not, and that is where most of the copy in this app actually
+     * lives. So the home screen's empty state read "Nothing here yet. Events
+     * you are sent open when you tap the link" for as long as anybody cared to
+     * look at it, with eight more like it elsewhere in the app.
+     *
+     * Identifiers stay exempt in both: `eventId`, `EventListing` and
+     * `/api/events` are the schema's word doing the schema's job, and renaming
+     * those is a different and much larger thing than renaming a label.
      */
     for (const name of SCREENS) {
       const source = code(read(name));
+
       // One line at a time: a pattern allowed to cross newlines runs from one
       // code quote to the next and swallows the file between them.
-      const prose = [...source.matchAll(/'([^'\n]*\b[Ee]vents?\b[^'\n]*)'/g)]
+      const strings = [...source.matchAll(/'([^'\n]*\b[Ee]vents?\b[^'\n]*)'/g)]
         .map((m) => m[1]!)
         .filter((text) => / /.test(text))
         // `screen: 'event'` and friends are route names, not sentences.
         .filter((text) => !/^[a-z]+$/.test(text));
-      expect(prose, `${name} still says "event" to somebody`).toEqual([]);
+
+      /*
+       * And the words between two tags. No brace and no angle inside, which is
+       * what keeps this to text and off `pointerEvents="none"` and every prop
+       * and identifier in the file. Newlines *are* allowed, because JSX wraps
+       * its prose — which is the other half of why the nine were missed.
+       */
+      const nodes = [...source.matchAll(/>([^<>{}]*\b[Ee]vents?\b[^<>{}]*)</g)]
+        .map((m) => m[1]!.split(/\s+/).filter(Boolean).join(' '))
+        .filter(Boolean);
+
+      expect([...strings, ...nodes], `${name} still says "event" to somebody`).toEqual([]);
     }
   });
 
