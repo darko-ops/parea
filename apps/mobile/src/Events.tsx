@@ -279,6 +279,13 @@ function EventCard({
    * added one — and leading with it would replace the only card in the product
    * whose job is to ask with a card that says nothing.
    */
+  /*
+   * Above the empty-album return below, because a card that gains its first
+   * photograph re-renders in place — and a hook that only runs on the second
+   * of those two renders is one React refuses outright.
+   */
+  const { width } = useWindowDimensions();
+
   if (event.photoCount === 0) {
     return (
       <Pressable
@@ -311,7 +318,6 @@ function EventCard({
   }
 
   const live = isLive(event.lastActiveAt, now);
-  const { width } = useWindowDimensions();
   /*
    * The circles are everybody the host shared it with, and no longer the host.
    *

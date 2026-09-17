@@ -359,12 +359,6 @@ function Row({
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
-  if (message.deleted) {
-    // A gap that says so, rather than a message quietly missing from the
-    // middle of a conversation.
-    return <Text style={[styles.gone, { color: t.dim }]}>Message deleted</Text>;
-  }
-
   const mine = message.author.mine;
   const lens = lensFor(message.author.key);
 
@@ -385,6 +379,21 @@ function Row({
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [message.body, onDelete]);
+
+  /*
+   * Below the hooks, not above them.
+   *
+   * This return sat first, which meant deleting your own message crashed the
+   * thread: the row renders with `menu` while the message is there and
+   * without it the moment `deleted` flips, and React counts hooks by position
+   * — a render with fewer than the last one is refused. The row that a delete
+   * is *supposed* to leave behind was the render that could not happen.
+   */
+  if (message.deleted) {
+    // A gap that says so, rather than a message quietly missing from the
+    // middle of a conversation.
+    return <Text style={[styles.gone, { color: t.dim }]}>Message deleted</Text>;
+  }
 
   return (
     <View style={[styles.row, mine && styles.rowMine]}>

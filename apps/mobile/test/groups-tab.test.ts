@@ -306,7 +306,13 @@ describe('what a group shows when you open it', () => {
       'utf8',
     );
     expect(SERVER).toMatch(/export async function attendedEvery/);
-    expect(SERVER).toMatch(/if \(!row \|\| row\.albums === 0\) return null;/);
+    /*
+     * What that function *does* with an empty archive is the web suite's, in
+     * `groups.test.ts`, against a real database. This asserted the expression
+     * character for character and broke the moment the number was coerced —
+     * a screen test failing over the shape of somebody else's null check
+     * tests nothing about the screen.
+     */
     /*
      * Rounded squares, like every other face in this product. The overlapping
      * circles over an album's cover stay the exception: that row reads as a

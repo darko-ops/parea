@@ -2593,37 +2593,6 @@ function EventScreen({
     void addPhotos();
   }, [addPhotos, signedIn]);
 
-  if (autoWindow) {
-    return (
-      <AutoSelect
-        window={autoWindow}
-        theme={t}
-        onCancel={() => setAutoWindow(null)}
-        onShown={(preselected, candidates) =>
-          api.observe({
-            kind: 'autoselect_shown',
-            eventId: event.id,
-            count: preselected,
-            outOf: candidates,
-          })
-        }
-        onConfirm={async (assetIds, preselected) => {
-          setAutoWindow(null);
-          // How much of the suggestion survived. `outOf` is what was ticked
-          // when the screen opened, not what was offered — precision is about
-          // the guess, and someone adding photos the guess missed should not
-          // read as the guess having been right.
-          api.observe({
-            kind: 'autoselect_confirmed',
-            eventId: event.id,
-            count: assetIds.filter((id) => preselected.includes(id)).length,
-            outOf: preselected.length,
-          });
-          await enqueue(await resolveForUpload(assetIds));
-        }}
-      />
-    );
-  }
 
   /** The evening this was, for the line under the name. */
   const when = dateLabel(
@@ -3028,6 +2997,51 @@ function EventScreen({
     },
     [byline, onOpenPerson, savingOne, saveOne, t, talk],
   );
+
+  /*
+   * The auto-select sheet, which has to be decided *after* every hook above.
+   *
+   * This branch used to sit thirty lines into the component, ahead of a dozen
+   * of them. Opening the sheet therefore rendered this screen with a dozen
+   * hooks fewer than the render before it, and React — which matches hooks by
+   * position, not by name — refuses a render that runs fewer than the last
+   * one. The screen the `+` button opens was the render that could not happen.
+   *
+   * It reads worse here, further from the thing it replaces. That is the
+   * trade: an early return in a component is only early in the source, never
+   * in the hooks.
+   */
+  if (autoWindow) {
+    return (
+      <AutoSelect
+        window={autoWindow}
+        theme={t}
+        onCancel={() => setAutoWindow(null)}
+        onShown={(preselected, candidates) =>
+          api.observe({
+            kind: 'autoselect_shown',
+            eventId: event.id,
+            count: preselected,
+            outOf: candidates,
+          })
+        }
+        onConfirm={async (assetIds, preselected) => {
+          setAutoWindow(null);
+          // How much of the suggestion survived. `outOf` is what was ticked
+          // when the screen opened, not what was offered — precision is about
+          // the guess, and someone adding photos the guess missed should not
+          // read as the guess having been right.
+          api.observe({
+            kind: 'autoselect_confirmed',
+            eventId: event.id,
+            count: assetIds.filter((id) => preselected.includes(id)).length,
+            outOf: preselected.length,
+          });
+          await enqueue(await resolveForUpload(assetIds));
+        }}
+      />
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>

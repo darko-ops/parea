@@ -191,26 +191,19 @@ export function GroupScreen({
     [api, groupId, load],
   );
 
-  if (error) {
-    return (
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={onBack}>
-          <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
-        </Pressable>
-        <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
-      </ScrollView>
-    );
-  }
-
-  if (!group) {
-    return (
-      <View style={styles.center}>
-        <Waiting size={40} />
-      </View>
-    );
-  }
-
-  const lens = lensFor(group.id);
+  /*
+   * Both of these sit above the `error` and `!group` returns below, and have
+   * to stay there.
+   *
+   * They were under them, which is how this screen crashed on open: the first
+   * render has no group yet and returns the spinner early, so it runs fewer
+   * hooks than the render after the group arrives. React counts hooks by
+   * position and refuses the second render outright — "rendered more hooks
+   * than during the previous render" — so the screen did not draw at all.
+   *
+   * The memo therefore has to survive a null group, which is what the `?.`
+   * below is for: no group means no shelf, not a throw.
+   */
   const { width } = useWindowDimensions();
 
   /**
@@ -228,7 +221,7 @@ export function GroupScreen({
    * scrolling to is a year that takes twelve screens to pass.
    */
   const shelf = useMemo(() => {
-    const events = group.member ? group.events : [];
+    const events = group?.member ? group.events : [];
     const [newest, ...rest] = events;
     const thisYear = new Date().getUTCFullYear();
 
@@ -252,6 +245,28 @@ export function GroupScreen({
     }
     return { newest, months, years: [...years.entries()].sort((a, b) => b[0] - a[0]) };
   }, [group]);
+
+  if (error) {
+    return (
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Pressable onPress={onBack}>
+          <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
+        </Pressable>
+        <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
+      </ScrollView>
+    );
+  }
+
+  if (!group) {
+    return (
+      <View style={styles.center}>
+        <Waiting size={40} />
+      </View>
+    );
+  }
+
+  const lens = lensFor(group.id);
+
 
   return (
     <>
