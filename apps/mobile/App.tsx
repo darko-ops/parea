@@ -2832,7 +2832,7 @@ function EventScreen({
          */
         const said = [
           talk.get(item.id)
-            ? `${talk.get(item.id)} ${talk.get(item.id) === 1 ? 'comment' : 'comments'}`
+            ? `${talk.get(item.id)} in the talk`
             : null,
           item.reactions.length
             ? `${item.reactions.length} ${item.reactions.length === 1 ? 'reaction' : 'reactions'}`
@@ -2963,7 +2963,7 @@ function EventScreen({
 
               Words rather than glyphs and a number. Two counts in the
               corner of a photograph are read once, if at all, and
-              "3 comments" is legible at a glance where a speech bubble
+              "3 in the talk" is legible at a glance where a speech bubble
               with a 3 beside it asks somebody to decode two symbols
               first. There is room: the row is the width of the screen.
             */}

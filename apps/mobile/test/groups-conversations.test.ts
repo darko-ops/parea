@@ -134,7 +134,7 @@ describe('what the tab is called', () => {
     expect(TAB).toMatch(/<PageHead/);
   });
 
-  it('calls the album conversations album chats', () => {
+  it('calls the album conversations album talk', () => {
     /*
      * A reversal, and the reason is the question it kept producing: *why are
      * my groups' chats not in the group chats?*
@@ -148,7 +148,19 @@ describe('what the tab is called', () => {
      * schema's word and no reader of this product ever sees it. The reader's
      * word for what these belong to is album.
      */
-    expect(TAB).toMatch(/>ALBUM CHATS</);
+    /*
+     * And it is talk rather than chats, which is the second correction to this
+     * one heading.
+     *
+     * There are two threads in this product, not three: a photo comment is a
+     * line in the album's thread carrying a `photo_id`, the same table and the
+     * same unread count, filtered. The album's single thread was being called
+     * three things — Talk on its own tab, ALBUM CHATS here, comments under a
+     * picture. One word each now: chat is what you have with people, talk is
+     * what you have about a night.
+     */
+    expect(TAB).toMatch(/>ALBUM TALK</);
+    expect(TAB).not.toMatch(/ALBUM CHATS</);
     expect(TAB).not.toMatch(/EVENT CHATS/);
     /*
      * And GROUP CHATS is now a heading over the group chats, which is what it
@@ -157,7 +169,7 @@ describe('what the tab is called', () => {
      * that has since become Find.
      */
     expect(TAB).toMatch(/>GROUP CHATS</);
-    expect(TAB.indexOf('GROUP CHATS')).toBeLessThan(TAB.indexOf('ALBUM CHATS'));
+    expect(TAB.indexOf('GROUP CHATS')).toBeLessThan(TAB.indexOf('ALBUM TALK'));
   });
 });
 
@@ -187,7 +199,7 @@ describe('the tab arrives in one piece', () => {
     // Parea" heading; it is the wordmark row now, and the rule is the same.
     expect(TAB.indexOf('<PageHead')).toBeGreaterThan(gate);
     expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('ALBUM CHATS')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('ALBUM TALK')).toBeGreaterThan(gate);
     expect(TAB.indexOf('groupChats.map((group')).toBeGreaterThan(gate);
     expect(TAB.indexOf('albumChats.map((event')).toBeGreaterThan(gate);
   });

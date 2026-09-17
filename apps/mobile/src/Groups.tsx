@@ -289,7 +289,10 @@ export function GroupScreen({
             <RoundButton
               t={t}
               onPress={() => onOpenThread(group)}
-              accessibilityLabel={`Talk in ${group.name}`}
+              // Chat, not talk. A group's thread is the one you have with
+              // people; an album's is the one you have about a night. Two
+              // threads in this product, and now one word each.
+              accessibilityLabel={`Chat in ${group.name}`}
             >
               <Glyph name="plane" size={17} color={t.fg} />
             </RoundButton>

@@ -479,9 +479,14 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/const said = \[/);
     expect(APP).toMatch(/\.filter\(Boolean\)\s*\.join\(' · '\)/);
     expect(APP).toMatch(/\{said !== '' && \(/);
-    // Singular and plural, because "1 comments" is the kind of thing that
-    // survives forever once it ships.
-    expect(APP).toMatch(/=== 1 \? 'comment' : 'comments'/);
+    /*
+     * The talk half needs no plural, which is the small dividend of naming it
+     * that way: "1 in the talk" and "3 in the talk" are both sentences, where
+     * "1 comments" is the kind of thing that survives forever once it ships.
+     * Reactions still need theirs.
+     */
+    expect(APP).toMatch(/in the talk/);
+    expect(APP).not.toMatch(/=== 1 \? 'comment' : 'comments'/);
     expect(APP).toMatch(/=== 1 \? 'reaction' : 'reactions'/);
   });
 

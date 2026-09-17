@@ -555,15 +555,15 @@ export function PhotoViewer({
                   accessibilityRole="button"
                   accessibilityLabel={
                     comments.length > 0
-                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
-                      : 'Add a comment'
+                      ? `${comments.length} in the talk about this photo, add yours`
+                      : 'Talk about this photo'
                   }
                   style={styles.composerHint}
                 >
                   <Text style={styles.composerHintText} numberOfLines={1}>
                     {comments.length > 0
-                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
-                      : 'Add a comment'}
+                      ? `${comments.length} in the talk — add yours`
+                      : 'Talk about this photo'}
                   </Text>
                 </Pressable>
               )}

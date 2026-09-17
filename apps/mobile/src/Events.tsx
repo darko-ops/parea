@@ -1159,12 +1159,12 @@ export function ChatsTab({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search your conversations"
+            placeholder="Search your chats and talk"
             placeholderTextColor={t.dim}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            accessibilityLabel="Search your conversations"
+            accessibilityLabel="Search your chats and talk"
             style={[styles.fieldText, { color: t.fg }]}
           />
           {query !== '' && (
@@ -1192,8 +1192,8 @@ export function ChatsTab({
         <View style={{ gap: 12 }}>
           <Text style={[styles.label, { color: t.fg }]}>No conversations yet.</Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            Every album has a thread, and so does every group. Share an evening
-            with somebody and this is where the talking about it lives.
+            Every group has a chat and every album has its own talk. Share an
+            evening with somebody and both of them start here.
           </Text>
           <Pressable
             onPress={onGoToEvents}
@@ -1268,13 +1268,24 @@ export function ChatsTab({
           {/*
             And the conversations about one evening.
 
+            Talk, not chats, and that is the whole of the second fix.
+
             This heading read GROUP CHATS once, over exactly this list — the
             groups' own threads were not on the tab at all, they were the last
-            line of a block. It is the two sections it always claimed to be.
+            line of a block. Correcting it to ALBUM CHATS fixed which rows were
+            under it and invented a third name for the thread: an album calls
+            this Talk on its own tab, and a line of it anchored to a
+            photograph used to be called a comment.
+
+            There are two threads in this product, not three. A photo comment
+            is a line in the album's thread carrying a `photo_id` — the same
+            table, the same unread count, filtered. So there are two words:
+            chat is what you have with people, talk is what you have about a
+            night, and a photograph shows the part of that talk about it.
           */}
           {albumChats.length > 0 && (
             <View style={{ gap: 2 }}>
-              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM CHATS</Text>
+              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM TALK</Text>
               {albumChats.map((event, i) => (
                 <Pressable
                   key={event.id}
@@ -1320,8 +1331,8 @@ export function ChatsTab({
           */}
           {looking !== '' && groupChats.length === 0 && albumChats.length === 0 && (
             <Text style={[styles.body, { color: t.dim }]}>
-              Nothing here matches “{query.trim()}”. This searches the
-              conversations you are part of — the groups themselves are on Find.
+              Nothing here matches “{query.trim()}”. This searches the chats and
+              the talk you are part of — the groups themselves are on Find.
             </Text>
           )}
         </>
