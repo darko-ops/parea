@@ -124,3 +124,45 @@ describe('the grid they are all on', () => {
     expect(GLYPH).not.toMatch(/@expo\/vector-icons|react-native-vector-icons|lucide|feather/i);
   });
 });
+
+/**
+ * The paper aeroplane, which this app already means one thing by.
+ *
+ * It is on an album's Talk tab and on the talk button of a group screen, and
+ * it is now the Chats tab in the bar. Three places, one drawing, one meaning:
+ * saying something.
+ *
+ * It is deliberately not a speech bubble. The bubble is the shape an unread
+ * count sits on everywhere in this product, so a bubble in the tab bar would
+ * be a badge holder with no badge in it — and the tab bar's own unread badge
+ * would then be a bubble on a bubble.
+ */
+describe('the aeroplane', () => {
+  it('is the tab bar, the album\'s Talk tab and a group\'s talk button', () => {
+    const APP = read('App.tsx');
+    const GROUPS = read('src/Groups.tsx');
+    expect(APP).toContain("['chats', 'plane', 'Chats']");
+    expect(APP).toContain("['talk', 'plane', 'Talk']");
+    expect(GROUPS).toMatch(/<Glyph name="plane"/);
+  });
+
+  it('is one drawing, not three', () => {
+    // Authored once in the 24-unit grid and scaled by the viewBox, so the
+    // 22pt tab glyph and the 17pt button are the same picture at two sizes.
+    expect(GLYPH).toContain('M21 3 3.5 9.8l7 2.7 2.7 7z');
+    expect(GLYPH).toContain('M21 3 10.5 12.5');
+    expect((GLYPH.match(/case 'plane':/g) ?? [])).toHaveLength(1);
+  });
+
+  it('keeps the fold, which is what makes it paper', () => {
+    /*
+     * Two paths: the outline, and the crease from the nose back to the inner
+     * corner. Without the second it is a solid triangle pointing right — a
+     * play button, which is a different verb entirely.
+     */
+    const plane = GLYPH.slice(GLYPH.indexOf("case 'plane':"), GLYPH.indexOf("case 'group':"));
+    expect(plane).not.toBe('');
+    expect((plane.match(/<Path/g) ?? [])).toHaveLength(2);
+  });
+});
+

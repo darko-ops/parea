@@ -49,7 +49,7 @@ describe('the tab', () => {
     // The bar carries a glyph between the tab and its label now — the label
     // survives as the accessibility name, which is what these look for.
     const events = APP.indexOf("['home', 'photos', 'Albums']");
-    const chats = APP.indexOf("['chats', 'group', 'Chats']");
+    const chats = APP.indexOf("['chats', 'plane', 'Chats']");
     const find = APP.indexOf("['search', 'search', 'Find']");
     expect(chats).toBeGreaterThan(-1);
     expect(events).toBeLessThan(chats);

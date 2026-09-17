@@ -1125,7 +1125,7 @@ export default function App() {
               {(
                 [
                   ['home', 'photos', 'Albums'],
-                  ['chats', 'group', 'Chats'],
+                  ['chats', 'plane', 'Chats'],
                   ['search', 'search', 'Find'],
                   ['profile', 'profile', 'You'],
                 ] as [Tab, GlyphName, string][]
