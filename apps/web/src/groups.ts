@@ -738,7 +738,7 @@ export type GroupPerson = {
  * every album *and left the group* is not one of "you".
  */
 export async function attendedEvery(db: Db, groupId: string): Promise<number | null> {
-  const [row] = await db.execute<{ albums: number; everyone: number }>(sql`
+  const answer = await db.execute(sql`
     with albums as (
       select id from "event"
       where group_id = ${groupId} and deleted_at is null
@@ -757,9 +757,24 @@ export async function attendedEvery(db: Db, groupId: string): Promise<number | n
           )
       ) as everyone
   `);
-  if (!row || row.albums === 0) return null;
-  return row.everyone;
+
+  /*
+   * `db.execute` answers a `{ rows }` object on postgres.js and a bare array on
+   * PGlite. Both appear in this codebase — the dev server and the test suite —
+   * so neither shape may be assumed, and assuming one is not a wrong number: a
+   * destructured object is not iterable, so it throws and the group screen
+   * answers 500. `suggestedGroups` and `clustersFor` say the same thing a few
+   * hundred lines apart, which is how often it has caught somebody.
+   */
+  const rows = (answer as unknown as Row[] | { rows: Row[] });
+  const [row] = Array.isArray(rows) ? rows : (rows.rows ?? []);
+
+  if (!row || Number(row.albums) === 0) return null;
+  return Number(row.everyone);
 }
+
+/** What the query above answers with, per row. */
+type Row = { albums: number | string; everyone: number | string };
 
 /**
  * Everybody in a group: admins first, then by how long they have been in it.
