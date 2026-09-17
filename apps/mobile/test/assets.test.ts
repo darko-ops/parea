@@ -74,27 +74,26 @@ describe('store assets', () => {
     expect(icon.hasAlpha).toBe(false);
   });
 
-  it('give Android a transparent foreground', async () => {
+  it('give Android an empty foreground, because the picture is one layer', async () => {
     const adaptive = await png(config.expo.android.adaptiveIcon.foregroundImage);
 
     expect(adaptive.width).toBe(1024);
     expect(adaptive.height).toBe(1024);
     /*
-     * Opaque here means a card floating inside the launcher's mask, whatever
-     * is behind it. The foreground is the mark and nothing else.
+     * Transparent, and transparent all the way through.
+     *
+     * The artwork is a flattened raster: the field underneath those circles
+     * does not exist to be recovered, so it cannot be split into a field and a
+     * mark. Drawing the mark in the foreground *and* leaving it in the
+     * background lines up exactly at rest and doubles the moment a launcher
+     * applies its parallax. An empty foreground has nothing to shift.
      */
     expect(adaptive.hasAlpha).toBe(true);
     expect(config.expo.android.adaptiveIcon.backgroundColor).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it('gives Android the field as a background layer, not a flat colour', async () => {
+  it('gives Android the whole picture as the background layer', async () => {
     /*
-     * The mark is a hole in a field now rather than a coloured shape on white,
-     * and that decides which half of an adaptive icon gets what. White circles
-     * over a flat `backgroundColor` would be nothing at all; the field is the
-     * background, the mark is the foreground, and the launcher masking the
-     * pair is what the two layers are for.
-     *
      * Full bleed and opaque, because the mask can be a circle and a background
      * that stops short of the corners loses its edges on the devices that
      * round hardest.
@@ -104,6 +103,63 @@ describe('store assets', () => {
     expect(background.width).toBe(1024);
     expect(background.height).toBe(1024);
     expect(background.hasAlpha).toBe(false);
+  });
+
+  it('keeps the mark inside the tightest mask a launcher applies', async () => {
+    /*
+     * The one thing carrying the whole picture in one layer depends on, and
+     * the one thing a new piece of artwork could quietly break.
+     *
+     * Android masks the background to a circle, a squircle or a blob, and the
+     * tightest of those keeps the middle 66%. Nothing holds the mark inside
+     * that any more — there is no `ANDROID_SAFE` scale applied to a foreground
+     * — so it is a property of where the mark happens to sit in the file. This
+     * reads the pixels and finds out.
+     *
+     * Near-white and near-neutral is the mark; the field is saturated
+     * everywhere. Measured off `icon.png` because that is the square Android
+     * masks, not off the JPG it came from.
+     */
+    const { readFile } = await import('node:fs/promises');
+    const bytes = await readFile(join(ROOT, config.expo.icon));
+    const { default: sharp } = await import('sharp');
+    const { data, info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+
+    /*
+     * The furthest mark *pixel* from the centre, not the furthest corner of
+     * its bounding box.
+     *
+     * The first version of this measured the box and failed at 0.38, which was
+     * the test being wrong rather than the artwork: three circles do not fill
+     * their box, and the corner it was measuring is field. The mask is a
+     * circle about the centre, so the only question is how far the drawing
+     * actually reaches.
+     */
+    const half = info.width / 2;
+    let reach = 0;
+    let found = 0;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x < info.width; x++) {
+        const i = (y * info.width + x) * info.channels;
+        const r = data[i]!;
+        const g = data[i + 1]!;
+        const b = data[i + 2]!;
+        const low = Math.min(r, g, b);
+        const high = Math.max(r, g, b);
+        if (low > 235 && high - low < 12) {
+          found++;
+          reach = Math.max(reach, Math.hypot(x - half, y - half));
+        }
+      }
+    }
+
+    // It found a mark at all, rather than an all-saturated square — without
+    // this the assertion below passes on a reach of zero.
+    expect(found).toBeGreaterThan(info.width * info.height * 0.1);
+
+    // 0.33 of the canvas is the radius the tightest mask keeps. This sits at
+    // about 0.30, so there is room but not a great deal of it.
+    expect(reach / info.width).toBeLessThan(0.33);
   });
 
   it('have a favicon at all', async () => {

@@ -3,13 +3,24 @@
  *
  *   npm run icons --workspace @parea/mobile
  *
- * The master is `assets/branding/parea-icon.svg` at the root of the repository,
- * which `scripts/build-brand.mjs` generates. It used to be a copy of the same
- * drawing living next door in `assets/icon.svg`, and a copy is how the app icon
- * and the website come to disagree in a screenshot a year later — the failure
- * `brand.test.ts` opens by describing. One file, read from both places.
+ * The master is `assets/branding/parea-icon-color.jpg` at the root of the
+ * repository: the mark on a saturated field, supplied as artwork rather than
+ * generated. It replaced `parea-icon.svg`, which this built from until now.
  *
- * Run it after changing the SVG. The PNGs are committed — EAS builds do not
+ * ## Why the app icon stopped being the vector
+ *
+ * The SVG is still the master everywhere a Parea mark is *drawn* — the web's
+ * `Mark`, the rail, the OG image — and `build-brand.mjs` still produces it.
+ * What it is no longer is the app icon, because the two are not the same
+ * problem. A drawing in a page sits on that page's background and has to work
+ * in one ink at any size. An app icon is a 60pt tile on somebody's home screen
+ * competing with sixty others, seen for a fifth of a second, and the thing
+ * that wins there is colour. The field on this raster is doing work the
+ * vector's pale wash could not.
+ *
+ * So: one file, rendered into four, and the SVG keeps the jobs it is better at.
+ *
+ * Run it after changing the JPG. The PNGs are committed — EAS builds do not
  * run this, and an icon that only exists on the machine of whoever last
  * touched it is how the Expo default ends up shipping.
  *
@@ -25,20 +36,21 @@
  *     runs full bleed and the foreground keeps everything that matters inside
  *     the middle ~66%.
  *
- *     Which half gets what changed with the mark. It used to be the whole
- *     drawing shrunk into the safe circle over a flat `backgroundColor`,
- *     because the mark was a small coloured shape and the page around it was
- *     white. The mark is a hole in a field now: white circles on white would
- *     be nothing at all, so the field is the background and the mark is the
- *     foreground, which is also what the two layers are actually for.
+ *     The whole picture is the background here, and the foreground is empty.
+ *     That is deliberate and it is what a single raster allows.
  *
- *     The foreground is scaled into the safe circle, and "it already fits" is
- *     not the same claim. At radius 163 on centres 132 apart the mark's
- *     furthest point is 0.28 of the canvas from the middle and the tightest
- *     mask keeps 0.33 — so it survives, and it survives filling four fifths of
- *     everything the launcher shows. The iOS icon puts the same mark across
- *     54% of a square nothing is cut from. Shrinking to `ANDROID_SAFE` is what
- *     makes the two read as one icon rather than as a logo and a crop of it.
+ *     Splitting the two needs the field without the mark on it, and this is
+ *     one flattened image — the field under those circles does not exist to
+ *     be recovered. Putting the mark in the foreground *and* leaving it in the
+ *     background aligns exactly at rest and doubles the moment a launcher
+ *     applies its parallax, which is the artefact you cannot unsee once you
+ *     have. An empty foreground has nothing to shift and is therefore right in
+ *     both states.
+ *
+ *     It survives the mask because of where the mark sits: it spans 54% of the
+ *     square, centred, and the tightest mask keeps the middle 66%. Measured
+ *     off the file rather than assumed — see `assets.test.ts`, which reads the
+ *     pixels and fails if new artwork pushes the mark outside the safe circle.
  *
  *   - `favicon.png` is for `expo start --web`, which is not the product, but
  *     the alternative is Expo's default in a browser tab.
@@ -52,8 +64,8 @@ import sharp from 'sharp';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'assets');
-/** The brand master, two levels up and shared with everything else that draws it. */
-const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon.svg');
+/** The brand master, two levels up at the root of the repository. */
+const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon-color.jpg');
 
 /**
  * Fraction of the canvas Android's most aggressive mask keeps.
@@ -65,64 +77,22 @@ const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon.sv
  */
 const ANDROID_SAFE = 0.66;
 
-const svg = await readFile(SOURCE, 'utf8');
+const master = await readFile(SOURCE);
 
 /**
- * One half of the drawing, by id.
+ * A transparent square, which is what Android's foreground layer gets.
  *
- * `<defs>` goes with both, because the field's gradients live there and an
- * element referencing a paint that is not in the document renders as nothing —
- * silently, which is the failure worth designing against here.
- *
- * By id rather than by pattern-matching a fill, which is what this did before
- * and which broke the first time the file changed: it looked for the white
- * backing rect and threw when the rect stopped being the only white one. An id
- * is a thing the SVG declares on purpose.
+ * See the note at the top: the whole picture is the background, because a
+ * flattened raster cannot be taken apart into a field and a mark, and drawing
+ * the mark in both layers doubles it under parallax.
  */
-function half(id) {
-  const defs = svg.match(/<defs>[\s\S]*?<\/defs>/);
-  if (!defs) throw new Error('no <defs> in icon.svg');
+const EMPTY = { create: { width: 1024, height: 1024, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } };
 
-  const open = svg.indexOf(`id="${id}"`);
-  if (open < 0) throw new Error(`no element with id="${id}" in icon.svg`);
-  const start = svg.lastIndexOf('<', open);
-  const tag = svg.slice(start + 1).match(/^[a-z]+/)?.[0];
-  if (!tag) throw new Error(`could not read the tag of id="${id}"`);
-
-  /*
-   * Where the opening tag ends decides which kind of element this is.
-   *
-   * Looking for the first `/>` after the id does not: `<g id="field">` has
-   * eight self-closing rects inside it, so the first `/>` in the document
-   * after the id belongs to a child and the group is cut off at its first
-   * line. Read the opening tag to its own `>` and ask whether that `>` was
-   * preceded by a slash.
-   */
-  const openEnd = svg.indexOf('>', open);
-  if (openEnd < 0) throw new Error(`unterminated opening tag for id="${id}"`);
-  const selfClosing = svg[openEnd - 1] === '/';
-
-  let end;
-  if (selfClosing) {
-    end = openEnd + 1;
-  } else {
-    // Nothing in this file nests an element inside another of the same tag,
-    // so the first matching close is the right one.
-    const pairClose = svg.indexOf(`</${tag}>`, openEnd);
-    if (pairClose < 0) throw new Error(`no </${tag}> closing id="${id}"`);
-    end = pairClose + `</${tag}>`.length;
-  }
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${
-    defs[0]
-  }${svg.slice(start, end)}</svg>`;
-}
-
-async function render(name, { size, source = svg, safe = false, opaque = false }) {
+async function render(name, { size, source = master, safe = false, opaque = false }) {
   const art = safe ? Math.round(size * ANDROID_SAFE) : size;
   const pad = Math.round((size - art) / 2);
 
-  let image = sharp(Buffer.from(source), { density: 384 }).resize(art, art);
+  let image = (Buffer.isBuffer(source) ? sharp(source) : sharp(source)).resize(art, art);
 
   if (pad > 0) {
     image = sharp(await image.png().toBuffer()).extend({
@@ -145,6 +115,8 @@ async function render(name, { size, source = svg, safe = false, opaque = false }
 
 await mkdir(ASSETS, { recursive: true });
 await render('icon.png', { size: 1024, opaque: true });
-await render('adaptive-background.png', { size: 1024, source: half('field'), opaque: true });
-await render('adaptive-icon.png', { size: 1024, source: half('mark'), safe: true });
+// Full bleed, mark and all. The launcher's mask keeps the middle; the mark is
+// inside it.
+await render('adaptive-background.png', { size: 1024, opaque: true });
+await render('adaptive-icon.png', { size: 1024, source: EMPTY });
 await render('favicon.png', { size: 196, opaque: true });
