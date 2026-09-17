@@ -153,55 +153,50 @@ describe('the card the home list draws', () => {
     expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
     expect(EVENTS).toMatch(/measured: \{[^}]*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/byline: \{[^}]*marginHorizontal: -4,/);
-    /*
-     * The name is on the photograph now rather than in the column, so it
-     * measures from the screen directly — 16, which is the same edge the two
-     * lines above it sit on, reached by a different sum.
-     */
-    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?right: 16,/);
+    expect(EVENTS).toMatch(/cardTitle: \{\s*\n\s*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
   });
 
-  it('puts the album’s name in the corner of its own photograph', () => {
+  it('leads with the album’s name, above the byline and below the rule', () => {
     /*
-     * The name is *about* the picture, so it goes on it.
+     * The name has been in three places and this is the second time in this
+     * one.
      *
-     * It has now been in three places. Under the cover at 18 points, which
-     * made a wall of pictures you had to scroll past to find out what any of
-     * them were; above the byline at 24, which fixed that and left the top of
-     * every card as three stacked lines before the photograph arrived — a
-     * rule, a headline, a face and a handle. On the cover there is one quiet
-     * measurement and the person whose evening it was, and the name is where
-     * the thing it names is.
+     * Under the cover at 18 points made a wall of pictures you had to scroll
+     * past to find out what any of them were. In the corner of the cover at 24
+     * put the name where the thing it names is — and cost the card its reading
+     * order, because a name in the corner of a photograph is found *after* the
+     * photograph, and the point of a name on a wall of evenings is to be read
+     * on the way past.
      *
-     * Bottom right, because the faces overlap the opposite corner: the two
-     * ends of that edge are already spoken for separately.
+     * So it is a headline in the column: the measurements, the name, then
+     * whose evening it was — and the cover is a photograph with nothing over
+     * it again.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
     const title = CARD.indexOf('styles.cardTitle');
-    expect(title).toBeGreaterThan(CARD.indexOf('<View style={[styles.cover,'));
-    expect(title).toBeLessThan(CARD.indexOf('styles.faces}'));
-    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?position: 'absolute',[\s\S]*?textAlign: 'right',/);
-    /*
-     * White with a shadow rather than a bar behind it: a block of chrome
-     * across the foot of somebody's photograph is a caption that has become
-     * furniture, and the gradient does the work of making white legible.
-     */
-    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?color: '#fff',/);
-    expect(CARD).toMatch(/colors=\{\['rgba\(0,0,0,0\)', 'rgba\(0,0,0,0\.42\)'\]\}/);
-    // Clear through the top two-thirds, which is most of the picture.
-    expect(CARD).toMatch(/locations=\{\[0\.62, 1\]\}/);
+    expect(title).toBeGreaterThan(CARD.indexOf('styles.measured}'));
+    expect(title).toBeLessThan(CARD.indexOf('styles.byline}'));
+    expect(title).toBeLessThan(CARD.indexOf('<View style={[styles.cover,'));
     // Set like a headline, with the tracking pulled in at this size.
     expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?fontSize: 24,[\s\S]*?letterSpacing: -0\.4,/);
     /*
      * Two lines rather than one: "Sunday lunch at the Kostas'" is a real name
-     * for an album, and cutting it at one line loses the end that tells it
-     * from every other Sunday lunch.
+     * for an album, and cutting it at one line loses the half that
+     * distinguishes it.
      */
     expect(CARD).toMatch(/styles\.cardTitle[\s\S]{0,60}numberOfLines=\{2\}/);
+    /*
+     * And nothing is drawn over the photograph to carry it. The ramp at the
+     * foot of the cover existed only to make white type legible; with the type
+     * gone, darkening somebody's picture would be the product having an
+     * opinion about it for no reason at all.
+     */
+    expect(CARD).not.toMatch(/LinearGradient/);
+    expect(EVENTS).not.toMatch(/import \{ LinearGradient \}/);
     // The 18pt one survives on the card with nothing in it, which has no
     // photograph to be a headline over.
     expect(EVENTS).toMatch(/eventName: \{ fontSize: 18, fontWeight: '700' \}/);
