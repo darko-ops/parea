@@ -67,7 +67,7 @@ describe('which conversations appear', () => {
      * a room somebody is already in. Between the groups and the event chats it
      * read as a break in the list of places rather than as a remark about it.
      */
-    const order = ['shown.map((group)', 'GROUP CHATS', 'clusters.map((cluster)'];
+    const order = ['shown.map((group)', 'ALBUM CHATS', 'clusters.map((cluster)'];
     const at = order.map((needle) => TAB.indexOf(needle));
     expect(at.every((i) => i > -1)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
@@ -105,9 +105,23 @@ describe('what the tab is called', () => {
     expect(TAB).toMatch(/<PageHead/);
   });
 
-  it('calls the one-off conversations group chats', () => {
-    expect(TAB).toMatch(/>GROUP CHATS</);
+  it('calls the album conversations album chats', () => {
+    /*
+     * A reversal, and the reason is the question it kept producing: *why are
+     * my groups' chats not in the group chats?*
+     *
+     * This heading read GROUP CHATS over a list of album conversations. The
+     * groups' own threads are not here at all — they are one line each on the
+     * blocks above — so the heading promised the one thing under it that was
+     * missing, and named the rows beneath it after somewhere they do not live.
+     *
+     * "EVENT CHATS" was rejected here once and stays rejected: `event` is the
+     * schema's word and no reader of this product ever sees it. The reader's
+     * word for what these belong to is album.
+     */
+    expect(TAB).toMatch(/>ALBUM CHATS</);
     expect(TAB).not.toMatch(/EVENT CHATS/);
+    expect(TAB).not.toMatch(/GROUP CHATS</);
   });
 });
 
@@ -135,7 +149,7 @@ describe('the tab arrives in one piece', () => {
     // Including the head, which is the part this moved. It was the "Your
     // Parea" heading; it is the wordmark row now, and the rule is the same.
     expect(TAB.indexOf('<PageHead')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('GROUP CHATS')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('ALBUM CHATS')).toBeGreaterThan(gate);
     expect(TAB.indexOf('clusters.map((cluster)')).toBeGreaterThan(gate);
     expect(TAB.indexOf('shown.map((group)')).toBeGreaterThan(gate);
   });
@@ -297,7 +311,7 @@ describe('what the server had to grow', () => {
 describe('the first three', () => {
   it('draws three, then a way to the rest', () => {
     expect(EVENTS).toMatch(/const GROUPS_SHOWN = 3;/);
-    expect(TAB).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
+    expect(TAB).toMatch(/found\.slice\(0, GROUPS_SHOWN\)/);
     expect(TAB).toMatch(/>\s*All groups\s*</);
     // And no button when there is nothing behind it.
     expect(TAB).toMatch(/groups\.length > shown\.length && \(/);
@@ -314,6 +328,94 @@ describe('the first three', () => {
     // The full list is this same list. A second screen would be a second place
     // where a group block is drawn.
     expect(TAB).toMatch(/setAllGroups\(true\)/);
-    expect(TAB).toMatch(/allGroups \? ordered : ordered\.slice/);
+    expect(TAB).toMatch(/allGroups \? found : found\.slice/);
   });
 });
+
+/**
+ * Searching the tab that holds every conversation.
+ *
+ * The tab grows without bound — a group per circle of people, an album chat
+ * per evening — and the only ordering it has is recency, which is the right
+ * default and no help at all for something said in March. Three groups are
+ * behind a "show all" and the album chats are a flat list under them.
+ */
+describe('finding one', () => {
+  it('searches what was said, not only what things are called', () => {
+    /*
+     * Somebody looking for a conversation is as likely to remember a word out
+     * of it as the name of the room it happened in. Matching titles alone
+     * refuses the more useful half of the question on a tab that is only
+     * conversations.
+     */
+    expect(TAB).toMatch(/matches\(group\.name, group\.lastMessage\?\.body, group\.lastMessage\?\.author\)/);
+    expect(TAB).toMatch(/matches\(event\.name, event\.lastMessage\?\.body, event\.lastMessage\?\.author\)/);
+  });
+
+  it('matches without regard to case, and ignores stray spaces', () => {
+    expect(TAB).toMatch(/query\.trim\(\)\.toLowerCase\(\)/);
+    expect(TAB).toMatch(/field\?\.toLowerCase\(\)\.includes\(looking\)/);
+  });
+
+  it('matches everything when nothing has been typed', () => {
+    // The filter runs on every render whether or not anybody is searching, so
+    // an empty query has to pass everything rather than match nothing.
+    expect(TAB).toMatch(/!looking \|\| fields\.some/);
+  });
+
+  it('shows every match rather than the first three', () => {
+    /*
+     * The three-and-a-button cap exists for a long list nobody asked to see.
+     * Somebody searching asked — a fourth match held behind "All groups" is a
+     * search that found something and did not say so.
+     */
+    expect(TAB).toMatch(/if \(looking\) return found;/);
+    expect(TAB).toMatch(/\{!looking && groups\.length > shown\.length/);
+  });
+
+  it('drops the suggestions while a search is on', () => {
+    // A cluster is an offer, not an answer. Leaving it under a query makes the
+    // one thing on screen that did not match the loudest thing on screen.
+    expect(TAB).toMatch(/\{!looking &&\s*clusters\.map\(\(cluster\)/);
+    expect(TAB).toMatch(/\{!looking && groups\.length > 0 && \(/);
+  });
+
+  it('says so when nothing matches', () => {
+    // A head, a field and an empty page reads as the tab having failed to
+    // load, rather than as an answer.
+    expect(TAB).toMatch(/looking !== '' && shown\.length === 0 && loose\.length === 0/);
+    expect(TAB).toMatch(/Nothing here matches/);
+    // And points at the one place the thing they want might still be.
+    expect(TAB).toMatch(/Find is where the/);
+  });
+
+  it('does not offer a search where there is nothing to search', () => {
+    // On a tab with no rooms and no conversations, a search box is a control
+    // that cannot succeed, sitting over the paragraph saying why.
+    expect(TAB).toMatch(/groups\.length > 0 \|\| loose\.length > 0 \|\| looking !== ''/);
+  });
+
+  it('forgets the query on the way out', () => {
+    /*
+     * A search is something somebody is in the middle of, not a setting. A
+     * stale one hides most of the tab on arrival with the reason for it
+     * scrolled off the top — the same screen as the bug this replaced.
+     */
+    expect(TAB).toMatch(/setQuery\(''\);/);
+    expect(TAB).toMatch(/if \(!active\) \{/);
+  });
+
+  it('is the field Find already has', () => {
+    // Two search fields in one app that look like two different controls is
+    // the drift this shares a stylesheet to avoid.
+    expect(TAB).toMatch(/style=\{\[styles\.field, \{ backgroundColor: t\.card, borderColor: t\.line \}\]\}/);
+    expect(TAB).toMatch(/<Glyph name="search"/);
+    expect(TAB).toMatch(/style=\{\[styles\.fieldText, \{ color: t\.fg \}\]\}/);
+  });
+
+  it('has a way out that is not the backspace key', () => {
+    expect(TAB).toMatch(/accessibilityLabel="Clear search"/);
+    expect(TAB).toMatch(/onPress=\{\(\) => setQuery\(''\)\}/);
+  });
+});
+

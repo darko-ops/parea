@@ -16,6 +16,7 @@ import { findEventById, guard, isSignedIn, toResponse } from '@/access';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
+import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
 import { addMember, facesFor, groupsFor, myGroups } from '@/groups';
 import { notifyGroupAdded } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
@@ -68,9 +69,34 @@ export async function GET(request: Request) {
    * let into.
    */
   const groups = await myGroups(db, actorId);
+
+  /*
+   * And the group's own conversation, which is the line its row is actually
+   * about.
+   *
+   * This was missing, so every group in the app said "Nobody has said anything
+   * yet" — including the ones people were talking in. The row draws
+   * `lastMessage` and the unread pill from this, the web page has had it all
+   * along through `myGroupsDetailed`, and the note above about asking for
+   * "the half it uses" quietly omitted the half that makes the tab a list of
+   * conversations rather than a list of doors.
+   *
+   * One query for the whole list rather than one per group — see
+   * `groupThreadSummaries`.
+   */
+  const threads = await groupThreadSummaries(
+    db,
+    groups.map((group) => group.id),
+    actorId,
+  );
+
   return NextResponse.json({
     groups: await Promise.all(
-      groups.map(async (group) => ({ ...group, ...(await facesFor(db, group.id)) })),
+      groups.map(async (group) => ({
+        ...group,
+        ...(await facesFor(db, group.id)),
+        ...(threads.get(group.id) ?? EMPTY_SUMMARY),
+      })),
     ),
   });
 }

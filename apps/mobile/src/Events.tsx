@@ -1088,6 +1088,8 @@ export function GroupsTab({
   const [allGroups, setAllGroups] = useState(false);
   /** The `+` sheet, the same one Home and You open. */
   const [starting, setStarting] = useState(false);
+  /** What is being looked for on this tab, if anything. */
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     const [mine, found] = await Promise.all([
@@ -1115,7 +1117,14 @@ export function GroupsTab({
    * somebody genuinely goes elsewhere.
    */
   useEffect(() => {
-    if (!active) setAllGroups(false);
+    if (!active) {
+      setAllGroups(false);
+      // A search is something somebody is in the middle of, not a setting.
+      // Leaving the tab and coming back should be this tab, not the last thing
+      // typed into it — a stale query hides most of the screen on arrival with
+      // the reason for it scrolled off the top.
+      setQuery('');
+    }
   }, [active]);
 
   // Zero is the value nobody asked with — the tab opening normally, rather
@@ -1183,21 +1192,53 @@ export function GroupsTab({
    * go last rather than first — an empty room is the least useful thing this
    * screen can lead with.
    */
+  /*
+   * Searching this tab, over what it already holds.
+   *
+   * Local rather than a round trip: every group and every album on this screen
+   * is in memory by the time it draws, and asking the server would cost the
+   * one thing that makes a search field feel like one — that the list narrows
+   * while you type rather than a moment after you stop.
+   *
+   * It reads what was last *said* as well as the names. Somebody looking for a
+   * conversation, on the tab that is only conversations, is as likely to
+   * remember a word out of it as the name of the room it happened in; a search
+   * that matches titles alone refuses the more useful half of the question.
+   */
+  const looking = query.trim().toLowerCase();
+  const matches = useCallback(
+    (...fields: (string | null | undefined)[]) =>
+      !looking || fields.some((field) => field?.toLowerCase().includes(looking)),
+    [looking],
+  );
+
   const shown = useMemo(() => {
     const ordered = [...(groups ?? [])].sort((a, b) =>
       (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
     );
-    return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
-  }, [allGroups, groups]);
+    const found = ordered.filter((group) =>
+      matches(group.name, group.lastMessage?.body, group.lastMessage?.author),
+    );
+    /*
+     * The three-and-a-button cap is about a long list nobody asked to see.
+     * Somebody searching asked, so a fourth match held behind "Show all" would
+     * be a search that found something and did not say so.
+     */
+    if (looking) return found;
+    return allGroups ? found : found.slice(0, GROUPS_SHOWN);
+  }, [allGroups, groups, looking, matches]);
 
   const loose = useMemo(
     () =>
       events
         .filter((event) => event.lastMessage != null)
+        .filter((event) =>
+          matches(event.name, event.lastMessage?.body, event.lastMessage?.author),
+        )
         // By when something was last said. No fallback needed now that a row
         // without a message is not a row.
         .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
-    [events],
+    [events, matches],
   );
 
   /*
@@ -1278,6 +1319,46 @@ export function GroupsTab({
       )}
 
       {/*
+        The same field Find has, because it is the same gesture.
+
+        Hidden when there is nothing yet to search: on a tab holding no rooms
+        and no conversations, a search box is a control that cannot succeed,
+        sitting above the paragraph explaining that there is nothing here.
+
+        `search` rather than `default` as the return key, and no
+        autocorrect — this matches names people chose and words people typed,
+        neither of which a dictionary should be allowed an opinion about.
+      */}
+      {(groups.length > 0 || loose.length > 0 || looking !== '') && (
+        <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
+          <Glyph name="search" size={17} color={t.dim} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search your groups and chats"
+            placeholderTextColor={t.dim}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search your groups and chats"
+            style={[styles.fieldText, { color: t.fg }]}
+          />
+          {query !== '' && (
+            <Pressable
+              onPress={() => setQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              // A larger target than the glyph: this is the control somebody
+              // reaches for one-handed, at the far edge of the screen.
+              hitSlop={12}
+            >
+              <Text style={[styles.clear, { color: t.dim }]}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {/*
         The event chats are built from `events`, a prop the tabs already hold,
         so they would be on screen a round trip before the groups they sit
         beneath — the minor half of this tab arriving first and the rooms
@@ -1341,7 +1422,7 @@ export function GroupsTab({
             is this same list, and pushing a second copy of it would mean two
             places where a group block is drawn.
           */}
-          {groups.length > shown.length && (
+          {!looking && groups.length > shown.length && (
             <Pressable
               onPress={() => setAllGroups(true)}
               accessibilityRole="button"
@@ -1373,7 +1454,20 @@ export function GroupsTab({
       */}
       {loose.length > 0 && (
         <View style={{ gap: 2 }}>
-          <Text style={[styles.sectionLabel, { color: t.dim }]}>GROUP CHATS</Text>
+          {/*
+            What this section holds, which is not what it used to say.
+
+            It read GROUP CHATS, over a list of *album* conversations — the
+            groups' own threads are on their blocks above, one line each. So
+            the tab had a heading promising the one thing under it that was not
+            there, and the question it produced was the obvious one: why are my
+            groups' chats not in the group chats.
+
+            "EVENT CHATS" was rejected here once and stays rejected — `event`
+            is the schema's word and no reader of this product sees it. The
+            reader's word for the thing these belong to is album.
+          */}
+          <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM CHATS</Text>
           {loose.map((event, i) => (
             <Pressable
               key={event.id}
@@ -1412,6 +1506,21 @@ export function GroupsTab({
       )}
 
       {/*
+        Said once, for both lists at once.
+
+        A search that matches nothing should say so rather than leaving a head,
+        a field and an empty page — which reads as the tab having failed to
+        load rather than as an answer.
+      */}
+      {looking !== '' && shown.length === 0 && loose.length === 0 && (
+        <Text style={[styles.body, { color: t.dim }]}>
+          Nothing here matches “{query.trim()}”. This searches the groups you
+          are in and the conversations you are part of — Find is where the
+          groups you are not in live.
+        </Text>
+      )}
+
+      {/*
         What the product noticed, as one line at the foot of everything it
         already knows about.
 
@@ -1431,21 +1540,22 @@ export function GroupsTab({
         ways to make a group with two layouts and two sets of copy — and the
         one reachable from a suggestion was the one that could not search.
       */}
-      {clusters.map((cluster) => (
-        <ClusterCard
-          key={cluster.key}
-          cluster={cluster}
-          onMake={() => onCreateGroupFrom(cluster)}
-          t={t}
-        />
-      ))}
+      {!looking &&
+        clusters.map((cluster) => (
+          <ClusterCard
+            key={cluster.key}
+            cluster={cluster}
+            onMake={() => onCreateGroupFrom(cluster)}
+            t={t}
+          />
+        ))}
 
       {/*
         Where the other kind of group is. Discovery lives on Find and stays
         there — this tab is the rooms you are in, and a second list of rooms
         you are not would make it two screens wearing one title.
       */}
-      {groups.length > 0 && (
+      {!looking && groups.length > 0 && (
         <Text style={[styles.small, { color: t.dim, paddingTop: 6 }]}>
           Looking for one you are not in? Find searches groups that have chosen
           to be findable — you would still be asking to be let in.
@@ -2671,6 +2781,9 @@ const styles = StyleSheet.create({
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },
+  /* Set below the field's own text: it is the way out of a search, not a
+     second thing to read while typing one. */
+  clear: { fontSize: 15 },
   chips: { flexDirection: 'row', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14 },
   chipText: { fontSize: 13.5 },
