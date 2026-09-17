@@ -289,7 +289,14 @@ describe('what the product calls an album', () => {
      */
     const GROUPS = read('src/Groups.tsx');
     expect(GROUPS).toMatch(/New album in this group/);
-    expect(GROUPS).toMatch(/'album' : 'albums'/);
+    /*
+     * Said through `plural` now rather than a ternary per call site. The group
+     * screen counts albums, photographs and people in five places, and five
+     * copies of `n === 1 ? 'album' : 'albums'` is five chances for one of them
+     * to read "1 albums".
+     */
+    expect(GROUPS).toMatch(/const plural = \(n: number, one: string, many = `\$\{one\}s`\)/);
+    expect(GROUPS).toMatch(/plural\([^)]*, 'album'\)/);
     /*
      * And never the schema's word where somebody reads it.
      *

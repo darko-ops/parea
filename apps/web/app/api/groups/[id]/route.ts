@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import {
+  attendedEvery,
   findGroup,
   groupArchive,
   groupPeople,
@@ -71,9 +72,10 @@ export async function GET(
    * rather than nothing: the epoch, not `now`. Same rule the web page follows.
    */
   const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);
-  const [events, people] = await Promise.all([
+  const [events, people, everyAlbum] = await Promise.all([
     groupArchive(db, group.id, actorId, since),
     groupPeople(db, group.id),
+    attendedEvery(db, group.id),
   ]);
 
   return NextResponse.json({
@@ -84,6 +86,18 @@ export async function GET(
     role: membership.role,
     findable: group.findable,
     events,
+    /*
+     * When the room started, which is the other half of the line under its
+     * name: "34 albums · since Mar 2024". A count says how much is in here and
+     * a date says how long it has been going, and a group's age is most of
+     * what makes it feel like a room rather than a list.
+     */
+    createdAt: group.createdAt.toISOString(),
+    /*
+     * How many of them have been at every album — see `attendedEvery`. Null
+     * for a group with no albums, where the answer is a technicality.
+     */
+    everyAlbum,
     /*
      * Everybody in it, with their faces.
      *

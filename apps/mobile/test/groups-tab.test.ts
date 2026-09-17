@@ -236,62 +236,102 @@ describe('what a group shows when you open it', () => {
       'utf8',
     );
     expect(SERVER).toMatch(/linkToken: schema\.events\.linkToken,\s*\n\s*startsAt: schema\.events\.startsAt,/);
-    expect(GROUPS).toMatch(/startsAt: event\.startsAt,/);
+    expect(GROUPS).toMatch(/startsAt: album\.startsAt,/);
   });
 
-  it('draws each album as its picture rather than as a link', () => {
-    expect(GROUPS).toMatch(/function AlbumRow\(/);
-    expect(GROUPS).toMatch(/album\.cover && \(/);
-    // Full-bleed against the scroll's gutter, like the cards on the home list:
-    // the photograph is the row.
-    expect(GROUPS).toMatch(/album: \{ marginHorizontal: -20 \}/);
+  it('leads with the newest album and shelves the rest', () => {
     /*
-     * One shape down the page rather than each album's own. A column of covers
-     * at their natural heights is a ladder of different rectangles, which reads
-     * as a feed; the home list is the place that keeps an evening's proportions.
+     * Every album used to be a full-width cover, which is a feed: thirty-four
+     * of them is thirty-four screens, and an archive is a thing you look
+     * *back* through.
+     *
+     * So the newest is a cover at the size of the thing it is — a room that
+     * meets every Tuesday is opened to find out what happened last Tuesday —
+     * and everything behind it is a thumbnail and two lines, which is as much
+     * as an album from March needs to be found by.
      */
-    expect(GROUPS).toMatch(/albumShot: \{ width: '100%', aspectRatio: 4 \/ 5/);
+    expect(GROUPS).toMatch(/function Feature\(/);
+    expect(GROUPS).toMatch(/function Row\(/);
+    expect(GROUPS).toMatch(/const \[newest, \.\.\.rest\] = events;/);
+    // Full-bleed and at the cover's own 4:5, which the shelf's thumbnail keeps.
+    expect(GROUPS).toMatch(/feature: \{ aspectRatio: 4 \/ 5, marginHorizontal: -20/);
+    expect(GROUPS).toMatch(/thumb: \{ width: 76, height: 95, flex: 0 \}/);
     // And what is in it, which the old row could not say at all.
     expect(GROUPS).toMatch(/'Nothing in it yet'/);
-    expect(GROUPS).toMatch(/album\.photoCount === 1 \? 'photo' : 'photos'/);
   });
 
-  it('heads contiguous runs with the month, rather than collecting them', () => {
+  it('groups this year by month and older years by year', () => {
     /*
-     * The list arrives newest-first, so a month's albums are already together;
-     * a map keyed by month would quietly reorder them if that ever stopped
-     * being true. This draws the same heading twice instead, which is visibly
-     * wrong rather than silently rearranged — the rule the web page follows.
+     * Contiguous runs rather than a map keyed by month: the list arrives
+     * newest-first so a month's albums are already together, and a map would
+     * quietly reorder them if that ever stopped being true. This draws the
+     * same heading twice instead, which is visibly wrong rather than silently
+     * rearranged.
+     *
+     * A year gets one heading rather than its twelve months, because twelve
+     * headings for a year nobody is scrolling to is a year that takes twelve
+     * screens to pass. The rows under one carry the month in their own date
+     * line, which is all the headings were saying.
      */
-    expect(GROUPS).toMatch(/function monthsOf\(/);
-    expect(GROUPS).toMatch(/if \(last && last\.label === label\) last\.events\.push\(event\)/);
-    // The year only where it is not this one: "August 2024" tells two summers
-    // apart, and "August 2026" in September 2026 is noise.
-    expect(GROUPS).toMatch(/at\.getUTCFullYear\(\) === now\.getUTCFullYear\(\) \? \{\} : \{ year: 'numeric' \}/);
-    // Set like the rule over a card on the home list: the two are the same kind
-    // of line, and a second treatment for one idea is how a product gets two.
-    expect(GROUPS).toMatch(/monthLabel: \{[\s\S]*?textTransform: 'uppercase',/);
+    expect(GROUPS).toMatch(/if \(last && last\.label === label\) last\.events\.push\(album\)/);
+    expect(GROUPS).toMatch(/if \(year !== thisYear\) \{/);
+    expect(GROUPS).toMatch(/withMonth\b/);
+    // One rule component for both, so a month and a year cannot drift apart.
+    expect(GROUPS).toMatch(/function Rule\(/);
+    expect(GROUPS).toMatch(/loud \? t\.fg : t\.dim/);
   });
 
-  it('shows who is in the room, as faces', () => {
+  it('shows who is in the room, as one stack rather than a row', () => {
     /*
-     * The count says how many; this says who, which is the half somebody
-     * recognises a room by. A row that scrolls rather than a wrapped block: a
-     * group of thirty would otherwise push the albums off the bottom.
+     * It was a horizontal scroll of faces with first names under them, which
+     * is a directory: to read it you scroll it, and it takes the full width to
+     * say what a stack says in a third of it. Overlapped, the faces are one
+     * object — a group of people rather than a list of them — and the width it
+     * gives back is what carries the sentence beside it.
      */
-    expect(GROUPS).toMatch(/group\.people\.map\(\(person\) => \{/);
-    expect(GROUPS).toMatch(/\{person\.firstName\}/);
-    // Rounded squares, like every other face in this product — a quarter of
-    // the box, as the profile's own picture and the home card's byline are.
-    expect(GROUPS).toMatch(/personFace: \{ width: 44, height: 44, borderRadius: 11/);
+    expect(GROUPS).toMatch(/stack: \{ flexDirection: 'row', flex: 0 \}/);
+    expect(GROUPS).toMatch(/stacked: \{ marginLeft: -8 \}/);
+    expect(GROUPS).toMatch(/group\.people\.slice\(0, FACES\)/);
     /*
-     * Pressable only where there is a profile to open. `name` falls back to
-     * `@handle` for somebody with no display name, which is right for a caption
-     * and useless for navigation — so the handle travels separately, and null
-     * is how a face says it cannot be pressed.
+     * The one fact about a room that a count of heads does not give: whether
+     * everybody turns up, or there is a core and a fringe. It falls back to
+     * the count where there is no archive to have attended — the server
+     * answers null rather than saying eleven of you have been to all nought
+     * of the albums.
      */
-    expect(GROUPS).toMatch(/onPress=\{person\.handle \? \(\) => onOpenPerson\(person\.handle!\) : undefined\}/);
-    expect(GROUPS).toMatch(/disabled=\{!person\.handle\}/);
+    expect(GROUPS).toMatch(/of you have been to every one/);
+    expect(GROUPS).toMatch(/group\.everyAlbum !== null && group\.everyAlbum > 1/);
+    const SERVER = readFileSync(
+      fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SERVER).toMatch(/export async function attendedEvery/);
+    expect(SERVER).toMatch(/if \(!row \|\| row\.albums === 0\) return null;/);
+    /*
+     * Rounded squares, like every other face in this product. The overlapping
+     * circles over an album's cover stay the exception: that row reads as a
+     * crowd because circles overlap cleanly, and it has no words beside it to
+     * line up with.
+     */
+    expect(GROUPS).toMatch(/stackFace: \{ width: 30, height: 30, borderRadius: 8/);
+    // Pressable as one thing, into the list you read rather than glance at.
+    expect(GROUPS).toMatch(/function Everyone\(/);
+  });
+
+  it('puts leaving behind the same glyph an album’s settings sit behind', () => {
+    /*
+     * It was a red button at the foot of the archive, which put the screen's
+     * one irreversible action at the end of the one list somebody scrolls to
+     * the bottom of. The sentence explaining it stays at the foot, because
+     * that is where somebody arrives with "what happens to all this if I go"
+     * already in mind.
+     */
+    expect(GROUPS).toMatch(/function GroupMore\(/);
+    expect(GROUPS).toMatch(/accessibilityLabel="Group settings"/);
+    expect(GROUPS).toMatch(/Photos live in the albums, not in the group/);
+    // And making one floats clear of the archive rather than ending it.
+    expect(GROUPS).toMatch(/make: \{\s*\n\s*position: 'absolute',/);
+    expect(GROUPS).toMatch(/>New album</);
   });
 
   it('keeps the room’s own face a letter, never a borrowed photograph', () => {

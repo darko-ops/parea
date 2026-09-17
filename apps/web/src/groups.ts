@@ -723,6 +723,45 @@ export type GroupPerson = {
 };
 
 /**
+ * How many members have been at every album in the group.
+ *
+ * The sentence the group screen leads its people row with — "six of you have
+ * been to every one" — and it is the one fact about a room that says something
+ * a count of heads does not: whether this is a group of people who all turn up
+ * or a group with a core and a fringe.
+ *
+ * Null where the answer would be a technicality. A group with no albums yet has
+ * everybody trivially at all nought of them, and "eleven of you have been to
+ * every one" over an empty archive is the screen being clever at somebody.
+ *
+ * Membership, not participation, is the outer set: somebody who has been to
+ * every album *and left the group* is not one of "you".
+ */
+export async function attendedEvery(db: Db, groupId: string): Promise<number | null> {
+  const [row] = await db.execute<{ albums: number; everyone: number }>(sql`
+    with albums as (
+      select id from "event"
+      where group_id = ${groupId} and deleted_at is null
+    )
+    select
+      (select count(*)::int from albums) as albums,
+      (
+        select count(*)::int from "group_member" gm
+        where gm.group_id = ${groupId}
+          and not exists (
+            select 1 from albums a
+            where not exists (
+              select 1 from "event_participant" ep
+              where ep.event_id = a.id and ep.actor_id = gm.actor_id
+            )
+          )
+      ) as everyone
+  `);
+  if (!row || row.albums === 0) return null;
+  return row.everyone;
+}
+
+/**
  * Everybody in a group: admins first, then by how long they have been in it.
  *
  * The design asks for "admins first, then most recently active", and gives its

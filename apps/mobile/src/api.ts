@@ -530,6 +530,17 @@ export type GroupRoom = {
   role: 'member' | 'admin';
   findable: boolean;
   events: GroupAlbum[];
+  /** ISO. When the room started — the other half of the line under its name. */
+  createdAt: string;
+  /**
+   * How many members have been at every album in it.
+   *
+   * Null for a group with no albums, where everybody has trivially been to all
+   * nought of them. The one fact about a room that a count of heads does not
+   * give: whether this is a group where everyone turns up, or one with a core
+   * and a fringe.
+   */
+  everyAlbum: number | null;
   /** Everybody in it, admins first. Empty for a group being read as a door. */
   people: GroupPerson[];
 };
