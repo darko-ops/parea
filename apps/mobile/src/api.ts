@@ -705,6 +705,15 @@ export type InvitablePerson = {
 };
 
 /**
+ * One of them, with the reason they are being suggested.
+ *
+ * `mutuals` is how many of your own friends already know them, and it is the
+ * whole difference between a suggestion and a list: "3 mutual friends" is what
+ * makes an unfamiliar handle worth tapping.
+ */
+export type SuggestedPerson = InvitablePerson & { mutuals: number };
+
+/**
  * You, as your own profile draws you.
  *
  * `/api/account/session` has answered with all of this for as long as the web
@@ -1500,6 +1509,24 @@ export class Api {
       method: 'POST',
       body: JSON.stringify({ actorId }),
     });
+  }
+
+  /**
+   * People worth asking, for the resting state of Find.
+   *
+   * Friends of friends, most mutuals first — the same `suggestionsFor` the
+   * web's own Find page draws, reached through a route because the app cannot
+   * call a server component.
+   *
+   * Empty rather than an error for a guest: a suggestion is derived from a
+   * friendship graph and a device that has never signed in has none, which is
+   * an answer rather than a failure.
+   */
+  async suggestedPeople(): Promise<SuggestedPerson[]> {
+    const { people } = await this.call<{ people: SuggestedPerson[] }>(
+      '/api/people/suggestions',
+    );
+    return people ?? [];
   }
 
   /** Answering one, from their page rather than from the bubble on home. */

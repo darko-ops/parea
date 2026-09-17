@@ -49,6 +49,7 @@ import type {
   ClusterPerson,
   EventListing,
   InvitablePerson,
+  SuggestedPerson,
   MyGroupDetail,
   ThreadLine,
 } from './api';
@@ -1775,7 +1776,7 @@ export function SearchTab({
   Button: ButtonComponent;
 }) {
   const [starting, setStarting] = useState(false);
-  const [scope, setScope] = useState<Scope>('people');
+  const [scope, setScope] = useState<Scope>('all');
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
   const [people, setPeople] = useState<InvitablePerson[]>([]);
@@ -1797,15 +1798,53 @@ export function SearchTab({
   const [mine, setMine] = useState<MyGroupDetail[] | null>(null);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [allGroups, setAllGroups] = useState(false);
+  /**
+   * People worth asking, and who has already been asked from here.
+   *
+   * `sent` is local rather than a reload. The server answers a request with
+   * the standing it produced, and re-fetching the suggestions to make a row
+   * disappear would take the whole list out from under a finger mid-scroll —
+   * which is the thing a horizontal row of faces is least able to survive.
+   */
+  const [suggested, setSuggested] = useState<SuggestedPerson[] | null>(null);
+  const [sent, setSent] = useState<Record<string, 'asking' | 'asked'>>({});
 
   const loadMine = useCallback(async () => {
-    const [rooms, found] = await Promise.all([
+    const [rooms, found, people] = await Promise.all([
       api.myGroupsDetailed().catch(() => []),
       api.clusters().catch(() => ({ clusters: [], also: [] })),
+      // Empty for a guest, which the route answers with a 403 — a suggestion
+      // is derived from a friendship graph and a device that has never signed
+      // in has none.
+      api.suggestedPeople().catch(() => []),
     ]);
     setMine(rooms);
     setClusters(found.clusters);
+    setSuggested(people);
   }, [api]);
+
+  const ask = useCallback(
+    async (actorId: string) => {
+      setSent((was) => ({ ...was, [actorId]: 'asking' }));
+      try {
+        const answer = await api.askFriend(actorId);
+        // `accepted` happens when this crossed with an ask of theirs: the
+        // endpoint answers the open request rather than opening a second one.
+        setSent((was) => ({ ...was, [actorId]: 'asked' }));
+        return answer;
+      } catch {
+        // Back to a button that can be pressed again, rather than a row stuck
+        // saying it is doing something it has stopped doing.
+        setSent((was) => {
+          const next = { ...was };
+          delete next[actorId];
+          return next;
+        });
+        return null;
+      }
+    },
+    [api],
+  );
 
   // On arrival, and on every return to the tab. Not on the switches away.
   useEffect(() => {
@@ -1841,8 +1880,15 @@ export function SearchTab({
         setGroups([]);
         return;
       }
-      if (into === 'people') setPeople(await api.findPeople(next).catch(() => []));
-      if (into === 'groups') setGroups(await api.searchGroups(next).catch(() => []));
+      // `all` asks both, and the two lists draw under their own headings —
+      // one field, two namespaces, rather than making somebody guess which
+      // chip the thing they half-remember is filed under.
+      if (into === 'people' || into === 'all') {
+        setPeople(await api.findPeople(next).catch(() => []));
+      }
+      if (into === 'groups' || into === 'all') {
+        setGroups(await api.searchGroups(next).catch(() => []));
+      }
     },
     [api],
   );
@@ -1948,6 +1994,7 @@ export function SearchTab({
       <View style={styles.chips}>
         {(
           [
+            ['all', 'All'],
             ['people', 'People'],
             ['groups', 'Groups'],
             ['places', 'Places'],
@@ -2002,7 +2049,138 @@ export function SearchTab({
         </View>
       )}
 
-      {!asked && mine !== null && (
+      {/*
+        People worth asking, above the groups and never anywhere else.
+
+        Friends of your friends, most mutuals first — `suggestionsFor`, the
+        same list the web's Find page draws. It is the only thing on this page
+        that is a *recommendation* rather than something already yours, which
+        is why it leads: somebody opening Find without a question in mind is
+        the person it is for, and a list of rooms they are already in answers
+        nothing for them.
+
+        A row rather than a column. Twelve suggestions down the page would be
+        the whole screen, and a suggestion is a glance — a face, a name, how
+        many of your own people know them, and a button. Sideways is what says
+        "some of these, not all of these".
+      */}
+      {!asked && (scope === 'all' || scope === 'people') && suggested !== null &&
+        suggested.length > 0 && (
+          <View style={{ gap: 6 }}>
+            <Text style={[styles.sectionLabel, { color: t.dim }]}>PEOPLE YOU MAY KNOW</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              /*
+                The page scrolls down and this scrolls across, which is two
+                gestures in one place — so the row is given its own padding and
+                bleeds to both edges. A card half-off the screen is what tells
+                somebody there is more of it sideways; a row that stops neatly
+                at the margin reads as a row that has ended.
+              */
+              contentContainerStyle={styles.suggestRow}
+              style={styles.suggestBleed}
+            >
+              {suggested.map((person) => {
+                const standing = sent[person.actorId];
+                const name = person.displayName?.trim() || `@${person.handle}`;
+                return (
+                  <View
+                    key={person.actorId}
+                    style={[styles.suggest, { backgroundColor: t.card, borderColor: t.line }]}
+                  >
+                    <Pressable
+                      onPress={() => person.handle && onOpenPerson(person.handle)}
+                      disabled={!person.handle}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${name}, ${plural(person.mutuals, 'mutual friend')}`}
+                      style={({ pressed }) => [{ alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 }]}
+                    >
+                      {person.avatar ? (
+                        <Image
+                          source={{ uri: person.avatar }}
+                          style={[styles.suggestFace, { backgroundColor: t.line }]}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.suggestFace,
+                            styles.chatLetter,
+                            { backgroundColor: lensFor(person.handle ?? person.actorId).fill },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.suggestInitial,
+                              { color: lensFor(person.handle ?? person.actorId).ink },
+                            ]}
+                          >
+                            {initialOf(name)}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.suggestName, { color: t.fg }]} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      {/*
+                        The reason they are here. Without it this is a row of
+                        strangers, and a row of strangers on a page about the
+                        people you know is the thing nobody taps.
+                      */}
+                      <Text style={[styles.suggestWhy, { color: t.dim }]} numberOfLines={1}>
+                        {plural(person.mutuals, 'mutual')}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => void ask(person.actorId)}
+                      disabled={standing != null}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        standing === 'asked' ? `Asked ${name}` : `Add ${name} as a friend`
+                      }
+                      style={({ pressed }) => [
+                        styles.suggestAdd,
+                        standing
+                          ? { backgroundColor: t.bg, borderColor: t.line }
+                          : { backgroundColor: t.accent, borderColor: t.accent },
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.suggestAddText,
+                          { color: standing ? t.dim : t.onAccent },
+                        ]}
+                      >
+                        {standing === 'asked' ? 'Asked' : standing ? '…' : 'Add'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+      {/*
+        And what the People filter says with nothing to suggest.
+        *
+        * Suggestions are friends of your friends, so somebody with no friends
+        * yet has none by arithmetic rather than by anything being wrong. The
+        * box above is the way out of that, which is what this says.
+        */}
+      {!asked && scope === 'people' && suggested !== null && suggested.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          Nobody to suggest yet. These are friends of your friends, so they
+          start appearing once you have a few — search a handle above to add the
+          first.
+        </Text>
+      )}
+
+      {!asked && scope !== 'places' && scope !== 'people' && mine !== null && (
         <>
           {mine.length > 0 && (
             <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
@@ -2081,7 +2259,7 @@ export function SearchTab({
       )}
 
       <View style={styles.results}>
-        {scope === 'people' &&
+        {(scope === 'people' || scope === 'all') &&
           people.map((person, i) => (
             <Result
               key={person.actorId}
@@ -2100,7 +2278,7 @@ export function SearchTab({
             />
           ))}
 
-        {scope === 'groups' &&
+        {(scope === 'groups' || scope === 'all') &&
           groups.map((group, i) => (
             <Result
               key={group.id}
@@ -2163,6 +2341,16 @@ export function SearchTab({
       {scope === 'groups' && asked && groups.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>Nothing findable by that name.</Text>
       )}
+      {/*
+        One sentence for both namespaces, said only when both came back empty.
+        Two lines — "no handle" and "no group" — under a box that asked both
+        questions at once is the page reporting its own internals.
+      */}
+      {scope === 'all' && asked && people.length === 0 && groups.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          No handle or findable group by that name.
+        </Text>
+      )}
       {scope === 'places' && places.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
           {events.length === 0 || unplaced === events.length
@@ -2194,9 +2382,23 @@ export function SearchTab({
 }
 
 /** Which namespace the one field is asking. */
-type Scope = 'people' | 'groups' | 'places';
+/**
+ * What the box is asking, and — before anybody types — what the page shows.
+ *
+ * `all` is new and is the default. The chips used to decide only which
+ * namespace a query went to, so an untouched Find was a field, three chips and
+ * nothing else until somebody typed: a screen that answers questions and
+ * volunteers nothing, on the tab somebody opens when they do not yet know what
+ * they are looking for.
+ *
+ * So the chips now also decide what the page rests as. All is both halves —
+ * people worth asking, then the groups you are in. The other two are each half
+ * on its own, which is what a filter is for.
+ */
+type Scope = 'all' | 'people' | 'groups' | 'places';
 
 const PLACEHOLDER: Record<Scope, string> = {
+  all: 'A handle, or a group by name',
   people: 'A handle, or the start of one',
   groups: 'A group by name',
   places: 'Somewhere you have been',
@@ -2848,6 +3050,32 @@ const styles = StyleSheet.create({
   /* The one-off evenings, under a label rather than a heading: they are the
      minor half of this screen and a 30pt title would say otherwise. */
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  /* --- people you may know -----------------------------------------------
+
+     A row that scrolls across a page that scrolls down. The page is padded 20
+     all round, so the row cancels that with a negative margin and puts it back
+     as content padding — which is what lets a card sit half off the right edge
+     instead of stopping neatly at the margin. A row that ends at the margin
+     reads as a row that has ended. */
+  suggestBleed: { marginHorizontal: -20 },
+  suggestRow: { paddingHorizontal: 20, gap: 10 },
+  suggest: {
+    width: 128,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+  },
+  /* A rounded square, like every other face in this product outside the
+     overlapping stack on an album's cover. */
+  suggestFace: { width: 54, height: 54, borderRadius: 14 },
+  suggestInitial: { fontSize: 21, fontWeight: '600' },
+  suggestName: { fontSize: 14, fontWeight: '600', maxWidth: 108, textAlign: 'center' },
+  suggestWhy: { fontSize: 12 },
+  suggestAdd: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 18 },
+  suggestAddText: { fontSize: 13.5, fontWeight: '600' },
   /* --- the two halves of this tab ----------------------------------------
 
      The trough-and-pill the album's own panes use, to the same metrics — one
