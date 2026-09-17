@@ -1355,6 +1355,21 @@ function GroupBlock({
    */
   const withCovers = albums.filter((album) => album.cover).slice(0, COVER_STRIP);
   /*
+   * How tall the strip stands, which depends on how much is in it.
+   *
+   * The tiles share the block's width, so the fewer there are the wider each
+   * one gets — and at one fixed height that meant a group with a single
+   * evening drew that evening as a 4:1 letterbox, a band of photograph with
+   * the top and bottom of it cut away. The one group most in need of showing
+   * something showed the least of it.
+   *
+   * So the height goes up as the count comes down, and each tile lands near
+   * the same shape whatever the group holds: a banner across the block for
+   * one, a pair of landscapes for two, three squares for three. All three are
+   * taller than the 84 this drew before.
+   */
+  const stripHeight = [0, 150, 128, 104][withCovers.length] ?? 104;
+  /*
    * How many evenings are not in the strip.
    *
    * Counted off the group's own `eventCount` rather than off `albums`, because
@@ -1411,7 +1426,7 @@ function GroupBlock({
       {withCovers.length > 0 && (
         <View style={styles.strip}>
           {withCovers.map((album, i) => (
-            <View key={album.id} style={styles.stripTile}>
+            <View key={album.id} style={[styles.stripTile, { height: stripHeight }]}>
               <Image
                 source={{ uri: album.cover!.src }}
                 style={[styles.stripShot, { backgroundColor: t.line }]}
@@ -2647,7 +2662,9 @@ const styles = StyleSheet.create({
      which is what makes it read as "what is in here" and not as three things
      to choose between. */
   strip: { flexDirection: 'row', gap: 3 },
-  stripTile: { flex: 1, height: 84 },
+  /* The height is set per block — see `stripHeight`. It is the one measurement
+     here that depends on how many covers there are to share the width. */
+  stripTile: { flex: 1 },
   stripShot: { width: '100%', height: '100%', borderRadius: 8 },
   stripMore: {
     position: 'absolute',

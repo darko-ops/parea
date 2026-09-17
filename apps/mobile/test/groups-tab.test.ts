@@ -368,3 +368,46 @@ describe('what a group shows when you open it', () => {
     expect(identity).not.toMatch(/cover|Image/);
   });
 });
+
+/**
+ * How tall a group's strip of covers stands.
+ *
+ * The tiles share the block's width, so the fewer there are the wider each one
+ * gets. At one fixed height that made a group with a single evening draw it as
+ * a letterbox — a band of photograph with the top and bottom cut away — and
+ * the group with the least in it showed the least of what it had.
+ */
+describe('the strip of covers', () => {
+  const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
+
+  it('stands taller the fewer covers it has', () => {
+    const ramp = /\[0, (\d+), (\d+), (\d+)\]\[withCovers\.length\]/.exec(block);
+    expect(ramp).not.toBeNull();
+    const [one, two, three] = ramp!.slice(1).map(Number) as [number, number, number];
+    expect(one).toBeGreaterThan(two);
+    expect(two).toBeGreaterThan(three);
+    // And every one of them taller than the 84 this drew at before, which is
+    // the whole point: a group with covers is a group with something to show.
+    expect(three).toBeGreaterThan(84);
+  });
+
+  it('has a zeroth entry that is never read', () => {
+    /*
+     * Index 0 exists so the lookup is indexed by count rather than by count
+     * minus one — an off-by-one here would silently give a three-cover group
+     * the two-cover height. It is unreachable because the strip is not drawn
+     * at all without a cover, and the `?? 104` covers a count past the end.
+     */
+    expect(block).toMatch(/\{withCovers\.length > 0 && \(/);
+    expect(block).toMatch(/\[withCovers\.length\] \?\? \d+/);
+  });
+
+  it('sets the height on the tile and nowhere else', () => {
+    // The stylesheet cannot hold it: it is the one measurement here that
+    // depends on how many covers there are to share the width.
+    expect(block).toMatch(/styles\.stripTile, \{ height: stripHeight \}/);
+    expect(EVENTS).toMatch(/stripTile: \{ flex: 1 \}/);
+    expect(EVENTS).not.toMatch(/stripTile: \{ flex: 1, height/);
+  });
+});
+
