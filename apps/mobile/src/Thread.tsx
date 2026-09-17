@@ -87,9 +87,23 @@ export function Thread({
   keyboardOffset = 0,
   onChanged,
   onSeen,
+  photoOf,
+  onOpenPhoto,
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
+  /**
+   * The photograph a comment is about, by id.
+   *
+   * Optional, and absent in a group's chat — a group has no photographs of its
+   * own, so every message there is to the room rather than about a picture.
+   * Handed in rather than fetched: the album screen already holds every
+   * photograph in the feed, and a thread that could ask for one would be a
+   * second path to an album's pictures with its own rules about who may.
+   */
+  photoOf?: (photoId: string) => { id: string; src: string } | null;
+  /** Opens that photograph. Absent where there is nowhere to open it. */
+  onOpenPhoto?: (photoId: string) => void;
   /**
    * The conversation, or null while nobody knows yet.
    *
@@ -270,6 +284,8 @@ export function Thread({
               onReact={(emoji) => void react(item.id, emoji)}
               onDelete={() => void remove(item.id)}
               onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
+              about={item.photoId ? (photoOf?.(item.photoId) ?? null) : null}
+              onOpenPhoto={onOpenPhoto}
             />
           )}
         />
@@ -346,6 +362,8 @@ function Row({
   onReact,
   onDelete,
   onEdit,
+  about,
+  onOpenPhoto,
 }: {
   message: Message;
   canPost: boolean;
@@ -355,6 +373,9 @@ function Row({
   onReact: (emoji: string) => void;
   onDelete: () => void;
   onEdit: (body: string) => void;
+  /** The photograph this comment is about, where it is about one. */
+  about?: { id: string; src: string } | null;
+  onOpenPhoto?: (photoId: string) => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -483,6 +504,42 @@ function Row({
                 : undefined
             }
           >
+            {/*
+              The photograph this was said about, where it was said about one.
+              *
+              * A comment written under a picture is a line in this same board
+              * carrying a `photo_id` — one thread, two ways in. This pane drew
+              * the line and dropped the picture, so "look at her face in this
+              * one" arrived on the board with no *this one* in it: the same
+              * sentence meant two different things depending on where you
+              * happened to read it, and on the board it meant nothing.
+              *
+              * Small, and above the words rather than beside them. It is the
+              * subject of the sentence under it, not an illustration of it —
+              * and a thumbnail large enough to look at would make the board a
+              * second copy of the album.
+              */}
+            {about && (
+              <Pressable
+                onPress={() => onOpenPhoto?.(about.id)}
+                disabled={!onOpenPhoto}
+                accessibilityRole={onOpenPhoto ? 'button' : 'image'}
+                accessibilityLabel="The photograph this is about"
+                style={({ pressed }) => [
+                  styles.about,
+                  mine && styles.aboutMine,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Image
+                  source={{ uri: about.src }}
+                  style={styles.aboutShot}
+                  contentFit="cover"
+                  transition={120}
+                />
+              </Pressable>
+            )}
+
             {mine ? (
               <View style={[styles.bubble, { backgroundColor: t.accent }]}>
                 <Text style={[styles.bodyText, { color: t.onAccent }]}>
@@ -671,6 +728,13 @@ const styles = StyleSheet.create({
   faceBlank: { alignItems: 'center', justifyContent: 'center' },
   faceLetter: { fontSize: 13, fontWeight: '700' },
   said: { flex: 1, minWidth: 0, gap: 2 },
+  /* The photograph a comment is about: a thumbnail the size of two lines of
+     the text under it, so the row still reads as a sentence with a subject
+     rather than as a picture with a caption. Aligned with whichever edge the
+     message itself is on. */
+  about: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
+  aboutMine: { alignSelf: 'flex-end' },
+  aboutShot: { width: 52, height: 52 },
   saidMine: { alignItems: 'flex-end' },
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },

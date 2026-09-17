@@ -248,7 +248,17 @@ function copy(source: string, word: RegExp): string[] {
     .filter((text) => !/^[a-z]+$/.test(text));
   const nodes = [...source.matchAll(new RegExp(`>([^<>{}]*${body}[^<>{}]*)<`, 'g'))]
     .map((m) => m[1]!.split(/\s+/).filter(Boolean).join(' '))
-    .filter(Boolean);
+    .filter(Boolean)
+    /*
+     * And not the code between two tags.
+     *
+     * `{a ? (<A/>) : pane === 'talk' ? (<B/>)}` puts `) : pane === 'talk' ? (`
+     * between a `>` and a `<`, which is the shape this reads as prose. The
+     * tells are reliable: this app's copy is set with curly quotation marks,
+     * so a straight apostrophe is a string literal, and no sentence anybody
+     * reads contains `===` or `=>`.
+     */
+    .filter((text) => !/['`]|===|=>/.test(text));
   return [...strings, ...nodes];
 }
 
@@ -342,55 +352,59 @@ describe('what the product calls an album', () => {
 });
 
 /**
- * Two threads, two words.
+ * Two threads, two words — and the second word changed.
  *
  * A photo comment is not a third conversation. It is a line in the album's
  * thread carrying a `photo_id` — the same table, the same unread count,
- * filtered to one picture. So the product has exactly two threads, and it was
- * calling them three things: the album's was `Talk` on its own tab, `ALBUM
- * CHATS` on the Chats tab, and `comments` under a photograph.
+ * filtered to one picture. Two threads, which were being called three things:
+ * the album's was `Talk` on its own tab, `ALBUM CHATS` on the Chats tab, and
+ * `comments` under a photograph.
  *
- * The rule now:
+ * The first attempt at this made them all say *talk*, on the grounds that the
+ * album's own tab had said it longest. That was the wrong one to keep. The
+ * album's thread is a board of remarks about photographs — most of its lines
+ * are written under a picture and carry it — and the word for a remark about
+ * a picture is a comment. `Talk` was the name that had to move.
  *
  *   **chat** is the one you have with people — a group's.
- *   **talk** is the one you have about a night — an album's, and a photograph
- *   shows the part of that talk anchored to it.
+ *   **comments** are what an album collects about its photographs, whether a
+ *   line was written on the board or under one picture.
  *
- * `comment` is the word this replaced, so a reader-facing one is the thing to
- * fail on. Identifiers stay exempt for the same reason they do above:
- * `comments={...}` handing a filtered list to `PhotoViewer` is a variable
- * doing a variable's job.
+ * So `talk` is now the word to keep away from readers, and `comment` is the
+ * word that had to come back. Identifiers stay exempt in both directions:
+ * `talk.get(id)` counting comments per photograph and the `'talk'` pane id are
+ * variables doing a variable's job.
  */
 describe('what the product calls a conversation', () => {
-  it('says nothing to anybody about comments', () => {
+  it('says nothing to anybody about talk', () => {
     for (const name of SCREENS) {
       expect(
-        copy(code(read(name)), /\b[Cc]omments?\b/),
-        `${name} still says "comment" to somebody`,
+        copy(code(read(name)), /\b[Tt]alk(?:s|ing)?\b/),
+        `${name} still says "talk" to somebody`,
       ).toEqual([]);
     }
   });
 
-  it('keeps chat for a group and talk for an album', () => {
+  it('keeps chat for a group and comments for an album', () => {
     const EVENTS_SOURCE = read('src/Events.tsx');
     expect(EVENTS_SOURCE).toMatch(/>GROUP CHATS</);
-    expect(EVENTS_SOURCE).toMatch(/>ALBUM TALK</);
-    // The album's own tab has said Talk all along; that is the name the other
-    // two were made to agree with, not the one that changed.
-    expect(read('App.tsx')).toMatch(/\['talk', 'plane', 'Talk'\]/);
-    // And a group's thread button says chat, where it used to say talk.
+    expect(EVENTS_SOURCE).toMatch(/>ALBUM COMMENTS</);
+    // The album's own tab, which is where the word `Talk` had lived longest.
+    expect(read('App.tsx')).toMatch(/\['talk', 'bubble', 'Comments'\]/);
+    // And a group's thread button says chat.
     expect(read('src/Groups.tsx')).toMatch(/Chat in \$\{group\.name\}/);
   });
 
-  it('needs no plural for the count under a photograph', () => {
+  it('gives the album a bubble and keeps the aeroplane for the Chats tab', () => {
     /*
-     * The small dividend of the name. "1 in the talk" and "3 in the talk" are
-     * both sentences; "1 comments" is the kind of thing that survives forever
-     * once it ships, and the count beside it still needs its ternary.
+     * Two verbs, two pictures. The aeroplane is *send* — reaching people who
+     * are not in front of you, which is what the Chats tab is. A comment board
+     * sits under the photographs it is about and goes nowhere, so it is a
+     * bubble.
      */
     const APP_SOURCE = read('App.tsx');
-    expect(APP_SOURCE).toMatch(/in the talk/);
-    expect(APP_SOURCE).toMatch(/=== 1 \? 'reaction' : 'reactions'/);
+    expect(APP_SOURCE).toMatch(/\['chats', 'plane', 'Chats'\]/);
+    expect(APP_SOURCE).toMatch(/\['talk', 'bubble', 'Comments'\]/);
+    expect(read('src/Glyph.tsx')).toMatch(/case 'bubble':/);
   });
 });
-

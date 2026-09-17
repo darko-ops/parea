@@ -1189,12 +1189,12 @@ export function ChatsTab({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search your chats and talk"
+            placeholder="Search your chats and comments"
             placeholderTextColor={t.dim}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            accessibilityLabel="Search your chats and talk"
+            accessibilityLabel="Search your chats and comments"
             style={[styles.fieldText, { color: t.fg }]}
           />
           {query !== '' && (
@@ -1222,8 +1222,8 @@ export function ChatsTab({
         <View style={{ gap: 12 }}>
           <Text style={[styles.label, { color: t.fg }]}>No conversations yet.</Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            Every group has a chat and every album has its own talk. Share an
-            evening with somebody and both of them start here.
+            Every group has a chat and every album has a comment board. Share
+            an evening with somebody and both of them start here.
           </Text>
           <Pressable
             onPress={onGoToEvents}
@@ -1315,7 +1315,7 @@ export function ChatsTab({
           */}
           {albumChats.length > 0 && (
             <View style={{ gap: 2 }}>
-              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM TALK</Text>
+              <Text style={[styles.sectionLabel, { color: t.dim }]}>ALBUM COMMENTS</Text>
               {albumChats.map((event, i) => (
                 <Pressable
                   key={event.id}
@@ -1362,7 +1362,8 @@ export function ChatsTab({
           {looking !== '' && groupChats.length === 0 && albumChats.length === 0 && (
             <Text style={[styles.body, { color: t.dim }]}>
               Nothing here matches “{query.trim()}”. This searches the chats and
-              the talk you are part of — the groups themselves are on Find.
+              the comment boards you are part of — the groups themselves are on
+              Find.
             </Text>
           )}
         </>

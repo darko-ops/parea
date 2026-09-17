@@ -555,15 +555,15 @@ export function PhotoViewer({
                   accessibilityRole="button"
                   accessibilityLabel={
                     comments.length > 0
-                      ? `${comments.length} in the talk about this photo, add yours`
-                      : 'Talk about this photo'
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
+                      : 'Add a comment'
                   }
                   style={styles.composerHint}
                 >
                   <Text style={styles.composerHintText} numberOfLines={1}>
                     {comments.length > 0
-                      ? `${comments.length} in the talk — add yours`
-                      : 'Talk about this photo'}
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
+                      : 'Add a comment'}
                   </Text>
                 </Pressable>
               )}
@@ -621,7 +621,9 @@ export function PhotoViewer({
             >
               {comments.length === 0 ? (
                 <Text style={styles.talkEmpty}>
-                  Nothing said about this one yet.
+                  {/* And it goes to the album's board when it is written —
+                      one thread, two ways in. */}
+                  No comments on this one yet.
                 </Text>
               ) : (
                 comments.map((message) => (

@@ -26,6 +26,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 export type GlyphName =
   | 'photos'
   | 'plane'
+  | 'bubble'
   | 'group'
   | 'profile'
   | 'search'
@@ -107,14 +108,33 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={light} />
         </>
       );
-    /* Saying something, rather than a speech bubble: the bubble is what an
-       unread count sits on everywhere else, and this glyph carries one. */
+    /* Sending something. On the Chats tab in the bar, where the verb is
+       reaching people who are not in front of you. */
     case 'plane':
       return (
         <>
           <Path d="M21 3 3.5 9.8l7 2.7 2.7 7z" />
           <Path d="M21 3 10.5 12.5" />
         </>
+      );
+    /*
+     * Saying something about a photograph, which is a different verb from
+     * sending one.
+     *
+     * An album's comments used to share the aeroplane with the Chats tab, on
+     * the argument that one picture should mean one thing. It does — but the
+     * thing it meant there was *send*, and a comment board is not a message
+     * going anywhere. It sits under the photographs it is about.
+     *
+     * One path, drawn the way the rest of this family is: a rounded box on the
+     * 24-unit grid with a tail off the bottom-left. The tail is what makes it
+     * a bubble rather than a rounded rectangle, so it is generous — 4.5 units,
+     * a fifth of the height — because at 22 points anything smaller closes up
+     * into the box's own stroke.
+     */
+    case 'bubble':
+      return (
+        <Path d="M6 4h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-5 4.5 2-4.5H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" />
       );
     /* Lifted verbatim from the web rail: two figures, one of them behind. */
     case 'group':

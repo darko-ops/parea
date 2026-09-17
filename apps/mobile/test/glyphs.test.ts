@@ -138,11 +138,18 @@ describe('the grid they are all on', () => {
  * would then be a bubble on a bubble.
  */
 describe('the aeroplane', () => {
-  it('is the tab bar, the album\'s Talk tab and a group\'s talk button', () => {
+  it('is sending, and only sending', () => {
+    /*
+     * It lost the album's tab, and that is the point of the split. The
+     * aeroplane is *send* — reaching people who are not in front of you, which
+     * is the Chats tab and a group's talk button. A comment board sits under
+     * the photographs it is about and goes nowhere, so it is a bubble.
+     */
     const APP = read('App.tsx');
     const GROUPS = read('src/Groups.tsx');
     expect(APP).toContain("['chats', 'plane', 'Chats']");
-    expect(APP).toContain("['talk', 'plane', 'Talk']");
+    expect(APP).toContain("['talk', 'bubble', 'Comments']");
+    expect(APP).not.toContain("'plane', 'Comments'");
     expect(GROUPS).toMatch(/<Glyph name="plane"/);
   });
 
@@ -160,9 +167,39 @@ describe('the aeroplane', () => {
      * corner. Without the second it is a solid triangle pointing right — a
      * play button, which is a different verb entirely.
      */
-    const plane = GLYPH.slice(GLYPH.indexOf("case 'plane':"), GLYPH.indexOf("case 'group':"));
+    const plane = GLYPH.slice(GLYPH.indexOf("case 'plane':"), GLYPH.indexOf("case 'bubble':"));
     expect(plane).not.toBe('');
     expect((plane.match(/<Path/g) ?? [])).toHaveLength(2);
   });
 });
 
+/**
+ * The bubble, which is the album's comment board.
+ *
+ * A comment is a remark about a photograph, written under one or on the board
+ * — one thread either way. It shared the aeroplane with the Chats tab until
+ * the two verbs came apart: that one is *send*, this one is *say about*.
+ */
+describe('the bubble', () => {
+  it('is one closed path, tail included', () => {
+    /*
+     * The tail is what makes it a bubble rather than a rounded rectangle, so
+     * it is part of the same outline — a separate tail would be a second
+     * stroke to align, and the two would come apart at the join the first time
+     * the weight changed.
+     */
+    const bubble = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    expect(bubble).not.toBe('');
+    expect((bubble.match(/<Path/g) ?? [])).toHaveLength(1);
+    expect(bubble).toMatch(/z" \/>/);
+  });
+
+  it('is drawn on the same 24-unit grid as the rest', () => {
+    // Every glyph here is authored at 24 and scaled by the viewBox, which is
+    // what lets a 22pt tab glyph and a 15pt one be the same drawing.
+    const bubble = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    const numbers = [...bubble.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    expect(numbers.length).toBeGreaterThan(8);
+    expect(Math.max(...numbers)).toBeLessThanOrEqual(24);
+  });
+});

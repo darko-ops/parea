@@ -2072,6 +2072,23 @@ function EventScreen({
   }, [feed]);
 
   /**
+   * The photographs by id, for the comments that are about one.
+   *
+   * A map rather than a `find` inside the row: the board is one list and the
+   * album is another, and scanning the second for every row of the first is
+   * the shape that is fine at four photographs and visible at four hundred.
+   *
+   * `src` is the 320 rather than `card` or the full size — the thumbnail on a
+   * comment is 52 points, and it is usually already in the cache because the
+   * grid drew the same picture.
+   */
+  const photoById = useMemo(() => {
+    const byId = new Map<string, FeedPhoto>();
+    for (const photo of feed?.photos ?? []) byId.set(photo.id, photo);
+    return byId;
+  }, [feed]);
+
+  /**
    * One photograph, into the camera roll.
    *
    * The sheet's Download Album asks first — how many, and whether the full
@@ -2832,7 +2849,7 @@ function EventScreen({
          */
         const said = [
           talk.get(item.id)
-            ? `${talk.get(item.id)} in the talk`
+            ? `${talk.get(item.id)} ${talk.get(item.id) === 1 ? 'comment' : 'comments'}`
             : null,
           item.reactions.length
             ? `${item.reactions.length} ${item.reactions.length === 1 ? 'reaction' : 'reactions'}`
@@ -2963,7 +2980,7 @@ function EventScreen({
 
               Words rather than glyphs and a number. Two counts in the
               corner of a photograph are read once, if at all, and
-              "3 in the talk" is legible at a glance where a speech bubble
+              "3 comments" is legible at a glance where a speech bubble
               with a 3 beside it asks somebody to decode two symbols
               first. There is room: the row is the width of the screen.
             */}
@@ -3531,6 +3548,25 @@ function EventScreen({
             */
             messages={feed ? messages : null}
             canPost={feed?.canPost ?? false}
+            /*
+             * And the photograph a comment is about, where it is about one.
+             *
+             * The board and the photo viewer are two ways into one thread —
+             * a comment written under a picture is a line here carrying that
+             * picture's id. Without this the board drew the line and dropped
+             * the subject, so "look at her face in this one" arrived with no
+             * *this one* in it.
+             */
+            photoOf={(photoId) => {
+              const photo = photoById.get(photoId);
+              return photo ? { id: photo.id, src: photo.src } : null;
+            }}
+            // Tapping it opens that photograph, which is the other half: the
+            // comment says which picture, and the picture is one tap away.
+            onOpenPhoto={(photoId) => {
+              const photo = photoById.get(photoId);
+              if (photo) setSelected(photo);
+            }}
             // This event's contributors and nobody else — the rule the web's
             // mention list follows, and the reason it is safe for a text
             // field a link-holder can type into.
@@ -3900,7 +3936,7 @@ function Segmented({
 }) {
   const items: [Pane, GlyphName, string][] = [
     ['photos', 'photos', 'Photos'],
-    ['talk', 'plane', 'Talk'],
+    ['talk', 'bubble', 'Comments'],
     ['people', 'group', 'People'],
   ];
   return (

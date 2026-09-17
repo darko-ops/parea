@@ -479,14 +479,9 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/const said = \[/);
     expect(APP).toMatch(/\.filter\(Boolean\)\s*\.join\(' · '\)/);
     expect(APP).toMatch(/\{said !== '' && \(/);
-    /*
-     * The talk half needs no plural, which is the small dividend of naming it
-     * that way: "1 in the talk" and "3 in the talk" are both sentences, where
-     * "1 comments" is the kind of thing that survives forever once it ships.
-     * Reactions still need theirs.
-     */
-    expect(APP).toMatch(/in the talk/);
-    expect(APP).not.toMatch(/=== 1 \? 'comment' : 'comments'/);
+    // Singular and plural on both halves, because "1 comments" is the kind of
+    // thing that survives forever once it ships.
+    expect(APP).toMatch(/=== 1 \? 'comment' : 'comments'/);
     expect(APP).toMatch(/=== 1 \? 'reaction' : 'reactions'/);
   });
 
@@ -613,3 +608,63 @@ describe('a photograph in an album', () => {
     );
   });
 });
+
+/**
+ * A comment about a photograph carries the photograph.
+ *
+ * The board and the photo viewer are two ways into one thread: a comment
+ * written under a picture is a line on the board carrying that picture's id.
+ * The board drew the line and dropped the subject, so "look at her face in
+ * this one" arrived with no *this one* in it — `Thread.tsx` never read
+ * `photoId` at all. The same sentence meant two different things depending on
+ * where you happened to read it, and on the board it meant nothing.
+ */
+describe('a comment about one photograph', () => {
+  const THREAD = read('src/Thread.tsx');
+
+  it('shows the photograph it is about', () => {
+    expect(THREAD).toMatch(/about\?: \{ id: string; src: string \} \| null;/);
+    expect(THREAD).toMatch(/\{about && \(/);
+    expect(THREAD).toMatch(/source=\{\{ uri: about\.src \}\}/);
+    // Only where there is one. A line written on the board itself has no
+    // photograph and must not grow a blank square.
+    expect(THREAD).toMatch(/item\.photoId \? \(photoOf\?\.\(item\.photoId\) \?\? null\) : null/);
+  });
+
+  it('opens that photograph when it is tapped', () => {
+    // The other half: the comment says which picture, and the picture is one
+    // tap away rather than something to go and find in the grid.
+    expect(THREAD).toMatch(/onPress=\{\(\) => onOpenPhoto\?\.\(about\.id\)\}/);
+    expect(APP).toMatch(/onOpenPhoto=\{\(photoId\) => \{/);
+    expect(APP).toMatch(/if \(photo\) setSelected\(photo\);/);
+  });
+
+  it('is handed the photographs rather than fetching them', () => {
+    /*
+     * The album screen already holds every photograph in the feed. A thread
+     * that could ask for one would be a second path to an album's pictures
+     * with its own rules about who may — which is the kind of second path the
+     * egress invariant exists to prevent.
+     */
+    expect(THREAD).toMatch(/photoOf\?: \(photoId: string\) => \{ id: string; src: string \} \| null;/);
+    expect(THREAD).not.toMatch(/api\./);
+  });
+
+  it('looks the photograph up in a map, not by scanning the album', () => {
+    /*
+     * One `find` per row over the album's photographs is fine at four and
+     * visible at four hundred — the board is one list and the album is
+     * another, and this is the shape that walks the second for every row of
+     * the first.
+     */
+    expect(APP).toMatch(/const photoById = useMemo\(/);
+    expect(APP).toMatch(/for \(const photo of feed\?\.photos \?\? \[\]\) byId\.set\(photo\.id, photo\);/);
+  });
+
+  it('draws the thumbnail from the 320, not the full size', () => {
+    // It is 52 points on screen, and the grid has usually already put the
+    // same picture in the cache.
+    expect(APP).toMatch(/return photo \? \{ id: photo\.id, src: photo\.src \} : null;/);
+  });
+});
+
