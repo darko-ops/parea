@@ -144,7 +144,7 @@ export async function GET() {
             isCreator: face.isCreator,
           })),
         );
-        const { creator, coverKey, faces: faceRows, ...rest } = listing;
+        const { creator, coverKey, coverPhotoId, faces: faceRows, ...rest } = listing;
         return {
           ...rest,
           /*
@@ -164,7 +164,24 @@ export async function GET() {
            * card leads with one of the album's photographs, or a separate
            * image standing in front of them.
            */
-          mosaic: [...(cover ? [{ id: null, src: cover }] : []), ...mosaic],
+          mosaic: [
+            ...(cover ? [{ id: null, src: cover }] : []),
+            /*
+             * And never the photograph the cover was framed out of.
+             *
+             * The card leads with the cover and draws the rest of this
+             * underneath it, so leaving that photograph in the list put the
+             * same picture on the card twice — once large and once small,
+             * three rows apart. An album of a single photograph showed it as
+             * the cover and then as the only thumbnail, which is where it was
+             * impossible to read as anything but a bug.
+             *
+             * `coverPhotoId` is destructured out above and never reaches the
+             * response: the client needs the list to be right, not the reason
+             * it is right.
+             */
+            ...mosaic.filter((photo) => photo.id !== coverPhotoId),
+          ],
           /*
            * The single image the web's card leads with, at the size it is
            * drawn — `grid`, not one of the `thumb`s above. The mosaic stays

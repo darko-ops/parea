@@ -101,6 +101,18 @@ export type EventListing = {
    * had one. A card reserves its space from this before the image arrives.
    */
   coverAspect: number | null;
+  /**
+   * The photograph a chosen cover was framed out of, where there was one.
+   *
+   * Not for drawing. It is what lets the card avoid showing one picture twice
+   * — the cover, and then the same photograph again in the strip underneath —
+   * which is what an album of one photograph did on every home screen.
+   *
+   * Null for a cover uploaded on its own, and null where there is no cover.
+   */
+  coverPhotoId: string | null;
+  /** When the album was made, which is the date its card leads with. */
+  createdAt: string;
   eventDate: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -176,6 +188,8 @@ export async function eventsFor(
       caption: schema.events.caption,
       coverKey: schema.events.coverKey,
       coverAspect: schema.events.coverAspect,
+      coverPhotoId: schema.events.coverPhotoId,
+      createdAt: schema.events.createdAt,
       eventDate: schema.events.eventDate,
       startsAt: schema.events.startsAt,
       endsAt: schema.events.endsAt,
@@ -318,6 +332,7 @@ export async function eventsFor(
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     lastActiveAt: row.lastActiveAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
     firstPhotoAt: row.firstPhotoAt ? new Date(row.firstPhotoAt).toISOString() : null,
     creator: {
       name: creatorName?.trim() || null,

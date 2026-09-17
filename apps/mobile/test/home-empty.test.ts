@@ -241,7 +241,7 @@ describe('the card the home list draws', () => {
      * because three is as many as a row that does not scroll can hold without
      * every tile becoming too small to recognise anybody in.
      */
-    expect(EVENTS).toMatch(/const sheet = event\.mosaic\.slice\(1, 4\);/);
+    expect(EVENTS).toMatch(/event\.mosaic\.slice\(1, 4\)/);
     /*
      * Four photographs are on the card: the cover and the three beside it. An
      * album of seven therefore ends "+3", and counting only the strip would
@@ -521,3 +521,75 @@ describe('pressing a byline', () => {
     expect(APP).toMatch(/accessibilityRole=\{who\.handle \? 'button' : 'text'\}/);
   });
 });
+
+/**
+ * One photograph, one picture on the card.
+ *
+ * `slice(1, …)` skips the entry the card leads with, which is enough when that
+ * entry is a photograph. It is not enough when it is a *chosen* cover: a cover
+ * is its own object under `ev/<id>/cover.jpg`, so the photograph it was
+ * cropped out of is still sitting in the list behind it. An album of one
+ * therefore drew that picture twice — large as the cover, and again as the
+ * only thumbnail three rows down.
+ */
+describe('an album of one photograph', () => {
+  it('draws nothing in the strip, whatever the cover bookkeeping says', () => {
+    /*
+     * A floor rather than a refinement of the slice. The server drops the
+     * cover's own photograph where it knows which one that was, and it does
+     * not always know: covers set before `coverPhotoId` existed recorded none,
+     * and a cover uploaded on its own never had a photograph behind it. Both
+     * of those still reach this card, so the count has to be what decides.
+     */
+    expect(EVENTS).toMatch(/event\.photoCount <= 1 \? \[\] : event\.mosaic\.slice\(1, 4\)/);
+  });
+
+  it('is not left to the server alone', () => {
+    // The server-side half, which is the one that fixes an album of *seven*
+    // showing its cover twice. Neither is sufficient; both are cheap.
+    const ROUTE = readFileSync(
+      fileURLToPath(new URL('../../web/app/api/events/route.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(ROUTE).toMatch(/mosaic\.filter\(\(photo\) => photo\.id !== coverPhotoId\)/);
+    // And the id itself never goes out: it is destructured off the listing.
+    expect(ROUTE).toMatch(/const \{ creator, coverKey, coverPhotoId, faces: faceRows, \.\.\.rest \} = listing;/);
+  });
+});
+
+/**
+ * The date on a card is when the album was posted.
+ *
+ * It read `eventDate ?? startsAt ?? firstPhotoAt`, and the last of those is
+ * `min(captured_at)` — so an album posted yesterday out of a roll from 2019
+ * was dated 2019, on a screen ordered by recent activity, directly under a
+ * card saying yesterday. That does not read as a date being wrong; it reads as
+ * the list being out of order.
+ */
+describe('what a card dates an album by', () => {
+  it('leads with when it was posted', () => {
+    expect(EVENTS).toMatch(/const date = dateLabel\(event\.createdAt\);/);
+    expect(EVENTS).not.toMatch(/dateLabel\(event\.eventDate \?\? event\.startsAt/);
+  });
+
+  it('still dates the profile shelf by the evening itself', () => {
+    /*
+     * Not a global rename. "When was this evening" and "when did this arrive"
+     * are different questions, and a shelf of somebody's albums is answering
+     * the first one.
+     */
+    const PROFILE = read('src/Profile.tsx');
+    expect(PROFILE).toMatch(/dateLabel\(event\.eventDate \?\? event\.firstPhotoAt\)/);
+  });
+
+  it('is carried the whole way, not derived on the phone', () => {
+    const LISTINGS = readFileSync(
+      fileURLToPath(new URL('../../web/src/events.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(LISTINGS).toMatch(/createdAt: schema\.events\.createdAt/);
+    expect(LISTINGS).toMatch(/createdAt: row\.createdAt\.toISOString\(\)/);
+    expect(read('src/api.ts')).toMatch(/createdAt: string;/);
+  });
+});
+

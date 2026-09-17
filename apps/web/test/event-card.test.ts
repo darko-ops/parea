@@ -143,7 +143,12 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
      * happened the first time somebody did: `coverKey` went onto the listing
      * for the cards to read, and `...rest` would have published it.
      */
-    expect(API).toMatch(/const \{ creator, coverKey, faces: faceRows, \.\.\.rest \} = listing/);
+    expect(API).toMatch(
+      /const \{ creator, coverKey, coverPhotoId, faces: faceRows, \.\.\.rest \} = listing/,
+    );
+    // `coverPhotoId` joins them for the same reason: it is only read to decide
+    // what the mosaic holds, and a client has no use for it.
+    expect(API).not.toMatch(/coverPhotoId:/);
     expect(API).toMatch(/avatarUrl: await avatarUrl\(creator\.avatarKey\)/);
     expect(API).not.toMatch(/avatarKey,/);
     expect(API).not.toMatch(/coverKey:/);
@@ -156,9 +161,15 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
     // Both clients draw an event by its mosaic, so the cover leads by being
     // first in it rather than by a second field each of them has to learn.
     expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
-    expect(API).toMatch(
-      /mosaic: \[\.\.\.\(cover \? \[\{ id: null, src: cover \}\] : \[\]\), \.\.\.mosaic\]/,
-    );
+    expect(API).toMatch(/\.\.\.\(cover \? \[\{ id: null, src: cover \}\] : \[\]\),/);
+    /*
+     * And behind it, every photograph *except* the one the cover was cropped
+     * out of. A chosen cover is its own object, so that photograph was still
+     * in the list underneath it — the card drew one picture twice, large as
+     * the cover and small as a thumbnail three rows down, and an album of a
+     * single photograph did nothing else.
+     */
+    expect(API).toMatch(/mosaic\.filter\(\(photo\) => photo\.id !== coverPhotoId\)/);
     /*
      * The id is null because there is nothing to name: a chosen cover is its
      * own object under `ev/<id>/cover.jpg`, re-encoded by sharp on the way in,

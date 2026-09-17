@@ -342,7 +342,21 @@ function EventCard({
    */
   const hostCounted = event.faces.length > others.length ? 1 : 0;
   const moreFaces = Math.max(0, event.memberCount - hostCounted - faces.length);
-  const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
+  /*
+   * When it was posted, not when the photographs were taken.
+   *
+   * This read `eventDate ?? startsAt ?? firstPhotoAt`, and the last of those
+   * is `min(captured_at)` — so a card for an album posted yesterday out of a
+   * roll from 2019 was dated 2019. On a screen ordered by recent activity,
+   * where the album above it says yesterday, that is not a subtle error: it
+   * reads as the list being out of order.
+   *
+   * The evening's own date has not gone anywhere — it is on the album, and
+   * the profile still shelves albums by it. It is the wrong answer *here*,
+   * because this card is a thing in a feed and a feed is dated by when things
+   * arrived in it.
+   */
+  const date = dateLabel(event.createdAt);
 
   /*
    * The rule line's left end: when it was, and how much of it there is.
@@ -399,7 +413,23 @@ function EventCard({
    * point none of them is large enough to recognise anybody in and the strip
    * stops doing the one job it has.
    */
-  const sheet = event.mosaic.slice(1, 4);
+  /*
+   * And nothing at all under an album of one photograph.
+   *
+   * `slice(1, …)` skips the entry the card is leading with, which is enough
+   * when that entry is a photograph. It is not enough when it is a chosen
+   * cover: the cover is its own object, so the photograph it was cropped out
+   * of is still in the list behind it, and an album of one showed that one
+   * picture as the cover and again as the only thumbnail.
+   *
+   * The server drops that photograph now, where it knows which one it was —
+   * see the mosaic in `api/events/route.ts`. It does not always know. Covers
+   * set before `coverPhotoId` existed have none recorded, and a cover uploaded
+   * on its own never had a photograph behind it to record. So this is the
+   * floor: one photograph is a card with one picture on it, whatever the cover
+   * bookkeeping says.
+   */
+  const sheet = event.photoCount <= 1 ? [] : event.mosaic.slice(1, 4);
   /*
    * And how many photographs are not on the card at all.
    *

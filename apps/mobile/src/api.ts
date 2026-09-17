@@ -399,7 +399,15 @@ export type EventListing = {
   /** Uploaded and not through the deriver yet. */
   arrivingCount: number;
   lastActiveAt: string;
-  /** The earliest photograph in it, ISO — what a card dates an evening by. */
+  /** When the album was made, ISO — the date its card leads with. */
+  createdAt: string;
+  /**
+   * The earliest photograph in it, ISO.
+   *
+   * No longer what the home card dates an album by — see `createdAt`. Kept
+   * because the profile still dates a shelf of albums by the evening they are
+   * about, which is a different question from when somebody posted one.
+   */
   firstPhotoAt: string | null;
   /** The host's line under the name, or null. */
   caption: string | null;
