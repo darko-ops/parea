@@ -189,40 +189,44 @@ const SYMBOL = `<path d="${MARK}" fill="#FFFFFF" fill-rule="evenodd"/>`;
  * the mark is referenced directly rather than through `<use href>`, which
  * needs `xlink:href` to survive older renderers.
  */
-const FIELD_BASE = '#173AA7';
+const FIELD_BASE = '#173EA8';
 
 const GRADIENTS = [
-  ['gradPink', 760, 70, 780, [
-    [0, '#FFA3BC', 1], [38, '#EF76A2', 0.95], [80, '#EF76A2', 0],
+  ['gradPink', 700, 40, 820, [
+    [0, '#F79AB6', 1], [34, '#EB78A0', 0.92], [68, '#D86196', 0.42], [100, '#D86196', 0],
   ]],
-  ['gradPurple', 120, 150, 700, [
-    [0, '#A54AF0', 1], [42, '#7D37CC', 0.95], [82, '#7D37CC', 0],
+  ['gradPurple', 130, 170, 620, [
+    [0, '#8F46DA', 0.78], [36, '#7B39C8', 0.5], [72, '#6E35BE', 0.12], [100, '#6E35BE', 0],
   ]],
-  ['gradBlue', 90, 800, 760, [
-    [0, '#123ABF', 1], [45, '#1B46CC', 1], [84, '#1B46CC', 0],
+  ['gradBlue', 80, 780, 780, [
+    [0, '#1337B7', 1], [36, '#1945C6', 0.96], [70, '#1D49C9', 0.42], [100, '#1D49C9', 0],
   ]],
   ['gradCyan', 520, 1040, 560, [
-    [0, '#1ACAF0', 1], [46, '#20B3E5', 0.95], [84, '#20B3E5', 0],
-  ]],
-  // 640 rather than 760 — see the note below the list.
-  ['gradTeal', 1030, 760, 640, [
-    [0, '#67F1C9', 1], [42, '#42D9C0', 1], [84, '#42D9C0', 0],
+    [0, '#25BCE6', 0.92], [38, '#21AEDD', 0.68], [72, '#1E9FD5', 0.18], [100, '#1E9FD5', 0],
   ]],
   /*
-   * A second placement of the purple already in this set, sitting in the seam
-   * on the right where the pink hands over to the teal.
+   * The seam, where the pink hands over to the teal.
    *
-   * Not a sixth colour: `#7D37CC` is `gradPurple`'s own second stop. It is
-   * here because pink and teal are 170° apart on the wheel, so wherever they
-   * meet at comparable strength alpha compositing averages them to grey —
-   * measured at 0.08 saturation, rgb(166, 163, 177), a flat band visible down
-   * the right-hand edge. Nothing about the two gradients is wrong; they simply
-   * cannot meet each other directly.
+   * The supplied field carried a `gradBlend` here instead — `#A1B89A` at 0.18,
+   * a desaturated sage, evidently meant to soften the handover. Measured, it
+   * does the opposite: the trouble at that edge is not harshness, it is that
+   * pink and teal are 170° apart and alpha compositing averages them toward
+   * grey, so laying a desaturated colour over it adds grey to grey.
    *
-   * Weak and wide, so it reads as the transition rather than as a colour.
+   *   as supplied, with gradBlend      worst 0.09, 1339 points under 0.30
+   *   with gradBlend simply removed    worst 0.12, 1152 points under 0.30
+   *   with this purple instead         worst 0.31, none under 0.30
+   *
+   * `#7D37CC` is `gradPurple`'s own second stop — a second placement of a
+   * colour already in the set rather than a new one — and it works because it
+   * sits between the two on the wheel, so the handover goes the short way
+   * round instead of straight across the middle.
    */
   ['gradSeam', 1010, 330, 640, [
     [0, '#7D37CC', 0.62], [45, '#7D37CC', 0.5], [86, '#7D37CC', 0],
+  ]],
+  ['gradTeal', 1030, 760, 760, [
+    [0, '#66E7C6', 0.95], [34, '#46D8C1', 0.84], [70, '#39CDBD', 0.34], [100, '#39CDBD', 0],
   ]],
 ];
 

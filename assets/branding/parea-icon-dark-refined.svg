@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
 <defs>
-<radialGradient id="gradPink" gradientUnits="userSpaceOnUse" cx="760" cy="70" r="780"><stop offset="0%" stop-color="#FFA3BC" stop-opacity="1"/><stop offset="38%" stop-color="#EF76A2" stop-opacity="0.95"/><stop offset="80%" stop-color="#EF76A2" stop-opacity="0"/></radialGradient>
-<radialGradient id="gradPurple" gradientUnits="userSpaceOnUse" cx="120" cy="150" r="700"><stop offset="0%" stop-color="#A54AF0" stop-opacity="1"/><stop offset="42%" stop-color="#7D37CC" stop-opacity="0.95"/><stop offset="82%" stop-color="#7D37CC" stop-opacity="0"/></radialGradient>
-<radialGradient id="gradBlue" gradientUnits="userSpaceOnUse" cx="90" cy="800" r="760"><stop offset="0%" stop-color="#123ABF" stop-opacity="1"/><stop offset="45%" stop-color="#1B46CC" stop-opacity="1"/><stop offset="84%" stop-color="#1B46CC" stop-opacity="0"/></radialGradient>
-<radialGradient id="gradCyan" gradientUnits="userSpaceOnUse" cx="520" cy="1040" r="560"><stop offset="0%" stop-color="#1ACAF0" stop-opacity="1"/><stop offset="46%" stop-color="#20B3E5" stop-opacity="0.95"/><stop offset="84%" stop-color="#20B3E5" stop-opacity="0"/></radialGradient>
-<radialGradient id="gradTeal" gradientUnits="userSpaceOnUse" cx="1030" cy="760" r="640"><stop offset="0%" stop-color="#67F1C9" stop-opacity="1"/><stop offset="42%" stop-color="#42D9C0" stop-opacity="1"/><stop offset="84%" stop-color="#42D9C0" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradPink" gradientUnits="userSpaceOnUse" cx="700" cy="40" r="820"><stop offset="0%" stop-color="#F79AB6" stop-opacity="1"/><stop offset="34%" stop-color="#EB78A0" stop-opacity="0.92"/><stop offset="68%" stop-color="#D86196" stop-opacity="0.42"/><stop offset="100%" stop-color="#D86196" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradPurple" gradientUnits="userSpaceOnUse" cx="130" cy="170" r="620"><stop offset="0%" stop-color="#8F46DA" stop-opacity="0.78"/><stop offset="36%" stop-color="#7B39C8" stop-opacity="0.5"/><stop offset="72%" stop-color="#6E35BE" stop-opacity="0.12"/><stop offset="100%" stop-color="#6E35BE" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradBlue" gradientUnits="userSpaceOnUse" cx="80" cy="780" r="780"><stop offset="0%" stop-color="#1337B7" stop-opacity="1"/><stop offset="36%" stop-color="#1945C6" stop-opacity="0.96"/><stop offset="70%" stop-color="#1D49C9" stop-opacity="0.42"/><stop offset="100%" stop-color="#1D49C9" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradCyan" gradientUnits="userSpaceOnUse" cx="520" cy="1040" r="560"><stop offset="0%" stop-color="#25BCE6" stop-opacity="0.92"/><stop offset="38%" stop-color="#21AEDD" stop-opacity="0.68"/><stop offset="72%" stop-color="#1E9FD5" stop-opacity="0.18"/><stop offset="100%" stop-color="#1E9FD5" stop-opacity="0"/></radialGradient>
 <radialGradient id="gradSeam" gradientUnits="userSpaceOnUse" cx="1010" cy="330" r="640"><stop offset="0%" stop-color="#7D37CC" stop-opacity="0.62"/><stop offset="45%" stop-color="#7D37CC" stop-opacity="0.5"/><stop offset="86%" stop-color="#7D37CC" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradTeal" gradientUnits="userSpaceOnUse" cx="1030" cy="760" r="760"><stop offset="0%" stop-color="#66E7C6" stop-opacity="0.95"/><stop offset="34%" stop-color="#46D8C1" stop-opacity="0.84"/><stop offset="70%" stop-color="#39CDBD" stop-opacity="0.34"/><stop offset="100%" stop-color="#39CDBD" stop-opacity="0"/></radialGradient>
 </defs>
 <g id="field">
-<rect width="1024" height="1024" fill="#173AA7"/>
+<rect width="1024" height="1024" fill="#173EA8"/>
 <rect width="1024" height="1024" fill="url(#gradPink)"/>
 <rect width="1024" height="1024" fill="url(#gradPurple)"/>
 <rect width="1024" height="1024" fill="url(#gradBlue)"/>
 <rect width="1024" height="1024" fill="url(#gradCyan)"/>
-<rect width="1024" height="1024" fill="url(#gradTeal)"/>
 <rect width="1024" height="1024" fill="url(#gradSeam)"/>
+<rect width="1024" height="1024" fill="url(#gradTeal)"/>
 </g>
 <g id="mark">
 <path d="M330 396.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0ZM444.32 594.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0ZM215.68 594.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0Z" fill="#FFFFFF" fill-rule="evenodd"/>

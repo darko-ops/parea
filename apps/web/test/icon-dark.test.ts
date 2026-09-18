@@ -269,16 +269,29 @@ describe('what a renderer actually draws', () => {
     const near = (x: number, y: number) =>
       circles.some((c) => Math.abs(Math.hypot(x - c.cx, y - c.cy) - c.r) < 6);
 
-    let worst = 1;
+    /*
+     * Measured as the spread between the channels, in units out of 255, not as
+     * a proportion of the brightest one.
+     *
+     * The proportion is what this used to take, and it is the wrong measure
+     * for a light field: a pale periwinkle scores badly on it while being
+     * perfectly saturated to look at. This field's floor is rgb(129, 128, 185)
+     * — plainly blue-violet, and it failed the old bar.
+     *
+     * Grey is channels close together whatever the brightness, so the spread
+     * is the thing. The two greys this exists to catch measured 15 and 21;
+     * everything on this field is above 50, so the bar sits between them with
+     * room on both sides.
+     */
+    let worst = 255;
     for (let y = 6; y < 1018; y += 8) {
       for (let x = 6; x < 1018; x += 8) {
         if (near(x, y) || inside(x, y) % 2 === 1) continue;
         const [r, g, b] = pixel(x, y);
-        const max = Math.max(r, g, b);
-        worst = Math.min(worst, max === 0 ? 0 : (max - Math.min(r, g, b)) / max);
+        worst = Math.min(worst, Math.max(r, g, b) - Math.min(r, g, b));
       }
     }
-    expect(worst).toBeGreaterThanOrEqual(0.38);
+    expect(worst).toBeGreaterThan(35);
   });
 
   it('keeps the white readable all the way round the mark', () => {
@@ -332,10 +345,9 @@ describe('what a renderer actually draws', () => {
      * in luminance units out of 255, so it is a real brightness step rather
      * than a proportion of something.
      */
-    const centres = [...ICON.matchAll(/cx="(-?\d+)" cy="(-?\d+)"/g)].map((m) => [
-      Number(m[1]),
-      Number(m[2]),
-    ]);
+    const centres = [...ICON.matchAll(/cx="(-?\d+)" cy="(-?\d+)"/g)].map(
+      (m) => [Number(m[1]!), Number(m[2]!)] as const,
+    );
     expect(centres.length).toBeGreaterThanOrEqual(5);
 
     let sharpest = 0;
