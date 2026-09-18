@@ -126,50 +126,84 @@ describe('the grid they are all on', () => {
 });
 
 /**
- * The paper aeroplane, which this app already means one thing by.
+ * One bubble and two, which are two different ideas.
  *
- * It is on an album's Talk tab and on the talk button of a group screen, and
- * it is now the Chats tab in the bar. Three places, one drawing, one meaning:
- * saying something.
+ * A single bubble is a remark *about a thing* — an album's comments, which
+ * mostly hang off individual photographs. A pair overlapping is people going
+ * back and forth, which is a chat. The distinction has to survive at 22
+ * points, because that is the size both are drawn at in a bar.
  *
- * It is deliberately not a speech bubble. The bubble is the shape an unread
- * count sits on everywhere in this product, so a bubble in the tab bar would
- * be a badge holder with no badge in it — and the tab bar's own unread badge
- * would then be a bubble on a bubble.
+ * Both replaced a paper aeroplane, which is gone from this file. An aeroplane
+ * is *send*: one message leaving for somebody not in front of you. Neither
+ * place it sat sends anything — the Chats tab and a group's own button both
+ * open a room where talking is already going on.
  */
-describe('the aeroplane', () => {
-  it('is sending, and only sending', () => {
-    /*
-     * It lost the album's tab, and that is the point of the split. The
-     * aeroplane is *send* — reaching people who are not in front of you, which
-     * is the Chats tab and a group's talk button. A comment board sits under
-     * the photographs it is about and goes nowhere, so it is a bubble.
-     */
+describe('the bubbles', () => {
+  it('is the Chats tab and a group\'s own button', () => {
     const APP = read('App.tsx');
     const GROUPS = read('src/Groups.tsx');
-    expect(APP).toContain("['chats', 'plane', 'Chats']");
-    expect(APP).toContain("['talk', 'bubble', 'Comments']");
-    expect(APP).not.toContain("'plane', 'Comments'");
-    expect(GROUPS).toMatch(/<Glyph name="plane"/);
+    expect(APP).toContain("['chats', 'bubbles', 'Chats']");
+    expect(GROUPS).toMatch(/<Glyph name="bubbles"/);
   });
 
-  it('is one drawing, not three', () => {
-    // Authored once in the 24-unit grid and scaled by the viewBox, so the
-    // 22pt tab glyph and the 17pt button are the same picture at two sizes.
-    expect(GLYPH).toContain('M21 3 3.5 9.8l7 2.7 2.7 7z');
-    expect(GLYPH).toContain('M21 3 10.5 12.5');
-    expect((GLYPH.match(/case 'plane':/g) ?? [])).toHaveLength(1);
+  it('left no aeroplane behind', () => {
+    // A case in this switch that nothing draws is a drawing nobody maintains
+    // and everybody trusts. It is in the history if it is wanted back.
+    expect(GLYPH).not.toMatch(/'plane'/);
+    expect(read('App.tsx')).not.toMatch(/'plane'/);
+    expect(read('src/Groups.tsx')).not.toMatch(/"plane"/);
   });
 
-  it('keeps the fold, which is what makes it paper', () => {
+  it('is two bubbles, and the single one is still one', () => {
     /*
-     * Two paths: the outline, and the crease from the nose back to the inner
-     * corner. Without the second it is a solid triangle pointing right — a
-     * play button, which is a different verb entirely.
+     * The anchors are the two cases in the order the file has them, and they
+     * carry their colons on purpose: `case 'bubble':` would otherwise match
+     * inside `case 'bubbles':`, and the first version of this read both cases
+     * as one and counted three paths.
      */
-    const plane = GLYPH.slice(GLYPH.indexOf("case 'plane':"), GLYPH.indexOf("case 'bubble':"));
-    expect(plane).not.toBe('');
-    expect((plane.match(/<Path/g) ?? [])).toHaveLength(2);
+    const many = GLYPH.slice(GLYPH.indexOf("case 'bubbles':"), GLYPH.indexOf("case 'bubble':"));
+    expect(many).not.toBe('');
+    expect((many.match(/<Path/g) ?? [])).toHaveLength(2);
+
+    const one = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    expect(one).not.toBe('');
+    expect((one.match(/<Path/g) ?? [])).toHaveLength(1);
+  });
+});
+
+/**
+ * The activity tray, where an envelope used to be.
+ *
+ * An envelope is one thing arriving addressed to you. Half of what lands in
+ * Lately is that — somebody asking you into an album, asking to be friends —
+ * and the other half is addressed to nobody: photographs added to an album you
+ * are in, an answer to something you asked. A tray is where all of it
+ * accumulates, which is what the screen is.
+ */
+describe('the tray', () => {
+  it('is the control and the empty state it opens', () => {
+    // The door and the room. A disc showing one picture that opens a screen
+    // illustrated with another is two screens as far as anybody can tell.
+    expect(read('src/PageHead.tsx')).toMatch(/<Glyph name="tray"/);
+    expect(read('src/Lately.tsx')).toMatch(/<Glyph name="tray"/);
+  });
+
+  it('left no envelope behind in the app', () => {
+    expect(GLYPH).not.toMatch(/case 'envelope':/);
+    expect(read('src/PageHead.tsx')).not.toMatch(/"envelope"/);
+    expect(read('src/Lately.tsx')).not.toMatch(/"envelope"/);
+  });
+
+  it('knowingly disagrees with the web rail', () => {
+    /*
+     * The web still draws an envelope for the same idea, and this file exists
+     * to catch exactly that kind of drift — so it is written down rather than
+     * left to be discovered in a screenshot a year from now. The two clients
+     * already disagree about where groups live; one picture is the smaller of
+     * the two arguments.
+     */
+    expect(RAIL).toMatch(/invites/);
+    expect(GLYPH).toMatch(/The web rail still draws an envelope/);
   });
 });
 

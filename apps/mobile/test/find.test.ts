@@ -203,3 +203,30 @@ describe('the suggestions row', () => {
   });
 });
 
+/**
+ * The line at the foot, which is the only place this page states its limits.
+ */
+describe('what the page says it can reach', () => {
+  it('names all three of the things its chips offer', () => {
+    /*
+     * It named two. Places was missing, and it is the one somebody is most
+     * likely to assume works like the other two — it does not: a place here is
+     * read off the albums this person can already open, never off anybody
+     * else's, so it is the one search on the page that asks the server nothing
+     * at all.
+     */
+    const foot = flat(TAB.slice(TAB.indexOf('styles.footnote')));
+    expect(foot).toMatch(/Handles/);
+    expect(foot).toMatch(/findable groups/);
+    expect(foot).toMatch(/places off your own albums/);
+  });
+
+  it('still says the thing it was written to say', () => {
+    // The limit that matters most, and the reason the page exists in the shape
+    // it does: nothing gets anybody into an album except being sent it.
+    const foot = flat(TAB.slice(TAB.indexOf('styles.footnote')));
+    expect(foot).toMatch(/Albums and photos are never searchable/);
+    expect(foot).toMatch(/the only way into one is being sent it/);
+  });
+});
+

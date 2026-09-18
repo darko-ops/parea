@@ -396,16 +396,18 @@ describe('what the product calls a conversation', () => {
     expect(read('src/Groups.tsx')).toMatch(/Chat in \$\{group\.name\}/);
   });
 
-  it('gives the album a bubble and keeps the aeroplane for the Chats tab', () => {
+  it('gives the album one bubble and the Chats tab two', () => {
     /*
-     * Two verbs, two pictures. The aeroplane is *send* — reaching people who
-     * are not in front of you, which is what the Chats tab is. A comment board
-     * sits under the photographs it is about and goes nowhere, so it is a
-     * bubble.
+     * Two ideas, two pictures, and the difference between them is the count.
+     * One bubble is a remark about a thing — an album's comments, which mostly
+     * hang off individual photographs. Two overlapping is people going back
+     * and forth, which is a chat.
      */
     const APP_SOURCE = read('App.tsx');
-    expect(APP_SOURCE).toMatch(/\['chats', 'plane', 'Chats'\]/);
+    expect(APP_SOURCE).toMatch(/\['chats', 'bubbles', 'Chats'\]/);
     expect(APP_SOURCE).toMatch(/\['talk', 'bubble', 'Comments'\]/);
-    expect(read('src/Glyph.tsx')).toMatch(/case 'bubble':/);
+    const GLYPH_SOURCE = read('src/Glyph.tsx');
+    expect(GLYPH_SOURCE).toMatch(/case 'bubble':/);
+    expect(GLYPH_SOURCE).toMatch(/case 'bubbles':/);
   });
 });

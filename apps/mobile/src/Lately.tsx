@@ -391,7 +391,7 @@ export function Lately({
 
             {waiting.length === 0 && items.length === 0 && !error && (
               <View style={styles.nothing}>
-                <Glyph name="envelope" size={26} color={t.dim} />
+                <Glyph name="tray" size={26} color={t.dim} />
                 <Text style={[styles.nothingText, { color: t.dim }]}>
                   Nothing lately. When somebody asks you into an album, adds
                   photographs to one you are in, or answers something you asked,

@@ -91,7 +91,7 @@ export function Notifications({
       onPress={onPress}
       accessibilityLabel={count > 0 ? `Lately, ${count} waiting on you` : 'Lately'}
     >
-      <Glyph name="envelope" size={20} color={t.fg} />
+      <Glyph name="tray" size={20} color={t.fg} />
       {count > 0 && (
         <View style={[styles.badge, { backgroundColor: t.accent, borderColor: t.bg }]}>
           <Text style={[styles.badgeCount, { color: t.onAccent }]}>

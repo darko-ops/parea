@@ -44,7 +44,17 @@ describe('the door', () => {
      * a permanent quarter of it spent on a screen that is usually empty, which
      * is the trade `Requests.tsx` refused and this does not reopen.
      */
-    expect(HEAD).toMatch(/<Glyph name="envelope"/);
+    /*
+     * A tray rather than an envelope. An envelope is one thing arriving
+     * addressed to you; half of what lands in Lately is addressed to nobody —
+     * photographs added to an album you are in, an answer to something you
+     * asked. A tray is where all of it accumulates.
+     */
+    expect(HEAD).toMatch(/<Glyph name="tray"/);
+    // And the screen it opens is illustrated with the same picture. A disc
+    // showing one thing that opens a screen showing another is two screens as
+    // far as anybody can tell.
+    expect(LATELY).toMatch(/<Glyph name="tray"/);
     expect(code(APP)).not.toMatch(/type Tab = [^;]*'lately'/);
     expect(APP).toMatch(/type Tab = 'home' \| 'chats' \| 'search' \| 'profile'/);
   });

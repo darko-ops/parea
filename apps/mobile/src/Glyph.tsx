@@ -25,15 +25,15 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 
 export type GlyphName =
   | 'photos'
-  | 'plane'
   | 'bubble'
+  | 'bubbles'
   | 'group'
   | 'profile'
   | 'search'
   | 'plus'
   | 'unlocked'
   | 'locked'
-  | 'envelope'
+  | 'tray'
   | 'face'
   | 'share'
   | 'download'
@@ -108,13 +108,26 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={light} />
         </>
       );
-    /* Sending something. On the Chats tab in the bar, where the verb is
-       reaching people who are not in front of you. */
-    case 'plane':
+    /*
+     * Two of them, overlapping: a conversation, which is what the Chats tab
+     * holds and what a group's own button opens.
+     *
+     * It was a paper aeroplane. That is *send* — one message leaving for
+     * somebody who is not in front of you — and neither of the two places it
+     * sat sends anything: they open a room where talking is already going on.
+     * Two bubbles say that without a verb.
+     *
+     * And the pair reads against the single bubble beside it in this file:
+     * one is a remark about a thing, which is an album's comments; two is
+     * people going back and forth, which is a chat. The distinction survives
+     * at 22 points, which is the size it is drawn at and the size it was
+     * checked at.
+     */
+    case 'bubbles':
       return (
         <>
-          <Path d="M21 3 3.5 9.8l7 2.7 2.7 7z" />
-          <Path d="M21 3 10.5 12.5" />
+          <Path d="M11 2.5h8A2.5 2.5 0 0 1 21.5 5v4.5A2.5 2.5 0 0 1 19 12h-5.5l-3.5 2.5 1-2.5A2.5 2.5 0 0 1 8.5 9.5V5A2.5 2.5 0 0 1 11 2.5z" />
+          <Path d="M5 11.5h4.5A2.5 2.5 0 0 1 12 14v3a2.5 2.5 0 0 1-2.5 2.5H7L3.5 22l1-2.5A2.5 2.5 0 0 1 2.5 17v-3A2.5 2.5 0 0 1 5 11.5z" />
         </>
       );
     /*
@@ -211,16 +224,24 @@ function paths(name: GlyphName, weight: number) {
       );
 
     /*
-     * An envelope, because what arrives in Lately is somebody asking you to
-     * something — the same shape the world already uses for that, and the same
-     * two paths the web rail draws for `invites`. One glyph for one idea,
-     * whichever screen it is on.
+     * A tray, because Lately is not only post.
+     *
+     * It was an envelope, and an envelope is one thing arriving addressed to
+     * you. Half of what lands here is that — somebody asking you into an
+     * album, asking to be friends — and the other half is not addressed to
+     * anybody: photographs added to an album you are in, an answer to
+     * something you asked. A tray is where all of it accumulates, which is
+     * what this screen actually is.
+     *
+     * The web rail still draws an envelope for the same idea. That is drift,
+     * and it is deliberate for now — the two clients already disagree about
+     * where groups live, and one picture is the smaller of the two arguments.
      */
-    case 'envelope':
+    case 'tray':
       return (
         <>
-          <Rect x={3} y={5.5} width={18} height={13} rx={2} />
-          <Path d="m3.8 7 8.2 6 8.2-6" />
+          <Path d="M3 13h5l1.5 2.5h5L16 13h5" />
+          <Path d="M3 13 6 5h12l3 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
         </>
       );
 

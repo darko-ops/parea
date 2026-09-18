@@ -63,6 +63,7 @@ import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
+import { BELOW_TABS } from './chrome';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
 import { Waiting } from './Waiting';
@@ -2373,9 +2374,22 @@ export function SearchTab({
         somebody who has just seen what a search returns, which is the moment
         "and this is what it will never return" means anything.
       */}
+      {/*
+        What this page can and cannot reach, said once at the foot.
+
+        It named two of the three things the chips offer. Places was missing,
+        and it is the one somebody is most likely to assume works the way the
+        other two do — it does not: a place here is read off the albums this
+        person can already open, never off anybody else's, so it is the one
+        search on this page that asks the server nothing at all.
+
+        Read by somebody who has just seen what a search returns, rather than
+        as a paragraph in front of an empty screen.
+      */}
       <Text style={[styles.footnote, { color: t.dim }]}>
-        Handles and findable groups only. Albums and photos are never
-        searchable — the only way into one is being sent it.
+        Handles and findable groups only, and places off your own albums.
+        Albums and photos are never searchable — the only way into one is being
+        sent it.
       </Text>
     </ScrollView>
   );
@@ -2748,7 +2762,7 @@ const styles = StyleSheet.create({
    * `paddingBottom` grows with it: the last card's strip has to clear the
    * floating tab bubble, which is 28 from the bottom and about 70 tall.
    */
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 132, gap: 26, flexGrow: 1 },
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 26, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
@@ -2970,7 +2984,7 @@ const styles = StyleSheet.create({
      mockup draws the status bar as a row of its own and measures from under
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
-  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
+  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 18, flexGrow: 1 },
   groupBlock: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* The door: small, because the evenings under it are what the block is for.

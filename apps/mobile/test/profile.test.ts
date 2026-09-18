@@ -243,3 +243,58 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/avatarLetter: \{ fontSize: 25, fontWeight: '700' \}/);
   });
 });
+
+/**
+ * The line of three facts under a name, and the room under the last album.
+ */
+describe('the counts and the clearance', () => {
+  const flat = (source: string) => source.replace(/\s+/g, ' ');
+
+  it('says "1 friend", like the two counts beside it', () => {
+    /*
+     * It said "1 friends". The albums and the photographs either side of it
+     * each got their ternary; the third fact in a line of three was written
+     * last and written differently.
+     */
+    /*
+     * The counts row specifically, not "the file contains a ternary
+     * somewhere" — the friends *panel* further down has always had one, so a
+     * loose assertion here passes while the line under the name still reads
+     * "1 friends". It did, when I checked by breaking it.
+     */
+    const counts = PROFILE.slice(
+      PROFILE.indexOf('styles.counts'),
+      PROFILE.indexOf('onPress={() => setEditing(true)}'),
+    );
+    expect(counts).not.toBe('');
+    expect(flat(counts)).toMatch(
+      /\{friends === null \? '—' : friends\.length\}\{' '\} \{friends !== null && friends\.length === 1 \? 'friend' : 'friends'\}/,
+    );
+    // The other two, unchanged, so this stays a line of three matching facts.
+    expect(counts).toMatch(/events\.length === 1 \? 'album' : 'albums'/);
+    expect(counts).toMatch(/photos === 1 \? 'photo' : 'photos'/);
+  });
+
+  it('says it the same way to a screen reader', () => {
+    // The label is a second copy of the sentence, and a second copy is where
+    // a fix like this gets applied to one of them.
+    expect(flat(PROFILE)).toMatch(
+      /\$\{friends\.length\} \$\{friends\.length === 1 \? 'friend' : 'friends'\}, see them/,
+    );
+  });
+
+  it('leaves room under the last album for the bar that floats over it', () => {
+    /*
+     * This screen ends in a wall of album covers with nothing after it, so
+     * whatever it reserves is the only thing between the last row and the
+     * floating tab bar. It reserved 110 against a bar that occupies about 94,
+     * which is 16 points of clearance — technically visible, and it reads as
+     * content cut off by the chrome.
+     *
+     * Derived from the bar now rather than chosen by eye. See `chrome.ts`.
+     */
+    expect(PROFILE).toMatch(/paddingBottom: BELOW_TABS/);
+    expect(PROFILE).toMatch(/import \{ BELOW_TABS \} from '\.\/chrome'/);
+  });
+});
+

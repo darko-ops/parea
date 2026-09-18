@@ -65,6 +65,7 @@ import { Glyph } from './Glyph';
 import { PageHead } from './PageHead';
 import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
+import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
@@ -319,11 +320,23 @@ export function ProfileScreen({
               suppressHighlighting
               accessibilityRole={friends?.length ? 'button' : undefined}
               accessibilityLabel={
-                friends?.length ? `${friends.length} friends, see them` : undefined
+                friends?.length
+                  ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}, see them`
+                  : undefined
               }
               style={friends?.length ? styles.countsLink : undefined}
             >
-              {friends === null ? '—' : friends.length} friends
+              {/*
+                Singular, like the two counts beside it.
+                *
+                * This one said "1 friends" while the albums and the photographs
+                * either side of it got their ternary — the third fact in a line
+                * of three, written last and written differently. The em dash
+                * stands in while the list is still arriving, and takes the
+                * plural because it is not a number.
+                */}
+              {friends === null ? '—' : friends.length}{' '}
+              {friends !== null && friends.length === 1 ? 'friend' : 'friends'}
             </Text>
           </Text>
         </View>
@@ -854,7 +867,10 @@ const styles = StyleSheet.create({
    * exception for one child. So `paddingHorizontal` moved down, and `gutter`
    * below is the one value they all use.
    */
-  scroll: { paddingTop: 72, paddingBottom: 110, gap: 16, flexGrow: 1 },
+  /* `BELOW_TABS`, not a number chosen by eye. This screen ends in a wall of
+     album covers with nothing after it, so whatever it reserves is the only
+     thing standing between the last row and the floating bar. */
+  scroll: { paddingTop: 72, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
   /* What every row keeps, and the header's picture is the only thing exempt
      from. Named rather than repeated, so "the gutter" stays one number. */
   gutter: { paddingHorizontal: 20 },

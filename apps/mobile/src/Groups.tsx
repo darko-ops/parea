@@ -294,7 +294,7 @@ export function GroupScreen({
               // threads in this product, and now one word each.
               accessibilityLabel={`Chat in ${group.name}`}
             >
-              <Glyph name="plane" size={17} color={t.fg} />
+              <Glyph name="bubbles" size={17} color={t.fg} />
             </RoundButton>
             {/*
               Everything else about the room, behind the same `⋯` an album's
