@@ -26,6 +26,19 @@ const app = read('app.json').expo;
 const eas = read('eas.json');
 
 const DOMAIN = 'parea.photos';
+/**
+ * The host the app actually talks to, which is not the one people type.
+ *
+ * `parea.photos` answers 308 to `www.parea.photos`. That is invisible in a
+ * browser and expensive in an app: a redirect on every request, and a session
+ * cookie set by whichever host answered rather than the one that was asked.
+ *
+ * Deliberately a second constant rather than a change to `DOMAIN` above, which
+ * is about the links people tap — `applinks:` and the Android intent filter
+ * both match on the apex, and a universal link is matched before anything is
+ * fetched, so the redirect never enters into it.
+ */
+const API_ORIGIN = `https://www.${DOMAIN}`;
 /** Reverse-DNS of the domain, which is the convention both stores expect. */
 const APP_ID = DOMAIN.split('.').reverse().join('.');
 
@@ -159,7 +172,7 @@ describe('build profiles', () => {
      * and pair of Workers. When one exists, add it here and the profile that
      * uses it in the same commit.
      */
-    const OPERATED = new Set(['http://localhost:3000', `https://${DOMAIN}`]);
+    const OPERATED = new Set(['http://localhost:3000', API_ORIGIN]);
 
     for (const profile of ['development', 'preview', 'production']) {
       expect(OPERATED, `${profile} points at a host nobody operates`).toContain(
@@ -167,8 +180,22 @@ describe('build profiles', () => {
       );
     }
 
-    expect(eas.build.production.env.EXPO_PUBLIC_API_URL).toBe(`https://${DOMAIN}`);
+    expect(eas.build.production.env.EXPO_PUBLIC_API_URL).toBe(API_ORIGIN);
     expect(eas.build.development.env.EXPO_PUBLIC_API_URL).toMatch(/^http:\/\/localhost/);
+    /*
+     * And the apex is not one of them.
+     *
+     * It resolves, it serves the site, and it is the wrong value — which is
+     * why it is worth a line of its own rather than trusting the set above to
+     * keep catching it. A build that takes a redirect on every request costs
+     * nothing to make and is only visible from a phone.
+     */
+    for (const profile of ['preview', 'production']) {
+      expect(
+        eas.build[profile].env.EXPO_PUBLIC_API_URL,
+        `${profile} points at the apex, which redirects`,
+      ).not.toBe(`https://${DOMAIN}`);
+    }
   });
 
   it('ships a store bundle from production and something installable from preview', () => {
