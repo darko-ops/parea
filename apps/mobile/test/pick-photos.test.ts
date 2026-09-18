@@ -437,3 +437,41 @@ describe('what happens to the photographs', () => {
     expect(APP).toMatch(/Could not start those uploads/);
   });
 });
+
+/**
+ * Typing a name with a keyboard in the way.
+ *
+ * The caption field sits below a strip of detected runs, deliberately — the
+ * screen opens on the photographs rather than on a text box. Which is exactly
+ * why focusing it has to move the page: the field is below the fold by design,
+ * so the keyboard that comes up when somebody taps it comes up over the thing
+ * they tapped, and what that looks like is typing blind.
+ */
+describe('the fields on the create screen', () => {
+  const CREATE = readFileSync(
+    fileURLToPath(new URL('../src/CreateEvent.tsx', import.meta.url).href),
+    'utf8',
+  );
+
+  it('brings the focused field above the keyboard', () => {
+    // Measured rather than guessed: a constant would be wrong the moment the
+    // strip above is there or is not.
+    expect(CREATE).toMatch(/const measureField = useCallback\(/);
+    expect(CREATE).toMatch(/onLayout=\{measureField\('name'\)\}/);
+    expect(CREATE).toMatch(/onFocus=\{\(\) => bringIntoView\('name'\)\}/);
+    // The label above belongs to the field, so the scroll stops short of it.
+    expect(CREATE).toMatch(/Math\.max\(top - 24, 0\)/);
+  });
+
+  it('gives the scroll somewhere to move to', () => {
+    /*
+     * The other half, and neither works alone: the scroll used to end at its
+     * content, so a field near the foot had nowhere to scroll *to* — the
+     * keyboard came up over it and the view was already at the bottom.
+     */
+    expect(CREATE).toMatch(/automaticallyAdjustKeyboardInsets/);
+    // And a tap on a pill while a field has focus presses the pill rather than
+    // spending itself dismissing the keyboard.
+    expect(CREATE).toMatch(/keyboardShouldPersistTaps="handled"/);
+  });
+});

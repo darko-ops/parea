@@ -904,6 +904,31 @@ export default function App() {
       )}
 
       {/*
+        And the tabs over it, which is the difference between a page and a
+        modal.
+
+        Somebody arrives here from a byline, a face over a cover or a search
+        result — browsing, not committing to a task — and the screen answered
+        by taking the app away and leaving one `‹` in the corner. Every other
+        screen reached that way is a push over the tabs; this one was the
+        exception with nothing to show for it.
+
+        A tab sets the tab *and* drops this page, so pressing Albums lands on
+        albums rather than on this page with the bar lit underneath it.
+      */}
+      {route.screen === 'person' && (
+        <TabBar
+          tab={tab}
+          t={t}
+          dark={dark}
+          onTab={(id) => {
+            setTab(id);
+            leaveToTabs();
+          }}
+        />
+      )}
+
+      {/*
         The door, pushed over whatever was on screen when the link arrived.
 
         Backing out goes to the tabs rather than to the join screen: somebody
@@ -1092,88 +1117,7 @@ export default function App() {
             </Pane>
           )}
 
-          {/*
-            Two views for one bubble, and the nesting is not decoration: iOS
-            clips a layer's shadow the moment `overflow: 'hidden'` is set, and
-            the blur needs exactly that to be clipped into a capsule. So the
-            outer view carries the shadow and the inner one carries the blur.
-          */}
-          <View style={styles.tabShell}>
-            <BlurView
-              intensity={BLUR_INTENSITY}
-              tint="systemChromeMaterial"
-              blurMethod="dimezisBlurView"
-              style={[styles.tabBar, { borderColor: t.line }]}
-            >
-              {/*
-                Glyphs, where four words used to be.
-
-                Four labels across a 365pt bubble is four pieces of type
-                competing with the photographs running underneath it, and
-                "Events / Groups / Find / You" is the one row in this product
-                that is read once and recognised forever after. The drawings
-                are the web rail's own — see `Glyph.tsx` — so the two clients
-                point at a group with the same picture. The label survives as
-                the accessibility name, which is where a word is still worth
-                having.
-              */}
-              {(
-                [
-                  ['home', 'photos', 'Albums'],
-                  ['chats', 'bubbles', 'Chats'],
-                  ['search', 'search', 'Find'],
-                  ['profile', 'profile', 'You'],
-                ] as [Tab, GlyphName, string][]
-              ).map(([id, glyph, label]) => (
-                <Pressable
-                  key={id}
-                  style={[
-                    styles.tab,
-                    /*
-                     * A wash of the page's own value, not a colour.
-                     *
-                     * Translucent on purpose: over a blur an opaque fill reads
-                     * as a patch stuck on the glass. And grey rather than the
-                     * accent — a filled blue capsule is the loudest thing on a
-                     * screen of other people's photographs, and a tab bar is
-                     * chrome. What makes the selected one legible is the glyph
-                     * inside it, which is the page's full-strength foreground
-                     * against four in `dim`; the capsule only has to say where
-                     * the foreground one is seated.
-                     */
-                    tab === id && { backgroundColor: dark ? '#ffffff1f' : '#0000000f' },
-                  ]}
-                  onPress={() => setTab(id)}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: tab === id }}
-                  accessibilityLabel={label}
-                >
-                  {/*
-                    The page's foreground, and a stroke heavier than the
-                    family's own.
-
-                    Both, because one without the other is half a state. The
-                    four unselected glyphs are `dim`, so the selected one steps
-                    up to `fg` — the same distance between a heading and the
-                    line under it, said in a picture — and the extra half-unit
-                    of stroke is what carries that distance at 22 points, where
-                    a two-step change in value alone is easy to miss on a bar
-                    sitting over a bright photograph.
-
-                    `fg` rather than the accent. Colour on this bar would be
-                    the only colour in the chrome, and the photographs running
-                    underneath it are the things entitled to have one.
-                  */}
-                  <Glyph
-                    name={glyph}
-                    size={22}
-                    weight={tab === id ? 2.5 : 2}
-                    color={tab === id ? t.fg : t.dim}
-                  />
-                </Pressable>
-              ))}
-            </BlurView>
-          </View>
+          <TabBar tab={tab} t={t} dark={dark} onTab={setTab} />
         </View>
       )}
 
@@ -1543,6 +1487,9 @@ function EventScreen({
   const [sheetOpen, setSheetOpen] = useState(false);
   /** The account, asked for only when somebody reaches for what needs one. */
   const [gateOpen, setGateOpen] = useState(false);
+  /** This ask, answered locally until a feed carries the server's version. */
+  const [hostAsk, setHostAsk] = useState<'open' | 'approved' | 'declined' | null>(null);
+  const [askingToHost, setAskingToHost] = useState(false);
   /** How much of the thread has been read. Null until the first feed lands. */
   const [seen, setSeen] = useState<number | null>(null);
   /** Whether the unread banner has taken itself away again. */
@@ -1596,6 +1543,7 @@ function EventScreen({
       // standing, it would outrank a change made on another device.
       setPolicy(null);
       setAdding(null);
+      setHostAsk(null);
       setFeedError(null);
     } catch (err) {
       // Stale data beats an error screen over photos you already had, so a
@@ -1897,29 +1845,47 @@ function EventScreen({
     [api, event, runQueue],
   );
 
-  const addPhotos = useCallback(async () => {
-    // With library access and a known window, offer the photos rather than
-    // asking someone to find them — the reason this client exists (§7.1).
-    const window = windowFor();
-    if ((access === 'granted' || access === 'limited') && window) {
-      setAutoWindow(window);
+  /**
+   * The whole camera roll, through the system picker.
+   *
+   * Its own function rather than the tail of `addPhotos`, because it is now
+   * reached two ways: as the fallback when there is nothing to suggest from,
+   * and from inside the suggestion screen when the suggestion is not what
+   * somebody wanted. That second way is the point — see `onPickManually`.
+   *
+   * No permission prompt and no library access: the picker hands back the
+   * files somebody chose and nothing else, which is why it can be the thing
+   * that always works.
+   */
+  const pickFromLibrary = useCallback(async () => {
+    /*
+     * The picker's own failures, said out loud.
+     *
+     * `launchImageLibraryAsync` rejects rather than returning `canceled` when
+     * iOS will not present it — most often because something else is already
+     * on top — and every caller here reaches this through a `void`, so a
+     * rejection was an unhandled promise and nothing else: press `+`, nothing
+     * happens, no dialog, no message, no reason. A button that silently does
+     * nothing is the one failure somebody reads as the app being broken,
+     * because from the outside it is indistinguishable from one.
+     */
+    let picked: Awaited<ReturnType<typeof ImagePicker.launchImageLibraryAsync>>;
+    try {
+      picked = await ImagePicker.launchImageLibraryAsync({
+        // Photos only. Nothing downstream can handle a video — the deriver
+        // makes AVIF, WebP and JPEG renditions with sharp — so offering one
+        // here means it uploads, never becomes `ready`, and simply never
+        // appears. Failing in the picker, where it cannot be chosen, beats
+        // failing silently twenty minutes later.
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 1,
+        exif: false,
+      });
+    } catch {
+      setQueueStatus('Could not open your photos — try again in a moment.');
       return;
     }
-
-    // Otherwise the system picker: no permission prompt at all, and no library
-    // access. The upgrade that unlocks auto-selection is offered after a
-    // contribution, never in front of the first one — design §7.4.
-    const picked = await ImagePicker.launchImageLibraryAsync({
-      // Photos only. Nothing downstream can handle a video — the deriver makes
-      // AVIF, WebP and JPEG renditions with sharp — so offering one here means
-      // it uploads, never becomes `ready`, and simply never appears. Failing
-      // in the picker, where it cannot be chosen, beats failing silently
-      // twenty minutes later.
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 1,
-      exif: false,
-    });
     if (picked.canceled || picked.assets.length === 0) return;
 
     // The other half of §18's precision number: a contribution that never got
@@ -1940,7 +1906,19 @@ function EventScreen({
     // Earned the right to ask: they have contributed, so the pitch is
     // concrete rather than a permission wall in front of a stranger.
     if (access === 'undetermined' && windowFor()) setOfferUpgrade(true);
-  }, [access, enqueue, windowFor]);
+  }, [access, api, enqueue, event.id, windowFor]);
+
+  const addPhotos = useCallback(async () => {
+    // With library access and a known window, offer the photos rather than
+    // asking someone to find them — the reason this client exists (§7.1).
+    const window = windowFor();
+    if ((access === 'granted' || access === 'limited') && window) {
+      setAutoWindow(window);
+      return;
+    }
+
+    await pickFromLibrary();
+  }, [access, pickFromLibrary, windowFor]);
 
   /**
    * Save everything to the camera roll — the native terminal action.
@@ -2144,6 +2122,31 @@ function EventScreen({
   const [framingCover, setFramingCover] = useState<string | null>(null);
   /** Whether the frame is open on the album's own photographs. */
   const [framingAlbum, setFramingAlbum] = useState(false);
+  /**
+   * Handing somebody the camera, or taking it back.
+   *
+   * Straight to a refresh rather than an optimistic flip: the roster is the
+   * server's list and this writes to it, so the honest thing for the row to
+   * show is what came back. It is one tap on a screen nobody is scrolling
+   * fast, which is the case where a round trip is affordable and a local guess
+   * that disagrees with the next poll is not.
+   *
+   * Approving somebody's open request happens on the server as a side effect —
+   * a host who goes looking rather than waiting should not then find the same
+   * question still sitting in their queue.
+   */
+  const setHost = useCallback(
+    async (actorId: string, host: boolean) => {
+      try {
+        await api.setEventHost(event.id, actorId, host);
+        await refresh();
+      } catch {
+        setQueueStatus('Could not change that — try again in a moment.');
+      }
+    },
+    [api, event.id, refresh],
+  );
+
   /** The album photograph on its way up as a cover, if one is. */
   const [sendingCover, setSendingCover] = useState(false);
 
@@ -2603,6 +2606,35 @@ function EventScreen({
     );
   }, [api, event.id, event.name, onBack]);
 
+  /**
+   * Asking to be one of the people who may add.
+   *
+   * Held locally as well as read off the feed, for the reason the visibility
+   * pills are: one round trip is long enough for a tap to feel ignored, and
+   * the feed that would carry the answer is on a poll. `null` means "whatever
+   * the server says", which is the state on every load.
+   *
+   * The server's answer is what lands, not an assumed `open`: a repeat ask on
+   * something already declined comes back `declined` rather than reopening it,
+   * and a line that said "Asked" over that would be pressing past somebody's
+   * no on their behalf.
+   */
+  const askToHost = useCallback(async () => {
+    setAskingToHost(true);
+    try {
+      const body = await api.askToHost(event.id);
+      setHostAsk((body.status as 'open' | 'approved' | 'declined') ?? 'open');
+      // Approved happens when the host had already promoted them and the feed
+      // had not come round yet — the album can be added to now, and the poll
+      // would take its time saying so.
+      if (body.status === 'approved') void refresh();
+    } catch {
+      setQueueStatus('Could not ask just now — try again in a moment.');
+    } finally {
+      setAskingToHost(false);
+    }
+  }, [api, event.id, refresh]);
+
   /** Whichever way in `+` takes: the picker, or the account it first needs. */
   const add = useCallback(() => {
     if (signedIn === false) return setGateOpen(true);
@@ -3033,6 +3065,22 @@ function EventScreen({
         window={autoWindow}
         theme={t}
         onCancel={() => setAutoWindow(null)}
+        /*
+          The way out of the guess and into the whole camera roll.
+
+          Granting the library turned the `+` into this screen and nothing
+          else, so an album whose window holds none of your photographs — a
+          weekend added to on the Tuesday, an evening somebody else set the
+          dates of, a phone whose clock was wrong — ended at "Nothing from
+          this time on this phone" with a Cancel under it. The picker was
+          still there in the code; it was simply unreachable for anybody the
+          permission had been granted by, which is everybody the feature was
+          built for.
+        */
+        onPickManually={() => {
+          setAutoWindow(null);
+          void pickFromLibrary();
+        }}
         onShown={(preselected, candidates) =>
           api.observe({
             kind: 'autoselect_shown',
@@ -3300,6 +3348,51 @@ function EventScreen({
 
         {pane === 'photos' ? (
           <>
+            {/*
+              Why the `+` is dim, and the one thing to do about it.
+
+              A disabled button with no sentence beside it is the app looking
+              broken: the reader can see the album, can talk in it, and cannot
+              work out why the one control they came for is greyed. Saying
+              "hosts add the photographs here" is the difference between a
+              refusal and a rule.
+
+              Only where asking is actually a thing — `canAsk` is the server's
+              answer, not a guess off `contributePolicy`, so an album set to
+              "Only me" says its piece and offers nothing, which is correct:
+              there is no set to join and a button to ask would make "Only me"
+              something its owner has to keep defending.
+
+              Declined stays declined, and it reads as the album's rule rather
+              than as a verdict. Telling somebody they were turned down is the
+              host's to do, not the screen's — the same reasoning a friend
+              request follows.
+            */}
+            {feed && !feed.canAdd && feed.hosting.canAsk && (
+              <View style={styles.queueLine}>
+                <Text style={[styles.queueText, { color: t.dim }]}>
+                  {hostAsk === 'open' || feed.hosting.asked === 'open'
+                    ? 'Asked to be a host. You can add photos once that is answered.'
+                    : 'Hosts add the photographs here.'}
+                </Text>
+                {hostAsk !== 'open' && feed.hosting.asked !== 'open' && (
+                  <Pressable
+                    onPress={() => void askToHost()}
+                    hitSlop={8}
+                    disabled={askingToHost}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ask to be a host of this album"
+                  >
+                    <Text
+                      style={[styles.queueDo, { color: t.accent, opacity: askingToHost ? 0.5 : 1 }]}
+                    >
+                      Ask to be a host
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
             {/*
               The lines between the tabs and the grid: an upload in flight, and
               the one offer that is made after a contribution rather than in
@@ -3579,7 +3672,19 @@ function EventScreen({
             onSeen={markRead}
           />
         ) : (
-          <People roster={feed?.roster ?? []} t={t} />
+          <People
+            roster={feed?.roster ?? []}
+            t={t}
+            canAdminister={feed?.event.canAdminister ?? false}
+            /*
+              The live setting, so the control appears the moment the sheet
+              above changes it rather than one poll later — and disappears
+              again if it is changed back. `adding` is the local guess the
+              pills answer with; the feed is the truth once it lands.
+            */
+            hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
+            onSetHost={(actorId, host) => void setHost(actorId, host)}
+          />
         )}
       </View>
 
@@ -3916,6 +4021,114 @@ function EventScreen({
  * shape iOS uses and the reason no second colour is needed to say which pane
  * you are in.
  */
+
+/**
+ * The four tabs, floating over whatever is behind them.
+ *
+ * Its own component because it is no longer the tabs screen's own furniture.
+ * Somebody else's page is reached by tapping a byline or a search result and
+ * used to replace the whole app while it was open — a screen with one `‹` in
+ * the corner and no way to anywhere else, which is the shape of a modal and
+ * not of a page you arrived at by browsing. The bar draws over it now, and
+ * pressing a tab takes the page off the top of the stack on the way.
+ */
+function TabBar({
+  tab,
+  t,
+  dark,
+  onTab,
+}: {
+  tab: Tab;
+  t: Theme;
+  dark: boolean;
+  onTab: (tab: Tab) => void;
+}) {
+  /*
+   * Two views for one bubble, and the nesting is not decoration: iOS clips a
+   * layer's shadow the moment `overflow: 'hidden'` is set, and the blur needs
+   * exactly that to be clipped into a capsule. So the outer view carries the
+   * shadow and the inner one carries the blur.
+   */
+  return (
+    <View style={styles.tabShell}>
+      <BlurView
+        intensity={BLUR_INTENSITY}
+        tint="systemChromeMaterial"
+        blurMethod="dimezisBlurView"
+        style={[styles.tabBar, { borderColor: t.line }]}
+      >
+        {/*
+          Glyphs, where four words used to be.
+
+          Four labels across a 365pt bubble is four pieces of type
+          competing with the photographs running underneath it, and
+          "Events / Groups / Find / You" is the one row in this product
+          that is read once and recognised forever after. The drawings
+          are the web rail's own — see `Glyph.tsx` — so the two clients
+          point at a group with the same picture. The label survives as
+          the accessibility name, which is where a word is still worth
+          having.
+        */}
+        {(
+          [
+            ['home', 'photos', 'Albums'],
+            ['chats', 'bubbles', 'Chats'],
+            ['search', 'search', 'Find'],
+            ['profile', 'profile', 'You'],
+          ] as [Tab, GlyphName, string][]
+        ).map(([id, glyph, label]) => (
+          <Pressable
+            key={id}
+            style={[
+              styles.tab,
+              /*
+               * A wash of the page's own value, not a colour.
+               *
+               * Translucent on purpose: over a blur an opaque fill reads
+               * as a patch stuck on the glass. And grey rather than the
+               * accent — a filled blue capsule is the loudest thing on a
+               * screen of other people's photographs, and a tab bar is
+               * chrome. What makes the selected one legible is the glyph
+               * inside it, which is the page's full-strength foreground
+               * against four in `dim`; the capsule only has to say where
+               * the foreground one is seated.
+               */
+              tab === id && { backgroundColor: dark ? '#ffffff1f' : '#0000000f' },
+            ]}
+            onPress={() => onTab(id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === id }}
+            accessibilityLabel={label}
+          >
+            {/*
+              The page's foreground, and a stroke heavier than the
+              family's own.
+
+              Both, because one without the other is half a state. The
+              four unselected glyphs are `dim`, so the selected one steps
+              up to `fg` — the same distance between a heading and the
+              line under it, said in a picture — and the extra half-unit
+              of stroke is what carries that distance at 22 points, where
+              a two-step change in value alone is easy to miss on a bar
+              sitting over a bright photograph.
+
+              `fg` rather than the accent. Colour on this bar would be
+              the only colour in the chrome, and the photographs running
+              underneath it are the things entitled to have one.
+            */}
+            <Glyph
+              name={glyph}
+              size={22}
+              weight={tab === id ? 2.5 : 2}
+              color={tab === id ? t.fg : t.dim}
+            />
+          </Pressable>
+        ))}
+      </BlurView>
+    </View>
+  );
+}
+
 function Segmented({
   pane,
   unread,
@@ -4420,6 +4633,11 @@ function HostSheet({
                 <ContributeChoice
                   t={t}
                   value={adding}
+                  // The live value, not the saved one: switching an album to
+                  // private renames the middle answer from "Everyone" to
+                  // "Members" in the same breath, which is the point of asking
+                  // the two questions on one sheet.
+                  accessPolicy={visible}
                   disabled={savingContribute}
                   onChange={onContribute}
                   note="Nothing already added is removed, whichever of the three this is."

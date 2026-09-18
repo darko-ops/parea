@@ -20,6 +20,7 @@ import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { tagsForPhotos } from '@/photoTags';
 import { getDb } from '@/db';
+import { hostingFor } from '@/hosts';
 import { invitedTo, membersOf, rosterFrom } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
@@ -297,17 +298,74 @@ export async function GET(
    * else it is zero, not because the number is secret but because a count of
    * decisions you cannot make is a notification about somebody else's job.
    */
-  const [waitingRow] = canAdminister
-    ? await db
-        .select({ n: countDistinct(schema.eventAccessRequests.id) })
-        .from(schema.eventAccessRequests)
-        .where(
-          and(
-            eq(schema.eventAccessRequests.eventId, event.id),
-            eq(schema.eventAccessRequests.status, 'open'),
-          ),
-        )
-    : [{ n: 0 }];
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  const [waitingRows, hostWaitingRows, hosting] = await Promise.all([
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventAccessRequests.id) })
+          .from(schema.eventAccessRequests)
+          .where(
+            and(
+              eq(schema.eventAccessRequests.eventId, event.id),
+              eq(schema.eventAccessRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * And the people already inside asking to be able to add.
+     *
+     * Counted into the same badge, because it is the same sentence from the
+     * host's side: somebody is waiting on a decision only you can make. Two
+     * badges over one `⋯` would be two things to learn for a distinction that
+     * does not change what they do next — open the manage screen, where the
+     * two queues are separate lists.
+     */
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventHostRequests.id) })
+          .from(schema.eventHostRequests)
+          .where(
+            and(
+              eq(schema.eventHostRequests.eventId, event.id),
+              eq(schema.eventHostRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * Where this reader stands with the album's set of hosts.
+     *
+     * The same helper `/event/[id]` calls to draw the first frame — a notice
+     * that appears or disappears between the server render and this response
+     * is the page contradicting itself while somebody watches.
+     */
+    hostingFor(db, event, accountActorId, contributeDecision.allow),
+  ]);
+
+  /*
+   * People waiting on this host, for the badge on the settings menu.
+   *
+   * Only computed for somebody who can actually answer them — for everybody
+   * else it is zero, not because the number is secret but because a count of
+   * decisions you cannot make is a notification about somebody else's job.
+   */
+  const waiting = (waitingRows[0]?.n ?? 0) + (hostWaitingRows[0]?.n ?? 0);
 
   return NextResponse.json({
     event: {
@@ -315,7 +373,7 @@ export async function GET(
       name: event.name,
       contributePolicy: event.contributePolicy,
       canAdminister,
-      waiting: waitingRow?.n ?? 0,
+      waiting,
       groupId: event.groupId,
       groupName: group?.name ?? null,
       caption: event.caption,
@@ -395,6 +453,15 @@ export async function GET(
      * the server.
      */
     canAdd: uploadDecision.allow && accountActorId != null,
+    /*
+     * The album's set of hosts, from this reader's point of view.
+     *
+     * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+     * button", and this answers "and if not, is there something to do about
+     * it". Keeping them apart is what stops a client inferring one from the
+     * other and getting the `creator` case wrong.
+     */
+    hosting,
     arriving,
     count: photos.length,
     photos,

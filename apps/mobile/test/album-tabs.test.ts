@@ -69,7 +69,7 @@ describe('one header, three panes', () => {
   it('switches only what is under the tabs', () => {
     // The three panes, chosen inside the page rather than around it.
     expect(SCREEN).toMatch(/\{pane === 'photos' \? \([\s\S]*?\) : pane === 'talk' \? \([\s\S]*?\) : \(/);
-    expect(SCREEN).toMatch(/<People roster=/);
+    expect(SCREEN).toMatch(/<People\s*\n\s*roster=/);
     expect(SCREEN).toMatch(/<Thread/);
   });
 

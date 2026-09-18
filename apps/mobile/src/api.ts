@@ -16,7 +16,15 @@ import { Offline, type PresignRequest, type PresignResponse } from '@parea/uploa
  * it; `host` is the person who made it and a group's admins; `nobody` closes
  * the album to everybody including its maker.
  */
-export type ContributePolicy = 'everyone' | 'host' | 'nobody';
+/**
+ * Who may add photographs.
+ *
+ * `creator` is one person; `host` is that person plus a group's admins plus
+ * anybody made a host of the album. `nobody` is no longer offered by either
+ * client — see `CONTRIBUTE_NOBODY` on the server — and stays in the type
+ * because an album can still be holding it.
+ */
+export type ContributePolicy = 'everyone' | 'creator' | 'host' | 'nobody';
 
 export type EventSummary = {
   id: string;
@@ -250,6 +258,23 @@ export type Feed = {
    * button for everybody and had it refused on the way up.
    */
   canAdd: boolean;
+  /**
+   * Where this reader stands with the album's set of hosts.
+   *
+   * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+   * button", and this answers "and if not, is there something to do about it".
+   * Decided by the server for the same reason `canAdd` is — re-deriving it
+   * here from `contributePolicy` would be the policy written a third time, and
+   * the day it drifts the app offers a button the server refuses.
+   */
+  hosting: {
+    /** Already one of the people who may add. */
+    isHost: boolean;
+    /** The album is set to `host` and this reader is not one, so asking is a thing. */
+    canAsk: boolean;
+    /** What their last ask left standing, or null for never having asked. */
+    asked: 'open' | 'approved' | 'declined' | null;
+  };
 };
 
 /** Somebody in an event: a name, a face, and whether it is their event. */
@@ -260,6 +285,8 @@ export type Member = {
   handle: string | null;
   avatarUrl: string | null;
   isCreator: boolean;
+  /** One of the people who may add to a `host` album. True of the creator. */
+  isHost: boolean;
 };
 
 /** A member with what they have put in — what the People pane lists. */
@@ -270,8 +297,26 @@ export type Roster = {
   avatarUrl: string | null;
   photoCount: number;
   role: 'creator' | 'contributor' | 'viewer' | 'invited';
+  /**
+   * Whether they may add photographs to a `host` album.
+   *
+   * Beside `role` rather than folded into it: `role` describes what somebody
+   * has *done* here, and this is something they were granted. Merged, a host
+   * who has not added anything would be indistinguishable from a contributor,
+   * which is exactly the pair the settings sheet has to tell apart.
+   */
+  isHost: boolean;
   /** For somebody asked and not yet arrived: when the invitation was sent. */
   invitedAt: string | null;
+};
+
+/** Somebody already in an album, asking to be one of the people who may add. */
+export type HostRequest = {
+  id: string;
+  actorId: string;
+  createdAt: string;
+  displayName: string | null;
+  handle: string | null;
 };
 
 /**
@@ -581,7 +626,16 @@ export type PendingRequest = {
    * threw reading a label off `undefined`. The one kind of ask that arrives
    * from somebody you may not know yet was the one the app could not answer.
    */
-  kind: 'invite' | 'friend' | 'join' | 'group_invite';
+  /*
+   * Five, and the fifth is the only one nothing else announces.
+   *
+   * `host` is somebody already in one of your albums asking to be able to add
+   * photographs to it. There is no push for it — see the route — so this list
+   * and the badge over the album's own `⋯` are the whole of how it reaches
+   * anybody, which is why a client that did not know the kind would drop the
+   * ask on the floor rather than merely draw it plainly.
+   */
+  kind: 'invite' | 'friend' | 'join' | 'group_invite' | 'host';
   id: string;
   eventId: string | null;
   /** Which group, for the kind that has one. Null for the other three. */
@@ -652,6 +706,14 @@ export type Person = {
   standing: Standing;
   /** Only when they are the one waiting: the id the answer goes to. */
   requestId: string | null;
+  /**
+   * Their own three totals, in the order the page prints them.
+   *
+   * Worked out by `profileFor` on the server, like the standing beside it, so
+   * this screen and the web's `/u/<handle>` say the same numbers rather than
+   * each counting for themselves.
+   */
+  counts: { albums: number; photos: number; friends: number };
 };
 
 /**
@@ -1203,6 +1265,17 @@ export class Api {
             action: yes ? 'approve' : 'decline',
           }),
         });
+      // Approving writes `host` onto their participant row, which is the
+      // grant. Same verb as a join and a different table: they are already in,
+      // and what they asked for is the photographs.
+      case 'host':
+        return this.call(`/api/events/${request.eventId}/host-requests`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            requestId: request.id,
+            action: yes ? 'approve' : 'decline',
+          }),
+        });
     }
   }
 
@@ -1456,6 +1529,48 @@ export class Api {
    * would not recognise rather than storing it — a typo in the column seals
    * the album rather than opening it.
    */
+  /**
+   * Asking to be one of the people who may add to this album.
+   *
+   * Only meaningful where the feed says `hosting.canAsk`; the server refuses
+   * everywhere else rather than trusting the client to have checked, and the
+   * status it answers with is what the screen should show — a repeat ask on
+   * something already declined comes back `declined` rather than reopening it,
+   * and a button that said "Asked" over that would be pressing past somebody's
+   * no on their behalf.
+   */
+  askToHost(eventId: string): Promise<{ status?: string }> {
+    return this.call(`/api/events/${eventId}/host-requests`, { method: 'POST' });
+  }
+
+  /** The queue, for whoever administers the album. 404 for everybody else. */
+  async hostRequests(eventId: string): Promise<HostRequest[]> {
+    const { requests } = await this.call<{ requests: HostRequest[] }>(
+      `/api/events/${eventId}/host-requests`,
+    );
+    return requests ?? [];
+  }
+
+  answerHostRequest(eventId: string, requestId: string, yes: boolean): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/host-requests`, {
+      method: 'PATCH',
+      body: JSON.stringify({ requestId, action: yes ? 'approve' : 'decline' }),
+    });
+  }
+
+  /**
+   * Making somebody a host, or taking it back.
+   *
+   * One call with a boolean rather than two, because the two are the same
+   * write to the same column and the control is a toggle.
+   */
+  setEventHost(eventId: string, actorId: string, host: boolean): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/hosts`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId, host }),
+    });
+  }
+
   setContributePolicy(eventId: string, contributePolicy: ContributePolicy): Promise<unknown> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
@@ -1518,6 +1633,23 @@ export class Api {
     return this.call('/api/friends', {
       method: 'POST',
       body: JSON.stringify({ actorId }),
+    });
+  }
+
+  /**
+   * Taking an ask back, and unfriending, through one door.
+   *
+   * The endpoint clears the friendship and both open requests between the two
+   * actors, which is exactly what withdrawing needs: a request somebody
+   * changed their mind about should leave nothing behind, least of all a row
+   * that makes the next ask look already answered.
+   *
+   * Named for what the screen does with it. "Delete the friendship" is the
+   * endpoint's name for it and the wrong one here — nothing was ever agreed.
+   */
+  unaskFriend(actorId: string): Promise<unknown> {
+    return this.call(`/api/friends?actorId=${encodeURIComponent(actorId)}`, {
+      method: 'DELETE',
     });
   }
 

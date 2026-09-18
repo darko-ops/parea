@@ -769,6 +769,11 @@ export function ManageView({
           */}
           <ContributeChoice
             value={contribute}
+            // The live value, not the saved one: switching an album to private
+            // renames the middle answer from "Everyone" to "Members" in the
+            // same breath, which is the point of asking the two questions on
+            // one screen.
+            accessPolicy={access}
             disabled={busy === 'switch'}
             onChange={(next) => {
               if (next !== contribute) void setSwitch({ contributePolicy: next });

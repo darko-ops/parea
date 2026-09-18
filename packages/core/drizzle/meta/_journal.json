@@ -239,6 +239,13 @@
       "when": 1789693025185,
       "tag": "0033_lumpy_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789708980177,
+      "tag": "0034_safe_doctor_octopus",
+      "breakpoints": true
     }
   ]
 }

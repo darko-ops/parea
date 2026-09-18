@@ -175,6 +175,43 @@ export function CreateEvent({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Putting the field somebody is typing in above the keyboard.
+   *
+   * The screen is a column of fields under a strip of detected runs, so the
+   * one that gets typed in first sits well down it — and tapping a field
+   * raises a keyboard over the bottom half of the phone without moving the
+   * page. What that looks like is typing blind: the caret is under the
+   * keyboard, and so is the text going into it.
+   *
+   * Measured rather than guessed. Each field reports its own offset inside the
+   * scroll through `onLayout`, and focusing one scrolls to it less a margin,
+   * so the label above stays visible and the field does not land flush against
+   * the top edge. A guessed constant would be wrong the moment the strip above
+   * is there or is not.
+   *
+   * `automaticallyAdjustKeyboardInsets` on the scroll is the other half: it is
+   * what makes room to scroll into. Without it a field near the foot has
+   * nowhere to go.
+   */
+  const scroller = useRef<ScrollView>(null);
+  const fieldTops = useRef<Record<string, number>>({});
+
+  const measureField = useCallback(
+    (key: string) => (event: { nativeEvent: { layout: { y: number } } }) => {
+      fieldTops.current[key] = event.nativeEvent.layout.y;
+    },
+    [],
+  );
+
+  const bringIntoView = useCallback((key: string) => {
+    const top = fieldTops.current[key];
+    if (top === undefined) return;
+    // The label sits above the box and belongs to it, so the scroll stops
+    // short of the field rather than on it.
+    scroller.current?.scrollTo({ y: Math.max(top - 24, 0), animated: true });
+  }, []);
+
   // A name, and nothing else. The page before answered when, and whether there
   // are photographs at all is not this screen's business to insist on.
   const ready = Boolean(name.trim());
@@ -374,7 +411,23 @@ export function CreateEvent({
    */
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <ScrollView
+      ref={scroller}
+      contentContainerStyle={styles.scroll}
+      /*
+       * Room under the last field for the keyboard to stand in.
+       *
+       * The scroll used to end at its content, so on a phone the fields near
+       * the foot had nowhere to scroll *to*: the keyboard came up over them
+       * and the view was already at the bottom. iOS insets the scroll by the
+       * keyboard's height with this, which is what gives `bringIntoView`
+       * somewhere to move to — the two are one fix and neither works alone.
+       */
+      automaticallyAdjustKeyboardInsets
+      // A tap on a pill while a field has focus should press the pill, not
+      // spend itself dismissing the keyboard.
+      keyboardShouldPersistTaps="handled"
+    >
       {/*
         A modal header rather than a back chevron, and the commit action is in
         it as well as at the foot. Not duplication for its own sake: the
@@ -549,7 +602,7 @@ export function CreateEvent({
         </View>
       )}
 
-      <View style={styles.field}>
+      <View style={styles.field} onLayout={measureField('name')}>
         <Text style={[styles.fieldLabel, { color: t.dim }]}>CAPTION</Text>
         <TextInput
           value={name}
@@ -559,6 +612,11 @@ export function CreateEvent({
           // Deliberately not autoFocus. It was, when this screen opened on a
           // name field; now the detected runs are above it and a keyboard
           // covering them on arrival hides the one thing worth looking at.
+          //
+          // Which is exactly why focusing it has to move the page: the field
+          // is below the fold by design, so the keyboard that comes up when
+          // somebody taps it comes up over the thing they tapped.
+          onFocus={() => bringIntoView('name')}
           maxLength={120}
           style={[
             styles.input,
@@ -568,7 +626,7 @@ export function CreateEvent({
         />
       </View>
 
-      <View style={styles.field}>
+      <View style={styles.field} onLayout={measureField('place')}>
         <View style={styles.fieldHead}>
           <Text style={[styles.fieldLabel, { color: t.dim }]}>WHERE</Text>
           <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
@@ -578,6 +636,8 @@ export function CreateEvent({
           onChangeText={setPlace}
           placeholder="Add a place"
           placeholderTextColor={t.dim}
+          // Further down than the caption, so more covered, not less.
+          onFocus={() => bringIntoView('place')}
           maxLength={80}
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.card }]}
         />
@@ -706,7 +766,22 @@ export function CreateEvent({
           <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
             WHO CAN ADD PHOTOS
           </Text>
-          <ContributeChoice t={t} value={contribute} onChange={setContribute} />
+          <ContributeChoice
+            t={t}
+            value={contribute}
+            /*
+              The visibility chosen two fields up, not a saved policy — there
+              is no saved album yet.
+
+              The two questions compose, so what this one's answers are called
+              depends on the other's: "Everyone" on a public album is whoever
+              opens the link, and on a private one it is the members. Reading
+              the live switch means tapping "private" renames the option under
+              the thumb rather than leaving a word that stopped being true.
+            */
+            accessPolicy={isPrivate ? 'private' : 'public'}
+            onChange={setContribute}
+          />
       </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}

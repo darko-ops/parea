@@ -199,6 +199,10 @@ export default function PrivacyPage() {
             people, because most of them cannot work without one. Which albums
             and groups you are in. That you made an album. That you asked to
             join a private album or a group, what was decided, and by whom. That
+            you asked to be one of the people who can add photographs to an
+            album you are already in, what was decided, and by whom &mdash;
+            kept for the same reason the one above it is, so that asking twice
+            is not two questions and a no stays a no. That
             you asked for a photo of you to be taken down, along with whatever
             you wrote in the note. That somebody invited you into an album, or
             into a group, who it was, and whether you accepted &mdash; kept so

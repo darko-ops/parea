@@ -63,12 +63,13 @@ describe('the shape of somebody else’s page', () => {
      * neither means anything on somebody else's. What is left is the one thing
      * you can do about a person.
      *
-     * The quiet standings are worn as a label rather than offered as a button:
-     * "Friends" and "Asked" are states, and a control that reports a state is
-     * a control somebody presses to find out it does nothing.
+     * "Friends" is still worn as a label — there is nothing to press, and a
+     * control reporting a state is one somebody presses to find out it does
+     * nothing. An open request is the exception and always was: it is the
+     * viewer's own to withdraw, so it is a button.
      */
     expect(PERSON).toMatch(/>Add friend</);
-    expect(PERSON).toMatch(/standing === 'friends' \? 'Friends' : 'Asked'/);
+    expect(PERSON).toMatch(/>Friends</);
     expect(PERSON).toMatch(/standing === 'none' && \(/);
     /*
      * No Edit, no Share, no Settings — none of the three is about them.
@@ -83,20 +84,64 @@ describe('the shape of somebody else’s page', () => {
     expect(PERSON).toMatch(/>Decline</);
   });
 
-  it('still refuses to total them up', () => {
+  it('takes an open request back rather than reporting it', () => {
     /*
-     * The counts line on your own profile says albums, photographs and
-     * friends. Here it says one number and it counts the *viewer's* shelf:
-     * how many of your albums this person is also in.
+     * It said "Asked" on a flat panel, which left the only thing in the
+     * viewer's gift — withdrawing — with nowhere to be done from: the way out
+     * of that state was for the other person to answer.
      *
-     * Their totals are not on this page and must not become so — "41 albums ·
-     * 900 photos" would make search a way to measure strangers, which is the
-     * whole reason being findable leads to being able to ask and no further.
-     * The web says the same thing in the same words.
+     * "Requested" is the state rather than the past tense of the act, and
+     * pressing it clears both open rows between the two actors, so asking
+     * again is possible and nothing is left for the next ask to collide with.
      */
-    expect(PERSON).toMatch(/\{shared\.length === 1 \? 'album' : 'albums'\} with you/);
-    expect(PERSON).not.toMatch(/friends'\}\s*<\/Text>\s*<\/Text>/);
-    expect(PERSON).not.toMatch(/photos\b[^)]*\}\s*·/);
+    expect(PERSON).toMatch(/>Requested</);
+    expect(PERSON).not.toMatch(/>Asked</);
+    expect(PERSON).toMatch(/onPress=\{\(\) => void unask\(\)\}/);
+    expect(PERSON).toMatch(/api\.unaskFriend\(person\.actorId\)/);
+    expect(PERSON).toMatch(/setStanding\('none'\)/);
+    expect(read('src/api.ts')).toMatch(/method: 'DELETE'/);
+  });
+
+  it('prints their three totals, worked out once on the server', () => {
+    /*
+     * The page used to print one number — how many of *your* albums they are
+     * in — on the argument that their own totals would turn search into a way
+     * to measure strangers. The shelf below undid that argument: every album
+     * they made is already listed there by name, locked ones included.
+     *
+     * Counted by `profileFor` rather than by either client, so this screen and
+     * `/u/<handle>` cannot drift into disagreeing about what an album is.
+     */
+    expect(PERSON).toMatch(/person\.counts\.albums/);
+    expect(PERSON).toMatch(/person\.counts\.photos/);
+    expect(PERSON).toMatch(/person\.counts\.friends/);
+    expect(PERSON).not.toMatch(/'albums'\} with you/);
+    expect(read('src/api.ts')).toMatch(
+      /counts: \{ albums: number; photos: number; friends: number \}/,
+    );
+    const PEOPLE = readFileSync(
+      fileURLToPath(new URL('../../web/src/people.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(PEOPLE).toMatch(/async function countsFor/);
+    // Deleted albums out, and a photograph counted only once it is ready —
+    // the same two clauses `albumsBy` applies per album.
+    expect(PEOPLE).toMatch(/e\.deleted_at is null/);
+    expect(PEOPLE).toMatch(/p\.status = 'ready' and p\.deleted_at is null/);
+  });
+
+  it('gives the letter the picture’s shape, and the handle its sigil', () => {
+    /*
+     * The slot a picture goes in keeps its shape whether or not there is one
+     * in it: a 64pt circle where a 124×104 panel would be made a page without
+     * a photograph a visibly different, smaller page.
+     *
+     * And the handle keeps its `@`. A name is bare and a handle is not — the
+     * sigil is what marks the string as the thing you can type at a search
+     * box, which is why the fallback in `nameOf` wears one too.
+     */
+    expect(PERSON).toMatch(/styles\.avatar, styles\.avatarBlank/);
+    expect(PERSON).toMatch(/@\{person\.handle\}/);
   });
 
   it('draws their albums as one shelf of covers', () => {

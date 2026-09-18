@@ -26,33 +26,91 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ContributePolicy } from './api';
 import type { GroupTheme } from './Groups';
 
-export const CONTRIBUTE_OPTIONS: {
+export type ContributeOption = {
   value: ContributePolicy;
   label: string;
   /** What happens to somebody looking at the album. */
   help: string;
-}[] = [
+};
+
+/**
+ * The three, in the order they are offered, per answer to "who can see it".
+ *
+ * Two lists rather than one with a relabelling pass, because the *order*
+ * differs as well as the words and the order is the argument. On a public
+ * album the ordinary answer is that everyone who turns up can add, so that
+ * leads; on a private one the album is usually somebody's and the people in it
+ * are the exception, so "Only me" leads. A single list would put the same
+ * option first in both places and make one of them read as the default when it
+ * is not.
+ *
+ * `everyone` is the same stored value under both labels. It has always
+ * deferred to the other setting rather than restating it — "whoever the album
+ * is open to" — and what changes is which word is true here: on a private
+ * album the people who can see it are its members, and calling them "everyone"
+ * was the one place this copy made somebody work out the composition for
+ * themselves.
+ *
+ * `nobody` is on neither list any more. It was a way of ending an album that
+ * people reached for by accident and could not find their way back out of,
+ * since the setting that undoes it is the one they had just closed.
+ *
+ * The same two lists the web's own `ContributeChoice` draws, in the same
+ * words: a phone and a browser describing one setting differently is two
+ * products.
+ */
+const PUBLIC_OPTIONS: ContributeOption[] = [
   {
     value: 'everyone',
     label: 'Everyone',
-    help: 'Anyone who can see the album can add to it. Adding always needs an account, so every photograph says who put it there.',
+    help: 'Anybody who opens the link can add to it. Adding always needs an account, so every photograph says who put it there.',
   },
   {
-    value: 'host',
+    value: 'creator',
     label: 'Only me',
     help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
   },
   {
-    value: 'nobody',
-    label: 'Nobody',
-    help: 'The album is finished. Nothing more goes in, including from you. The conversation stays open either way.',
+    value: 'host',
+    label: 'Hosts',
+    help: 'You and the people you make hosts. Anybody else in the album can ask to be one, and you decide — so the camera can be handed over without the album being.',
   },
 ];
+
+const PRIVATE_OPTIONS: ContributeOption[] = [
+  {
+    value: 'creator',
+    label: 'Only me',
+    help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
+  },
+  {
+    value: 'everyone',
+    label: 'Members',
+    help: 'Everybody in the album can add to it — the people you added and the people you let in, and nobody else. Adding names who added, so every photograph says who put it there.',
+  },
+  {
+    value: 'host',
+    label: 'Hosts',
+    help: 'You and the people you make hosts. Anybody else in the album can ask to be one, and you decide — so the camera can be handed over without the album being.',
+  },
+];
+
+export function contributeOptions(accessPolicy: string): ContributeOption[] {
+  return accessPolicy === 'private' ? PRIVATE_OPTIONS : PUBLIC_OPTIONS;
+}
 
 export function ContributeChoice({
   value,
   onChange,
   t,
+  /**
+   * Who can see the album, which decides what this question's answers are
+   * called and what order they come in.
+   *
+   * Passed in rather than read from anywhere, because on the create screen it
+   * is a choice somebody is making two fields up and has not saved yet.
+   */
+  accessPolicy,
   disabled = false,
   /** Shown under the options where this is an album that already exists. */
   note,
@@ -60,15 +118,17 @@ export function ContributeChoice({
   value: ContributePolicy;
   onChange: (next: ContributePolicy) => void;
   t: GroupTheme;
+  accessPolicy: string;
   disabled?: boolean;
   note?: string;
 }) {
-  const chosen = CONTRIBUTE_OPTIONS.find((option) => option.value === value);
+  const options = contributeOptions(accessPolicy);
+  const chosen = options.find((option) => option.value === value);
 
   return (
     <>
       <View style={styles.pills}>
-        {CONTRIBUTE_OPTIONS.map((option) => {
+        {options.map((option) => {
           const on = value === option.value;
           return (
             <Pressable

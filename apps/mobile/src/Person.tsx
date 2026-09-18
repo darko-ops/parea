@@ -40,6 +40,7 @@ import {
 } from 'react-native';
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Waiting } from './Waiting';
@@ -48,7 +49,15 @@ import { Waiting } from './Waiting';
 const COLUMNS = 2;
 const GAP = 10;
 
-/** What we call somebody: their name if they gave one, else the handle. */
+/**
+ * What we call somebody: their name if they gave one, else the handle.
+ *
+ * A name is bare and a handle wears its `@`, which is the distinction the
+ * sigil is for: it is not decoration on a person, it is what marks the string
+ * as the thing you can type at a search box. So the fallback keeps it — what
+ * is standing in for the name here *is* a handle, and stripping the `@` would
+ * make it read as somebody whose name happens to be lowercase.
+ */
 function nameOf(person: Person): string {
   return person.displayName?.trim() || `@${person.handle}`;
 }
@@ -125,6 +134,32 @@ export function PersonScreen({
       setStanding(body.status === 'accepted' ? 'friends' : 'asked');
     } catch {
       setError('Could not send that. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  }, [api, person]);
+
+  /**
+   * Taking the ask back.
+   *
+   * The button that says so is the same button: "Requested" is a state you are
+   * in and pressing it is how you leave it, which is the only reading of a
+   * pressable control that reports a state. Nothing is confirmed first —
+   * withdrawing costs nothing and asking again is one press away, so a dialog
+   * here would be guarding the wrong direction.
+   *
+   * `unaskFriend` clears both open requests between the two of you, so a
+   * withdrawal leaves nothing behind for the next ask to collide with.
+   */
+  const unask = useCallback(async () => {
+    if (!person) return;
+    setBusy(true);
+    try {
+      await api.unaskFriend(person.actorId);
+      setStanding('none');
+      setError(null);
+    } catch {
+      setError('Could not take that back. Try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -259,26 +294,32 @@ export function PersonScreen({
             {name}
           </Text>
           {/* Always, and not only under a display name: the handle is the
-              durable half and the thing this page is reached by. */}
+              durable half and the thing this page is reached by. With its `@`,
+              which is what says it is a handle and not a second name. */}
           <Text style={[styles.handle, { color: t.dim }]} numberOfLines={1}>
             @{person.handle}
           </Text>
           {/*
-            One number, and it counts the viewer's own shelf: how many of your
-            albums this person is also in.
+            The three their own profile prints, in the same order and at the
+            same size.
 
-            Deliberately not the three their own profile prints. Their totals
-            are not on this page — a profile that said "41 albums · 900 photos"
-            would make search a way to measure strangers, which is the whole
-            reason being findable leads to being able to ask and no further.
-            The web's version of this screen says the same thing in the same
-            words.
+            This page used to print one number — how many of *your* albums they
+            are in — on the argument that their own totals would make search a
+            way to measure strangers. The shelf below undid that argument on
+            its own: every album they made is already listed there by name,
+            locked ones included, so the count above it says nothing new and
+            saves somebody scrolling to find out how much there is.
+
+            The line about the two of you did not survive the swap and should
+            not have: it is the shelf's own answer, said again in figures, and
+            two counts of albums on one screen is a screen you have to work
+            out. See `ProfileCounts` on the server for what each one counts.
           */}
-          {shared.length > 0 && (
-            <Text style={[styles.counts, { color: t.dim }]}>
-              {shared.length} {shared.length === 1 ? 'album' : 'albums'} with you
-            </Text>
-          )}
+          <Text style={[styles.counts, { color: t.dim }]}>
+            {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'} ·{' '}
+            {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
+            {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+          </Text>
         </View>
 
         {person.avatar ? (
@@ -287,10 +328,17 @@ export function PersonScreen({
             style={[styles.avatar, { backgroundColor: t.line }]}
           />
         ) : (
-          /* A letter on their own lens, never a silhouette — the rule every
-             face in this product follows, and the same one the viewer's own
-             profile applies to itself. */
-          <View style={[styles.avatarBlank, { backgroundColor: lens.fill }]}>
+          /*
+            A letter on their own lens, never a silhouette — the rule every
+            face in this product follows.
+
+            In the picture's own shape, which is the half this was missing: a
+            64pt circle in the gutter where a photograph would be a 124×104
+            panel running off the right edge meant somebody with no picture had
+            a visibly different page from somebody with one, and a smaller one.
+            The shape belongs to the slot, not to what happens to be in it.
+          */
+          <View style={[styles.avatar, styles.avatarBlank, { backgroundColor: lens.fill }]}>
             <Text style={[styles.avatarLetter, { color: lens.ink }]}>
               {initialOf(name)}
             </Text>
@@ -324,15 +372,47 @@ export function PersonScreen({
             <Text style={[styles.actionText, { color: t.fg }]}>Add friend</Text>
           </Pressable>
         )}
-        {(standing === 'friends' || standing === 'asked') && (
+        {standing === 'friends' && (
           <View
             style={[styles.action, { borderColor: t.line, backgroundColor: t.card }]}
             accessibilityRole="text"
           >
-            <Text style={[styles.actionText, { color: t.dim }]}>
-              {standing === 'friends' ? 'Friends' : 'Asked'}
-            </Text>
+            <Text style={[styles.actionText, { color: t.dim }]}>Friends</Text>
           </View>
+        )}
+        {/*
+          "Requested", and pressing it takes the request back.
+
+          It said "Asked" and it was a label — a state worn rather than
+          offered, on the argument that a control reporting a state is one
+          somebody presses to find out it does nothing. That argument only
+          holds while there is nothing to do: an open request is somebody's own
+          to withdraw, so the flat panel was the page keeping the one thing
+          left in the viewer's gift out of reach, and the only way out of
+          "Asked" was for the other person to answer.
+
+          The word changed with it. "Asked" is the past tense of what you did;
+          "Requested" is the state it left you in, which is what a control
+          standing for a state should say — and it is the word the rest of the
+          world has taught people to press to undo exactly this.
+        */}
+        {standing === 'asked' && (
+          <Pressable
+            onPress={() => void unask()}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Requested. Press to take your request back"
+            style={({ pressed }) => [
+              styles.action,
+              {
+                borderColor: t.line,
+                backgroundColor: t.card,
+                opacity: busy ? 0.5 : pressed ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.actionText, { color: t.dim }]}>Requested</Text>
+          </Pressable>
         )}
         {standing === 'asking' && (
           <>
@@ -376,6 +456,20 @@ export function PersonScreen({
         the screen: what this person has is photographs, and a list of names in
         a bordered panel is a directory of them.
       */}
+      {/*
+        What the padlocks mean, said once above them rather than per tile.
+
+        A wall of shut doors is a page that looks like a refusal; the sentence
+        is what turns it into a queue. It is only here while there is something
+        shut and a way to open it — friends see the insides, so a friend
+        reading this would be told to do something they have already done.
+      */}
+      {standing !== 'friends' && shelf.some((item) => item.locked) && (
+        <Text style={[styles.small, styles.gutter, { color: t.dim }]}>
+          Become friends to see what&rsquo;s inside.
+        </Text>
+      )}
+
       {shelf.length === 0 ? (
         <Text style={[styles.body, styles.gutter, { color: t.dim }]}>
           {/*
@@ -413,8 +507,16 @@ export function PersonScreen({
                       picture that failed: a dashed empty tile, which is what is
                       actually being said. The same tile stands in for an
                       unlocked one that simply has no cover yet.
+
+                      The padlock tells the two apart, and it is the same glyph
+                      an album's own header wears to mean private — so the
+                      thing that means "shut" means it in one shape across the
+                      app. An empty unlocked album keeps the bare frame: there
+                      is nothing being withheld from anybody there.
                     */
-                    <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]} />
+                    <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]}>
+                      {item.locked && <Glyph name="locked" size={22} color={t.dim} />}
+                    </View>
                   )}
                 </Pressable>
                 <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
@@ -473,17 +575,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
   },
-  /* The letter keeps the gutter and keeps its own shape: a flat lens colour
-     running off the edge is a field of colour, not a face. */
-  avatarBlank: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginRight: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: { fontSize: 25, fontWeight: '700' },
+  /* Only what a letter needs on top of the panel it sits in: `avatar` above
+     carries the size and the corners, so the two states are the same slot. */
+  avatarBlank: { alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 34, fontWeight: '700' },
   bio: { fontSize: 15, lineHeight: 21 },
   /* One control where the profile has two, and it fills the row on its own. */
   actions: { flexDirection: 'row', gap: 8 },
@@ -493,7 +588,13 @@ const styles = StyleSheet.create({
      way a wall of photographs would be. */
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   tile: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' },
-  tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
+  tileEmpty: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   /* Under the picture rather than over it: a scrim block across the bottom of
      every tile is a grid that reads as captioned stock photography. */
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },

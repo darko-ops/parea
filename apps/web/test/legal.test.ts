@@ -212,6 +212,9 @@ describe('the closed list of what is collected', () => {
       event: /That you made an album/,
       event_participant: /records that you are in that album/,
       event_access_request: /asked to join a private album/,
+      // Asked by somebody already in the album, which is the difference
+      // between this and the row above: not "let me in" but "let me add".
+      event_host_request: /asked to be one of the people who can add photographs/,
       group_member: /albums and groups you are in/i,
       group_join_request: /asked to join a private album or a group/,
       report: /asked for a photo of you to be taken down/,

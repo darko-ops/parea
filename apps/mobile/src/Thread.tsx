@@ -623,7 +623,30 @@ function Row({
  * of me" — a question the people in a room are entitled to an answer to. The
  * server already computes this roster for the web's People tab; this draws it.
  */
-export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
+export function People({
+  roster,
+  t,
+  /**
+   * Whether this reader administers the album — the only one who may hand the
+   * camera over.
+   *
+   * Promotion is `administer`-only on the server, so the set of people who can
+   * add cannot grow without the album's owner. That is the property that makes
+   * "Hosts" safe to offer as a contribute setting at all, and drawing the
+   * control for anybody else would be the client promising what the server
+   * refuses.
+   */
+  canAdminister = false,
+  /** Only asked about on an album that is actually set to `host`. */
+  hosted = false,
+  onSetHost,
+}: {
+  roster: Roster[];
+  t: GroupTheme;
+  canAdminister?: boolean;
+  hosted?: boolean;
+  onSetHost?: (actorId: string, host: boolean) => void;
+}) {
   return (
     <FlatList
       data={roster}
@@ -631,6 +654,24 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
       contentContainerStyle={styles.people}
       renderItem={({ item }) => {
         const lens = lensFor(item.actorId ?? item.name);
+        /*
+         * The toggle, and the three things that have to be true for it.
+         *
+         * Somebody who is in the album — an open invitation has no participant
+         * row and therefore no role to set. Not the creator, who is a host by
+         * being the creator and whose row the server refuses to write. And
+         * only where the setting means anything: on `everyone` they can
+         * already add, and on `creator` the whole point is that there is no
+         * set to join, so a "Make a host" beside every name would be offering
+         * a promotion into a group of one.
+         */
+        const promotable =
+          canAdminister &&
+          hosted &&
+          onSetHost != null &&
+          item.actorId != null &&
+          item.role !== 'invited' &&
+          item.role !== 'creator';
         return (
           <View style={[styles.personRow, { borderBottomColor: t.line }]}>
             {item.avatarUrl ? (
@@ -657,7 +698,35 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
                 </Text>
               )}
             </View>
-            <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
+            {promotable ? (
+              <Pressable
+                onPress={() => onSetHost!(item.actorId!, !item.isHost)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: item.isHost }}
+                accessibilityLabel={
+                  item.isHost
+                    ? `${item.name} is a host. Press to take it back`
+                    : `Make ${item.name} a host`
+                }
+                style={({ pressed }) => [
+                  styles.personDo,
+                  {
+                    borderColor: item.isHost ? t.line : t.accent,
+                    backgroundColor: item.isHost ? t.card : 'transparent',
+                    opacity: pressed ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.personDoText, { color: item.isHost ? t.dim : t.accent }]}
+                >
+                  {item.isHost ? 'Host' : 'Make a host'}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
+            )}
           </View>
         );
       }}
@@ -665,7 +734,14 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
   );
 }
 
-/** The right-hand line: what this person is to the event, in three words. */
+/**
+ * The right-hand line: what this person is to the event, in three words.
+ *
+ * A description of what somebody has done here, not a rank — which is why a
+ * host who has added nothing still reads as their photo count or as "Here".
+ * The one exception is somebody the album's owner promoted on an album that
+ * turns on it: there, being a host is the fact the row is about.
+ */
 function standing(person: Roster): string {
   if (person.role === 'invited') return 'Asked';
   if (person.role === 'creator') return 'Host';
@@ -724,6 +800,12 @@ const styles = StyleSheet.create({
   /* Your own, mirrored. The avatar stays — a thread where one person has no
      face reads as a system message rather than as somebody talking. */
   rowMine: { flexDirection: 'row-reverse' },
+  /* A pill at the end of the row, in the shape the rest of the product uses
+     for "one thing you can do about this". Bordered rather than filled: it is
+     beside a name, and a solid accent block next to somebody's face reads as
+     the row being about the button. */
+  personDo: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  personDoText: { fontSize: 13, fontWeight: '600' },
   face: { width: 32, height: 32, borderRadius: 16 },
   faceBlank: { alignItems: 'center', justifyContent: 'center' },
   faceLetter: { fontSize: 13, fontWeight: '700' },

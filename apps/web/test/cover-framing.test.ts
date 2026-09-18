@@ -430,9 +430,33 @@ describe('the setting that says who may add', () => {
     expect(CHOICE).toMatch(/CONTRIBUTE_OPTIONS/);
     expect(read('../app/page.tsx')).toMatch(/<ContributeChoice/);
     expect(read('../app/components/ManageView.tsx')).toMatch(/<ContributeChoice/);
-    // The first option points back at the other setting rather than restating
-    // it: the two compose, and saying it twice is how they come to disagree.
-    expect(CHOICE).toMatch(/Anyone who can see the album can add to it/);
+    // And the answers depend on the other setting rather than restating it:
+    // the two compose, and "Everyone" on a private album is its members.
+    expect(CHOICE).toMatch(/export function contributeOptions\(accessPolicy: string\)/);
+    expect(CHOICE).toMatch(/label: 'Members'/);
+    expect(CHOICE).toMatch(/Anybody who opens the link can add to it/);
+    for (const screen of ['../app/page.tsx', '../app/components/ManageView.tsx']) {
+      expect(read(screen), screen).toMatch(/accessPolicy=\{/);
+    }
+  });
+
+  it('offers hosts, and no longer offers nobody', () => {
+    /*
+     * "Only me" said something untrue on an album inside a group: `host` has
+     * always meant the creator *and* the group's admins. `creator` is the
+     * setting that means what the label says, and `host` keeps the label that
+     * describes it — a set somebody can be added to, and now asked into.
+     *
+     * "Nobody, including you" is gone from both screens. It was a way of
+     * ending an album that people reached for by accident and could not find
+     * their way back out of, since the setting that undoes it is the one they
+     * had just closed. `authorize` still understands the value; nothing offers
+     * it. See `0034_event_hosts` for where the albums that held it went.
+     */
+    const CHOICE = read('../app/components/ContributeChoice.tsx');
+    expect(CHOICE).toMatch(/label: 'Hosts'/);
+    expect(CHOICE).toMatch(/value: CONTRIBUTE_CREATOR,\s*\n\s*label: 'Only me'/);
+    expect(CHOICE).not.toMatch(/label: 'Nobody'/);
   });
 
   it('gates uploading without gating the conversation', () => {

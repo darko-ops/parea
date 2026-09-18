@@ -107,6 +107,15 @@ async function resolveFacts(db: Db, event: EventRow, requester: Requester) {
 
   return {
     isParticipant: participant.length > 0,
+    /*
+     * Off the row that was already fetched, rather than a second query.
+     *
+     * Being a host of an album is a property of being in it — the role lives
+     * on the participant row precisely so there is no state where somebody is
+     * a host of an album they have left, and no second table to disagree with
+     * this one.
+     */
+    isEventHost: participant[0]?.role === 'host',
     isGroupMember: membership.length > 0,
     isGroupAdmin: membership[0]?.role === 'admin',
     eventCode: code[0]?.words ?? null,

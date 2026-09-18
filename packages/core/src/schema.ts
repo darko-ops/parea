@@ -502,11 +502,66 @@ export const eventParticipants = pgTable(
     actorId: uuid('actor_id')
       .notNull()
       .references(() => actors.id, { onDelete: 'cascade' }),
+    /**
+     * Whether this participant may add photographs to a `host` album.
+     *
+     * On the participant row rather than in a table of its own, because being
+     * a host of an album is a property of being in it: leaving takes the row
+     * and the role together, and there is no state where somebody is a host of
+     * an album they are not in. `authorize` reads it for `upload` only — a
+     * host is not an administrator, cannot rename the album, cannot delete it
+     * and cannot let anybody else in. See `CONTRIBUTE_HOST`.
+     *
+     * Defaulted to `member`, which is what every existing row is: a role
+     * arrives by being granted, never by being present.
+     */
+    role: text('role', { enum: ['member', 'host'] })
+      .notNull()
+      .default('member'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.eventId, t.actorId] })],
+);
+
+/**
+ * Somebody in an album asking to be one of the people who may add to it.
+ *
+ * The same shape as `event_access_request` and for the same reasons — one row
+ * per person per album so asking twice updates rather than stacks, a declined
+ * row kept rather than deleted so "no" is a decision made once — and
+ * deliberately not the thing that grants anything. Approving writes `host`
+ * into `event_participant.role`, and that column is what `authorize` reads.
+ *
+ * Two tables rather than a `kind` column on one, because they answer different
+ * questions and are asked by different people: the access queue is strangers
+ * at the door, this one is people already inside. A host reading a list wants
+ * one kind of question in it.
+ */
+export const eventHostRequests = pgTable(
+  'event_host_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'approved', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    uniqueIndex('event_host_request_actor_idx').on(t.eventId, t.actorId),
+    index('event_host_request_open_idx').on(t.eventId, t.status),
+  ],
 );
 
 /**

@@ -26,7 +26,7 @@ import type { PendingRequest } from './api';
 /**
  * What the two buttons are called, per kind.
  *
- * Exported because Lately answers the same four asks with the same two words,
+ * Exported because Lately answers the same five asks with the same two words,
  * and a second copy is a screen where declining a group invitation is called
  * something else. A `Record` over the kind rather than a lookup with a default:
  * the type is what caught `group_invite` missing here, which had been arriving
@@ -40,5 +40,9 @@ export const ANSWERS: Record<PendingRequest['kind'], { yes: string; no: string }
   // A door being opened onto photographs of an evening. "Accept" is the word
   // for agreeing to something, which is not what this is.
   join: { yes: 'Let in', no: 'Not now' },
+  // Not "Let in": they are already in. What is being asked for is the ability
+  // to add photographs to an album they can already see, so the word is the
+  // thing itself rather than a door.
+  host: { yes: 'Let them add', no: 'Not now' },
 };
 

@@ -66,6 +66,13 @@ export async function GET(
       bio: person.bio,
       standing: person.standing,
       requestId: person.requestId,
+      /*
+       * Their own three totals, which the page under `/u/<handle>` prints in
+       * the same order and the same words. Two clients, one protocol: the
+       * arithmetic happens once, in `profileFor`, and neither client gets to
+       * hold an opinion about what counts.
+       */
+      counts: person.counts,
     },
     /*
      * The events you are both in — the viewer's own list, filtered. The `when`

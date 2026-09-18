@@ -439,7 +439,22 @@ export default function CreatePage() {
                     is an ordinary thing to want, and an album that quietly
                     accepts everybody's photographs is not what they meant.
                   */}
-                  <ContributeChoice value={contribute} onChange={setContribute} />
+                  <ContributeChoice
+                    value={contribute}
+                    /*
+                      The visibility chosen a field below, not the album's
+                      saved policy — there is no saved album yet.
+
+                      The two questions compose, so what this one's answers are
+                      called depends on the other's: "Everyone" on a public
+                      album is whoever opens the link, and on a private one it
+                      is the members. Reading the live switch means ticking
+                      "private" renames the option under the cursor rather than
+                      leaving a word that stopped being true.
+                    */
+                    accessPolicy={policyFor({ isPrivate })}
+                    onChange={setContribute}
+                  />
                 </fieldset>
 
                 <fieldset className="field">

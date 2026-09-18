@@ -71,6 +71,12 @@ const OWNED: {
   // exists to approve, and approving it admits nobody.
   { table: 'event_access_request', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'event_access_request', column: 'resolved_by' },
+  // The same story one room further in: somebody asks to be a host of an album
+  // from a laptop and then signs in on their phone. Without this the request
+  // the host is looking at names an actor nothing points at, and approving it
+  // writes the role onto a participant row that is no longer theirs.
+  { table: 'event_host_request', column: 'actor_id', uniqueWith: ['event_id'] },
+  { table: 'event_host_request', column: 'resolved_by' },
   { table: 'report', column: 'reporter_actor_id' },
   { table: 'report', column: 'resolved_by' },
   { table: 'moderation_flag', column: 'resolved_by' },

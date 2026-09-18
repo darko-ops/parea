@@ -79,6 +79,8 @@ type Person = {
   bio: string | null;
   standing: Standing;
   requestId: string | null;
+  /** Their own three totals — see `ProfileCounts`. */
+  counts: { albums: number; photos: number; friends: number };
 };
 
 export function PersonView({
@@ -96,6 +98,13 @@ export function PersonView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * Their name, or their handle standing in for one.
+   *
+   * A name is bare and a handle wears its `@`: the sigil is not decoration on
+   * a person, it is what marks the string as the thing you can type at a
+   * search box. The app says the same thing in `nameOf`.
+   */
   const name = person.displayName?.trim() || `@${person.handle}`;
 
   const ask = useCallback(async () => {
@@ -113,6 +122,32 @@ export function PersonView({
       // it — the endpoint answers the open request rather than opening a second
       // one, and the page should say what is now true.
       setStanding(body.status === 'accepted' ? 'friends' : 'asked');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [person.actorId]);
+
+  /**
+   * Taking the ask back.
+   *
+   * The same button that reports the state, because that is the only reading
+   * of a pressable control that reports one — and because withdrawing is the
+   * one thing left in the viewer's gift once they have asked. `DELETE` clears
+   * the friendship and both open requests between the two actors, so nothing
+   * is left behind for the next ask to collide with.
+   */
+  const unask = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/friends?actorId=${encodeURIComponent(person.actorId)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) throw new Error('Could not take that back.');
+      setStanding('none');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -156,25 +191,60 @@ export function PersonView({
           <p className="muted you-handle">@{person.handle}</p>
           {person.bio && <p className="you-bio">{person.bio}</p>}
           {/*
-            One number, and it counts the viewer's own shelf: how many of your
-            events this person is also in. Their totals are not on this page —
-            a profile that said "41 events" would make search a way to measure
-            strangers.
+            The three their own profile prints, in the same order and the same
+            words — counted once by `profileFor` so the app's version of this
+            screen cannot disagree with it.
+
+            It used to be one number, counting the *viewer's* shelf, on the
+            argument that their own totals would make search a way to measure
+            strangers. The albums below undid that argument: every one they
+            made is already listed by name, locked included, so the count says
+            nothing the page has not.
           */}
-          {events.length > 0 && (
-            <p className="you-counts">
-              <span>
-                {events.length} {events.length === 1 ? 'album' : 'albums'} with you
-              </span>
-            </p>
-          )}
+          <p className="you-counts">
+            <span>
+              {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'}
+            </span>
+            <span>
+              {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'}
+            </span>
+            <span>
+              {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+            </span>
+          </p>
         </div>
 
         {/* Where Edit sits on your own. The quiet states are worn as a label;
             the ones that are somebody's to answer are buttons. */}
         <div className="you-act">
           {standing === 'friends' && <span className="pip">Friends</span>}
-          {standing === 'asked' && <span className="pip">Asked</span>}
+          {/*
+            "Requested", and pressing it withdraws.
+
+            It was a flat `pip` reading "Asked" — a state worn rather than
+            offered — which left the one thing the viewer could still do about
+            an open request with nowhere to be done from: the only way out was
+            for the other person to answer. The word went with it. "Asked" is
+            the past tense of what you did; "Requested" is the state it left
+            you in, which is what a control standing for a state should say.
+
+            A declined ask still reads the same as an open one, and still
+            should: `/api/friends` answers a repeat with the status it holds,
+            and telling somebody they were refused is the refuser's to do.
+            Pressing this on a declined one clears the row, which is the same
+            thing withdrawing does and no more than the page already implies.
+          */}
+          {standing === 'asked' && (
+            <button
+              type="button"
+              className="secondary small"
+              disabled={busy}
+              onClick={unask}
+              aria-label="Requested. Press to take your request back"
+            >
+              Requested
+            </button>
+          )}
           {standing === 'none' && (
             <button type="button" className="small" disabled={busy} onClick={ask}>
               Add friend
@@ -223,6 +293,18 @@ export function PersonView({
           <div className="you-events-head">
             <h2>{events.length > 0 ? 'Their other albums' : 'Albums'}</h2>
           </div>
+          {/*
+            What the padlocks are for, said once above them rather than per
+            row. A list of shut doors is a page that reads as a refusal; the
+            sentence is what turns it into a queue. Only while there is
+            something shut and a way to open it — a friend reading this would
+            be told to do a thing they have already done.
+          */}
+          {standing !== 'friends' && albums.some((album) => album.locked) && (
+            <p className="muted person-locked-note">
+              Become friends to see what&rsquo;s inside.
+            </p>
+          )}
           <ul className="album-list">
             {albums.map((album) => (
               <li key={album.id} className="album-row">
@@ -249,7 +331,33 @@ export function PersonView({
                     src={album.cover}
                     size={52}
                     className="album-cover"
-                    fallback={<span className="album-cover-empty" aria-hidden="true" />}
+                    fallback={
+                      /*
+                        A padlock in the empty frame on a locked one, and a
+                        bare frame on an unlocked album that simply has no
+                        cover yet: the same glyph an album's own header wears
+                        to mean private, so the thing that means "shut" means
+                        it in one shape across both clients.
+                      */
+                      <span className="album-cover-empty" aria-hidden="true">
+                        {album.locked && (
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            focusable="false"
+                          >
+                            <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+                            <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+                          </svg>
+                        )}
+                      </span>
+                    }
                   />
                   <span className="album-what">
                     <span className="album-name">{album.name}</span>
