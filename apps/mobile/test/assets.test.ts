@@ -74,25 +74,27 @@ describe('store assets', () => {
     expect(icon.hasAlpha).toBe(false);
   });
 
-  it('give Android an empty foreground, because the picture is one layer', async () => {
+  it('gives Android the mark as its foreground', async () => {
     const adaptive = await png(config.expo.android.adaptiveIcon.foregroundImage);
 
     expect(adaptive.width).toBe(1024);
     expect(adaptive.height).toBe(1024);
     /*
-     * Transparent, and transparent all the way through.
+     * Transparent, because it is the mark and nothing else — the field is the
+     * layer underneath.
      *
-     * The artwork is a flattened raster: the field underneath those circles
-     * does not exist to be recovered, so it cannot be split into a field and a
-     * mark. Drawing the mark in the foreground *and* leaving it in the
-     * background lines up exactly at rest and doubles the moment a launcher
-     * applies its parallax. An empty foreground has nothing to shift.
+     * It was an empty square for a while. The icon was a supplied JPG then,
+     * and a flattened raster cannot be taken apart: the field under those
+     * circles does not exist to be recovered, and drawing the mark in both
+     * layers lines up at rest and doubles the moment a launcher applies its
+     * parallax. The master is a vector again and names its halves, so the two
+     * layers are what they are for.
      */
     expect(adaptive.hasAlpha).toBe(true);
     expect(config.expo.android.adaptiveIcon.backgroundColor).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it('gives Android the whole picture as the background layer', async () => {
+  it('gives Android the field as its background layer', async () => {
     /*
      * Full bleed and opaque, because the mask can be a circle and a background
      * that stops short of the corners loses its edges on the devices that
@@ -105,61 +107,58 @@ describe('store assets', () => {
     expect(background.hasAlpha).toBe(false);
   });
 
-  it('keeps the mark inside the tightest mask a launcher applies', async () => {
+  it('gives the mark the same weight on both platforms', async () => {
     /*
-     * The one thing carrying the whole picture in one layer depends on, and
-     * the one thing a new piece of artwork could quietly break.
+     * The one thing the split can get wrong that still looks fine on its own.
      *
-     * Android masks the background to a circle, a squircle or a blob, and the
-     * tightest of those keeps the middle 66%. Nothing holds the mark inside
-     * that any more — there is no `ANDROID_SAFE` scale applied to a foreground
-     * — so it is a property of where the mark happens to sit in the file. This
-     * reads the pixels and finds out.
+     * A launcher shows the middle two thirds of an adaptive icon, so a
+     * foreground drawn full size arrives cropped — and a foreground drawn
+     * small arrives as a logo floating in a circle. Neither looks broken; both
+     * look like a different app from the iOS one.
      *
-     * Near-white and near-neutral is the mark; the field is saturated
-     * everywhere. Measured off `icon.png` because that is the square Android
-     * masks, not off the JPG it came from.
+     * So this measures the mark in each and compares what a person sees: its
+     * width against the iOS square, and its width against the circle Android
+     * actually shows. `ANDROID_SAFE` is what makes those agree, and this is
+     * the assertion that says so.
      */
-    const { readFile } = await import('node:fs/promises');
-    const bytes = await readFile(join(ROOT, config.expo.icon));
     const { default: sharp } = await import('sharp');
-    const { data, info } = await sharp(bytes).raw().toBuffer({ resolveWithObject: true });
+    const { readFile } = await import('node:fs/promises');
 
-    /*
-     * The furthest mark *pixel* from the centre, not the furthest corner of
-     * its bounding box.
-     *
-     * The first version of this measured the box and failed at 0.38, which was
-     * the test being wrong rather than the artwork: three circles do not fill
-     * their box, and the corner it was measuring is field. The mask is a
-     * circle about the centre, so the only question is how far the drawing
-     * actually reaches.
-     */
-    const half = info.width / 2;
-    let reach = 0;
-    let found = 0;
-    for (let y = 0; y < info.height; y++) {
-      for (let x = 0; x < info.width; x++) {
-        const i = (y * info.width + x) * info.channels;
-        const r = data[i]!;
-        const g = data[i + 1]!;
-        const b = data[i + 2]!;
-        const low = Math.min(r, g, b);
-        const high = Math.max(r, g, b);
-        if (low > 235 && high - low < 12) {
-          found++;
-          reach = Math.max(reach, Math.hypot(x - half, y - half));
+    const spanOf = async (relative: string, of: number) => {
+      const { data, info } = await sharp(await readFile(join(ROOT, relative)))
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      let min = info.width;
+      let max = 0;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          const i = (y * info.width + x) * info.channels;
+          // White, and opaque where there is an alpha channel to ask about.
+          const lit =
+            data[i]! > 240 &&
+            data[i + 1]! > 240 &&
+            data[i + 2]! > 240 &&
+            (info.channels < 4 || data[i + 3]! > 240);
+          if (lit) {
+            if (x < min) min = x;
+            if (x > max) max = x;
+          }
         }
       }
-    }
+      return (max - min) / of;
+    };
 
-    // It found a mark at all, rather than an all-saturated square — without
-    // this the assertion below passes on a reach of zero.
-    expect(found).toBeGreaterThan(info.width * info.height * 0.1);
+    const onIos = await spanOf(config.expo.icon, 1024);
+    // Against the circle, not the canvas: the middle two thirds is all of the
+    // adaptive icon anybody ever sees.
+    const onAndroid = await spanOf(
+      config.expo.android.adaptiveIcon.foregroundImage,
+      1024 * 0.667,
+    );
 
-    // 0.33 of the canvas is the radius the tightest mask keeps. This sits at
-    // about 0.30, so there is room but not a great deal of it.
-    expect(reach / info.width).toBeLessThan(0.33);
+    expect(onIos).toBeGreaterThan(0.5);
+    expect(onAndroid).toBeGreaterThan(0.5);
+    expect(Math.abs(onIos - onAndroid)).toBeLessThan(0.04);
   });
 
   it('have a favicon at all', async () => {
