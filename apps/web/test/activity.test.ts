@@ -643,3 +643,117 @@ describe('a photograph of yours, and one you are in', () => {
     expect(kinds).not.toContain('tagged');
   });
 });
+
+/**
+ * A reply, in the only sense a flat comment board has one.
+ *
+ * `photo_comment` is about the picture being *yours*. Somebody answering your
+ * remark under **somebody else's** photograph reached you nowhere at all —
+ * which was survivable only while the Chats tab listed every album's comments,
+ * and is the reason that list could not simply be deleted.
+ */
+describe('somebody answering a comment of yours', () => {
+  async function photoBy(eventId: string, uploaderId: string) {
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: `ev/${eventId}/${Math.random()}`,
+        // The columns the table insists on; the helper above passes the same.
+        byteSize: 1,
+        mime: 'image/jpeg',
+        status: 'ready',
+      })
+      .returning();
+    return row!.id;
+  }
+
+  const say = (eventId: string, actorId: string, photoId: string, body: string) =>
+    db.insert(schema.eventMessages).values({ eventId, authorActorId: actorId, photoId, body });
+
+  it('reaches you when it is under a photograph you commented on', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'lovely');
+    await say(made.id, host, theirs, 'thank you');
+
+    const lines = await activityFor(db, me);
+    const reply = lines.find((line) => line.kind === 'comment_reply');
+    expect(reply).toBeDefined();
+    expect(reply!.what).toContain('thank you');
+    expect(reply!.what).toContain('where you commented');
+  });
+
+  it('does not reach you where you have said nothing', async () => {
+    // Otherwise every remark on every photograph in every album you are in
+    // arrives in your tray, which is the noise this is not.
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+
+    await say(made.id, host, theirs, 'look at this');
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('is not your own remark read back at you', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'first');
+    await say(made.id, me, theirs, 'second');
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('is one line, not two, on a photograph of your own', async () => {
+    /*
+     * Both queries match a comment on your own photograph that you had also
+     * commented on, and both build a key from the message id — so without the
+     * uploader exclusion the feed carries the same remark twice, once as a
+     * comment and once as a reply.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me);
+    const mine = await photoBy(made.id, me);
+
+    await say(made.id, me, mine, 'mine');
+    await say(made.id, them, mine, 'nice one');
+
+    const lines = await activityFor(db, me);
+    expect(lines.filter((line) => line.what.includes('nice one'))).toHaveLength(1);
+    expect(lines.some((line) => line.kind === 'photo_comment')).toBe(true);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('forgets a reply whose photograph has been taken down', async () => {
+    // A remark about nothing, and the line would lead somewhere empty.
+    const { eq } = await import('drizzle-orm');
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'lovely');
+    await say(made.id, host, theirs, 'thank you');
+    await db
+      .update(schema.photos)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.photos.id, theirs));
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+});
+

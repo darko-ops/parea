@@ -126,8 +126,13 @@ function paths(name: GlyphName, weight: number) {
     case 'bubbles':
       return (
         <>
-          <Path d="M11 2.5h8A2.5 2.5 0 0 1 21.5 5v4.5A2.5 2.5 0 0 1 19 12h-5.5l-3.5 2.5 1-2.5A2.5 2.5 0 0 1 8.5 9.5V5A2.5 2.5 0 0 1 11 2.5z" />
-          <Path d="M5 11.5h4.5A2.5 2.5 0 0 1 12 14v3a2.5 2.5 0 0 1-2.5 2.5H7L3.5 22l1-2.5A2.5 2.5 0 0 1 2.5 17v-3A2.5 2.5 0 0 1 5 11.5z" />
+          {/* Behind, and only the two sides of it that clear the front one.
+              A whole second outline crossing the first reads as one lumpy
+              shape at 22 points rather than as two bubbles — checked on a
+              simulator beside the magnifier, which is the weight this has to
+              match. */}
+          <Path d="M9 2.5h10A2.5 2.5 0 0 1 21.5 5v5A2.5 2.5 0 0 1 19 12.5" />
+          <Path d="M4 8h10a2.5 2.5 0 0 1 2.5 2.5v5A2.5 2.5 0 0 1 14 18H8l-4 3.5 1-3.5H4a2.5 2.5 0 0 1-2.5-2.5v-5A2.5 2.5 0 0 1 4 8z" />
         </>
       );
     /*

@@ -58,32 +58,18 @@ const TAB = code(between(EVENTS, 'export function ChatsTab', 'function GroupBloc
 const FIND = code(between(EVENTS, 'export function SearchTab', 'function Result('));
 
 describe('which conversations appear', () => {
-  it('lists every album somebody has spoken in, group or no group', () => {
-    /*
-     * This used to exclude grouped albums, on the argument that their talk
-     * belongs under the group's block and listing it twice would make the
-     * busiest rooms the noisiest part of a screen meant to be scanned.
-     *
-     * The premise was wrong, and the cost was a conversation with nowhere to
-     * be. A group's row carries *the group's own thread* — `ConversationLine`
-     * is fed the group, not an album inside it — so an album in a group had
-     * its talk drawn in neither place. Four messages in an evening, and the
-     * only way back to them was to remember which album it was and open its
-     * Talk tab.
-     *
-     * Nothing is listed twice, because the two lines were never the same line.
-     */
-    expect(TAB).toMatch(/\.filter\(\(event\) => event\.lastMessage != null\)/);
-    expect(TAB).not.toMatch(/!event\.groupId && event\.lastMessage/);
-    // The group's row is still about the group, which is what makes the above
-    // safe rather than duplicative.
-    expect(EVENTS).toMatch(/<ConversationLine\s*line=\{group\}/);
-  });
 
   it('orders them by what was last said, not by what was last uploaded', () => {
     // A silent album full of photographs above the one somebody is talking in
     // is the wrong answer on a tab about talking.
-    expect(TAB).toMatch(/b\.lastMessage!\.at\.localeCompare\(a\.lastMessage!\.at\)/);
+    /*
+     * The group chats, by when something was last said. A group nobody has
+     * spoken in has no message to sort by and goes last — `lastActiveAt` would
+     * sort it by album activity, which is a different tab's subject.
+     */
+    expect(TAB).toMatch(
+      /\(b\.lastMessage\?\.at \?\? ''\)\.localeCompare\(a\.lastMessage\?\.at \?\? ''\)/,
+    );
   });
 
   it('puts the suggestion at the foot, below the rooms', () => {
@@ -100,20 +86,6 @@ describe('which conversations appear', () => {
     expect(at.every((i) => i > -1)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
     expect(TAB).not.toMatch(/<ClusterCard/);
-  });
-
-  it('leaves out an event nobody has spoken in', () => {
-    /*
-     * A reversal. These used to list whether or not anything had been said, on
-     * the argument that an empty chat is a door. In practice it filled the
-     * section with rows reading "Nobody has said anything yet" — a list of
-     * absences under a heading promising conversations. The door is the album's
-     * own Talk tab now.
-     */
-    expect(TAB).toMatch(/event\.lastMessage != null/);
-    // A group block can still be empty and worth drawing: the room exists
-     // whether or not anybody has spoken in it.
-    expect(EVENTS).toMatch(/Nobody has said anything yet\./);
   });
 });
 
@@ -132,56 +104,6 @@ describe('what the tab is called', () => {
     expect(TAB).not.toMatch(/>Your Parea</);
     expect(TAB).not.toMatch(/>Groups</);
     expect(TAB).toMatch(/<PageHead/);
-  });
-
-  it('is two tabs, not two headings', () => {
-    /*
-     * A reversal, and the reason is the question it kept producing: *why are
-     * my groups' chats not in the group chats?*
-     *
-     * This heading read GROUP CHATS over a list of album conversations. The
-     * groups' own threads are not here at all — they are one line each on the
-     * blocks above — so the heading promised the one thing under it that was
-     * missing, and named the rows beneath it after somewhere they do not live.
-     *
-     * "EVENT CHATS" was rejected here once and stays rejected: `event` is the
-     * schema's word and no reader of this product ever sees it. The reader's
-     * word for what these belong to is album.
-     */
-    /*
-     * And it is talk rather than chats, which is the second correction to this
-     * one heading.
-     *
-     * There are two threads in this product, not three: a photo comment is a
-     * line in the album's thread carrying a `photo_id`, the same table and the
-     * same unread count, filtered. The album's single thread was being called
-     * three things — Talk on its own tab, ALBUM CHATS here, comments under a
-     * picture. One word each now: chat is what you have with people, talk is
-     * what you have about a night.
-     */
-    /*
-     * They were stacked under two headings, and the two lists grow at
-     * different rates: a handful of groups that changes about never, and one
-     * row per album anybody has ever spoken in. So the short list sat on top
-     * of the long one and pushed it off the screen, and the second heading was
-     * reachable only by scrolling past the first list entirely.
-     */
-    expect(TAB).toMatch(/const \[side, setSide\] = useState<'chats' \| 'comments'>\('chats'\)/);
-    expect(TAB).toMatch(/label: 'Chats'/);
-    expect(TAB).toMatch(/label: 'Comments'/);
-    expect(TAB).not.toMatch(/GROUP CHATS</);
-    expect(TAB).not.toMatch(/ALBUM CHATS</);
-    expect(TAB).not.toMatch(/ALBUM TALK</);
-    expect(TAB).not.toMatch(/EVENT CHATS/);
-    /*
-     * And GROUP CHATS is now a heading over the group chats, which is what it
-     * always said it was. The two sections are the fix: the groups' threads
-     * were never in this list — they were the last line of a block in a tab
-     * that has since become Find.
-     */
-    // Chats first, because a group is a room you are in and an album's
-    // comments are about one evening in it.
-    expect(TAB.indexOf("id: 'chats'")).toBeLessThan(TAB.indexOf("id: 'comments'"));
   });
 });
 
@@ -210,8 +132,7 @@ describe('the tab arrives in one piece', () => {
     // Including the head, which is the part this moved. It was the "Your
     // Parea" heading; it is the wordmark row now, and the rule is the same.
     expect(TAB.indexOf('<PageHead')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('styles.sides')).toBeGreaterThan(gate);
-    expect(TAB.indexOf('showing.map((room')).toBeGreaterThan(gate);
+    expect(TAB.indexOf('groupChats.map((group')).toBeGreaterThan(gate);
   });
 
   it('blanks the screen on the first paint only', () => {
@@ -253,11 +174,14 @@ describe('one conversation, as one line', () => {
      * usually one or two messages, and a number there is precision nobody
      * asked for.
      */
+    /*
+     * A group is busy and the number is the useful part. The dot belonged to an
+     * album's comments — usually a line or two, where a number is precision
+     * nobody asked for — and those are not on this tab any more. The style
+     * survives because the photo viewer still draws one.
+     */
     expect(EVENTS).toMatch(/styles\.unreadPill/);
-    expect(EVENTS).toMatch(/styles\.unreadDot/);
-    // One row shape for both tabs, so which of the two it is decides: a dot
-    // where this is an album's comments, a count where it is a group's chat.
-    expect(TAB).toMatch(/dot=\{!group\}/);
+    expect(TAB).not.toMatch(/dot=/);
   });
 
   it('says "You" rather than your own name back at you', () => {
@@ -273,11 +197,7 @@ describe('where a row goes', () => {
     expect(FIND).toMatch(/onOpenThread=\{\(\) => onOpenGroupThread\(group\)\}/);
     // And on Chats a row is only ever the conversation — the room itself is a
     // page you reach from Find.
-    expect(TAB).toMatch(/group \? onOpenGroupThread\(group\) : onOpenEventThread\(album!\)/);
-  });
-
-  it('opens an event chat on the conversation rather than the photographs', () => {
-    expect(APP).toMatch(/onOpenEventThread=\{\(listing\) => \{\s*void open\(listing, 'talk'\);/);
+    expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroupThread\(group\)\}/);
   });
 
   it('still opens a link on the photographs, always', () => {
@@ -419,7 +339,6 @@ describe('finding one', () => {
      * conversations.
      */
     expect(TAB).toMatch(/matches\(group\.name, group\.lastMessage\?\.body, group\.lastMessage\?\.author\)/);
-    expect(TAB).toMatch(/matches\(event\.name, event\.lastMessage\?\.body, event\.lastMessage\?\.author\)/);
   });
 
   it('matches without regard to case, and ignores stray spaces', () => {
@@ -433,36 +352,28 @@ describe('finding one', () => {
     expect(TAB).toMatch(/!looking \|\| fields\.some/);
   });
 
-  it('searches both sections at once', () => {
-    // One field over the whole tab, rather than a field per heading. The
-    // question is "where was that said", and somebody asking it does not
-    // already know whether it was an evening or the room.
-    expect(TAB.match(/<TextInput/g) ?? []).toHaveLength(1);
-    expect(TAB).toMatch(/groupChats = useMemo/);
-    expect(TAB).toMatch(/albumChats = useMemo/);
-  });
-
   it('says so when nothing matches', () => {
     // A head, a field and an empty page reads as the tab having failed to
     // load, rather than as an answer.
-    expect(TAB).toMatch(/looking !== '' && showing\.length === 0/);
-    expect(flat(TAB)).toMatch(/Nothing in your/);
+    expect(TAB).toMatch(/looking !== '' && groupChats\.length === 0/);
+    expect(flat(TAB)).toMatch(/No chat of yours matches/);
     /*
      * And it says whether the other tab has any, because a search that found
      * nothing here and four there looks, from here, exactly like a search that
      * found nothing at all. The other tab's own number says how many; this is
      * the sentence that sends somebody to look at it.
      */
-    expect(TAB).toMatch(/\(side === 'chats' \? albumChats\.length : groupChats\.length\) > 0/);
+    // And where the other kind of conversation is. Taking the list away
+    // without saying where it went is how somebody concludes their comments
+    // have been deleted.
+    expect(flat(TAB)).toMatch(/comments on photographs are on the album they belong to/);
   });
 
   it('does not offer a search where there is nothing to search', () => {
     // On a tab with no rooms and no conversations, a search box is a control
     // that cannot succeed, sitting over the paragraph saying why.
     expect(TAB).toMatch(/\{!nothing && \(/);
-    expect(TAB).toMatch(
-      /const nothing = groups\.length === 0 && albumChats\.length === 0 && looking === ''/,
-    );
+    expect(TAB).toMatch(/const nothing = groups\.length === 0 && looking === ''/);
   });
 
   it('forgets the query on the way out', () => {
@@ -490,70 +401,121 @@ describe('finding one', () => {
 });
 
 /**
- * The two tabs, and what their numbers mean.
+ * The tab is the group chats, and only those.
  *
- * One tab held both lists stacked under headings. They grow at completely
- * different rates — a handful of groups that changes about never, and one row
- * per album anybody has ever spoken in, which is one row per evening forever —
- * so the short list sat on top of the long one and the second heading was
- * reachable only by scrolling past the first list entirely.
+ * It has been three shapes. Two headings stacked; then two tabs behind a
+ * trough; now one list. The first two kept the same problem alive — the
+ * product looked like it had three places to talk, when it has two and one of
+ * those two was being listed twice.
+ *
+ * A comment belongs to the photograph it is about, so it stays there. What the
+ * list on this tab was genuinely providing is the way *back* to a conversation
+ * you are part of but did not start, and that is Lately's job: `comment_reply`
+ * in `activity.ts` did not exist until this list went, and its absence is why
+ * the list seemed necessary.
  */
-describe('the two sides of the tab', () => {
-  it('shows one list at a time', () => {
-    expect(TAB).toMatch(/const showing = side === 'chats' \? groupChats : albumChats;/);
-    // And the search field is above both, so it is one field for the tab
-    // rather than one per side.
-    expect(TAB.match(/<TextInput/g) ?? []).toHaveLength(1);
-    expect(TAB.indexOf('<TextInput')).toBeLessThan(TAB.indexOf('styles.sides'));
+describe('one list, of rooms', () => {
+  it('holds no album comments', () => {
+    expect(TAB).not.toMatch(/albumChats/);
+    expect(TAB).not.toMatch(/onOpenEventThread/);
+    expect(TAB).not.toMatch(/ALBUM COMMENTS/);
   });
 
-  it('counts what is waiting, and what matched while searching', () => {
+  it('has no side to be on', () => {
+    // The trough, its counts, and the state behind them.
+    expect(TAB).not.toMatch(/setSide/);
+    expect(TAB).not.toMatch(/styles\.sides/);
+    expect(EVENTS).not.toMatch(/sideTabOn:/);
+  });
+
+  it('asks the field for chats, in those words', () => {
+    expect(TAB).toMatch(/placeholder="Search chats"/);
+    expect(TAB).toMatch(/accessibilityLabel="Search chats"/);
+  });
+
+  it('says where the other kind of conversation is', () => {
     /*
-     * Two different numbers for two different questions. Normally the number
-     * on a tab is the reason to press the one you are not on. While a search
-     * is running it is how many matched — because otherwise a search finding
-     * nothing here and four on the other side looks, from here, exactly like a
-     * search finding nothing at all.
+     * On the empty tab and again when a search finds nothing. Taking the list
+     * away without saying where it went is how somebody concludes their
+     * comments have been deleted.
      */
-    expect(TAB).toMatch(/count: looking \? groupChats\.length : waitingIn\(groupChats\)/);
-    expect(TAB).toMatch(/count: looking \? albumChats\.length : waitingIn\(albumChats\)/);
-    // Waiting is summed across the rooms, not a count of rooms with anything
-    // in them: eight unread in one group is eight, not one.
-    expect(TAB).toMatch(/rooms\.reduce\(\(n, room\) => n \+ room\.unreadCount, 0\)/);
+    expect(flat(TAB)).toMatch(/Comments on photographs live on the album they belong to/);
+    expect(flat(TAB)).toMatch(/comments on photographs are on the album they belong to/);
+    // And it names the tray, which is the route back to one.
+    expect(flat(TAB)).toMatch(/turn up in your tray when somebody answers you/);
   });
 
-  it('says which it is counting, for somebody who cannot see the tab', () => {
-    // A bare number beside a word is ambiguous read aloud, and the two
-    // meanings are not close.
-    expect(flat(TAB)).toMatch(/\$\{count\} \$\{looking \? 'matching' : 'waiting'\}/);
-  });
-
-  it('keeps which side you were on, and forgets what you typed', () => {
-    /*
-     * A search is something somebody is in the middle of. Which half of their
-     * conversations they were last reading is a place, and coming back to a
-     * different one is the tab moving under them.
-     */
-    expect(TAB).toMatch(/setQuery\(''\);/);
-    expect(TAB).not.toMatch(/setSide\('chats'\);/);
-  });
-
-  it('says something different for an empty side than for an empty tab', () => {
-    /*
-     * "No conversations yet" over a tab with eleven group chats and no album
-     * comments is a sentence contradicted by the tab beside it.
-     */
-    expect(TAB).toMatch(/looking === '' && showing\.length === 0 && \(/);
-    expect(flat(TAB)).toMatch(/You are not in any groups yet/);
-    expect(flat(TAB)).toMatch(/Nothing said about an album yet/);
-    // And the whole-tab empty state is still its own thing, above both.
-    expect(TAB).toMatch(/const nothing = groups\.length === 0 && albumChats\.length === 0/);
-  });
-
-  it('hides the tabs where there is nothing on either side', () => {
-    // Two tabs reading zero and zero, over a paragraph explaining that there
-    // is nothing here, is the control that cannot succeed drawn twice.
-    expect(TAB).toMatch(/\{!nothing && \(\s*\n\s*<View style=\{\[styles\.sides/);
+  it('draws the door as a letter, never a photograph', () => {
+    // The rule the group blocks on Find follow: a group has no picture of its
+    // own, and borrowing one out of an evening inside it would put something
+    // from a room on the way in to it.
+    expect(TAB).toMatch(/styles\.chatLetter/);
+    expect(TAB).toMatch(/lensFor\(group\.id\)/);
+    expect(TAB).not.toMatch(/album\?\.cover/);
   });
 });
 
+/**
+ * And the route back, which had to be built before the list could go.
+ */
+describe('a reply reaches you through Lately', () => {
+  const ACTIVITY = readFileSync(
+    fileURLToPath(new URL('../../web/src/activity.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it('carries a reply as well as a comment on your own photograph', () => {
+    /*
+     * `photo_comment` is about the picture being *yours*. A reply to your
+     * comment under somebody else's photograph reached you nowhere at all —
+     * survivable while the Chats tab listed album comments, and the reason
+     * that list could not simply be deleted.
+     */
+    expect(ACTIVITY).toMatch(/\| 'comment_reply'/);
+    expect(ACTIVITY).toMatch(/kind: 'comment_reply' as const/);
+    expect(ACTIVITY).toMatch(/where you commented, in \$\{c\.eventName\}/);
+  });
+
+  it('is what a reply means on a flat board', () => {
+    // There are no threads under a photograph, so replying is saying something
+    // where you have already said something.
+    expect(ACTIVITY).toMatch(/mine\.author_actor_id = \$\{actorId\}/);
+  });
+
+  it('does not double up with the uploader case', () => {
+    /*
+     * Both queries would match a comment on your own photograph that you had
+     * also commented on, and both build their key from the message id — so the
+     * feed would carry the same remark twice.
+     */
+    expect(ACTIVITY).toMatch(/ne\(schema\.photos\.uploaderId, actorId\)/);
+    expect(ACTIVITY).toMatch(/id: `reply:\$\{c\.id\}`/);
+    expect(ACTIVITY).toMatch(/id: `comment:\$\{c\.id\}`/);
+  });
+
+  it('leaves out your own remarks and anything deleted', () => {
+    /*
+     * The end anchor is searched *from* the start, not from the top of the
+     * file — "Somebody said you are in a photograph" also appears in the
+     * `ActivityKind` doc a few hundred lines above, so a plain `indexOf` gives
+     * an end before the start and a slice that reads nothing.
+     */
+    /*
+     * `lastIndexOf`, because the sentence appears twice: once on the kind in
+     * the `ActivityKind` union and once over the query itself. The first hit
+     * gave a slice containing only the doc comment, which matched none of the
+     * assertions below and looked like the query was missing them.
+     */
+    const from = ACTIVITY.lastIndexOf(
+      'Somebody else said something under a photograph you commented on',
+    );
+    const to = ACTIVITY.indexOf('Somebody said you are in a photograph', from);
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const replies = ACTIVITY.slice(from, to);
+    expect(replies).toMatch(/ne\(schema\.eventMessages\.authorActorId, actorId\)/);
+    expect(replies).toMatch(/isNull\(schema\.eventMessages\.deletedAt\)/);
+    expect(replies).toMatch(/isNull\(schema\.photos\.deletedAt\)/);
+    expect(replies).toMatch(/mine\.deleted_at is null/);
+  });
+});

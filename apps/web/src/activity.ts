@@ -62,6 +62,20 @@ export type ActivityKind =
    */
   | 'photo_comment'
   /**
+   * Somebody else said something under a photograph you commented on.
+   *
+   * A reply, in the only sense this product has one: a comment board is a flat
+   * list per photograph, so "replying" is saying something where you have
+   * already said something.
+   *
+   * It exists because the Chats tab stopped listing album comments. That list
+   * was the way back to a conversation you are part of but did not start —
+   * somebody else's photograph, your remark under it, three more since. Take
+   * the list away and Lately is the only route, and Lately did not carry this:
+   * `photo_comment` is about the picture being *yours*.
+   */
+  | 'comment_reply'
+  /**
    * Somebody said you are in a photograph.
    *
    * The one kind of line here that is a claim about you rather than a thing
@@ -211,6 +225,7 @@ export async function activityFor(
     reactions,
     mentions,
     comments,
+    replies,
     tagged,
     letIn,
     added,
@@ -326,6 +341,52 @@ export async function activityFor(
           // A comment on a photograph that has since been taken down is a
           // remark about nothing, and the line would lead somewhere empty.
           isNull(schema.photos.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.eventMessages.createdAt))
+      .limit(LIMIT),
+
+    /*
+     * Somebody else said something under a photograph you commented on.
+     *
+     * The board is flat, so this is what a reply is here: a remark on a
+     * picture you have already remarked on. Their photograph, usually — the
+     * uploader case is the query above, and the two are kept disjoint by
+     * excluding your own photographs here. Without that, a comment on your
+     * picture that you had also commented on would produce two rows with the
+     * same `comment:<id>` key.
+     *
+     * Your own comments are excluded for the obvious reason, and so is
+     * everything already deleted at either end.
+     */
+    db
+      .select({
+        id: schema.eventMessages.id,
+        at: schema.eventMessages.createdAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        eventId: schema.eventMessages.eventId,
+        eventName: schema.events.name,
+        body: schema.eventMessages.body,
+      })
+      .from(schema.eventMessages)
+      .innerJoin(schema.photos, eq(schema.photos.id, schema.eventMessages.photoId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.eventMessages.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.eventMessages.authorActorId))
+      .where(
+        and(
+          ne(schema.eventMessages.authorActorId, actorId),
+          // Not your photograph — that is `photo_comment`, above.
+          ne(schema.photos.uploaderId, actorId),
+          isNull(schema.eventMessages.deletedAt),
+          isNull(schema.photos.deletedAt),
+          // And you have said something under this same photograph.
+          sql`exists (
+            select 1 from "event_message" mine
+            where mine.photo_id = ${schema.eventMessages.photoId}
+              and mine.author_actor_id = ${actorId}
+              and mine.deleted_at is null
+          )`,
         ),
       )
       .orderBy(desc(schema.eventMessages.createdAt))
@@ -717,6 +778,21 @@ export async function activityFor(
        * Trimmed hard, because this is a feed row and not the thread.
        */
       what: `said “${c.body.length > 60 ? `${c.body.slice(0, 60).trimEnd()}…` : c.body}” on your photo`,
+      href: `/event/${c.eventId}`,
+      image: await avatarUrl(c.avatarKey),
+      images: [],
+    })),
+    ...replies.map(async (c) => ({
+      id: `reply:${c.id}`,
+      kind: 'comment_reply' as const,
+      at: c.at.toISOString(),
+      who: c.who,
+      /*
+       * The remark, and whose photograph it is under — which is the part that
+       * locates it. "Replied to you" is a line somebody has to open an album
+       * to understand; this one can be read where it stands.
+       */
+      what: `said “${c.body.length > 60 ? `${c.body.slice(0, 60).trimEnd()}…` : c.body}” where you commented, in ${c.eventName}`,
       href: `/event/${c.eventId}`,
       image: await avatarUrl(c.avatarKey),
       images: [],

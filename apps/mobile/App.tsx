@@ -989,7 +989,6 @@ export default function App() {
                 // actor can already open — and never off a group.
                 events={events}
                 t={t}
-                dark={dark}
                 active={tab === 'chats'}
                 waiting={waiting}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
@@ -1004,11 +1003,6 @@ export default function App() {
                 }}
                 Button={Button}
                 onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
-                // The album, opened on the conversation rather than on the
-                // photographs — the one entry point allowed to ask for that.
-                onOpenEventThread={(listing) => {
-                  void open(listing, 'talk');
-                }}
                 onGoToEvents={() => setTab('home')}
               />
             </Pane>

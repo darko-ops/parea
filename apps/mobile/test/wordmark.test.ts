@@ -387,9 +387,10 @@ describe('what the product calls a conversation', () => {
 
   it('keeps chat for a group and comments for an album', () => {
     const EVENTS_SOURCE = read('src/Events.tsx');
-    // The two tabs the Chats screen is split into.
-    expect(EVENTS_SOURCE).toMatch(/label: 'Chats'/);
-    expect(EVENTS_SOURCE).toMatch(/label: 'Comments'/);
+    // The Chats tab holds chats. Comments are on the album they belong to,
+    // and the album's own pane is what calls them comments.
+    expect(EVENTS_SOURCE).toMatch(/placeholder="Search chats"/);
+    expect(read('App.tsx')).toMatch(/\['talk', 'bubble', 'Comments'\]/);
     // The album's own tab, which is where the word `Talk` had lived longest.
     expect(read('App.tsx')).toMatch(/\['talk', 'bubble', 'Comments'\]/);
     // And a group's thread button says chat.
