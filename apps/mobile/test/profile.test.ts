@@ -298,3 +298,67 @@ describe('the counts and the clearance', () => {
   });
 });
 
+/**
+ * The one link, and where it sits.
+ */
+describe('a link on a profile', () => {
+  const flat = (source: string) => source.replace(/\s+/g, ' ');
+
+  it('sits under the counts and above the bio', () => {
+    /*
+     * With the facts, not under the sentence. The line above it is what this
+     * person has, and an address is the same kind of thing; under the bio it
+     * would read as a footnote to a sentence rather than as part of the
+     * header.
+     */
+    const counts = PROFILE.indexOf('styles.counts');
+    const link = PROFILE.indexOf('accessibilityRole="link"');
+    const bio = PROFILE.indexOf('styles.bio, styles.gutter');
+    expect(counts).toBeGreaterThan(-1);
+    expect(link).toBeGreaterThan(counts);
+    expect(bio).toBeGreaterThan(link);
+  });
+
+  it('draws nothing at all without one', () => {
+    expect(PROFILE).toMatch(/\{account\?\.link && \(/);
+  });
+
+  it('shows no scheme and opens with one', () => {
+    /*
+     * `https://` in front of a domain is four characters of protocol on a
+     * screen about a person. The stored value keeps it so that opening needs
+     * no guessing — and the server refuses anything that is not http or https,
+     * which is what makes handing it to the browser safe from here.
+     */
+    expect(PROFILE).toMatch(/Linking\.openURL\(account\.link!\)/);
+    expect(PROFILE).toMatch(/account\.link\.replace\(\/\^https\?:\\\/\\\/\/, ''\)/);
+  });
+
+  it('is a field in the editor, without the scheme in it', () => {
+    // Putting `https://` in the box means editing around it, and the server
+    // adds it back anyway — so the field holds what somebody would say aloud.
+    expect(PROFILE).toMatch(/>LINK</);
+    expect(PROFILE).toMatch(/keyboardType="url"/);
+    expect(PROFILE).toMatch(/useState\(\(account\.link \?\? ''\)\.replace\(/);
+    expect(flat(PROFILE)).toMatch(/Leave off the https/);
+  });
+
+  it('does not count an untouched field as an edit', () => {
+    // Both sides compared scheme-stripped, or opening the sheet and pressing
+    // Save would rewrite the link every time.
+    expect(PROFILE).toMatch(
+      /if \(link\.trim\(\) !== \(account\.link \?\? ''\)\.replace\(/,
+    );
+  });
+
+  it('pulls the bio up against the header', () => {
+    /*
+     * The scroll lays out with `gap: 16`, and the header row's height is set
+     * by the 104pt picture rather than by the text beside it — so the space
+     * above the bio is the gap plus whatever the text column falls short by,
+     * which read as the bio having been left behind by the name it belongs to.
+     */
+    expect(PROFILE).toMatch(/bio: \{ fontSize: 15, lineHeight: 21, marginTop: -8 \}/);
+  });
+});
+

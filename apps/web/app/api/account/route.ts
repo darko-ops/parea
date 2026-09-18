@@ -44,6 +44,7 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     displayName?: unknown;
     bio?: unknown;
+    link?: unknown;
     handle?: unknown;
   };
 
@@ -51,6 +52,7 @@ export async function PATCH(request: Request) {
   const patch: {
     displayName?: string | null;
     bio?: string | null;
+    link?: string | null;
     handle?: string | null;
   } = {};
 
@@ -61,6 +63,58 @@ export async function PATCH(request: Request) {
   // Bounded short, and empty means none rather than an empty line under a name.
   if (typeof body.bio === 'string') {
     patch.bio = body.bio.trim().slice(0, 200) || null;
+  }
+
+  /*
+   * The one link on a profile, stored with a scheme and only ever http(s).
+   *
+   * A scheme is added where somebody left it off, because `parea.photos` is
+   * what a person types and `https://parea.photos` is what opens. Https is
+   * assumed rather than http: guessing the insecure one is a guess that can
+   * be listened to.
+   *
+   * Anything else is refused outright. `javascript:` and `data:` are the ones
+   * that matter — a link is rendered on somebody else's screen and tapped
+   * there — and `mailto:` or `tel:` are refused too, not because they are
+   * dangerous but because a field that silently accepts four kinds of thing
+   * is a field nobody can predict.
+   *
+   * Parsed with `URL` rather than matched with a pattern. A regular expression
+   * for "is this a URL" is a regular expression somebody gets around.
+   */
+  if (typeof body.link === 'string') {
+    const written = body.link.trim();
+    if (written === '') {
+      patch.link = null;
+    } else {
+      const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(written)
+        ? written
+        : `https://${written}`;
+      let parsed: URL;
+      try {
+        parsed = new URL(withScheme);
+      } catch {
+        return NextResponse.json(
+          { error: 'invalid_link', message: 'That does not look like a web address.' },
+          { status: 400 },
+        );
+      }
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return NextResponse.json(
+          { error: 'invalid_link', message: 'Only web addresses, starting http or https.' },
+          { status: 400 },
+        );
+      }
+      // A host with a dot in it, so that `https://hello` — which `URL` accepts
+      // happily — does not become a link that resolves nowhere.
+      if (!parsed.hostname.includes('.')) {
+        return NextResponse.json(
+          { error: 'invalid_link', message: 'That does not look like a web address.' },
+          { status: 400 },
+        );
+      }
+      patch.link = parsed.toString().slice(0, 200);
+    }
   }
 
   if (typeof body.handle === 'string') {

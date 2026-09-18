@@ -141,6 +141,19 @@ export const actors = pgTable(
    */
   bio: text('bio'),
   /**
+   * One link somebody chooses to put on their profile.
+   *
+   * One, not a list. A list of links is a page about a person, and this
+   * product is about an evening — the same argument that keeps the bio to two
+   * hundred characters.
+   *
+   * Stored with its scheme so that opening it needs no guessing, and shown
+   * without one: `https://` in front of a domain is noise on a profile, and
+   * the two halves of that decision live in `account/route.ts` and `Profile
+   * .tsx` respectively.
+   */
+  link: text('link'),
+  /**
    * When this actor last opened Invites.
    *
    * The whole of "unread" for that screen. A per-row `seen` flag on every

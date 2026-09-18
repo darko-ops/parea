@@ -339,6 +339,33 @@ export function ProfileScreen({
               {friends !== null && friends.length === 1 ? 'friend' : 'friends'}
             </Text>
           </Text>
+
+          {/*
+            The one link, under the counts and above the bio.
+
+            Here rather than under the bio because it belongs with the facts:
+            the line above it is what this person has, and an address is the
+            same kind of thing. Under the bio it would read as a footnote to
+            the sentence rather than as part of the header.
+
+            Shown without its scheme. `https://` in front of a domain is four
+            characters of protocol on a screen about a person, and the stored
+            value keeps it so that opening needs no guessing — the server
+            refuses anything that is not http or https, which is what makes
+            this safe to hand straight to the browser.
+          */}
+          {account?.link && (
+            <Text
+              onPress={() => void Linking.openURL(account.link!)}
+              suppressHighlighting
+              accessibilityRole="link"
+              accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+              numberOfLines={1}
+              style={[styles.link, { color: t.accent }]}
+            >
+              {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+          )}
         </View>
 
         <Pressable
@@ -706,16 +733,36 @@ function EditProfile({
   const [name, setName] = useState(account.displayName ?? '');
   const [handle, setHandle] = useState(account.handle ?? '');
   const [bio, setBio] = useState(account.bio ?? '');
+  /*
+   * Shown without its scheme, and sent back as typed.
+   *
+   * The stored value carries `https://` so that opening it needs no guessing.
+   * Putting that in the field would mean somebody editing around it, and the
+   * server adds it again anyway — so the field holds what a person would say
+   * out loud, and `account/route.ts` is the only thing that decides what a
+   * link is.
+   */
+  const [link, setLink] = useState((account.link ?? '').replace(/^https?:\/\//, ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = useCallback(async () => {
     setBusy(true);
     setError(null);
-    const patch: { displayName?: string; handle?: string; bio?: string } = {};
+    const patch: {
+      displayName?: string;
+      handle?: string;
+      bio?: string;
+      link?: string;
+    } = {};
     if (name.trim() !== (account.displayName ?? '')) patch.displayName = name.trim();
     if (handle.trim() !== (account.handle ?? '')) patch.handle = handle.trim();
     if (bio.trim() !== (account.bio ?? '')) patch.bio = bio.trim();
+    // Compared scheme-stripped on both sides, so that opening the sheet and
+    // saving without touching this field is not an edit.
+    if (link.trim() !== (account.link ?? '').replace(/^https?:\/\//, '')) {
+      patch.link = link.trim();
+    }
     if (Object.keys(patch).length === 0) {
       setBusy(false);
       onDone();
@@ -733,7 +780,7 @@ function EditProfile({
     } finally {
       setBusy(false);
     }
-  }, [account, api, bio, handle, name, onDone]);
+  }, [account, api, bio, handle, link, name, onDone]);
 
   /**
    * A new picture, straight off the camera roll.
@@ -812,6 +859,24 @@ function EditProfile({
       <Text style={[styles.hint, { color: t.dim }]}>
         How somebody finds you. Yours to change, and it is the one thing here
         that has to be unlike everybody else's.
+      </Text>
+
+      <Text style={[styles.fieldLabel, { color: t.dim }]}>LINK</Text>
+      <TextInput
+        value={link}
+        onChangeText={setLink}
+        placeholder="yoursite.com (optional)"
+        placeholderTextColor={t.dim}
+        maxLength={200}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        style={[styles.input, { color: t.fg, borderColor: t.line }]}
+        accessibilityLabel="A link shown on your profile"
+      />
+      <Text style={[styles.hint, { color: t.dim }]}>
+        One address, shown under your name. Leave off the https — it is added
+        for you.
       </Text>
 
       <Text style={[styles.fieldLabel, { color: t.dim }]}>ABOUT YOU</Text>
@@ -964,7 +1029,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarLetter: { fontSize: 25, fontWeight: '700' },
-  bio: { fontSize: 15, lineHeight: 21 },
+  /*
+   * Pulled up against the header above it.
+   *
+   * The scroll lays its children out with `gap: 16`, and the header row's
+   * height is set by the 104pt picture rather than by the text beside it — so
+   * the measured space between the last line of text and the bio is the gap
+   * *plus* whatever the text column falls short by, which looked like the bio
+   * had been left behind by the name it belongs to.
+   *
+   * Half the gap back, rather than all of it: the bio is still a separate
+   * thought from the line of counts above it, and the link now usually sits
+   * between them.
+   */
+  bio: { fontSize: 15, lineHeight: 21, marginTop: -8 },
+  /* The same size and rhythm as the counts line it follows, in the accent —
+     this is the one thing in the header that goes somewhere. */
+  link: { fontSize: 14.5, marginTop: 6 },
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },

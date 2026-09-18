@@ -157,6 +157,7 @@ describe('the closed list of what is collected', () => {
     const DISCLOSED: Record<string, RegExp> = {
       display_name: /display name/i,
       bio: /<h3>A line about you/,
+      link: /<h3>A link, if you add one<\/h3>/,
       handle: /<h3>A handle<\/h3>/,
       avatar_key: /<h3>A profile picture/,
       // Two columns, one promise, and the promise is the unusual half: the

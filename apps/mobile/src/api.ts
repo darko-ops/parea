@@ -726,6 +726,14 @@ export type Account = {
   email: string;
   displayName: string | null;
   bio: string | null;
+  /**
+   * The one link on their profile, with its scheme.
+   *
+   * Always `http:` or `https:` — the server refuses anything else, which is
+   * what makes it safe to hand to `Linking.openURL` without a second check on
+   * this side. Shown without the scheme; see `Profile.tsx`.
+   */
+  link: string | null;
   handle: string | null;
   avatarUrl: string | null;
 };
@@ -1265,6 +1273,8 @@ export class Api {
   updateProfile(patch: {
     displayName?: string | null;
     bio?: string | null;
+    /** Sent as written. The server adds the scheme and refuses the rest. */
+    link?: string | null;
     handle?: string | null;
   }): Promise<{ ok?: boolean }> {
     return this.call('/api/account', {

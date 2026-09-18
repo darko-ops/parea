@@ -117,6 +117,15 @@ export default function PrivacyPage() {
             about who just added forty photographs to their evening.
           </p>
 
+          <h3>A link, if you add one</h3>
+          <p className="muted">
+            One web address, optional, shown under your name on your profile to
+            anybody who can see it. Nothing verifies where it goes and nothing
+            follows it &mdash; it is stored as you typed it, with{' '}
+            <code>https</code> added if you left it off, and refused if it is
+            not a web address. Clearing the field removes it.
+          </p>
+
           <h3>The names of the albums you make</h3>
           <p className="muted">
             Your profile lists the albums you made, and anybody signed in can
