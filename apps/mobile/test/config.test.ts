@@ -24,6 +24,8 @@ const read = (name: string) =>
 
 const app = read('app.json').expo;
 const eas = read('eas.json');
+/** For the one question that is about what is installed, not what is declared. */
+const pkg = read('package.json');
 
 const DOMAIN = 'parea.photos';
 /**
@@ -220,6 +222,43 @@ describe('build profiles', () => {
         `${profile} points at the apex, which redirects`,
       ).not.toBe(`https://${DOMAIN}`);
     }
+  });
+
+  it('can actually use the channels it declares', () => {
+    /*
+     * Every profile names a channel, and a channel is inert without
+     * `expo-updates` — the CLI says so on every build and then builds anyway.
+     * An inert channel is worse than none: `eas update --channel preview`
+     * succeeds, publishes, and reaches nobody, because no installed binary is
+     * listening. The failure is silent at both ends.
+     */
+    const declared = Object.entries(eas.build)
+      .filter(([, profile]) => (profile as { channel?: string }).channel)
+      .map(([name]) => name);
+    expect(declared.length, 'no profile declares a channel').toBeGreaterThan(0);
+    expect(
+      pkg.dependencies['expo-updates'],
+      `${declared.join(', ')} declare channels, so expo-updates has to be installed`,
+    ).toBeTruthy();
+  });
+
+  it('points updates at this project and invalidates them on native change', () => {
+    /*
+     * The URL carries the project id, so a copied `app.json` that kept
+     * somebody else's would publish into their channel.
+     *
+     * `fingerprint` rather than `appVersion`, which is what `eas update:configure`
+     * writes. Under `appVersion` an update reaches every build sharing the
+     * version string in `app.json` — including one compiled before a native
+     * dependency was added, which then runs JavaScript calling a module that
+     * is not in the binary and dies on launch. Recovering from that means a
+     * new build and a reinstall, on a phone that now crashes at startup.
+     *
+     * A fingerprint is computed from the native project, so an update that
+     * needs a different binary is simply never offered to the old one.
+     */
+    expect(app.updates.url).toBe(`https://u.expo.dev/${app.extra.eas.projectId}`);
+    expect(app.runtimeVersion).toEqual({ policy: 'fingerprint' });
   });
 
   it('ships a store bundle from production and something installable from preview', () => {
