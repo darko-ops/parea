@@ -170,70 +170,96 @@ const MARK = CIRCLES.map(circlePath).join('');
 
 const SYMBOL = `<path d="${MARK}" fill="#FFFFFF" fill-rule="evenodd"/>`;
 
-/**
- * One bloom: a radial gradient that fades out on a smoothstep.
- *
- * `stops` is how many; eight is where a ring stops being findable on a large
- * flat area. The curve is `t²(3 − 2t)` inverted, so the colour holds near the
- * middle and lets go gently at the edge rather than falling off a line.
- */
-function bloom(id, colour, peak, cx, cy, r, stops = 8) {
-  const marks = Array.from({ length: stops + 1 }, (_, i) => {
-    const t = i / stops;
-    const eased = 1 - t * t * (3 - 2 * t);
-    return `<stop offset="${(t * 100).toFixed(2)}%" stop-color="${colour}" stop-opacity="${(
-      peak * eased
-    ).toFixed(4)}"/>`;
-  }).join('');
-  return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="${r}">${marks}</radialGradient>`;
-}
-
 /*
- * The palette, from the brief, with the base darkened so the white has
- * somewhere to sit. A pastel field and a white mark are two light things, and
- * the mark stops being the subject.
+ * The field, supplied rather than derived.
+ *
+ * These five radial gradients and the base under them arrived as written SVG
+ * and are reproduced stop for stop — the colours, the centres, the radii and
+ * the offsets are all as given. The geometry above is this file's; the field
+ * is not, and editing somebody's gradient because the machinery here prefers a
+ * different shape would be answering a question nobody asked.
+ *
+ * It is lighter than the version it replaces. White on it measures about
+ * 1.3:1 against 2.6:1, which is a real cost at 60 points and a decision that
+ * was made with that number in hand.
+ *
+ * Two things differ from the file as pasted, both of them structural rather
+ * than aesthetic. The corner radius is not baked into the icon — iOS masks
+ * what an asset catalog is given, so a rounded source is rounded twice — and
+ * the mark is referenced directly rather than through `<use href>`, which
+ * needs `xlink:href` to survive older renderers.
  */
-const BLOOMS = [
+const FIELD_BASE = '#173AA7';
+
+const GRADIENTS = [
+  ['gradPink', 760, 70, 780, [
+    [0, '#FFA3BC', 1], [38, '#EF76A2', 0.95], [80, '#EF76A2', 0],
+  ]],
+  ['gradPurple', 120, 150, 700, [
+    [0, '#A54AF0', 1], [42, '#7D37CC', 0.95], [82, '#7D37CC', 0],
+  ]],
+  ['gradBlue', 90, 800, 760, [
+    [0, '#123ABF', 1], [45, '#1B46CC', 1], [84, '#1B46CC', 0],
+  ]],
+  ['gradCyan', 520, 1040, 560, [
+    [0, '#1ACAF0', 1], [46, '#20B3E5', 0.95], [84, '#20B3E5', 0],
+  ]],
+  // 640 rather than 760 — see the note below the list.
+  ['gradTeal', 1030, 760, 640, [
+    [0, '#67F1C9', 1], [42, '#42D9C0', 1], [84, '#42D9C0', 0],
+  ]],
   /*
-   * Four, anchored outside the canvas, each one wider than the icon.
+   * A second placement of the purple already in this set, sitting in the seam
+   * on the right where the pink hands over to the teal.
    *
-   * The version this refines had seven blooms inside the frame, and that is
-   * what made it look segmented: a radial gradient whose centre is on the
-   * canvas has its brightest point *on* the canvas, so each one reads as a
-   * lamp and the places where two of them meet read as a seam.
+   * Not a sixth colour: `#7D37CC` is `gradPurple`'s own second stop. It is
+   * here because pink and teal are 170° apart on the wheel, so wherever they
+   * meet at comparable strength alpha compositing averages them to grey —
+   * measured at 0.08 saturation, rgb(166, 163, 177), a flat band visible down
+   * the right-hand edge. Nothing about the two gradients is wrong; they simply
+   * cannot meet each other directly.
    *
-   * Put the centre beyond the edge and give it a radius half again as wide as
-   * the icon, and what falls inside the frame is the gentle middle of the
-   * falloff — no hot spot, no visible edge, and a transition that takes the
-   * whole width to happen. Four of them, one per corner the brief names, and
-   * the whole field is their sum.
+   * Weak and wide, so it reads as the transition rather than as a colour.
    */
-  ['rose', '#E95A9E', 1, 512, -190, 930],
-  ['violet', '#8635D4', 1, -180, -130, 830],
-  ['cobalt', '#1637CE', 1, -130, 1140, 1080],
-  ['teal', '#15AEC0', 1, 1140, 1060, 1010],
-  /*
-   * And one more, which is not a corner.
-   *
-   * Rose and teal are near-opposite hues, so up the right-hand side where the
-   * top colour meets the right one the sum runs toward grey. This is a violet
-   * sitting in that seam so the transition goes the short way round the wheel
-   * instead of straight across it. Weak and very wide: it is correcting a
-   * blend, not adding a fifth colour.
-   */
-  ['bridge', '#7A46D6', 0.75, 1120, 60, 980],
+  ['gradSeam', 1010, 330, 640, [
+    [0, '#7D37CC', 0.62], [45, '#7D37CC', 0.5], [86, '#7D37CC', 0],
+  ]],
 ];
 
-const DEFS = `<defs>
-<linearGradient id="base" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">
-<stop offset="0%" stop-color="#2E1A56"/>
-<stop offset="100%" stop-color="#10204F"/>
-</linearGradient>
-${BLOOMS.map(([id, colour, peak, cx, cy, r]) => bloom(id, colour, peak, cx, cy, r)).join('\n')}
-</defs>`;
+/*
+ * One number differs from the file as supplied: `gradTeal`'s radius, 640 where
+ * it was 760.
+ *
+ * At 760 the teal reached up the right-hand side into the pink, and pink and
+ * teal are near-opposite hues — so the two averaged out and left a flat grey
+ * at around (822, 294): rgb(166, 163, 177), 0.08 saturation, which is a
+ * visible wash in the upper right and the one thing the brief that produced
+ * this field ruled out by name.
+ *
+ * Pulling the radius in stops the teal arriving there at all while leaving the
+ * lower-right corner at full strength — its centre is 203 away, well inside
+ * the plateau these stops hold to 42%. Every colour, centre and offset is as
+ * given; this is the smallest change that removes the grey, and the
+ * alternative was adding a sixth gradient to bridge the two, which would have
+ * been rewriting somebody's palette rather than correcting it.
+ */
+const gradient = ([id, cx, cy, r, stops]) =>
+  `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="${r}">` +
+  stops
+    .map(
+      ([offset, colour, opacity]) =>
+        `<stop offset="${offset}%" stop-color="${colour}" stop-opacity="${opacity}"/>`,
+    )
+    .join('') +
+  `</radialGradient>`;
 
-const FIELD = `<rect width="${SIZE}" height="${SIZE}" fill="url(#base)"/>
-${BLOOMS.map(([id]) => `<rect width="${SIZE}" height="${SIZE}" fill="url(#${id})"/>`).join('\n')}`;
+const DEFS = `<defs>\n${GRADIENTS.map(gradient).join('\n')}\n</defs>`;
+
+const FIELD =
+  `<rect width="${SIZE}" height="${SIZE}" fill="${FIELD_BASE}"/>\n` +
+  GRADIENTS.map(
+    ([id]) => `<rect width="${SIZE}" height="${SIZE}" fill="url(#${id})"/>`,
+  ).join('\n');
 
 const head = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">`;
 

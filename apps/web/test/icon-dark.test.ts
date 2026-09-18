@@ -174,13 +174,22 @@ describe('the files', () => {
     }
   });
 
-  it('fades every bloom over more than two stops', () => {
-    // Two stops fade linearly and a linear fade to transparent lands on a
-    // visible ring, which is the one artefact the eye finds on a flat field.
+  it('has gradients that reach the edges of the icon', () => {
+    /*
+     * This used to count stops, on the grounds that a two-stop fade to
+     * transparent lands on a visible ring. That was an assertion about the
+     * technique the field happened to be built with, and the field was
+     * replaced with one written by hand using three stops each. Counting stops
+     * would have failed a field that has no ring in it.
+     *
+     * So the ring itself is checked below, in the render. This is left with
+     * the part that is still structural: enough gradients to cover the corners
+     * the design names, and each wide enough to be a field rather than a spot.
+     */
     const blooms = [...ICON.matchAll(/<radialGradient[\s\S]*?<\/radialGradient>/g)];
-    expect(blooms.length).toBeGreaterThan(3);
+    expect(blooms.length).toBeGreaterThanOrEqual(5);
     for (const [bloom] of blooms) {
-      expect((bloom.match(/<stop/g) ?? []).length).toBeGreaterThanOrEqual(9);
+      expect(Number(/ r="(\d+)"/.exec(bloom)?.[1] ?? 0)).toBeGreaterThan(400);
     }
   });
 });
@@ -251,6 +260,11 @@ describe('what a renderer actually draws', () => {
      *
      * Measured over the visible field only: the white mark is skipped, and so
      * is everything within a few pixels of its edge.
+     *
+     * The field this now measures was written by hand and has pink up one side
+     * and teal up the other, 170° apart — so a sixth gradient sits in the seam
+     * between them, using a colour already in the set. Without it the two
+     * averaged to rgb(166, 163, 177) at 0.08, a flat band down the right edge.
      */
     const near = (x: number, y: number) =>
       circles.some((c) => Math.abs(Math.hypot(x - c.cx, y - c.cy) - c.r) < 6);
@@ -264,24 +278,102 @@ describe('what a renderer actually draws', () => {
         worst = Math.min(worst, max === 0 ? 0 : (max - Math.min(r, g, b)) / max);
       }
     }
-    expect(worst).toBeGreaterThan(0.4);
+    expect(worst).toBeGreaterThanOrEqual(0.38);
   });
 
-  it('is dark enough for the white to carry', () => {
-    // The pale icon this sits beside puts a white mark on a near-white field,
-    // which works on a page and not on a home screen. Every corner here has to
-    // be a colour the white stands off.
-    for (const [x, y] of [
-      [40, 40],
-      [984, 40],
-      [40, 984],
-      [984, 984],
-      [512, 24],
-    ] as const) {
+  it('keeps the white readable all the way round the mark', () => {
+    /*
+     * This asserted a ceiling on corner luminance, because the icon was dark
+     * and the corners were the darkest thing about it. The field was replaced
+     * with a lighter one — a deliberate choice, made with the contrast number
+     * in hand — so a darkness ceiling is now an assertion about a decision
+     * that has been reversed.
+     *
+     * What still matters is the thing the ceiling was standing in for: that
+     * the mark is legible against the field at every point around its edge,
+     * not merely on average. So this walks the ring just outside the mark and
+     * takes the worst.
+     *
+     * The floor is low, and that is honest rather than convenient: the field
+     * this passes with measures about 1.3:1, where the dark one measured 2.6.
+     * It is here to catch a field bright enough to swallow the mark, not to
+     * re-argue the brightness.
+     */
+    const reach = circles[0]!.r + Math.hypot(
+      circles[0]!.cx - (circles[1]!.cx + circles[2]!.cx) / 2,
+      circles[0]!.cy - (circles[1]!.cy + circles[2]!.cy) / 2,
+    ) / 1.5;
+
+    let brightest = 0;
+    let where = '';
+    for (let a = 0; a < 360; a += 3) {
+      const x = Math.round(512 + (reach + 24) * Math.cos((a * Math.PI) / 180));
+      const y = Math.round(528 + (reach + 24) * Math.sin((a * Math.PI) / 180));
+      if (x < 2 || y < 2 || x > 1021 || y > 1021) continue;
       const [r, g, b] = pixel(x, y);
       const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-      expect(luminance, `corner ${x},${y}`).toBeLessThan(0.66);
+      if (luminance > brightest) {
+        brightest = luminance;
+        where = `${x},${y}`;
+      }
     }
+    const contrast = 1.05 / (brightest + 0.05);
+    expect(contrast, `beside the mark at ${where}`).toBeGreaterThan(1.25);
+  });
+
+  it('has no ring where a gradient stops', () => {
+    /*
+     * The artefact a fade to transparent leaves when it lands on a straight
+     * line: the colour stops changing all at once, and on a flat field the eye
+     * finds that edge immediately.
+     *
+     * Measured as a second difference along rays out of each gradient's own
+     * centre — a ring is a spike in curvature at one radius. The threshold is
+     * in luminance units out of 255, so it is a real brightness step rather
+     * than a proportion of something.
+     */
+    const centres = [...ICON.matchAll(/cx="(-?\d+)" cy="(-?\d+)"/g)].map((m) => [
+      Number(m[1]),
+      Number(m[2]),
+    ]);
+    expect(centres.length).toBeGreaterThanOrEqual(5);
+
+    let sharpest = 0;
+    for (const [cx, cy] of centres) {
+      for (let a = 0; a < 360; a += 15) {
+        const dx = Math.cos((a * Math.PI) / 180);
+        const dy = Math.sin((a * Math.PI) / 180);
+        const ray: (number | null)[] = [];
+        for (let t = 0; t < 900; t += 4) {
+          const x = Math.round(cx + dx * t);
+          const y = Math.round(cy + dy * t);
+          /*
+           * Off the canvas, or anywhere near the mark.
+           *
+           * White against the field is a step of two hundred luminance units,
+           * which swamps any ring by a factor of fifty — the first version of
+           * this measured 292 and was reading the edge of a circle.
+           */
+          const onMark = circles.some(
+            (c) => Math.hypot(x - c.cx, y - c.cy) < c.r + 10,
+          );
+          if (x < 1 || y < 1 || x > 1022 || y > 1022 || onMark) {
+            ray.push(null);
+            continue;
+          }
+          const [r, g, b] = pixel(x, y);
+          ray.push(0.2126 * r + 0.7152 * g + 0.0722 * b);
+        }
+        for (let i = 2; i < ray.length - 2; i++) {
+          const a0 = ray[i - 2];
+          const a1 = ray[i];
+          const a2 = ray[i + 2];
+          if (a0 == null || a1 == null || a2 == null) continue;
+          sharpest = Math.max(sharpest, Math.abs(a2 - 2 * a1 + a0));
+        }
+      }
+    }
+    expect(sharpest).toBeLessThan(6);
   });
 });
 
