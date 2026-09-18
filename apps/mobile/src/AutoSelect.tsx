@@ -47,12 +47,23 @@ export function AutoSelect({
   window,
   theme: t,
   onCancel,
+  onPickManually,
   onConfirm,
   onShown,
 }: {
   window: Window;
   theme: AutoSelectTheme;
   onCancel: () => void;
+  /**
+   * Out of the guess and into the whole camera roll.
+   *
+   * The screen is a suggestion, and a suggestion has to be refusable in the
+   * direction of *more* rather than only in the direction of none: "Show
+   * everything from this window" widens the window and never leaves it, so
+   * for an album whose window holds none of your photographs there was
+   * nothing here but Cancel.
+   */
+  onPickManually: () => void;
   /** Receives the final selection, and what was ticked when the screen opened. */
   onConfirm: (assetIds: string[], preselected: string[]) => void;
   /** §18's precision numerator and denominator, once the scan has run. */
@@ -126,7 +137,7 @@ export function AutoSelect({
             {suggestion.confidence === 'low' && suggestion.candidates.length > 0 && (
               <Text style={[styles.body, { color: t.dim }]}>
                 Nothing is selected — we could not tell which of these were from
-                the event, so this is your call rather than ours.
+                the evening, so this is your call rather than ours.
               </Text>
             )}
 
@@ -158,6 +169,21 @@ export function AutoSelect({
                 </Text>
               </Pressable>
             )}
+
+            {/*
+              And out of the window altogether.
+
+              Always, not only when the grid is empty: the guess can be wrong
+              by being narrow as easily as by being empty, and somebody who
+              knows the photograph they want is on the phone should not have
+              to work out that this screen is a filter before they can go and
+              get it.
+            */}
+            <Pressable onPress={onPickManually} accessibilityRole="button">
+              <Text style={[styles.body, { color: t.accent }]}>
+                Choose from all photos
+              </Text>
+            </Pressable>
           </View>
         }
         ListEmptyComponent={
@@ -194,20 +220,39 @@ export function AutoSelect({
         <Pressable onPress={onCancel} style={styles.footerButton}>
           <Text style={[styles.buttonText, { color: t.fg }]}>Cancel</Text>
         </Pressable>
-        <Pressable
-          onPress={() => onConfirm([...selected], suggestion.preselected)}
-          disabled={selected.size === 0}
-          style={[
-            styles.footerButton,
-            { backgroundColor: t.accent, opacity: selected.size === 0 ? 0.5 : 1 },
-          ]}
-        >
-          <Text style={[styles.buttonText, { color: t.onAccent }]}>
-            {selected.size === 0
-              ? 'Nothing selected'
-              : `Add ${selected.size} ${selected.size === 1 ? 'photo' : 'photos'}`}
-          </Text>
-        </Pressable>
+        {/*
+          A disabled "Nothing selected" was the whole of the footer on a screen
+          with nothing in it — a dead end under an empty grid, which is the one
+          state where the screen owes somebody a way forward rather than a
+          report. When there is nothing here to add, the button is the camera
+          roll instead.
+        */}
+        {suggestion.candidates.length === 0 ? (
+          <Pressable
+            onPress={onPickManually}
+            accessibilityRole="button"
+            style={[styles.footerButton, { backgroundColor: t.accent }]}
+          >
+            <Text style={[styles.buttonText, { color: t.onAccent }]}>
+              Choose photos
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => onConfirm([...selected], suggestion.preselected)}
+            disabled={selected.size === 0}
+            style={[
+              styles.footerButton,
+              { backgroundColor: t.accent, opacity: selected.size === 0 ? 0.5 : 1 },
+            ]}
+          >
+            <Text style={[styles.buttonText, { color: t.onAccent }]}>
+              {selected.size === 0
+                ? 'Nothing selected'
+                : `Add ${selected.size} ${selected.size === 1 ? 'photo' : 'photos'}`}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

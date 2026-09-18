@@ -258,6 +258,34 @@ export async function uploadItem(item: QueueItem): Promise<void> {
  * exists, and a cover that does not arrive leaves it looking exactly as it
  * would have looked without one.
  */
+/**
+ * A photograph already in the album, brought down so it can go back up as a cover.
+ *
+ * Two round trips for bytes that are already on the server, which looks
+ * wasteful and is the only thing available. `apps/web/src/storage/index.ts`
+ * opens with the reason in capitals: the interface handed to the app tier has
+ * no method that returns bytes, deliberately, so that no photograph can ever be
+ * routed through the Next.js origin. A "make the cover out of photo X" endpoint
+ * would be exactly that route, and the invariant is worth more than the
+ * megabyte.
+ *
+ * The download is client ↔ storage, which is the movement the invariant is
+ * built to preserve — a presigned URL, straight to R2, nothing in between.
+ *
+ * `full` rather than the original: 2560 pixels on the long edge against a
+ * stored cover of 1200, so there is nothing to gain from the camera's own file
+ * and several megabytes to lose on somebody's data plan.
+ *
+ * Into the cache rather than documents, and deleted by the caller once it has
+ * been sent: this file exists for the length of one upload.
+ */
+export async function fetchForCover(url: string, id: string): Promise<File> {
+  const target = new File(Paths.cache, `parea-cover-${id}.jpg`);
+  if (target.exists) target.delete();
+  await File.downloadFileAsync(url, target);
+  return target;
+}
+
 export async function uploadCover(
   url: string,
   headers: Record<string, string>,
@@ -413,7 +441,28 @@ export async function saveToCameraRoll(
   urls: { id: string; url: string; mime: string }[],
   onProgress: (done: number, total: number) => void,
 ): Promise<{ saved: number; failed: number }> {
-  const permission = await MediaLibrary.requestPermissionsAsync(false, ['photo']);
+  /*
+   * Write-only, which is all this does.
+   *
+   * It asked for the whole library — `writeOnly: false` — to put one file
+   * into it, and that was wrong twice over. It contradicted the deliberate
+   * shape of `library.ts`, where read access is an upgrade offered only after
+   * somebody has contributed once and the app works without it; and on iOS the
+   * two are separate authorisations, so anybody who had declined that upgrade
+   * could never save a photograph again. The request came back `granted:
+   * false` and the alert said "Try again in a moment" for as long as they were
+   * willing to.
+   *
+   * `true` maps to `PHAccessLevel.addOnly`, which iOS tracks apart from
+   * read-write and will prompt for on its own. Somebody who has already
+   * granted the full library is covered by it and sees nothing.
+   *
+   * Safe for `Asset.create`, which is the thing that runs under it: the native
+   * side performs a change request and takes the id off
+   * `placeholderForCreatedAsset`. It never fetches the asset back, which is
+   * the operation add-only would refuse.
+   */
+  const permission = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
   if (!permission.granted) throw new Error('Permission to save photos was declined.');
 
   let saved = 0;
@@ -427,7 +476,23 @@ export async function saveToCameraRoll(
       const target = new File(Paths.cache, `parea-${entry.id}${extensionFor(entry.mime)}`);
       if (target.exists) target.delete();
       await File.downloadFileAsync(entry.url, target);
-      await MediaLibrary.createAssetAsync(target.uri);
+      /*
+       * `Asset.create`, not `createAssetAsync`.
+       *
+       * The old name is still exported from the package root in
+       * expo-media-library 57 and is a stub whose entire body throws —
+       * "@deprecated … This method will throw in runtime". So every save
+       * failed, for everybody, at the last step: the file downloaded, the
+       * permission was granted, and the alert said "Try again in a moment"
+       * about something no amount of trying would fix.
+       *
+       * Worth knowing how it hid. The call is inside a `try` that turns any
+       * throw into a failed *file* rather than a failed feature, which is
+       * right for the bulk save — one unreachable photograph out of two
+       * hundred should not end the download — and it meant a dead API read
+       * exactly like a network problem.
+       */
+      await MediaLibrary.Asset.create(target.uri);
       target.delete();
       saved++;
     } catch {

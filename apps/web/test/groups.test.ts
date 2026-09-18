@@ -13,6 +13,7 @@ import { authorize, groupSlug, newLinkToken, schema } from '@parea/core';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -20,6 +21,7 @@ import { decide } from '@/access';
 import type { Db } from '@/db';
 import {
   addMember,
+  attendedEvery,
   groupEvents,
   memberCount,
   groupsFor,
@@ -593,7 +595,7 @@ describe('authorize, on group facts alone', () => {
           capEpoch: 1,
           accessPolicy: 'private',
           joinsOpen: false,
-          uploadsOpen: true,
+          contributePolicy: 'everyone',
           createdBy: 'someone-else',
           groupId: 'g',
           deletedAt: null,
@@ -602,5 +604,85 @@ describe('authorize, on group facts alone', () => {
       { isGroupMember: true },
     );
     expect(decision).toEqual({ allow: true });
+  });
+});
+
+/**
+ * "Six of you have been to every one", which is the line the group screen
+ * leads its people row with.
+ *
+ * The one fact about a room that a count of heads does not give: whether this
+ * is a group where everybody turns up, or one with a core and a fringe.
+ */
+describe('who has been to every album', () => {
+  async function joins(eventId: string, actorId: string) {
+    await db.insert(schema.eventParticipants).values({ eventId, actorId });
+  }
+
+  it('counts only the members who were at all of them', async () => {
+    const house = await group('House');
+    const always = await actor();
+    const sometimes = await actor();
+    await addMember(db, house.id, always);
+    await addMember(db, house.id, sometimes);
+
+    const first = await eventIn(house.id, always);
+    const second = await eventIn(house.id, always);
+    await joins(first.id, always);
+    await joins(second.id, always);
+    // At one of the two, which is what makes this a fringe rather than a core.
+    await joins(first.id, sometimes);
+
+    expect(await attendedEvery(db, house.id)).toBe(1);
+  });
+
+  it('says nothing about a group with no albums', async () => {
+    /*
+     * Everybody has trivially been to all nought of them, and "two of you have
+     * been to every one" over an empty archive is the screen being clever at
+     * somebody. Null, and the caller falls back to the plain count.
+     */
+    const house = await group('House');
+    await addMember(db, house.id, await actor());
+    await addMember(db, house.id, await actor());
+
+    expect(await attendedEvery(db, house.id)).toBeNull();
+  });
+
+  it('does not count somebody who was there and left the group', async () => {
+    // Membership is the outer set: "you" is the room, not everyone who has
+    // ever been in one of its albums.
+    const house = await group('House');
+    const member = await actor();
+    const departed = await actor();
+    await addMember(db, house.id, member);
+
+    const dinner = await eventIn(house.id, member);
+    await joins(dinner.id, member);
+    await joins(dinner.id, departed);
+
+    expect(await attendedEvery(db, house.id)).toBe(1);
+  });
+
+  it('reads both shapes `db.execute` answers with', () => {
+    /*
+     * This is the assertion the three above cannot make. `db.execute` returns
+     * a `{ rows }` object on postgres.js and a bare array on PGlite — and this
+     * suite *is* PGlite, so every functional test here runs the array branch
+     * and the other one ships unexercised.
+     *
+     * It is not a wrong number when it is wrong. A destructured object is not
+     * iterable, so it throws, and the group screen answers 500 — which is
+     * exactly what happened: the tests passed and the page did not open.
+     */
+    const source = readFileSync(
+      fileURLToPath(new URL('../src/groups.ts', import.meta.url)),
+      'utf8',
+    );
+    const fn = source.slice(
+      source.indexOf('export async function attendedEvery'),
+      source.indexOf('export async function groupPeople'),
+    );
+    expect(fn).toMatch(/Array\.isArray\(rows\) \? rows : \(rows\.rows \?\? \[\]\)/);
   });
 });

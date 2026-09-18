@@ -161,7 +161,7 @@ type Scope = 'all' | 'people' | 'events' | 'groups';
 const SCOPES = [
   ['all', 'All'],
   ['people', 'People'],
-  ['events', 'Events'],
+  ['events', 'Albums'],
   ['groups', 'Groups'],
 ] as const;
 
@@ -313,14 +313,14 @@ export function FindView({
       <div className="find-box">
         <SearchIcon size={20} />
         <label htmlFor="q" className="visually-hidden">
-          Search people, events and groups
+          Search people, albums and groups
         </label>
         <input
           id="q"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="A person, an event, a group"
+          placeholder="A person, an album, a group"
           autoComplete="off"
           autoFocus
         />
@@ -362,7 +362,7 @@ export function FindView({
       )}
 
       {wantsEvents && foundEvents.length > 0 && (
-        <Answers title="Events">
+        <Answers title="Albums">
           {foundEvents.map((event) => (
             <EventRow key={event.id} event={event} />
           ))}
@@ -391,7 +391,7 @@ export function FindView({
 
       {nothing && (
         <p className="find-empty">
-          Nothing by that name. Events are only yours to find — if somebody
+          Nothing by that name. Albums are only yours to find — if somebody
           has not sent you the link, there is nothing here to type at.
         </p>
       )}
@@ -488,8 +488,8 @@ export function FindView({
       {!asking && scope === 'events' && (
         <p className="find-empty">
           {events.length === 0
-            ? 'No events yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
-            : 'Events are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
+            ? 'No albums yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
+            : 'Albums are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
         </p>
       )}
 
@@ -513,16 +513,16 @@ export function FindView({
         <details className="how">
           <summary>How search works</summary>
           <p className="field-help">
-            Your events and your friends are matched here on this page, over
+            Your albums and your friends are matched here on this page, over
             what you can already see — nothing is looked up. Handles are
             searched by prefix, so somebody is findable enough to be asked and
             no further, and groups return a name and a member count and never
             what is inside. Photos are never searched, and the only way into
-            somebody else’s event is a link they sent you.
+            somebody else’s album is a link they sent you.
           </p>
         </details>
         <span className="find-foot-note">
-          Events are never recommended — only ones you have the link to are here
+          Albums are never recommended — only ones you have the link to are here
           at all.
         </span>
       </div>

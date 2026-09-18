@@ -55,6 +55,7 @@ import { ago } from '@parea/cards';
 import { ApiError, REACTIONS, type Message, type Roster } from './api';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
+import { Waiting } from './Waiting';
 
 /** Somebody the mention list may offer: a contributor to this event. */
 export type Mentionable = { key: string; name: string; mine: boolean };
@@ -86,10 +87,36 @@ export function Thread({
   keyboardOffset = 0,
   onChanged,
   onSeen,
+  photoOf,
+  onOpenPhoto,
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
-  messages: Message[];
+  /**
+   * The photograph a comment is about, by id.
+   *
+   * Optional, and absent in a group's chat — a group has no photographs of its
+   * own, so every message there is to the room rather than about a picture.
+   * Handed in rather than fetched: the album screen already holds every
+   * photograph in the feed, and a thread that could ask for one would be a
+   * second path to an album's pictures with its own rules about who may.
+   */
+  photoOf?: (photoId: string) => { id: string; src: string } | null;
+  /** Opens that photograph. Absent where there is nowhere to open it. */
+  onOpenPhoto?: (photoId: string) => void;
+  /**
+   * The conversation, or null while nobody knows yet.
+   *
+   * Null is the whole reason this is not simply an array. An empty thread and
+   * an unfetched one are the same shape and mean opposite things, and both
+   * callers were handing over `[]` for both — so opening a conversation showed
+   * "nothing has been said here" for as long as the request took, and then the
+   * conversation appeared underneath the sentence denying it existed.
+   *
+   * The distinction lives here rather than at the two call sites because the
+   * thing that has to change is what gets *drawn*, and only this file draws it.
+   */
+  messages: Message[] | null;
   /** Whether this viewer may post. The server's answer, never a guess. */
   canPost: boolean;
   /** This event's contributors, for the mention list. Never anybody else. */
@@ -121,7 +148,7 @@ export function Thread({
    * keeps and so does this.
    */
   const live = useMemo(
-    () => messages.filter((m) => !m.deleted || m.body === '').reverse(),
+    () => (messages ?? []).filter((m) => !m.deleted || m.body === '').reverse(),
     [messages],
   );
 
@@ -151,19 +178,24 @@ export function Thread({
     [actions, onChanged],
   );
 
+  /**
+   * Deletes, without asking a second time.
+   *
+   * It used to open its own "Delete this message?" alert, which meant two
+   * native alerts in a row: the long-press menu, and then this one raised from
+   * inside that menu's own dismissal. iOS presents the second on a view
+   * controller that is already going away, so it never appeared — you held
+   * your message, chose Delete, and nothing happened at all.
+   *
+   * One alert is also the better shape regardless. Long-pressing a message and
+   * choosing a red item is already a deliberate act, and the consequence — it
+   * leaves a gap rather than vanishing — belongs in front of the decision
+   * rather than in a second panel after it. See the menu in `Row`.
+   */
   const remove = useCallback(
-    (id: string) => {
-      Alert.alert('Delete this message?', 'It leaves a gap saying it was deleted.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await actions.remove(id).catch(() => {});
-            await onChanged();
-          },
-        },
-      ]);
+    async (id: string) => {
+      await actions.remove(id).catch(() => {});
+      await onChanged();
     },
     [actions, onChanged],
   );
@@ -203,18 +235,32 @@ export function Thread({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardOffset}
     >
-      {live.length === 0 ? (
+      {messages === null ? (
+        /*
+          Nothing said, rather than "nothing has been said".
+
+          A thread that has not arrived is not an empty one, and drawing the
+          invitation while the request is out is the screen making a claim it
+          cannot support yet — one that is contradicted a moment later by the
+          messages appearing underneath it.
+        */
+        <View style={styles.empty}>
+          <Waiting size={40} />
+        </View>
+      ) : live.length === 0 ? (
         /*
           An invitation rather than a report of emptiness. "Nothing said yet"
           describes the state somebody can already see; this says what the
           space is for, which is the only thing that turns an empty box into a
           first message.
+
+          One line, where it was a heading and a paragraph explaining what a
+          conversation is for. Nobody needs telling; what an empty room needs
+          is a reason to say the first thing, and the joke is the reason.
         */
         <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: t.fg }]}>Talk about the moment</Text>
-          <Text style={[styles.emptyBody, { color: t.dim }]}>
-            Ask for a missing photo, share what happened or let everyone know
-            when you have added yours.
+          <Text style={[styles.emptyTitle, { color: t.dim }]}>
+            Say something before this gets awkward.
           </Text>
         </View>
       ) : (
@@ -236,8 +282,10 @@ export function Thread({
               t={t}
               canReact={actions.react != null}
               onReact={(emoji) => void react(item.id, emoji)}
-              onDelete={() => remove(item.id)}
+              onDelete={() => void remove(item.id)}
               onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
+              about={item.photoId ? (photoOf?.(item.photoId) ?? null) : null}
+              onOpenPhoto={onOpenPhoto}
             />
           )}
         />
@@ -272,11 +320,11 @@ export function Thread({
                 ref={box}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Message everyone in this event…"
+                placeholder="Message everyone in this album…"
                 placeholderTextColor={t.dim}
                 multiline
                 style={[styles.field, { color: t.fg, borderColor: t.line }]}
-                accessibilityLabel="Message everyone in this event"
+                accessibilityLabel="Message everyone in this album"
               />
               <Pressable
                 onPress={() => void post()}
@@ -297,7 +345,7 @@ export function Thread({
           </>
         ) : (
           <Text style={[styles.error, { color: t.dim }]}>
-            Only people who can add photos can post. Everyone in the event can
+            Only people who can add photos can post. Everyone in the album can
             read it.
           </Text>
         )}
@@ -314,6 +362,8 @@ function Row({
   onReact,
   onDelete,
   onEdit,
+  about,
+  onOpenPhoto,
 }: {
   message: Message;
   canPost: boolean;
@@ -323,18 +373,48 @@ function Row({
   onReact: (emoji: string) => void;
   onDelete: () => void;
   onEdit: (body: string) => void;
+  /** The photograph this comment is about, where it is about one. */
+  about?: { id: string; src: string } | null;
+  onOpenPhoto?: (photoId: string) => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
+  const mine = message.author.mine;
+  const lens = lensFor(message.author.key);
+
+  /**
+   * What you can do to your own message, and the consequence of the worse one.
+   *
+   * One alert rather than two. Delete used to raise a second "are you sure"
+   * from inside this one's dismissal, which iOS presents on a view controller
+   * that is already going away — so it never appeared, and holding a message
+   * and choosing Delete did nothing at all. The sentence that second panel
+   * existed to say is this one's message now, which is where somebody making
+   * the decision can actually read it.
+   */
+  const menu = useCallback(() => {
+    Alert.alert('Your message', 'Deleting it leaves a gap saying it was deleted.', [
+      { text: 'Edit', onPress: () => setEditing(message.body) },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [message.body, onDelete]);
+
+  /*
+   * Below the hooks, not above them.
+   *
+   * This return sat first, which meant deleting your own message crashed the
+   * thread: the row renders with `menu` while the message is there and
+   * without it the moment `deleted` flips, and React counts hooks by position
+   * — a render with fewer than the last one is refused. The row that a delete
+   * is *supposed* to leave behind was the render that could not happen.
+   */
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
     // middle of a conversation.
     return <Text style={[styles.gone, { color: t.dim }]}>Message deleted</Text>;
   }
-
-  const mine = message.author.mine;
-  const lens = lensFor(message.author.key);
 
   return (
     <View style={[styles.row, mine && styles.rowMine]}>
@@ -393,22 +473,73 @@ function Row({
           </View>
         ) : (
           <Pressable
-            // Long press rather than a menu glyph on every message: three dots
-            // beside each of your own is a permanent invitation to delete
-            // them, and on this width it competes with the name and the time
-            // for one line.
-            onLongPress={
+            /*
+              Long press rather than a menu glyph on every message: three dots
+              beside each of your own is a permanent invitation to delete them,
+              and on this width it competes with the name and the time for one
+              line.
+
+              `delayLongPress` is shortened from the 500ms default. This is the
+              only way to reach either verb, and half a second of holding still
+              on a scrolling list is long enough that people let go first and
+              conclude there is nothing there.
+            */
+            onLongPress={mine ? menu : undefined}
+            delayLongPress={320}
+            accessibilityRole={mine ? 'button' : 'text'}
+            /*
+              And a second way to the same menu, for somebody who cannot hold a
+              finger still. A long press is invisible to a screen reader and
+              impossible for some people to perform; the actions rotor is where
+              iOS puts the alternative.
+            */
+            accessibilityActions={
+              mine ? [{ name: 'longpress', label: 'Edit or delete' }] : undefined
+            }
+            onAccessibilityAction={
               mine
-                ? () =>
-                    Alert.alert('Your message', undefined, [
-                      { text: 'Edit', onPress: () => setEditing(message.body) },
-                      { text: 'Delete', style: 'destructive', onPress: onDelete },
-                      { text: 'Cancel', style: 'cancel' },
-                    ])
+                ? (e) => {
+                    if (e.nativeEvent.actionName === 'longpress') menu();
+                  }
                 : undefined
             }
-            accessibilityRole={mine ? 'button' : 'text'}
           >
+            {/*
+              The photograph this was said about, where it was said about one.
+              *
+              * A comment written under a picture is a line in this same board
+              * carrying a `photo_id` — one thread, two ways in. This pane drew
+              * the line and dropped the picture, so "look at her face in this
+              * one" arrived on the board with no *this one* in it: the same
+              * sentence meant two different things depending on where you
+              * happened to read it, and on the board it meant nothing.
+              *
+              * Small, and above the words rather than beside them. It is the
+              * subject of the sentence under it, not an illustration of it —
+              * and a thumbnail large enough to look at would make the board a
+              * second copy of the album.
+              */}
+            {about && (
+              <Pressable
+                onPress={() => onOpenPhoto?.(about.id)}
+                disabled={!onOpenPhoto}
+                accessibilityRole={onOpenPhoto ? 'button' : 'image'}
+                accessibilityLabel="The photograph this is about"
+                style={({ pressed }) => [
+                  styles.about,
+                  mine && styles.aboutMine,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Image
+                  source={{ uri: about.src }}
+                  style={styles.aboutShot}
+                  contentFit="cover"
+                  transition={120}
+                />
+              </Pressable>
+            )}
+
             {mine ? (
               <View style={[styles.bubble, { backgroundColor: t.accent }]}>
                 <Text style={[styles.bodyText, { color: t.onAccent }]}>
@@ -492,7 +623,30 @@ function Row({
  * of me" — a question the people in a room are entitled to an answer to. The
  * server already computes this roster for the web's People tab; this draws it.
  */
-export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
+export function People({
+  roster,
+  t,
+  /**
+   * Whether this reader administers the album — the only one who may hand the
+   * camera over.
+   *
+   * Promotion is `administer`-only on the server, so the set of people who can
+   * add cannot grow without the album's owner. That is the property that makes
+   * "Hosts" safe to offer as a contribute setting at all, and drawing the
+   * control for anybody else would be the client promising what the server
+   * refuses.
+   */
+  canAdminister = false,
+  /** Only asked about on an album that is actually set to `host`. */
+  hosted = false,
+  onSetHost,
+}: {
+  roster: Roster[];
+  t: GroupTheme;
+  canAdminister?: boolean;
+  hosted?: boolean;
+  onSetHost?: (actorId: string, host: boolean) => void;
+}) {
   return (
     <FlatList
       data={roster}
@@ -500,6 +654,24 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
       contentContainerStyle={styles.people}
       renderItem={({ item }) => {
         const lens = lensFor(item.actorId ?? item.name);
+        /*
+         * The toggle, and the three things that have to be true for it.
+         *
+         * Somebody who is in the album — an open invitation has no participant
+         * row and therefore no role to set. Not the creator, who is a host by
+         * being the creator and whose row the server refuses to write. And
+         * only where the setting means anything: on `everyone` they can
+         * already add, and on `creator` the whole point is that there is no
+         * set to join, so a "Make a host" beside every name would be offering
+         * a promotion into a group of one.
+         */
+        const promotable =
+          canAdminister &&
+          hosted &&
+          onSetHost != null &&
+          item.actorId != null &&
+          item.role !== 'invited' &&
+          item.role !== 'creator';
         return (
           <View style={[styles.personRow, { borderBottomColor: t.line }]}>
             {item.avatarUrl ? (
@@ -526,7 +698,35 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
                 </Text>
               )}
             </View>
-            <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
+            {promotable ? (
+              <Pressable
+                onPress={() => onSetHost!(item.actorId!, !item.isHost)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: item.isHost }}
+                accessibilityLabel={
+                  item.isHost
+                    ? `${item.name} is a host. Press to take it back`
+                    : `Make ${item.name} a host`
+                }
+                style={({ pressed }) => [
+                  styles.personDo,
+                  {
+                    borderColor: item.isHost ? t.line : t.accent,
+                    backgroundColor: item.isHost ? t.card : 'transparent',
+                    opacity: pressed ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.personDoText, { color: item.isHost ? t.dim : t.accent }]}
+                >
+                  {item.isHost ? 'Host' : 'Make a host'}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
+            )}
           </View>
         );
       }}
@@ -534,7 +734,14 @@ export function People({ roster, t }: { roster: Roster[]; t: GroupTheme }) {
   );
 }
 
-/** The right-hand line: what this person is to the event, in three words. */
+/**
+ * The right-hand line: what this person is to the event, in three words.
+ *
+ * A description of what somebody has done here, not a rank — which is why a
+ * host who has added nothing still reads as their photo count or as "Here".
+ * The one exception is somebody the album's owner promoted on an album that
+ * turns on it: there, being a host is the fact the row is about.
+ */
 function standing(person: Roster): string {
   if (person.role === 'invited') return 'Asked';
   if (person.role === 'creator') return 'Host';
@@ -583,16 +790,33 @@ const styles = StyleSheet.create({
      grows upwards from it. */
   list: { padding: 14, paddingHorizontal: 16, gap: 16 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '700' },
-  emptyBody: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  /* Quieter than the heading it replaced, and centred as one line.
+
+     It was 20pt bold with a paragraph under it, which is a title — and a title
+     is a thing a screen says about itself. This is a nudge, so it is set at
+     the weight of the rest of the furniture and left to be read once. */
+  emptyTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10 },
   /* Your own, mirrored. The avatar stays — a thread where one person has no
      face reads as a system message rather than as somebody talking. */
   rowMine: { flexDirection: 'row-reverse' },
+  /* A pill at the end of the row, in the shape the rest of the product uses
+     for "one thing you can do about this". Bordered rather than filled: it is
+     beside a name, and a solid accent block next to somebody's face reads as
+     the row being about the button. */
+  personDo: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  personDoText: { fontSize: 13, fontWeight: '600' },
   face: { width: 32, height: 32, borderRadius: 16 },
   faceBlank: { alignItems: 'center', justifyContent: 'center' },
   faceLetter: { fontSize: 13, fontWeight: '700' },
   said: { flex: 1, minWidth: 0, gap: 2 },
+  /* The photograph a comment is about: a thumbnail the size of two lines of
+     the text under it, so the row still reads as a sentence with a subject
+     rather than as a picture with a caption. Aligned with whichever edge the
+     message itself is on. */
+  about: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
+  aboutMine: { alignSelf: 'flex-end' },
+  aboutShot: { width: 52, height: 52 },
   saidMine: { alignItems: 'flex-end' },
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },

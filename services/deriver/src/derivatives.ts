@@ -121,26 +121,104 @@ export async function buildDerivatives(
   }
 }
 
+/**
+ * How large a decoded original may be held in memory to share between sizes.
+ *
+ * Sharing the decode is worth about a third of the encode time of a phone
+ * photograph — 2.2s against 1.5s for one 12MP JPEG's seven derivatives,
+ * interleaved best-of-three on the machine this was written on — and it costs
+ * holding the raster for as long as they take. 36MB for that photo is the
+ * trade worth taking.
+ *
+ * `MAX_INPUT_PIXELS` is 400MP, and 1.2GB of raster to save a second is not.
+ * libvips streams and works in tiles, so decoding per derivative never holds
+ * the whole thing; for the stitched panoramas and poster exports up at that
+ * limit it is the only way that fits on the machine at all.
+ */
+const MAX_SHARED_RAW_BYTES = 128 * 1024 * 1024;
+
+/**
+ * The original decoded once, or null when it must not be.
+ *
+ * `encodeAll` built a fresh `sharp(input)` per derivative, so the original was
+ * decoded seven times over — and for an iPhone HEIC that has been through
+ * `heifConvert`, the thing being decoded seven times is a full-size PNG.
+ *
+ * Raw pixels rather than `clone()`, which shares the input but still re-runs
+ * the loader. The result is pixel-for-pixel what decoding per derivative
+ * produced — checked against sRGB, Display P3, RGBA, greyscale and
+ * EXIF-rotated sources — because sharp neither imports nor embeds an ICC
+ * profile on this path either way, and `rotate()` reads the orientation of the
+ * original, which is where it still happens.
+ *
+ * Two sources are not equivalent through a raw round trip, and they are why
+ * this returns null rather than always sharing:
+ *
+ *   - deeper than 8 bits a channel. `.raw()` writes `uchar` and raw input
+ *     cannot be told otherwise, so a 16-bit PNG would lose its low bits before
+ *     the resize instead of after it. No phone produces one, and a rounding
+ *     difference is not worth a second.
+ *   - too large to hold — see `MAX_SHARED_RAW_BYTES`.
+ */
+async function decodeShared(input: Buffer): Promise<{
+  data: Buffer;
+  raw: { width: number; height: number; channels: 1 | 2 | 3 | 4 };
+} | null> {
+  // Header only, and tolerant: anything this cannot read is something the
+  // per-derivative path should have its own go at — including the HEVC HEIC
+  // that `buildDerivatives` rescues with libheif.
+  const meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+    .metadata()
+    .catch(() => null);
+  if (!meta || meta.depth !== 'uchar') return null;
+  if (!meta.width || !meta.height || !meta.channels) return null;
+  if (meta.width * meta.height * meta.channels > MAX_SHARED_RAW_BYTES) return null;
+
+  const { data, info } = await sharp(input, {
+    failOn: 'error',
+    limitInputPixels: MAX_INPUT_PIXELS,
+  })
+    // Bakes in EXIF orientation, so viewers do not have to honour it. Raw
+    // pixels carry no orientation tag, which is the point.
+    .rotate()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return {
+    data,
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: info.channels as 1 | 2 | 3 | 4,
+    },
+  };
+}
+
 async function encodeAll(
   input: Buffer,
   only?: readonly DerivativeKind[],
 ): Promise<Derivative[]> {
   const out: Derivative[] = [];
+  const shared = await decodeShared(input);
 
   for (const spec of DERIVATIVES) {
     if (only && !only.includes(spec.kind)) continue;
     for (const format of formatsFor(spec.kind)) {
-      const resized = sharp(input, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
-        // Bakes in EXIF orientation, so viewers do not have to honour it, and
-        // strips metadata from the derivative entirely — a thumbnail has no
-        // business carrying the original's tags.
-        .rotate()
-        .resize({
-          width: spec.edge,
-          height: spec.edge,
-          fit: 'inside',
-          withoutEnlargement: true,
-        });
+      const source = shared
+        ? sharp(shared.data, { raw: shared.raw, limitInputPixels: MAX_INPUT_PIXELS })
+        : sharp(input, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
+            // Bakes in EXIF orientation, so viewers do not have to honour it;
+            // `decodeShared` does the same on its way to raw pixels. Either
+            // way the derivative carries no metadata of its own — a thumbnail
+            // has no business holding the original's tags.
+            .rotate();
+
+      const resized = source.resize({
+        width: spec.edge,
+        height: spec.edge,
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
 
       const encoded =
         format === 'avif'

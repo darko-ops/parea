@@ -25,7 +25,7 @@ const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const HOME = code(
-  EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function GroupsTab')),
+  EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab')),
 );
 
 describe('the card the home list draws', () => {
@@ -40,7 +40,7 @@ describe('the card the home list draws', () => {
      * it, which is one number to keep in step rather than four.
      */
     expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
-    expect(EVENTS).toMatch(/cover: \{ marginHorizontal: -20, overflow: 'hidden', height: 260/);
+    expect(EVENTS).toMatch(/cover: \{ marginHorizontal: -20, overflow: 'hidden'/);
     // No radius on it at all, rather than a smaller one.
     expect(EVENTS).not.toMatch(/cover: \{[^}]*borderRadius/);
   });
@@ -65,7 +65,7 @@ describe('the card the home list draws', () => {
     );
     expect(CARD).not.toMatch(/`@\$\{event\.creator\.handle\}`/);
     // Above the cover, not under it.
-    expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={styles.cover}>'));
+    expect(EVENTS.indexOf('styles.byline}')).toBeLessThan(EVENTS.indexOf('<View style={[styles.cover,'));
   });
 
   it('draws a letter rather than a silhouette where there is no picture', () => {
@@ -76,24 +76,48 @@ describe('the card the home list draws', () => {
 
   it('says the handle once, not twice', () => {
     /*
-     * The line under the title used to print both names. The byline carries
-     * the handle now, so repeating it there said the same unique thing twice
-     * on one card and left the name reading as a label for it. What survives
-     * below is the half the byline does not have: what somebody is called.
+     * The card names the creator in exactly one place: the byline. The line
+     * beside it is about the album — how many people, and whether anything is
+     * still arriving — and the line above the title is about the album too, so
+     * neither of them repeats a name.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
     /*
-     * Counted on what is *drawn*, not on how often the field is read: the
-     * byline also keys a lens off the handle and falls back to it for the
-     * initial, and neither of those puts it on the screen.
+     * Drawn, which is narrower than "mentioned": the byline is a control and
+     * its accessible name is built from the same value — "maya, see their
+     * profile" — which is a string a screen reader speaks rather than a second
+     * copy on the card. Counting every `{by}` would fail on that and pass on a
+     * real duplicate rendered from a different expression.
      */
-    const under = CARD.slice(CARD.indexOf('<View style={styles.under}>'));
-    expect(under).not.toMatch(/creator\.handle/);
-    expect(CARD.match(/\{by\}/g) ?? []).toHaveLength(1);
-    expect(CARD).toMatch(/\{host && \(/);
+    expect(CARD.match(/>\s*\{by\}\s*</g) ?? []).toHaveLength(1);
+    /*
+     * And nothing beside it counts anybody.
+     *
+     * The tail has lost two things in two passes, for the same reason both
+     * times. First "demetri · You · 1 person", which counted one person three
+     * ways: the handle names them, "You" says it is theirs, "1 person" says
+     * they are the only one. Then the count of people altogether — the circles
+     * over the cover *are* the people, drawn as their faces, which is the
+     * version of that fact somebody reads, and a number beside the handle was
+     * the same thing again in a worse form on every card.
+     *
+     * What is left is the one thing nothing else on the card says: that
+     * somebody added to it half an hour ago, and only while that is true.
+     */
+    expect(CARD).toMatch(
+      /const about = live \? `added to \$\{ago\(new Date\(event\.lastActiveAt\), now\)\}` : '';/,
+    );
+    expect(CARD).not.toMatch(/'You'/);
+    expect(CARD).not.toMatch(/memberCount, 'person', 'people'/);
+    /*
+     * And the separator goes with it. Most cards have nothing to say here — an
+     * album stops being live within a day — and a `·` on its own after a
+     * handle reads as a line that failed to load.
+     */
+    expect(CARD).toMatch(/\{about !== '' && \(/);
   });
 
   it('leaves the host out of the circles and scales them to 70%', () => {
@@ -127,40 +151,204 @@ describe('the card the home list draws', () => {
      * `-4` against the scroll's 20 is 16, and the three blocks must agree.
      */
     expect(EVENTS).toMatch(/scroll: \{ padding: 20,/);
+    expect(EVENTS).toMatch(/measured: \{[^}]*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/byline: \{[^}]*marginHorizontal: -4,/);
+    expect(EVENTS).toMatch(/cardTitle: \{\s*\n\s*marginHorizontal: -4,/);
     expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
-    expect(EVENTS).toMatch(/under: \{ marginHorizontal: -4/);
-    // The tag rides on the photograph, so it is placed from the glass direct.
-    expect(EVENTS).toMatch(/liveTag: \{\s*position: 'absolute',\s*(?:\/\/[^\n]*\n\s*)*left: 16,/);
   });
 
-  it('puts the creator’s name before the title, and quiets the title', () => {
+  it('leads with the album’s name, above the byline and below the rule', () => {
     /*
-     * Whose evening it was is the first thing read off the card: the picture
-     * at the top is theirs, and both ends being about the same person is what
-     * makes the middle an evening rather than a listing.
+     * The name has been in three places and this is the second time in this
+     * one.
+     *
+     * Under the cover at 18 points made a wall of pictures you had to scroll
+     * past to find out what any of them were. In the corner of the cover at 24
+     * put the name where the thing it names is — and cost the card its reading
+     * order, because a name in the corner of a photograph is found *after* the
+     * photograph, and the point of a name on a wall of evenings is to be read
+     * on the way past.
+     *
+     * So it is a headline in the column: the measurements, the name, then
+     * whose evening it was — and the cover is a photograph with nothing over
+     * it again.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
-    const under = CARD.slice(CARD.indexOf('<View style={styles.under}>'));
-    expect(under.indexOf('{host}')).toBeLessThan(under.indexOf('{event.name}'));
-    // No longer the first thing on the card, so no longer set like it.
+    const title = CARD.indexOf('styles.cardTitle');
+    expect(title).toBeGreaterThan(CARD.indexOf('styles.measured}'));
+    expect(title).toBeLessThan(CARD.indexOf('styles.byline}'));
+    expect(title).toBeLessThan(CARD.indexOf('<View style={[styles.cover,'));
+    // Set like a headline, with the tracking pulled in at this size.
+    expect(EVENTS).toMatch(/cardTitle: \{[\s\S]*?fontSize: 24,[\s\S]*?letterSpacing: -0\.4,/);
+    /*
+     * Two lines rather than one: "Sunday lunch at the Kostas'" is a real name
+     * for an album, and cutting it at one line loses the half that
+     * distinguishes it.
+     */
+    expect(CARD).toMatch(/styles\.cardTitle[\s\S]{0,60}numberOfLines=\{2\}/);
+    /*
+     * And nothing is drawn over the photograph to carry it. The ramp at the
+     * foot of the cover existed only to make white type legible; with the type
+     * gone, darkening somebody's picture would be the product having an
+     * opinion about it for no reason at all.
+     */
+    expect(CARD).not.toMatch(/LinearGradient/);
+    expect(EVENTS).not.toMatch(/import \{ LinearGradient \}/);
+    // The 18pt one survives on the card with nothing in it, which has no
+    // photograph to be a headline over.
     expect(EVENTS).toMatch(/eventName: \{ fontSize: 18, fontWeight: '700' \}/);
+  });
+
+  it('dates and measures the album on a rule above the title', () => {
+    /*
+     * Two numbers and a date — the label on the outside of the box — set in
+     * the one monospaced face in the product, with a hairline running from
+     * where the words stop to the edge of the column. The rule is what makes a
+     * stack of these read as entries rather than as a feed: every card gets
+     * the same top edge whatever length its date is.
+     */
+    expect(EVENTS).toMatch(
+      /const measured = \[date, plural\(event\.photoCount, 'photo'\)\]/,
+    );
+    expect(EVENTS).toMatch(/measuredText: \{[\s\S]*?ios: 'Menlo', default: 'monospace'/);
+    expect(EVENTS).toMatch(/measuredText: \{[\s\S]*?textTransform: 'uppercase',/);
+    expect(EVENTS).toMatch(/rule: \{ flex: 1, height: 1 \}/);
+    /*
+     * And no live chip on the end of it. A coloured dot and the word beside it
+     * is the loudest thing on a card whose subject is somebody else's
+     * photograph, and the byline already says "added to 20 min ago" in words
+     * the reader was going to read anyway.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    expect(CARD).not.toMatch(/>\s*live\s*</i);
+    expect(CARD).toMatch(/live \? `added to \$\{ago\(/);
+  });
+
+  it('shows what is inside as a row of three, and counts what it leaves out', () => {
+    /*
+     * The card led with one photograph and stopped, which asks somebody to
+     * open an album to find out whether it is worth opening.
+     *
+     * `slice(1, 4)` because the first entry of `mosaic` is always the picture
+     * the card is already leading with — the server prepends a chosen cover to
+     * it, and where there is none the lead is `mosaic[0]` drawn larger — and
+     * because three is as many as a row that does not scroll can hold without
+     * every tile becoming too small to recognise anybody in.
+     */
+    expect(EVENTS).toMatch(/event\.mosaic\.slice\(1, 4\)/);
+    /*
+     * Four photographs are on the card: the cover and the three beside it. An
+     * album of seven therefore ends "+3", and counting only the strip would
+     * have said "+4 more" while showing four of them — arithmetic a reader
+     * does by eye and catches.
+     */
+    expect(EVENTS).toMatch(
+      /const rest = Math\.max\(0, event\.photoCount - 1 - sheet\.length\);/,
+    );
+    /*
+     * And it does not scroll sideways.
+     *
+     * It sits inside the vertical scroll that *is* the home page, and a
+     * horizontal drag starting on a photograph is within a few degrees of the
+     * vertical one that moves the page. Two scrollers competing for the same
+     * gesture means the page sometimes does not move when somebody flicks it.
+     */
+    expect(EVENTS).toMatch(/sheet: \{ flexDirection: 'row', gap: SHEET_GAP, marginHorizontal: -20/);
+    /*
+     * And the tiles are measured rather than flexed. Equal flex would draw the
+     * two tiles of a four-photograph album half a screen tall each; a card's
+     * strip has to be the same height on every card or a column of them stops
+     * scanning.
+     */
+    expect(EVENTS).toMatch(
+      /const sheetTile = \(width: number\) =>\s*\(width - SHEET_GAP \* \(SHEET_TILES - 1\)\) \/ SHEET_TILES;/,
+    );
+    expect(EVENTS).toMatch(/style=\{\{ width: tile, height: tile \}\}/);
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    // Comments stripped: the note beside the row explains why it is not one.
+    expect(code(CARD)).not.toMatch(/ScrollView/);
+  });
+
+  it('pours the mark’s colours behind the count, rather than a grey square', () => {
+    /*
+     * The "+N" tile was `card` over `line` — white on a white page, and in the
+     * dark scheme a dark grey square, which is what a photograph looks like
+     * when it has failed to load. The one tile in the row that is not a
+     * photograph was reading as the one that had broken.
+     *
+     * The mark's own three colours instead, poured rather than drawn: mint
+     * underneath, a pink bloom where the mark's top circle sits and a blue one
+     * where its lower-left circle sits, each fading out so the three meet in
+     * the middle the way the logo's lenses do. Stained glass rather than a
+     * logo — the shapes are gone and only the colour is left, which is the
+     * most the product may say in a slot that belongs to somebody else's
+     * photographs.
+     */
+    const GLASS = EVENTS.slice(
+      EVENTS.indexOf('function SheetGlass'),
+      EVENTS.indexOf('function coverHeight'),
+    );
+    for (const fill of ['MARK_FILLS.pink', 'MARK_FILLS.blue', 'MARK_FILLS.mint']) {
+      expect(GLASS).toContain(fill);
+    }
+    expect(EVENTS).toMatch(/import \{ MARK_FILLS \} from '\.\/Mark';/);
+    /*
+     * The mint is the ground rather than a third bloom: three fades over
+     * nothing leave the corners empty, and an empty corner on a tile in a row
+     * of photographs is the broken-image look this replaced.
+     */
+    expect(GLASS).toMatch(/<Rect width="100%" height="100%" fill=\{MARK_FILLS\.mint\} \/>/);
+    /*
+     * Ids unique to the instance, for the reason `Mark` does the same:
+     * `react-native-svg` resolves paint references against a registry that is
+     * not per-`Svg` on every platform, and there is one of these per card on a
+     * scrolling list.
+     */
+    expect(GLASS).toMatch(/useId\(\)\.replace\(/);
+    /*
+     * And the ink is fixed rather than following the scheme. The mark's
+     * colours are the mark's colours at midnight, so what reads on them is the
+     * same at midnight too.
+     */
+    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#2f2440' \}/);
+  });
+
+  it('sends a thumbnail to its own photograph and the count to the grid', () => {
+    /*
+     * A tile is a picture of a specific thing, and pressing a picture of a
+     * specific thing should arrive at it — landing on the grid instead asks
+     * somebody to find again what they had already found and pointed at. The
+     * "+N" tile is the one control on the card that is about the photographs
+     * it is *not* showing, so that one goes where they all are.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    expect(CARD).toMatch(/onPress=\{\(\) => onOpen\(photo\.id!\)\}/);
+    expect(CARD).toMatch(/\{rest > 0 && \([\s\S]{0,500}onPress=\{\(\) => onOpen\(\)\}/);
+    // And the card itself still opens the album, as everything else on it does.
+    expect(CARD).toMatch(/<Pressable onPress=\{\(\) => onOpen\(\)\} accessibilityRole="button"/);
 
     /*
-     * And on one line, as one sentence.
-     *
-     * Nested `Text` rather than a row: inside a single `Text` the baseline is
-     * the text engine's problem, where a flex row would need telling both how
-     * to align a 13pt name against an 18pt title and which of the two may
-     * shrink. `numberOfLines` on the outer one truncates the line as a line,
-     * so a long title runs out of room rather than squeezing the name.
+     * The id reaches the album screen as a route field and is spent on the
+     * first feed that lands — whether or not the photograph was in it. An id
+     * that names nothing is a thumbnail the album no longer has, and the right
+     * answer there is the grid rather than a viewer that springs open two polls
+     * later when something else happens to match.
      */
-    expect(under).toMatch(
-      /<Text numberOfLines=\{1\}>\s*\{host && \([\s\S]*?\{event\.name\}<\/Text>\s*<\/Text>/,
-    );
+    expect(APP).toMatch(/initialPhoto=\{route\.photo\}/);
+    expect(APP).toMatch(/if \(!feed \|\| landed\.current\) return;\s*\n\s*landed\.current = true;/);
+    expect(APP).toMatch(/feed\.photos\.find\(\(p\) => p\.id === initialPhoto\)/);
   });
 });
 
@@ -192,7 +380,7 @@ describe('switching tabs', () => {
      * stays on screen until the new one lands.
      */
     expect(APP).toMatch(/active=\{tab === 'profile'\}/);
-    expect(APP).toMatch(/active=\{tab === 'groups'\}/);
+    expect(APP).toMatch(/active=\{tab === 'chats'\}/);
     for (const source of [PROFILE, EVENTS]) {
       expect(source).toMatch(/if \(active\) void load\(\);/);
     }
@@ -266,7 +454,7 @@ describe('the home list', () => {
      * still be a room you can walk into.
      */
     const GROUPS = code(
-      EVENTS.slice(EVENTS.indexOf('export function GroupsTab'), EVENTS.indexOf('function GroupBlock')),
+      EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock')),
     );
     expect(GROUPS).not.toMatch(/photoCount > 0/);
   });
@@ -275,10 +463,133 @@ describe('the home list', () => {
     /*
      * This hides your own empty albums too, so the create flow must not depend
      * on the list: `onCreated` opens the event rather than returning to it —
-     * and hands it the photographs chosen two screens earlier, so the album it
-     * lands on is filling rather than empty.
+     * and hands it the photographs the form is holding, so the album it lands
+     * on is filling rather than empty.
      */
-    expect(APP).toMatch(/onCreated=\{\(created\) => \{[\s\S]{0,260}void open\(/);
-    expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
+    expect(APP).toMatch(/onCreated=\{\(created, photos\) => \{[\s\S]{0,260}void open\(/);
+    expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 });
+
+/**
+ * A byline is a person, so pressing one opens them.
+ *
+ * Two of them: the face and handle above a card on the home list, which is
+ * whoever made the album, and the one on each photograph inside an album, which
+ * is whoever added that picture. Both were the only things in the product that
+ * named somebody and could not be pressed.
+ */
+describe('pressing a byline', () => {
+  it('opens the person on a home card', () => {
+    expect(EVENTS).toMatch(/onOpenPerson\(event\.creator\.handle!\)/);
+    expect(APP).toMatch(/<HomeTab[\s\S]{0,600}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+  });
+
+  it('opens the person on a photograph', () => {
+    expect(APP).toMatch(/onOpenPerson\(who\.handle!\)/);
+    expect(APP).toMatch(/<EventScreen[\s\S]{0,900}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+  });
+
+  it('leaves the rest of each surface doing what it did', () => {
+    /*
+     * Nested inside the `Pressable` that was already there, which is what makes
+     * both work: the inner one takes the touch when it lands on the face or the
+     * name, the outer one takes everything else. The card still opens the
+     * album and the row still opens the photograph.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    // Comments stripped: the prose between the two explains the nesting, and
+    // 400 characters of it is longer than the markup being checked.
+    expect(code(CARD)).toMatch(/<Pressable onPress=\{\(\) => onOpen\(\)\}[\s\S]{0,900}<Pressable/);
+    // And the photograph's byline stopped being untouchable for exactly this.
+    const tile = APP.slice(APP.indexOf('style={styles.tileBy}') - 400, APP.indexOf('style={styles.tileBy}'));
+    expect(tile).not.toMatch(/pointerEvents="none"[\s\S]{0,40}tileBy/);
+  });
+
+  it('offers nothing where there is no profile to open', () => {
+    /*
+     * Somebody who arrived by link has a name and a face and no handle. A
+     * control that does nothing is worse than a label that never offered, so
+     * both are disabled and neither claims to be a button.
+     */
+    expect(EVENTS).toMatch(/disabled=\{!event\.creator\.handle\}/);
+    expect(APP).toMatch(/disabled=\{!who\.handle\}/);
+    expect(EVENTS).toMatch(/accessibilityRole=\{event\.creator\.handle \? 'button' : 'text'\}/);
+    expect(APP).toMatch(/accessibilityRole=\{who\.handle \? 'button' : 'text'\}/);
+  });
+});
+
+/**
+ * One photograph, one picture on the card.
+ *
+ * `slice(1, …)` skips the entry the card leads with, which is enough when that
+ * entry is a photograph. It is not enough when it is a *chosen* cover: a cover
+ * is its own object under `ev/<id>/cover.jpg`, so the photograph it was
+ * cropped out of is still sitting in the list behind it. An album of one
+ * therefore drew that picture twice — large as the cover, and again as the
+ * only thumbnail three rows down.
+ */
+describe('an album of one photograph', () => {
+  it('draws nothing in the strip, whatever the cover bookkeeping says', () => {
+    /*
+     * A floor rather than a refinement of the slice. The server drops the
+     * cover's own photograph where it knows which one that was, and it does
+     * not always know: covers set before `coverPhotoId` existed recorded none,
+     * and a cover uploaded on its own never had a photograph behind it. Both
+     * of those still reach this card, so the count has to be what decides.
+     */
+    expect(EVENTS).toMatch(/event\.photoCount <= 1 \? \[\] : event\.mosaic\.slice\(1, 4\)/);
+  });
+
+  it('is not left to the server alone', () => {
+    // The server-side half, which is the one that fixes an album of *seven*
+    // showing its cover twice. Neither is sufficient; both are cheap.
+    const ROUTE = readFileSync(
+      fileURLToPath(new URL('../../web/app/api/events/route.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(ROUTE).toMatch(/mosaic\.filter\(\(photo\) => photo\.id !== coverPhotoId\)/);
+    // And the id itself never goes out: it is destructured off the listing.
+    expect(ROUTE).toMatch(/const \{ creator, coverKey, coverPhotoId, faces: faceRows, \.\.\.rest \} = listing;/);
+  });
+});
+
+/**
+ * The date on a card is when the album was posted.
+ *
+ * It read `eventDate ?? startsAt ?? firstPhotoAt`, and the last of those is
+ * `min(captured_at)` — so an album posted yesterday out of a roll from 2019
+ * was dated 2019, on a screen ordered by recent activity, directly under a
+ * card saying yesterday. That does not read as a date being wrong; it reads as
+ * the list being out of order.
+ */
+describe('what a card dates an album by', () => {
+  it('leads with when it was posted', () => {
+    expect(EVENTS).toMatch(/const date = dateLabel\(event\.createdAt\);/);
+    expect(EVENTS).not.toMatch(/dateLabel\(event\.eventDate \?\? event\.startsAt/);
+  });
+
+  it('still dates the profile shelf by the evening itself', () => {
+    /*
+     * Not a global rename. "When was this evening" and "when did this arrive"
+     * are different questions, and a shelf of somebody's albums is answering
+     * the first one.
+     */
+    const PROFILE = read('src/Profile.tsx');
+    expect(PROFILE).toMatch(/dateLabel\(event\.eventDate \?\? event\.firstPhotoAt\)/);
+  });
+
+  it('is carried the whole way, not derived on the phone', () => {
+    const LISTINGS = readFileSync(
+      fileURLToPath(new URL('../../web/src/events.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(LISTINGS).toMatch(/createdAt: schema\.events\.createdAt/);
+    expect(LISTINGS).toMatch(/createdAt: row\.createdAt\.toISOString\(\)/);
+    expect(read('src/api.ts')).toMatch(/createdAt: string;/);
+  });
+});
+

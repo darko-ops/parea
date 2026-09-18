@@ -31,9 +31,12 @@ import { SiteFooter } from './SiteFooter';
 /**
  * What `/api/events` hands back, narrowed to what a card needs.
  *
- * `mosaic` arrives already signed — the URLs are signed against the event's
- * `cap_epoch`, so rotating a link stops its thumbnails resolving, and nothing
- * on this side could sign one anyway.
+ * `cover` arrives already signed — against the event's `cap_epoch`, so
+ * rotating a link stops it resolving, and nothing on this side could sign one
+ * anyway. The response also carries a `mosaic`, which this screen has never
+ * drawn and no longer declares: it is the native card's strip of thumbnails,
+ * and a narrowed type that lists fields nobody here reads is a shape to keep
+ * in step for nothing.
  */
 type EventListing = {
   id: string;
@@ -46,9 +49,10 @@ type EventListing = {
   /** Uploaded and not yet through the deriver. */
   arrivingCount: number;
   photoCount: number;
-  mosaic: string[];
   /** The one image the card draws, at the size it draws it. See `toCards`. */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
+  /** Its shape, width over height. Null for a cover stored before it had one. */
+  coverAspect?: number | null;
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
   /** The event's own day, for the card's date. Any of the three may be absent. */
@@ -92,7 +96,7 @@ export function AccountView() {
   }, []);
   const [events, setEvents] = useState<EventListing[]>([]);
   /*
-   * Which events to show. Client state rather than a URL: it is a way of
+   * Which albums to show. Client state rather than a URL: it is a way of
    * looking at one list, not a second page, and somebody sending their profile
    * to themselves should not be sending a filter with it.
    */
@@ -151,7 +155,7 @@ export function AccountView() {
     async (alsoPhotos: boolean) => {
       const message = alsoPhotos
         ? 'Delete your account and remove every photo you have added? The photos cannot be brought back.'
-        : 'Delete your account? Your email address is removed. The photos you added stay in their events, and stay yours to remove.';
+        : 'Delete your account? Your email address is removed. The photos you added stay in their albums, and stay yours to remove.';
       if (!confirm(message)) return;
 
       setBusy(true);
@@ -173,7 +177,7 @@ export function AccountView() {
       <LoginScreen>
         <SignIn
           title="Sign in"
-          why="Create an event, or add your photos to one."
+          why="Create an album, or add your photos to one."
           onSignedIn={afterSignIn}
         />
       </LoginScreen>
@@ -233,7 +237,7 @@ export function AccountView() {
               Sign out
             </button>
             <p className="muted">
-              This browser forgets you and the events you opened by link.
+              This browser forgets you and the albums you opened by link.
               Nothing is deleted, and the same address signs back in.
             </p>
           </div>
@@ -249,7 +253,7 @@ export function AccountView() {
           <p className="muted">
             Removing your account removes your email address and the link
             between it and your devices. The photos you added stay in their
-            events and stay yours to remove.
+            albums and stay yours to remove.
           </p>
           <div className="row">
             <button className="secondary" onClick={() => remove(false)} disabled={busy}>
@@ -306,7 +310,7 @@ export function AccountView() {
           */}
           <p className="you-counts">
             <span>
-              {events.length} {events.length === 1 ? 'event' : 'events'}
+              {events.length} {events.length === 1 ? 'album' : 'albums'}
             </span>
             {friends !== null && (
               <a className="you-friends" href="/friends">
@@ -352,7 +356,7 @@ export function AccountView() {
           the only place it says it.
         */}
         <div className="you-events-head">
-          <h2>Your Events</h2>
+          <h2>Your Albums</h2>
           {/*
             Three ways of reading one list. The counts are on the buttons
             because the difference between them is the answer somebody wants —
@@ -393,6 +397,9 @@ export function AccountView() {
                 name: event.name,
                 photoCount: event.photoCount,
                 cover: event.cover,
+                // Only a cover has a shape of its own; a photograph standing in
+                // for one keeps the letterbox. `/api/events` carries it.
+                coverAspect: event.cover ? (event.coverAspect ?? null) : null,
                 caption: event.caption,
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,
@@ -433,7 +440,7 @@ export function AccountView() {
           {lens !== 'joined' && <CreateCard />}
           {lens === 'joined' && shown.length === 0 && (
             <p className="field-help">
-              Nothing yet. Events other people ask you into show up here.
+              Nothing yet. Albums other people ask you into show up here.
             </p>
           )}
         </div>

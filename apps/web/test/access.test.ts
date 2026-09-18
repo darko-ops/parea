@@ -288,9 +288,12 @@ describe('guard', () => {
   });
 
   it('does explain itself to someone who proved access', async () => {
-    const event = await makeEvent({ uploadsOpen: false });
+    const event = await makeEvent({ contributePolicy: 'nobody' });
     try {
-      await guard(db, event, 'contribute', {
+      // `upload` rather than `contribute`: the album's own setting about who
+      // may add photographs lives on that capability now, and closing an album
+      // no longer silences its conversation.
+      await guard(db, event, 'upload', {
         actorId: await makeSignedInActor(),
         linkToken: event.linkToken,
       });

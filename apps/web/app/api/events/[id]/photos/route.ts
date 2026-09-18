@@ -18,7 +18,9 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById, guard, toResponse } from '@/access';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
+import { tagsForPhotos } from '@/photoTags';
 import { getDb } from '@/db';
+import { hostingFor } from '@/hosts';
 import { invitedTo, membersOf, rosterFrom } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
@@ -87,6 +89,7 @@ export async function GET(
   const [
     hasCard,
     reactions,
+    tags,
     people,
     pendingRows,
     messages,
@@ -96,6 +99,7 @@ export async function GET(
     members,
     invited,
     contributeDecision,
+    uploadDecision,
     accountActorId,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
@@ -103,6 +107,9 @@ export async function GET(
     // And the reactions, for the same reason: an album is a column of every
     // picture in the event, and a query per row grows with it.
     reactionsForPhotos(db, photoIds, viewerId),
+    // And who is in them, for the third time the same reason: one query for
+    // the page, not one per row.
+    tagsForPhotos(db, event.id, photoIds, viewerId),
     // The contribution count is a recruiting device, not a statistic: "6
     // people, 88 photos" is what gets the seventh person to add theirs
     // (design §2). Kept as a number as well as a list.
@@ -168,6 +175,15 @@ export async function GET(
     // Not `viewerId != null`, which is true for a guest — the composer would
     // have been drawn for somebody the server was always going to refuse.
     decide(db, event, 'contribute', requester),
+    /*
+     * And the same question about photographs, which is no longer the same
+     * answer: `upload` is `contribute` plus the album's own setting about who
+     * may add. Asked here so that both clients draw the add button from the
+     * server's decision rather than each re-deriving it from the policy — the
+     * rule that makes "two clients, one protocol" mean the decision is taken
+     * once.
+     */
+    decide(db, event, 'upload', requester),
     currentAccountActorId(),
   ]);
 
@@ -184,6 +200,25 @@ export async function GET(
       mime: photo.mime,
       byteSize: photo.byteSize,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
+      /*
+       * When it arrived, which is not when it was taken.
+       *
+       * `takenAt` above falls back to this one, so for most photographs the two
+       * agree — a phone that uploads the same evening. They diverge exactly
+       * where the difference is worth having: somebody adding last summer's
+       * pictures to an album tonight. "Taken in July" says what it is; "added
+       * today" says it is new to you, and the album's grid wants the second.
+       */
+      addedAt: photo.uploadedAt.toISOString(),
+      /*
+       * Who the uploader says is in it.
+       *
+       * By the same opaque per-event key a contributor gets, for a reason that
+       * matters more here than there: this one is about somebody's face, and an
+       * actor id would make "who is in this photograph" a fact that follows
+       * them out of the album.
+       */
+      tags: tags.get(photo.id) ?? [],
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
       // Which contributor chip this photo belongs to. A per-event digest, not
@@ -263,25 +298,82 @@ export async function GET(
    * else it is zero, not because the number is secret but because a count of
    * decisions you cannot make is a notification about somebody else's job.
    */
-  const [waitingRow] = canAdminister
-    ? await db
-        .select({ n: countDistinct(schema.eventAccessRequests.id) })
-        .from(schema.eventAccessRequests)
-        .where(
-          and(
-            eq(schema.eventAccessRequests.eventId, event.id),
-            eq(schema.eventAccessRequests.status, 'open'),
-          ),
-        )
-    : [{ n: 0 }];
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  const [waitingRows, hostWaitingRows, hosting] = await Promise.all([
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventAccessRequests.id) })
+          .from(schema.eventAccessRequests)
+          .where(
+            and(
+              eq(schema.eventAccessRequests.eventId, event.id),
+              eq(schema.eventAccessRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * And the people already inside asking to be able to add.
+     *
+     * Counted into the same badge, because it is the same sentence from the
+     * host's side: somebody is waiting on a decision only you can make. Two
+     * badges over one `⋯` would be two things to learn for a distinction that
+     * does not change what they do next — open the manage screen, where the
+     * two queues are separate lists.
+     */
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventHostRequests.id) })
+          .from(schema.eventHostRequests)
+          .where(
+            and(
+              eq(schema.eventHostRequests.eventId, event.id),
+              eq(schema.eventHostRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * Where this reader stands with the album's set of hosts.
+     *
+     * The same helper `/event/[id]` calls to draw the first frame — a notice
+     * that appears or disappears between the server render and this response
+     * is the page contradicting itself while somebody watches.
+     */
+    hostingFor(db, event, accountActorId, contributeDecision.allow),
+  ]);
+
+  /*
+   * People waiting on this host, for the badge on the settings menu.
+   *
+   * Only computed for somebody who can actually answer them — for everybody
+   * else it is zero, not because the number is secret but because a count of
+   * decisions you cannot make is a notification about somebody else's job.
+   */
+  const waiting = (waitingRows[0]?.n ?? 0) + (hostWaitingRows[0]?.n ?? 0);
 
   return NextResponse.json({
     event: {
       id: event.id,
       name: event.name,
-      uploadsOpen: event.uploadsOpen,
+      contributePolicy: event.contributePolicy,
       canAdminister,
-      waiting: waitingRow?.n ?? 0,
+      waiting,
       groupId: event.groupId,
       groupName: group?.name ?? null,
       caption: event.caption,
@@ -312,12 +404,36 @@ export async function GET(
        */
       coverUrl: await coverSrc(event.coverKey),
       /*
+       * What the cover was cut from, and where the window sat on it.
+       *
+       * So that "change the cover" opens on the picture it is currently made
+       * of, framed as it was left, rather than on an empty camera roll. Both
+       * are null for a cover set before this was recorded and for one chosen
+       * off the camera roll — and a client reads either as "start from the
+       * album's own photographs", which is the right answer to both.
+       *
+       * An id rather than a URL, because the client already holds every
+       * photograph in this response: it is a key into `photos` below, and
+       * presigning a second copy of one of them would be a second capability
+       * granted for a picture already granted.
+       *
+       * Sent to everybody rather than only to whoever can change it, on the
+       * same reasoning as `coverUrl` directly above: it is one id and three
+       * numbers, and a field that appears and disappears depending on who is
+       * asking is a second thing to get wrong.
+       */
+      coverPhotoId: event.coverPhotoId,
+      coverFraming:
+        event.coverX === null || event.coverY === null
+          ? null
+          : { x: event.coverX, y: event.coverY, zoom: event.coverZoom ?? 1 },
+      /*
        * Worded here rather than in the browser.
        *
        * It is a relative time, and the head is rendered on the server before
        * it is hydrated in the client: two clocks, one of which is somebody's
-       * laptop. A minute's disagreement between them is "59m ago" against "1h
-       * ago", which React resolves by throwing the tree away. The client
+       * laptop. A minute's disagreement between them is "59 min ago" against
+       * "1 hr ago", which React resolves by throwing the tree away. The client
        * re-reads this string every time it polls, so it stays honest.
        */
       added: ago(event.lastActiveAt, new Date()),
@@ -328,6 +444,24 @@ export async function GET(
     roster: rosterFrom(members, invited, photoCounts(rows)),
     messages,
     canPost: contributeDecision.allow && accountActorId != null,
+    /*
+     * Whether *this* person may add photographs, which is a different question
+     * from whether they may speak — see the note beside the decision above.
+     * Both clients drew their add button off `uploadsOpen`, which answered a
+     * question about the album rather than about the reader: on a host-only
+     * album that would have offered the button to everybody and refused it at
+     * the server.
+     */
+    canAdd: uploadDecision.allow && accountActorId != null,
+    /*
+     * The album's set of hosts, from this reader's point of view.
+     *
+     * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+     * button", and this answers "and if not, is there something to do about
+     * it". Keeping them apart is what stops a client inferring one from the
+     * other and getting the `creator` case wrong.
+     */
+    hosting,
     arriving,
     count: photos.length,
     photos,

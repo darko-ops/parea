@@ -38,7 +38,7 @@ beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
-      "friend_request", "photo", "hidden_activity"
+      "friend_request", "photo", "photo_tag", "hidden_activity"
     restart identity cascade
   `);
 });
@@ -497,3 +497,263 @@ describe('how much of the past is shown', () => {
     expect([...times].sort().reverse()).toEqual(times);
   });
 });
+
+/**
+ * The three things that happen to a photograph, and who hears about them.
+ *
+ * A feed is only worth having if the lines that should be in it are, and the
+ * expensive mistake is the quiet one: a notification that never fires looks
+ * exactly like a product where nothing happened.
+ */
+describe('a photograph of yours, and one you are in', () => {
+  async function picture(eventId: string, uploaderId: string) {
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: `ev/${eventId}/p`,
+        byteSize: 1,
+        mime: 'image/jpeg',
+        status: 'ready',
+      })
+      .returning();
+    return row!;
+  }
+
+  const say = (eventId: string, authorActorId: string, body: string, photoId?: string) =>
+    db.insert(schema.eventMessages).values({ eventId, authorActorId, body, photoId });
+
+  it('tells you when somebody comments on one you added', async () => {
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const shot = await picture(made.id, me);
+
+    await say(made.id, them, 'this one is great', shot.id);
+
+    const feed = await activityFor(db, me);
+    expect(feed.map((i) => i.kind)).toContain('photo_comment');
+    // The remark itself, not the fact that one exists: "commented on your
+    // photo" is a line somebody has to open the album to act on, and most of
+    // the time what they wanted was to read six words.
+    expect(feed.find((i) => i.kind === 'photo_comment')?.what).toMatch(/this one is great/);
+  });
+
+  it('does not tell you about your own comment on your own photograph', async () => {
+    const me = await actor('me');
+    const made = await event(me, 'Dinner');
+    const shot = await picture(made.id, me);
+
+    await say(made.id, me, 'mine', shot.id);
+
+    expect(await activityFor(db, me)).toHaveLength(0);
+  });
+
+  it('says nothing about a comment on somebody else’s photograph', async () => {
+    // The line is about the picture being yours. A comment on a stranger's
+    // photograph in an album you are both in is not addressed to you.
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(them, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const theirs = await picture(made.id, them);
+
+    await say(made.id, them, 'look at this', theirs.id);
+
+    expect((await activityFor(db, me)).map((i) => i.kind)).not.toContain('photo_comment');
+  });
+
+  it('already told you about your handle in a comment, and still does', async () => {
+    /*
+     * No new query for this. A comment *is* an `event_message` — one carrying a
+     * `photo_id` — so the mention search that has always read that table reads
+     * comments too. Worth a case because it is the kind of thing somebody
+     * "fixes" by adding a second query that finds the same rows twice.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(them, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const theirs = await picture(made.id, them);
+
+    await say(made.id, them, 'is that @me in the corner', theirs.id);
+
+    const feed = await activityFor(db, me);
+    expect(feed.map((i) => i.kind)).toContain('mention');
+    expect(feed.filter((i) => i.kind === 'mention')).toHaveLength(1);
+  });
+
+  it('tells you when somebody tags you, and shows the photograph', async () => {
+    /*
+     * A claim that you are in a picture is one nobody can evaluate without
+     * seeing which picture. Making somebody open the album to find out is
+     * making them do the work the line was supposed to save.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(them, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const theirs = await picture(made.id, them);
+
+    await db
+      .insert(schema.photoTags)
+      .values({ photoId: theirs.id, actorId: me, taggedBy: them });
+
+    const line = (await activityFor(db, me)).find((i) => i.kind === 'tagged');
+    expect(line).toBeDefined();
+    expect(line!.what).toMatch(/tagged you in a photo in Dinner/);
+    expect(line!.images).toHaveLength(1);
+  });
+
+  it('says nothing when you tag yourself', async () => {
+    const me = await actor('me');
+    const made = await event(me, 'Dinner');
+    const shot = await picture(made.id, me);
+
+    await db
+      .insert(schema.photoTags)
+      .values({ photoId: shot.id, actorId: me, taggedBy: me });
+
+    expect((await activityFor(db, me)).map((i) => i.kind)).not.toContain('tagged');
+  });
+
+  it('drops both when the photograph is taken down', async () => {
+    // A comment on a photograph that is gone is a remark about nothing, and a
+    // tag on one is a claim about a picture nobody can look at.
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const shot = await picture(made.id, me);
+    await say(made.id, them, 'lovely', shot.id);
+    await db
+      .insert(schema.photoTags)
+      .values({ photoId: shot.id, actorId: me, taggedBy: them });
+
+    const { eq } = await import('drizzle-orm');
+    await db
+      .update(schema.photos)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.photos.id, shot.id));
+
+    const kinds = (await activityFor(db, me)).map((i) => i.kind);
+    expect(kinds).not.toContain('photo_comment');
+    expect(kinds).not.toContain('tagged');
+  });
+});
+
+/**
+ * A reply, in the only sense a flat comment board has one.
+ *
+ * `photo_comment` is about the picture being *yours*. Somebody answering your
+ * remark under **somebody else's** photograph reached you nowhere at all —
+ * which was survivable only while the Chats tab listed every album's comments,
+ * and is the reason that list could not simply be deleted.
+ */
+describe('somebody answering a comment of yours', () => {
+  async function photoBy(eventId: string, uploaderId: string) {
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: `ev/${eventId}/${Math.random()}`,
+        // The columns the table insists on; the helper above passes the same.
+        byteSize: 1,
+        mime: 'image/jpeg',
+        status: 'ready',
+      })
+      .returning();
+    return row!.id;
+  }
+
+  const say = (eventId: string, actorId: string, photoId: string, body: string) =>
+    db.insert(schema.eventMessages).values({ eventId, authorActorId: actorId, photoId, body });
+
+  it('reaches you when it is under a photograph you commented on', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'lovely');
+    await say(made.id, host, theirs, 'thank you');
+
+    const lines = await activityFor(db, me);
+    const reply = lines.find((line) => line.kind === 'comment_reply');
+    expect(reply).toBeDefined();
+    expect(reply!.what).toContain('thank you');
+    expect(reply!.what).toContain('where you commented');
+  });
+
+  it('does not reach you where you have said nothing', async () => {
+    // Otherwise every remark on every photograph in every album you are in
+    // arrives in your tray, which is the noise this is not.
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+
+    await say(made.id, host, theirs, 'look at this');
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('is not your own remark read back at you', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'first');
+    await say(made.id, me, theirs, 'second');
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('is one line, not two, on a photograph of your own', async () => {
+    /*
+     * Both queries match a comment on your own photograph that you had also
+     * commented on, and both build a key from the message id — so without the
+     * uploader exclusion the feed carries the same remark twice, once as a
+     * comment and once as a reply.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me);
+    const mine = await photoBy(made.id, me);
+
+    await say(made.id, me, mine, 'mine');
+    await say(made.id, them, mine, 'nice one');
+
+    const lines = await activityFor(db, me);
+    expect(lines.filter((line) => line.what.includes('nice one'))).toHaveLength(1);
+    expect(lines.some((line) => line.kind === 'photo_comment')).toBe(true);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+
+  it('forgets a reply whose photograph has been taken down', async () => {
+    // A remark about nothing, and the line would lead somewhere empty.
+    const { eq } = await import('drizzle-orm');
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host);
+    const theirs = await photoBy(made.id, host);
+
+    await say(made.id, me, theirs, 'lovely');
+    await say(made.id, host, theirs, 'thank you');
+    await db
+      .update(schema.photos)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.photos.id, theirs));
+
+    const lines = await activityFor(db, me);
+    expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
+  });
+});
+

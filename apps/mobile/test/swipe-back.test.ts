@@ -100,17 +100,29 @@ describe('the gesture', () => {
 
 describe('the screens it wraps', () => {
   it('is on every screen pushed over the tabs', () => {
-    for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs']) {
+    for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs', 'leaveLately']) {
       expect(APP).toMatch(new RegExp(`<SwipeBack onBack=\\{${back}\\}>`));
     }
-    // Event, group, group thread, person and door — every screen pushed over
-    // the tabs that has an arrow in its corner.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(5);
+    // Event, group, group thread, person, door and Lately — every screen
+    // pushed over the tabs that has an arrow in its corner — plus the three
+    // below, which are the album flow's first step, the account gate in front
+    // of it, and the page a group is made on.
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(9);
+  });
+
+  it('is on the photographs and on the gate in front of them', () => {
+    /*
+     * Neither holds anything typed: one is a grid of the camera roll and the
+     * other is a sign-in card. The gate especially — it stands where the
+     * picker would be for somebody without an account, and it was reachable
+     * with no arrow, no Cancel and no gesture at all.
+     */
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveMaking\}>/);
   });
 
   it('does not wrap the screens holding something half-typed', () => {
     /*
-     * Making an event and taking a link both have a form in them, and a
+     * Making an album and taking a link both have a form in them, and a
      * gesture is easier to make by accident than a button is to press. Those
      * two keep their explicit Cancel and nothing else.
      */
@@ -120,6 +132,20 @@ describe('the screens it wraps', () => {
     };
     expect(between("route.screen === 'create' && signedIn === true")).not.toMatch(/SwipeBack/);
     expect(between("route.screen === 'join'")).not.toMatch(/SwipeBack/);
+  });
+
+  it('makes one exception to that, on the page a group is made', () => {
+    /*
+     * `newGroup` is a form too, so the rule above would exclude it — and it was
+     * excluded, which is half of why that page was a trap: the Cancel in its
+     * corner bounced straight back (see `create-group.test.ts`) and there was
+     * no second way out. Asked for directly, and the cost is bounded: the
+     * gesture starts within 36 points of the edge, has to travel a third of the
+     * screen or be flung, and discards exactly what the Cancel beside it
+     * already discards without asking.
+     */
+    const at = APP.indexOf("route.screen === 'newGroup'");
+    expect(APP.slice(at, at + 200)).toMatch(/<SwipeBack onBack=\{leaveToTabs\}>/);
   });
 
   it('goes out the same door the arrow does', () => {

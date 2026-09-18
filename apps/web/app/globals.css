@@ -814,9 +814,13 @@ button.secondary {
 
 @media (max-width: 700px) {
   .card-cover, .card-new, .card-empty { height: 260px; min-height: 260px; }
+  /* The shape wins over the breakpoint: a cover that knows how tall it is does
+     not want a phone-sized letterbox imposed on it either. */
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 @media (max-width: 460px) {
   .card-cover, .card-new, .card-empty { height: 300px; min-height: 300px; }
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -850,9 +854,16 @@ button.secondary {
 /* The cover. `--hairline` behind it rather than white: a cover that will not
    load — the URLs are signed and expire — leaves a flat grey rectangle the
    size of the picture rather than a hole in the grid or a broken glyph. */
+/* `--card-aspect` is the cover's own width-over-height, set inline by the card
+   for a cover that has one. The height is the fallback for everything else: a
+   photograph standing in for a cover, and covers stored before the shape was
+   recorded — which are 3:2, which is what 320px at this width is. */
 .card-cover {
   position: relative; height: 320px; border-radius: 16px; overflow: hidden;
   background: var(--hairline);
+}
+.card-cover[style*="--card-aspect"] {
+  height: auto; aspect-ratio: var(--card-aspect);
 }
 .card-cover picture { display: block; width: 100%; height: 100%; }
 .card-cover img {
@@ -868,26 +879,11 @@ button.secondary {
   .card-cover img, .card:hover .card-cover img { transition: none; transform: none; }
 }
 
-/* "Being added to now", top left, on white so it is legible over any
-   photograph. Only ever up for an hour — see `isLive`. */
-.card-live {
-  position: absolute; left: 12px; top: 12px;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border-radius: 999px;
-  background: rgba(255, 255, 255, .93);
-  font-size: 11.5px; font-weight: 600; color: #3d6a55;
-}
-.card-live-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: #a5dcc6;
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) { .card-live-dot { animation: none; } }
-
 /* Half over the photograph. Below it they read as metadata; overlapping, they
    read as the people who were there. */
 /* `position: relative` is load-bearing, not decoration: the cover above is
-   positioned (it holds the live badge), so a static row of faces paints
-   *under* it and shows as a row of half-circles. */
+   positioned to clip the photograph to its corners, so a static row of faces
+   paints *under* it and shows as a row of half-circles. */
 .card-faces {
   display: flex; align-items: center; margin: -16px 0 0 12px;
   position: relative; z-index: 1;
@@ -1115,7 +1111,16 @@ button.secondary {
 
 /* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
+/* Why there is no Add photos button. Above the gallery, in the flow, at the
+   weight of the other lines that explain the album to the person reading it —
+   not a warning: nothing has gone wrong. */
+.host-ask { margin: 0 0 4px; }
+
 .person-empty { margin: 0; padding: 28px 0; font-size: 15px; }
+/* What the padlocks below it are for. Directly under the heading and above the
+   list, because it is the list's own caption rather than a note about the
+   page. */
+.person-locked-note { margin: -4px 0 12px; font-size: 13.5px; }
 
 /* Somebody's albums, on their profile.
 
@@ -1138,8 +1143,12 @@ button.secondary {
 }
 /* The locked one's square. Not a broken image and not a padlock: an empty
    frame, which is what is actually being said. */
+/* Hatching, and a padlock in the middle of it on the ones that are shut. The
+   flex is what centres the glyph; without a glyph in it the box is the same
+   hatched square it always was. */
 .album-cover-empty {
-  display: block; width: 100%; height: 100%; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; border-radius: 11px; color: var(--dim-soft);
   background: repeating-linear-gradient(
     -45deg, var(--hairline), var(--hairline) 2px, transparent 2px, transparent 7px
   );
@@ -2222,9 +2231,12 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
   padding: 40px 0;
 }
-.thread-empty h2 { font-size: 21px; font-weight: 700; margin: 0; }
+/* No heading any more. It was a 21pt title over a paragraph, which is a screen
+   describing itself; what is left is one quiet line, set at the weight of the
+   furniture around it and read once. */
 .thread-empty p {
-  margin: 0; font-size: 14.5px; color: var(--dim); max-width: 480px; line-height: 1.5;
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--dim);
+  max-width: 480px; line-height: 1.5;
 }
 .thread-composer {
   display: flex; flex-direction: column; gap: 8px;

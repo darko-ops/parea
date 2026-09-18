@@ -257,7 +257,7 @@ export function PhotoView({
             with the room a long one needs.
           */}
           <a className="photo-chat-label" href={`${eventHref}?tab=conversation`}>
-            Event thread
+            Album thread
           </a>
           <div className="photo-chat">
             <Thread
@@ -376,7 +376,7 @@ function Filmstrip({
           data-current={one.id === current}
           className={`photo-strip-one${one.id === current ? ' photo-strip-on' : ''}`}
           aria-current={one.id === current ? 'true' : undefined}
-          aria-label={one.id === current ? 'This photo' : 'Another photo in this event'}
+          aria-label={one.id === current ? 'This photo' : 'Another photo in this album'}
         >
           {/* Decorative: the strip is a position, and eight alt texts reading
               "another photo" is eight things read out before the one that

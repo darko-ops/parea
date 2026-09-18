@@ -2,6 +2,10 @@ export * as schema from './schema';
 export {
   authorize,
   denyStatus,
+  CONTRIBUTE_CREATOR,
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
   PRIVATE,
   PUBLIC,
   type Capability,

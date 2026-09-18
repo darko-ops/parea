@@ -57,6 +57,18 @@ export function notificationTarget(
     case 'nudge':
     case 'removal_answered':
       return eventId ? { screen: 'event', eventId } : null;
+    /*
+     * A comment on a photograph, and being tagged in one.
+     *
+     * Both open the album rather than the photograph, because there is no
+     * screen that is one photograph reachable from cold — the viewer is
+     * something you get to *from* an album, and it needs the feed the album
+     * loads. Opening the album is one tap short of the picture and is the
+     * honest thing the app can do.
+     */
+    case 'photo_comment':
+    case 'photo_tagged':
+      return eventId ? { screen: 'event', eventId } : null;
     case 'event_invited':
       // A friend put them in it. The event is the point and they have never
       // seen it, so this is the one notification where opening the event is

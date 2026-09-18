@@ -26,3 +26,15 @@ cleanup.mts
 
 # Unpacked from the design bundle beside it; the zip is the artefact.
 design/unpacked/
+
+# Written by `vercel link` at the repo root: an OIDC token, not configuration.
+# Narrower than the `.env*` the CLI adds, which would also swallow the
+# `.env.example` files that are the documentation of what each app needs.
+/.env.local
+
+# iOS signing material, minted against the App Store Connect API key.
+# A distribution private key and the profile it is embedded in; `credentials.json`
+# holds the .p12 password in clear. None of it belongs in a repository, and the
+# certificate can be reissued from Apple if lost — see `apps/mobile/README.md`.
+apps/mobile/credentials.json
+apps/mobile/credentials/

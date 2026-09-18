@@ -14,6 +14,7 @@ import { findEventById, guard, toResponse } from '@/access';
 import { contributorKey } from '@/contributors';
 import { getDb } from '@/db';
 import { MAX_BODY, messagesFor, postMessage } from '@/messages';
+import { nameOf, notifyPhotoComment } from '@/notify';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -98,17 +99,40 @@ export async function POST(
    * read it back from the thread they can.
    */
   let photoId: string | null = null;
+  let uploaderId: string | null = null;
   if (typeof body.photoId === 'string' && body.photoId) {
     const { schema } = await import('@parea/core');
     const { and, eq } = await import('drizzle-orm');
     const [photo] = await db
-      .select({ id: schema.photos.id })
+      .select({ id: schema.photos.id, uploaderId: schema.photos.uploaderId })
       .from(schema.photos)
       .where(and(eq(schema.photos.id, body.photoId), eq(schema.photos.eventId, event.id)));
     if (!photo) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     photoId = photo.id;
+    uploaderId = photo.uploaderId;
   }
 
   const messageId = await postMessage(db, event.id, actorId, text, photoId);
+
+  /*
+   * And the person whose photograph it is, if it is not this person's own.
+   *
+   * Not awaited: a push is fire-and-forget by design — see `notify.ts` — and
+   * the comment is already written. Somebody pressing Send must not wait on
+   * Expo, and must certainly not see an error because Expo is down.
+   *
+   * Only the uploader. Everybody else in the album finds out by opening it,
+   * which is the right amount of noise for a remark not addressed to them.
+   */
+  if (photoId && uploaderId && uploaderId !== actorId) {
+    void notifyPhotoComment(db, {
+      toActorId: uploaderId,
+      eventId: event.id,
+      eventName: event.name,
+      who: await nameOf(db, actorId),
+      said: text,
+    });
+  }
+
   return NextResponse.json({ id: messageId }, { status: 201 });
 }

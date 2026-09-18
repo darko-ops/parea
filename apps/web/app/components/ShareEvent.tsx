@@ -9,7 +9,7 @@
  * asked for was three screens down.
  *
  * Portalled to `<body>` for the same reason the thread's sheet is: the control
- * that opens this lives in `.event-head`, and the head has `backdrop-filter`
+ * that opens this lives in `.album-head`, and the head has `backdrop-filter`
  * on it, which makes it the containing block for `position: fixed` children. A
  * scrim rendered inside it covers the header and nothing else.
  *
@@ -45,12 +45,12 @@ import { createPortal } from 'react-dom';
  */
 export function promise(accessPolicy: string | undefined, joinsOpen: boolean): string {
   if (!joinsOpen) {
-    return 'The link is off for this event — only the people you add can get in.';
+    return 'The link is off for this album — only the people you add can get in.';
   }
   if (accessPolicy === PRIVATE) {
     return 'Whoever you send this to can ask to come in. You let them in, under Members.';
   }
-  return 'Anybody with this can open the event and add their photos.';
+  return 'Anybody with this can open the album and add their photos.';
 }
 
 export function ShareEvent({
@@ -123,11 +123,11 @@ export function ShareEvent({
         className="share-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Share this event"
+        aria-label="Share this album"
         tabIndex={-1}
         ref={card}
       >
-        <h2>Share this event</h2>
+        <h2>Share this album</h2>
 
         <div className="aside-row">
           <span className="aside-link">{url}</span>

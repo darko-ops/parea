@@ -34,6 +34,10 @@ const read = async (path: string) =>
 const PAGE = await read('../app/activity/page.tsx');
 const WAITING = await read('../app/components/PendingRequests.tsx');
 const LIST = await read('../app/components/ActivityList.tsx');
+/* The wording moved out of the page when the phone started drawing the same
+   feed: one implementation of "is this today?", for both clients. */
+const WHEN = await read('../src/when.ts');
+const ROUTE = await read('../app/api/activity/route.ts');
 
 describe('what is waiting on you', () => {
   it('is answerable where it is, not behind a click', () => {
@@ -112,16 +116,34 @@ describe('the day headings', () => {
      * was rendered against: a page loaded at 23:59 and hydrated at 00:00 finds
      * its "Today" heading has become "Yesterday", and React answers a text
      * mismatch by throwing the tree away.
+     *
+     * The phone has a second reason, and a better one: a device's clock is a
+     * setting. A phone in the wrong timezone would draw a feed whose headings
+     * disagree with the one the same person saw in a browser ten minutes
+     * earlier.
      */
-    expect(PAGE).toMatch(/function bucketFor/);
+    expect(WHEN).toMatch(/export function bucketFor/);
     expect(PAGE).toMatch(/bucket: bucketFor\(item\.at, now\)/);
     expect(LIST).not.toMatch(/new Date\(\)|Date\.now\(\)/);
+  });
+
+  it('are worded by one implementation, for both clients', () => {
+    /*
+     * They were in the page, which was right while the page was the only
+     * reader. Two copies of "is this today?" is two answers to a question that
+     * has to have one — and the phone's copy would be the one nobody notices
+     * drifting, because nothing renders both side by side.
+     */
+    expect(PAGE).toMatch(/import \{ ago, bucketFor \} from '@\/when'/);
+    expect(ROUTE).toMatch(/import \{ ago, bucketFor \} from '@\/when'/);
+    expect(PAGE).not.toMatch(/function bucketFor|function ago/);
+    expect(ROUTE).not.toMatch(/function bucketFor|function ago/);
   });
 
   it('are calendar days, not twenty-four-hour windows', () => {
     // 9am today and 11pm last night are fourteen hours apart and belong under
     // different words. That is the entire point of the headings.
-    expect(PAGE).toMatch(/getFullYear\(\), \w+\.getMonth\(\), \w+\.getDate\(\)/);
+    expect(WHEN).toMatch(/getFullYear\(\), \w+\.getMonth\(\), \w+\.getDate\(\)/);
   });
 
   it('are regrouped from the rows, so hiding the last one takes the heading', () => {
@@ -153,7 +175,7 @@ describe('the feed', () => {
     // Verbatim. It is the one sentence on this page that explains what the
     // page is for, and it is read by people who have nothing to look at.
     expect(LIST).toContain(
-      'Nothing yet. When somebody adds photos to an event you are in, says',
+      'Nothing yet. When somebody adds photos to an album you are in, says',
     );
   });
 
@@ -161,5 +183,68 @@ describe('the feed', () => {
     expect(LIST).toMatch(/setRows\(before\)/);
     expect(LIST).toMatch(/'\/api\/activity\/hidden'/);
     expect(LIST).toMatch(/key: row\.id/);
+  });
+});
+
+/**
+ * The same page, for the client that cannot compose it on the server.
+ *
+ * The web reads `activityFor` and `pendingRequestsFor` in its render; the phone
+ * has to ask. `GET /api/activity` is that page's data, and what matters is that
+ * it stays the *same* page — the words, the boundary that decides what is new,
+ * and the fact that looking is what clears the badge.
+ */
+describe('the route the phone reads', () => {
+  it('answers both halves in one request', () => {
+    /*
+     * Lately is both at once. Two round trips to draw one screen means the
+     * answerable cards and the feed under them arrive separately, so the screen
+     * lays itself out twice — and on a phone the second trip is the one that
+     * happens on a train.
+     */
+    expect(ROUTE).toMatch(/activityFor\(db, actorId\)/);
+    expect(ROUTE).toMatch(/pendingRequestsFor\(db, actorId\)/);
+    expect(ROUTE).toMatch(/waiting:/);
+    expect(ROUTE).toMatch(/items:/);
+  });
+
+  it('words the times and the buckets on this side', () => {
+    expect(ROUTE).toMatch(/when: ago\(item\.at, now\)/);
+    expect(ROUTE).toMatch(/bucket: bucketFor\(item\.at, now\)/);
+    // The cards carry one too: "asked you into Tom & Ruth's wedding · 2 hours
+    // ago" is one sentence and half of it would otherwise be the phone's.
+    expect(ROUTE).toMatch(/when: ago\(request\.at, now\)/);
+  });
+
+  it('reads the boundary before it moves it', () => {
+    /*
+     * `markInvitesSeen` moves `invites_seen_at`. Asking for it afterwards
+     * returns the moment of this request and marks every line as already read,
+     * so the unread state would be correct exactly once — for somebody who
+     * never came back.
+     */
+    const read = ROUTE.indexOf('invitesSeenAtFor');
+    const write = ROUTE.indexOf('await markInvitesSeen');
+    expect(read).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(read);
+    expect(ROUTE).toMatch(/since === null \|\| item\.at > since/);
+  });
+
+  it('clears the badge by being read, as the page does', () => {
+    // Marking read is a side effect of having read. The alternative is a
+    // second round trip to record that the first one happened.
+    expect(ROUTE).toMatch(/markInvitesSeen\(db, actorId\)/);
+    expect(PAGE).toMatch(/markInvitesSeen\(db, actorId\)/);
+  });
+
+  it('is scoped by the shape of its queries, not by a capability check', () => {
+    /*
+     * Both readers take the actor and every query inside them is scoped to it —
+     * the same arrangement `/api/requests` and `/api/events` have. There is no
+     * event or photo here to guard, which is why `access-chokepoint` does not
+     * reach it either.
+     */
+    expect(ROUTE).toMatch(/const actorId = await currentActorId\(\)/);
+    expect(ROUTE).not.toMatch(/schema\.(photos|events)\b/);
   });
 });

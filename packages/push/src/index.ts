@@ -43,6 +43,23 @@ export type Notification =
   | { kind: 'access_requested'; eventId: string; eventName: string; who: string }
   /** Somebody asked to be your friend. Nothing else tells you. */
   | { kind: 'friend_requested'; who: string }
+  /**
+   * Somebody said something about a photograph you added.
+   *
+   * Worth interrupting for because it is addressed to you and nothing else
+   * will say so — a remark under your picture is not a thing you would go
+   * looking for. Only the uploader is told, and never about their own remark.
+   */
+  | { kind: 'photo_comment'; eventId: string; eventName: string; who: string; said: string }
+  /**
+   * Somebody said you are in a photograph.
+   *
+   * The only push in this product that reports a claim made *about* somebody
+   * rather than something that happened to them, which is exactly why it
+   * cannot wait to be found: being named in a picture is a thing people want
+   * to know about now, and sometimes to undo.
+   */
+  | { kind: 'photo_tagged'; eventId: string; eventName: string; who: string }
   /** A friend put you in an event, rather than sending you a link. */
   | { kind: 'event_invited'; eventId: string; eventName: string; who: string }
   /**
@@ -83,6 +100,8 @@ const KINDS: Record<Notification['kind'], true> = {
   removal_answered: true,
   access_requested: true,
   friend_requested: true,
+  photo_comment: true,
+  photo_tagged: true,
   event_invited: true,
   group_invited: true,
   group_added: true,
@@ -139,6 +158,31 @@ export function render(notification: Notification): { title: string; body: strin
       return {
         title: 'Parea',
         body: `${notification.who} wants to be friends.`,
+      };
+    case 'photo_comment':
+      return {
+        title: notification.eventName,
+        /*
+         * The remark, not the fact of one.
+         *
+         * "Maya commented on your photo" makes somebody open the app to find
+         * out whether they wanted to — and most of the time the whole content
+         * of the notification is six words that could have been in it. Trimmed
+         * where a notification is trimmed anyway, but trimmed by us so it ends
+         * in an ellipsis rather than mid-word at whatever width the phone is.
+         */
+        body: `${notification.who}: ${
+          notification.said.length > 80
+            ? `${notification.said.slice(0, 80).trimEnd()}…`
+            : notification.said
+        }`,
+      };
+    case 'photo_tagged':
+      return {
+        title: notification.eventName,
+        // Named, because a tag is somebody's claim and the person who made it
+        // is half of what you are being told.
+        body: `${notification.who} tagged you in a photo.`,
       };
     case 'event_invited':
       return {

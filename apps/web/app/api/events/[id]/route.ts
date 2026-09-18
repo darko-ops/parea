@@ -10,7 +10,14 @@
  * creator, so no listing path needs a special case.
  */
 
-import { PRIVATE, PUBLIC, schema } from '@parea/core';
+import {
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
+  PRIVATE,
+  PUBLIC,
+  schema,
+} from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -36,7 +43,7 @@ export async function PATCH(
     name?: unknown;
     caption?: unknown;
     joinsOpen?: unknown;
-    uploadsOpen?: unknown;
+    contributePolicy?: unknown;
     accessPolicy?: unknown;
   };
 
@@ -55,7 +62,7 @@ export async function PATCH(
     name?: string;
     caption?: string | null;
     joinsOpen?: boolean;
-    uploadsOpen?: boolean;
+    contributePolicy?: typeof CONTRIBUTE_EVERYONE | typeof CONTRIBUTE_HOST | typeof CONTRIBUTE_NOBODY;
     accessPolicy?: typeof PUBLIC | typeof PRIVATE;
   } = {};
 
@@ -83,7 +90,22 @@ export async function PATCH(
   }
 
   if (typeof body.joinsOpen === 'boolean') patch.joinsOpen = body.joinsOpen;
-  if (typeof body.uploadsOpen === 'boolean') patch.uploadsOpen = body.uploadsOpen;
+  /*
+   * Who may add photographs. Three settings where there was a boolean, and the
+   * same rule the access policy below follows: an unrecognised value is
+   * refused rather than stored, because `authorize` fails closed on one and a
+   * typo would quietly seal the album.
+   */
+  if (body.contributePolicy !== undefined) {
+    if (
+      body.contributePolicy !== CONTRIBUTE_EVERYONE &&
+      body.contributePolicy !== CONTRIBUTE_HOST &&
+      body.contributePolicy !== CONTRIBUTE_NOBODY
+    ) {
+      return NextResponse.json({ error: 'invalid_contribute_policy' }, { status: 400 });
+    }
+    patch.contributePolicy = body.contributePolicy;
+  }
 
   /*
    * Who can see it, changed after the fact.
@@ -127,7 +149,7 @@ export async function PATCH(
     name: updated!.name,
     caption: updated!.caption,
     joinsOpen: updated!.joinsOpen,
-    uploadsOpen: updated!.uploadsOpen,
+    contributePolicy: updated!.contributePolicy,
     accessPolicy: updated!.accessPolicy,
   });
 }

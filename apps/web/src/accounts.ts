@@ -224,6 +224,13 @@ export type AccountProfile = {
   displayName: string | null;
   /** A line or two somebody wrote about themselves. Null draws nothing. */
   bio: string | null;
+  /**
+   * The one link on their profile, with its scheme. Null draws nothing.
+   *
+   * Always `http:` or `https:` — see the normalisation in `account/route.ts`,
+   * which is the only thing that writes this column.
+   */
+  link: string | null;
   handle: string | null;
   /** Presigned and short-lived. The bucket is private; see `avatarUrl`. */
   avatarUrl: string | null;
@@ -243,6 +250,7 @@ export async function accountFor(
       email: schema.accounts.email,
       displayName: schema.actors.displayName,
       bio: schema.actors.bio,
+      link: schema.actors.link,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
       // The last two digits, never the number — there is no number to send.

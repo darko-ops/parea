@@ -190,7 +190,28 @@ export async function ensureActor(db: Db, displayName?: string): Promise<string>
     .values({ kind: 'guest', displayName: displayName ?? null })
     .returning();
 
-  await issueActorCookie(actor!.id);
+  /*
+   * A cookie for a browser, and nothing for a native client.
+   *
+   * This issued one unconditionally, which quietly handed the app a second
+   * identity: iOS keeps a shared cookie jar and sends it without being asked,
+   * and `currentActorId` reads the cookie *before* the bearer token. So a phone
+   * that had ever reached this line was thereafter identified by something it
+   * had no way to clear — and signing out, which clears the token and the
+   * keychain, left the server still answering as the person who signed out.
+   *
+   * The rule was already written down one route away, at sign-in: "browsers
+   * only: native carries the same value as a bearer token and has no cookie jar
+   * worth writing to". This is that rule, applied where an actor is actually
+   * minted.
+   *
+   * A native caller that gets here has no way to learn the actor it just
+   * created, which is a real gap and not a new one — the cookie was hiding it
+   * rather than solving it. The app does not rely on it: `POST /api/session`
+   * mints an actor and hands back a token, which is how the phone gets an
+   * identity it can keep and can throw away.
+   */
+  if (await fromBrowser()) await issueActorCookie(actor!.id);
   return actor!.id;
 }
 

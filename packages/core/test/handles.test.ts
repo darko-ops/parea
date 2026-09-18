@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   generateHandle,
   HANDLE_MAX,
+  HANDLE_MIN,
   HANDLE_SPACE,
   handleKey,
   handleProblem,
@@ -23,21 +24,36 @@ describe('the key a handle is unique under', () => {
     expect(handleKey('  SamJones ')).toBe('samjones');
   });
 
-  it('is not what gets stored', () => {
-    // The whole reason this is a separate function. `BlueChunkyMonkey` folded
-    // into storage comes back unreadable, and the capitals are doing the work
-    // the spaces are not allowed to do.
-    expect(generateHandle(() => 0)).toMatch(/[A-Z]/);
+  it('is what gets stored, now that handles are lowercase', () => {
+    /*
+     * This asserted the opposite: the column kept the case and `handleKey` was
+     * only what the unique index saw, because `BlueChunkyMonkey` folded into
+     * storage came back unreadable.
+     *
+     * The separator carries that now, so the two can be the same thing — and
+     * one spelling everywhere is worth more than the capitals were. `@SamJones`
+     * and `@samjones` being the same person who looks like two is a cost paid
+     * on every surface that prints a handle.
+     */
+    const generated = generateHandle(() => 0);
+    expect(generated).toBe(handleKey(generated));
+    expect(generated).not.toMatch(/[A-Z]/);
+  });
+
+  it('still folds what somebody types, so it cannot be two accounts', () => {
+    // The half of the old rule that was always right: comparing unfolded is a
+    // way to be impersonated rather than a way to be distinct.
+    expect(handleKey('  SamJones ')).toBe('samjones');
   });
 });
 
 describe('what is allowed', () => {
   it('takes letters, numbers, underscores and full stops', () => {
-    ok('sam');
+    ok('sammy');
     ok('sam_jones');
     ok('sam.jones');
-    ok('s4m');
-    ok('a1');
+    ok('s4mm');
+    ok('a1b2');
   });
 
   it('refuses spaces and everything else', () => {
@@ -56,6 +72,23 @@ describe('what is allowed', () => {
     bad('a'.repeat(HANDLE_MAX + 1));
   });
 
+  it('refuses the initials and abbreviations', () => {
+    /*
+     * The minimum was 2 — the shortest thing that is not a single character,
+     * which is a bound against nothing rather than a decision. Two and three
+     * character handles are the ones worth squatting on, the ones a stranger
+     * cannot tell apart at a glance in a byline, and there are only a few
+     * thousand of them in the alphabet this allows.
+     */
+    expect(HANDLE_MIN).toBe(4);
+    bad('ab');
+    bad('abc');
+    ok('abcd');
+    // Four is the smallest length that holds a short real name, which is the
+    // thing a handle is for.
+    ok('anna');
+  });
+
   it('will not start or end on punctuation', () => {
     // A leading dot hides a handle in some listings; a trailing one reads as
     // the end of a sentence.
@@ -63,7 +96,8 @@ describe('what is allowed', () => {
     bad('sam.');
     bad('_sam');
     bad('sam_');
-    ok('s.m');
+    // Punctuation in the middle is fine; four is the minimum length.
+    ok('s.am');
   });
 
   it('refuses runs of punctuation', () => {
@@ -107,11 +141,17 @@ describe('the handle nobody typed', () => {
     return Array.from({ length: n }, () => generateHandle(random));
   };
 
-  it('is three words, capitalised so they can be read apart', () => {
-    // `hairytalllarry` has three `l`s in a row. The capitals are the only
-    // thing separating the words, which is why they survive to storage.
+  it('is three words, separated so they can be read apart', () => {
+    /*
+     * `hairytalllarry` has three `l`s in a row and is not a name anybody can
+     * read. The words were joined by their capitals, which did the work the
+     * spaces are not allowed to do — and then handles became lowercase, so a
+     * full stop does it instead.
+     *
+     * The shape is the point either way: three words a person can tell apart.
+     */
     for (const handle of sweep(400)) {
-      expect(handle, handle).toMatch(/^[A-Z][a-z]+[A-Z][a-z]+[A-Z][a-z]+$/);
+      expect(handle, handle).toMatch(/^[a-z]+\.[a-z]+\.[a-z]+$/);
     }
   });
 
@@ -157,6 +197,8 @@ describe('the message', () => {
 
   it('says which rule, not that there was a rule', () => {
     expect(handleProblem('a')).toMatch(/at least/);
+    // The sentence carries the number, so it cannot drift from the constant.
+    expect(handleProblem('abc')).toContain(String(HANDLE_MIN));
     expect(handleProblem('.sam')).toMatch(/start and end/);
     expect(handleProblem('parea')).toMatch(/reserved/);
   });

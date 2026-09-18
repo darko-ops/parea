@@ -211,7 +211,7 @@ export default async function PhotoPage({
  *
  * Both halves are computed on the server because both would otherwise
  * disagree with it: `ago` is relative to a clock, and a laptop a minute out
- * renders "59m ago" against the server's "1h ago", which React resolves by
+ * renders "59 min ago" against the server's "1 hr ago", which React resolves by
  * throwing the tree away.
  *
  * The distinction the line makes is real rather than cosmetic. `captured_at`

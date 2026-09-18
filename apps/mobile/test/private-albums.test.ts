@@ -27,6 +27,9 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
+
+const code = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const DOOR = read('src/Door.tsx');
 const CREATE = read('src/CreateEvent.tsx');
 const PERSON = read('src/Person.tsx');
@@ -137,10 +140,44 @@ describe('somebody else’s albums, on their page', () => {
   });
 
   it('draws no picture and no count for a locked one', () => {
-    // The server sends neither — see `albumsBy` — and the screen must not
-    // invent a placeholder that reads as a photograph either.
-    expect(PERSON).toMatch(/album\.locked \? '' :/);
-    expect(PERSON).toMatch(/album\.locked\s*\n?\s*\? 'Private'/);
+    /*
+     * The server sends neither — see `albumsBy` — and the screen must not
+     * invent a placeholder that reads as a photograph either.
+     *
+     * The tile is dashed rather than a letter on a filled square, which it was
+     * when the row was a 44pt thumbnail beside a name. At a tile's size a
+     * letter on a grey block is a cover somebody chose badly; a dashed outline
+     * is the thing that is actually being said, and it is what the viewer's
+     * own shelf already draws for an album with nothing in it.
+     */
+    expect(PERSON).toMatch(/styles\.tile, styles\.tileEmpty/);
+    expect(PERSON).toMatch(/tileEmpty: \{\s*\n\s*borderWidth: 1,\s*\n\s*borderStyle: 'dashed',/);
+    expect(PERSON).toMatch(/item\.locked\s*\n?\s*\? status/);
+    expect(PERSON).toMatch(/'Private · ask to join'/);
+    /*
+     * A padlock in the empty frame, and only on the locked ones: the same
+     * glyph an album's own header wears to mean private, so the thing that
+     * means "shut" means it in one shape across the app. An unlocked album
+     * with nothing in it keeps the bare frame — nothing is being withheld
+     * there — which is why the glyph is behind `item.locked` rather than
+     * behind the missing cover it shares with it.
+     */
+    expect(PERSON).toMatch(/\{item\.locked && <Glyph name="locked"/);
+    // And what the padlocks are for, said once above the shelf rather than
+    // per tile — a wall of shut doors with no sentence is a refusal.
+    expect(PERSON).toMatch(/Become friends to see what&rsquo;s inside\./);
+    expect(PERSON).toMatch(/standing !== 'friends' && shelf\.some\(\(item\) => item\.locked\)/);
+    /*
+     * And the two lists become one shelf, with `locked` carried across rather
+     * than inferred from a missing cover — an unlocked album with no cover yet
+     * looks identical from the outside and is not private.
+     *
+     * Asserted against the file rather than a slice of it: `indexOf('return (')`
+     * finds the error branch near the top, which is how this came back empty
+     * and passed nothing on the way in.
+     */
+    expect(PERSON).toMatch(/locked: album\.locked,/);
+    expect(PERSON).toMatch(/locked: false,/);
   });
 });
 
@@ -214,5 +251,99 @@ describe('adding people to an album', () => {
     // into it — the same gate the route applies.
     expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
     expect(APP).toMatch(/\{host && <InviteCard/);
+  });
+});
+
+/**
+ * Who can add photographs, on a phone.
+ *
+ * The same three answers the website asks, in the same words, in the two
+ * places it asks them — a phone and a browser describing one setting
+ * differently is two products.
+ */
+describe('who can add photos', () => {
+  const CHOICE = read('src/ContributeChoice.tsx');
+  const CREATE = read('src/CreateEvent.tsx');
+
+  it('is asked when the album is made and again in its settings', () => {
+    /*
+     * It was asked in neither. Every album accepted everybody's photographs,
+     * and the only lever was a switch on the web's manage screen that turned
+     * uploading off for everyone including the host.
+     */
+    expect(CREATE).toMatch(/<ContributeChoice/);
+    expect(CREATE).toMatch(/contributePolicy: contribute,/);
+    expect(APP).toMatch(/<ContributeChoice/);
+    expect(APP).toMatch(/api\.setContributePolicy\(event\.id, value\)/);
+  });
+
+  it('says the same things the website says, in the same order', () => {
+    const WEB = readFileSync(
+      fileURLToPath(new URL('../../web/app/components/ContributeChoice.tsx', import.meta.url).href),
+      'utf8',
+    );
+    for (const label of ['Everyone', 'Members', 'Only me', 'Hosts']) {
+      expect(CHOICE, label).toContain(`label: '${label}'`);
+      expect(WEB, label).toContain(`label: '${label}'`);
+    }
+    // "Nobody, including you" is offered by neither any more. See
+    // `CONTRIBUTE_NOBODY`; the value still exists and nothing writes it.
+    for (const source of [CHOICE, WEB]) {
+      expect(source).not.toContain("label: 'Nobody'");
+    }
+    // And each says what happens rather than what the setting is called.
+    expect(CHOICE).toMatch(/You add the photographs and everybody else comes to look/);
+    expect(CHOICE).toMatch(/Anybody else in the album can ask to be one/);
+  });
+
+  it('asks the question in the words the other setting makes true', () => {
+    /*
+     * "Who can see it" and "who can add" compose, and the second used to
+     * defer to the first in prose — "anyone who can see the album" — which
+     * left somebody to work out the composition themselves. The answer is
+     * named instead: on a private album the people who can see it are its
+     * members, so the pill says Members.
+     *
+     * And the order turns on it too. A public album's ordinary answer is that
+     * whoever turns up can add; a private one's is that the album is somebody's
+     * and the members are the exception. Whichever leads reads as the default,
+     * so it must be the right one for the album in front of you.
+     */
+    expect(CHOICE).toMatch(/export function contributeOptions\(accessPolicy: string\)/);
+    expect(CHOICE).toMatch(/const PUBLIC_OPTIONS[\s\S]*?label: 'Everyone'/);
+    expect(CHOICE).toMatch(/const PRIVATE_OPTIONS[\s\S]*?label: 'Only me'/);
+    // Both screens hand over the live choice rather than a saved one.
+    expect(CREATE).toMatch(/accessPolicy=\{isPrivate \? 'private' : 'public'\}/);
+    expect(APP).toMatch(/accessPolicy=\{visible\}/);
+  });
+
+  it('answers the press before the server does, and defers afterwards', () => {
+    /*
+     * The trick the visibility pills already use: one round trip is long
+     * enough for a tap to feel ignored, so the choice is held locally and
+     * dropped the moment a feed lands. Null means "whatever the server says",
+     * which is the state on every load and after every refresh.
+     */
+    expect(APP).toMatch(/const \[adding, setAdding\] = useState<ContributePolicy \| null>\(null\)/);
+    expect(APP).toMatch(/adding=\{adding \?\? feed\?\.event\.contributePolicy \?\? 'everyone'\}/);
+    expect(APP).toMatch(/setPolicy\(null\);\s*\n\s*setAdding\(null\);/);
+  });
+
+  it('dims the add button on the server’s answer about this reader', () => {
+    /*
+     * It read `uploadsOpen`, which is a fact about the album and the same for
+     * everybody. On a host-only album that would offer the button to all of
+     * them and refuse it on the way up — the shape of failure that teaches
+     * people the app is unreliable rather than that the album is closed.
+     *
+     * Left enabled while the feed is still arriving: a control that starts
+     * disabled and enables itself is a control somebody has already decided
+     * does not work.
+     */
+    expect(APP).toMatch(/disabled=\{feed \? !feed\.canAdd : false\}/);
+    // Comments stripped: the note beside the button names the field it
+    // replaced, and prose about a property is not a read of one.
+    expect(code(APP)).not.toMatch(/uploadsOpen/);
+    expect(read('src/api.ts')).toMatch(/canAdd: boolean;/);
   });
 });

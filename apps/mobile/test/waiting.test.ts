@@ -147,14 +147,28 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
       'src/Profile.tsx',
     ]) {
       expect(read(name), `${name} still draws a ring for a screen`).toMatch(/<Waiting/);
     }
-    // The three that keep it, deliberately.
-    for (const name of ['src/CreateGroup.tsx', 'src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
+    /*
+     * The two that keep it, deliberately.
+     *
+     * `CreateGroup.tsx` used to be a third. Its ring belonged to the form that
+     * unfolded inside it, and that form is a page now — `NewGroup.tsx`, which
+     * reports the same wait as a word in its bar ("Creating…") because it has a
+     * bar to put one in and a card did not.
+     */
+    for (const name of ['src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
       expect(read(name), `${name} should keep its inline ring`).toMatch(/<ActivityIndicator/);
     }
   });
@@ -167,7 +181,14 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
     ]) {
       expect(read(name), `${name} draws both`).not.toMatch(/<ActivityIndicator/);

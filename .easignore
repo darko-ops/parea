@@ -1,0 +1,91 @@
+# What EAS uploads to build the phone app.
+#
+# EAS reads this *instead of* `.gitignore`, not in addition to it — which is
+# the dangerous part and the reason the first half of this file exists. Without
+# it repeating them, the ignores below would stop applying the moment this file
+# was created, and an iOS signing key would be uploaded with the source.
+#
+# ## Why the server workspaces are not here
+#
+# EAS uploads from the monorepo root and runs `npm ci` there, so every
+# workspace is installed whether or not a phone build has any use for it. The
+# first iOS build died in that step: `services/deriver` depends on `sharp`, no
+# prebuilt binary matched the macOS builder, and npm fell back to compiling
+# libvips from source and failed. The Android builder is Linux and had a
+# prebuilt, so the same tree built there minutes earlier — a difference that
+# looks like flakiness and is not.
+#
+# Leaving them out is right beyond that one error. An iOS app build has no use
+# for a Next.js site, an image deriver, a zip worker or an end-to-end suite;
+# installing them is upload time, install time, and a supply of ways to fail
+# that have nothing to do with the app being built.
+#
+# `npm ci` is content with this: workspace globs match what is present, and the
+# lockfile entries for the absent ones are simply never reached. Verified
+# against a clean `git archive` with these directories removed, along with a
+# typecheck of the app itself, before this file existed.
+#
+# What must stay: `packages/`, which is where `@parea/autoselect`,
+# `@parea/cards` and `@parea/upload` live, and which the app imports directly.
+
+# --- the .gitignore rules, because this file replaces them -------------------
+node_modules/
+.next/
+.env
+.env.local
+*.log
+dist/
+dist-test/
+.expo/
+.storage/
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+.vercel
+.wrangler
+probe.mts
+plant.mts
+seed.mts
+reseed.mts
+cleanup.mts
+design/unpacked/
+/.env.local
+
+# The iOS signing material. `credentialsSource: local` means the CLI reads
+# these here and sends them to the builder over its own channel; they must not
+# also travel inside the source archive.
+apps/mobile/credentials.json
+apps/mobile/credentials/
+
+# --- generated natively, never uploaded --------------------------------------
+#
+# `ios/` and `android/` are prebuild output and untracked, so the git-based
+# archive EAS uses *without* this file never saw them. A `.easignore` switches
+# EAS to walking the filesystem instead, at which point they appear — 1.2GB of
+# CocoaPods in `ios/Pods` alone, and a 437MB upload where 12MB had done.
+#
+# Size is the smaller half. A project arriving with `ios/` present is one EAS
+# builds as-is rather than prebuilding, so the build would come from whatever
+# `app.json` looked like when those directories were last generated locally —
+# before the updates config, before `www.parea.photos` was claimed. A build
+# that quietly ships an older configuration than the file it is supposed to be
+# built from.
+apps/mobile/ios/
+apps/mobile/android/
+.git/
+
+# --- not needed to build a phone app ----------------------------------------
+#
+# Every one of these is anchored with a leading slash, and that is not style.
+# A bare `assets/` matches a directory of that name at *any* depth, so it also
+# excluded `apps/mobile/assets/` — and prebuild died on `./assets/icon.png`,
+# the app's own icon. The mistake survived a local rehearsal because the
+# rehearsal deleted the root directories by hand, which is not what these
+# patterns do.
+/apps/web/
+/services/
+/tests/
+/tools/
+/docs/
+/design/
+/assets/

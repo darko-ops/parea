@@ -69,7 +69,7 @@ describe('one header, three panes', () => {
   it('switches only what is under the tabs', () => {
     // The three panes, chosen inside the page rather than around it.
     expect(SCREEN).toMatch(/\{pane === 'photos' \? \([\s\S]*?\) : pane === 'talk' \? \([\s\S]*?\) : \(/);
-    expect(SCREEN).toMatch(/<People roster=/);
+    expect(SCREEN).toMatch(/<People\s*\n\s*roster=/);
     expect(SCREEN).toMatch(/<Thread/);
   });
 
@@ -80,8 +80,13 @@ describe('one header, three panes', () => {
      * cover rather than at the top of the screen. Without the offset the
      * composer is lifted by exactly the height of the header too little.
      */
-    expect(APP).toMatch(/const PAGE_TOP = 248/);
-    expect(APP).toMatch(/page: \{ position: 'absolute', top: 248/);
+    /*
+     * The number moved when the header got shorter, which is the point of it
+     * being a name: `PAGE_TOP` is the header's height, the page is pinned to
+     * it, and the offset is the same value rather than a third copy of it.
+     */
+    expect(APP).toMatch(/const PAGE_TOP = COVER;/);
+    expect(APP).toMatch(/page: \{ position: 'absolute', top: PAGE_TOP,/);
     expect(SCREEN).toMatch(/keyboardOffset=\{PAGE_TOP\}/);
     expect(THREAD).toMatch(/keyboardVerticalOffset=\{keyboardOffset\}/);
   });
@@ -123,19 +128,189 @@ describe('the corners', () => {
   });
 });
 
-describe('the grid', () => {
-  it('is one photograph per row, not a contact sheet', () => {
-    /*
-     * Three columns of 121pt squares is good for finding a photograph you
-     * already know is in there and nothing like looking at one — and every
-     * square was a crop, since `cover` on a 1:1 tile takes the ends off
-     * anything shot in portrait.
-     */
-    expect(SCREEN).not.toMatch(/numColumns=\{3\}/);
-    expect(SCREEN).not.toMatch(/columnWrapperStyle/);
+describe('the two views', () => {
+  /*
+   * Both of these shipped at different times as *the* view, and the argument
+   * for each was right about a different moment.
+   *
+   * The contact sheet went first: three columns of 121pt squares is good for
+   * finding a photograph you already know is in there, nothing like looking at
+   * one, and every square was a crop since `cover` on a 1:1 tile takes the ends
+   * off anything shot in portrait. The column replaced it whole, and this file
+   * asserted the sheet was gone.
+   *
+   * Which was right about opening an album for the first time and wrong about
+   * opening one you have already seen, where you are looking for one particular
+   * picture among two hundred. So both are here, a swipe apart, and what these
+   * check is that neither has quietly become the other.
+   */
+  it('keeps the column at one photograph per row', () => {
     expect(APP).toMatch(/thumb: \{ width: '100%', aspectRatio: 4 \/ 5/);
     // Edge to edge, as the home cards are.
-    expect(APP).toMatch(/gridContent: \{ paddingBottom: 12, gap: 3 \}/);
+    expect(APP).toMatch(/gridContent: \{ paddingBottom: 12, gap: PHOTO_GAP \}/);
+  });
+
+  it('puts the grid back beside it, three across', () => {
+    expect(APP).toMatch(/const GRID_COLUMNS = 3;/);
+    expect(SCREEN).toMatch(/numColumns=\{GRID_COLUMNS\}/);
+    expect(SCREEN).toMatch(/columnWrapperStyle=\{styles\.gridRow\}/);
+    /*
+     * Square, which is the trade a contact sheet makes — and sized rather than
+     * flexed.
+     *
+     * The tile was `flex: 1`, which is right for every row but the last one and
+     * wrong there: `numColumns` does not pad a short final row, so an album of
+     * seven ended with a single tile taking the whole width of the screen, a
+     * square the size of three at the foot of the sheet. A width makes the last
+     * row start at the left and stop where it runs out, which is what a grid
+     * does.
+     */
+    expect(APP).toMatch(
+      /const gridTile = \(width - PHOTO_GAP \* \(GRID_COLUMNS - 1\)\) \/ GRID_COLUMNS;/,
+    );
+    expect(APP).toMatch(/style=\{\{ width: gridTile, height: gridTile \}\}/);
+    expect(APP).toMatch(/gridShot: \{ width: '100%', height: '100%'/);
+    expect(APP).not.toMatch(/gridTile: \{ flex: 1 \}/);
+  });
+
+  it('opens on the grid, and the grid is the left-hand page', () => {
+    // Somebody opening an album they have already seen is looking for a
+    // particular photograph, and a screenful of nine beats a screenful of one.
+    expect(APP).toMatch(/useState<'grid' \| 'column'>\('grid'\)/);
+    const pager = SCREEN.slice(SCREEN.indexOf('ref={pager}'));
+    expect(pager.indexOf('renderItem={renderTile}')).toBeLessThan(
+      pager.indexOf('renderItem={renderColumn}'),
+    );
+  });
+
+  it('spaces both views by the same number', () => {
+    // A gap that differed between them would read as the swipe having changed
+    // the spacing rather than the layout — and `getItemLayout` adds it to a
+    // row's height, so the two have to agree by construction.
+    expect(APP).toMatch(/const PHOTO_GAP = 3;/);
+    expect(APP).toMatch(/gridRow: \{ gap: PHOTO_GAP, justifyContent: 'flex-start' \}/);
+    /*
+     * And the row height the layout promises is the one the tiles actually
+     * take. It was `width / 3 + PHOTO_GAP` against an actual `(width - 2 *
+     * PHOTO_GAP) / 3` — five points of drift per row, compounding down a long
+     * album until `scrollToIndex` landed somewhere else.
+     */
+    expect(APP).toMatch(/const gridRowHeight = gridTile \+ PHOTO_GAP;/);
+  });
+
+  it('lands on the same photographs it left', () => {
+    /*
+     * A swipe at photograph 90 of 200 arriving at the top of the other view
+     * reads as the gesture having reloaded the album. `getItemLayout` on both
+     * is what lets either be scrolled to an index it has not drawn yet.
+     */
+    expect(APP).toMatch(/list\.scrollToIndex\(\{ index: anchor\.current, animated: false \}\)/);
+    expect(SCREEN).toMatch(/getItemLayout=\{gridLayout\}/);
+    expect(SCREEN).toMatch(/getItemLayout=\{columnLayout\}/);
+    expect(SCREEN).toMatch(/onViewableItemsChanged=\{onSeen\}/);
+  });
+
+  it('names the two views with a drawing of each, and lets you press one', () => {
+    /*
+     * It was two 4pt bars with the one you were on filled — an indicator
+     * rather than a control, on the reasoning that the gesture is the swipe
+     * and this only had to say the swipe existed. It never did say that: a
+     * short mark under a row of tabs reads as a tab underline, which is a
+     * thing that *reports* where you are, so nobody learned there was a second
+     * view to reach.
+     *
+     * Each glyph is a small drawing of the layout it opens. The literal icon
+     * is the right one here for once: both views hold the same photographs and
+     * differ only in how they are laid out, so a diagram of the layout is a
+     * complete description of the difference.
+     */
+    const GLYPH = read('src/Glyph.tsx');
+    expect(GLYPH).toMatch(/case 'grid':/);
+    expect(GLYPH).toMatch(/case 'portrait':/);
+    // Four squares, not nine: a 3×3 at 18 points is a texture, not a grid.
+    expect((GLYPH.match(/<Rect x=\{(?:4|13)\} y=\{(?:4|13)\} width=\{7\} height=\{7\}/g) ?? []))
+      .toHaveLength(4);
+
+    expect(APP).toMatch(/\['grid', 'grid', 'Grid'\]/);
+    expect(APP).toMatch(/\['column', 'portrait', 'One at a time'\]/);
+    expect(APP).toMatch(/onPress=\{\(\) => showView\(which\)\}/);
+    // Still says which one you are on, in the pairing the tab bubble uses.
+    expect(APP).toMatch(/color=\{view === which \? t\.fg : t\.dim\}/);
+    expect(APP).toMatch(/weight=\{view === which \? 2\.4 : 1\.8\}/);
+    // A target rather than a picture: 34 against an 18pt glyph.
+    expect(APP).toMatch(/viewSegment: \{ flex: 1, height: 34/);
+    expect(APP).not.toMatch(/viewBar: \{ backgroundColor/);
+  });
+
+  it('presses and swipes into the same code path', () => {
+    /*
+     * The button scrolls the pager rather than setting the state directly, so
+     * the animation lands on `onPaged` — which is what carries the anchor
+     * across to the list arriving. Otherwise the press would be a shortcut that
+     * skipped the half of the work somebody would notice missing.
+     */
+    expect(APP).toMatch(
+      /pager\.current\?\.scrollTo\(\{ x: which === 'column' \? width : 0, animated: true \}\)/,
+    );
+    const SHOW = APP.slice(APP.indexOf('const showView ='), APP.indexOf('const onPaged ='));
+    expect(SHOW).not.toMatch(/setView\(/);
+  });
+
+  it('says whose photograph each one is, in both views', () => {
+    /*
+     * The column has said it for a while — a face and a handle in the top-left
+     * corner. The grid said nothing, which is the view that makes the question
+     * hardest to answer: a contact sheet of two hundred photographs by five
+     * people gives no clue which are whose.
+     *
+     * The face alone there, because a tile is a third of the screen and a
+     * handle does not fit — at 129 points "kostopoulou" is either four pixels
+     * tall or most of the picture. What survives is the part that works at
+     * that size: five colours repeating down a sheet is a pattern legible long
+     * before any single face is.
+     */
+    expect(APP).toMatch(/gridFace: \{ width: 16, height: 16, borderRadius: 4 \}/);
+    const TILE = APP.slice(APP.indexOf('const renderTile'), APP.indexOf('const renderColumn'));
+    expect(TILE).toMatch(/const who = item\.by \? byline\.get\(item\.by\) : undefined;/);
+    // The letter on their own lens where there is no picture, which is the
+    // rule every face in this product follows — never a silhouette.
+    expect(TILE).toMatch(/backgroundColor: lensFor\(who\.key\)\.fill/);
+    // And no handle beside it.
+    expect(TILE).not.toMatch(/who\.handle/);
+    /*
+     * Decoration, not a control. A 16pt target inside a 129pt tile is a place
+     * where the tile stops opening the photograph for no reason a thumb can
+     * predict.
+     */
+    expect(TILE).toMatch(/<View pointerEvents="none" style=\{styles\.gridBy\}>/);
+    /*
+     * And it holds its own edge. The column's face needs no shadow because its
+     * handle has one and the two read together; alone on a bright sky a pale
+     * avatar is a smudge. On the wrapper rather than the image, so the picture
+     * keeps its clipped corners while the shadow falls outside them.
+     */
+    expect(APP).toMatch(/gridBy: \{[\s\S]*?shadowOpacity: 0\.35,/);
+  });
+
+  it('draws those faces as rounded squares, like every other face', () => {
+    /*
+     * A quarter of the box, which is the proportion the profile's own picture
+     * sets at 104 by 26 and the home card's byline repeats at 28 by 7. One
+     * decision at four sizes rather than four.
+     *
+     * The album's face was a circle, and the album is reached *from* the card
+     * that draws the same person square — two shapes for one thing, a screen
+     * apart.
+     */
+    expect(APP).toMatch(/tileFace: \{ width: 24, height: 24, borderRadius: 6 \}/);
+    expect(APP).toMatch(/gridFace: \{ width: 16, height: 16, borderRadius: 4 \}/);
+    const EVENTS = read('src/Events.tsx');
+    expect(EVENTS).toMatch(/bylineFace: \{ width: 28, height: 28, borderRadius: 7/);
+    /*
+     * The overlapping crowd over a cover stays circular: that row only reads as
+     * a crowd because the circles overlap, which squares do not do.
+     */
+    expect(EVENTS).toMatch(/borderRadius: 12,\s*\n\s*borderWidth: 1\.5,\s*\n\s*marginRight: -6,/);
   });
 
   it('draws the 1280 now that a row is the whole screen', () => {

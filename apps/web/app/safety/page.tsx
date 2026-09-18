@@ -36,7 +36,7 @@ export default function SafetyPage() {
           <p className="muted">
             Ask for it to be taken down. You do not need an account, and you do
             not need to have uploaded anything. The request goes to whoever
-            created the event. If they have not answered within 48 hours the
+            created the album. If they have not answered within 48 hours the
             photo is hidden automatically while they decide.
           </p>
         </section>
@@ -44,10 +44,10 @@ export default function SafetyPage() {
         <section className="panel">
           <h2>Something that should not be here</h2>
           <p className="muted">
-            Report it. Reports come to us rather than to the event&rsquo;s host,
+            Report it. Reports come to us rather than to the album&rsquo;s host,
             because sometimes the host is the problem. You can also block someone,
             which hides everything they upload from your view and stops them
-            joining events you created. Blocking is private — they are not told.
+            joining albums you created. Blocking is private — they are not told.
           </p>
         </section>
 

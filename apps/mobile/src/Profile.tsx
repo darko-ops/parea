@@ -62,8 +62,10 @@ import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
+import { PageHead } from './PageHead';
 import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
+import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
@@ -216,7 +218,11 @@ export function ProfileScreen({
     <ScrollView contentContainerStyle={styles.scroll}>
       {/*
         The two things that are not about looking at this profile, in the two
-        corners, above everything that is.
+        corners, with the product's name between them.
+
+        The name is what the other three tabs open with, and this one used to
+        open with two discs and a gap. Same row, same height, same place — see
+        `PageHead`.
 
         Settings used to be half of the row under the bio, which put the
         product's two destructive verbs beside `Edit profile` and gave the
@@ -230,18 +236,24 @@ export function ProfileScreen({
         third `+` somebody meets in this app and the other two already taught
         it.
       */}
-      <View style={styles.bar}>
-        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
-          <More color={t.fg} />
-        </RoundButton>
-
-        <RoundButton
-          t={t}
-          onPress={() => setCreating(true)}
-          accessibilityLabel="New album or group"
-        >
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
+      <View style={styles.gutter}>
+        <PageHead
+          color={t.fg}
+          left={
+            <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
+              <More color={t.fg} />
+            </RoundButton>
+          }
+          right={
+            <RoundButton
+              t={t}
+              onPress={() => setCreating(true)}
+              accessibilityLabel="New album or group"
+            >
+              <Glyph name="plus" size={20} color={t.fg} />
+            </RoundButton>
+          }
+        />
       </View>
 
       {/*
@@ -308,13 +320,52 @@ export function ProfileScreen({
               suppressHighlighting
               accessibilityRole={friends?.length ? 'button' : undefined}
               accessibilityLabel={
-                friends?.length ? `${friends.length} friends, see them` : undefined
+                friends?.length
+                  ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}, see them`
+                  : undefined
               }
               style={friends?.length ? styles.countsLink : undefined}
             >
-              {friends === null ? '—' : friends.length} friends
+              {/*
+                Singular, like the two counts beside it.
+                *
+                * This one said "1 friends" while the albums and the photographs
+                * either side of it got their ternary — the third fact in a line
+                * of three, written last and written differently. The em dash
+                * stands in while the list is still arriving, and takes the
+                * plural because it is not a number.
+                */}
+              {friends === null ? '—' : friends.length}{' '}
+              {friends !== null && friends.length === 1 ? 'friend' : 'friends'}
             </Text>
           </Text>
+
+          {/*
+            The one link, under the counts and above the bio.
+
+            Here rather than under the bio because it belongs with the facts:
+            the line above it is what this person has, and an address is the
+            same kind of thing. Under the bio it would read as a footnote to
+            the sentence rather than as part of the header.
+
+            Shown without its scheme. `https://` in front of a domain is four
+            characters of protocol on a screen about a person, and the stored
+            value keeps it so that opening needs no guessing — the server
+            refuses anything that is not http or https, which is what makes
+            this safe to hand straight to the browser.
+          */}
+          {account?.link && (
+            <Text
+              onPress={() => void Linking.openURL(account.link!)}
+              suppressHighlighting
+              accessibilityRole="link"
+              accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+              numberOfLines={1}
+              style={[styles.link, { color: t.accent }]}
+            >
+              {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+          )}
         </View>
 
         <Pressable
@@ -330,7 +381,7 @@ export function ProfileScreen({
               transition={120}
             />
           ) : (
-            <View style={[styles.avatar, styles.avatarBlank, { backgroundColor: lens.fill }]}>
+            <View style={[styles.avatarBlank, { backgroundColor: lens.fill }]}>
               <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
             </View>
           )}
@@ -342,9 +393,11 @@ export function ProfileScreen({
         most and somebody wrote it on purpose; an ellipsis in the middle of it
         says less than the third line would have.
       */}
-      {account?.bio && <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>}
+      {account?.bio && (
+        <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{account.bio}</Text>
+      )}
       {account === null && (
-        <Text style={[styles.bio, { color: t.dim }]}>
+        <Text style={[styles.bio, styles.gutter, { color: t.dim }]}>
           This device is not signed in. The albums below are the ones its links
           reach; signing in is what makes them a new phone away.
         </Text>
@@ -362,7 +415,7 @@ export function ProfileScreen({
         the bio should be.
       */}
       {account && (
-        <View style={styles.actions}>
+        <View style={[styles.actions, styles.gutter]}>
           <Pressable
             onPress={() => setEditing(true)}
             accessibilityRole="button"
@@ -397,7 +450,9 @@ export function ProfileScreen({
       {/* Not signed in: the card that asks is the screen, because there is no
           profile to draw and nothing for Settings to hold. */}
       {account === null && (
-        <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        <View style={styles.gutter}>
+          <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        </View>
       )}
 
       {/*
@@ -407,7 +462,7 @@ export function ProfileScreen({
         every tile is a grid that reads as captioned stock photography.
       */}
       {events.length > 0 && (
-        <View style={styles.grid}>
+        <View style={[styles.grid, styles.gutter]}>
           {events.map((event) => {
             const when = dateLabel(event.eventDate ?? event.firstPhotoAt);
             return (
@@ -678,16 +733,36 @@ function EditProfile({
   const [name, setName] = useState(account.displayName ?? '');
   const [handle, setHandle] = useState(account.handle ?? '');
   const [bio, setBio] = useState(account.bio ?? '');
+  /*
+   * Shown without its scheme, and sent back as typed.
+   *
+   * The stored value carries `https://` so that opening it needs no guessing.
+   * Putting that in the field would mean somebody editing around it, and the
+   * server adds it again anyway — so the field holds what a person would say
+   * out loud, and `account/route.ts` is the only thing that decides what a
+   * link is.
+   */
+  const [link, setLink] = useState((account.link ?? '').replace(/^https?:\/\//, ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = useCallback(async () => {
     setBusy(true);
     setError(null);
-    const patch: { displayName?: string; handle?: string; bio?: string } = {};
+    const patch: {
+      displayName?: string;
+      handle?: string;
+      bio?: string;
+      link?: string;
+    } = {};
     if (name.trim() !== (account.displayName ?? '')) patch.displayName = name.trim();
     if (handle.trim() !== (account.handle ?? '')) patch.handle = handle.trim();
     if (bio.trim() !== (account.bio ?? '')) patch.bio = bio.trim();
+    // Compared scheme-stripped on both sides, so that opening the sheet and
+    // saving without touching this field is not an edit.
+    if (link.trim() !== (account.link ?? '').replace(/^https?:\/\//, '')) {
+      patch.link = link.trim();
+    }
     if (Object.keys(patch).length === 0) {
       setBusy(false);
       onDone();
@@ -705,7 +780,7 @@ function EditProfile({
     } finally {
       setBusy(false);
     }
-  }, [account, api, bio, handle, name, onDone]);
+  }, [account, api, bio, handle, link, name, onDone]);
 
   /**
    * A new picture, straight off the camera roll.
@@ -723,7 +798,23 @@ function EditProfile({
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1],
+      /*
+       * 6:5, because the header draws it in a 124 × 104 box.
+       *
+       * This was square, on the argument that the avatar is a circle
+       * everywhere else in the product — the faces over a cover, the tiles in
+       * Lately, the rows in a thread — so a landscape file would be cropped
+       * again by every one of them. That is true and it is the smaller loss: a
+       * circle takes the middle of a 6:5 frame, which for a face is the face,
+       * where a square centre-cropped into a landscape box loses the top and
+       * bottom of what somebody framed — usually the top of their head, at the
+       * one size where it is unmistakable.
+       *
+       * So the crop is chosen for the largest place it is drawn, and the small
+       * round ones give up a little width. The endpoint re-encodes whatever
+       * arrives, so nothing downstream changes.
+       */
+      aspect: [6, 5],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -768,6 +859,24 @@ function EditProfile({
       <Text style={[styles.hint, { color: t.dim }]}>
         How somebody finds you. Yours to change, and it is the one thing here
         that has to be unlike everybody else's.
+      </Text>
+
+      <Text style={[styles.fieldLabel, { color: t.dim }]}>LINK</Text>
+      <TextInput
+        value={link}
+        onChangeText={setLink}
+        placeholder="yoursite.com (optional)"
+        placeholderTextColor={t.dim}
+        maxLength={200}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        style={[styles.input, { color: t.fg, borderColor: t.line }]}
+        accessibilityLabel="A link shown on your profile"
+      />
+      <Text style={[styles.hint, { color: t.dim }]}>
+        One address, shown under your name. Leave off the https — it is added
+        for you.
       </Text>
 
       <Text style={[styles.fieldLabel, { color: t.dim }]}>ABOUT YOU</Text>
@@ -815,12 +924,31 @@ const styles = StyleSheet.create({
   /* `flexGrow` so that a short page — which, while it is loading, is the bar
      and a spinner — still fills the screen, and the spinner has a height to
      centre itself in. Inert once there is enough content to scroll. */
-  scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16, flexGrow: 1 },
+  /*
+   * The gutter is on the children now, not here.
+   *
+   * One row on this screen is allowed to reach the edge — the header, whose
+   * picture runs off it — and a container that insets everything cannot make an
+   * exception for one child. So `paddingHorizontal` moved down, and `gutter`
+   * below is the one value they all use.
+   */
+  /* `BELOW_TABS`, not a number chosen by eye. This screen ends in a wall of
+     album covers with nothing after it, so whatever it reserves is the only
+     thing standing between the last row and the floating bar. */
+  scroll: { paddingTop: 72, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  /* What every row keeps, and the header's picture is the only thing exempt
+     from. Named rather than repeated, so "the gutter" stays one number. */
+  gutter: { paddingHorizontal: 20 },
   /* Settings and `+`, in the two corners, above everything else. */
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  /* The glyph's own box, so the two corners are the same height. */
-  /* The words and the picture on one line, the words first. */
-  head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  /*
+   * The words and the picture on one line, the words first.
+   *
+   * `paddingLeft` only, and no `justifyContent`: the picture is pushed right by
+   * `who` taking the space rather than by the row spreading its children, which
+   * is what lets it end flush against the screen's edge instead of 20 points
+   * short of it.
+   */
+  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 },
   /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
      corner glyphs and the name, which is what stops a 28pt name reading as a
      title bar. */
@@ -849,10 +977,75 @@ const styles = StyleSheet.create({
   friendName: { fontSize: 15.5, fontWeight: '600' },
   friendHandle: { fontSize: 13 },
   friendGo: { fontSize: 20 },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
-  avatarBlank: { alignItems: 'center', justifyContent: 'center' },
+  /*
+   * A photograph, bled to the edge, at the height of the words beside it.
+   *
+   * 124 × 104, with the left cap rounded to half its height and the right side
+   * square where the screen cuts it off. At 64 a face is a thumbnail; 104 is
+   * about the smallest a photograph of a person is legible at on this screen,
+   * and taking the gutter back is what buys that height without pushing the bio
+   * and the grid down.
+   *
+   * The height is not arbitrary either — the three lines beside it come to
+   * roughly 104 (a 31pt name, a handle at 17 over 3, the counts at 17 over 8),
+   * so the two sides square off against each other rather than the picture
+   * floating beside the first line. `alignItems: 'center'` on the row is the
+   * other half of that.
+   */
+  avatar: {
+    width: 124,
+    height: 104,
+    /*
+     * A rounded corner, not a semicircle.
+     *
+     * It was 52 — half the height — which makes the left edge a perfect arc and
+     * the whole thing a capsule cut in half. That reads as a badge or a pill,
+     * which is a shape for a label rather than for a photograph; at this size
+     * it also eats a visible bite out of whatever is on the left of the
+     * picture, which on a portrait is usually a shoulder.
+     *
+     * 26 is half of that: enough to be obviously rounded and to agree with the
+     * other soft corners on this screen, and not so much that the frame becomes
+     * the subject.
+     */
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  /*
+   * The letter keeps the gutter, and keeps its circle.
+   *
+   * A flat lens colour running off the edge is a field of colour, not a face —
+   * the bleed works because a photograph continues past the cut, and a solid
+   * fill has nothing to continue.
+   */
+  avatarBlank: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarLetter: { fontSize: 25, fontWeight: '700' },
-  bio: { fontSize: 15, lineHeight: 21 },
+  /*
+   * Pulled up against the header above it.
+   *
+   * The scroll lays its children out with `gap: 16`, and the header row's
+   * height is set by the 104pt picture rather than by the text beside it — so
+   * the measured space between the last line of text and the bio is the gap
+   * *plus* whatever the text column falls short by, which looked like the bio
+   * had been left behind by the name it belongs to.
+   *
+   * Half the gap back, rather than all of it: the bio is still a separate
+   * thought from the line of counts above it, and the link now usually sits
+   * between them.
+   */
+  bio: { fontSize: 15, lineHeight: 21, marginTop: -8 },
+  /* The same size and rhythm as the counts line it follows, in the accent —
+     this is the one thing in the header that goes somewhere. */
+  link: { fontSize: 14.5, marginTop: 6 },
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },

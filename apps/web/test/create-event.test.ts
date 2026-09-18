@@ -136,8 +136,9 @@ describe('the clients that send one', () => {
       .replace(/^\s*\/\/.*$/gm, '');
     expect(body).not.toContain('WHEN_OPTIONS');
     expect(body).not.toMatch(/windowFor|eventDateFor/);
-    // The window comes from the selection instead.
-    expect(body).toMatch(/windowOf\(chosen\)/);
+    // The window comes from the selection instead — and from what is left of
+    // it, because the row on that screen can take photographs back out.
+    expect(body).toMatch(/windowOf\(photos\)/);
   });
 
   /*

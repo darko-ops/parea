@@ -14,10 +14,16 @@
  */
 
 import { PRIVATE, PUBLIC } from '@parea/core';
+import { CONTRIBUTE_EVERYONE } from '@parea/core';
 import { ACCEPT_ATTRIBUTE } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ACCESS_OPTIONS, AccessChoice, type AccessPolicy } from './AccessChoice';
+import {
+  CONTRIBUTE_OPTIONS,
+  ContributeChoice,
+  type ContributePolicy,
+} from './ContributeChoice';
 import { coverBytes } from './coverBytes';
 import { useImageFailure } from './useImageFailure';
 
@@ -49,7 +55,7 @@ export function ManageView({
   initial: {
     name: string;
     joinsOpen: boolean;
-    uploadsOpen: boolean;
+    contributePolicy: string;
     accessPolicy: string;
     caption: string | null;
     code: string | null;
@@ -63,7 +69,10 @@ export function ManageView({
   const [access, setAccess] = useState<AccessPolicy>(
     (ACCESS_OPTIONS.find((o) => o.value === initial.accessPolicy)?.value ?? PUBLIC),
   );
-  const [uploadsOpen, setUploadsOpen] = useState(initial.uploadsOpen);
+  const [contribute, setContribute] = useState<ContributePolicy>(
+    CONTRIBUTE_OPTIONS.find((o) => o.value === initial.contributePolicy)?.value ??
+      CONTRIBUTE_EVERYONE,
+  );
   const [reports, setReports] = useState<PendingReport[]>([]);
   const [link, setLink] = useState(initial.url);
   const [code, setCode] = useState(initial.code);
@@ -325,7 +334,7 @@ export function ManageView({
 
   async function setSwitch(patch: {
     joinsOpen?: boolean;
-    uploadsOpen?: boolean;
+    contributePolicy?: ContributePolicy;
     accessPolicy?: AccessPolicy;
   }) {
     setBusy('switch');
@@ -338,7 +347,7 @@ export function ManageView({
       if (!res.ok) throw new Error('Could not save that.');
       const next = await res.json();
       setJoinsOpen(next.joinsOpen);
-      setUploadsOpen(next.uploadsOpen);
+      setContribute(next.contributePolicy);
       // Read back rather than assumed: the server is the one that decides
       // whether a policy is a policy, and it answers with what it stored.
       setAccess(next.accessPolicy);
@@ -500,7 +509,7 @@ export function ManageView({
               <div className="row" style={{ marginTop: 14 }}>
                 <button onClick={invite} disabled={picked.size === 0 || busy === 'invite'}>
                   {picked.size === 0
-                    ? 'Add to this event'
+                    ? 'Add to this album'
                     : `Add ${picked.size} ${picked.size === 1 ? 'person' : 'people'}`}
                 </button>
                 {invited !== null && (
@@ -520,7 +529,7 @@ export function ManageView({
         <section className="panel">
           <h2>Requests</h2>
           <p className="panel-note">
-            People who found this event and are waiting to be let in.
+            People who found this album and are waiting to be let in.
           </p>
           {requests.length === 0 ? (
             <p className="muted">Nobody waiting.</p>
@@ -578,7 +587,7 @@ export function ManageView({
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
-              aria-label="What the event is called"
+              aria-label="What the album is called"
             />
             <input
               id="event-caption"
@@ -587,7 +596,7 @@ export function ManageView({
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a line about it (optional)"
               maxLength={200}
-              aria-label="A line about the event"
+              aria-label="A line about the album"
             />
           </div>
           <div className="row" style={{ marginTop: 12 }}>
@@ -618,7 +627,7 @@ export function ManageView({
         <section className="panel">
           <h2>The cover</h2>
           <p className="panel-note">
-            The picture the event leads with, wherever it is shown. Without one
+            The picture the album leads with, wherever it is shown. Without one
             it leads with its newest photo.
           </p>
           {/*
@@ -745,20 +754,32 @@ export function ManageView({
               {joinsOpen ? 'On' : 'Off'}
             </button>
           </div>
-          <div className="switch">
-            <span>
-              People can still add photos
-              <br />
-              <span className="muted">Late photos are usually the point.</span>
-            </span>
-            <button
-              className="secondary"
-              disabled={busy === 'switch'}
-              onClick={() => setSwitch({ uploadsOpen: !uploadsOpen })}
-            >
-              {uploadsOpen ? 'On' : 'Off'}
-            </button>
-          </div>
+        </section>
+      )}
+
+      {tab === 'manage' && (
+        <section className="panel">
+          <h2>Who can add photos</h2>
+          {/*
+            Its own panel rather than a switch among the others, because it is
+            the same *kind* of question as "who can see it" and now has the
+            same shape of answer. It was "People can still add photos", on or
+            off — two of these three settings collapsed into one value and the
+            third unsayable.
+          */}
+          <ContributeChoice
+            value={contribute}
+            // The live value, not the saved one: switching an album to private
+            // renames the middle answer from "Everyone" to "Members" in the
+            // same breath, which is the point of asking the two questions on
+            // one screen.
+            accessPolicy={access}
+            disabled={busy === 'switch'}
+            onChange={(next) => {
+              if (next !== contribute) void setSwitch({ contributePolicy: next });
+            }}
+            note="Nothing already added is removed, whichever of the three this is."
+          />
         </section>
       )}
 
@@ -879,12 +900,12 @@ export function ManageView({
           {confirmDelete ? (
             <>
               <p className="muted">
-                Deletes the event and every photo in it, for everyone. Anyone who
+                Deletes the album and every photo in it, for everyone. Anyone who
                 has not downloaded them yet will not get another chance.
               </p>
               <div className="row">
                 <button className="danger" onClick={destroy} disabled={busy === 'delete'}>
-                  {busy === 'delete' ? 'Deleting…' : 'Delete this event'}
+                  {busy === 'delete' ? 'Deleting…' : 'Delete this album'}
                 </button>
                 <button className="secondary" onClick={() => setConfirmDelete(false)}>
                   Cancel
@@ -893,7 +914,7 @@ export function ManageView({
             </>
           ) : (
             <button className="secondary" onClick={() => setConfirmDelete(true)}>
-              Delete this event
+              Delete this album
             </button>
           )}
         </section>

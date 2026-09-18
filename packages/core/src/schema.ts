@@ -11,6 +11,7 @@
 
 import { relations, sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   customType,
@@ -19,6 +20,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -138,6 +140,19 @@ export const actors = pgTable(
    * bio that becomes a page, and the page would need moderating like one.
    */
   bio: text('bio'),
+  /**
+   * One link somebody chooses to put on their profile.
+   *
+   * One, not a list. A list of links is a page about a person, and this
+   * product is about an evening — the same argument that keeps the bio to two
+   * hundred characters.
+   *
+   * Stored with its scheme so that opening it needs no guessing, and shown
+   * without one: `https://` in front of a domain is noise on a profile, and
+   * the two halves of that decision live in `account/route.ts` and `Profile
+   * .tsx` respectively.
+   */
+  link: text('link'),
   /**
    * When this actor last opened Invites.
    *
@@ -355,6 +370,60 @@ export const events = pgTable(
      * docs/csam-runbook.md carries the step that closes it.
      */
     coverKey: text('cover_key'),
+    /**
+     * The cover's shape, as width over height. Null for one made before this.
+     *
+     * Recorded rather than measured, because the card has to reserve the right
+     * space *before* the image loads: a home screen that lays itself out again
+     * when each cover arrives is a list that jumps under a thumb. Null means
+     * the old fixed 3:2, which is what every cover stored before this column
+     * actually is.
+     *
+     * Bounded by the encoder — see `coverAspect` in `apps/web/src/cover.ts` —
+     * so this is never a number a client has to defend itself against, but
+     * clients clamp anyway: it is a column, and a column is an input.
+     */
+    coverAspect: real('cover_aspect'),
+    /**
+     * Which photograph the cover was cut from, and where the window sat.
+     *
+     * None of this is needed to *draw* a cover — `coverKey` is the finished
+     * JPEG. It is needed to edit one. Without it, "change the cover" could only
+     * open the camera roll, because the screen had no way to say which picture
+     * the current cover was or how it had been framed; so every visit started
+     * from nothing, and shifting an existing cover a little to the left was not
+     * something the product could offer at all.
+     *
+     * `set null` rather than cascade: a cover outlives the photograph it was
+     * cut from, because it is its own object. What is lost when that row goes
+     * is only the ability to reopen the frame on it, which is the honest
+     * outcome — the picture it was made of is not in the album any more.
+     *
+     * Null on all four for a cover set before this existed, and for one chosen
+     * off the camera roll. Both mean the same thing to a client: show what is
+     * there, and start from the album's own photographs if somebody wants to
+     * change it.
+     */
+    /*
+     * The return type is written out because `photo` points back at `event`,
+     * and a cycle of two inferred table types is one TypeScript will not
+     * unwind — it gives up and calls both `any`, which silently un-types every
+     * query in the repository. Drizzle's documented answer, and the only place
+     * in this schema that needs it.
+     */
+    coverPhotoId: uuid('cover_photo_id').references((): AnyPgColumn => photos.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * The `object-position` percentages and the zoom, as `CoverFraming`.
+     *
+     * Stored rather than recomputed because they cannot be recomputed: the
+     * stored cover is the *result* of applying them, and nothing about the
+     * finished JPEG says where in the original it came from.
+     */
+    coverX: real('cover_x'),
+    coverY: real('cover_y'),
+    coverZoom: real('cover_zoom'),
     groupId: uuid('group_id').references(() => groups.id, {
       onDelete: 'set null',
     }),
@@ -381,7 +450,32 @@ export const events = pgTable(
       .notNull()
       .default('public'),
     joinsOpen: boolean('joins_open').notNull().default(true),
-    uploadsOpen: boolean('uploads_open').notNull().default(true),
+    /**
+     * Who may add photographs, which is a different question from who may look.
+     *
+     * This was `uploads_open`, a boolean, and two of its three meanings were
+     * the same value: open meant "whoever the album is open to", closed meant
+     * "nobody at all", and the case somebody actually asks for — *I* put the
+     * photographs in and everybody else looks — could not be said.
+     *
+     * The three, and they compose with `access_policy` rather than repeating
+     * it. `everyone` defers: whoever can see the album can add to it, which on
+     * a private one is the people in it and on a public one is whoever holds
+     * the link. `host` is the creator and a group's admins. `nobody` closes it
+     * to everybody including the person who made it — an album that is
+     * finished is finished for them too.
+     *
+     * Plain text with no CHECK, for the same reason `access_policy` is:
+     * `authorize` denies any value it does not recognise, so an unknown string
+     * here closes the album rather than opening it. Which is what makes the
+     * migration off the boolean safe in either order — a row not yet backfilled
+     * reads as closed, not as open to all comers.
+     */
+    contributePolicy: text('contribute_policy', {
+      enum: ['everyone', 'host', 'nobody'],
+    })
+      .notNull()
+      .default('everyone'),
     /** Hard cap of one nudge, enforced in the schema so config can't lose it. */
     nudgedAt: timestamp('nudged_at', { withTimezone: true }),
     /** Retention lever; null when grouped. Populated but not enforced in v1. */
@@ -408,11 +502,66 @@ export const eventParticipants = pgTable(
     actorId: uuid('actor_id')
       .notNull()
       .references(() => actors.id, { onDelete: 'cascade' }),
+    /**
+     * Whether this participant may add photographs to a `host` album.
+     *
+     * On the participant row rather than in a table of its own, because being
+     * a host of an album is a property of being in it: leaving takes the row
+     * and the role together, and there is no state where somebody is a host of
+     * an album they are not in. `authorize` reads it for `upload` only — a
+     * host is not an administrator, cannot rename the album, cannot delete it
+     * and cannot let anybody else in. See `CONTRIBUTE_HOST`.
+     *
+     * Defaulted to `member`, which is what every existing row is: a role
+     * arrives by being granted, never by being present.
+     */
+    role: text('role', { enum: ['member', 'host'] })
+      .notNull()
+      .default('member'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.eventId, t.actorId] })],
+);
+
+/**
+ * Somebody in an album asking to be one of the people who may add to it.
+ *
+ * The same shape as `event_access_request` and for the same reasons — one row
+ * per person per album so asking twice updates rather than stacks, a declined
+ * row kept rather than deleted so "no" is a decision made once — and
+ * deliberately not the thing that grants anything. Approving writes `host`
+ * into `event_participant.role`, and that column is what `authorize` reads.
+ *
+ * Two tables rather than a `kind` column on one, because they answer different
+ * questions and are asked by different people: the access queue is strangers
+ * at the door, this one is people already inside. A host reading a list wants
+ * one kind of question in it.
+ */
+export const eventHostRequests = pgTable(
+  'event_host_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['open', 'approved', 'declined'] })
+      .notNull()
+      .default('open'),
+    createdAt: createdAt(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    uniqueIndex('event_host_request_actor_idx').on(t.eventId, t.actorId),
+    index('event_host_request_open_idx').on(t.eventId, t.status),
+  ],
 );
 
 /**
@@ -1077,6 +1226,54 @@ export const photoReactions = pgTable(
     // other direction: everything one person has reacted to, which is what a
     // merge has to move and an account deletion has to find.
     index('photo_reaction_actor_idx').on(t.actorId),
+  ],
+);
+
+/**
+ * Who is in a photograph, according to whoever put it there.
+ *
+ * A tag is a claim by the uploader about somebody else, which is what makes it
+ * different from a reaction: a reaction is a fact about the person who left it,
+ * and this is a fact about a third party who was not asked. Three consequences
+ * are built into the shape rather than left to the routes:
+ *
+ *   - **`taggedBy` is kept.** Somebody who finds themselves labelled in a
+ *     photograph is entitled to know who said so, and a table that recorded
+ *     only the claim would make that unanswerable.
+ *   - **Only people already in the event may be tagged**, which the routes
+ *     enforce. Tagging is not a way to point at somebody who cannot see the
+ *     album and has no way to object.
+ *   - **It grants nothing.** Being tagged is a label, not access — an actor
+ *     row here has no bearing on what anybody can open, which is deliberate and
+ *     is why there is no participation row written alongside it.
+ *
+ * Cascades on both actors: if either the tagged person or the tagger is erased,
+ * so is the claim. That is the right answer for the first and an acceptable one
+ * for the second — a tag whose author is gone is a claim nobody can be asked
+ * about, and keeping it would be keeping an accusation with no name on it.
+ */
+export const photoTags = pgTable(
+  'photo_tag',
+  {
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    taggedBy: uuid('tagged_by')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.photoId, t.actorId] }),
+    // Every read is "who is in these photographs", which the primary key's
+    // leading column serves. This is the other direction — every photograph one
+    // person is in — which is what a merge moves and a deletion finds, and what
+    // somebody asking "where am I tagged" is entitled to.
+    index('photo_tag_actor_idx').on(t.actorId),
+    index('photo_tag_by_idx').on(t.taggedBy),
   ],
 );
 

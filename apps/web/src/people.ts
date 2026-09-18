@@ -58,6 +58,30 @@ import { eventsFor, type EventListing } from './events';
  */
 export type Standing = 'self' | 'friends' | 'asked' | 'asking' | 'none';
 
+/**
+ * The three figures a page prints under a name.
+ *
+ * Their own totals, not the viewer's: the albums they made, the photographs in
+ * those albums, and the people they are friends with. §3's rule was that a
+ * profile grows no numbers, on the argument that a number turns search into a
+ * way to measure strangers — and the argument holds for a *rank*: mutuals,
+ * followers, a score. It does not hold for the shelf that is already on the
+ * page. Every album they made is listed there by name, locked or not, so
+ * counting them discloses nothing the page has not already said, and a shelf
+ * with no count above it is a shelf somebody has to scroll to size.
+ *
+ * `photos` counts the locked albums' contents too, which is the one figure
+ * here that says something the shelf does not. It is a total and only a total:
+ * it cannot be attributed to an album, and the alternative — a count that
+ * silently omits the private ones — is a number that means nothing and
+ * disagrees with their own profile.
+ */
+export type ProfileCounts = {
+  albums: number;
+  photos: number;
+  friends: number;
+};
+
 export type Profile = {
   actorId: string;
   handle: string;
@@ -75,7 +99,49 @@ export type Profile = {
   standing: Standing;
   /** Only when they have asked you: the id the answering endpoint wants. */
   requestId: string | null;
+  counts: ProfileCounts;
 };
+
+/**
+ * The three totals, in one round trip.
+ *
+ * Correlated subqueries against a one-row select rather than three statements:
+ * the page already makes three calls to draw itself and this is the one that
+ * is pure arithmetic.
+ *
+ * Deleted albums are out, and a photograph counts only once it is `ready` and
+ * not deleted — the same two clauses `albumsBy` applies per album, so the
+ * total here and the per-album counts on the shelf are answers to the same
+ * question.
+ */
+async function countsFor(db: Db, theirActorId: string): Promise<ProfileCounts> {
+  const [row] = await db
+    .select({
+      albums: sql<number>`(
+        select count(*)::int from "event" e
+        where e.created_by = ${theirActorId} and e.deleted_at is null
+      )`,
+      photos: sql<number>`(
+        select count(*)::int from "photo" p
+        join "event" e on e.id = p.event_id
+        where e.created_by = ${theirActorId} and e.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null
+      )`,
+      friends: sql<number>`(
+        select count(*)::int from "friendship" f
+        where f.actor_id = ${theirActorId}
+      )`,
+    })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, theirActorId))
+    .limit(1);
+
+  return {
+    albums: row?.albums ?? 0,
+    photos: row?.photos ?? 0,
+    friends: row?.friends ?? 0,
+  };
+}
 
 /**
  * The person behind a handle, or null for every reason at once.
@@ -115,8 +181,18 @@ export async function profileFor(
 
   if (!person?.handle) return null;
 
+  /*
+   * Before the standing rather than after it.
+   *
+   * The three totals are the same three whatever the two of you are to each
+   * other — a stranger's shelf is already on this page and so is a friend's —
+   * so working them out once here keeps the five ways out of this function
+   * from each having to remember to.
+   */
+  const counts = await countsFor(db, person.actorId);
+
   if (person.actorId === viewerId) {
-    return { ...person, handle: person.handle, standing: 'self', requestId: null };
+    return { ...person, handle: person.handle, standing: 'self', requestId: null, counts };
   }
 
   /*
@@ -157,7 +233,7 @@ export async function profileFor(
     .limit(1);
 
   if (friendship) {
-    return { ...person, handle: person.handle, standing: 'friends', requestId: null };
+    return { ...person, handle: person.handle, standing: 'friends', requestId: null, counts };
   }
 
   // Theirs first: if you have both asked, the one you can act on is the one
@@ -176,7 +252,7 @@ export async function profileFor(
     .limit(1);
 
   if (incoming) {
-    return { ...person, handle: person.handle, standing: 'asking', requestId: incoming.id };
+    return { ...person, handle: person.handle, standing: 'asking', requestId: incoming.id, counts };
   }
 
   const [outgoing] = await db
@@ -195,6 +271,7 @@ export async function profileFor(
     handle: person.handle,
     standing: outgoing ? 'asked' : 'none',
     requestId: null,
+    counts,
   };
 }
 

@@ -70,7 +70,10 @@ describe('event defaults', () => {
   it('opens all three switches and starts at epoch 1', async () => {
     const { event } = await seedEvent();
     expect(event.joinsOpen).toBe(true);
-    expect(event.uploadsOpen).toBe(true);
+    /* `everyone` is what `uploads_open = true` meant: whoever the album is
+       open to can add to it, deferred to `access_policy` rather than
+       restated. */
+    expect(event.contributePolicy).toBe('everyone');
     expect(event.accessPolicy).toBe('public');
     expect(event.capEpoch).toBe(1);
     expect(event.deletedAt).toBeNull();

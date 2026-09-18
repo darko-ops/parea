@@ -173,6 +173,83 @@ export async function notifyFriendRequest(
 }
 
 /**
+ * What to call somebody in a notification.
+ *
+ * Display name, else handle with its `@`, else "Someone" — the same fallback
+ * every other surface uses, and the same one two older routes spell inline at
+ * their call sites. Written once here because two more of them were about to
+ * be added, and three copies of a fallback chain is how "Someone" turns into
+ * "null" on the one path nobody tested.
+ */
+export async function nameOf(db: Db, actorId: string): Promise<string> {
+  const [row] = await db
+    .select({ displayName: schema.actors.displayName, handle: schema.actors.handle })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, actorId));
+  return row?.displayName?.trim() || (row?.handle ? `@${row.handle}` : 'Someone');
+}
+
+/**
+ * Somebody said something about a photograph you added.
+ *
+ * Only the uploader, and never about their own remark. Everybody else in the
+ * album finds out by opening it, which is the right amount of noise for a
+ * comment that is not addressed to them.
+ *
+ * The photograph is not in the payload. A push carries a deep link target and
+ * the app has no screen that is "one photograph" reachable from cold — it opens
+ * the album, which is where the comment is. Sending an id nothing can route to
+ * is a field that looks like a feature until somebody taps it.
+ */
+export async function notifyPhotoComment(
+  db: Db,
+  input: {
+    toActorId: string;
+    eventId: string;
+    eventName: string;
+    who: string;
+    said: string;
+  },
+): Promise<void> {
+  try {
+    await deliver(db, [input.toActorId], {
+      kind: 'photo_comment',
+      eventId: input.eventId,
+      eventName: input.eventName,
+      who: input.who,
+      said: input.said,
+    });
+  } catch {
+    /* see the module header */
+  }
+}
+
+/**
+ * Somebody said you are in a photograph.
+ *
+ * The only notification in this product that reports a claim made *about*
+ * somebody rather than something that happened to them, which is why it is
+ * worth interrupting for: being named in a picture is a thing people want to
+ * know about now, and sometimes to undo. The route refuses a self-tag before
+ * this is ever reached, so there is no "not yourself" check here to forget.
+ */
+export async function notifyPhotoTagged(
+  db: Db,
+  input: { toActorId: string; eventId: string; eventName: string; who: string },
+): Promise<void> {
+  try {
+    await deliver(db, [input.toActorId], {
+      kind: 'photo_tagged',
+      eventId: input.eventId,
+      eventName: input.eventName,
+      who: input.who,
+    });
+  } catch {
+    /* see the module header */
+  }
+}
+
+/**
  * A friend put you in an event.
  *
  * The one notification about an event you have never seen, which is why it

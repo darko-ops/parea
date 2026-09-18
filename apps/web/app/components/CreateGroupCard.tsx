@@ -157,7 +157,7 @@ export function CreateGroupCard({
           */}
           <span className="cluster-meta">
             Together in {cluster.sharedEventCount}{' '}
-            {cluster.sharedEventCount === 1 ? 'event' : 'events'}
+            {cluster.sharedEventCount === 1 ? 'album' : 'albums'}
           </span>
         </span>
 
@@ -194,7 +194,7 @@ export function CreateGroupCard({
       />
       {cluster?.suggestedName && (
         <p className="cluster-hint">
-          Suggested from the event you were all at — change it to anything.
+          Suggested from the album you were all at — change it to anything.
         </p>
       )}
 
@@ -267,7 +267,7 @@ export function CreateGroupCard({
         {offered.length > 0 && (
           <>
             <p className="cluster-hint cluster-add-lead">
-              Add somebody who was not at those events
+              Add somebody who was not at those albums
             </p>
             <div className="cluster-chips">
               {offered.map((person) => (

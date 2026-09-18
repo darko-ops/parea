@@ -24,8 +24,16 @@ import { describe, expect, it } from 'vitest';
 const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
+/* The suggestion card. The form that used to live beside it is a page now. */
 const FORM = read('src/CreateGroup.tsx');
+const PAGE = read('src/NewGroup.tsx');
 const EVENTS = read('src/Events.tsx');
+const APP = read('App.tsx');
+/** The Chats tab, which is what the old Groups tab became. */
+const CHATS = EVENTS.slice(
+  EVENTS.indexOf('export function ChatsTab'),
+  EVENTS.indexOf('function GroupBlock'),
+);
 const API = read('src/api.ts');
 
 describe('where the clusters come from', () => {
@@ -50,11 +58,15 @@ describe('where the clusters come from', () => {
 describe('nothing is written until Create', () => {
   it('makes exactly one call, and it is the create', () => {
     /*
-     * Opening the form, removing a chip and backing out must all be free —
+     * Opening the page, removing somebody and backing out must all be free —
      * that is the property that makes suggesting a set of people acceptable
      * rather than presumptuous.
+     *
+     * The card itself now calls nothing at all: it suggests, and the page it
+     * opens is where the one call lives.
      */
-    const calls = FORM.match(/api\.[a-zA-Z]+\(/g) ?? [];
+    expect(FORM.match(/api\.[a-zA-Z]+\(/g) ?? []).toEqual([]);
+    const calls = PAGE.match(/api\.[a-zA-Z]+\(/g) ?? [];
     expect(calls).toEqual(['api.createGroupFrom(']);
   });
 
@@ -67,23 +79,26 @@ describe('nothing is written until Create', () => {
 });
 
 describe('what the screen says', () => {
-  it('puts the consent line above the button', () => {
+  it('says what Create does to other people, before Create', () => {
     /*
      * Creating from people adds them outright rather than asking. That is a
      * real thing to do to somebody, so the sentence saying it has to be read
-     * before the decision — the order is what is asserted.
+     * before the decision rather than reported in a confirmation after it.
+     *
+     * The page puts Create in the bar at the top, so "above the button" is no
+     * longer the test — what survives is that the sentence is on the screen and
+     * is about what happens to them, not about what happens to you.
      */
-    const consent = FORM.indexOf('They are told when the group is made');
-    const button = FORM.indexOf('Create group');
-    expect(consent).toBeGreaterThan(-1);
-    expect(consent).toBeLessThan(button);
+    expect(PAGE).toMatch(/they are not asked first/);
+    expect(PAGE).toMatch(/They can leave whenever they like/);
   });
 
-  it('does not tell somebody to remove a chip that is not there', () => {
-    // The from-scratch path preselects nobody, and "tap to take somebody out"
-    // was then an instruction about controls that are not on screen.
-    expect(FORM).toMatch(/Just you, for now/);
-    expect(FORM).toMatch(/picked\.length > 0[\s\S]{0,400}offered\.length > 0/);
+  it('says something different when nobody has been added', () => {
+    // "Everyone you add is in the group straight away" is an instruction about
+    // people who are not there yet, on a page that may legitimately be
+    // submitted empty.
+    expect(PAGE).toMatch(/picked\.length > 0\s*\?/);
+    expect(PAGE).toMatch(/You can make it empty and add people later/);
   });
 
   it('never calls a cluster a group', () => {
@@ -103,6 +118,38 @@ describe('what the screen says', () => {
   });
 });
 
+/**
+ * The way off the page, which for a while there was not one.
+ *
+ * `+` on Home or You asks the Groups tab to open this page, by way of a
+ * counter — a counter rather than a flag because pressing `+` twice has to
+ * open it twice. But the tab tree is drawn only while the route is `tabs`, so
+ * pushing the page unmounts it, and Cancel mounted it again with the counter
+ * still standing: the effect that reads it ran a second time and pushed the
+ * page straight back over the tab it had just returned to.
+ *
+ * So Cancel did nothing, every time, and the page had no gesture either. The
+ * only way out of a group somebody had decided not to make was to kill the app.
+ */
+describe('leaving without making one', () => {
+  it('spends the request when it opens the page', () => {
+    // Or the tab reopens it the moment the page closes, forever.
+    expect(APP).toMatch(/setMakeGroup\(0\);\s*setRoute\(\{ screen: 'newGroup' \}\);/);
+  });
+
+  it('still opens again on the next press', () => {
+    // Spending it must not disarm the `+`. The counter goes back up.
+    expect(APP).toMatch(/setTab\('search'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
+    expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
+  });
+
+  it('has a Cancel and a gesture, not one or the other', () => {
+    expect(PAGE).toMatch(/<Pressable onPress=\{onCancel\} hitSlop=\{12\}/);
+    const at = APP.indexOf("route.screen === 'newGroup'");
+    expect(APP.slice(at, at + 200)).toMatch(/<SwipeBack onBack=\{leaveToTabs\}>/);
+  });
+});
+
 describe('New group', () => {
   it('is offered in every state, including the empty one', () => {
     /*
@@ -111,19 +158,63 @@ describe('New group', () => {
      * made. The phone must not repeat it, so the guard is that the button's
      * condition does not mention the list's length.
      */
-    expect(EVENTS).toMatch(/groups !== null && making !== 'anyone' && \(/);
+    /*
+     * And the head is not drawn half-formed.
+     *
+     * The `+` used to be hidden while the groups were arriving, with an empty
+     * disc holding its place — because the envelope beside it sits in a row
+     * laid out from the right, so without the placeholder it was drawn where
+     * the `+` belongs and slid left the moment the groups landed. A control
+     * that is somewhere else for the first half-second is one somebody reaches
+     * for and misses.
+     *
+     * The early return is what guarantees that now, and it is the stronger
+     * version of the same rule: nothing on the tab is drawn — not the head,
+     * not the controls — until every part of it can be drawn at once. So there
+     * is no half-second in which a `+` could be missing from a row that has
+     * already laid itself out.
+     */
+    expect(CHATS).toMatch(/if \(groups === null\) \{/);
+    expect(CHATS.indexOf('if (groups === null)')).toBeLessThan(CHATS.indexOf('<PageHead'));
     expect(EVENTS).not.toMatch(/groups\.length > 0 && [\s\S]{0,80}New group/);
   });
 
-  it('opens one form at a time', () => {
-    // Two half-filled forms on one screen is two things to cancel and a
-    // question about which Create belongs to which.
-    expect(EVENTS).toMatch(/const \[making, setMaking\] = useState<string \| null>\(null\)/);
+  it('is the same `+` as Home and You', () => {
+    /*
+     * It made a group and only a group, because it is on the groups tab. That
+     * is the reasoning that produces an app where one glyph means two things in
+     * one place and one thing in another, which nobody can learn.
+     */
+    expect(EVENTS).toMatch(/onPress=\{\(\) => setStarting\(true\)\}[\s\S]{0,120}New album or group/);
+    const tab = EVENTS.slice(EVENTS.indexOf('export function SearchTab'));
+    expect(tab).toMatch(/<StartSomething/);
+  });
+
+  it('is a page of its own, not a form inside the list', () => {
+    /*
+     * It unfolded between the heading and the rooms, pushing them down — a form
+     * the width of a list item with a keyboard over its bottom third, and the
+     * thing it was part of still scrolling behind it.
+     */
+    expect(APP).toMatch(/screen: 'newGroup'/);
+    expect(APP).toMatch(/<NewGroup/);
+    // And only one of them, so a suggestion and a `+` cannot drift apart.
+    expect(EVENTS).not.toMatch(/CreateGroupForm/);
+    expect(FORM).not.toMatch(/export function CreateGroupForm/);
   });
 
   it('lands in the room it just made', () => {
     // The next thing anybody wants is to put an event in it, and that button
     // is on the group's own screen.
-    expect(EVENTS).toMatch(/onCreated=\{\(id\) => \{[\s\S]{0,80}onOpenGroup\(id\)/);
+    expect(APP).toMatch(/onCreated=\{\(id\) => \{[\s\S]{0,240}setRoute\(\{ screen: 'group', id \}\)/);
+  });
+
+  it('can add somebody the suggestions never mentioned', () => {
+    /*
+     * The card offered a cluster's people and the handful it came with, and
+     * nobody else — so a group with one person in it who had never been at an
+     * event with you could not be made from this screen at all.
+     */
+    expect(PAGE).toMatch(/<InvitePicker/);
   });
 });

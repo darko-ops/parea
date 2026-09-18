@@ -1,24 +1,38 @@
 /**
  * Three of the four tabs' contents: home, groups and find. You is its own file.
  *
- * One word for one thing: an event. These tabs briefly said "event" while the
- * schema said `event`, which meant every file that touched them opened with a
- * paragraph explaining that the two were the same. That paragraph was the cost
- * of the second word, and it bought nothing.
+ * ## One word for one thing, and the word is "album"
+ *
+ * It was "event", and the rule was that the product should say whatever the
+ * schema says — because a second word costs a paragraph of explanation in every
+ * file that touches it, and buys nothing.
+ *
+ * The rule holds; the word was wrong. "Event" is what the row is called and
+ * what somebody making this thinks about. "Album" is what the row *is* to
+ * everybody else: a set of photographs from one evening. Nobody outside this
+ * repository has ever called it an event, and the interface was quietly asking
+ * people to learn the database's vocabulary.
+ *
+ * So the split is deliberate and it is the only one: the schema, the routes and
+ * the types say `event`, top to bottom, and every word a person reads says
+ * album. Renaming the tables and the URLs to match would be a migration, a set
+ * of dead links in everybody's messages, and no improvement to anything anybody
+ * sees.
  *
  * All three read from `GET /api/events`, which lists what this actor can
- * actually reach: events they have presented a credential to, plus every event
+ * actually reach: albums they have presented a credential to, plus every album
  * in a group they belong to. Not "everything a link would still open" — a link
- * is something you were sent, not somewhere you live, and an event opened once
+ * is something you were sent, not somewhere you live, and an album opened once
  * a year ago does not belong on a home screen.
  */
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -26,6 +40,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import type {
@@ -34,17 +49,23 @@ import type {
   ClusterPerson,
   EventListing,
   InvitablePerson,
+  SuggestedPerson,
   MyGroupDetail,
   ThreadLine,
 } from './api';
-import { ClusterCard, CreateGroupForm } from './CreateGroup';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+
+import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
-import { RoundButton } from './RoundButton';
+import { Notifications, PageHead } from './PageHead';
+import { MARK_FILLS } from './Mark';
+import { ROUND, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
+import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
+import { BELOW_TABS } from './chrome';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, signOutDevice } from './platform';
-import { RequestBubble } from './Requests';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -62,33 +83,188 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  * too small to recognise anybody in, plus a panel of chrome around them.
  *
  * What replaced them is one picture and the people. A tall cover, the faces of
- * whoever was there overlapping its bottom edge, and two lines underneath. No
- * border, no card, no strip: the photograph *is* the card.
+ * whoever was there overlapping its bottom edge. No border, no card: the
+ * photograph *is* the card.
  *
  * The faces overlap on purpose. A row of circles floating below a picture
  * reads as metadata; the same row half over it reads as who was there, which
  * is how somebody actually recognises an evening.
  *
- * The photograph count is gone from the face of it and kept in the
- * accessibility label, because "how many photographs" is a fact somebody
- * navigating by screen reader has no other way to get.
+ * ## What sits above the photograph, and what sits below it
+ *
+ * The words moved. They were two lines under the cover — the host's name run
+ * into the album's title, then the date — which made a column of cards you had
+ * to scroll past to find out what any of them were. Above the picture now, and
+ * in the order somebody reads them:
+ *
+ *   1. A rule line. The date and the photograph count, monospaced and
+ *      upper-cased, with a hairline running from where the words stop to the
+ *      edge of the column. The label on the outside of the box; it is what
+ *      gives every card the same top edge whatever its date's length.
+ *   2. The title, at 24 points. The name of an evening is how somebody
+ *      recognises it, and on a screen of covers from four different holidays
+ *      it is the only thing that tells them apart at a glance.
+ *   3. The byline: the creator's face and handle, pressable, and — only while
+ *      somebody is still adding to it — how long ago the last picture landed.
+ *      No count of people: the circles over the cover are the people, drawn as
+ *      their faces, which is the version of that fact somebody reads.
+ *
+ * The name spent a while in the bottom-right corner of the cover instead, on
+ * the reasoning that a name belongs on the thing it names. What that cost was
+ * the card's reading order: a name in the corner of a photograph is found
+ * after the photograph, and the point of a name on a wall of evenings is to be
+ * read on the way past. The cover is a photograph with nothing over it again.
+ *
+ * Under the photograph, after the faces, is the sheet: the next three
+ * photographs inside, in a row, ending in a tile saying how many more there
+ * are. It answers "is this worth opening" without a request. Three because the
+ * row does not scroll — it sits inside the vertical scroll that is the home
+ * page, and two scrollers competing for one drag means the page sometimes does
+ * not move when somebody flicks it — and a row rather than a block, because a
+ * block of thumbnails under a cover is the mosaic this card was rewritten to
+ * get away from.
+ *
+ * Each of the three opens the photograph it is a picture of; the count tile
+ * and the rest of the card open the album itself.
+ *
+ * There is no live chip. A coloured dot and the word beside it is the loudest
+ * thing on a card whose subject is somebody else's photograph, and the byline
+ * says the same thing in words the reader was going to read anyway.
  *
  * `ago`, `dateLabel`, `isLive` and `CARD_FACES` come from `@parea/cards`. The
  * words around them are this file's, and what is shared is the part that could
  * ever disagree: two clients rounding "2 days ago" separately drift, and
  * nothing fails when they do.
  */
+/**
+ * The shapes a cover may be drawn at, as width over height.
+ *
+ * The same two bounds the encoder applies — `COVER_WIDEST` and `COVER_TALLEST`
+ * in `apps/web/src/cover.ts` — restated here rather than shared, because the
+ * only package both clients and the server can import is `@parea/cards` and
+ * this is a fact about storage rather than about a card. Clamped again on this
+ * side on purpose: the number comes off the wire, and one bad row should cost
+ * a card its shape rather than cost the screen its layout.
+ */
+const WIDEST = 3 / 2;
+const TALLEST = 4 / 5;
+
+/**
+ * The strip under a cover: how many tiles wide, and the hairline between them.
+ *
+ * Four slots — three photographs and the count — and the gap is the album's
+ * own `PHOTO_GAP`. Restated here rather than imported from `App.tsx`, which
+ * imports this file: the number is 3 in both places because a strip of an
+ * album's contents should be spaced like the album it opens.
+ */
+const SHEET_TILES = 4;
+const SHEET_GAP = 3;
+
+/**
+ * How large one of those tiles is, on a screen this wide.
+ *
+ * Measured rather than left to `flex: 1`, which was the first attempt and is
+ * wrong for a row whose length varies: an album with four photographs in it
+ * has two tiles and no count, and equal flex would draw those two half a
+ * screen tall each. A card's strip has to be the same height on every card or
+ * a column of them stops scanning.
+ */
+const sheetTile = (width: number) => (width - SHEET_GAP * (SHEET_TILES - 1)) / SHEET_TILES;
+
+/**
+ * The wash behind the "+N" on the end of a card's strip.
+ *
+ * It was `card` over `line` — white on a white page, and in the dark scheme a
+ * dark grey square, which is what a photograph looks like when it has failed
+ * to load. The one tile in the row that is not a photograph was reading as the
+ * one that had broken.
+ *
+ * So it is the mark's own three colours instead, poured rather than drawn: the
+ * mint underneath, a pink bloom where the mark's top circle sits and a blue one
+ * where its lower-left circle sits, each fading out so the three meet in the
+ * middle the way the logo's lenses do. Stained glass rather than a logo — the
+ * shapes are gone and only the colour is left, which is the most the product
+ * may say in a slot that belongs to somebody else's photographs.
+ *
+ * The positions are `MARK_CENTRES` rescaled to a unit square: pink above,
+ * blue and mint below it. Restated as fractions rather than imported, because
+ * what is shared with the mark is the palette and the arrangement, not the
+ * geometry — this is a square and the mark is drawn in a 1024 box with room
+ * around it.
+ *
+ * No alpha on the fills themselves. The mark's own note applies: transparency
+ * would decide the blend for us, and multiply turns pink over mint into a
+ * muddy neutral. The gradients fade a colour to *nothing*, so where two meet
+ * the one underneath is what shows.
+ */
+function SheetGlass() {
+  /*
+   * Ids unique to this instance, for exactly the reason `Mark` does the same:
+   * `react-native-svg` resolves paint references against a registry that is
+   * not per-`Svg` on every platform, so several of these mounted at once — one
+   * per card, on a scrolling list — can end up painting with each other's
+   * gradients.
+   */
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+      <Defs>
+        <RadialGradient id={`${id}p`} cx="50%" cy="20%" r="75%">
+          <Stop offset="0" stopColor={MARK_FILLS.pink} stopOpacity="1" />
+          <Stop offset="1" stopColor={MARK_FILLS.pink} stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id={`${id}b`} cx="18%" cy="82%" r="75%">
+          <Stop offset="0" stopColor={MARK_FILLS.blue} stopOpacity="1" />
+          <Stop offset="1" stopColor={MARK_FILLS.blue} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      {/* The mint is the ground rather than a third bloom: three fades over
+          nothing leave the corners empty, and an empty corner on a tile in a
+          row of photographs is the broken-image look this replaced. */}
+      <Rect width="100%" height="100%" fill={MARK_FILLS.mint} />
+      <Rect width="100%" height="100%" fill={`url(#${id}b)`} />
+      <Rect width="100%" height="100%" fill={`url(#${id}p)`} />
+    </Svg>
+  );
+}
+
+/** How tall to draw a full-bleed cover of this shape. */
+function coverHeight(event: { coverAspect?: number | null }, width: number): number {
+  const aspect = event.coverAspect;
+  // Null is a cover from before the shape was recorded, or a photograph
+  // standing in for one. Both are the old letterbox, which is what 3:2 is.
+  if (!aspect || !Number.isFinite(aspect)) return width / WIDEST;
+  return width / Math.min(WIDEST, Math.max(TALLEST, aspect));
+}
+
 function EventCard({
   event,
   now,
   t,
-  onPress,
+  onOpen,
+  onOpenPerson,
 }: {
   event: EventListing;
   /** One clock for every card on screen, so none disagree about the minute. */
   now: Date;
   t: TabTheme;
-  onPress: () => void;
+  /**
+   * Open the album, at a photograph or at the top of it.
+   *
+   * One callback rather than two, because the card has three things that open
+   * it and only one of them is about a particular picture: the card itself and
+   * the "+N" tile land on the grid, and a tile in the strip lands on the
+   * photograph it is a picture of.
+   */
+  onOpen: (photo?: string) => void;
+  /**
+   * The byline, which is a person and should behave like one.
+   *
+   * Null for somebody with no handle — a guest who arrived by link has a name
+   * and a face here and no profile to open, so the row stays a label rather
+   * than becoming a control that does nothing.
+   */
+  onOpenPerson: (handle: string) => void;
 }) {
   const label = `${event.name}, ${plural(event.photoCount, 'photo')}`;
 
@@ -105,10 +281,17 @@ function EventCard({
    * added one — and leading with it would replace the only card in the product
    * whose job is to ask with a card that says nothing.
    */
+  /*
+   * Above the empty-album return below, because a card that gains its first
+   * photograph re-renders in place — and a hook that only runs on the second
+   * of those two renders is one React refuses outright.
+   */
+  const { width } = useWindowDimensions();
+
   if (event.photoCount === 0) {
     return (
       <Pressable
-        onPress={onPress}
+        onPress={() => onOpen()}
         accessibilityRole="button"
         accessibilityLabel={label}
         style={[styles.empty, { backgroundColor: t.card, borderColor: t.line }]}
@@ -161,8 +344,109 @@ function EventCard({
    */
   const hostCounted = event.faces.length > others.length ? 1 : 0;
   const moreFaces = Math.max(0, event.memberCount - hostCounted - faces.length);
-  const date = dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt);
-  const host = event.mine ? 'You' : event.creator.name;
+  /*
+   * When it was posted, not when the photographs were taken.
+   *
+   * This read `eventDate ?? startsAt ?? firstPhotoAt`, and the last of those
+   * is `min(captured_at)` — so a card for an album posted yesterday out of a
+   * roll from 2019 was dated 2019. On a screen ordered by recent activity,
+   * where the album above it says yesterday, that is not a subtle error: it
+   * reads as the list being out of order.
+   *
+   * The evening's own date has not gone anywhere — it is on the album, and
+   * the profile still shelves albums by it. It is the wrong answer *here*,
+   * because this card is a thing in a feed and a feed is dated by when things
+   * arrived in it.
+   */
+  const date = dateLabel(event.createdAt);
+
+  /*
+   * The rule line's left end: when it was, and how much of it there is.
+   *
+   * Both facts are the same *kind* of fact — measurements of the album rather
+   * than things about the people in it — which is why they share a line and
+   * why that line is set in a monospaced face. It reads as a caption on an
+   * archive box, and the eye skips it until it wants it, which is the correct
+   * priority for a date on a wall of photographs.
+   */
+  const measured = [date, plural(event.photoCount, 'photo')].filter(Boolean).join(' · ');
+
+  /*
+   * The byline's tail: whether anything is still arriving, and nothing else.
+   *
+   * It has lost two things in two passes, and for the same reason both times.
+   * First "demetri · You · 1 person", which counted one person three ways —
+   * the handle names them, "You" says it is theirs, "1 person" says they are
+   * the only one. Now the count of people goes altogether: the circles over
+   * the cover are the people, drawn as their faces, which is the version of
+   * that fact somebody actually reads. A number beside the handle was the same
+   * thing again in a worse form, and it was there on every card, so it cost
+   * the line its silence for nothing.
+   *
+   * What is left is the one thing nothing else on the card says: that somebody
+   * added to it half an hour ago. Only while that is true — an evening from
+   * March does not need telling you it has stopped — so on most cards the tail
+   * is empty and the byline is a handle on its own, which is what a byline is.
+   *
+   * There is no `live` chip on the rule above either. A coloured dot and the
+   * word beside it is the loudest thing on a card whose subject is somebody
+   * else's photograph, and this says the same thing in words the reader was
+   * going to read anyway.
+   */
+  const about = live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : '';
+
+  /*
+   * The sheet: a strip of what is actually inside, under the cover.
+   *
+   * The card led with one photograph and stopped, which asks somebody to open
+   * an album to find out whether it is worth opening. Four thumbnails answer
+   * that without a request — not as a mosaic, which is the arrangement this
+   * card was built to get away from, but as a strip below the cover that reads
+   * as contents rather than as a second, smaller cover.
+   *
+   * `slice(1, 4)` because the first entry of `mosaic` is always the picture the
+   * card is already leading with — the server prepends a chosen cover to it,
+   * and where there is none the lead is `mosaic[0]` drawn larger — and because
+   * three is as many as the row holds.
+   *
+   * Three and not four. The row does not scroll (see below), so its width is
+   * the screen's and every tile it adds makes all of them smaller; four
+   * photographs plus the count tile is five things across a phone, at which
+   * point none of them is large enough to recognise anybody in and the strip
+   * stops doing the one job it has.
+   */
+  /*
+   * And nothing at all under an album of one photograph.
+   *
+   * `slice(1, …)` skips the entry the card is leading with, which is enough
+   * when that entry is a photograph. It is not enough when it is a chosen
+   * cover: the cover is its own object, so the photograph it was cropped out
+   * of is still in the list behind it, and an album of one showed that one
+   * picture as the cover and again as the only thumbnail.
+   *
+   * The server drops that photograph now, where it knows which one it was —
+   * see the mosaic in `api/events/route.ts`. It does not always know. Covers
+   * set before `coverPhotoId` existed have none recorded, and a cover uploaded
+   * on its own never had a photograph behind it to record. So this is the
+   * floor: one photograph is a card with one picture on it, whatever the cover
+   * bookkeeping says.
+   */
+  const sheet = event.photoCount <= 1 ? [] : event.mosaic.slice(1, 4);
+  /*
+   * And how many photographs are not on the card at all.
+   *
+   * Four are: the cover and the three in the strip. Counting only the strip
+   * would say "+4 more" about an album of seven while showing four of them,
+   * which is the sort of arithmetic a reader does by eye and catches.
+   *
+   * The cover counts even when it is a chosen one — a separate object with no
+   * photograph row behind it, so strictly it is not one of the `photoCount`.
+   * In practice a host crops a cover out of a picture that is also in the
+   * album, so the reader sees it twice and counts it once, and being right
+   * about the object model here would read as an off-by-one.
+   */
+  const rest = Math.max(0, event.photoCount - 1 - sheet.length);
+  const tile = sheetTile(width);
 
   /*
    * Whose evening this is, above the photograph rather than under it.
@@ -186,28 +470,130 @@ function EventCard({
   const byLens = lensFor(event.creator.handle ?? event.creator.name ?? event.id);
 
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-      <View style={styles.byline}>
-        {event.creator.avatarUrl ? (
-          <Image
-            source={{ uri: event.creator.avatarUrl }}
-            style={[styles.bylineFace, { backgroundColor: t.line }]}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
-            <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
-              {initialOf(event.creator.name ?? event.creator.handle)}
-            </Text>
-          </View>
-        )}
-        <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
-          {by}
+    <Pressable onPress={() => onOpen()} accessibilityRole="button" accessibilityLabel={label}>
+      {/*
+        The measurements, and a rule running off to the edge of the column.
+
+        A hairline that starts where the words stop is what makes a stack of
+        these read as entries in a ledger rather than as a feed: it gives every
+        card the same top edge whatever length its date happens to be, and it
+        does it without drawing a box round anything.
+
+        `aria-hidden` in spirit — the same two facts are in the card's own
+        accessible name, and a screen reader that stops on this line reads the
+        photograph count twice on the way past.
+      */}
+      <View style={styles.measured} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Text style={[styles.measuredText, { color: t.dim }]} numberOfLines={1}>
+          {measured}
         </Text>
+        <View style={[styles.rule, { backgroundColor: t.line }]} />
       </View>
 
-      <View style={styles.cover}>
+      {/*
+        The album's name, above the byline and below the rule.
+
+        It has now been in three places, and this is the second time in this
+        one. Under the cover at 18 points made a wall of pictures you had to
+        scroll past to find out what any of them were. On the cover at 24 put
+        the name where the thing it names is — and cost the card its reading
+        order, because a name in the corner of a photograph is found after the
+        photograph rather than before it, and the point of a name on a wall of
+        evenings is to be read on the way past.
+
+        So it is a headline in the column again: the measurements, the name,
+        then whose evening it was.
+
+        Two lines rather than one. "Sunday lunch at the Kostas'" is a real name
+        people give albums, and truncating at the first line loses exactly the
+        end that distinguishes it.
+      */}
+      <Text style={[styles.cardTitle, { color: t.fg }]} numberOfLines={2}>
+        {event.name}
+      </Text>
+
+      {/*
+        The byline goes to the person, not to the album.
+
+        A face and a name at the top of a card is the one thing on this screen
+        that is about somebody rather than about an evening, and it was the only
+        such thing in the product that could not be pressed. Nested inside the
+        card's own `Pressable`, which is what makes it work: the inner one takes
+        the touch when it is on the byline and the outer one takes everything
+        else, so the whole card still opens the album.
+
+        Only when there is a handle to open. A guest who arrived by link has a
+        name and a face and no profile, and a control that does nothing is worse
+        than a label that never promised to.
+      */}
+      <View style={styles.byline}>
+        {/*
+          Only the face and the name open the person.
+
+          The row carries a sentence about the album beside them now — how many
+          people, and whether anything is still arriving — and a control that
+          stretches under that sentence sends somebody to a profile they were
+          not reaching for. So the touch target is the two things that are
+          actually about a person, and the rest of the row belongs to the card.
+        */}
+        <Pressable
+          onPress={
+            event.creator.handle
+              ? () => onOpenPerson(event.creator.handle!)
+              : undefined
+          }
+          disabled={!event.creator.handle}
+          accessibilityRole={event.creator.handle ? 'button' : 'text'}
+          accessibilityLabel={event.creator.handle ? `${by}, see their profile` : by}
+          style={styles.bylineWho}
+        >
+          {event.creator.avatarUrl ? (
+            <Image
+              source={{ uri: event.creator.avatarUrl }}
+              style={[styles.bylineFace, { backgroundColor: t.line }]}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View style={[styles.bylineFace, styles.bylineBlank, { backgroundColor: byLens.fill }]}>
+              <Text style={[styles.bylineLetter, { color: byLens.ink }]}>
+                {initialOf(event.creator.name ?? event.creator.handle)}
+              </Text>
+            </View>
+          )}
+          <Text style={[styles.bylineName, { color: t.fg }]} numberOfLines={1}>
+            {by}
+          </Text>
+        </Pressable>
+
+        {/*
+          Led by the separator rather than joined to the name by one, so the
+          two shrink independently: a long handle takes the room it needs and
+          this line loses its tail, rather than one string being truncated on
+          behalf of both.
+
+          Drawn only when there is something to say. Most cards have nothing —
+          an album stops being live within a day — and a `·` on its own after a
+          handle reads as a line that failed to load.
+        */}
+        {about !== '' && (
+          <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
+            {`· ${about}`}
+          </Text>
+        )}
+      </View>
+
+      {/*
+        As tall as the picture is, within bounds.
+
+        Every cover used to be drawn 260 high whatever it was, which is a
+        landscape crop of a portrait photograph on a screen whose whole width
+        was going spare — a shelf of short wide crops of tall narrow evenings.
+        The shape comes down with the listing rather than being measured here,
+        because a list that lays itself out again as each cover loads is a list
+        that jumps under a thumb.
+      */}
+      <View style={[styles.cover, { height: coverHeight(event, width) }]}>
         {event.cover && (
           <Image
             source={{ uri: event.cover.src }}
@@ -216,18 +602,8 @@ function EventCard({
             transition={120}
           />
         )}
-        {/*
-          Only while it is true, which is an hour — see `isLive`. A badge that
-          stays up all day is a badge nobody reads, and "being added to now" is
-          the one claim on this screen worth interrupting a photograph for.
-        */}
-        {live && (
-          <View style={[styles.liveTag, { backgroundColor: t.card }]}>
-            <View style={[styles.liveDot, { backgroundColor: t.accent }]} />
-            <Text style={[styles.liveText, { color: t.fg }]}>Being added to now</Text>
-          </View>
-        )}
-      </View>
+
+            </View>
 
       {faces.length > 0 && (
         <View style={styles.faces}>
@@ -257,67 +633,75 @@ function EventCard({
         </View>
       )}
 
-      <View style={styles.under}>
-        {/*
-          The name, then the evening, on one line.
+      {sheet.length > 0 && (
+        /*
+          What is inside, as a row of three under the cover.
 
-          Whose evening it was is read first: the picture at the top is theirs,
-          and both ends of the card being about the same person is what makes
-          the middle of it an evening rather than a listing. The title follows
-          on the same baseline, which is what turns two stacked facts into one
-          sentence — "You, at Ana's birthday" rather than a label above a
-          heading.
+          A fixed row and not a scroller. It was a horizontal `ScrollView`,
+          which is wrong on this screen for a reason that has nothing to do
+          with how it looks: it sits inside the vertical scroll that is the
+          home page, and a horizontal gesture that starts on a photograph is
+          within a few degrees of the vertical one that moves the page. Two
+          scrollers competing for the same drag means the page sometimes does
+          not move when somebody flicks it, which is the least forgivable
+          failure a feed can have.
 
-          Nested `Text` rather than a row of two.
+          So the row shows what fits and says the rest as a number. Each tile
+          takes an equal quarter and is square, which lets the strip meet the
+          screen's edges the way the cover above it does rather than stopping
+          short at a fixed 76 points.
 
-          A `flexDirection: 'row'` would need `alignItems: 'baseline'` to stop
-          a 13pt name floating against an 18pt title, and it would then have to
-          be told which of the two may shrink. Inside one `Text` the baseline
-          is the text engine's problem, and `numberOfLines={1}` truncates the
-          line as a line — so a long title runs out of room rather than
-          squeezing the name that introduces it.
+          Not a grid. A block of thumbnails under a cover is the mosaic this
+          card was rewritten to get away from — it turns a photograph into a
+          listing, and it claims the same height whether or not there is
+          anything worth claiming it for.
+        */
+        <View style={styles.sheet}>
+          {sheet.map((photo) => (
+            /*
+              Straight to that photograph, not to the top of the album.
 
-          This line used to print both names — "both, always", on the reasoning
-          that printing one makes the reader guess which they have. The byline
-          above the photograph carries the handle now, so printing it again
-          here says the same unique thing twice on one card and leaves the name
-          looking like a label for it.
-
-          What is left is the half the byline does not have: what somebody is
-          called, which is what a reader recognises. On your own events that is
-          "You" — your own name read back at you on a wall of your own evenings
-          is the screen describing you to yourself.
-        */}
-        <Text numberOfLines={1}>
-          {host && (
-            <Text style={[styles.small, { color: t.dim }]}>{host}  </Text>
+              The tile is a picture of a specific thing and pressing a picture
+              of a specific thing should arrive at it — landing on the grid
+              instead asks somebody to find again what they had already found
+              and pointed at. `id` is never null here: only `mosaic[0]` can be
+              a chosen cover, and the strip starts at the second.
+            */
+            <Pressable
+              key={photo.id}
+              style={{ width: tile, height: tile }}
+              onPress={() => onOpen(photo.id!)}
+              accessibilityRole="button"
+              accessibilityLabel={`A photograph in ${event.name}`}
+            >
+              <Image
+                source={{ uri: photo.src }}
+                style={[styles.sheetShot, { backgroundColor: t.line }]}
+                contentFit="cover"
+                transition={120}
+              />
+            </Pressable>
+          ))}
+          {rest > 0 && (
+            /*
+              And the tile on the end opens the album itself, which is the
+              grid: it is the one control on the card that is about the
+              photographs it is *not* showing, so it goes where they all are.
+            */
+            <Pressable
+              style={{ width: tile, height: tile }}
+              onPress={() => onOpen()}
+              accessibilityRole="button"
+              accessibilityLabel={`${plural(rest, 'more photo')} in ${event.name}`}
+            >
+              <View style={styles.sheetRest}>
+                <SheetGlass />
+                <Text style={styles.sheetRestText}>+{rest}</Text>
+              </View>
+            </Pressable>
           )}
-          <Text style={[styles.eventName, { color: t.fg }]}>{event.name}</Text>
-        </Text>
-        {/*
-          When first, then who — and at the same size as the host line above
-          it rather than a step larger.
-
-          The order is the change: the date is what tells one evening from
-          another on a wall of them, and a count of people is the same shape of
-          fact on every card, so leading with "6 people" put the interchangeable
-          half first. The when is the evening itself rather than the upload,
-          except while it is being added to, where the recent thing *is* the
-          news and takes the slot.
-
-          Sized with the host's name and handle because the three lines are one
-          block: a name, then two quiet facts about it. At `body` this line
-          competed with the title for the second-loudest thing on the card.
-
-          Still no caption here: a second sentence under the name is what made
-          a photograph look like a listing.
-        */}
-        <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-          {live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : (date ?? '')}
-          {live || date ? ' · ' : ''}
-          {plural(event.memberCount, 'person', 'people')}
-        </Text>
-      </View>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -340,7 +724,7 @@ function emptyLine(memberCount: number): string {
 const EMPTY_LENSES = ['#ffb3b8', '#9db2f0'] as const;
 
 /**
- * A clock that ticks once a minute, for the "20m ago" on each card.
+ * A clock that ticks once a minute, for the "20 min ago" on each card.
  *
  * A phone left on this screen should not still claim the top event was added
  * to twenty minutes ago an hour later. Once a minute is the coarsest interval
@@ -363,19 +747,35 @@ export function HomeTab({
   events,
   loading,
   t,
+  waiting,
   onOpen,
   onRefresh,
+  onOpenLately,
   onCreate,
   onCreateGroup,
+  onOpenPerson,
   Button,
 }: {
   api: Api;
   events: EventListing[];
   loading: boolean;
   t: TabTheme;
-  onOpen: (event: EventListing) => void;
+  /**
+   * Open an album, at a photograph or at the top of it.
+   *
+   * The second argument is what the strip under a cover needs: a tile there is
+   * a picture of one photograph, and pressing it should arrive at that
+   * photograph rather than at the grid it is somewhere inside.
+   */
+  onOpen: (event: EventListing, photo?: string) => void;
   onRefresh: () => Promise<void>;
+  /** How many things are waiting on an answer, for the badge on the envelope. */
+  waiting: number;
+  /** Into Lately, from the corner every tab now keeps it in. */
+  onOpenLately: () => void;
   onCreate: () => void;
+  /** A byline on a card is a person; pressing one opens them. */
+  onOpenPerson: (handle: string) => void;
   /**
    * The group half of the `+`.
    *
@@ -447,16 +847,32 @@ export function HomeTab({
         two things in one place and one thing in another is the sort of
         difference nobody can learn: either `+` makes what you ask it for.
       */}
-      <View style={styles.headRow}>
-        <Text style={[styles.h1, { color: t.fg }]}>Events</Text>
-        <RoundButton
-          t={t}
-          onPress={() => setStarting(true)}
-          accessibilityLabel="New album or group"
-        >
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
-      </View>
+      {/*
+        Make something on the left, answer something on the right.
+
+        The `+` was on the right and the envelope was on the Groups tab only,
+        which put the two in the same corner on one screen and neither in a
+        predictable place. They are opposite each other on all three now:
+        making is the thing you came to do, answering is the thing that came to
+        you, and one corner each is what stops either from being hunted for.
+
+        The `+` opens the same two choices the profile's does. One glyph
+        meaning two things in one place and one thing in another is the sort of
+        difference nobody can learn: either `+` makes what you ask it for.
+      */}
+      <PageHead
+        color={t.fg}
+        left={
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+      />
 
       {starting && (
         <StartSomething
@@ -469,31 +885,33 @@ export function HomeTab({
       )}
 
       {/*
-        Above the list, because it is the one thing here somebody has to do
-        something about — everything below is theirs already.
+        The invitations used to sit here, above the list, on the argument that
+        they are the one thing on this screen somebody has to *do* something
+        about. That was true while there was nowhere else for them.
+
+        Lately is that somewhere else, and it holds the same four asks with the
+        same two buttons — so keeping this meant the same request in two places
+        at once, answered in one and still sitting in the other, which reads as
+        the answer not having taken. `activity.ts` names that failure directly;
+        it is the reason an answered friend request leaves the queue.
+
+        What replaces it is the badge on the envelope, which is a smaller claim
+        made in a place that is always there.
       */}
-      <RequestBubble
-        api={api}
-        t={t}
-        refreshKey={pulled}
-        // Accepting an invitation adds an event, and the list under it is
-        // holding the old answer until something says so.
-        onAnswered={() => void onRefresh()}
-      />
 
       {loading && filled.length === 0 && <Waiting fill />}
 
       {!loading && filled.length === 0 && (
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
           {/* No longer points at `Open a link`, which is not on this screen
-              any more. An event somebody sends you opens itself when you tap
+              any more. An album somebody sends you opens itself when you tap
               it, so the only thing left for this card to offer is the one
               action that is here. */}
           <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Events you are sent open when you tap the link,
+            Nothing here yet. Albums you are sent open when you tap the link,
             and the ones you make show up here.
           </Text>
-          <Button label="Create Event" onPress={onCreate} t={t} primary />
+          <Button label="Create album" onPress={onCreate} t={t} primary />
         </View>
       )}
 
@@ -507,8 +925,9 @@ export function HomeTab({
           // recency only while it is being added to — so there is no longer a
           // "newest" case, which used to be the only row showing a time.
           now={now}
+          onOpenPerson={onOpenPerson}
           t={t}
-          onPress={() => onOpen(event)}
+          onOpen={(photo) => onOpen(event, photo)}
         />
       ))}
 
@@ -557,116 +976,71 @@ export function HomeTab({
  */
 
 /**
- * The rooms you are in, drawn as what is in them.
+ * The group chats, and nothing else.
  *
- * This was a directory: a letter tile, a name, a line of counts, repeated. A
- * list of rooms with no photographs in it, on a tab of a product whose whole
- * subject is photographs — so the one screen that should have made somebody
- * want to open a group looked like a settings list of them.
+ * This tab used to be two things at once: the rooms you are in, drawn as
+ * blocks of covers, *and* the talk going on in them. The rooms have moved to
+ * Find — see `SearchTab` — and what is left is the thing the tab was always
+ * being used as.
  *
- * Each group is now its evenings: three recent covers under its name, and how
- * many more there are on the third one. The name and the date of the newest
- * event are the line under it, because "Sunday roast, added to 2 days ago,
- * Ana's birthday" is what tells you whether there is anything new in there.
+ * The split is not tidiness. A group block was a name, a strip of three covers
+ * and one line of conversation, about a hundred points each, so three groups
+ * filled the screen and the album chats began below the fold. The talk was
+ * underneath the furniture. And a group's own thread appeared only as the last
+ * line of its block, which is why the section heading beneath could say GROUP
+ * CHATS over a list that contained none of them.
  *
- * ## The door is still a letter
+ * ## Why the album comments are not here
  *
- * The tile beside the name is a letter on the group's lens colour, hashed from
- * its id, and it stays that way: a group has no picture of its own, and giving
- * it one out of an event inside it would put a photograph from a room on the
- * thing that is merely the way in.
+ * They were, under a second heading, and then behind a second tab. Both kept
+ * the same problem alive: this product looked like it had three places to talk
+ * — a group's chat, an album's comments, and the remarks under a photograph —
+ * when it has two, and one of those two was being listed twice.
  *
- * The strip below it is not that, and the difference is where the pictures
- * come from. Those covers are read off `events` — this actor's own listing,
- * the albums they can already open — and never off the group. So a group shows
- * somebody the evenings *they* were at, three at a time; somebody who was
- * never in one of its events, or who has since been removed from it, has no
- * listing for it and sees an empty slot where that cover would be. The server
- * is not asked for a group's photographs and does not answer with any.
+ * A comment belongs to the photograph it is about. It stays there. What was
+ * genuinely lost by taking the list off this tab is the way *back* to a
+ * conversation you are part of but did not start, and that belongs in Lately
+ * with everything else that has happened to you — see `activity.ts`, which now
+ * carries a reply as well as a comment on your own photograph.
  *
- * ## Groups are made here, and what makes that safe
- *
- * This tab used to refuse a create action outright, and the argument was good:
- * a group is something you notice afterwards, and an empty group you then have
- * to fill is a distribution problem with no photographs in it.
- *
- * What changed is not the argument but what sits beside the button — the
- * people this actor keeps ending up in the same events as, from
- * `/api/groups/clusters`. Creating is confirming a set of people who already
- * exist rather than inventing one. The suggestion is one quiet line above a
- * rule now rather than a card: it is a remark about the list above it, and a
- * bordered box gave it the weight of a room you are already in.
- *
- * The roll-up from an event has not gone anywhere; it is still in the event's
- * `⋯` sheet and still the only path that moves an event under a group.
+ * So: one list, of rooms. Every group is listed, spoken in or not. There are a
+ * handful of them and a silent one is a room you might be the first to say
+ * something in.
  */
-export function GroupsTab({
+export function ChatsTab({
   api,
   events,
   t,
-  openCreate = 0,
   active,
-  onOpenGroup,
   onOpenGroupThread,
-  onOpenEventThread,
   onGoToEvents,
+  waiting,
+  onOpenLately,
+  onCreateAlbum,
+  onCreateGroup,
+  Button,
 }: {
   api: Api;
-  /**
-   * This actor's own albums, for the covers under each group's name.
-   *
-   * Passed in rather than fetched: the tabs already hold this list, and it is
-   * the list of what this person can reach — which is exactly the bound that
-   * makes drawing a photograph here safe. See the note at the top.
-   */
   events: EventListing[];
   t: TabTheme;
-  /**
-   * Bumped by somebody who asked to make a group from another tab.
-   *
-   * A counter rather than a boolean: the profile's `+` can be pressed twice,
-   * and the second press has to open the form again after the first was
-   * cancelled — which a flag that is already `true` cannot say. The form
-   * itself stays here because this is where the suggestions are.
-   */
-  openCreate?: number;
-  /**
-   * Whether this tab is the one in front.
-   *
-   * Kept-alive tabs do not refetch on their own, and this one has the most to
-   * go stale: a group made from the profile's `+`, an event rolled into a
-   * group, somebody else saying something in one. Returning re-reads quietly —
-   * `load` never clears what it holds, so the rooms stay on screen while the
-   * fresh answer is on its way.
-   */
+  waiting: number;
+  onOpenLately: () => void;
+  onCreateAlbum: () => void;
+  onCreateGroup: () => void;
+  Button: ButtonComponent;
   active: boolean;
-  onOpenGroup: (groupId: string) => void;
-  /** A group's own conversation, which is not the same place as the group. */
   onOpenGroupThread: (group: MyGroupDetail) => void;
-  /** An event's conversation — the album, opened on its Talk pane. */
-  onOpenEventThread: (event: EventListing) => void;
-  /** Where somebody with nothing to recognise yet is sent. */
   onGoToEvents: () => void;
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
-  const [clusters, setClusters] = useState<Cluster[]>([]);
-  const [also, setAlso] = useState<ClusterPerson[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  /*
-   * Which card is open as a form, or `'anyone'` for the one `New group` opens
-   * with nobody in it. One at a time: two half-filled forms on one screen is
-   * two things to cancel and a question about which Create belongs to which.
-   */
-  const [making, setMaking] = useState<string | null>(null);
+  /** The `+` sheet, the same one Home and Find open. */
+  const [starting, setStarting] = useState(false);
+  /** What is being looked for on this tab, if anything. */
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
-    const [mine, found] = await Promise.all([
-      api.myGroupsDetailed().catch(() => []),
-      api.clusters().catch(() => ({ clusters: [], also: [] })),
-    ]);
-    setGroups(mine);
-    setClusters(found.clusters);
-    setAlso(found.also);
+    setGroups(await api.myGroupsDetailed().catch(() => []));
   }, [api]);
 
   // On arrival, and on every return to the tab. Not on the switches away.
@@ -674,11 +1048,15 @@ export function GroupsTab({
     if (active) void load();
   }, [active, load]);
 
-  // Zero is the value nobody asked with — the tab opening normally, rather
-  // than somebody arriving on it holding a press.
   useEffect(() => {
-    if (openCreate > 0) setMaking('anyone');
-  }, [openCreate]);
+    if (!active) {
+      // A search is something somebody is in the middle of, not a setting.
+      // Leaving the tab and coming back should be this tab, not the last thing
+      // typed into it — a stale query hides most of the screen on arrival with
+      // the reason for it scrolled off the top.
+      setQuery('');
+    }
+  }, [active]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -686,257 +1064,249 @@ export function GroupsTab({
     setRefreshing(false);
   }, [load]);
 
-  /** This actor's albums, filed under the group they belong to, newest first. */
-  const byGroup = useMemo(() => {
-    const map = new Map<string, EventListing[]>();
-    for (const event of events) {
-      if (!event.groupId) continue;
-      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
-    }
-    return map;
-  }, [events]);
+  /*
+   * Searching this tab, over what it already holds.
+   *
+   * Local rather than a round trip: every conversation on this screen is in
+   * memory by the time it draws, and asking the server would cost the one
+   * thing that makes a search field feel like one — that the list narrows
+   * while you type rather than a moment after you stop.
+   *
+   * It reads what was last *said* as well as the names. Somebody looking for a
+   * conversation, on the tab that is only conversations, is as likely to
+   * remember a word out of it as the name of the room it happened in; a search
+   * that matches titles alone refuses the more useful half of the question.
+   */
+  const looking = query.trim().toLowerCase();
+  const matches = useCallback(
+    (...fields: (string | null | undefined)[]) =>
+      !looking || fields.some((field) => field?.toLowerCase().includes(looking)),
+    [looking],
+  );
 
   /*
-   * The evenings that belong to no group, newest conversation first.
+   * The standing conversations, by when something was last said in them.
    *
-   * Sorted by when something was last *said*, falling back to when the album
-   * was last added to. A list of conversations ordered by upload time puts a
-   * silent album full of photographs above the one somebody is talking in,
-   * which is the wrong answer on a tab about talking.
-   *
-   * Only the ones somebody has actually spoken in.
-   *
-   * A reversal: these used to list whether or not anything had been said, on
-   * the argument that an empty chat is a door and hiding it until somebody
-   * speaks means nobody ever does. In practice it filled the section with rows
-   * reading "Nobody has said anything yet" — a list of absences under a heading
-   * that promises conversations.
-   *
-   * The door is still there, it is just the album's own Talk tab rather than
-   * this list: opening the evening and saying something is what puts it here.
+   * A group nobody has spoken in has no message to sort by and goes last,
+   * behind every group that has one — `lastActiveAt` would sort it by album
+   * activity, which is the other tab's subject and not this one's.
    */
-  const loose = useMemo(
+  const groupChats = useMemo(
     () =>
-      events
-        .filter((event) => !event.groupId && event.lastMessage != null)
-        // By when something was last said. No fallback needed now that a row
-        // without a message is not a row.
-        .sort((a, b) => b.lastMessage!.at.localeCompare(a.lastMessage!.at)),
-    [events],
+      (groups ?? [])
+        .filter((group) =>
+          matches(group.name, group.lastMessage?.body, group.lastMessage?.author),
+        )
+        .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? '')),
+    [groups, matches],
   );
+
+  /*
+   * Every album somebody has spoken in, newest conversation first.
+   *
+   * Sorted by when something was last *said*. A list of conversations ordered
+   * by upload time puts a silent album full of photographs above the one
+   * somebody is talking in, which is the wrong answer on a tab about talking.
+   *
+   * Grouped albums are here too, and not only the one-offs. An album inside a
+   * group has a conversation that belongs to that evening rather than to the
+   * room, and holding it back left it reachable only by remembering which
+   * album it was and opening its Talk tab.
+   */
+  /*
+   * Nothing at all until every part of this page can be drawn at once.
+   *
+   * The album chats are built from `events`, a prop the tabs already hold, so
+   * they would be on screen a round trip before the group chats above them —
+   * the minor half of the tab arriving first, with the rest dropping in on top
+   * and pushing down whatever somebody had started reading.
+   *
+   * Only ever the first paint. `load` never puts `groups` back to null, so
+   * coming back to the tab redraws the page it had and fills in behind it.
+   */
+  if (groups === null) {
+    return (
+      <View style={styles.groupsLoading}>
+        <Waiting size={40} />
+      </View>
+    );
+  }
+
+  const nothing = groups.length === 0 && looking === '';
+
 
   return (
     <ScrollView
       contentContainerStyle={styles.groupsScroll}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
     >
-      <View style={styles.groupsHead}>
-        {/* "Your Parea" rather than "Groups": the tab holds the rooms and the
-            conversations, and the word for all of that together is the one the
-            product is named after. */}
-        <Text style={[styles.h1, { color: t.fg }]}>Your Parea</Text>
-        {/*
-          A filled disc rather than an outlined word.
-
-          Here in every state, including the empty one: somebody with no groups
-          is who most needs to know one can be made. It is a glyph now because
-          the screen's heading row is a heading and one action, and "New group"
-          set beside a 30pt title was a second thing to read on the way to the
-          rooms underneath it.
-        */}
-        {groups !== null && making !== 'anyone' && (
-          <RoundButton t={t} onPress={() => setMaking('anyone')} accessibilityLabel="New group">
+      {/*
+        The same head every tab has, with its controls in the same corners:
+        making on the left of the name, answering on the right.
+      */}
+      <PageHead
+        color={t.fg}
+        left={
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
-        )}
-      </View>
+        }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+      />
 
-      {making === 'anyone' && (
-        <CreateGroupForm
-          api={api}
-          cluster={null}
-          also={also}
+      {starting && (
+        <StartSomething
           t={t}
-          onCancel={() => setMaking(null)}
-          onCreated={(id) => {
-            setMaking(null);
-            onOpenGroup(id);
-          }}
+          Button={Button}
+          onClose={() => setStarting(false)}
+          onAlbum={onCreateAlbum}
+          onGroup={onCreateGroup}
         />
       )}
 
       {/*
-        Nothing under the title until all of it is ready.
+        The same field Find has, because it is the same gesture.
 
-        The event chats are built from `events`, a prop the tabs already hold,
-        so they were on screen a round trip before the groups they sit beneath —
-        the minor half of this tab arriving first and the rooms dropping in above
-        it afterwards, which pushed everything somebody was reading down the
-        page. The spinner covers the lot now, and the order it appears in is the
-        order it is written in.
+        Hidden where there is nothing to search: on a tab with no rooms and no
+        conversations it is a control that cannot succeed, sitting above the
+        paragraph explaining why there is nothing here.
       */}
-      {groups === null ? (
-        <Waiting fill />
-      ) : (
-        <>
-      {groups.length === 0 && clusters.length === 0 ? (
+      {!nothing && (
+        <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
+          <Glyph name="search" size={17} color={t.dim} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search chats"
+            placeholderTextColor={t.dim}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search chats"
+            style={[styles.fieldText, { color: t.fg }]}
+          />
+          {query !== '' && (
+            <Pressable
+              onPress={() => setQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              // A larger target than the glyph: this is the control somebody
+              // reaches for one-handed, at the far edge of the screen.
+              hitSlop={12}
+            >
+              <Text style={[styles.clear, { color: t.dim }]}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {nothing ? (
         /*
-          Where groups come from, rather than a control that cannot work.
-          Somebody here with none has not failed at anything — they have not
-          yet had the second evening with the same people, which is the moment
-          a group is for.
-        */
+         * Where conversations come from, rather than a control that cannot
+         * work. Somebody here with none has not failed at anything — they have
+         * not shared an evening yet, which is where every thread in this
+         * product starts.
+         */
         <View style={{ gap: 12 }}>
-          <Text style={[styles.label, { color: t.fg }]}>
-            You are not in any groups yet.
-          </Text>
+          <Text style={[styles.label, { color: t.fg }]}>No chats yet.</Text>
           <Text style={[styles.body, { color: t.dim }]}>
-            Groups are for the people who keep turning up — once you have shared
-            a couple of events with the same faces, they show up here ready to
-            keep together. Nothing to go on yet, so the button above is the way
-            to start one.
+            Every group you are in has one. Comments on photographs live on the
+            album they belong to, and turn up in your tray when somebody
+            answers you.
           </Text>
           <Pressable
             onPress={onGoToEvents}
             accessibilityRole="button"
-            accessibilityLabel="Go to your events"
+            accessibilityLabel="Go to your albums"
           >
-            <Text style={[styles.headAction, { color: t.accent }]}>Your events</Text>
+            <Text style={[styles.headAction, { color: t.accent }]}>Your albums</Text>
           </Pressable>
         </View>
       ) : (
-        groups.map((group) => (
-          <GroupBlock
-            key={group.id}
-            group={group}
-            albums={byGroup.get(group.id) ?? []}
-            t={t}
-            onPress={() => onOpenGroup(group.id)}
-            onOpenThread={() => onOpenGroupThread(group)}
-          />
-        ))
-      )}
+        <>
+          {/*
+            The rooms, one row each: a letter on the group's own colour, the
+            name, and the last thing said in it.
 
-      {/*
-        The conversations that belong to no group.
+            Never a photograph on the tile. A group has no picture of its own,
+            and borrowing one out of an evening inside it would put something
+            from a room on the way in to it — the same rule the group blocks on
+            Find follow.
+          */}
+          {groupChats.length > 0 && (
+            <View style={{ gap: 2 }}>
+              {groupChats.map((group, i) => {
+                const lens = lensFor(group.id);
+                return (
+                  <Pressable
+                    key={group.id}
+                    onPress={() => onOpenGroupThread(group)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${group.name}, conversation`}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      // No rule under the last one: a divider at the foot of a
+                      // list is a line under nothing.
+                      i < groupChats.length - 1 && {
+                        borderBottomWidth: 1,
+                        borderBottomColor: t.line,
+                      },
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <View
+                      style={[styles.chatThumb, styles.chatLetter, { backgroundColor: lens.fill }]}
+                    >
+                      <Text style={[styles.chatInitial, { color: lens.ink }]}>
+                        {initialOf(group.name)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
+                        {group.name}
+                      </Text>
+                      {/* A count rather than a dot: a group is busy, and the
+                          number is the useful part. */}
+                      <ConversationLine
+                        line={group}
+                        fallback="Nobody has said anything yet."
+                        t={t}
+                      />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
-        An evening with the same six people every month becomes a group and its
-        talk moves under that group's block. An evening that never will — a
-        wedding, somebody's leaving do, the one barbecue — still has a thread,
-        and before this it was reachable only by remembering which album it was
-        inside. This is the other half of "one tab for every conversation".
+          {/*
+            A search that matches nothing should say so rather than leaving a
+            head, a field and an empty page — which reads as the tab having
+            failed to load rather than as an answer.
 
-        Grouped events are deliberately absent: their talk belongs under the
-        group, and listing them twice would make the busiest rooms the noisiest
-        part of a screen that is meant to be scanned.
-      */}
-      {loose.length > 0 && (
-        <View style={{ gap: 2 }}>
-          <Text style={[styles.sectionLabel, { color: t.dim }]}>GROUP CHATS</Text>
-          {loose.map((event, i) => (
-            <Pressable
-              key={event.id}
-              onPress={() => onOpenEventThread(event)}
-              accessibilityRole="button"
-              accessibilityLabel={`${event.name}, conversation`}
-              style={({ pressed }) => [
-                styles.chatRow,
-                // No rule under the last one: a divider at the foot of a list
-                // is a line under nothing.
-                i < loose.length - 1 && { borderBottomWidth: 1, borderBottomColor: t.line },
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              {event.cover ? (
-                <Image
-                  source={{ uri: event.cover.src }}
-                  style={[styles.chatThumb, { backgroundColor: t.line }]}
-                  contentFit="cover"
-                  transition={120}
-                />
-              ) : (
-                <View
-                  style={[styles.chatThumb, { backgroundColor: lensFor(event.id).fill }]}
-                />
-              )}
-              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                  {event.name}
-                </Text>
-                <ConversationLine line={event} t={t} dot />
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
+            And it says where the other kind of conversation is. Comments live
+            on the photographs they are about; the way back to one you are part
+            of is Lately, not this tab.
+          */}
+          {looking !== '' && groupChats.length === 0 && (
+            <Text style={[styles.body, { color: t.dim }]}>
+              No chat of yours matches “{query.trim()}”. This searches your
+              groups — comments on photographs are on the album they belong to.
+            </Text>
+          )}
 
-      {/*
-        What the product noticed, as one line at the foot of everything it
-        already knows about.
-
-        Below the conversations rather than between them. It is the one thing
-        on this tab that is a suggestion rather than a room somebody is
-        already in, and sitting it between the groups and the event chats put
-        an offer in the middle of a list of places — which read as a break in
-        the list rather than as a remark about it.
-
-        Never more than two, and a cluster whose people are already gathered
-        in one of these groups is dropped by the server — which is what lets
-        this stay without needing a way to dismiss it.
-      */}
-      {clusters.map((cluster) =>
-        making === cluster.key ? (
-          <CreateGroupForm
-            key={cluster.key}
-            api={api}
-            cluster={cluster}
-            also={also}
-            t={t}
-            onCancel={() => setMaking(null)}
-            onCreated={(id) => {
-              setMaking(null);
-              onOpenGroup(id);
-            }}
-          />
-        ) : (
-          <ClusterCard
-            key={cluster.key}
-            cluster={cluster}
-            onMake={() => setMaking(cluster.key)}
-            t={t}
-          />
-        ),
-      )}
-
-      {/*
-        Where the other kind of group is. Discovery lives on Find and stays
-        there — this tab is the rooms you are in, and a second list of rooms
-        you are not would make it two screens wearing one title.
-      */}
-      {groups.length > 0 && (
-        <Text style={[styles.small, { color: t.dim, paddingTop: 6 }]}>
-          Looking for one you are not in? Find searches groups that have chosen
-          to be findable — you would still be asking to be let in.
-        </Text>
-      )}
         </>
       )}
     </ScrollView>
   );
 }
-
-/**
- * One group: its door, its evenings, and what has just happened in it.
- *
- * Three blocks of one thing rather than a row — the covers are the reason this
- * screen exists now, and a strip 96 points tall is a photograph where a 44pt
- * thumbnail beside a name was a bullet point.
- */
 function GroupBlock({
   group,
   albums,
@@ -962,6 +1332,21 @@ function GroupBlock({
    * dashed box; neither leaves anything now.
    */
   const withCovers = albums.filter((album) => album.cover).slice(0, COVER_STRIP);
+  /*
+   * How tall the strip stands, which depends on how much is in it.
+   *
+   * The tiles share the block's width, so the fewer there are the wider each
+   * one gets — and at one fixed height that meant a group with a single
+   * evening drew that evening as a 4:1 letterbox, a band of photograph with
+   * the top and bottom of it cut away. The one group most in need of showing
+   * something showed the least of it.
+   *
+   * So the height goes up as the count comes down, and each tile lands near
+   * the same shape whatever the group holds: a banner across the block for
+   * one, a pair of landscapes for two, three squares for three. All three are
+   * taller than the 84 this drew before.
+   */
+  const stripHeight = [0, 150, 128, 104][withCovers.length] ?? 104;
   /*
    * How many evenings are not in the strip.
    *
@@ -1019,7 +1404,7 @@ function GroupBlock({
       {withCovers.length > 0 && (
         <View style={styles.strip}>
           {withCovers.map((album, i) => (
-            <View key={album.id} style={styles.stripTile}>
+            <View key={album.id} style={[styles.stripTile, { height: stripHeight }]}>
               <Image
                 source={{ uri: album.cover!.src }}
                 style={[styles.stripShot, { backgroundColor: t.line }]}
@@ -1053,7 +1438,7 @@ function GroupBlock({
         line={group}
         fallback={
           group.eventCount === 0
-            ? 'Nothing in it yet — anyone in it can start the first event.'
+            ? 'Nothing in it yet — anyone in it can start the first album.'
             : 'Nobody has said anything yet.'
         }
         t={t}
@@ -1165,6 +1550,15 @@ function ConversationLine({
 const COVER_STRIP = 3;
 
 /**
+ * How many group blocks Find opens with.
+ *
+ * Each is a name, a strip of covers and a line of conversation — about a
+ * hundred points — so this is the number that fits under the search field
+ * before somebody is scrolling past their own rooms to reach the box.
+ */
+const GROUPS_SHOWN = 3;
+
+/**
  * Find — one field, scoped by chips.
  *
  * It was three bordered cards, each with a heading, each with a paragraph of
@@ -1199,21 +1593,129 @@ export function SearchTab({
   api,
   events,
   t,
+  waiting,
   onOpen,
   onOpenGroup,
+  onOpenGroupThread,
   onOpenPerson,
+  onOpenLately,
+  onCreateAlbum,
+  onCreateGroup,
+  onCreateGroupFrom,
+  active,
+  openCreate = 0,
+  Button,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
+  /** Whether this is the tab on screen. The rooms below are reloaded on arrival. */
+  active: boolean;
+  /** How many things are waiting on an answer, for the badge on the envelope. */
+  waiting: number;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
+  onOpenGroupThread: (group: MyGroupDetail) => void;
   onOpenPerson: (handle: string) => void;
+  onOpenLately: () => void;
+  /** The `+`'s two halves. Nothing is made until one of them is picked. */
+  onCreateAlbum: () => void;
+  onCreateGroup: () => void;
+  onCreateGroupFrom: (cluster: Cluster) => void;
+  /**
+   * A counter, bumped when a `+` on another tab asks this one to open the
+   * make-a-group page. Zero is the value nobody asked with — the tab opening
+   * normally, rather than somebody arriving on it holding a press.
+   */
+  openCreate?: number;
+  Button: ButtonComponent;
 }) {
-  const [scope, setScope] = useState<Scope>('people');
+  const [starting, setStarting] = useState(false);
+  const [scope, setScope] = useState<Scope>('all');
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
   const [people, setPeople] = useState<InvitablePerson[]>([]);
+
+  /*
+   * The rooms this person is already in, which is what this page is when
+   * nobody is searching it.
+   *
+   * They were a tab of their own, sitting above the conversations going on
+   * inside them — so the talk began below the fold, and one tab carried two
+   * subjects under one name. Here they are the resting state of the page whose
+   * whole job is finding a room: the ones you have, and a field for the ones
+   * you do not.
+   *
+   * Null until the first answer, which is how this tells "still asking" from
+   * "none" — the difference between a spinner and a paragraph about what
+   * groups are for.
+   */
+  const [mine, setMine] = useState<MyGroupDetail[] | null>(null);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [allGroups, setAllGroups] = useState(false);
+  /**
+   * People worth asking, and who has already been asked from here.
+   *
+   * `sent` is local rather than a reload. The server answers a request with
+   * the standing it produced, and re-fetching the suggestions to make a row
+   * disappear would take the whole list out from under a finger mid-scroll —
+   * which is the thing a horizontal row of faces is least able to survive.
+   */
+  const [suggested, setSuggested] = useState<SuggestedPerson[] | null>(null);
+  const [sent, setSent] = useState<Record<string, 'asking' | 'asked'>>({});
+
+  const loadMine = useCallback(async () => {
+    const [rooms, found, people] = await Promise.all([
+      api.myGroupsDetailed().catch(() => []),
+      api.clusters().catch(() => ({ clusters: [], also: [] })),
+      // Empty for a guest, which the route answers with a 403 — a suggestion
+      // is derived from a friendship graph and a device that has never signed
+      // in has none.
+      api.suggestedPeople().catch(() => []),
+    ]);
+    setMine(rooms);
+    setClusters(found.clusters);
+    setSuggested(people);
+  }, [api]);
+
+  const ask = useCallback(
+    async (actorId: string) => {
+      setSent((was) => ({ ...was, [actorId]: 'asking' }));
+      try {
+        const answer = await api.askFriend(actorId);
+        // `accepted` happens when this crossed with an ask of theirs: the
+        // endpoint answers the open request rather than opening a second one.
+        setSent((was) => ({ ...was, [actorId]: 'asked' }));
+        return answer;
+      } catch {
+        // Back to a button that can be pressed again, rather than a row stuck
+        // saying it is doing something it has stopped doing.
+        setSent((was) => {
+          const next = { ...was };
+          delete next[actorId];
+          return next;
+        });
+        return null;
+      }
+    },
+    [api],
+  );
+
+  // On arrival, and on every return to the tab. Not on the switches away.
+  useEffect(() => {
+    if (active) void loadMine();
+  }, [active, loadMine]);
+
+  useEffect(() => {
+    if (!active) setAllGroups(false);
+  }, [active]);
+
+  useEffect(() => {
+    if (openCreate > 0) onCreateGroup();
+    // `onCreateGroup` is a route change and is stable; including it would fire
+    // this on every render of the shell above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreate]);
 
   /**
    * One box, and which namespace it is asking is the chip.
@@ -1233,8 +1735,15 @@ export function SearchTab({
         setGroups([]);
         return;
       }
-      if (into === 'people') setPeople(await api.findPeople(next).catch(() => []));
-      if (into === 'groups') setGroups(await api.searchGroups(next).catch(() => []));
+      // `all` asks both, and the two lists draw under their own headings —
+      // one field, two namespaces, rather than making somebody guess which
+      // chip the thing they half-remember is filed under.
+      if (into === 'people' || into === 'all') {
+        setPeople(await api.findPeople(next).catch(() => []));
+      }
+      if (into === 'groups' || into === 'all') {
+        setGroups(await api.searchGroups(next).catch(() => []));
+      }
     },
     [api],
   );
@@ -1255,9 +1764,67 @@ export function SearchTab({
   const unplaced = events.filter((event) => !event.place).length;
   const asked = query.trim().length >= 2;
 
+  /** This actor's albums, filed under the group they belong to, newest first. */
+  const byGroup = useMemo(() => {
+    const map = new Map<string, EventListing[]>();
+    for (const event of events) {
+      if (!event.groupId) continue;
+      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+    }
+    return map;
+  }, [events]);
+
+  /*
+   * The three most recently added to, unless somebody asked for the rest.
+   *
+   * `lastActiveAt` is null for a group nothing has happened in yet, and those
+   * go last rather than first — an empty room is the least useful thing this
+   * section can lead with.
+   */
+  const rooms = useMemo(() => {
+    const ordered = [...(mine ?? [])].sort((a, b) =>
+      (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
+    );
+    return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
+  }, [allGroups, mine]);
+
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.h1, { color: t.fg }]}>Find</Text>
+      {/*
+        The same two corners, on the tab that had neither.
+
+        It said "Find" at 30 points above a search field, on the tab whose own
+        glyph is a magnifier — a title saying what the field below it already
+        says. What replaces it is the head the other tabs have, controls
+        included: a `+` that is missing from one screen in three is a `+`
+        somebody has to remember the whereabouts of.
+      */}
+      <PageHead
+        color={t.fg}
+        left={
+          <RoundButton
+            t={t}
+            onPress={() => setStarting(true)}
+            accessibilityLabel="New album or group"
+          >
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        }
+        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+      />
+
+      {starting && (
+        <StartSomething
+          t={t}
+          Button={Button}
+          onClose={() => setStarting(false)}
+          onAlbum={onCreateAlbum}
+          onGroup={onCreateGroup}
+        />
+      )}
 
       <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
         <Glyph name="search" size={17} color={t.dim} />
@@ -1282,6 +1849,7 @@ export function SearchTab({
       <View style={styles.chips}>
         {(
           [
+            ['all', 'All'],
             ['people', 'People'],
             ['groups', 'Groups'],
             ['places', 'Places'],
@@ -1318,8 +1886,235 @@ export function SearchTab({
         })}
       </View>
 
+      {/*
+        Your own rooms, under the box that finds other people's.
+
+        Only while nobody is searching. A query on this page has an answer, and
+        leaving an unrelated list of rooms beneath that answer would make the
+        one thing on screen that did not match the tallest thing on screen —
+        somebody searching "ana" wants the two people called Ana, not the two
+        people and a hundred points of Fam Jam.
+
+        So this is the page at rest: the groups you have, and a field for the
+        ones you do not.
+      */}
+      {!asked && mine === null && (
+        <View style={styles.groupsLoading}>
+          <Waiting size={40} />
+        </View>
+      )}
+
+      {/*
+        People worth asking, above the groups and never anywhere else.
+
+        Friends of your friends, most mutuals first — `suggestionsFor`, the
+        same list the web's Find page draws. It is the only thing on this page
+        that is a *recommendation* rather than something already yours, which
+        is why it leads: somebody opening Find without a question in mind is
+        the person it is for, and a list of rooms they are already in answers
+        nothing for them.
+
+        A row rather than a column. Twelve suggestions down the page would be
+        the whole screen, and a suggestion is a glance — a face, a name, how
+        many of your own people know them, and a button. Sideways is what says
+        "some of these, not all of these".
+      */}
+      {!asked && (scope === 'all' || scope === 'people') && suggested !== null &&
+        suggested.length > 0 && (
+          <View style={{ gap: 6 }}>
+            <Text style={[styles.sectionLabel, { color: t.dim }]}>PEOPLE YOU MAY KNOW</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              /*
+                The page scrolls down and this scrolls across, which is two
+                gestures in one place — so the row is given its own padding and
+                bleeds to both edges. A card half-off the screen is what tells
+                somebody there is more of it sideways; a row that stops neatly
+                at the margin reads as a row that has ended.
+              */
+              contentContainerStyle={styles.suggestRow}
+              style={styles.suggestBleed}
+            >
+              {suggested.map((person) => {
+                const standing = sent[person.actorId];
+                const name = person.displayName?.trim() || `@${person.handle}`;
+                return (
+                  <View
+                    key={person.actorId}
+                    style={[styles.suggest, { backgroundColor: t.card, borderColor: t.line }]}
+                  >
+                    <Pressable
+                      onPress={() => person.handle && onOpenPerson(person.handle)}
+                      disabled={!person.handle}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${name}, ${plural(person.mutuals, 'mutual friend')}`}
+                      style={({ pressed }) => [{ alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 }]}
+                    >
+                      {person.avatar ? (
+                        <Image
+                          source={{ uri: person.avatar }}
+                          style={[styles.suggestFace, { backgroundColor: t.line }]}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.suggestFace,
+                            styles.chatLetter,
+                            { backgroundColor: lensFor(person.handle ?? person.actorId).fill },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.suggestInitial,
+                              { color: lensFor(person.handle ?? person.actorId).ink },
+                            ]}
+                          >
+                            {initialOf(name)}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.suggestName, { color: t.fg }]} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      {/*
+                        The reason they are here. Without it this is a row of
+                        strangers, and a row of strangers on a page about the
+                        people you know is the thing nobody taps.
+                      */}
+                      <Text style={[styles.suggestWhy, { color: t.dim }]} numberOfLines={1}>
+                        {plural(person.mutuals, 'mutual')}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => void ask(person.actorId)}
+                      disabled={standing != null}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        standing === 'asked' ? `Asked ${name}` : `Add ${name} as a friend`
+                      }
+                      style={({ pressed }) => [
+                        styles.suggestAdd,
+                        standing
+                          ? { backgroundColor: t.bg, borderColor: t.line }
+                          : { backgroundColor: t.accent, borderColor: t.accent },
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.suggestAddText,
+                          { color: standing ? t.dim : t.onAccent },
+                        ]}
+                      >
+                        {standing === 'asked' ? 'Asked' : standing ? '…' : 'Add'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+      {/*
+        And what the People filter says with nothing to suggest.
+        *
+        * Suggestions are friends of your friends, so somebody with no friends
+        * yet has none by arithmetic rather than by anything being wrong. The
+        * box above is the way out of that, which is what this says.
+        */}
+      {!asked && scope === 'people' && suggested !== null && suggested.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          Nobody to suggest yet. These are friends of your friends, so they
+          start appearing once you have a few — search a handle above to add the
+          first.
+        </Text>
+      )}
+
+      {!asked && scope !== 'places' && scope !== 'people' && mine !== null && (
+        <>
+          {mine.length > 0 && (
+            <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
+          )}
+
+          {rooms.map((group) => (
+            <GroupBlock
+              key={group.id}
+              group={group}
+              albums={byGroup.get(group.id) ?? []}
+              t={t}
+              onPress={() => onOpenGroup(group.id)}
+              onOpenThread={() => onOpenGroupThread(group)}
+            />
+          ))}
+
+          {/*
+            The rest, behind a word.
+
+            A group block is a name, a strip of covers and a line of
+            conversation — a hundred points of screen each — so somebody in
+            eight groups would scroll past six of them to reach the bottom of
+            their own page. Three is about how many rooms anybody is in this
+            week, and expanding in place rather than on a screen of its own
+            keeps one place where a group block is drawn.
+          */}
+          {mine.length > rooms.length && (
+            <Pressable
+              onPress={() => setAllGroups(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`All groups, ${mine.length}`}
+              style={({ pressed }) => [
+                styles.allGroups,
+                { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={[styles.allGroupsText, { color: t.fg }]}>All groups</Text>
+              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{mine.length}</Text>
+            </Pressable>
+          )}
+
+          {/*
+            What the product noticed, at the foot of the rooms it already knows
+            about. Never more than two, and a cluster whose people are already
+            gathered in one of these groups is dropped by the server — which is
+            what lets this stay without needing a way to dismiss it.
+
+            A cluster opens the same page the `+` does, holding its people and
+            its suggested name.
+          */}
+          {clusters.map((cluster) => (
+            <ClusterCard
+              key={cluster.key}
+              cluster={cluster}
+              onMake={() => onCreateGroupFrom(cluster)}
+              t={t}
+            />
+          ))}
+
+          {mine.length === 0 && clusters.length === 0 && (
+            /*
+              Where groups come from, rather than a control that cannot work.
+              Somebody here with none has not failed at anything — they have
+              not yet had the second evening with the same people, which is the
+              moment a group is for.
+            */
+            <Text style={[styles.body, { color: t.dim }]}>
+              You are not in any groups yet. Groups are for the people who keep
+              turning up — once you have shared a couple of albums with the same
+              faces, they show up here ready to keep together. The box above
+              finds the ones that have chosen to be findable; you would still be
+              asking to be let in.
+            </Text>
+          )}
+        </>
+      )}
+
       <View style={styles.results}>
-        {scope === 'people' &&
+        {(scope === 'people' || scope === 'all') &&
           people.map((person, i) => (
             <Result
               key={person.actorId}
@@ -1338,7 +2133,7 @@ export function SearchTab({
             />
           ))}
 
-        {scope === 'groups' &&
+        {(scope === 'groups' || scope === 'all') &&
           groups.map((group, i) => (
             <Result
               key={group.id}
@@ -1401,10 +2196,20 @@ export function SearchTab({
       {scope === 'groups' && asked && groups.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>Nothing findable by that name.</Text>
       )}
+      {/*
+        One sentence for both namespaces, said only when both came back empty.
+        Two lines — "no handle" and "no group" — under a box that asked both
+        questions at once is the page reporting its own internals.
+      */}
+      {scope === 'all' && asked && people.length === 0 && groups.length === 0 && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          No handle or findable group by that name.
+        </Text>
+      )}
       {scope === 'places' && places.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
           {events.length === 0 || unplaced === events.length
-            ? 'None of your events say where they were yet. Whoever starts one can add a place, and it shows up here.'
+            ? 'None of your albums say where they were yet. Whoever starts one can add a place, and it shows up here.'
             : 'No place of yours matches that.'}
         </Text>
       )}
@@ -1423,18 +2228,45 @@ export function SearchTab({
         somebody who has just seen what a search returns, which is the moment
         "and this is what it will never return" means anything.
       */}
+      {/*
+        What this page can and cannot reach, said once at the foot.
+
+        It named two of the three things the chips offer. Places was missing,
+        and it is the one somebody is most likely to assume works the way the
+        other two do — it does not: a place here is read off the albums this
+        person can already open, never off anybody else's, so it is the one
+        search on this page that asks the server nothing at all.
+
+        Read by somebody who has just seen what a search returns, rather than
+        as a paragraph in front of an empty screen.
+      */}
       <Text style={[styles.footnote, { color: t.dim }]}>
-        Handles and findable groups only. Events and photos are never
-        searchable — the only way into one is being sent it.
+        Handles and findable groups only, and places off your own albums.
+        Albums and photos are never searchable — the only way into one is being
+        sent it.
       </Text>
     </ScrollView>
   );
 }
 
 /** Which namespace the one field is asking. */
-type Scope = 'people' | 'groups' | 'places';
+/**
+ * What the box is asking, and — before anybody types — what the page shows.
+ *
+ * `all` is new and is the default. The chips used to decide only which
+ * namespace a query went to, so an untouched Find was a field, three chips and
+ * nothing else until somebody typed: a screen that answers questions and
+ * volunteers nothing, on the tab somebody opens when they do not yet know what
+ * they are looking for.
+ *
+ * So the chips now also decide what the page rests as. All is both halves —
+ * people worth asking, then the groups you are in. The other two are each half
+ * on its own, which is what a filter is for.
+ */
+type Scope = 'all' | 'people' | 'groups' | 'places';
 
 const PLACEHOLDER: Record<Scope, string> = {
+  all: 'A handle, or a group by name',
   people: 'A handle, or the start of one',
   groups: 'A group by name',
   places: 'Somewhere you have been',
@@ -1623,10 +2455,10 @@ export function AccountCard({
     Alert.alert(
       'Sign out?',
       waiting > 0
-        ? `This phone forgets you and the events it is holding links to. ${waiting} ${
+        ? `This phone forgets you and the albums it is holding links to. ${waiting} ${
             waiting === 1 ? 'photo' : 'photos'
           } waiting to upload will be dropped — they stay in your camera roll. Nothing else is deleted.`
-        : 'This phone forgets you and the events it is holding links to. Nothing is deleted, and the same address signs back in.',
+        : 'This phone forgets you and the albums it is holding links to. Nothing is deleted, and the same address signs back in.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1651,7 +2483,7 @@ export function AccountCard({
     // first; the second is offered beside it rather than folded into it.
     Alert.alert(
       'Delete your account?',
-      'Your email address and this account are removed. The photos you added stay in their events and stay yours to remove.',
+      'Your email address and this account are removed. The photos you added stay in their albums and stay yours to remove.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1686,7 +2518,7 @@ export function AccountCard({
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
         <Text style={[styles.body, { color: t.dim }]}>{account.email}</Text>
         <Text style={[styles.small, { color: t.dim }]}>
-          Your events and groups follow you to a new phone. That is all an
+          Your albums and groups follow you to a new phone. That is all an
           account does here.
         </Text>
         {/* Sign out above delete, and only one of them is permanent. Both are
@@ -1705,8 +2537,8 @@ export function AccountCard({
       </Text>
       <Text style={[styles.small, { color: t.dim }]}>
         {why
-          ? 'No password — a code goes to your inbox, and your events follow you to another device.'
-          : 'Optional. Add an email and your events and groups follow you to another device. No password — a code goes to your inbox.'}
+          ? 'No password — a code goes to your inbox, and your albums follow you to another device.'
+          : 'Optional. Add an email and your albums and groups follow you to another device. No password — a code goes to your inbox.'}
       </Text>
 
       <TextInput
@@ -1772,7 +2604,19 @@ const styles = StyleSheet.create({
      ended up underneath the chrome. */
   /* `flexGrow` so a page that is still loading fills the screen and the
      spinner has somewhere to be the middle of. Inert once there are cards. */
-  scroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 14, flexGrow: 1 },
+  /*
+   * 26 between cards, where it was 14.
+   *
+   * A card is four blocks tall now — a rule, a title, a byline, a photograph
+   * and a strip — and at 14 the strip of one album sat as close to the rule of
+   * the next as its own title sat to its own cover. The gap between two cards
+   * has to be larger than any gap inside one, or the column stops reading as
+   * separate evenings.
+   *
+   * `paddingBottom` grows with it: the last card's strip has to clear the
+   * floating tab bubble, which is 28 from the bottom and about 70 tall.
+   */
+  scroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 26, flexGrow: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
@@ -1798,7 +2642,7 @@ const styles = StyleSheet.create({
    * moving the gutter onto every text block separately, which is four places
    * to keep in step instead of one.
    */
-  cover: { marginHorizontal: -20, overflow: 'hidden', height: 260, backgroundColor: '#8881' },
+  cover: { marginHorizontal: -20, overflow: 'hidden', backgroundColor: '#8881' },
   coverShot: { width: '100%', height: '100%' },
   /* Over the picture's bottom edge, not under it — see the note on the card.
      The negative margin is the overlap, and the row sits above the text it
@@ -1827,7 +2671,90 @@ const styles = StyleSheet.create({
   faceShot: { width: '100%', height: '100%' },
   faceLetter: { fontSize: 8.5, fontWeight: '700' },
   faceMore: { paddingHorizontal: 2 },
-  under: { marginHorizontal: -4, paddingTop: 8, gap: 2 },
+  /*
+   * The rule line above a card: the measurements, then a hairline to the edge.
+   *
+   * `marginHorizontal: -4` is the card's column, the same number the byline,
+   * the faces and the title all answer to — see the note below on measuring
+   * from the glass rather than from the scroll.
+   */
+  measured: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -4, marginBottom: 6 },
+  /*
+   * Monospaced, which is the only face in this product that is.
+   *
+   * Deliberately the exception rather than a drift: everything else on a card
+   * is somebody's evening described in words, and this line is two numbers and
+   * a date — the label on the outside of the box. A monospaced small-cap line
+   * is what that reads as, and at 10.5 points with a wide letter-spacing it is
+   * quiet enough that nobody has to read it who is not looking for it.
+   *
+   * `Menlo` on iOS and `monospace` on Android: React Native has no `ui-
+   * monospace` keyword, and a missing family silently falls back to the system
+   * face — which would make the one deliberate exception look like a bug.
+   */
+  measuredText: {
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+    fontSize: 10.5,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  rule: { flex: 1, height: 1 },
+  /*
+   * The album's name, at the head of the card's column.
+   *
+   * 24 with the tracking pulled in: at this size the default spacing reads as
+   * loose, and this is the one line on the card set as a headline rather than
+   * as text. `marginHorizontal: -4` is the column every other line answers to
+   * — see the note below on measuring from the glass rather than the scroll.
+   *
+   * No shadow and no white. It is on the page again rather than on somebody's
+   * photograph, so it is `fg` on the surface it sits on and the cover goes
+   * back to being a photograph with nothing over it.
+   */
+  cardTitle: {
+    marginHorizontal: -4,
+    marginBottom: 2,
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+  },
+  /* The row under the cover: three photographs and a count, edge to edge.
+
+     Full-bleed like the photograph above it rather than inset to the text
+     column, because it is made of the same thing the photograph is. Four tiles
+     with the same hairline the album's own grid uses — it is a strip of one
+     album's contents, and matching the spacing of the grid it opens is what
+     keeps it reading as a preview of that rather than as four cards.
+
+     The tiles are sized in the card rather than here: they are a quarter of
+     the screen, which is a number this stylesheet does not have. See
+     `sheetTile`. */
+  sheet: { flexDirection: 'row', gap: SHEET_GAP, marginHorizontal: -20, marginTop: 10 },
+  sheetShot: { width: '100%', height: '100%' },
+  /* No border any more: the glass behind it is the tile's edge, and a hairline
+     round a block of colour in a row of borderless photographs was the one
+     thing on the strip drawn as an object. */
+  sheetRest: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /*
+   * Dark plum, and the same in both schemes.
+   *
+   * It read `dim` on the page's own card colour, which followed the scheme
+   * because its background did. The glass does not: the mark's colours are the
+   * mark's colours at midnight, so the ink on them has to be fixed too.
+   *
+   * Dark enough to clear 4.5:1 on all three — 6.9:1 on the blue, which is the
+   * deepest of them, and better on the other two. A mid-tone that looked right
+   * on the mint would be unreadable where the pink bloom is brightest.
+   */
+  sheetRestText: { fontSize: 13, fontWeight: '700', color: '#2f2440' },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
   /*
@@ -1848,30 +2775,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: -4,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
-  bylineFace: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
+  /* The part of the row that is a person, and therefore a control. Shrinks
+     before the line beside it does, because a handle truncated to "kostopo…"
+     is still recognisable and "· 8 peo…" is not a fact. */
+  bylineWho: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  /*
+   * A rounded square, not a circle.
+   *
+   * The profile's own picture is a rounded rectangle, and this is the same
+   * person's face on the card that leads to it — a circle here and a soft
+   * corner there is two shapes for one thing. The radius is a quarter of the
+   * box, which is the proportion the profile's 104 by 26 already sets, so the
+   * 28pt one on a card and the big one on a profile are the same corner at two
+   * sizes rather than two decisions.
+   *
+   * The small circles further down the card stay circles: they are a crowd
+   * read as an overlapping row, and that row only works as circles.
+   */
+  bylineFace: { width: 28, height: 28, borderRadius: 7, overflow: 'hidden' },
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
-  bylineName: { flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
-  /* Small, quiet, and on the picture rather than beside the title: it is true
-     for an hour and it is about the photographs, not about the event. */
-  liveTag: {
-    position: 'absolute',
-    // 16 from the screen edge, which is where the column below it starts. It
-    // was 12 in from a cover that was itself inset by 20; against a full-bleed
-    // photograph the same number would sit almost on the edge of the glass.
-    left: 16,
-    top: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 999,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 4 },
-  liveText: { fontSize: 12.5, fontWeight: '600' },
+  bylineName: { flexShrink: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
+  /* Takes what the name leaves, and loses its tail rather than its head: the
+     count of people is at the front because it is the half somebody reads. */
+  bylineAbout: { flex: 1, minWidth: 0, fontSize: 13 },
   /* The card with nothing in it, which is mostly a button. Bordered, unlike
      the one that leads with a photograph: there is no picture to give it an
      edge, and a borderless block of text would not read as something to press. */
@@ -1909,8 +2838,7 @@ const styles = StyleSheet.create({
      mockup draws the status bar as a row of its own and measures from under
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
-  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: 110, gap: 18, flexGrow: 1 },
-  groupsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 18, flexGrow: 1 },
   groupBlock: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* The door: small, because the evenings under it are what the block is for.
@@ -1926,7 +2854,9 @@ const styles = StyleSheet.create({
      which is what makes it read as "what is in here" and not as three things
      to choose between. */
   strip: { flexDirection: 'row', gap: 3 },
-  stripTile: { flex: 1, height: 84 },
+  /* The height is set per block — see `stripHeight`. It is the one measurement
+     here that depends on how many covers there are to share the width. */
+  stripTile: { flex: 1 },
   stripShot: { width: '100%', height: '100%', borderRadius: 8 },
   stripMore: {
     position: 'absolute',
@@ -1949,6 +2879,30 @@ const styles = StyleSheet.create({
   sayer: { fontWeight: '600' },
   saidWhen: { fontSize: 12.5 },
   /* A number on a group — it is busy and the number is the useful part. */
+  /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so
+     the two cannot drift apart. */
+  roundSlot: { width: ROUND, height: ROUND },
+
+  /* The first paint, before there is a page to draw. Centred in the tab rather
+     than under a heading, because there is no heading yet. */
+  groupsLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  /* A row rather than a link: it is the foot of a list and it is the width of
+     one, so a word floating on the left would read as a caption on the group
+     above it. */
+  allGroups: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  allGroupsText: { fontSize: 15, fontWeight: '600' },
+  allGroupsCount: { fontSize: 13.5 },
+  /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
+     accent fill, same ink. The ring is the page behind it, so the badge reads
+     as sitting on top of the button rather than inside it. */
   unreadPill: {
     minWidth: 19,
     height: 19,
@@ -1964,8 +2918,39 @@ const styles = StyleSheet.create({
   /* The one-off evenings, under a label rather than a heading: they are the
      minor half of this screen and a 30pt title would say otherwise. */
   sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.7, paddingBottom: 4 },
+  /* --- people you may know -----------------------------------------------
+
+     A row that scrolls across a page that scrolls down. The page is padded 20
+     all round, so the row cancels that with a negative margin and puts it back
+     as content padding — which is what lets a card sit half off the right edge
+     instead of stopping neatly at the margin. A row that ends at the margin
+     reads as a row that has ended. */
+  suggestBleed: { marginHorizontal: -20 },
+  suggestRow: { paddingHorizontal: 20, gap: 10 },
+  suggest: {
+    width: 128,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+  },
+  /* A rounded square, like every other face in this product outside the
+     overlapping stack on an album's cover. */
+  suggestFace: { width: 54, height: 54, borderRadius: 14 },
+  suggestInitial: { fontSize: 21, fontWeight: '600' },
+  suggestName: { fontSize: 14, fontWeight: '600', maxWidth: 108, textAlign: 'center' },
+  suggestWhy: { fontSize: 12 },
+  suggestAdd: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 18 },
+  suggestAddText: { fontSize: 13.5, fontWeight: '600' },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
+  /* The same square an album's cover fills, holding a letter instead. Centred
+     and set larger than the 28pt tile on a group block: the glyph is sized to
+     its tile, not to the product. */
+  chatLetter: { alignItems: 'center', justifyContent: 'center' },
+  chatInitial: { fontSize: 17, fontWeight: '600' },
   chatName: { fontSize: 15, fontWeight: '600' },
   /* --- Find -------------------------------------------------------------
      One field, three chips, and rows under a hairline. Everything here
@@ -1982,6 +2967,9 @@ const styles = StyleSheet.create({
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },
+  /* Set below the field's own text: it is the way out of a search, not a
+     second thing to read while typing one. */
+  clear: { fontSize: 15 },
   chips: { flexDirection: 'row', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14 },
   chipText: { fontSize: 13.5 },

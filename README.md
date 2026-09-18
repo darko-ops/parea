@@ -8,9 +8,11 @@ photos — no account, no app, no setup — and everyone gets the full collectio
 at full quality.
 
 The problem is social rather than technical. The photos exist and someone has
-them; asking is a favour, and nobody wants to ask. See
-[`docs/concept.md`](docs/concept.md) for the argument and
-[`docs/design.md`](docs/design.md) for how it is built.
+them; asking is a favour, and nobody wants to ask.
+[`docs/charter.md`](docs/charter.md) is what the product is and what decides
+whether a proposal belongs in it; [`docs/concept.md`](docs/concept.md) is the
+founding argument it grew out of, and [`docs/design.md`](docs/design.md) is how
+it is built.
 
 ## Status
 

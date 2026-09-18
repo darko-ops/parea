@@ -26,6 +26,7 @@ import { schema } from '@parea/core';
 import { createHash } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
+import { avatarUrl } from './accounts';
 import type { Db } from './db';
 
 export type Contributor = {
@@ -33,6 +34,27 @@ export type Contributor = {
   key: string;
   /** Display name, else handle, else "Someone". */
   name: string;
+  /**
+   * The handle alone, without the `@`, or null for somebody who has none.
+   *
+   * `name` already falls back to `@handle` when there is no display name, so
+   * this is not a second copy of it — it is the handle *as a handle*, for the
+   * one surface that wants to draw it that way: the byline on each photograph
+   * in an album, where a row of display names reads as a caption and a row of
+   * handles reads as attribution.
+   */
+  handle: string | null;
+  /**
+   * Presigned and short-lived, as everywhere else a face crosses the boundary.
+   *
+   * No new exposure: the People pane of the same album already lists every one
+   * of these people with their handle and their picture, to exactly the same
+   * viewers. What is new is the join between a person and a *particular*
+   * photograph, which is the point of the feature — and it still happens
+   * through `key` rather than through an actor id, so nothing here can be used
+   * to follow somebody out of this event.
+   */
+  avatarUrl: string | null;
   photoCount: number;
   /** Whether this is the person looking. Drives the "Mine" chip. */
   mine: boolean;
@@ -79,24 +101,38 @@ export async function contributorsOf(
       id: schema.actors.id,
       displayName: schema.actors.displayName,
       handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
     })
     .from(schema.actors)
     .where(inArray(schema.actors.id, [...counts.keys()]));
 
   const named = new Map(actors.map((actor) => [actor.id, actor]));
 
-  return [...counts.entries()]
-    .map(([actorId, photoCount]) => {
-      const actor = named.get(actorId);
-      return {
-        key: contributorKey(eventId, actorId),
-        // "Someone" rather than an id or a blank: a guest who arrived by link
-        // and added photos has neither a name nor a handle, and they are still
-        // a person whose photographs are in the grid.
-        name: actor?.displayName?.trim() || (actor?.handle ? `@${actor.handle}` : 'Someone'),
-        photoCount,
-        mine: viewerId != null && actorId === viewerId,
-      };
-    })
-    .sort((a, b) => b.photoCount - a.photoCount || a.name.localeCompare(b.name));
+  /*
+   * One presign each, in parallel.
+   *
+   * Per contributor rather than per photograph, which is the whole reason the
+   * byline is drawn from this list and not from a field on each photo: an album
+   * of two hundred pictures taken by five people is five signatures, not two
+   * hundred.
+   */
+  return Promise.all(
+    [...counts.entries()]
+      .map(async ([actorId, photoCount]) => {
+        const actor = named.get(actorId);
+        return {
+          key: contributorKey(eventId, actorId),
+          // "Someone" rather than an id or a blank: a guest who arrived by link
+          // and added photos has neither a name nor a handle, and they are
+          // still a person whose photographs are in the grid.
+          name: actor?.displayName?.trim() || (actor?.handle ? `@${actor.handle}` : 'Someone'),
+          handle: actor?.handle ?? null,
+          avatarUrl: await avatarUrl(actor?.avatarKey ?? null),
+          photoCount,
+          mine: viewerId != null && actorId === viewerId,
+        };
+      }),
+  ).then((people) =>
+    people.sort((a, b) => b.photoCount - a.photoCount || a.name.localeCompare(b.name)),
+  );
 }

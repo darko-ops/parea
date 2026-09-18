@@ -4,7 +4,7 @@
  * Setting one and removing one were both already wired: the create screen
  * uploads a cover with the event, and the event screen had a button that
  * offered "Choose a photo" and "Remove it". What it did not do was *show* the
- * cover. So "Event cover" meant "there may or may not be one, press to find
+ * cover. So the row meant "there may or may not be one, press to find
  * out", "Remove it" was offered on events with nothing to remove, and after
  * choosing a picture nothing on the screen moved — the only way to learn
  * whether it took was to leave the event and come back.
@@ -28,7 +28,13 @@ const APP = read('App.tsx');
 const API = read('src/api.ts');
 
 /** The handler, without the rest of a 2000-line screen. */
-const COVER = APP.slice(APP.indexOf('const editCover'), APP.indexOf('if (autoWindow)'));
+/*
+ * From `sendCover` to the next unrelated thing on the screen, which is now five
+ * callbacks rather than two: the upload, gathering what the album can be
+ * fronted by, sending one of those, opening the frame, and taking the cover
+ * off. They are contiguous on purpose — a cover is one subject.
+ */
+const COVER = APP.slice(APP.indexOf('const sendCover'), APP.indexOf('if (autoWindow)'));
 
 /**
  * The row that opens it.
@@ -64,11 +70,216 @@ describe('the cover the event already has', () => {
   it('offers removal only when there is something to remove', () => {
     /*
      * The endpoint treats a DELETE against an event with no cover as a no-op,
-     * so the old unconditional "Remove it" was harmless — and still wrong. A
-     * destructive-styled button that does nothing teaches people that the red
+     * so an unconditional "Remove" is harmless — and still wrong. A
+     * destructive-styled control that does nothing teaches people that the red
      * text on this screen is decorative.
+     *
+     * It is its own row under the picture now rather than the second action in
+     * an alert: the ordinary action goes straight to the frame, so there is no
+     * alert left to keep the rare one a press behind. Null rather than a
+     * disabled row — offering to undo something nobody did is the same bug in
+     * a new disguise.
      */
-    expect(COVER).toMatch(/if \(cover\) \{[\s\S]*?text: 'Remove it'/);
+    expect(APP).toMatch(/onRemoveCover=\{feed\?\.event\.coverUrl \? removeCover : null\}/);
+    expect(ROW).toMatch(/\{host && onRemoveCover && \(/);
+    expect(ROW).toMatch(/Remove cover/);
+    // And it asks before it acts, which the alert's `destructive` style used
+    // to be doing on its behalf.
+    expect(COVER).toMatch(/Alert\.alert\(\s*'Remove the cover\?'/);
+  });
+
+  it('opens the frame in the sheet’s own layer, not beside it', () => {
+    /*
+     * The trap this file's neighbour already has a paragraph about, walked
+     * into a second time: on iOS a modal presented while a full-screen modal
+     * is already up presents *underneath* it. The cover row lives inside the
+     * `⋯` sheet, which is a `<Modal>` — so a `<CoverFramer>` mounted as that
+     * sheet's sibling opened every single time and was never visible, and then
+     * appeared over the album the moment the sheet was dismissed.
+     *
+     * It worked before only because the row opened an `Alert.alert`, which is
+     * a native alert and draws over anything.
+     *
+     * So the frame is handed to the sheet as an element and rendered inside
+     * its modal, the way the photograph's own `⋯` sheet is rendered inside the
+     * viewer's. Both ways in go through it — the album's photographs, and the
+     * camera roll for an album that has none — because both would present
+     * underneath.
+     */
+    expect(APP).toMatch(/coverFramer=\{/);
+    expect(APP).toMatch(/coverFramer: React\.ReactNode;/);
+    const SHEET = APP.slice(APP.indexOf('function HostSheet'), APP.indexOf('function PhotoActions'));
+    expect(SHEET).toMatch(/\{coverFramer\}\s*\n\s*<\/Modal>/);
+    /*
+     * And nothing renders one anywhere else on this screen.
+     *
+     * Checked by indentation, which is crude and is the thing that actually
+     * distinguishes the two cases: inside the prop every `<CoverFramer` sits
+     * fourteen columns in, and one mounted as a sibling of `<HostSheet>` in
+     * this screen's own return sits at eight. Counting them would not catch
+     * it — the bug moves a framer rather than adding one.
+     *
+     * Worth a source check because the failure is invisible in a simulator
+     * until somebody presses the row: the component mounts, the state is
+     * right, and the screen simply does not appear.
+     */
+    const SCREEN = APP.slice(APP.indexOf('function EventScreen'), APP.indexOf('function HostSheet'));
+    const mounts = SCREEN.match(/\n( *)<CoverFramer/g) ?? [];
+    expect(mounts).toHaveLength(2);
+    for (const mount of mounts) expect(mount).toBe('\n              <CoverFramer');
+  });
+
+  it('opens the frame on the album, not on the camera roll', () => {
+    /*
+     * The cover row used to open an alert whose first action opened the camera
+     * roll — so "change the cover" meant "choose another picture", every time,
+     * from a screen that could not show what the cover currently was or where
+     * it sat. Nudging an existing cover a little to the left was not something
+     * the product could do at all.
+     *
+     * It opens the frame directly now, on the photograph the cover was cut
+     * from, at the position it was left at, with the rest of the album
+     * underneath to try instead.
+     */
+    expect(APP).toMatch(/coverId=\{feed\?\.event\.coverPhotoId \?\? coverChoices\[0\]!\.id\}/);
+    expect(APP).toMatch(/initial=\{feed\?\.event\.coverFraming \?\? undefined\}/);
+    expect(APP).toMatch(/photos=\{coverChoices\}/);
+    /*
+     * `full` rather than the thumbnail the strip draws: a tile is 320 pixels
+     * across and a cover cut from it would be a cover of a thumbnail.
+     */
+    expect(COVER).toMatch(/full: photo\.full,/);
+    /*
+     * An album with nothing in it has nothing to offer, so that one still
+     * opens the library — it is the only picture there could be.
+     */
+    expect(COVER).toMatch(/if \(coverChoices\.length > 0\) \{\s*\n\s*setFramingAlbum\(true\);/);
+    expect(COVER).toMatch(/launchImageLibraryAsync/);
+  });
+
+  it('keeps the photograph’s bytes off the origin', () => {
+    /*
+     * Down from storage and back up, rather than a "make the cover out of photo
+     * X" endpoint. `apps/web/src/storage/index.ts` opens by saying in capitals
+     * that the app tier is handed a storage client with no method that returns
+     * bytes, so that no photograph is ever routed through the Next.js origin —
+     * and such an endpoint would be exactly that route. The download here is
+     * client ↔ storage, straight to a presigned URL.
+     */
+    expect(COVER).toMatch(/await fetchForCover\(photo\.full, photoId\)/);
+    expect(COVER).toMatch(/await sendCover\(file\.uri, framing, photoId\)/);
+    const PLATFORM = read('src/platform.ts');
+    expect(PLATFORM).toMatch(/export async function fetchForCover/);
+    // One upload's worth of file, in the cache, deleted either way.
+    expect(PLATFORM).toMatch(/new File\(Paths\.cache, `parea-cover-\$\{id\}\.jpg`\)/);
+    expect(COVER).toMatch(/file\?\.delete\(\)/);
+  });
+
+  it('records what the cover was cut from, so the frame can reopen on it', () => {
+    /*
+     * Nothing about the finished JPEG says which photograph it came from or
+     * where the window sat — it is the *result* of applying them. Without the
+     * four columns, every visit to the frame would start from nothing.
+     */
+    const SCHEMA = readFileSync(
+      fileURLToPath(new URL('../../../packages/core/src/schema.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SCHEMA).toMatch(/coverPhotoId: uuid\('cover_photo_id'\)/);
+    expect(SCHEMA).toMatch(/coverX: real\('cover_x'\)/);
+    // `set null`, because a cover outlives the photograph it was cut from.
+    expect(SCHEMA).toMatch(/cover_photo_id'\)\.references\([\s\S]{0,80}onDelete: 'set null'/);
+    expect(API).toMatch(/coverPhotoId: string \| null/);
+    expect(API).toMatch(/if \(photoId\) query\.set\('photo', photoId\)/);
+  });
+
+  it('falls back to the first photograph when nobody chose one', () => {
+    /*
+     * This reverses a rule that used to be written into the header — "never a
+     * photograph pulled out of the grid, that is a decision about which evening
+     * this was, made by an upload's timestamp".
+     *
+     * The objection was about *which* photograph, and it has been answered: the
+     * picker fixes the order now, so the one leading the grid is the one
+     * somebody put first rather than whichever phone finished uploading first.
+     * Borrowing it reads a decision instead of inventing one — and the album it
+     * replaces was a coloured letter on a screen full of photographs.
+     *
+     * `card` before `src` because the header is the width of the screen, and
+     * the 320 is only what exists before the deriver has run.
+     */
+    expect(APP).toMatch(
+      /const cover = chosenCover \?\? feed\?\.photos\[0\]\?\.card \?\? feed\?\.photos\[0\]\?\.src \?\? null;/,
+    );
+    // And the header draws that one, so the sheet's row and the screen behind
+    // it can never disagree about what the album leads with.
+    expect(APP).toMatch(/<View style=\{styles\.cover\}>\s*\{cover \? \(/);
+  });
+
+  it('lets the album be renamed, under the picture it is named beside', () => {
+    /*
+     * The create screen asks for a name and nothing could touch it afterwards
+     * — so it was the one thing you had to get right in the thirty seconds
+     * before you sent the link, on a screen where you had not yet seen a
+     * single photograph of the evening you were naming. The route has accepted
+     * the field since albums had one.
+     *
+     * Directly below the cover, because the two are the album's face: the
+     * picture and the words on it, which is how a card draws them.
+     */
+    expect(API).toMatch(/setName\(eventId: string, name: string\)/);
+    expect(APP).toMatch(/function NameCard\(/);
+    expect(APP).toMatch(/name=\{feed\?\.event\.name \?\? event\.name\}/);
+    const sheet = ROW.slice(ROW.indexOf('Album cover'));
+    expect(sheet.indexOf('<NameCard')).toBeGreaterThan(-1);
+
+    /*
+     * Empty is not a name. The route refuses it — what an album is called on a
+     * card, in a notification and in the thread, and "" in all of those is a
+     * blank space nobody can point at — and refusing it here is the difference
+     * between a button that does nothing and a button that is not offered.
+     */
+    expect(APP).toMatch(/const dirty = trimmed !== '' && trimmed !== name\.trim\(\);/);
+    // The route's own ceiling, so the keys stop rather than the server saying
+    // `invalid_name` to something already typed.
+    expect(APP).toMatch(/maxLength=\{120\}/);
+
+    /*
+     * Its own component because it holds a draft, and a draft in `HostSheet`
+     * would be reset by every feed poll, every cover landing and every policy
+     * press. It follows the server only while nobody is typing, which also
+     * covers somebody renaming it from the website while this is open.
+     */
+    expect(APP).toMatch(/setDraft\(\(was\) => \(was === known\.current \? name : was\)\)/);
+    /*
+     * Saved on a button, not on blur. The sheet scrolls and the keyboard
+     * dismisses, and neither is somebody saying they are done — a name that
+     * saved itself on the way past would rename the album on everybody's home
+     * screen halfway through a word.
+     */
+    expect(APP).toMatch(/\{dirty && \(/);
+    expect(APP).toMatch(/label=\{busy \? 'Saving…' : 'Save name'\}/);
+  });
+
+  it('draws the name the server has, not the one the screen opened with', () => {
+    /*
+     * `event` is the summary this screen was opened with — a copy made when
+     * the album was first reached, which does not move when somebody renames
+     * it. Now that renaming happens here, the header taking the name from that
+     * copy would show the old one until you left and came back.
+     */
+    expect(APP).toMatch(/\{feed\?\.event\.name \?\? event\.name\}/);
+  });
+
+  it('says nothing under the row about what a cover is', () => {
+    /*
+     * The row *is* the photograph, at the size the album draws it. "What this
+     * event leads with everywhere" was a sentence explaining a picture sitting
+     * two inches from it, and the words were longer than the thing they
+     * described.
+     */
+    expect(ROW).not.toMatch(/What this event leads with|Leading with its newest/);
+    expect(ROW).toMatch(/Album cover/);
   });
 });
 
@@ -85,6 +296,23 @@ describe('after the change', () => {
      */
     const refreshes = COVER.match(/await refresh\(\)/g) ?? [];
     expect(refreshes).toHaveLength(2);
+  });
+
+  it('frames a picked photograph before sending it', () => {
+    /*
+     * The frame the create screen offers was missing from the one screen
+     * somebody opens *because* the cover is wrong. Before, not after: there is
+     * no undo on a cover, so an unframed upload is the version everybody else
+     * sees until it is replaced.
+     */
+    expect(APP).toMatch(/setFramingCover\(picked\.assets\[0\]\.uri\)/);
+    expect(APP).toMatch(/<CoverFramer/);
+    expect(APP).toMatch(/void sendCover\(uri, framing\)/);
+    // And the id goes with it where there is one, so next time the frame
+    // reopens on this picture rather than on nothing.
+    expect(APP).toMatch(/void sendAlbumCover\(id, framing\)/);
+    // And nothing is sent if the frame is backed out of.
+    expect(APP).toMatch(/onCancel=\{\(\) => setFramingCover\(null\)\}/);
   });
 
   it('leaves the home screen to `onBack`', () => {

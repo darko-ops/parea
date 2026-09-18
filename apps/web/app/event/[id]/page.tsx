@@ -9,6 +9,7 @@ import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
+import { hostingFor } from '@/hosts';
 import { membersOf, rosterFor } from '@/members';
 import type { EventTab } from '@/../app/components/EventView';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
@@ -193,7 +194,10 @@ export default async function EventPage({
           event: {
             id: event.id,
             name: event.name,
-            uploadsOpen: event.uploadsOpen,
+            // Both frames, like the access fields below: a field in one and
+            // not the other is a tab that changes what it offers a second
+            // after it draws.
+            contributePolicy: event.contributePolicy,
             canAdminister,
       waiting: waitingRow?.n ?? 0,
             groupId: event.groupId,
@@ -232,6 +236,32 @@ export default async function EventPage({
     canPost:
       (await decide(db, event, 'contribute', requester)).allow &&
       (await currentAccountActorId()) != null,
+    /*
+     * And the same question about photographs, which is no longer the same
+     * answer: `upload` is `contribute` plus the album's own setting about who
+     * may add. Both frames again — present here and in
+     * `/api/events/[id]/photos`, because this page draws the first one and
+     * that route replaces it.
+     */
+    canAdd:
+      (await decide(db, event, 'upload', requester)).allow &&
+      (await currentAccountActorId()) != null,
+          /*
+           * Where this reader stands with the album's set of hosts.
+           *
+           * The first frame draws the "hosts add the photographs here" line,
+           * so it needs the same three facts the route sends — a field present
+           * in one and not the other is a notice that appears a second after
+           * the page does. Worked out here rather than re-derived from
+           * `contributePolicy`, which would be the policy written a fourth
+           * time.
+           */
+          hosting: await hostingFor(
+            db,
+            event,
+            await currentAccountActorId(),
+            (await decide(db, event, 'contribute', requester)).allow,
+          ),
           arriving: pending?.n ?? 0,
           count: photos.length,
           photos,
