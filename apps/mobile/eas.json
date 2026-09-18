@@ -22,7 +22,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://parea.photos"
+        "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
       },
       "ios": {
         "buildConfiguration": "Release"
@@ -36,7 +36,7 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://parea.photos"
+        "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
       },
       "android": {
         "buildType": "app-bundle"
