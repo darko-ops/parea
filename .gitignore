@@ -26,3 +26,8 @@ cleanup.mts
 
 # Unpacked from the design bundle beside it; the zip is the artefact.
 design/unpacked/
+
+# Written by `vercel link` at the repo root: an OIDC token, not configuration.
+# Narrower than the `.env*` the CLI adds, which would also swallow the
+# `.env.example` files that are the documentation of what each app needs.
+/.env.local
