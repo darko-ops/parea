@@ -19,9 +19,9 @@ import sharp from 'sharp';
 const read = (path: string) =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 
-const SYMBOL = read('../../../assets/branding/parea-symbol.svg');
-const ICON = read('../../../assets/branding/parea-icon-dark.svg');
-const PREVIEW = read('../../../assets/branding/parea-icon-dark-preview.svg');
+const SYMBOL = read('../../../assets/branding/parea-symbol-refined.svg');
+const ICON = read('../../../assets/branding/parea-icon-dark-refined.svg');
+const PREVIEW = read('../../../assets/branding/parea-icon-dark-refined-preview.svg');
 const SCRIPT = read('../../../scripts/build-icon.mjs');
 
 /** The three circles, read back out of the symbol's own path. */
@@ -70,15 +70,48 @@ describe('the geometry', () => {
     expect(gap / Math.sqrt(3)).toBeLessThan(r);
   });
 
-  it('spans what the brief asks for', () => {
+  it('is the size a home screen needs, and never smaller', () => {
+    /*
+     * The first brief gave ranges — 54–58% across and 50–54% down. The
+     * refinement replaced them with a direction: similar, or at most slightly
+     * larger, and never smaller. So the floor is the old geometry and the
+     * ceiling is a hand's width above it, which is what "slightly" has to mean
+     * if it is going to be checkable at all.
+     */
     const xs = circles.flatMap((c) => [c.cx - c.r, c.cx + c.r]);
     const ys = circles.flatMap((c) => [c.cy - c.r, c.cy + c.r]);
     const width = (Math.max(...xs) - Math.min(...xs)) / 1024;
     const height = (Math.max(...ys) - Math.min(...ys)) / 1024;
-    expect(width).toBeGreaterThanOrEqual(0.54);
-    expect(width).toBeLessThanOrEqual(0.58);
-    expect(height).toBeGreaterThanOrEqual(0.5);
-    expect(height).toBeLessThanOrEqual(0.54);
+    expect(width).toBeGreaterThanOrEqual(0.57);
+    expect(width).toBeLessThanOrEqual(0.6);
+    expect(height).toBeGreaterThanOrEqual(0.54);
+    expect(height).toBeLessThanOrEqual(0.57);
+  });
+
+  it('gives the shared middle enough of the mark to be a feature', () => {
+    /*
+     * The thing the refinement was actually about. A flower is petals around a
+     * speck; a Venn is three circles with a middle worth noticing, and the
+     * middle was 3.7% of the white.
+     *
+     * Measured rather than inferred, by the same parity the fill rule uses.
+     * The floor is where it stops disappearing at 60 points, which is where
+     * the icon spends most of its life.
+     */
+    const r = circles[0]!.r;
+    const inside = (x: number, y: number) =>
+      circles.filter((c) => (x - c.cx) ** 2 + (y - c.cy) ** 2 <= r ** 2).length;
+
+    let white = 0;
+    let centre = 0;
+    for (let y = 0; y < 1024; y += 2) {
+      for (let x = 0; x < 1024; x += 2) {
+        const n = inside(x, y);
+        if (n === 1 || n === 3) white++;
+        if (n === 3) centre++;
+      }
+    }
+    expect(centre / white).toBeGreaterThan(0.045);
   });
 
   it('sits between the two ways of being centred', () => {

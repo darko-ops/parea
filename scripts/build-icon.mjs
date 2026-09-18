@@ -60,21 +60,33 @@ const SIZE = 1024;
 const CORNER = 224;
 
 /** The circle radius, and the distance from the mark's centroid to each centre. */
-const R = 175;
+const R = 182;
 /*
- * 135, which is where two things the brief wants at once stop arguing.
+ * 182 and 132, and the pair of them is a decision rather than two numbers.
  *
- * Further apart makes the three lens cutouts bigger and keeps them legible
- * further down — at 60 points they are the first thing to close up — but it
- * shrinks the white centre, and past about 150 the centre is gone at that size
- * and the mark reads as three separate discs. Closer together does the
- * reverse: a fat centre and lenses that vanish.
+ * The refinement asked for two things that cannot both happen: smaller lens
+ * cutouts and a larger shared centre. For three identical circles under strict
+ * parity they are locked together — eliminating the radius gives
  *
- * Compared at 120 and 60 points before choosing. 135 also keeps both of the
- * brief's proportions in range, which 140 does not: it spans 57.0% of the
- * canvas across and 53.9% down, against 54–58 and 50–54.
+ *     lens depth = 0.072 × width + 1.856 × centre radius
+ *
+ * with a positive coefficient at every width, so there is no radius and no
+ * spacing that shrinks one while growing the other. Sampled the areas across a
+ * range of both to be sure it was not an artefact of the algebra; the lens
+ * share and the centre share moved together in every row.
+ *
+ * So it follows the goals rather than the line item. What reads as a flower is
+ * petals around a speck, and the speck was the centre: 3.7% of the white. A
+ * Venn reads as three circles with a shared middle worth noticing. The centre
+ * is 5.5% now, the lobes are fatter, and the whole mark is heavier — which is
+ * the rest of what was asked. The lenses are slightly larger in absolute terms
+ * and that is the price; going the other way makes a thinner mark around a
+ * smaller speck, which is more flower rather than less.
+ *
+ * 57.9% of the canvas across, against 57.0% before: similar, very slightly
+ * larger, never smaller.
  */
-const D = 135;
+const D = 132;
 
 /**
  * Where the three circles sit, before the mark is placed on the canvas.
@@ -182,36 +194,40 @@ function bloom(id, colour, peak, cx, cy, r, stops = 8) {
  * the mark stops being the subject.
  */
 const BLOOMS = [
-  // Rose across the top, and the strongest of them: it is the first colour the
-  // eye meets and the one the brief leads with. Tight enough to stay pink
-  // rather than spreading into the violet and going mauve.
-  ['rose', '#E8609B', 1, 512, 0, 540],
-  ['rose-wide', '#D9508E', 0.6, 512, 150, 620],
-  // Violet into the top-left corner, bridging the rose to the blue below it.
-  ['violet', '#8A35CC', 1, 60, 130, 560],
-  // Blue down the left and into the foot. Two of them, one deeper, because a
-  // single blue over that much canvas goes flat through the middle.
-  ['blue', '#1636C4', 1, 60, 780, 620],
-  ['indigo', '#21308F', 0.85, 400, 1024, 560],
-  // Teal up the right and aqua under it. The lightest corner, and what keeps
-  // the whole thing from reading as one dark diagonal.
-  ['teal', '#1EA9B4', 1, 1024, 540, 700],
-  ['aqua', '#3FCFAE', 0.85, 880, 980, 500],
   /*
-   * And one across the top right, where rose meets teal.
+   * Four, anchored outside the canvas, each one wider than the icon.
    *
-   * Without it that corner is the base showing through with nothing over it —
-   * a dead navy wedge between two of the brief's four colours, and the only
-   * part of the field that does not belong to anything.
+   * The version this refines had seven blooms inside the frame, and that is
+   * what made it look segmented: a radial gradient whose centre is on the
+   * canvas has its brightest point *on* the canvas, so each one reads as a
+   * lamp and the places where two of them meet read as a seam.
+   *
+   * Put the centre beyond the edge and give it a radius half again as wide as
+   * the icon, and what falls inside the frame is the gentle middle of the
+   * falloff — no hot spot, no visible edge, and a transition that takes the
+   * whole width to happen. Four of them, one per corner the brief names, and
+   * the whole field is their sum.
    */
-  ['bridge', '#8C3FD0', 1, 970, 250, 470],
+  ['rose', '#E95A9E', 1, 512, -190, 930],
+  ['violet', '#8635D4', 1, -180, -130, 830],
+  ['cobalt', '#1637CE', 1, -130, 1140, 1080],
+  ['teal', '#15AEC0', 1, 1140, 1060, 1010],
+  /*
+   * And one more, which is not a corner.
+   *
+   * Rose and teal are near-opposite hues, so up the right-hand side where the
+   * top colour meets the right one the sum runs toward grey. This is a violet
+   * sitting in that seam so the transition goes the short way round the wheel
+   * instead of straight across it. Weak and very wide: it is correcting a
+   * blend, not adding a fifth colour.
+   */
+  ['bridge', '#7A46D6', 0.75, 1120, 60, 980],
 ];
 
 const DEFS = `<defs>
-<linearGradient id="base" gradientUnits="userSpaceOnUse" x1="150" y1="0" x2="874" y2="1024">
-<stop offset="0%" stop-color="#4A1E63"/>
-<stop offset="48%" stop-color="#1E2472"/>
-<stop offset="100%" stop-color="#103A63"/>
+<linearGradient id="base" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">
+<stop offset="0%" stop-color="#2E1A56"/>
+<stop offset="100%" stop-color="#10204F"/>
 </linearGradient>
 ${BLOOMS.map(([id, colour, peak, cx, cy, r]) => bloom(id, colour, peak, cx, cy, r)).join('\n')}
 </defs>`;
@@ -256,10 +272,17 @@ ${SYMBOL}
 
 await mkdir(OUT, { recursive: true });
 
+/*
+ * `-refined`, which is what the brief that produced this version asked them to
+ * be called. It is a name about when the file was made rather than about what
+ * is in it, and a second pass would have to be `-refined-refined` — so it is
+ * worth folding back to the plain names at some point, and there is exactly
+ * one set of these so that folding is a rename and not a merge.
+ */
 const files = {
-  'parea-symbol.svg': symbolSvg,
-  'parea-icon-dark.svg': iconSvg,
-  'parea-icon-dark-preview.svg': previewSvg,
+  'parea-symbol-refined.svg': symbolSvg,
+  'parea-icon-dark-refined.svg': iconSvg,
+  'parea-icon-dark-refined-preview.svg': previewSvg,
 };
 for (const [name, body] of Object.entries(files)) {
   await writeFile(join(OUT, name), body);
@@ -267,7 +290,7 @@ for (const [name, body] of Object.entries(files)) {
 }
 
 for (const px of [1024, 512, 256, 128]) {
-  const name = `parea-icon-dark-${px}.png`;
+  const name = px === 1024 ? 'parea-icon-dark-refined.png' : `parea-icon-dark-refined-${px}.png`;
   await writeFile(
     join(OUT, name),
     await sharp(Buffer.from(iconSvg), { density: 384 })

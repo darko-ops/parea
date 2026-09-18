@@ -3,8 +3,8 @@
  *
  *   npm run icons --workspace @parea/mobile
  *
- * The master is `assets/branding/parea-icon-dark.svg` at the root of the
- * repository, which `scripts/build-icon.mjs` generates.
+ * The master is `assets/branding/parea-icon-dark-refined.svg` at the root of
+ * the repository, which `scripts/build-icon.mjs` generates.
  *
  * ## Three masters, and which one is the icon
  *
@@ -60,7 +60,7 @@ import sharp from 'sharp';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'assets');
 /** The brand master, two levels up at the root of the repository. */
-const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon-dark.svg');
+const SOURCE = join(HERE, '..', '..', '..', 'assets', 'branding', 'parea-icon-dark-refined.svg');
 
 /**
  * Fraction of the canvas Android's most aggressive mask keeps.
