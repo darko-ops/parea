@@ -39,6 +39,21 @@ const DOMAIN = 'parea.photos';
  * fetched, so the redirect never enters into it.
  */
 const API_ORIGIN = `https://www.${DOMAIN}`;
+/**
+ * Both hosts a link can arrive on.
+ *
+ * `ShareEvent` builds a link from whatever host the person copying it is
+ * looking at, and the site answers on both — so half the links in circulation
+ * say `www` and half do not. A link that matches neither entitlement nor
+ * intent filter opens Safari or Chrome instead of the app, which reads as a
+ * product that does not have deep links rather than as one host missing from
+ * a list.
+ *
+ * The apex is not redundant just because it redirects. Both platforms match
+ * the host *before* fetching anything, so a `parea.photos` link is claimed by
+ * the app and never makes the redirect at all.
+ */
+const LINK_HOSTS = [DOMAIN, `www.${DOMAIN}`];
 /** Reverse-DNS of the domain, which is the convention both stores expect. */
 const APP_ID = DOMAIN.split('.').reverse().join('.');
 
@@ -56,16 +71,25 @@ describe('identifiers', () => {
     expect(app.android.package).toBe(APP_ID);
   });
 
-  it('point the iOS entitlement at the domain the links use', () => {
-    expect(app.ios.associatedDomains).toContain(`applinks:${DOMAIN}`);
+  it('point the iOS entitlement at every host a link arrives on', () => {
+    for (const host of LINK_HOSTS) {
+      expect(app.ios.associatedDomains, `${host} is not claimed`).toContain(
+        `applinks:${host}`,
+      );
+    }
   });
 
-  it('point the Android intent filter at the same domain and path', () => {
+  it('point the Android intent filter at the same hosts and path', () => {
     const [filter] = app.android.intentFilters;
     expect(filter.autoVerify, 'without this Android never verifies the link').toBe(true);
-    expect(filter.data[0]).toMatchObject({ scheme: 'https', host: DOMAIN });
-    // `/e/<token>` is the link people are actually sent — see design §9.
-    expect(filter.data[0].pathPrefix).toBe('/e');
+    for (const host of LINK_HOSTS) {
+      expect(filter.data, `${host} is not claimed`).toContainEqual({
+        scheme: 'https',
+        host,
+        // `/e/<token>` is the link people are actually sent — see design §9.
+        pathPrefix: '/e',
+      });
+    }
   });
 
   it('keep the custom scheme, which is the fallback when the link is not verified', () => {
