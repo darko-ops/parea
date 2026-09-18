@@ -513,6 +513,39 @@ channel. Standing up a second environment is a second database, bucket and
 pair of Workers; when there is one, `preview`'s URL and the allow-list in
 `test/config.test.ts` change together.
 
+### Signing an iOS build without an Apple login
+
+`preview` builds with `credentialsSource: local`, which means EAS reads
+`credentials.json` at the project root rather than asking Apple for anything.
+That file and the `credentials/` directory beside it are gitignored: they hold
+a distribution private key, the profile it is embedded in, and the `.p12`
+password in clear.
+
+It is set up that way because the alternative is interactive. EAS will happily
+generate a distribution certificate itself, but only in interactive mode — the
+non-interactive path throws before it ever tries the App Store Connect API key,
+so an unattended iOS build is impossible unless the credentials already exist.
+They can be made from the same API key, in four steps, none of which needs a
+password or a 2FA code:
+
+1. `openssl req -new -newkey rsa:2048 -nodes` for a key and a CSR. Generated
+   here on purpose: Apple issues the certificate but never holds the private
+   half, which is also why an existing certificate cannot be reused from
+   another machine — the key is in whatever Keychain made it, not in the API.
+2. `POST /v1/certificates` with `certificateType: IOS_DISTRIBUTION` and that
+   CSR. Apple allows three at a time.
+3. `POST /v1/profiles` with `profileType: IOS_APP_ADHOC`, the bundle id, the
+   certificate and every enabled device. **An ad-hoc profile is fixed at
+   creation** — register a phone afterwards and the profile has to be remade
+   and the app rebuilt, or it will not install there.
+4. `openssl pkcs12 -export` to put the key and the certificate in a `.p12`,
+   then point `credentials.json` at both files.
+
+Losing the directory loses nothing permanent: revoke the certificate at Apple
+and repeat. What it does mean is that a build from a second machine fails until
+that machine has its own copy, and that CI would need the `.p12` and profile as
+secrets rather than files.
+
 Submit credentials are referenced, never written down:
 
 ```
