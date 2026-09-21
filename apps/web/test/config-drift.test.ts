@@ -94,3 +94,46 @@ describe('what each one costs when absent', () => {
     );
   });
 });
+
+/**
+ * The lockfile has to describe the machine that builds, not the one that wrote it.
+ *
+ * `sharp` ships a prebuilt binary per platform as optional dependencies, and
+ * npm records only the ones matching the host when it re-resolves a lockfile
+ * from scratch. Regenerate on a Mac and every `@img/sharp-linux-*` entry
+ * silently disappears; everything still installs, every test passes, and the
+ * next deploy dies with "Could not load the sharp module using the linux-x64
+ * runtime" — in the build, after the push, on a Friday.
+ *
+ * That is exactly what happened: a lockfile regenerated to dedupe React took
+ * eight Linux entries out with it and broke three deploys before anyone looked.
+ *
+ * Asserted against the platform Vercel actually builds on rather than a list of
+ * every platform, because that is the one whose absence is an outage. A
+ * lockfile updated in place keeps these; only a from-scratch regeneration drops
+ * them, and the fix is to restore the previous lockfile and let npm update it
+ * incrementally instead.
+ */
+describe('the lockfile covers the platform that deploys', () => {
+  const lock = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../../package-lock.json', import.meta.url)), 'utf8'),
+  ) as { packages: Record<string, { version?: string }> };
+
+  it('carries the linux-x64 sharp binaries', () => {
+    // `/api/account/avatar` loads sharp at runtime, so this is not a build
+    // convenience — the route 500s without it.
+    for (const name of ['@img/sharp-linux-x64', '@img/sharp-libvips-linux-x64']) {
+      const found = Object.keys(lock.packages).filter((p) =>
+        p.endsWith(`node_modules/${name}`),
+      );
+      expect(found.length, `${name} missing — regenerated on a non-Linux host?`).toBeGreaterThan(0);
+    }
+  });
+
+  it('carries them for the web app specifically', () => {
+    // The hoisted copy is the one `apps/web` resolves. A lockfile that only
+    // had them nested under another workspace would pass the check above and
+    // still fail the deploy.
+    expect(lock.packages['node_modules/@img/sharp-linux-x64']).toBeTruthy();
+  });
+});
