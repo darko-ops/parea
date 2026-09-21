@@ -136,7 +136,8 @@
             "./assets/fonts/Garet-Book.ttf"
           ]
         }
-      ]
+      ],
+      "expo-image"
     ],
     "extra": {
       "eas": {
