@@ -21,13 +21,13 @@
     },
     "preview": {
       "distribution": "internal",
-      "credentialsSource": "local",
       "channel": "preview",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
       },
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "credentialsSource": "local"
       },
       "android": {
         "buildType": "apk"
