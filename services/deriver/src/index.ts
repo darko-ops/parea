@@ -53,9 +53,36 @@ import {
 const run = promisify(execFile);
 const POLL_INTERVAL_MS = Number(process.env.DERIVER_POLL_MS ?? 5000);
 
+/**
+ * The production database endpoint. See `apps/web/src/db.ts`, which carries
+ * the same constant and the same warning for the same reason.
+ *
+ * This process is the one that caused the incident: it polls every five
+ * seconds and holds its connection between polls, so pointed at production it
+ * is a permanent connection. Neon only suspends a compute once nothing is
+ * connected, which turns an idle laptop into continuous billed uptime — eight
+ * days of it drained the month's 100 CU-hours and took sign-in down.
+ *
+ * Deliberately not shared with the web app through a package. A copied
+ * constant is a thing that can drift; an import here would make a worker that
+ * runs in its own container depend on the Next.js app to start.
+ */
+const PRODUCTION_DB_HOST = 'ep-flat-heart-ax915wla';
+
 function db() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
+  // Warned, not refused: deriving against production is a real thing to need
+  // on purpose. What must not happen is doing it without noticing.
+  if (url.includes(PRODUCTION_DB_HOST) && !process.env.DERIVER_ALLOW_PRODUCTION) {
+    console.warn(
+      `\n  *** The deriver is polling the PRODUCTION database (${PRODUCTION_DB_HOST}) every ` +
+        `${POLL_INTERVAL_MS}ms.\n` +
+        '  *** It holds the connection between polls, so Neon will never suspend and the\n' +
+        '  *** project\'s compute quota drains for as long as this runs. Point DATABASE_URL\n' +
+        '  *** at the development project, or set DERIVER_ALLOW_PRODUCTION=1 to say you meant it.\n',
+    );
+  }
   return drizzle(postgres(url, { prepare: false }), { schema });
 }
 

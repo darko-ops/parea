@@ -38,3 +38,19 @@ design/unpacked/
 # certificate can be reissued from Apple if lost — see `apps/mobile/README.md`.
 apps/mobile/credentials.json
 apps/mobile/credentials/
+
+# Written by `vercel integration add neon`, which installs the provider's agent
+# skills into the repo as a side effect of provisioning a database. Useful to
+# have on a machine, not something this repository is asserting: they are a
+# vendor's documentation, versioned by a lockfile nothing here reads, and they
+# arrived unasked alongside a connection string.
+.agents/
+skills-lock.json
+# And the symlinks it leaves under `.claude/skills` pointing into `.agents`,
+# which would otherwise be committed as dangling links on any other machine.
+.claude/skills/
+
+# Claude Code's per-machine settings. `.local.json` is the half that is not
+# meant to be shared — it accumulates one developer's approved commands, with
+# absolute paths out of their own scratch directory.
+.claude/settings.local.json
