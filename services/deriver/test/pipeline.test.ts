@@ -795,3 +795,114 @@ describe('what a classifier verdict means', () => {
     expect(sightengine.parse({ nudity: { none: 0.99 } }, 80).labels).toEqual([]);
   });
 });
+
+/**
+ * The window between "this photo is ready" and the rows that make it true.
+ *
+ * These were two statements, in this order:
+ *
+ *   UPDATE photo SET status = 'ready', storage_key = <final>   -- (2)
+ *   INSERT INTO derivative ...                                 -- (3)
+ *
+ * A crash between them is not a lost attempt, it is permanent damage. The
+ * guard at the top of `processPhoto` returns early on `ready` — the thing that
+ * makes re-running a finished photo safe — so every later attempt looks at a
+ * photo with no derivative rows, sees `ready`, and declines to fix it. The
+ * derivative *objects* are in storage; nothing points at them. The album
+ * serves the original at every size, forever, and nothing reports a problem.
+ *
+ * The comment above the uploads reasons about a crash during them — "the next
+ * poll has another go" — which is true there and does not reach this window.
+ *
+ * It is a narrow window and that is exactly why it is worth a test: rare by
+ * hand, routine once something retries on purpose. A scheduler turns "the
+ * process happened to die in a few milliseconds" into an event that happens.
+ */
+describe('a crash between marking a photo ready and recording its parts', () => {
+  /**
+   * The real database, with the derivative insert made to fail.
+   *
+   * A proxy rather than a stub, so everything else — the update, the reads,
+   * the transaction itself — is the genuine implementation and the only
+   * difference is where it dies.
+   */
+  function dbThatFailsDerivativeInsert(): any {
+    /*
+     * Wraps the handle *and* any transaction opened from it, so the failure
+     * lands wherever the insert is issued from.
+     *
+     * The first version of this only intercepted `db.transaction`, which the
+     * two-statement code never called — so against the bug it was meant to
+     * catch, nothing was injected at all and the test passed. A test coupled
+     * to the fix rather than to the hazard proves the fix is present, which is
+     * not the same as proving it works.
+     */
+    const breaking = (target: any): any =>
+      new Proxy(target, {
+        get(t, prop, receiver) {
+          if (prop === 'insert') {
+            return (table: unknown) => {
+              if (table === schema.derivatives) throw new Error('crashed mid-commit');
+              return t.insert(table);
+            };
+          }
+          if (prop === 'transaction') {
+            return (fn: (tx: any) => Promise<unknown>) =>
+              t.transaction((tx: any) => fn(breaking(tx)));
+          }
+          return Reflect.get(t, prop, receiver);
+        },
+      });
+
+    return breaking(db);
+  }
+
+  it('leaves the photo pending rather than ready-with-nothing', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(3));
+
+    await expect(
+      processPhoto({ db: dbThatFailsDerivativeInsert(), objects, scanner }, photo.id),
+    ).rejects.toThrow('crashed mid-commit');
+
+    const [after] = await db
+      .select()
+      .from(schema.photos)
+      .where(eq(schema.photos.id, photo.id));
+
+    // The assertion that matters. Before these two statements shared a
+    // transaction this read `ready`, and the photo could never be repaired.
+    expect(after.status).toBe('pending');
+
+    const rows = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('and a retry then finishes the job properly', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(4));
+
+    await expect(
+      processPhoto({ db: dbThatFailsDerivativeInsert(), objects, scanner }, photo.id),
+    ).rejects.toThrow('crashed mid-commit');
+
+    // The point of leaving it `pending`: the next attempt is allowed to work.
+    // The original is still the object the row names, because the delete that
+    // replaces it runs after the commit that never happened.
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
+    expect(outcome.status).toBe('ready');
+
+    const [after] = await db
+      .select()
+      .from(schema.photos)
+      .where(eq(schema.photos.id, photo.id));
+    expect(after.status).toBe('ready');
+
+    const rows = await db
+      .select()
+      .from(schema.derivatives)
+      .where(eq(schema.derivatives.photoId, photo.id));
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});
