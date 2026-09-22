@@ -54,13 +54,32 @@ export type Reply = {
 /**
  * How many photos this machine derives at once.
  *
- * One by default, which is what the pipeline was built for and what the
- * machine is sized for: libvips wants headroom on a 400-megapixel HEIC, and
- * the VM has 2GB. Two concurrent decodes of something large is an OOM kill,
- * which — unlike a slow queue — loses the work and the answer.
+ * One, because the machine has one core. Measured on `parea-deriver` itself:
+ * 1 CPU, 1969MB. A second concurrent derive would not finish sooner, it would
+ * contend for the only processor there is.
  *
- * Raising it is a memory decision, not a throughput one. Measure a real
- * upload on the real machine first; see `docs/deploy.md`.
+ * Memory, which is what this was first justified on, turns out not to be the
+ * constraint. Peak RSS on that machine, deriving all five sizes:
+ *
+ *   12MP  iPhone            0.4s   171MB
+ *   48MP  iPhone Pro        0.5s   325MB
+ *   100MP                   0.6s   295MB
+ *   289MP 17000x17000       1.2s   173MB
+ *
+ * The largest input is the cheapest of the three big ones because sharp
+ * shrinks on load for JPEG — it decodes straight to the size being asked for
+ * and never holds the full raster. Those are flat synthetic images, so a real
+ * photograph will be some multiple slower; it is not going to be a different
+ * order of magnitude.
+ *
+ * What none of it measures is HEIC at size. libheif cannot shrink on load, so
+ * that is the case the 2GB was chosen for, and the only HEIC available to
+ * measure is a 64x48 fixture. Raising this number is still a memory decision
+ * on that path, and an unmeasured one.
+ *
+ * The headroom that matters for the design is time rather than space: about a
+ * second against a fifteen-minute response deadline. That is what makes
+ * answering on completion safe rather than hopeful.
  */
 export const DEFAULT_CONCURRENCY = 1;
 

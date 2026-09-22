@@ -25,11 +25,24 @@ primary_region = "lhr"
   # libvips and libheif want headroom on a 4000x3000 HEIC; 512MB is not enough.
   #
   # 2GB rather than 1GB because MAX_INPUT_PIXELS in derivatives.ts allows 400MP.
-  # A real upload arrived at 17000x17000 — 289MP, 1.7MB compressed, and about
-  # 1.16GB as raw RGBA. At 1GB the limit and the machine disagreed: raising one
-  # without the other converts a photo that fails cleanly into an OOM kill, and
-  # an OOM takes ingest down for every photo rather than for the one that
-  # caused it. These two numbers are a pair; move them together.
+  # A real upload arrived at 17000x17000 — 289MP, 1.7MB compressed. At 1GB the
+  # limit and the machine disagreed: raising one without the other converts a
+  # photo that fails cleanly into an OOM kill, and an OOM takes ingest down for
+  # every photo rather than for the one that caused it. These two numbers are a
+  # pair; move them together.
+  #
+  # The estimate that sized this said "about 1.16GB as raw RGBA" for that
+  # upload. Measured on this machine, deriving all five sizes from it peaked at
+  # 173MB and took 1.2 seconds — sharp shrinks on load for JPEG, decoding
+  # straight to the size being asked for rather than materialising the raster.
+  # Four sizes from 12MP to 289MP all stayed under 325MB.
+  #
+  # The 2GB stays anyway, and not out of caution for its own sake: libheif
+  # cannot shrink on load, so a large HEIC is the case this was chosen for and
+  # is the one case that could not be measured here. The machine segfaults
+  # merely generating a raster that size, which is how the first attempt at
+  # measuring this produced a crash and nearly reported it as a derive failure.
+  # Shrinking this wants a real HEIC from a real phone first.
   memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
