@@ -210,3 +210,40 @@ describe('the mark it turns', () => {
     expect(MARK).toMatch(/from 'react-native-svg'/);
   });
 });
+
+/**
+ * The mark as an instrument rather than as a signature.
+ *
+ * It turns over the app's own background on eleven screens, and three brand
+ * colours revolving in the middle of somebody's photographs is the logo
+ * competing with the thing it is waiting for.
+ */
+describe('the spinner is white', () => {
+  const MARK = read('src/Mark.tsx');
+
+  it('draws the mark in one colour', () => {
+    expect(read('src/Waiting.tsx')).toMatch(/<Mark size=\{size\} mono \/>/);
+    expect(MARK).toMatch(/mono = false/);
+  });
+
+  it('still tells the seven regions apart, or it would not read as turning', () => {
+    /*
+     * The three circles sit on an equilateral arrangement, so the silhouette
+     * is unchanged by a third of a turn — a flat white mark rotating is a
+     * flat white mark. The lenses are the only thing that shows the movement,
+     * so white alone is not enough and the ramp is not decoration.
+     */
+    expect(MARK).toMatch(/alone: 0\.38/);
+    expect(MARK).toMatch(/pair: 0\.64/);
+    expect(MARK).toMatch(/centre: 1,/);
+    expect(MARK).toMatch(/fillOpacity=\{alpha\.centre\}/);
+  });
+
+  it('leaves the brand mark exactly where it was', () => {
+    // Same geometry, same seven colours, still pinned against the other three
+    // copies by `brand.test.ts`. `mono` is a way of drawing it, not a logo.
+    expect(MARK).toMatch(/export const MARK_R = 200;/);
+    expect(MARK).toMatch(/pink: '#ffa6ad'/);
+    expect(MARK).toMatch(/: MARK_FILLS;/);
+  });
+});

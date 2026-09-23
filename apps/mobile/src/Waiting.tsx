@@ -151,7 +151,21 @@ export function Waiting({
               }
         }
       >
-        <Mark size={size} />
+        {/*
+          White, not the three brand colours.
+
+          This is the mark as an instrument rather than as a signature. It
+          turns over the app's own background on eleven screens — and over
+          somebody's photographs on some of them — and three colours revolving
+          in the middle of a picture is the logo competing with the thing it
+          is waiting for.
+
+          Its regions still differ, by how much white they carry: the mark is
+          three circles on an equilateral arrangement, so its silhouette is
+          unchanged by a third of a turn, and a flat white one would not read
+          as turning at all. See `MARK_WHITE`.
+        */}
+        <Mark size={size} mono />
       </Animated.View>
     </View>
   );
