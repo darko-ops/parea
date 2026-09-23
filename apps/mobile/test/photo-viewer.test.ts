@@ -726,7 +726,7 @@ describe('the pager', () => {
     // the page under it cannot disagree.
     expect(GESTURE).toMatch(/const photo = photos\[index\] \?\? photos\[0\]!;/);
     // And the caller is told, so the options sheet and the comments follow.
-    expect(APP).toMatch(/onIndex=\{\(at\) => \{/);
+    expect(APP).toMatch(/onIndex: \(at: number\) => \{/);
     expect(APP).toMatch(/if \(there\) setSelected\(there\);/);
   });
 });

@@ -176,3 +176,40 @@ describe('which ones were kept, on the contact sheet', () => {
     expect(APP).toMatch(/\{item\.favourite && \(\s*<View pointerEvents="none" style=\{styles\.gridKept\}>/);
   });
 });
+
+describe('the two shelves stay two', () => {
+  /*
+   * The viewer was handed the whole album whichever shelf the photograph was
+   * tapped on, so opening one from Kept and swiping walked straight out into
+   * the rest of the event. The shelves were separate right up to the moment
+   * somebody looked at one of them.
+   */
+  it('pages the shelf it was opened from', () => {
+    expect(APP).toMatch(/const on = onShelf\.current;/);
+    expect(APP).toMatch(/setScope\(\(on\.which === 'kept' \? on\.kept : on\.all\)\.map\(\(photo\) => photo\.id\)\)/);
+  });
+
+  it('fixes the set when it opens, so a star does not move it', () => {
+    /*
+     * On the Kept shelf the set is what you starred. Unstarring one from
+     * inside the viewer would otherwise pull it out of the list under you and
+     * jump to whatever fell into its place.
+     */
+    expect(APP).toMatch(/const shown = scope/);
+    expect(APP).toMatch(/scope\.map\(\(id\) => byId\.get\(id\)\)\.filter/);
+    // And released with the screen that was paging it.
+    expect(APP).toMatch(/setScope\(null\);/);
+  });
+
+  it('resolves the rows off the feed rather than holding them', () => {
+    // A star refreshes the feed; rows captured at press time would page
+    // through counts as they were before the tap.
+    expect(APP).toMatch(/const byId = new Map\(all\.map\(\(photo\) => \[photo\.id, photo\]\)\)/);
+  });
+
+  it('still opens an album photograph into the whole album', () => {
+    // `scope` is null before the first press and for anything opened from
+    // somewhere that is not a shelf.
+    expect(APP).toMatch(/: all;/);
+  });
+});

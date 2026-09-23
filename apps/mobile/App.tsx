@@ -1695,6 +1695,25 @@ function EventScreen({
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
+
+  /**
+   * The set the viewer pages through, fixed when it opens.
+   *
+   * It was handed the whole album whichever shelf the photograph was tapped
+   * on, so opening one from Kept and swiping walked straight out into the
+   * rest of the event — the two shelves were separate until the moment
+   * somebody looked at one of them.
+   *
+   * Ids rather than photographs, resolved against the feed on every render:
+   * a reaction or a star refreshes the feed, and holding the rows themselves
+   * would page through counts captured when the tile was pressed.
+   *
+   * Fixed at open, which is the other half. On the Kept shelf the set is what
+   * you starred — and unstarring one from inside the viewer would otherwise
+   * pull it out of the list under you and jump to whatever fell into its
+   * place. It leaves when the viewer closes, not while it is open.
+   */
+  const [scope, setScope] = useState<string[] | null>(null);
   /**
    * Whether `initialPhoto` has been spent.
    *
@@ -2924,6 +2943,22 @@ function EventScreen({
     [feed],
   );
 
+  /*
+   * What is on screen and what is in it, for the press handler.
+   *
+   * A ref because `renderTile` is memoized on the tile's size and the byline
+   * map: putting the shelves in its dependencies would rebuild every row of a
+   * two-hundred-photograph grid each time somebody starred one.
+   */
+  const onShelf = useRef<{ which: 'all' | 'kept'; all: FeedPhoto[]; kept: FeedPhoto[] }>({
+    which: 'all',
+    all: [],
+    kept: [],
+  });
+  useEffect(() => {
+    onShelf.current = { which: shelf, all: feed?.photos ?? [], kept };
+  }, [shelf, feed, kept]);
+
   const showShelf = useCallback(
     (which: 'all' | 'kept') => {
       shelves.current?.scrollTo({ x: which === 'kept' ? width : 0, animated: true });
@@ -2998,7 +3033,12 @@ function EventScreen({
       return (
         <Pressable
           style={{ width: gridTile, height: gridTile }}
-          onPress={() => setSelected(item)}
+          onPress={() => {
+            // The shelf this tile is on, not the album behind it.
+            const on = onShelf.current;
+            setScope((on.which === 'kept' ? on.kept : on.all).map((photo) => photo.id));
+            setSelected(item);
+          }}
         >
           <ExpoImage
             source={{ uri: item.card ?? item.src }}
@@ -3945,12 +3985,35 @@ function EventScreen({
               drift: `selected` stays the thing every other part of this
               screen is about, including the options sheet and the comments.
             */
-            photos={feed?.photos ?? [selected]}
-            index={Math.max(0, (feed?.photos ?? []).findIndex((p) => p.id === selected.id))}
-            onIndex={(at) => {
-              const there = (feed?.photos ?? [])[at];
-              if (there) setSelected(there);
-            }}
+            {...(() => {
+              /*
+               * The shelf it was opened from, resolved fresh against the feed.
+               *
+               * `scope` is ids captured when the tile was pressed, so the set
+               * does not move while somebody is looking at it — starring or
+               * unstarring from in here changes the star and not what comes
+               * next. The rows come off the feed every render, so counts and
+               * reactions are current.
+               *
+               * Falling back to the whole album covers the one case `scope`
+               * cannot: a photograph opened from somewhere that is not a
+               * shelf, and the moment before the first press.
+               */
+              const all = feed?.photos ?? [];
+              const byId = new Map(all.map((photo) => [photo.id, photo]));
+              const shown = scope
+                ? scope.map((id) => byId.get(id)).filter((p): p is FeedPhoto => Boolean(p))
+                : all;
+              const photos = shown.length > 0 ? shown : [selected];
+              return {
+                photos,
+                index: Math.max(0, photos.findIndex((p) => p.id === selected.id)),
+                onIndex: (at: number) => {
+                  const there = photos[at];
+                  if (there) setSelected(there);
+                },
+              };
+            })()}
             /*
               Whose it is, off the same map the tiles use.
 
@@ -4037,6 +4100,8 @@ function EventScreen({
                */
               setSelected(null);
               setActionsFor(null);
+              // The set goes with the screen that was paging it.
+              setScope(null);
             }}
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}
