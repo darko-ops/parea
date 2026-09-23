@@ -388,22 +388,29 @@ describe('the bar, and when the album is actually full', () => {
     expect(APP).toMatch(/setInterval\(\(\)[\s\S]{0,80}\}, 2000\);\s*return \(\) => clearInterval\(timer\);\s*\}, \[refresh\]\);/);
   });
 
-  it('sits on the cover’s own edge, in the accent', () => {
+  it('sits on the cover’s own edge, in white that can be seen', () => {
     // It was on the page's top edge, sixteen points lower, reading as a line
     // floating in the gap.
     expect(APP).toMatch(/uploadBar: \{\s*position: 'absolute',\s*bottom: 0,/);
     /*
-     * White until the foot of the header began fading into the page.
+     * White, and this has been both.
      *
-     * White on a photograph under a dark scrim is legible; white on the page's
-     * own near-white is not there at all — and the bottom two points of the
-     * header are now the page's colour by design. The accent is what the rest
-     * of the product uses to mean "this is happening", and it now has a plain
-     * background to be legible against rather than somebody's photograph.
+     * It was white, then the accent — because the bottom two points of the
+     * header are the page's own near-white by design, where a white line is
+     * not there at all. It is white again by request, and the objection was
+     * real, so the line carries its own contrast now: a soft dark shadow
+     * under 2.5 points reads as an edge rather than a glow and survives both
+     * ends of the fade.
+     *
+     * The accent was never right over the top of it. Most of the bar's length
+     * lies on somebody's photograph, and a blue chosen to sit on this
+     * product's own surfaces is one more colour competing with whatever is in
+     * the picture.
      */
-    expect(APP).toMatch(/styles\.uploadBar,\s*\{ backgroundColor: t\.accent \}/);
-    const bar = APP.slice(APP.indexOf('uploadBar: {'), APP.indexOf('uploadBar: {') + 220);
-    expect(bar).not.toMatch(/backgroundColor: '#fff'/);
+    expect(APP).toMatch(/styles\.uploadBar,[\s\S]{0,800}\{ backgroundColor: '#fff' \}/);
+    const bar = APP.slice(APP.indexOf('uploadBar: {'), APP.indexOf('uploadBar: {') + 1400);
+    expect(bar).toMatch(/shadowColor: '#000'/);
+    expect(bar).toMatch(/shadowOpacity: 0\.45/);
     // Drawn inside the cover, and still above everything that fades under it.
     const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
     expect(cover.indexOf('styles.uploadBar')).toBeLessThan(cover.indexOf('styles.coverBack'));

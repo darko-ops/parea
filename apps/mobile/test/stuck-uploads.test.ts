@@ -104,17 +104,42 @@ describe('the way out', () => {
 });
 
 describe('one album at a time', () => {
-  it('runs only this album’s work', () => {
+  it('runs every album’s work, with each album’s own token', () => {
     /*
-     * The queue holds work for every album this phone has uploaded into, and
-     * it will happily work all of it. This client cannot: it presigns and
-     * completes with the link token of the album on screen, so a leftover item
-     * from another evening went up with the wrong credential and came back
-     * refused — a failure invented by the queue being more capable than its
-     * caller.
+     * This asserted the opposite, and the opposite is why an upload stopped
+     * the moment somebody left the album.
+     *
+     * The queue holds work for every album this phone has uploaded into and
+     * will happily work all of it; the client could not, because the deps
+     * were built inside the album screen and closed over *that* album's link
+     * token. A leftover item from another evening went up with the wrong
+     * credential and came back refused, so the run had to be scoped — and a
+     * run that can only be scoped to the screen is a run that ends with it.
+     *
+     * `complete` names its album now, so the token is looked up per item and
+     * the scope can go.
      */
-    expect(APP).toMatch(/await queue\.run\(event\.id\)/);
-    expect(QUEUE).toMatch(/async run\(eventId\?: string\): Promise<void>/);
+    expect(APP).toMatch(/await queue\.run\(\);/);
+    expect(APP).toMatch(/complete: \(photoId, eventId\) => api\.complete\(photoId, token\(eventId\)\)/);
+    expect(QUEUE).toMatch(/complete\(photoId: string, eventId: string\)/);
+  });
+
+  it('keeps one runner, so nothing is uploaded twice', () => {
+    /*
+     * Four things can start a run — adding photographs, opening an album,
+     * returning to the app, and the timer. Two runs over the same persisted
+     * queue would claim the same items and write each other's state back.
+     */
+    expect(APP).toMatch(/if \(running\.current\) return;/);
+    expect(APP).toMatch(/running\.current = true;/);
+  });
+
+  it('outlives the screen that started it', () => {
+    // The retry loop was mounted only while an album was open. It is the
+    // app's now, which is what lets somebody browse while an evening uploads.
+    const screen = APP.slice(APP.indexOf('function EventScreen'));
+    expect(screen).not.toMatch(/AppState\.addEventListener/);
+    expect(APP.slice(0, APP.indexOf('function EventScreen'))).toMatch(/AppState\.addEventListener/);
   });
 
   it('does not start a run because another album has leftovers', () => {
@@ -160,8 +185,10 @@ describe('the run that ends with work left', () => {
    * still outstanding when a run finishes gets counted and gets a button.
    */
   it('counts what is still outstanding, not only what failed', () => {
+    // Read off the shared queue state now rather than counted inside a run
+    // this screen owns — see `runUploads`. The arithmetic is unchanged.
     expect(APP).toMatch(
-      /const unfinished = queue\.waitingFor\(event\.id\) \? 0 : queue\.pendingIn\(event\.id\);/,
+      /const unfinished = waiting \|\| pending > 0 \? 0 : queue\.pendingIn\(event\.id\);/,
     );
     expect(APP).toMatch(/const stuckNow = failed \+ unfinished;/);
     expect(APP).toMatch(/setStuck\(\{ failed: stuckNow, stale \}\)/);
@@ -205,9 +232,10 @@ describe('what stays true', () => {
     expect(APP).toMatch(/they are saved and will go up on their own/);
     // Scoped, like everything else this line says: a signal this album is
     // waiting for, not one another evening's leftovers are waiting for.
-    expect(APP).toMatch(
-      /queue\.waitingFor\(event\.id\)\s*\?\s*`\$\{queue\.pendingIn\(event\.id\)\} waiting for a connection`/,
-    );
+    // Still this album's signal, not another evening's leftovers waiting for
+    // one: `waiting` and `pending` are both scoped to `event.id` above.
+    expect(APP).toMatch(/const waiting = queue\.waitingFor\(event\.id\);/);
+    expect(APP).toMatch(/waiting\s*\?\s*`\$\{pending\} waiting for a connection`/);
   });
 
   it('does not tell somebody to keep the app open about a dead upload', () => {

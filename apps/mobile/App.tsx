@@ -112,7 +112,7 @@ import {
   uploadItem,
   type SavedEvent,
 } from './src/platform';
-import { Offline, UploadQueue } from '@parea/upload';
+import { Offline, UploadQueue, type QueueState } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -352,6 +352,112 @@ export default function App() {
     },
     [],
   );
+
+  /**
+   * Every album's link token, by album.
+   *
+   * The credential each upload needs, and the reason uploading used to stop
+   * the moment somebody left the album. The queue lives on the phone and
+   * holds work for any number of evenings, but the deps that drove it were
+   * built inside the album screen and closed over *that* album's token — so
+   * running the whole queue from there sent one evening's photographs up with
+   * another's credential and had them refused. The only safe thing to do was
+   * run the album on screen, which meant there was nothing running once there
+   * was no album on screen.
+   *
+   * Looked up per item instead. `remembered` is the list of albums this phone
+   * holds a link to, which is exactly the set it can upload into, and a ref
+   * rather than state because the deps below are rebuilt from it on every
+   * item rather than on every render.
+   */
+  const linkTokens = useRef(new Map<string, string>());
+  useEffect(() => {
+    linkTokens.current = new Map(remembered.map((event) => [event.id, event.linkToken]));
+  }, [remembered]);
+
+  /**
+   * What the queue is holding, for whoever is drawing a bar over it.
+   *
+   * The run is here and the progress is drawn two screens down, so the state
+   * has to come back up. Replaced wholesale on every save rather than
+   * mutated, because the album screen renders from it and a mutated array is
+   * a render React has no reason to do.
+   */
+  const [uploads, setUploads] = useState<QueueState>({ items: [] });
+
+  /**
+   * One runner, for the whole phone.
+   *
+   * `running` is what keeps it one. Two runs over the same persisted queue
+   * would both claim the same items, upload them twice and write each other's
+   * state back — and there are four things that can start a run: adding
+   * photographs, opening an album, returning to the app, and the timer below.
+   */
+  const running = useRef(false);
+  const runUploads = useCallback(async () => {
+    if (running.current) return;
+    running.current = true;
+    try {
+      const save = async (state: QueueState) => {
+        await saveQueue(state);
+        setUploads({ items: [...state.items] });
+      };
+      const token = (eventId: string) => linkTokens.current.get(eventId) ?? '';
+      const queue = new UploadQueue(
+        {
+          presign: (eventId, files) => api.presign(eventId, token(eventId), files),
+          upload: uploadItem,
+          complete: (photoId, eventId) => api.complete(photoId, token(eventId)),
+          save,
+        },
+        await loadQueue(),
+      );
+      // Unscoped: every album's work, which is the whole point of the token
+      // lookup above. Nothing here knows or cares which one is on screen.
+      await queue.run();
+      queue.prune();
+      await save(queue.state);
+    } finally {
+      running.current = false;
+    }
+  }, [api]);
+
+  /**
+   * And it keeps going.
+   *
+   * This lived in the album screen and was mounted only while an album was
+   * open, so leaving one mid-upload stopped the run where it stood — the
+   * photographs sat on the phone until somebody happened to open that album
+   * again. Here it outlives every screen: browse the rest of the app, and the
+   * evening you just added carries on going up behind you.
+   *
+   * Two triggers, for the two ways a stalled queue comes back to life.
+   * Returning to the app is somebody walking outside; the widening backoff is
+   * somebody standing still in a basement with it open. Both are cheap — a
+   * run with nothing to do loads one small file and returns.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void runUploads();
+    });
+
+    let delay = 15_000;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      timer = setTimeout(() => {
+        void runUploads();
+        delay = Math.min(delay * 2, 5 * 60_000);
+        tick();
+      }, delay);
+    };
+    tick();
+    void runUploads();
+
+    return () => {
+      subscription.remove();
+      clearTimeout(timer);
+    };
+  }, [runUploads]);
 
   /**
    * Groups belong to the actor, not the device — so they are fetched rather
@@ -697,6 +803,8 @@ export default function App() {
             initialPane={route.pane}
             initialPhoto={route.photo}
             initialUpload={route.upload}
+            uploads={uploads}
+            onRunUploads={runUploads}
             webBase={API_BASE}
             t={t}
             dark={dark}
@@ -1418,6 +1526,8 @@ function EventScreen({
   initialPane,
   initialPhoto,
   initialUpload,
+  uploads,
+  onRunUploads,
   webBase,
   t,
   dark,
@@ -1450,6 +1560,15 @@ function EventScreen({
    * photographs somebody actually picked.
    */
   initialUpload?: string[];
+  /**
+   * What the phone's one upload queue is holding, and how to ask it to run.
+   *
+   * Both come from the app rather than from here, because the run does. See
+   * `runQueue` below, and `runUploads` up there: this screen draws a bar over
+   * work that carries on without it.
+   */
+  uploads: QueueState;
+  onRunUploads: () => Promise<void>;
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
@@ -1664,7 +1783,7 @@ function EventScreen({
     (async () => {
       const state = await loadQueue();
       if (!state.items.some((i) => i.eventId === event.id)) return;
-      await runQueue(state);
+      await runQueue();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1690,118 +1809,94 @@ function EventScreen({
     [api, event.linkToken],
   );
 
-  const runQueue = useCallback(
-    async (state?: Awaited<ReturnType<typeof loadQueue>>) => {
-      const queue = openQueue(state ?? (await loadQueue()));
+  /**
+   * Run everything, from the one runner that outlives this screen.
+   *
+   * This used to be the run itself — an `UploadQueue` built here, scoped to
+   * this album, driving the bar from inside its own loop. Which meant the
+   * upload was a property of the screen: leaving the album stopped it where
+   * it stood, and the photographs waited on the phone until somebody opened
+   * that album again.
+   *
+   * The run is `onRunUploads` now and belongs to the app. What is left here
+   * is a request to start one, and the numbers below come from watching what
+   * it writes rather than from being inside it.
+   */
+  const runQueue = useCallback(async () => {
+    await onRunUploads();
+  }, [onRunUploads]);
 
-      const tick = setInterval(() => {
-        // This album's, all through: the queue may be holding another evening's
-        // leftovers, and counting them here would put photographs in the bar
-        // that this screen is not sending and will never show.
-        const done = queue.doneIn(event.id);
-        const pending = queue.pendingIn(event.id);
-        const total = done + pending;
-        setQueueStatus(pending > 0 ? `${done} of ${total} added` : null);
-        // What the bar needs: how many are still on their way up. The rest of
-        // the sum is `arriving`, which only the feed knows.
-        setUploading(pending);
-        setBatch((was) => (was === null ? total : Math.max(was, total)));
-      }, 400);
+  /**
+   * The bar, read off the queue rather than counted during the run.
+   *
+   * Every one of these was set from inside the loop, which is why they could
+   * only ever describe a run happening on this screen. `uploads` is the
+   * app-wide state written after each save, so the same numbers now appear
+   * whether the run was started here, by the timer, or by coming back to the
+   * app — and they keep moving while somebody is looking at this album with
+   * another evening going up behind it.
+   *
+   * A queue built over the snapshot purely to ask it questions. Its
+   * constructor starts nothing; the deps are never called, because nothing
+   * here runs it.
+   */
+  useEffect(() => {
+    const queue = openQueue(uploads);
+    // This album's, all through: the queue holds every album's work and
+    // counting the rest here would put photographs in the bar that this
+    // screen is not showing.
+    const done = queue.doneIn(event.id);
+    const pending = queue.pendingIn(event.id);
+    const total = done + pending;
+    setQueueStatus(pending > 0 ? `${done} of ${total} added` : null);
+    setUploading(pending);
+    setBatch((was) => (was === null ? total || null : Math.max(was, total)));
 
-      try {
-        /*
-         * Only this album's photographs.
-         *
-         * The queue holds work for every album this phone has uploaded into,
-         * and it will happily work all of it — which is right for a client that
-         * can act for any album at any time, and wrong for this one: it
-         * presigns and completes with the link token of the album on screen, so
-         * a leftover item belonging to a different evening went up with the
-         * wrong credential and came back refused. A failure invented by the
-         * queue being more capable than its caller.
-         *
-         * Nothing is lost by leaving them. Every run writes the whole saved
-         * state back, so they sit there and go up when somebody opens the album
-         * they belong to — which is the honest reading of an upload anyway. It
-         * happens in the room you are standing in.
-         */
-        await queue.run(event.id);
-      } finally {
-        clearInterval(tick);
-        // Nothing left to send. The bar may still have a way to go — the
-        // deriver has the rest of it — so this only reports the upload half.
-        setUploading(0);
-        queue.prune();
-        await saveQueue(queue.state);
-        // Three outcomes, not two. "Waiting" and "failed" ask opposite things
-        // of a person: one is do nothing, the other is try again.
-        setWaitingForNetwork(queue.waitingFor(event.id));
-        /*
-         * Three outcomes and, when something is stuck, why.
-         *
-         * The reason is appended rather than replacing the note: "waiting for a
-         * connection" is the right thing to tell somebody in a basement, and
-         * useless on its own when the truth is that a file could not be read.
-         * One line saying both is how a person can tell those apart — and how
-         * anybody reporting it can say something more useful than "it failed".
-         */
-        /*
-         * This album's, not the queue's.
-         *
-         * `failedCount` and `staleItems` are the whole queue, which is the
-         * right answer for a screen about the queue and the wrong one here: a
-         * failure in another album would caption this one's uploads forever,
-         * and there is no state in which telling somebody about it *here*
-         * helps them.
-         */
-        const failed = queue.failedIn(event.id).length;
-        const stale = queue.staleIn(event.id).length;
-        /*
-         * Outstanding with the run over, and not because the signal went.
-         *
-         * A run spends the whole retry budget before it returns now, so this is
-         * the residue: a grant the server would not replace, a presign that
-         * came back short. Rare — and it still has to be counted, because
-         * `pending` after a finished run is the one state no sentence below
-         * covered. That is how half a batch went missing without a word: four
-         * of eight photographs neither failed nor waiting for a network, so the
-         * line computed "nothing to say", cleared itself, and emptied the bar.
-         *
-         * Folded in with the failures because it asks a person for the same
-         * thing, which is to press the button under it.
-         */
-        const unfinished = queue.waitingFor(event.id) ? 0 : queue.pendingIn(event.id);
-        const stuckNow = failed + unfinished;
-        setStuck({ failed: stuckNow, stale });
-        const note = queue.waitingFor(event.id)
-          ? `${queue.pendingIn(event.id)} waiting for a connection`
-          : stuckNow > 0
-            ? `${stuckNow} didn't upload`
-            : stale > 0
-              ? // Their bytes are gone rather than refused, so "try again" is
-                // the wrong advice: the photograph has to be picked again.
-                `${stale} could not be read — add ${stale === 1 ? 'it' : 'them'} again`
-              : null;
-        /*
-         * And why, where there is a why.
-         *
-         * The reason is appended rather than replacing the note: "waiting for a
-         * connection" is the right thing to tell somebody in a basement, and
-         * useless on its own when the truth is that a file could not be read.
-         * One line saying both is how a person tells those apart — and how
-         * anybody reporting it can say more than "it failed", which cost this
-         * bug several rounds of guessing.
-         */
-        const why =
-          note && (queue.cause ?? queue.staleIn(event.id)[0]?.error)
-            ? (queue.cause ?? queue.staleIn(event.id)[0]?.error)
-            : null;
-        setQueueStatus(note && why ? `${note} — ${why}` : note);
-        await refresh();
-      }
-    },
-    [event, openQueue, refresh],
-  );
+    const failed = queue.failedIn(event.id).length;
+    const stale = queue.staleIn(event.id).length;
+    const waiting = queue.waitingFor(event.id);
+    // Outstanding with nothing running, and not because the signal went.
+    const unfinished = waiting || pending > 0 ? 0 : queue.pendingIn(event.id);
+    const stuckNow = failed + unfinished;
+    setStuck({ failed: stuckNow, stale });
+    setWaitingForNetwork(waiting);
+
+    const note = waiting
+      ? `${pending} waiting for a connection`
+      : stuckNow > 0
+        ? `${stuckNow} didn't upload`
+        : stale > 0
+          ? // Their bytes are gone rather than refused, so "try again" is the
+            // wrong advice: the photograph has to be picked again.
+            `${stale} could not be read — add ${stale === 1 ? 'it' : 'them'} again`
+          : null;
+    /*
+     * And why, where there is a why.
+     *
+     * Appended rather than replacing the note: "waiting for a connection" is
+     * the right thing to tell somebody in a basement, and useless on its own
+     * when the truth is that a file could not be read. One line saying both
+     * is how a person tells those apart — and how anybody reporting it can
+     * say more than "it failed", which cost this bug several rounds of
+     * guessing.
+     */
+    const why = queue.cause ?? queue.staleIn(event.id)[0]?.error ?? null;
+    if (pending === 0 && note) setQueueStatus(why ? `${note} — ${why}` : note);
+  }, [uploads, event.id, openQueue]);
+
+  /**
+   * And the feed, once this album's batch is over.
+   *
+   * The run used to refresh on its way out. It is no longer on this screen,
+   * so the arrival of the last photograph is what asks — the moment this
+   * album has nothing left in the queue, what the server holds has changed.
+   */
+  const hadPending = useRef(false);
+  useEffect(() => {
+    const pending = openQueue(uploads).pendingIn(event.id);
+    if (hadPending.current && pending === 0) void refresh();
+    hadPending.current = pending > 0;
+  }, [uploads, event.id, openQueue, refresh]);
 
   /**
    * The way out of a line that used to have none.
@@ -1831,7 +1926,9 @@ function EventScreen({
     await saveQueue(queue.state);
     setQueueStatus('Trying again…');
     setStuck({ failed: 0, stale: 0 });
-    await runQueue(queue.state);
+    // The state is on disk; the runner reads it. Handing it over here would
+    // be a second copy racing the one the app is about to load.
+    await runQueue();
   }, [event.id, openQueue, runQueue]);
 
   /**
@@ -1852,42 +1949,18 @@ function EventScreen({
     setQueueStatus(null);
   }, [event.id, openQueue]);
 
-  /**
-   * Try again when there is some reason to think the answer will differ.
+  /*
+   * The retry loop that used to be here is gone, and that is the fix.
    *
-   * The queue stops rather than spinning when the network is gone, so
-   * something has to start it. Two triggers, and no new dependency for
-   * either: coming back to the app, which is when someone has walked outside,
-   * and a widening backoff for the person standing still in a basement with
-   * the app open.
+   * It waited for the app to come forward, and widened a backoff for the
+   * person standing still in a basement — both right, and both mounted only
+   * while this album was open. A queue that can only be worked on one screen
+   * is a queue that stops when somebody leaves it, which is what happened to
+   * every upload anybody walked away from.
    *
-   * A connectivity library would be the precise answer. It is a native module
-   * this codebase cannot test and would only make the retry sooner, not more
-   * correct — the retry is cheap and the queue is idempotent.
+   * `runUploads` in the app runs the same two triggers over every album's
+   * work and outlives every screen. See the note there.
    */
-  useEffect(() => {
-    if (!waitingForNetwork) return;
-
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void runQueue();
-    });
-
-    let delay = 15_000;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      timer = setTimeout(() => {
-        void runQueue();
-        delay = Math.min(delay * 2, 5 * 60_000);
-        tick();
-      }, delay);
-    };
-    tick();
-
-    return () => {
-      subscription.remove();
-      clearTimeout(timer);
-    };
-  }, [waitingForNetwork, runQueue]);
 
   const windowFor = useCallback((): Window | null => {
     return resolveWindow({
@@ -1917,7 +1990,10 @@ function EventScreen({
       );
       queue.add(event.id, files);
       await saveQueue(queue.state);
-      await runQueue(queue.state);
+      // Saved first, then run. The runner loads from disk, so the write is
+      // what hands the work over — and it is safe for the run to be somebody
+      // else's, which is the point.
+      await runQueue();
 
       // Now there is something worth being told about: a reminder if this
       // event goes quiet, and an answer if someone asks about one of these
@@ -3033,7 +3109,18 @@ function EventScreen({
             pointerEvents="none"
             style={[
               styles.uploadBar,
-              { backgroundColor: t.accent },
+              /*
+               * White, not the accent.
+               *
+               * The bar lies along the bottom edge of the album's cover — a
+               * photograph, and one this app has no say in. The accent is a
+               * blue chosen to sit on the product's own surfaces, and over an
+               * arbitrary picture it is one more colour competing with
+               * whatever is already there. White is the only value that reads
+               * as an instrument rather than as part of the image, which is
+               * why every progress line over video anywhere is white.
+               */
+              { backgroundColor: '#fff' },
               {
                 width: bar.interpolate({
                   inputRange: [0, 1],
@@ -5326,6 +5413,26 @@ const styles = StyleSheet.create({
     left: 0,
     height: 2.5,
     zIndex: 3,
+    /*
+     * A shadow, because white here is asked to do something white cannot do
+     * unaided.
+     *
+     * The bar lies on the cover's bottom edge and the bottom of that edge is
+     * the page's own near-white by design — `coverFoot` fades it there. This
+     * line was white once and was changed to the accent for exactly that: on
+     * the pale end of the fade it was not there at all.
+     *
+     * White is the right answer over a photograph, which is most of the bar's
+     * length and all of the part anybody watches. So it keeps white and
+     * carries its own contrast: a soft dark shadow under a 2.5pt line reads
+     * as an edge rather than as a glow, and it is what makes the same line
+     * legible on both ends of the fade.
+     */
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
   },
   /*
    * How much of the header dissolves into the page.

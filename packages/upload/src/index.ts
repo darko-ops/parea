@@ -137,7 +137,17 @@ export class SourceGone extends Error {
 export type Deps = {
   presign(eventId: string, files: PresignRequest[]): Promise<PresignResponse[]>;
   upload(item: QueueItem): Promise<void>;
-  complete(photoId: string): Promise<unknown>;
+  /**
+   * Confirm the bytes landed, for a photograph in a named album.
+   *
+   * `eventId` is new and it is what lets a queue run more than one album's
+   * work. Both of these calls need that album's link token, and the caller
+   * used to have exactly one — the album on screen — so a run had to be
+   * scoped to it or a leftover item went up with the wrong credential and
+   * came back refused. With the album named, the caller looks the token up,
+   * and the queue can work everything it holds from anywhere in the app.
+   */
+  complete(photoId: string, eventId: string): Promise<unknown>;
   save(state: QueueState): Promise<void>;
   now?(): number;
   /**
@@ -593,7 +603,7 @@ export class UploadQueue {
     }
 
     try {
-      await this.deps.complete(item.photoId!);
+      await this.deps.complete(item.photoId!, item.eventId);
       item.status = 'done';
       delete item.error;
     } catch (err) {
