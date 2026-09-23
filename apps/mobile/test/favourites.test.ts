@@ -86,7 +86,7 @@ describe('the star', () => {
     // The one glyph in a family of strokes that is also drawn filled.
     expect(GLYPH).toMatch(/case 'star':/);
     expect(GLYPH).toMatch(/fill=\{filled \? color : 'none'\}/);
-    expect(VIEWER).toMatch(/filled=\{photo\.favourite\}/);
+    expect(VIEWER).toMatch(/filled=\{kept\}/);
   });
 
   it('sits in the chrome, not on the photograph', () => {
@@ -96,8 +96,36 @@ describe('the star', () => {
   });
 
   it('asks for the state it wants, not for the opposite of what it sees', () => {
-    expect(VIEWER).toMatch(/onFavourite\(photo\.id, !photo\.favourite\)/);
+    expect(VIEWER).toMatch(/void keep\(!kept\)/);
     expect(APP).toMatch(/api\s*\.setFavourite\(photoId, on\)/);
+  });
+
+  it('fills the moment it is pressed, not when the feed comes back', () => {
+    /*
+     * It was drawn straight off `photo.favourite`, which is the feed's
+     * answer — fetched by the screen underneath this one. So the star did
+     * nothing until the photograph was closed, at which point the album had
+     * quietly been right the whole time.
+     *
+     * The same overlay the reactions use, for the same reason: draw the tap
+     * now, let the feed replace it.
+     */
+    expect(VIEWER).toMatch(/const kept = keeping\.get\(photo\.id\) \?\? photo\.favourite;/);
+    expect(VIEWER).toMatch(/setKeeping\(\(was\) => new Map\(was\)\.set\(id, on\)\)/);
+  });
+
+  it('drops its own answer once the feed carries one, even on a failure', () => {
+    /*
+     * In a `finally`, because an overlay that outlives the request is a lie
+     * this screen would keep telling. The refresh is the correction.
+     */
+    const keep = VIEWER.slice(VIEWER.indexOf('const keep = useCallback'));
+    expect(keep.slice(0, keep.indexOf('[onFavourite, photo.id]'))).toMatch(
+      /\} finally \{[\s\S]{0,700}next\.delete\(id\)/,
+    );
+    // And the caller is awaited, so "once the feed carries one" is true.
+    expect(APP).toMatch(/onFavourite=\{async \(photoId, on\) => \{/);
+    expect(APP).toMatch(/await api\s*\.setFavourite/);
   });
 });
 

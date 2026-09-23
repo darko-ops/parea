@@ -3954,8 +3954,19 @@ function EventScreen({
               returns, so the refresh is both the confirmation and the state.
               A failure leaves the star where it was, which is the truth.
             */
-            onFavourite={(photoId, on) => {
-              void api
+            onFavourite={async (photoId, on) => {
+              /*
+               * Awaited, so the viewer knows when to stop drawing its own
+               * answer. It shows the star pressed immediately and keeps doing
+               * so until this resolves — which is after the refresh, so the
+               * feed it hands back already has the new value in it and the
+               * star never flickers back through the old one.
+               *
+               * A failure still resolves. The refresh is the correction, and
+               * an alert over a photograph for a star that did not land is
+               * worse than the star not landing.
+               */
+              await api
                 .setFavourite(photoId, on)
                 .then(refresh)
                 .catch(() => {});

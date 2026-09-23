@@ -477,7 +477,7 @@ export function PhotoViewer({
    * this viewer and nobody else's, so the star is correct the moment the
    * screen opens rather than after a request of its own.
    */
-  onFavourite: (photoId: string, on: boolean) => void;
+  onFavourite: (photoId: string, on: boolean) => Promise<void>;
   /**
    * The album, and which of it is on the glass.
    *
@@ -569,6 +569,49 @@ export function PhotoViewer({
   );
 
   const [pending, setPending] = useState<Map<string, boolean>>(new Map());
+
+  /**
+   * The star this device has pressed, before the server has been asked.
+   *
+   * The same overlay the reactions below use, for the same reason and a
+   * sharper version of it: the star was drawn straight off `photo.favourite`,
+   * which is the feed's answer — so it did not move until the feed came back,
+   * and the feed is fetched by the screen underneath this one. What that
+   * looked like was a star that did nothing until you closed the photograph,
+   * at which point the album had quietly been right all along.
+   *
+   * Keyed by photograph, because the pager means several can be starred
+   * without this screen ever unmounting.
+   */
+  const [keeping, setKeeping] = useState<Map<string, boolean>>(new Map());
+
+  /** What the star draws: this device's unconfirmed answer, else the feed's. */
+  const kept = keeping.get(photo.id) ?? photo.favourite;
+
+  const keep = useCallback(
+    async (on: boolean) => {
+      const id = photo.id;
+      // Drawn now. Nothing below this line is waited on by the interface.
+      setKeeping((was) => new Map(was).set(id, on));
+      try {
+        await onFavourite(id, on);
+      } finally {
+        /*
+         * Dropped once the caller's refresh has landed, so the star never
+         * flickers back through the old answer on its way to the new one —
+         * and dropped even when the request failed, because the feed is the
+         * truth and an overlay that outlives it is a lie this screen would
+         * keep telling.
+         */
+        setKeeping((was) => {
+          const next = new Map(was);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [onFavourite, photo.id],
+  );
 
   /*
    * The server's answer with this device's unconfirmed taps folded in.
@@ -824,14 +867,14 @@ export function PhotoViewer({
             */}
             <View style={styles.tools}>
             <Pressable
-              onPress={() => onFavourite(photo.id, !photo.favourite)}
+              onPress={() => void keep(!kept)}
               hitSlop={14}
               accessibilityRole="button"
-              accessibilityState={{ selected: photo.favourite }}
-              accessibilityLabel={photo.favourite ? 'Kept. Tap to remove' : 'Keep this photo'}
+              accessibilityState={{ selected: kept }}
+              accessibilityLabel={kept ? 'Kept. Tap to remove' : 'Keep this photo'}
               style={styles.round}
             >
-              <Glyph name="star" size={19} color="#fff" filled={photo.favourite} />
+              <Glyph name="star" size={19} color="#fff" filled={kept} />
             </Pressable>
 
             <Pressable
