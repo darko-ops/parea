@@ -89,6 +89,7 @@ import {
   libraryAccess,
   requestLibraryAccess,
   resolveForUpload,
+  sandboxCopy,
   type LibraryAccess,
   type LibraryPhoto,
 } from './src/library';
@@ -194,6 +195,16 @@ type Route =
        * a selection.
        */
       upload?: string[];
+      /**
+       * How the first of those photographs was framed as the cover.
+       *
+       * Travels with the upload because the cover is sent from the album now,
+       * not from the form — the form has no photo id to name it by, and a
+       * cover with no photograph recorded behind it is one the server cannot
+       * drop from the strip, which is how a card came to show the same
+       * picture twice.
+       */
+      cover?: CoverFraming;
     }
   /**
    * The door of a private album — a real link to one that has not let this
@@ -346,9 +357,15 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(
-    async (event: SavedEvent, pane?: Pane, upload?: string[], photo?: string) => {
+    async (
+      event: SavedEvent,
+      pane?: Pane,
+      upload?: string[],
+      photo?: string,
+      cover?: CoverFraming,
+    ) => {
       setRemembered(await rememberEvent(event));
-      setRoute({ screen: 'event', event, pane, upload, photo });
+      setRoute({ screen: 'event', event, pane, upload, photo, cover });
     },
     [],
   );
@@ -803,6 +820,7 @@ export default function App() {
             initialPane={route.pane}
             initialPhoto={route.photo}
             initialUpload={route.upload}
+            initialCover={route.cover}
             uploads={uploads}
             onRunUploads={runUploads}
             webBase={API_BASE}
@@ -918,7 +936,7 @@ export default function App() {
           // who wants a different picture has not changed their mind about
           // making an album.
           onCancel={backToPhotographs}
-          onCreated={(created, photos) => {
+          onCreated={(created, photos, framing) => {
             void refreshGroups();
             void open(
               {
@@ -932,6 +950,10 @@ export default function App() {
               // What the form is holding, not what the picker handed it: the
               // row under the cover has a ⊗ on every tile.
               photos.map((photo) => photo.id),
+              undefined,
+              // The first of those ids is the cover — `CreateEvent` takes
+              // `photos[0]` — so the album needs only how it was framed.
+              framing,
             );
           }}
           Button={Button}
@@ -1526,6 +1548,7 @@ function EventScreen({
   initialPane,
   initialPhoto,
   initialUpload,
+  initialCover,
   uploads,
   onRunUploads,
   webBase,
@@ -1560,6 +1583,8 @@ function EventScreen({
    * photographs somebody actually picked.
    */
   initialUpload?: string[];
+  /** How `initialUpload[0]` was framed, when it was chosen as the cover. */
+  initialCover?: CoverFraming;
   /**
    * What the phone's one upload queue is holding, and how to ask it to run.
    *
@@ -2541,6 +2566,43 @@ function EventScreen({
       }
     })();
   }, [enqueue, initialUpload]);
+
+  /**
+   * The cover, once the photograph it was cropped from has an id.
+   *
+   * The form used to send this the moment the album existed — before any
+   * photograph did, so there was no id to name it by and the route wrote
+   * `coverPhotoId: null`. The server drops the photograph a cover was made
+   * from only where it knows which one that was, so it kept it: the card led
+   * with the cover and showed the same picture again as the first thumbnail.
+   * An album of four looked like it held a duplicate.
+   *
+   * So it waits here for `initialUpload[0]` — which is the cover, because the
+   * form takes `photos[0]` — to be presigned, and sends the framing with the
+   * id the server gave it. The album is uncovered for those few seconds and
+   * looks the same: with no cover the card leads with `mosaic[0]`, which is
+   * that photograph.
+   *
+   * `sent` latches, because the queue state changes on every save and this
+   * must not send a cover per item.
+   */
+  const coverSent = useRef(false);
+  useEffect(() => {
+    const local = initialUpload?.[0];
+    if (!initialCover || !local || coverSent.current) return;
+    const item = uploads.items.find((i) => i.id === local && i.eventId === event.id);
+    if (!item?.photoId) return;
+    coverSent.current = true;
+    void (async () => {
+      try {
+        const copy = await sandboxCopy(local);
+        await sendCover(copy.uri, initialCover, item.photoId);
+      } catch {
+        // No cover is a card that leads with the same photograph anyway, so
+        // there is nothing here worth interrupting somebody about.
+      }
+    })();
+  }, [uploads, initialCover, initialUpload, event.id, sendCover]);
 
   const markRead = useCallback(() => {
     setSeen(messages.length);

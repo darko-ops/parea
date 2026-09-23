@@ -41,8 +41,7 @@ import { CENTRED, CoverFramer, CoverShot, type CoverFraming } from './CoverFrame
 import { InvitePicker } from './InvitePeople';
 import type { Api, ContributePolicy, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
-import { uploadCover } from './platform';
-import { sandboxCopy, windowOf, type LibraryPhoto } from './library';
+import { windowOf, type LibraryPhoto } from './library';
 
 /**
  * The day an album happened, as `YYYY-MM-DD`.
@@ -122,7 +121,12 @@ export function CreateEvent({
    * always what was chosen. `CreatedEvent` deliberately does not carry them —
    * see the note above it.
    */
-  onCreated: (event: CreatedEvent, photos: LibraryPhoto[]) => void;
+  /**
+   * `framing` is the third argument because the cover is no longer sent from
+   * here — see the note where it used to be. The album sends it once the
+   * photograph has an id.
+   */
+  onCreated: (event: CreatedEvent, photos: LibraryPhoto[], framing: CoverFraming) => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -311,32 +315,23 @@ export function CreateEvent({
        * would have looked without a cover, which is why nothing here surfaces
        * one.
        */
-      if (cover) {
-        /*
-         * The framing goes with it, and is never left to the server.
-         *
-         * The route's own default is `attention`, which crops towards whatever
-         * sharp thinks the subject is. That is the better picture more often
-         * than not and it is the wrong one here: this screen has shown somebody
-         * a window and they accepted it. A preview that is not what gets stored
-         * is worse than a slightly worse crop.
-         */
-        const target = api.coverTarget(created.id, framing);
-        /*
-         * Copied into our own sandbox first, like the photographs.
-         *
-         * A library asset's `uri` is its own path inside the Photos container,
-         * and the cover goes up on a background session exactly as a photograph
-         * does — so it hit the same wall, and for a while it was the half of
-         * this I had missed:
-         *
-         *   Failed to issue sandbox extension for file
-         *   file:///var/mobile/Media/DCIM/100APPLE/IMG_0891.PNG
-         */
-        void sandboxCopy(cover.id)
-          .then((local) => uploadCover(target.url, target.headers, local.uri))
-          .catch(() => {});
-      }
+      /*
+       * The cover is not sent from here any more, and that is a bug fix.
+       *
+       * It went up the moment the album existed — before a single photograph
+       * did — so there was no server id to name it by, and the route wrote
+       * `coverPhotoId: null`. The server drops the photograph a cover was
+       * made from only where it knows which one that was, so it could not
+       * drop this one: the card led with the cover and then showed the same
+       * picture again as the first thumbnail under it. An album of four
+       * appeared to hold a duplicate.
+       *
+       * It is sent from the album instead, once the photograph it was cropped
+       * from has been presigned and has an id worth recording. The framing
+       * travels with `onCreated`; the picture is `photos[0]`, which is what
+       * `cover` is, and therefore the first of the ids the album is handed to
+       * upload.
+       */
 
       /*
        * The invitations, sent and not waited for.
@@ -370,6 +365,7 @@ export function CreateEvent({
           endsAt,
         },
         photos,
+        framing,
       );
     } catch {
       setError('Could not make the album. Try again in a moment.');

@@ -334,11 +334,19 @@ describe('the two paths that still handed iOS a library file', () => {
   it('copies the cover too, which the first fix missed', () => {
     /*
      * The cover goes up on a background session exactly as a photograph does,
-     * and `chosen[0].uri` is an asset path — so it failed the same way and was
-     * the half of this that got missed.
+     * and an asset's own `uri` is a path inside the Photos container that the
+     * background daemon cannot open — so it failed the same way, and was the
+     * half of this that got missed.
+     *
+     * It is not sent from the form at all now. Sending it there meant sending
+     * it before any photograph existed, with no id to record it against, and
+     * the card then showed the cover and its own source picture side by side.
+     * The album sends it once that photograph has been presigned — and copies
+     * it into the sandbox there, for the original reason.
      */
-    expect(CREATE).toMatch(/sandboxCopy\(cover\.id\)/);
-    expect(CREATE).not.toMatch(/uploadCover\(target\.url, target\.headers, cover\.uri\)/);
+    expect(CREATE).not.toMatch(/uploadCover/);
+    expect(APP).toMatch(/const copy = await sandboxCopy\(local\);/);
+    expect(APP).toMatch(/await sendCover\(copy\.uri, initialCover, item\.photoId\)/);
   });
 
   it('leaves the avatar upload alone, which never needed it', () => {
@@ -480,5 +488,53 @@ describe('the fields on the create screen', () => {
     // And a tap on a pill while a field has focus presses the pill rather than
     // spending itself dismissing the keyboard.
     expect(CREATE).toMatch(/keyboardShouldPersistTaps="handled"/);
+  });
+});
+
+/**
+ * The duplicate on a card of four photographs.
+ *
+ * An album of four showed a cover and three thumbnails under it, and one of
+ * the three was the cover again. Not a rendering fault: the card already
+ * skips `mosaic[0]`, and the server already drops the photograph a cover was
+ * cropped from — where it knows which one that was.
+ *
+ * It did not know. The form sent the cover the moment the album existed,
+ * before a single photograph had been presigned, so there was no id to name
+ * it by and `coverPhotoId` was written null. Setting a cover from inside an
+ * album has always passed the id and has never had this.
+ */
+describe('a cover that knows which photograph it came from', () => {
+  it('is sent once that photograph has an id, not before', () => {
+    // The wait: the queue item for the first chosen picture, with a photoId.
+    expect(APP).toMatch(/const local = initialUpload\?\.\[0\];/);
+    expect(APP).toMatch(/uploads\.items\.find\(\(i\) => i\.id === local && i\.eventId === event\.id\)/);
+    expect(APP).toMatch(/if \(!item\?\.photoId\) return;/);
+  });
+
+  it('names it, which is the whole point', () => {
+    expect(APP).toMatch(/sendCover\(copy\.uri, initialCover, item\.photoId\)/);
+    // `sendCover` hands it to the route as `?photo=`, which is what the
+    // server records and later uses to drop it from the strip.
+    expect(APP).toMatch(/api\.coverTarget\(event\.id, framing, photoId\)/);
+    const API = read('src/api.ts');
+    expect(API).toMatch(/if \(photoId\) query\.set\('photo', photoId\);/);
+  });
+
+  it('sends one cover, however often the queue is saved', () => {
+    // The queue state changes on every save, and this effect watches it.
+    expect(APP).toMatch(/const coverSent = useRef\(false\);/);
+    expect(APP).toMatch(/coverSent\.current = true;/);
+  });
+
+  it('leaves the card looking right in the meantime', () => {
+    /*
+     * Uncovered, a card leads with `mosaic[0]` — which is that same
+     * photograph. So the seconds before the cover lands show the same
+     * picture, unframed, rather than a gap.
+     */
+    const CARDS = read('../../apps/web/src/cards.ts');
+    expect(CARDS).toMatch(/const cover = await coverSrc\(listing\.coverKey\);\s*if \(cover\) return cover;/);
+    expect(CARDS).toMatch(/const first = listing\.mosaic\[0\];/);
   });
 });

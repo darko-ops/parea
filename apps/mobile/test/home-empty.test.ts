@@ -466,7 +466,7 @@ describe('the home list', () => {
      * and hands it the photographs the form is holding, so the album it lands
      * on is filling rather than empty.
      */
-    expect(APP).toMatch(/onCreated=\{\(created, photos\) => \{[\s\S]{0,260}void open\(/);
+    expect(APP).toMatch(/onCreated=\{\(created, photos, framing\) => \{[\s\S]{0,260}void open\(/);
     expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 });
