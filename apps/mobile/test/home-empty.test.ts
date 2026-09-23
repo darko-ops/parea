@@ -680,10 +680,30 @@ describe('the bubble', () => {
      * talking before anybody reads a word of it.
      */
     expect(EVENTS).toMatch(/borderWidth: 1,\s*borderRadius: 10,/);
-    // Squared rather than a pill, and the width of its contents rather than
-    // the width of the card: a full-bleed box is a panel, and a panel is the
-    // card talking rather than somebody in it.
-    expect(EVENTS).toMatch(/alignSelf: 'flex-start'/);
+  });
+
+  it('is one width on every card, and not the width of what was said', () => {
+    /*
+     * It was `alignSelf: 'flex-start'` and as wide as whatever had been said,
+     * which made a column of cards into a column of ragged shapes: "ok" was a
+     * stub and a sentence was a slab, and the eye reads that difference as
+     * meaning something. It does not — it is how long somebody's message
+     * happened to be.
+     *
+     * Three quarters of the screen, centred. The card is edge to edge, so
+     * that is a share of the screen and of the card at once — and still short
+     * of full bleed, because a full-bleed box is a panel and a panel is the
+     * card talking rather than somebody in it.
+     */
+    const bubble = EVENTS.slice(EVENTS.indexOf('  bubble: {'), EVENTS.indexOf('  talkLine:'));
+    expect(bubble).toMatch(/alignSelf: 'center'/);
+    expect(bubble).not.toMatch(/alignSelf: 'flex-start'/);
+    // No `maxWidth` left over: the width is set, so a cap on it is a second
+    // opinion about the same number.
+    expect(bubble).not.toMatch(/maxWidth/);
+    expect(EVENTS).toMatch(/const TALK_W = 0\.75;/);
+    expect(EVENTS).toMatch(/const talkWidth = Math\.round\(width \* TALK_W\);/);
+    expect(EVENTS).toMatch(/width: talkWidth,/);
   });
 
   it('opens the conversation rather than the album', () => {

@@ -483,6 +483,21 @@ function EventCard({
     return event.lastMessage ? true : null;
   })();
   const tile = sheetTile(width);
+  /*
+   * The bubble's width, from the screen rather than from its contents.
+   *
+   * It was `alignSelf: 'flex-start'` and as wide as whatever had been said,
+   * which made a column of cards into a column of ragged shapes: "ok" was a
+   * stub, a sentence was a slab, and the eye read the difference between them
+   * as meaning something. It does not — it is just how long somebody's
+   * message happened to be.
+   *
+   * Three quarters of the screen, centred, on every card that has one. A
+   * fixed shape in a fixed place is a feature of the card rather than a
+   * measurement of its contents, which is what lets somebody's words be the
+   * only thing in it that varies.
+   */
+  const talkWidth = Math.round(width * TALK_W);
 
   /*
    * Whose evening this is, above the photograph rather than under it.
@@ -782,7 +797,12 @@ function EventCard({
             }
             style={({ pressed }) => [
               styles.bubble,
-              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+              {
+                width: talkWidth,
+                backgroundColor: t.card,
+                borderColor: t.line,
+                opacity: pressed ? 0.6 : 1,
+              },
             ]}
           >
             {event.lastMessage && (
@@ -817,6 +837,16 @@ function emptyLine(memberCount: number): string {
   if (others === 1) return 'You and one other. Nothing in it yet.';
   return `You and ${others} others. Nothing in it yet.`;
 }
+
+/**
+ * How much of the screen the bubble on a card takes.
+ *
+ * Three quarters: wide enough that two lines of somebody's words are two
+ * lines rather than five, and narrow enough that it is plainly a thing on the
+ * card rather than a panel across it. The card is edge to edge, so this is a
+ * share of the screen and of the card at once.
+ */
+const TALK_W = 0.75;
 
 /** Two of the mark's lenses, for the cluster on the card that has no photos. */
 const EMPTY_LENSES = ['#ffb3b8', '#9db2f0'] as const;
@@ -3127,13 +3157,18 @@ const styles = StyleSheet.create({
   /*
    * The bubble: a hairline box with a corner, and no tail.
    *
-   * `alignSelf: 'flex-start'` so it is the width of what is in it rather than
-   * the width of the card — a full-bleed box is a panel, and a panel is the
-   * card talking rather than somebody in it.
+   * One width for every card, set from the window in `EventCard` rather than
+   * from what is in it — `TALK_W` of the screen, centred. It was
+   * `alignSelf: 'flex-start'` and as wide as whatever had been said, which
+   * turned a column of cards into a column of ragged shapes; a shape that
+   * changes with the length of a message invites somebody to read the length
+   * as meaning.
+   *
+   * Still not the full width of the card: a full-bleed box is a panel, and a
+   * panel is the card talking rather than somebody in it.
    */
   bubble: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
+    alignSelf: 'center',
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 11,
