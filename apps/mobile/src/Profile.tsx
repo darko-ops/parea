@@ -84,18 +84,19 @@ import { Waiting } from './Waiting';
  * it cannot be allowed to happen. So the container still hangs from the
  * physical top edge, and the picture starts below this.
  *
- * 72 rather than a measured inset because this project carries no safe-area
- * library: every screen here starts at a fixed allowance — 72 on the scrolls,
- * 62 for the corner discs — and this is that same number for the one device
- * feature that eats content.
+ * It has been 54 and then 72, and both were the no-go zone and nothing more:
+ * 54 is the island, 72 is the allowance every scroll in this project starts
+ * at. Both left a picture whose top edge is exactly where the obstruction
+ * ends, which reads as having only just got out of the way.
  *
- * It was 54, which is the island and nothing more, and a picture whose top
- * edge is exactly where the cutout ends reads as having only just got out of
- * the way. The extra eighteen points are the difference between clearing it
- * and looking like it cleared it.
+ * 100 is not about the camera. It is how much photograph there is behind the
+ * ribbon — the picture starts at the top of the tab, so the ribbon's height
+ * *is* the overlap, and a hundred points of it is what makes the image look
+ * like it continues up into the ribbon rather than beginning under it. Past
+ * about 120 the ribbon stops being a ribbon and becomes a header.
  */
 const TAB_W = 172;
-const CAP_H = 72;
+const CAP_H = 100;
 /**
  * How much of the picture is in front of the ribbon.
  *
@@ -1068,18 +1069,21 @@ function EditProfile({
        * arrives, so nothing downstream changes.
        */
       /*
-       * 5:7, which is the shape of the whole tab — 172 by 240.
+       * Taller than the frame it lands in, on purpose.
        *
-       * The picture fills all of it, ribbon included, so the frame the crop
-       * has to match is the tab and not the part of it anybody can see. Match
-       * it and `cover` trims nothing: no sides lost, which is what a
-       * landscape crop was doing to people standing up.
+       * The tab is 172 by 268, which is about 9:15. Asking for 9:16 hands
+       * `cover` a source with height to spare — so it fits the width and
+       * trims a little off the top and bottom instead, and every pixel of the
+       * left and right survives. A crop that matched the frame exactly was
+       * still tight at the sides; a landscape one before it was eating arms
+       * and the edges of a coat, which is most of what makes somebody
+       * recognisable at this size.
        *
-       * The top of what somebody frames goes behind the ribbon — about three
-       * tenths of it — which is the space above a head in almost every
-       * portrait anybody takes.
+       * The top of what somebody frames goes behind the ribbon — a hundred
+       * points of it — which in almost every portrait anybody takes is the
+       * space above their head.
        */
-      aspect: [5, 7],
+      aspect: [9, 16],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;

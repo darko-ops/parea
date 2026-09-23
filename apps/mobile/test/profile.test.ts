@@ -218,18 +218,18 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 
-  it('crops for the whole tab, not the part you can see', () => {
+  it('asks for a taller source than the frame, to keep the sides', () => {
     /*
-     * The picture fills all of it, ribbon included, so the frame the crop has
-     * to match is the tab — 172 by 240, which is 5:7. Match it and `cover`
-     * trims nothing, which is the fix for a landscape box eating the sides of
-     * somebody standing up.
+     * The tab is 172 by 268 — about 9:15 — and the crop is 9:16. That hands
+     * `cover` a source with height to spare, so it fits the width and trims a
+     * little off the top and bottom instead, and every pixel of the left and
+     * right survives.
      *
-     * The top of what somebody frames goes behind the ribbon: about three
-     * tenths, which is the space above a head in almost every portrait
-     * anybody takes.
+     * A crop that matched the frame exactly was still tight at the sides, and
+     * the landscape one before it was eating arms and the edges of a coat —
+     * most of what makes somebody recognisable at this size.
      */
-    expect(PROFILE).toMatch(/aspect: \[5, 7\]/);
+    expect(PROFILE).toMatch(/aspect: \[9, 16\]/);
     expect(PROFILE).toMatch(/const VISIBLE_H = 168;/);
     expect(PROFILE).toMatch(/const TAB_W = 172;/);
   });

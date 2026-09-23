@@ -291,7 +291,15 @@ describe('the tab that hangs from the top', () => {
     expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.cap'));
     // And no corner on the image to announce a frame.
     expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
-    expect(PROFILE).toMatch(/const CAP_H = 72;/);
+    /*
+     * A hundred, and it is not about the camera any more. The picture starts
+     * at the top of the tab, so the ribbon's height *is* how much photograph
+     * is behind it — and a hundred points of overlap is what makes the image
+     * look like it continues up into the ribbon rather than beginning under
+     * it. Past about 120 the ribbon stops being a ribbon and becomes a
+     * header.
+     */
+    expect(PROFILE).toMatch(/const CAP_H = 100;/);
   });
 
   it('softens the join rather than drawing a line', () => {
