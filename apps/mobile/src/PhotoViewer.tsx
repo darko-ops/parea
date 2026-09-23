@@ -205,27 +205,35 @@ export function PhotoViewer({
    */
   const strip = useRef(new Animated.Value(0)).current;
 
+  /**
+   * Whether a gesture is in flight, and therefore whether the row is being
+   * driven by the animated value at all.
+   *
+   * This exists because of a flash that survived two fixes, and the reason it
+   * survived is worth writing down: `strip` is native-driven, so
+   * `strip.setValue(0)` is an instruction that crosses to the native side on
+   * its own schedule, while the photograph is swapped by a React commit that
+   * crosses on a different one. Nothing available in JS orders those two
+   * against each other — `useLayoutEffect` sequences the JS side and leaves
+   * the native value exactly as unsynchronised as before. So the frame where
+   * the new middle photograph is in place and the row has not yet come back
+   * to centre is a frame showing the slot *beyond* it: the picture after the
+   * one you swiped to, from nowhere, which is what read as loading.
+   *
+   * The race is removed rather than won. At rest the row's offset is a plain
+   * `0` in the rendered style — a number React commits with everything else —
+   * and the animated value is attached only while a finger or an animation is
+   * actually moving it. So the commit that brings the new neighbours in is
+   * also the commit that centres the row, because they are one object.
+   */
+  const [sliding, setSliding] = useState(false);
+
   /*
-   * Back to centre when the photograph changes, before anything is drawn.
+   * And the value itself goes back to zero for the next gesture.
    *
-   * The swipe animates the row a whole screen across, which leaves the
-   * neighbour under the glass and the strip a screen off centre. Two ways to
-   * put it back, and both of the obvious ones flash a frame of the wrong
-   * photograph:
-   *
-   *   - in the animation's callback, before the caller has swapped: the row
-   *     re-centres on the picture being left, so you see it come back.
-   *   - in a `useEffect` after the swap: effects run *after* the frame is
-   *     drawn, and that frame has the new photograph in the middle slot with
-   *     the row still a screen to the left — which puts the slot beyond it on
-   *     the glass. The photograph after the one you asked for, for a frame.
-   *     That is the flash, and it reads as a load because it is a third
-   *     picture appearing from nowhere.
-   *
-   * `useLayoutEffect` is the one that works: React commits the new
-   * neighbours, this runs synchronously before the frame is presented, and
-   * the content and the offset change together. There is no in-between state
-   * to see.
+   * Nothing is looking at it by the time this runs — the row is being drawn
+   * from the literal above — so its timing no longer matters, which is the
+   * whole point of the arrangement.
    */
   useLayoutEffect(() => {
     strip.setValue(0);
@@ -323,6 +331,10 @@ export function PhotoViewer({
         // A second finger arriving mid-drag turns a pan into a pinch.
         onPanResponderGrant: () => {
           from.current = null;
+          // Hand the row to the animated value for the length of the gesture.
+          // At 0 it draws exactly where the literal did, so the handover is
+          // not visible.
+          setSliding(true);
         },
         onPanResponderMove: (evt, g) => {
           const touches = evt.nativeEvent.touches;
@@ -426,6 +438,10 @@ export function PhotoViewer({
             const flung = Math.abs(g.vy) > FLING;
             if (far || flung) {
               settle(1);
+              // Nothing moved the row, so it can go back on its literal at
+              // once. Every path out of a gesture has to do this or the next
+              // photograph is drawn from a value nothing is updating.
+              setSliding(false);
               if (g.dy > 0) onClose();
               else setTalking(true);
               return;
@@ -475,20 +491,37 @@ export function PhotoViewer({
               }).start(({ finished }) => {
                 // Only if it actually arrived. A gesture interrupted by
                 // another one leaves the strip where the new one wants it.
-                if (finished) go();
+                if (!finished) return;
+                /*
+                 * The two halves of the swap, in one React commit.
+                 *
+                 * `go()` puts the neighbour in the middle slot and `false`
+                 * puts the row back on its literal offset, and because both
+                 * are state they are batched into a single render. The frame
+                 * that shows the new photograph is the first frame it exists
+                 * in, centred, with nothing in between — which is what could
+                 * not be arranged while the offset was an animated value the
+                 * native side owned.
+                 */
+                go();
+                setSliding(false);
               });
               return;
             }
-            // Short of both thresholds, or nothing that way: back to centre.
+            // Short of both thresholds, or nothing that way: back to centre,
+            // and the row is handed back once it is actually there.
             Animated.spring(strip, {
               toValue: 0,
               useNativeDriver: true,
               bounciness: 0,
-            }).start();
+            }).start(({ finished }) => {
+              if (finished) setSliding(false);
+            });
             return;
           }
 
           if (!moved) {
+            setSliding(false);
             const at = Date.now();
             if (at - lastTap.current < DOUBLE_TAP_MS) {
               lastTap.current = 0;
@@ -504,10 +537,12 @@ export function PhotoViewer({
             return;
           }
 
+          setSliding(false);
           settle(now.current.scale);
         },
         onPanResponderTerminate: () => {
           from.current = null;
+          setSliding(false);
           settle(now.current.scale);
         },
       }),
@@ -653,7 +688,21 @@ export function PhotoViewer({
       <Animated.View
         style={[
           styles.strip,
-          { width: width * 3, left: -width, transform: [{ translateX: strip }] },
+          {
+            width: width * 3,
+            left: -width,
+            /*
+             * The whole fix for the flash, in one ternary.
+             *
+             * At rest this is a number React commits with the photographs
+             * themselves, so landing a swipe is one frame: new neighbours,
+             * row centred, nothing in between. While a gesture is running the
+             * animated value takes over, which is what makes the drag smooth
+             * and native-driven — and it is only ever attached when something
+             * is genuinely moving it.
+             */
+            transform: [{ translateX: sliding ? strip : 0 }],
+          },
         ]}
         {...responder.panHandlers}
       >

@@ -683,7 +683,9 @@ describe('the photographs either side', () => {
      * under a finger that was still mid-gesture.
      */
     expect(GESTURE).toMatch(/toValue: g\.dx > 0 \? width : -width/);
-    expect(GESTURE).toMatch(/if \(finished\) go\(\);/);
+    // Guarded: a gesture interrupted by another leaves the strip where the
+    // new one wants it, and must not also change the photograph.
+    expect(GESTURE).toMatch(/if \(!finished\) return;/);
     /*
      * And ordered: within the branch that pages, the only `go()` is the one
      * inside the animation's callback. A `go()` ahead of the animation is
@@ -694,8 +696,8 @@ describe('the photographs either side', () => {
       GESTURE.indexOf('const go = g.dx > 0 ? onPrev : onNext;'),
       GESTURE.indexOf('Animated.spring(strip, {'),
     );
-    expect(branch.match(/\bgo\(\)/g) ?? []).toHaveLength(1);
-    expect(branch.indexOf('Animated.timing(strip')).toBeLessThan(branch.indexOf('go()'));
+    expect(branch.match(/\bgo\(\);/g) ?? []).toHaveLength(1);
+    expect(branch.indexOf('Animated.timing(strip')).toBeLessThan(branch.indexOf('go();'));
     // A spring would overshoot, and an overshoot shows a sliver of the
     // photograph on the far side of the one arriving.
     expect(GESTURE).toMatch(/Animated\.timing\(strip, \{/);
@@ -796,7 +798,7 @@ describe('the row the swipe moves', () => {
   it('is three photographs wide and sits a screen to the left', () => {
     // The middle slot is the glass; the other two are just off it, which is
     // what puts an edge under the finger the moment it moves.
-    expect(GESTURE).toMatch(/width: width \* 3, left: -width, transform: \[\{ translateX: strip \}\]/);
+    expect(GESTURE).toMatch(/width: width \* 3,\s*left: -width,/);
   });
 
   it('follows the finger one for one, and resists at an end', () => {
@@ -841,5 +843,41 @@ describe('the row the swipe moves', () => {
     // anything; a missing slot would shift the middle off the glass.
     expect(GESTURE).toMatch(/\{prev && \(/);
     expect(GESTURE).toMatch(/\{next && \(/);
+  });
+});
+
+describe('landing without a flash', () => {
+  /*
+   * This took three attempts, and the first two failed for the same reason:
+   * `strip` is native-driven, so `strip.setValue(0)` is an instruction that
+   * crosses to the native side on its own schedule while the photograph is
+   * swapped by a React commit that crosses on a different one. Nothing in JS
+   * orders those two — `useLayoutEffect` sequences the JS side and leaves the
+   * native value exactly as unsynchronised as before.
+   *
+   * The frame where the new middle photograph is in place and the row has not
+   * come back to centre shows the slot *beyond* it: the picture after the one
+   * you swiped to, from nowhere. That is what read as loading.
+   */
+  it('draws the row from a literal when nothing is moving it', () => {
+    // A number React commits with the photographs themselves, so landing a
+    // swipe is one frame rather than a handshake between two schedulers.
+    expect(GESTURE).toMatch(/transform: \[\{ translateX: sliding \? strip : 0 \}\]/);
+  });
+
+  it('swaps the photograph and recentres in one commit', () => {
+    // Both are state, so React batches them into a single render.
+    expect(GESTURE).toMatch(/go\(\);\s*setSliding\(false\);/);
+  });
+
+  it('attaches the animated value only while a gesture is running', () => {
+    expect(GESTURE).toMatch(/onPanResponderGrant: \(\) => \{[\s\S]{0,200}setSliding\(true\)/);
+    /*
+     * And every way out of a gesture hands it back. A path that forgets
+     * leaves the row drawn from a value nothing is updating, which is a
+     * photograph stuck off centre — worse than the flash this replaces.
+     */
+    expect(GESTURE.match(/setSliding\(false\)/g) ?? []).toHaveLength(6);
+    expect(GESTURE).toMatch(/onPanResponderTerminate: \(\) => \{[\s\S]{0,160}setSliding\(false\)/);
   });
 });
