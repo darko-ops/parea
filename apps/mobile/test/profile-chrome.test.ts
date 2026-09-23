@@ -110,13 +110,13 @@ describe('the profile details', () => {
   it('sit below the tab rather than under the clock', () => {
     /*
      * `headLower` was 20 points of clearance under a row of corner glyphs.
-     * The clearance is the scroll's own `paddingTop` now — the tab's 200 and
-     * 22 under it — because what the content has to clear is the tab, and the
-     * tab is 200 points tall rather than 34.
+     * The clearance is the scroll's own `paddingTop` now, and it is derived
+     * from the tab rather than typed — the tab's height is two numbers that
+     * can each move, and a literal here would be the third place to change.
      */
-    expect(PROFILE).toMatch(/scroll: \{ paddingTop: 222,/);
+    expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = 200;/);
+    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
   });
 });
 
@@ -267,8 +267,32 @@ describe('the tab that hangs from the top', () => {
      */
     expect(PROFILE).toMatch(/inputRange: \[0, 170\]/);
     expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_W - 56\]/);
-    expect(PROFILE).toMatch(/outputRange: \[TAB_H, TAB_H - 124\]/);
     expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
+  });
+
+  it('retracts the picture and never the cap', () => {
+    /*
+     * The cap is the unsafe zone, and the unsafe zone is the same height
+     * however far the page has been scrolled. Shrinking the whole tab would
+     * walk the photograph back up under the camera on the way past.
+     */
+    expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
+    expect(PROFILE).toMatch(/cap: \{ height: CAP_H \}/);
+    // `flex: 1` is what takes the retract out of the picture rather than the
+    // cap: the cap is fixed, so the shrinking lands here.
+    expect(PROFILE).toMatch(/shot: \{\s*flex: 1,/);
+  });
+
+  it('keeps the camera clear of the photograph entirely', () => {
+    /*
+     * The first version ran the picture up to the physical top edge with the
+     * Dynamic Island over it, which on a profile is a hole punched through
+     * somebody's face. The container still hangs from the top; the picture
+     * starts below the cap.
+     */
+    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
+    expect(tab.indexOf('styles.cap')).toBeLessThan(tab.indexOf('styles.shot'));
+    expect(PROFILE).toMatch(/const CAP_H = 54;/);
   });
 
   it('keeps its two animations on two nodes', () => {

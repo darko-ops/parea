@@ -74,9 +74,27 @@ import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
 
-/** The tab at rest. It loses 56 and 124 of these on the way up. */
+/**
+ * The tab, in two parts, and the split is the point.
+ *
+ * `CAP_H` is the strip at the top that holds no picture. The Dynamic Island
+ * and the camera sit in it, and a photograph drawn under them is a photograph
+ * with a hole punched through the face — which on a profile is the one place
+ * it cannot be allowed to happen. So the container still hangs from the
+ * physical top edge, and the picture starts below this.
+ *
+ * 54 rather than a measured inset because this project carries no safe-area
+ * library: every screen here starts at a fixed allowance — 72 on the scrolls,
+ * 62 for the corner discs — and this is that same kind of number for the one
+ * device feature that eats content.
+ */
 const TAB_W = 172;
-const TAB_H = 200;
+const CAP_H = 54;
+/** The picture itself, entirely below the cap. */
+const PHOTO_H = 140;
+const TAB_H = CAP_H + PHOTO_H;
+/** What is left of the picture once the page has been scrolled. */
+const PHOTO_MIN = 26;
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -261,7 +279,17 @@ export function ProfileScreen({
     extrapolate: 'clamp',
   });
   const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_W - 56] });
-  const tabHeight = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_H, TAB_H - 124] });
+  /*
+   * The cap does not retract; only the picture under it does.
+   *
+   * It is the unsafe zone, and the unsafe zone is the same height however far
+   * the page has been scrolled. Shrinking the whole tab would walk the
+   * photograph back up under the camera on the way past.
+   */
+  const tabHeight = k.interpolate({
+    inputRange: [0, 1],
+    outputRange: [TAB_H, CAP_H + PHOTO_MIN],
+  });
 
   const shareProfile = useCallback(() => {
     if (!account?.handle) return;
@@ -750,20 +778,26 @@ export function ProfileScreen({
               },
             ]}
           >
+            {/*
+              The cap: the strip the camera sits in, and nothing else.
+
+              It is the tab arriving from the top edge — the part that makes
+              this read as hanging rather than floating — and it is
+              deliberately empty. The Dynamic Island is in it.
+            */}
+            <View style={[styles.cap, { backgroundColor: t.card }]} />
+
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={styles.tabFill}
+              style={styles.shot}
             >
               {account?.avatarUrl ? (
                 <Image
                   source={{ uri: account.avatarUrl }}
                   style={styles.tabFill}
                   contentFit="cover"
-                  /* The top of this runs behind the Dynamic Island, so the
-                     face belongs below the middle rather than in it. */
-                  contentPosition="bottom"
                   transition={120}
                 />
               ) : (
@@ -979,13 +1013,16 @@ function EditProfile({
        * arrives, so nothing downstream changes.
        */
       /*
-       * 6:7, for a tab that is taller than it is wide.
+       * 6:5, which is the shape of the panel the picture is actually drawn
+       * in — 172 by 140.
        *
-       * It was 6:5 for a 124 × 104 box lying on its side. A landscape crop is
-       * letterboxed into this or cropped again on the way in, and the second
-       * crop is the one nobody chose.
+       * This went to 6:7 when the tab was one tall box. It is not: the top 54
+       * points are the cap, which holds no picture, so what somebody frames
+       * in the picker is very nearly what they get and there is no second
+       * crop on the way in. A crop that matches the frame is also what makes
+       * `contentPosition` unnecessary — there is nothing left to bias.
        */
-      aspect: [6, 7],
+      aspect: [6, 5],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -1115,7 +1152,7 @@ const styles = StyleSheet.create({
    * The content starts below the tab rather than behind it, because the tab
    * is opaque and the first thing under it is somebody's name.
    */
-  scroll: { paddingTop: 222, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
   /*
    * The tab: flush to the physical top, centred, square above and round below.
    *
@@ -1139,6 +1176,24 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tabFill: { width: '100%', height: '100%' },
+  /* The no-content strip. Fixed, because the camera does not move. */
+  cap: { height: CAP_H },
+  /*
+   * The picture, under the cap and rounded away from it.
+   *
+   * `flex: 1` so the retract takes it out of the picture rather than out of
+   * the cap — the tab shrinks by shrinking this. The top corners are what
+   * make the cap read as a ribbon behind a panel rather than as dead space
+   * above a photograph.
+   */
+  shot: {
+    flex: 1,
+    overflow: 'hidden',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
   tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },

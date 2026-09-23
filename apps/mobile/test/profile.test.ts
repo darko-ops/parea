@@ -217,14 +217,22 @@ describe('the header picture', () => {
 
   it('crops for the shape it is drawn in', () => {
     /*
-     * 6:5 was a 124 × 104 box lying on its side. The tab is taller than it is
-     * wide, so a landscape crop is letterboxed into it or cropped again on
-     * the way in — and the second crop is the one nobody chose. The top runs
-     * behind the Dynamic Island, so the face belongs below the middle.
+     * The panel is 172 by 140, which is 6:5 — so what somebody frames in the
+     * picker is very nearly what they get, and there is no second crop on the
+     * way in.
+     *
+     * This went to 6:7 for a moment, when the tab was one tall box with the
+     * picture running up behind the Dynamic Island. It is not one box: the
+     * top 54 points are a cap that holds no picture, and once the frame and
+     * the crop agree there is nothing left for `contentPosition` to bias.
      */
-    expect(PROFILE).toMatch(/aspect: \[6, 7\]/);
-    expect(PROFILE).not.toMatch(/aspect: \[6, 5\]/);
-    expect(PROFILE).toMatch(/contentPosition="bottom"/);
+    expect(PROFILE).toMatch(/aspect: \[6, 5\]/);
+    // Comments stripped: the note beside the crop explains why there is
+    // nothing left to bias, and names the prop to do it.
+    const code = PROFILE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).not.toMatch(/contentPosition/);
+    expect(PROFILE).toMatch(/const PHOTO_H = 140;/);
+    expect(PROFILE).toMatch(/const TAB_W = 172;/);
   });
 
   it('grows the letter with the box it is now in', () => {
