@@ -16,6 +16,7 @@ import { and, asc, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
+import { avatarUrl } from '@/accounts';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { tagsForPhotos } from '@/photoTags';
@@ -26,7 +27,7 @@ import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
-import { reactionsForPhotos } from '@/photoReactions';
+import { reactionLines, reactionsForPhotos } from '@/photoReactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -103,6 +104,7 @@ export async function GET(
     accountActorId,
     kept,
     unseenRows,
+    reacted,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
     photosWithCard(db, photoIds),
@@ -250,7 +252,15 @@ export async function GET(
                and r.created_at > coalesce((select read_at from mark), 'epoch'::timestamptz)
           ) t
         `)
-      : Promise.resolve({ rows: [] as { pid: string }[] })
+      : Promise.resolve({ rows: [] as { pid: string }[] }),
+    /*
+     * The reactions, as lines for the thread rather than pills for a photo.
+     *
+     * A reaction is a thing somebody did in this album at a moment, and the
+     * conversation is where the album's moments are read in order. Left off
+     * it, the thread says five people were quiet on an evening they were not.
+     */
+    reactionLines(db, event.id, viewerId, (actorId) => contributorKey(event.id, actorId))
   ]);
 
   // See the note on the read: a set, because the question is membership.
@@ -540,7 +550,38 @@ export async function GET(
     people,
     members,
     roster: rosterFrom(members, invited, photoCounts(rows)),
-    messages,
+    /*
+     * One conversation, in one order.
+     *
+     * Merged here rather than handed over as two lists, because the ordering
+     * is the whole point of a thread and two lists interleaved on the phone
+     * is the ordering decided twice — once here for messages and again there
+     * for everything. A reaction carries `emoji` and no body; that is what
+     * makes it a reaction, and the thread draws it as a line rather than as a
+     * message with nothing in it.
+     */
+    messages: [
+      ...messages,
+      ...(await Promise.all(
+        reacted.map(async (line) => ({
+        id: line.id,
+        body: '',
+        emoji: line.emoji,
+        createdAt: line.createdAt.toISOString(),
+        edited: false,
+        deleted: false,
+        author: {
+          key: line.author.key,
+          name: line.author.name,
+          mine: line.author.mine,
+          // Signed the same way a message's is — see `messagesFor`.
+          avatarUrl: await avatarUrl(line.author.avatarKey),
+        },
+        photoId: line.photoId,
+        reactions: [],
+        })),
+      )),
+    ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     canPost: contributeDecision.allow && accountActorId != null,
     /*
      * Whether *this* person may add photographs, which is a different question

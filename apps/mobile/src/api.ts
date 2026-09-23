@@ -358,6 +358,16 @@ export type Message = {
   /** Set when this is a comment on one photograph rather than to the thread. */
   photoId: string | null;
   reactions: { emoji: string; count: number; mine: boolean }[];
+  /**
+   * Set when this line is a reaction rather than something somebody wrote.
+   *
+   * A reaction is a thing somebody did in the album at a moment, and the
+   * thread is where the album's moments are read in order — so it arrives
+   * merged into the messages and in their order, rather than as a second list
+   * to interleave here. Its presence is what tells them apart: a reaction
+   * carries an emoji and no body.
+   */
+  emoji?: string;
 };
 
 /**

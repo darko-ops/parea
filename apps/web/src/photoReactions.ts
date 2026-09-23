@@ -14,7 +14,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, asc, desc, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -187,3 +187,85 @@ export async function reactionCountFor(
     );
   return row?.n ?? 0;
 }
+
+/**
+ * The same reactions, as lines in the album's conversation.
+ *
+ * A reaction is a thing somebody did in this album at a moment, and the
+ * thread is where the album's moments are read in order. Left off it, the
+ * conversation says five people were quiet on an evening they were not.
+ *
+ * Shaped as a message rather than as a second list the client has to
+ * interleave, because the ordering is the whole point and two lists merged on
+ * the phone is the ordering decided twice. `emoji` set is what makes one of
+ * these a reaction; everything else about the row is what a message carries,
+ * so the thread can draw it without knowing much.
+ *
+ * The id is synthetic and stable — a reaction has no id of its own, and its
+ * primary key is exactly these three columns. Stable matters because the list
+ * is keyed by it and a row that changes identity on every poll is a row that
+ * re-mounts on every poll.
+ *
+ * Blocked people are filtered exactly as they are for the pills, by the same
+ * predicate: somebody you have blocked does not appear in the thread you see.
+ */
+export async function reactionLines(
+  db: Db,
+  eventId: string,
+  viewerId: string | null,
+  key: (actorId: string) => string,
+): Promise<ReactionLine[]> {
+  const rows = await db
+    .select({
+      photoId: schema.photoReactions.photoId,
+      emoji: schema.photoReactions.emoji,
+      actorId: schema.photoReactions.actorId,
+      createdAt: schema.photoReactions.createdAt,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+    })
+    .from(schema.photoReactions)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.photoReactions.actorId))
+    .innerJoin(schema.photos, eq(schema.photos.id, schema.photoReactions.photoId))
+    .where(
+      and(
+        eq(schema.photos.eventId, eventId),
+        eq(schema.photos.status, 'ready'),
+        isNull(schema.photos.deletedAt),
+        viewerId
+          ? not(
+              sql`exists (
+                select 1 from "block" b
+                where (b.blocker_actor_id = ${viewerId}
+                       and b.blocked_actor_id = ${schema.photoReactions.actorId})
+                   or (b.blocked_actor_id = ${viewerId}
+                       and b.blocker_actor_id = ${schema.photoReactions.actorId})
+              )`,
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(asc(schema.photoReactions.createdAt), asc(schema.photoReactions.actorId));
+
+  return rows.map((row) => ({
+    id: `reaction:${row.photoId}:${row.actorId}:${row.emoji}`,
+    emoji: row.emoji,
+    photoId: row.photoId,
+    createdAt: row.createdAt,
+    author: {
+      key: key(row.actorId),
+      name: row.handle ?? row.displayName ?? 'Someone',
+      mine: viewerId === row.actorId,
+      avatarKey: row.avatarKey,
+    },
+  }));
+}
+
+export type ReactionLine = {
+  id: string;
+  emoji: string;
+  photoId: string;
+  createdAt: Date;
+  author: { key: string; name: string; mine: boolean; avatarKey: string | null };
+};

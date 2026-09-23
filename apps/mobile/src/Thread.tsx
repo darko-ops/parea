@@ -416,6 +416,27 @@ function Row({
     return <Text style={[styles.gone, { color: t.dim }]}>Message deleted</Text>;
   }
 
+  /*
+   * A reaction, which is a line rather than a message.
+   *
+   * Below the hooks for the reason the tombstone above is — a row that
+   * returns early before them is a render with fewer hooks than the last one,
+   * and React refuses it outright.
+   *
+   * One centred line in the thread's own quiet colour: it belongs to the
+   * conversation and is not a turn in it, and a reaction drawn as a bubble
+   * with an emoji in it reads as somebody having said an emoji. No bubble, no
+   * face, no menu — there is nothing here to edit, delete or reply to.
+   */
+  if (message.emoji) {
+    return (
+      <Text style={[styles.reacted, { color: t.dim }]} numberOfLines={1}>
+        {mine ? 'You' : message.author.name} reacted {message.emoji}
+        {message.photoId ? ' to a photo' : ''}
+      </Text>
+    );
+  }
+
   return (
     <View style={[styles.row, mine && styles.rowMine]}>
       {message.author.avatarUrl ? (
@@ -835,6 +856,13 @@ const styles = StyleSheet.create({
   chipsMine: { justifyContent: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },
   chipText: { fontSize: 13 },
+  /*
+   * A reaction's line: centred, quiet, and the width of the thread.
+   *
+   * Centred because it is about the conversation rather than a turn in it —
+   * the same place a date separator would sit, and for the same reason.
+   */
+  reacted: { textAlign: 'center', fontSize: 12.5, lineHeight: 18, paddingVertical: 2 },
   gone: { fontSize: 13, fontStyle: 'italic' },
   editing: { gap: 8 },
   editActions: { flexDirection: 'row', gap: 16 },

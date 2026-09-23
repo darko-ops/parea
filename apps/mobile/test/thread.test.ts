@@ -274,3 +274,64 @@ describe('what is native rather than borrowed', () => {
     expect(APP).toMatch(/void api\.markEventRead\(event\.id, event\.linkToken\)/);
   });
 });
+
+/**
+ * A reaction in the conversation it happened in.
+ *
+ * The thread showed what people wrote and nothing of what they left on the
+ * photographs, so an album five people had reacted all over read as one
+ * nobody had answered.
+ */
+describe('a reaction is a line, not a message', () => {
+  const VIEWER = read('src/Thread.tsx');
+
+  it('draws as one quiet centred line', () => {
+    /*
+     * It belongs to the conversation and is not a turn in it. Drawn as a
+     * bubble with an emoji inside, it reads as somebody having said an emoji
+     * — and there is nothing here to edit, delete or reply to.
+     */
+    expect(VIEWER).toMatch(/if \(message\.emoji\) \{/);
+    expect(VIEWER).toMatch(/\{mine \? 'You' : message\.author\.name\} reacted \{message\.emoji\}/);
+    expect(VIEWER).toMatch(/reacted: \{ textAlign: 'center'/);
+  });
+
+  it('returns below the hooks, like the tombstone above it', () => {
+    // A row that returns early before them is a render with fewer hooks than
+    // the last one, which React refuses outright.
+    const row = VIEWER.slice(VIEWER.indexOf('if (message.deleted)'));
+    expect(row.indexOf('if (message.emoji)')).toBeGreaterThan(0);
+    const before = VIEWER.slice(0, VIEWER.indexOf('if (message.deleted)'));
+    expect(before).toMatch(/useCallback|useMemo|useState/);
+  });
+
+  it('arrives merged and in order, not as a second list', () => {
+    /*
+     * The ordering is the whole point of a thread, and two lists interleaved
+     * on the phone is the ordering decided twice.
+     */
+    const FEED = read('../../apps/web/app/api/events/[id]/photos/route.ts');
+    expect(FEED).toMatch(/\.\.\.messages,/);
+    expect(FEED).toMatch(/\.sort\(\(a, b\) => a\.createdAt\.localeCompare\(b\.createdAt\)\)/);
+    const API = read('src/api.ts');
+    expect(API).toMatch(/emoji\?: string;/);
+  });
+
+  it('carries a stable id, because a reaction has none of its own', () => {
+    /*
+     * Its primary key is exactly these three columns. Stability matters
+     * because the list is keyed by it, and a row that changes identity on
+     * every poll re-mounts on every poll.
+     */
+    const REACTIONS = read('../../apps/web/src/photoReactions.ts');
+    expect(REACTIONS).toMatch(/`reaction:\$\{row\.photoId\}:\$\{row\.actorId\}:\$\{row\.emoji\}`/);
+  });
+
+  it('hides the people this viewer has blocked, as the pills do', () => {
+    const REACTIONS = read('../../apps/web/src/photoReactions.ts');
+    const lines = REACTIONS.slice(REACTIONS.indexOf('export async function reactionLines'));
+    expect(lines).toMatch(/from "block" b/);
+    // And only reactions on photographs anybody can still see.
+    expect(lines).toMatch(/eq\(schema\.photos\.status, 'ready'\)/);
+  });
+});
