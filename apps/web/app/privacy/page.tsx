@@ -243,6 +243,15 @@ export default function PrivacyPage() {
             and their photographs do not.
           </p>
           <p className="muted">
+            You can keep a photograph, which is a shortlist of an album that is
+            yours alone. What is kept is which picture and that it was you —
+            nothing else, and it is shown to nobody. Nobody in the album is told
+            what you kept, no count of it appears anywhere, and the person who
+            added the photograph cannot see that you did. It is stored apart
+            from reactions for that reason rather than as one more kind of
+            them. Tapping the star again removes the record.
+          </p>
+          <p className="muted">
             Whoever added a photograph can tag the people in it. A tag is a
             claim somebody else makes about you, so it works differently from
             everything above: what is kept is which picture, which person, and{' '}

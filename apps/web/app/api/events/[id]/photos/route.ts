@@ -12,7 +12,7 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
@@ -101,6 +101,7 @@ export async function GET(
     contributeDecision,
     uploadDecision,
     accountActorId,
+    kept,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
     photosWithCard(db, photoIds),
@@ -184,8 +185,34 @@ export async function GET(
      * once.
      */
     decide(db, event, 'upload', requester),
-    currentAccountActorId(),
+    currentAccountActorId(),,
+    /*
+     * Which of these this viewer kept, asked once for the page.
+     *
+     * A set of ids rather than a flag joined onto every row: the answer is
+     * "which of these" and most albums have none, so the empty case costs an
+     * empty set rather than a column of `false` the width of the event.
+     *
+     * Private by construction — scoped to `viewerId`, and there is no shape
+     * in this response that could carry somebody else's. See
+     * `photo_favourite`, which is a table of its own so that a read of the
+     * reactions can never accidentally publish one.
+     */
+    viewerId && photoIds.length > 0
+      ? db
+          .select({ photoId: schema.photoFavourites.photoId })
+          .from(schema.photoFavourites)
+          .where(
+            and(
+              eq(schema.photoFavourites.actorId, viewerId),
+              inArray(schema.photoFavourites.photoId, photoIds),
+            ),
+          )
+      : Promise.resolve([] as { photoId: string }[])
   ]);
+
+  // See the note on the read: a set, because the question is membership.
+  const keptIds = new Set((kept ?? []).map((row: { photoId: string }) => row.photoId));
 
   const contributors = people.length;
   const arriving = pendingRows[0]?.n ?? 0;
@@ -287,6 +314,15 @@ export async function GET(
        * the client draws no row of pills rather than an empty one.
        */
       reactions: reactions.get(photo.id) ?? [],
+      /*
+       * Whether this viewer kept it, and nobody else's answer.
+       *
+       * Flat false for a guest, which is honest rather than hidden: keeping
+       * needs an account, so somebody without one has kept nothing and the
+       * star in the viewer is a thing they are offered rather than a state
+       * they are in.
+       */
+      favourite: keptIds.has(photo.id),
     })),
   );
 

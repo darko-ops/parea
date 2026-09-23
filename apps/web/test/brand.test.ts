@@ -226,9 +226,28 @@ describe('the native mark', () => {
   });
 
   it('paints the overlaps rather than compositing them', () => {
-    // No alpha anywhere, for the reason the other three give: multiply turns
-    // the pink-over-mint lens muddy, and that lens is where the warmth is.
-    expect(native).not.toMatch(/rgba\(|opacity=|fillOpacity|mixBlendMode/);
+    /*
+     * No alpha on the *colours*, for the reason the other three give: multiply
+     * turns the pink-over-mint lens muddy, and that lens is where the warmth
+     * is. Every one of the seven is an explicit value.
+     *
+     * This asserted no alpha in the file at all, which was the same rule until
+     * the spinner needed the mark in one colour. There, alpha is the only axis
+     * left — the three circles sit on an equilateral arrangement, so a flat
+     * silhouette is unchanged by a third of a turn and does not read as
+     * turning. It cannot muddy anything, because there is one colour and
+     * nothing for it to blend with.
+     *
+     * So the rule is stated where it applies: the branded mark composites
+     * nothing, and the ramp exists only on the path that has no brand colours
+     * in it.
+     */
+    expect(native).not.toMatch(/rgba\(|mixBlendMode/);
+    // Drawn at full strength whenever it is drawn in its own colours.
+    expect(native).toMatch(/: \{\s*pink: 1,\s*blue: 1,\s*mint: 1,/);
+    expect(native).toMatch(/pinkOnBlue: 1,\s*pinkOnMint: 1,\s*blueOnMint: 1,\s*centre: 1,/);
+    // And the ramp is reachable only through `tint`.
+    expect(native).toMatch(/const mono = tint !== undefined;/);
     expect(native).toMatch(/clipPath=/);
   });
 

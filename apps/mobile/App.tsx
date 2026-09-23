@@ -2877,6 +2877,45 @@ function EventScreen({
   const { width } = useWindowDimensions();
 
   const gridList = useRef<FlatList<FeedPhoto> | null>(null);
+  const keptList = useRef<FlatList<FeedPhoto> | null>(null);
+
+  /**
+   * Everything, or the shortlist.
+   *
+   * Two pages of the same album rather than two screens: the grid answers
+   * "what is in here" and the star answers "what did I keep", and swiping
+   * between them is what makes them two views of one thing. The grid is the
+   * default and sits on the left, because nobody arrives at an album to read
+   * their own shortlist of it.
+   *
+   * There was a pager here once — the grid and a column of full-width
+   * pictures — and it went because both pages were answering the same
+   * question at different sizes. These two are not: one of them is a filter
+   * nobody else can see.
+   */
+  const [shelf, setShelf] = useState<'all' | 'kept'>('all');
+  const shelves = useRef<ScrollView | null>(null);
+
+  /**
+   * The album, and the part of it this person kept.
+   *
+   * Filtered here rather than asked for: `favourite` is already on every
+   * photograph the feed returns, so the shortlist is a pass over a list in
+   * hand — and it stays right the instant a star is pressed, because the same
+   * refresh feeds both pages.
+   */
+  const kept = useMemo(
+    () => (feed?.photos ?? []).filter((photo) => photo.favourite),
+    [feed],
+  );
+
+  const showShelf = useCallback(
+    (which: 'all' | 'kept') => {
+      shelves.current?.scrollTo({ x: which === 'kept' ? width : 0, animated: true });
+      setShelf(which);
+    },
+    [width],
+  );
 
 
   /*
@@ -3456,35 +3495,115 @@ function EventScreen({
               it meant the album had two answers to "how do I look at this"
               and no clear one.
             */}
-            <FlatList
-              ref={gridList}
-              numColumns={GRID_COLUMNS}
-              columnWrapperStyle={styles.gridRow}
-              getItemLayout={gridLayout}
-              data={feed?.photos ?? []}
-              keyExtractor={(photo) => photo.id}
-              contentContainerStyle={styles.gridContent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  tintColor={t.dim}
-                  onRefresh={async () => {
-                    setRefreshing(true);
-                    await refresh();
-                    setRefreshing(false);
-                  }}
-                />
+            {/*
+              Which shelf is showing, and how to change it.
+
+              Two glyphs rather than words: a grid of four squares and a star,
+              each a picture of what it opens. The same control the two photo
+              views had, for the same reason — the swipe is the faster gesture
+              and a control is what makes somebody try it.
+            */}
+            <View style={styles.shelfBar}>
+              <View style={styles.shelfTrack}>
+                {(
+                  [
+                    ['all', 'grid', 'All photos'],
+                    ['kept', 'star', 'Kept'],
+                  ] as const
+                ).map(([which, glyph, label]) => (
+                  <Pressable
+                    key={which}
+                    onPress={() => showShelf(which)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: shelf === which }}
+                    accessibilityLabel={label}
+                    style={styles.shelfSegment}
+                  >
+                    <Glyph
+                      name={glyph}
+                      size={18}
+                      /* The one you are on steps up to `fg` and gains half a
+                         unit of stroke: at 18 points a change of value alone
+                         is easy to miss. */
+                      weight={shelf === which ? 2.4 : 1.8}
+                      color={shelf === which ? t.fg : t.dim}
+                      filled={glyph === 'star' && shelf === which}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <ScrollView
+              ref={shelves}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) =>
+                setShelf(e.nativeEvent.contentOffset.x > width / 2 ? 'kept' : 'all')
               }
-              ListEmptyComponent={
-                feed ? (
-                  <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
-                    Nothing here yet. Add yours and everyone else will see there
-                    is something to add to.
-                  </Text>
-                ) : null
-              }
-              renderItem={renderTile}
+              style={styles.shelves}
+            >
+              <View style={{ width }}>
+                <FlatList
+                  ref={gridList}
+                  numColumns={GRID_COLUMNS}
+                  columnWrapperStyle={styles.gridRow}
+                  getItemLayout={gridLayout}
+                  data={feed?.photos ?? []}
+                  keyExtractor={(photo) => photo.id}
+                  contentContainerStyle={styles.gridContent}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      tintColor={t.dim}
+                      onRefresh={async () => {
+                        setRefreshing(true);
+                        await refresh();
+                        setRefreshing(false);
+                      }}
+                    />
+                  }
+                  ListEmptyComponent={
+                    feed ? (
+                      <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
+                        Nothing here yet. Add yours and everyone else will see there
+                        is something to add to.
+                      </Text>
+                    ) : null
+                  }
+                  renderItem={renderTile}
             />
+              </View>
+
+              <View style={{ width }}>
+                {/*
+                  The shortlist, and what it says when there is none.
+
+                  Not a failure and not an empty album: somebody who has kept
+                  nothing has simply not kept anything yet, and the sentence
+                  says where the star is rather than that something is wrong.
+                */}
+                <FlatList
+                  ref={keptList}
+                  numColumns={GRID_COLUMNS}
+                  columnWrapperStyle={styles.gridRow}
+                  getItemLayout={gridLayout}
+                  data={kept}
+                  keyExtractor={(photo) => photo.id}
+                  contentContainerStyle={styles.gridContent}
+                  ListEmptyComponent={
+                    feed ? (
+                      <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
+                        Nothing kept yet. Open a photograph and press the star,
+                        and it turns up here. Only you see this.
+                      </Text>
+                    ) : null
+                  }
+                  renderItem={renderTile}
+                />
+              </View>
+            </ScrollView>
           </>
         ) : pane === 'talk' ? (
           <Thread
@@ -3806,6 +3925,20 @@ function EventScreen({
             */
             uploader={selected.by ? (byline.get(selected.by) ?? null) : null}
             onOpenPerson={onOpenPerson}
+            /*
+              Kept, or not, and the feed is what says which.
+
+              Written straight through rather than held here: the request is
+              small and the answer is already on every photograph the feed
+              returns, so the refresh is both the confirmation and the state.
+              A failure leaves the star where it was, which is the truth.
+            */
+            onFavourite={(photoId, on) => {
+              void api
+                .setFavourite(photoId, on)
+                .then(refresh)
+                .catch(() => {});
+            }}
             /*
               The photographs either side, as two callbacks.
 
@@ -5676,6 +5809,18 @@ const styles = StyleSheet.create({
      by the screen's edge is what says there is more. */
   /* No side gutter: the photographs run to both edges, as the home cards do. */
   gridContent: { paddingBottom: 12, gap: PHOTO_GAP },
+  /* The pager holds two full-width pages, so it must not shrink to its
+     content: without `flex` the lists have no height to scroll inside. */
+  shelves: { flex: 1 },
+  shelfBar: { paddingTop: 6, paddingBottom: 6 },
+  /* The two halves of the screen, each with its glyph in the middle of it: the
+     left one opens the shelf on the left and the right one the shelf on the
+     right, so where the control sits is also what it does. */
+  shelfTrack: { flexDirection: 'row', paddingHorizontal: 20 },
+  /* Tall enough to be a target rather than a picture. 34 against an 18pt glyph
+     is 8 points of slop each side, which is what stops a press at the top of a
+     scrolling album from landing on the first row of photographs instead. */
+  shelfSegment: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center' },
   /* `flex-start`, so a last row of one or two starts at the left edge and
      stops. The default is `stretch`, which on a row of fixed-width children
      does nothing — but it is the pairing that matters: the tiles are sized in

@@ -124,6 +124,17 @@ export type FeedPhoto = {
    * Empty for a photograph nobody has reacted to, which is most of them.
    */
   reactions: { emoji: string; name: string; mine: boolean }[];
+  /**
+   * Whether *this* viewer kept it, and never anybody else's answer.
+   *
+   * A shortlist of an album, private to the person who made it — the server
+   * scopes it to the viewer and there is no shape in the response that could
+   * carry somebody else's. False for a guest, which is honest rather than
+   * hidden: keeping needs an account, so somebody without one has kept
+   * nothing and the star is a thing they are offered rather than a state they
+   * are in.
+   */
+  favourite: boolean;
 };
 
 export type Feed = {
@@ -1126,6 +1137,20 @@ export class Api {
   }
 
   /** One tap, and the same tap again takes it off. The route toggles. */
+  /**
+   * Keep a photograph, or stop keeping it.
+   *
+   * `PUT` and `DELETE` rather than a toggle, because a toggle retries badly:
+   * a press that times out and is sent again would undo itself. The state is
+   * what the caller asked for, and the server's answer is the same whether or
+   * not it had to change anything.
+   */
+  setFavourite(photoId: string, on: boolean): Promise<{ favourite: boolean }> {
+    return this.call(`/api/photos/${photoId}/favourite`, {
+      method: on ? 'PUT' : 'DELETE',
+    });
+  }
+
   react(messageId: string, emoji: string): Promise<unknown> {
     return this.call(`/api/messages/${messageId}/reactions`, {
       method: 'POST',

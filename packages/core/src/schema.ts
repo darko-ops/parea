@@ -1207,6 +1207,50 @@ export const groupMessages = pgTable(
  * answering — which is the whole argument for the deleted-message gap, and it
  * does not apply.
  */
+/**
+ * A photograph one person kept, in one album.
+ *
+ * The shape of a reaction and none of its meaning. A reaction is addressed to
+ * the room — the viewer lists who left which emoji, and that is the point of
+ * it. This is addressed to nobody: it is the shortlist somebody makes of an
+ * album of two hundred, and whether they starred a picture is their business
+ * and not the album's.
+ *
+ * Which is why it is a table of its own rather than a reserved emoji in the
+ * one above. Every read of `photo_reaction` is a read of what other people
+ * did, and a private row living in it would be one `select` away from being
+ * published by a route that had every reason to think it was listing
+ * reactions.
+ *
+ * No emoji column, because there is one kind of keeping. If a second ever
+ * exists it is a different feature with a different name, not a string in
+ * this row.
+ */
+export const photoFavourites = pgTable(
+  'photo_favourite',
+  {
+    photoId: uuid('photo_id')
+      .notNull()
+      .references(() => photos.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.photoId, t.actorId] }),
+    /*
+     * The other direction, and here it is the read the feature is made of.
+     *
+     * "Which of these photographs did I keep" is served by the primary key's
+     * leading column. "Everything this person kept" is the Favourites tab
+     * itself — and, as with reactions, what a merge has to move and an
+     * account deletion has to find.
+     */
+    index('photo_favourite_actor_idx').on(t.actorId),
+  ],
+);
+
 export const photoReactions = pgTable(
   'photo_reaction',
   {

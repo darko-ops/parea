@@ -232,6 +232,10 @@ describe('the closed list of what is collected', () => {
       // Which emoji, on which picture — and, since the viewer names people,
       // who left it.
       photo_reaction: /react to a photograph itself, without saying anything/,
+      // Which picture, and that it was you. The disclosure has to carry the
+      // part that makes it different in kind from a reaction: it is shown to
+      // nobody, and not counted anywhere either.
+      photo_favourite: /keep a photograph, which is a shortlist of an album that is\s+yours alone/,
       group_message: /what you say in a group is kept with that\s+group/,
       // One time per thread per person, and never shown to anybody else.
       event_thread_read: /the moment you last read it/,

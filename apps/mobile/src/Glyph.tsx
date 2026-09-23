@@ -40,7 +40,8 @@ export type GlyphName =
   | 'trash'
   | 'door'
   | 'grid'
-  | 'portrait';
+  | 'portrait'
+  | 'star';
 
 /**
  * One glyph, in one colour.
@@ -57,23 +58,59 @@ export type GlyphName =
  * than being pinned, so the picture inside the stack stays lighter than the
  * stack at every weight.
  */
+/**
+ * The star, as a path.
+ *
+ * Ten points: five out at 9.2 from the middle of the 24-unit frame, five in at
+ * 0.382 of that, alternating, starting straight up. The inner ratio is the one
+ * that makes a five-pointed star read as one — larger and it rounds into a
+ * pentagon, smaller and it thins into a spider.
+ *
+ * Built here rather than written out so the numbers are the reasoning rather
+ * than the output of it, and so the same shape is exact at every size.
+ */
+const STAR = (() => {
+  const mid = 12;
+  const outer = 9.2;
+  const inner = outer * 0.382;
+  const points: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    // Start at the top: a star with a point up is the only orientation
+    // anybody reads as a star.
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    points.push(`${(mid + r * Math.cos(angle)).toFixed(2)} ${(mid + r * Math.sin(angle)).toFixed(2)}`);
+  }
+  return `M ${points.join(' L ')} Z`;
+})();
+
 export function Glyph({
   name,
   size = 22,
   weight = 2,
   color,
+  /**
+   * Filled rather than outlined, for a glyph that is also a state.
+   *
+   * The family is strokes on nothing, which is right for every glyph that
+   * names a place or an action. The star is the one that also answers a
+   * question — kept, or not — and outline against solid is how that reads at
+   * a glance, without a second colour or a badge.
+   */
+  filled = false,
 }: {
   name: GlyphName;
   size?: number;
   weight?: number;
   color: string;
+  filled?: boolean;
 }) {
   return (
     <Svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? color : 'none'}
       stroke={color}
       strokeWidth={weight}
       strokeLinecap="round"
@@ -320,6 +357,19 @@ function paths(name: GlyphName, weight: number) {
      */
     case 'portrait':
       return <Rect x={6.5} y={3} width={11} height={18} rx={1.6} />;
+
+    /*
+     * A five-pointed star, for keeping a photograph.
+     *
+     * The one glyph in the family that is drawn filled as well as outlined —
+     * see `filled` — because it reports a state rather than naming an action.
+     * Geometry rather than a font: a star is five points on one circle and
+     * five on another at 0.382 of the radius, which is the proportion that
+     * reads as a star rather than as a spiky blob, and it is the same at 16
+     * points as at 40.
+     */
+    case 'star':
+      return <Path d={STAR} />;
 
     /*
      * A door with a handle, for leaving. Not an arrow through a doorway, which

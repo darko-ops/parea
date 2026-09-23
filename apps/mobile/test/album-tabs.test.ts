@@ -174,24 +174,36 @@ describe('the two views', () => {
     expect(APP).not.toMatch(/gridTile: \{ flex: 1 \}/);
   });
 
-  it('is the only view, and it is the grid', () => {
+  it('is the only way of looking, and it is the grid', () => {
     /*
-     * There were two, a horizontal pager apart, with a two-glyph control
-     * naming them: this grid, and a column of full-width photographs. Both had
-     * shipped as *the* view at different times.
+     * There were two, a horizontal pager apart: this grid, and a column of
+     * full-width photographs. Both answered "how do I look at this" at
+     * different sizes, and looking at one photograph has a screen of its own
+     * now — full bleed, pinch, and a swipe between pictures — which is what
+     * the column was standing in for.
      *
-     * What settled it is that looking at one photograph now has a screen of
-     * its own — full bleed, pinch, and a swipe between pictures — which is
-     * what the column was standing in for. Two answers to "how do I look at
-     * this" and no clear one is worse than either.
+     * There is a pager here again and it is not that one. Its second page is
+     * the same grid over a different set: everything, or what this person
+     * kept. One page answers "what is in here" and the other "what did I keep
+     * of it", which are two questions rather than one question twice.
      */
     expect(SCREEN).toMatch(/renderItem=\{renderTile\}/);
     expect(SCREEN).not.toMatch(/renderColumn|columnList|columnLayout/);
-    expect(SCREEN).not.toMatch(/ref=\{pager\}|pagingEnabled/);
     expect(APP).not.toMatch(/useState<'grid' \| 'column'>/);
-    expect(APP).not.toMatch(/viewBar|viewTrack|viewSegment/);
-    // And the anchoring that carried a position between the two.
-    expect(APP).not.toMatch(/anchor\.current|onViewableItemsChanged/);
+    // Both pages draw the same tile, which is what says they are one view of
+    // two sets rather than two views.
+    expect((SCREEN.match(/renderItem=\{renderTile\}/g) ?? []).length).toBe(2);
+    expect(SCREEN).toMatch(/data=\{kept\}/);
+  });
+
+  it('keeps the shortlist to a filter over what is already in hand', () => {
+    /*
+     * `favourite` is on every photograph the feed returns, so the second page
+     * is a pass over a list already loaded. A request of its own would be a
+     * second source of truth about the same album, and would lag the star by
+     * a round trip.
+     */
+    expect(APP).toMatch(/\(feed\?\.photos \?\? \[\]\)\.filter\(\(photo\) => photo\.favourite\)/);
   });
 
   it('keeps the layout the grid needs to be scrolled into', () => {

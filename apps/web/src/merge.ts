@@ -134,6 +134,16 @@ const OWNED: {
     uniqueWith: ['photo_id', 'emoji'],
   },
   /*
+   * And the same collision again for a photograph somebody kept.
+   *
+   * Both actors having starred the same picture is one shortlist entry, not
+   * two, which the primary key requires anyway. Moving them matters more here
+   * than it looks: a shortlist that does not survive signing in on a second
+   * phone is a shortlist that silently empties, and the whole reason keeping
+   * needs an account is that it has to outlive the device.
+   */
+  { table: 'photo_favourite', column: 'actor_id', uniqueWith: ['photo_id'] },
+  /*
    * Being tagged in a photograph, and having tagged somebody in one.
    *
    * Two columns, two different collisions, and only the first can have one:

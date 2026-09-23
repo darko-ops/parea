@@ -422,6 +422,7 @@ export function PhotoViewer({
   onOptions,
   uploader,
   onOpenPerson,
+  onFavourite,
   photos,
   index,
   onIndex,
@@ -469,6 +470,14 @@ export function PhotoViewer({
    * a label for them rather than as a control that does nothing.
    */
   onOpenPerson: (handle: string) => void;
+  /**
+   * Keeping this photograph, or letting it go.
+   *
+   * The state is read off `photo.favourite`, which is the feed's answer for
+   * this viewer and nobody else's, so the star is correct the moment the
+   * screen opens rather than after a request of its own.
+   */
+  onFavourite: (photoId: string, on: boolean) => void;
   /**
    * The album, and which of it is on the glass.
    *
@@ -793,6 +802,38 @@ export function PhotoViewer({
               </View>
             )}
 
+            {/*
+              Keeping it, beside the way out of it.
+
+              In the chrome rather than over the picture: this is a thing you
+              decide about the photograph while looking at it, and a control
+              sitting on the image is a mark on somebody's photograph.
+
+              Filled when kept, outlined when not, and no second colour — the
+              difference between a star and an outline is legible at a glance
+              and does not need the product to shout about it. Nobody else
+              sees this, so it has nothing to announce.
+            */}
+            {/*
+              The two right-hand controls, as one.
+
+              `top` spaces its children apart, and a third loose child would be
+              spread into the middle — which is where the uploader's square
+              already is. Grouped, the row stays "leave on the left, these two
+              on the right" however many of them there are.
+            */}
+            <View style={styles.tools}>
+            <Pressable
+              onPress={() => onFavourite(photo.id, !photo.favourite)}
+              hitSlop={14}
+              accessibilityRole="button"
+              accessibilityState={{ selected: photo.favourite }}
+              accessibilityLabel={photo.favourite ? 'Kept. Tap to remove' : 'Keep this photo'}
+              style={styles.round}
+            >
+              <Glyph name="star" size={19} color="#fff" filled={photo.favourite} />
+            </Pressable>
+
             <Pressable
               onPress={onOptions}
               hitSlop={14}
@@ -802,6 +843,7 @@ export function PhotoViewer({
             >
               <Text style={styles.roundGlyph}>⋯</Text>
             </Pressable>
+            </View>
           </View>
 
           {/*
@@ -1027,6 +1069,8 @@ const styles = StyleSheet.create({
    * spacing two buttons apart: laid out as a third flex child it would sit in
    * the middle of what those two leave, which moves whenever either does.
    */
+  /* Leave on the left; keep and everything-else on the right. */
+  tools: { flexDirection: 'row', gap: 10 },
   /*
    * The placing, which takes no touches at all.
    *
