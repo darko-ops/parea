@@ -683,7 +683,25 @@ describe('the pager', () => {
      * 3×.
      */
     expect(GESTURE).toMatch(/scrollEnabled=\{!zoomed\}/);
-    expect(GESTURE).toMatch(/onPanResponderTerminationRequest: \(\) => now\.current\.scale <= 1/);
+    expect(GESTURE).toMatch(/if \(now\.current\.scale > 1\) return false;/);
+  });
+
+  it('keeps a vertical gesture even at fit', () => {
+    /*
+     * The bug that took the swipe-to-close away. A horizontal scroll view on
+     * iOS has no directional lock — its recogniser begins on a downward drag
+     * as readily as a sideways one — so it asked for the touch, this said
+     * yes, and the gesture ended in `onPanResponderTerminate` rather than in
+     * a release. Terminate settles the picture and nothing else, so swiping
+     * down moved the photograph and put it back instead of leaving.
+     *
+     * Phrased as "give it up unless", so the default stays the behaviour that
+     * works: at the start of a drag neither axis has won and the pager gets
+     * the touch.
+     */
+    expect(GESTURE).toMatch(
+      /return !\(Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\) && Math\.abs\(g\.dy\) > TAP_SLOP\);/,
+    );
   });
 
   it('tells the pager about zoom on a change, not on every frame', () => {

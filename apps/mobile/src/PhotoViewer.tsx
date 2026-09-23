@@ -248,17 +248,33 @@ function Page({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         /*
-         * Yes at fit, no while magnified.
+         * Hand it over unless this finger is going up or down.
          *
-         * The pager asks for the touch when it decides a drag is a scroll,
-         * and at fit that is right — sideways across a photograph that fits
-         * the screen means the next photograph. Zoomed in it is wrong: the
-         * same finger is panning around inside the picture, and handing it
-         * over mid-pan would throw the album sideways instead. `scrollEnabled`
-         * says the same thing from the other end; this is the half that
-         * cannot be lost to a frame of stale state.
+         * Two reasons to refuse, and the second one cost the swipe that
+         * closes the viewer.
+         *
+         * Magnified, the finger is panning inside the picture and handing it
+         * over would throw the album sideways instead. `scrollEnabled` says
+         * the same from the other end; this is the half that cannot be a
+         * frame of stale state behind.
+         *
+         * And vertical, at any scale. A horizontal scroll view on iOS has no
+         * directional lock — its recogniser begins on a downward drag as
+         * readily as a sideways one — so it asked for the touch, this said
+         * yes, and the gesture ended in `onPanResponderTerminate` instead of
+         * in a release. Terminate settles the picture and nothing else, so
+         * swiping down moved the photograph and put it back rather than
+         * leaving.
+         *
+         * Phrased as "give it up unless", so the default stays the one that
+         * works: at the start of a drag neither axis has won yet, the pager
+         * asks, and it gets the touch. Only a finger that has committed to
+         * the vertical — past the same slop a tap is allowed — keeps it here.
          */
-        onPanResponderTerminationRequest: () => now.current.scale <= 1,
+        onPanResponderTerminationRequest: (_evt, g) => {
+          if (now.current.scale > 1) return false;
+          return !(Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > TAP_SLOP);
+        },
         // A second finger arriving mid-drag turns a pan into a pinch.
         onPanResponderGrant: () => {
           from.current = null;
