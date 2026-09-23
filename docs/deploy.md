@@ -254,6 +254,7 @@ Generate with `openssl rand -base64 32`.
 | `MAIL_FROM` | ● | | must be at a domain verified with the provider |
 | `MAIL_API_URL` | ● | | only to override the endpoint; required for `mailgun` |
 | `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
+| `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
 | `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |

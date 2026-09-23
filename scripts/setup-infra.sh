@@ -288,6 +288,7 @@ MAIL_API_URL=
 # database nobody is billed for; set both in production, where an upload is
 # refused without them rather than being quietly never derived.
 QSTASH_TOKEN=
+QSTASH_URL=
 DERIVER_JOB_URL=https://parea-deriver.fly.dev/jobs/photo
 
 # Only needed once the app exists. Until they are set, the two .well-known

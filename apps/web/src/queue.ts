@@ -43,7 +43,20 @@ let client: Client | null = null;
 function queue(): Client | null {
   const token = process.env.QSTASH_TOKEN;
   if (!token) return null;
-  client ??= new Client({ token });
+  /*
+   * The regional endpoint, not the default one.
+   *
+   * QStash accounts live in a region and `qstash.upstash.io` resolves to
+   * eu-central-1. A us-east-1 account publishing there is answered "user not
+   * found in this region", which reads as a bad token rather than a wrong
+   * address — and the integration sets `QSTASH_URL` to the right host
+   * precisely so nobody has to know that.
+   *
+   * Left to the library's default when unset, which is correct for an account
+   * that is in the default region.
+   */
+  const baseUrl = process.env.QSTASH_URL;
+  client ??= new Client(baseUrl ? { token, baseUrl } : { token });
   return client;
 }
 
