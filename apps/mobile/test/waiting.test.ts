@@ -218,12 +218,28 @@ describe('the mark it turns', () => {
  * colours revolving in the middle of somebody's photographs is the logo
  * competing with the thing it is waiting for.
  */
-describe('the spinner is white', () => {
+describe('the spinner is one colour', () => {
   const MARK = read('src/Mark.tsx');
 
   it('draws the mark in one colour', () => {
-    expect(read('src/Waiting.tsx')).toMatch(/<Mark size=\{size\} mono \/>/);
-    expect(MARK).toMatch(/mono = false/);
+    expect(read('src/Waiting.tsx')).toMatch(/<Mark size=\{size\} tint=/);
+    // A colour rather than a flag, because the right one depends on what is
+    // behind it — see the test below.
+    expect(MARK).toMatch(/const mono = tint !== undefined;/);
+  });
+
+  it('takes the theme’s own ink, so it is there in both', () => {
+    /*
+     * White was the first answer and it is half of one: the light theme's
+     * background is `#f7f8fa`, where a white mark is not there at all. These
+     * two are the `fg` of each palette in `App.tsx`.
+     */
+    const WAITING = read('src/Waiting.tsx');
+    expect(WAITING).toMatch(/const dark = useColorScheme\(\) === 'dark';/);
+    expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#14171c'\}/);
+    const APP = read('App.tsx');
+    expect(APP).toMatch(/fg: '#f2f4f7'/);
+    expect(APP).toMatch(/fg: '#14171c'/);
   });
 
   it('still tells the seven regions apart, or it would not read as turning', () => {

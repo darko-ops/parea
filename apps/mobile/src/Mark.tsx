@@ -60,7 +60,8 @@ export const MARK_FILLS = {
 } as const;
 
 /**
- * The same seven regions in white, for drawing on the product's own surface.
+ * The same seven regions in one colour, for drawing on the product's own
+ * surface.
  *
  * Not a second logo: the geometry is `MARK_CENTRES` and `MARK_R` exactly as
  * the coloured one, and `brand.test.ts` still pins those against the other
@@ -78,7 +79,7 @@ export const MARK_FILLS = {
  * transparency decide four of the seven values is how the pink-over-mint lens
  * becomes a muddy neutral. Here there is one colour and alpha is the axis.
  */
-const MARK_WHITE = {
+const MARK_MONO = {
   /** One person. Present, and the quietest thing on the mark. */
   alone: 0.38,
   /** Two of them at the same evening. */
@@ -90,38 +91,45 @@ const MARK_WHITE = {
 export function Mark({
   size = 22,
   /**
-   * White throughout, for a surface that has already chosen its colours.
+   * One colour throughout, for a surface that has already chosen its own.
    *
-   * The spinner asks for this: it is drawn over the app's own background on
-   * eleven screens, and three brand colours turning in the middle of somebody
-   * else's photographs is the mark competing with the thing it is waiting for.
+   * The spinner asks for this: it is drawn over the app's background on
+   * eleven screens, and three brand colours turning in the middle of
+   * somebody else's photographs is the mark competing with the thing it is
+   * waiting for.
+   *
+   * A colour rather than a flag, because the right one depends on what is
+   * behind it. White was the first answer and it is only half of one — the
+   * light theme's background is `#f7f8fa`, where a white mark is not there at
+   * all. The caller knows which surface this is landing on; this does not.
    */
-  mono = false,
+  tint,
 }: {
   size?: number;
-  mono?: boolean;
+  tint?: string;
 }) {
   const [pink, blue, mint] = MARK_CENTRES;
+  const mono = tint !== undefined;
   const fill = mono
     ? {
-        pink: '#fff',
-        blue: '#fff',
-        mint: '#fff',
-        pinkOnBlue: '#fff',
-        pinkOnMint: '#fff',
-        blueOnMint: '#fff',
-        centre: '#fff',
+        pink: tint,
+        blue: tint,
+        mint: tint,
+        pinkOnBlue: tint,
+        pinkOnMint: tint,
+        blueOnMint: tint,
+        centre: tint,
       }
     : MARK_FILLS;
   const alpha = mono
     ? {
-        pink: MARK_WHITE.alone,
-        blue: MARK_WHITE.alone,
-        mint: MARK_WHITE.alone,
-        pinkOnBlue: MARK_WHITE.pair,
-        pinkOnMint: MARK_WHITE.pair,
-        blueOnMint: MARK_WHITE.pair,
-        centre: MARK_WHITE.centre,
+        pink: MARK_MONO.alone,
+        blue: MARK_MONO.alone,
+        mint: MARK_MONO.alone,
+        pinkOnBlue: MARK_MONO.pair,
+        pinkOnMint: MARK_MONO.pair,
+        blueOnMint: MARK_MONO.pair,
+        centre: MARK_MONO.centre,
       }
     : {
         pink: 1,

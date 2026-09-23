@@ -25,7 +25,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  StyleSheet,
+  useColorScheme,
+  View,
+} from 'react-native';
 
 import { Mark } from './Mark';
 
@@ -61,6 +68,15 @@ export function Waiting({
 }) {
   const spin = useRef(new Animated.Value(0)).current;
   const [still, setStill] = useState(false);
+  /*
+   * The theme, read here rather than passed in.
+   *
+   * `App` derives its own `dark` the same way, and the two agree because they
+   * ask the same question — this is not a second source of truth about the
+   * theme, it is the same one. The alternative is threading a theme through
+   * eleven call sites to colour a spinner.
+   */
+  const dark = useColorScheme() === 'dark';
 
   useEffect(() => {
     let live = true;
@@ -152,7 +168,7 @@ export function Waiting({
         }
       >
         {/*
-          White, not the three brand colours.
+          One colour, not the three brand ones.
 
           This is the mark as an instrument rather than as a signature. It
           turns over the app's own background on eleven screens — and over
@@ -160,12 +176,18 @@ export function Waiting({
           in the middle of a picture is the logo competing with the thing it
           is waiting for.
 
-          Its regions still differ, by how much white they carry: the mark is
-          three circles on an equilateral arrangement, so its silhouette is
-          unchanged by a third of a turn, and a flat white one would not read
-          as turning at all. See `MARK_WHITE`.
+          Its regions still differ, by how much of that colour they carry: the
+          mark is three circles on an equilateral arrangement, so its
+          silhouette is unchanged by a third of a turn, and a flat one would
+          not read as turning at all. See `MARK_MONO`.
+
+          The theme's own `fg`, taken from the scheme rather than from a prop.
+          White was the first answer and it is half of one — the light theme's
+          background is `#f7f8fa`, where a white mark is not there at all.
+          Reading the scheme here costs one import; a theme threaded through
+          eleven call sites for a spinner would cost eleven.
         */}
-        <Mark size={size} mono />
+        <Mark size={size} tint={dark ? '#f2f4f7' : '#14171c'} />
       </Animated.View>
     </View>
   );
