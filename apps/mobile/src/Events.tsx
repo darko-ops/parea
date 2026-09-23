@@ -1023,18 +1023,12 @@ export function ChatsTab({
   t,
   active,
   onOpenGroupThread,
-  waiting,
-  onOpenLately,
-  onCreateAlbum,
   onCreateGroup,
   Button,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
-  waiting: number;
-  onOpenLately: () => void;
-  onCreateAlbum: () => void;
   onCreateGroup: () => void;
   Button: ButtonComponent;
   active: boolean;
@@ -1042,8 +1036,6 @@ export function ChatsTab({
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  /** The `+` sheet, the same one Home and Find open. */
-  const [starting, setStarting] = useState(false);
   /** What is being looked for on this tab, if anything. */
   const [query, setQuery] = useState('');
 
@@ -1155,29 +1147,27 @@ export function ChatsTab({
         The same head every tab has, with its controls in the same corners:
         making on the left of the name, answering on the right.
       */}
+      {/*
+        One corner, and it makes the thing this tab is made of.
+
+        The `+` was on the left and opened the sheet that asks album or group;
+        the envelope was on the right. Both are gone from here. The tray is
+        reachable from every other tab and is not what somebody opens their
+        conversations to find, and a tab whose subject is groups does not need
+        to ask which of two things you meant — pressing `+` here makes a
+        group, and the sheet still exists everywhere it is a real question.
+
+        On the right, because that is the hand that reaches it and because the
+        corner a thumb finds should hold the thing this screen is for.
+      */}
       <PageHead
         color={t.fg}
-        left={
-          <RoundButton
-            t={t}
-            onPress={() => setStarting(true)}
-            accessibilityLabel="New album or group"
-          >
+        right={
+          <RoundButton t={t} onPress={onCreateGroup} accessibilityLabel="New group">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
-        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
       />
-
-      {starting && (
-        <StartSomething
-          t={t}
-          Button={Button}
-          onClose={() => setStarting(false)}
-          onAlbum={onCreateAlbum}
-          onGroup={onCreateGroup}
-        />
-      )}
 
       {/*
         The same field Find has, because it is the same gesture.

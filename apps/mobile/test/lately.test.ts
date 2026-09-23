@@ -59,7 +59,7 @@ describe('the door', () => {
     expect(APP).toMatch(/type Tab = 'home' \| 'chats' \| 'search' \| 'profile'/);
   });
 
-  it('is in the same corner of every tab, not only the one that listed it', () => {
+  it('is opposite the making, on the tabs that make more than one thing', () => {
     /*
      * It lived on Groups alone, which is where the asks happened to be listed
      * rather than where somebody would look for them: the one control in the
@@ -70,11 +70,29 @@ describe('the door', () => {
      * answering is the thing that came to you, and one corner each is what
      * stops either from being hunted for.
      */
+    /*
+     * Two of the three now, and the one it left is the one it was least
+     * useful on. Chats holds a `+` in that corner instead: a tab whose whole
+     * subject is groups makes one, and the tray is a thing that came to you
+     * rather than a thing you open your conversations to find.
+     *
+     * Home and Find keep it, so "somebody is waiting on you" is still one
+     * press from the tab anybody opens the app on.
+     */
     expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
-      .toHaveLength(3);
-    expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(3);
-    // And each `+` is the head's `left`, which is the leading corner.
-    for (const tab of ['HomeTab', 'ChatsTab', 'SearchTab']) {
+      .toHaveLength(2);
+    // And the corner it vacated is not empty — it is the thing that tab makes.
+    const CHATS = EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock'));
+    expect(CHATS).toMatch(/right=\{\s*<RoundButton t=\{t\} onPress=\{onCreateGroup\} accessibilityLabel="New group">/);
+    expect(CHATS).not.toMatch(/Notifications/);
+    /*
+     * Two tabs still ask which of the two things you meant, and on those the
+     * `+` keeps the leading corner opposite the tray. Chats asks nothing — it
+     * makes a group — so its `+` is the corner the tray left, and there is no
+     * left-hand control to order against.
+     */
+    expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(2);
+    for (const tab of ['HomeTab', 'SearchTab']) {
       const body = EVENTS.slice(EVENTS.indexOf(`export function ${tab}`));
       const head = body.slice(body.indexOf('<PageHead'), body.indexOf('/>', body.indexOf('right={')));
       expect(head.indexOf('left={'), tab).toBeLessThan(head.indexOf('right={'));

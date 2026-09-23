@@ -1021,11 +1021,29 @@ export default function App() {
             people={route.people}
             suggestedName={route.suggestedName}
             onCancel={leaveToTabs}
-            onCreated={(id) => {
+            onCreated={async (id) => {
               // The tab behind it is holding a list without this in it, and the
               // group is about to be on screen — so both, before the push.
               void refreshGroups();
-              setRoute({ screen: 'group', id });
+              /*
+               * Into the conversation, not onto the group's page.
+               *
+               * A group is made to talk in. Its page is the roster, the albums
+               * and the settings — the things somebody looks up later — and
+               * landing there after creating one asks a person who has just
+               * decided to gather five friends to find the way in.
+               *
+               * The chat screen wants the group rather than its id, so this
+               * reads the detailed list back. It is the same request the Chats
+               * tab makes on arrival and the group is certainly in it, but a
+               * failure is survivable: the group's page is where this used to
+               * go and is a worse answer rather than a wrong one.
+               */
+              const group = await api
+                .myGroupsDetailed()
+                .then((groups) => groups.find((g) => g.id === id) ?? null)
+                .catch(() => null);
+              setRoute(group ? { screen: 'groupThread', group } : { screen: 'group', id });
             }}
           />
         </SwipeBack>
@@ -1235,9 +1253,6 @@ export default function App() {
                 events={events}
                 t={t}
                 active={tab === 'chats'}
-                waiting={waiting}
-                onOpenLately={() => setRoute({ screen: 'lately' })}
-                onCreateAlbum={() => setRoute({ screen: 'pick' })}
                 /*
                  * Making a group happens on Find, which is where the groups
                  * are. This hands the tab over and asks it to open the page.

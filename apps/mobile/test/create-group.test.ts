@@ -203,10 +203,29 @@ describe('New group', () => {
     expect(FORM).not.toMatch(/export function CreateGroupForm/);
   });
 
-  it('lands in the room it just made', () => {
-    // The next thing anybody wants is to put an event in it, and that button
-    // is on the group's own screen.
-    expect(APP).toMatch(/onCreated=\{\(id\) => \{[\s\S]{0,240}setRoute\(\{ screen: 'group', id \}\)/);
+  it('lands in the conversation, not on the group’s page', () => {
+    /*
+     * This used to go to the group's own screen, on the argument that the
+     * next thing anybody wants is to put an event in it.
+     *
+     * A group is made to talk in. Its page is the roster, the albums and the
+     * settings — the things somebody looks up later — and landing there after
+     * creating one asks a person who has just decided to gather five friends
+     * to find the way in.
+     */
+    expect(APP).toMatch(/onCreated=\{async \(id\) => \{/);
+    expect(APP).toMatch(/setRoute\(group \? \{ screen: 'groupThread', group \} : \{ screen: 'group', id \}\)/);
+  });
+
+  it('falls back to the page it used to go to', () => {
+    /*
+     * The chat screen wants the group rather than its id, so the handler
+     * reads the detailed list back — the same request the Chats tab makes on
+     * arrival, and the group is certainly in it. A failure is survivable
+     * because the old destination is a worse answer rather than a wrong one.
+     */
+    expect(APP).toMatch(/\.myGroupsDetailed\(\)/);
+    expect(APP).toMatch(/groups\.find\(\(g\) => g\.id === id\) \?\? null/);
   });
 
   it('can add somebody the suggestions never mentioned', () => {
