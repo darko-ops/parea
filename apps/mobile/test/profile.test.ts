@@ -68,8 +68,8 @@ describe('what the numbers may say', () => {
      * analytics panel. One line in one colour, because none of the three is a
      * score and the product does not want them read as one.
      */
-    expect(PROFILE).toMatch(/counts: \{ fontSize: 14\.5/);
-    expect(PROFILE).toMatch(/handle: \{ fontSize: 14\.5/);
+    expect(PROFILE).toMatch(/counts: \{[^}]*fontSize: 14\.5/);
+    expect(PROFILE).toMatch(/handle: \{[^}]*fontSize: 14\.5/);
     // And nothing left of the dashboard to drift back into use.
     expect(PROFILE).not.toMatch(/function Stat\b/);
     expect(PROFILE).not.toMatch(/statN|statLabel/);
@@ -176,78 +176,55 @@ describe('the header picture', () => {
     expect(radius).toBeLessThan(52);
   });
 
-  it('reaches the edge because the gutter moved onto the children', () => {
+  it('hangs from the top edge rather than bleeding off the side', () => {
     /*
-     * A container that insets everything cannot make an exception for one
-     * child. So `paddingHorizontal` came off the scroll and each row carries
-     * it — one named style, so "the gutter" stays one number rather than four
-     * twenties that drift.
+     * The picture used to run off the right-hand edge of a header row, which
+     * is why the gutter moved onto the children — a container that insets
+     * everything cannot make an exception for one child. It hangs from the
+     * top now, centred, and nothing is exempt. The gutter stays on the
+     * children because the rows below still want it.
      */
-    expect(PROFILE).not.toMatch(/scroll: \{[^}]*paddingHorizontal/);
+    expect(PROFILE).toMatch(/tab: \{\s*position: 'absolute',\s*top: 0,\s*left: '50%',/);
+    expect(PROFILE).toMatch(/marginLeft: -TAB_W \/ 2/);
+    // Square at the top, round at the bottom: a tab pulled down, not a card.
+    expect(PROFILE).toMatch(/borderBottomLeftRadius: 28,\s*borderBottomRightRadius: 28,/);
     expect(PROFILE).toMatch(/gutter: \{ paddingHorizontal: 20 \}/);
-    for (const row of ['styles.bio', 'styles.actions', 'styles.grid']) {
-      expect(PROFILE, `${row} must keep the gutter`).toMatch(
-        new RegExp(`\\[${row.replace('.', '\\.')}, styles\\.gutter`),
-      );
-    }
-    /*
-     * `styles.bar` was a fourth. The corners row is `PageHead` now — shared
-     * with three other tabs that place it differently — so it wears the gutter
-     * on a wrapper rather than carrying one of its own.
-     */
-    expect(PROFILE, 'the head row must keep the gutter').toMatch(
-      /<View style=\{styles\.gutter\}>\s*\n\s*<PageHead/,
-    );
   });
 
-  it('is pushed right by the words, not by a space-between', () => {
+  it('reads down the middle rather than across a row', () => {
     /*
-     * `justifyContent: 'space-between'` spreads its children inside the row's
-     * box, which would leave the picture 20 points short of the edge however
-     * the padding was arranged. `who` taking the space is what puts it flush.
-     *
-     * Centred rather than top-aligned since 2c: the picture is the height of
-     * the text block now, so aligning to the first line would hang it below the
-     * last one.
+     * The header was a row: words on the left taking the space, picture on
+     * the right being pushed to the edge by them. With the picture above, the
+     * row has nothing to push — so it is a centred column, and the text is
+     * centred with the thing it sits under.
      */
-    expect(PROFILE).toMatch(/head: \{ flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 \}/);
-    expect(PROFILE).toMatch(/who: \{ flex: 1, minWidth: 0 \}/);
+    expect(PROFILE).toMatch(/head: \{ alignItems: 'center' \}/);
+    expect(PROFILE).toMatch(/who: \{ alignSelf: 'stretch', alignItems: 'center' \}/);
+    expect(PROFILE).toMatch(/name: \{[^}]*textAlign: 'center'/);
   });
 
-  it('gives the letter the photograph\'s shape and its bleed', () => {
+  it('gives the letter the tab’s shape', () => {
     /*
-     * This asserted the opposite until the shape was reversed: a 64pt disc
-     * kept inside the gutter, on the argument that a flat lens colour running
-     * off the edge is a field of colour rather than a face.
-     *
-     * What that missed is what the bleed is for. It says what kind of thing
-     * belongs in this corner, and a disc in a margin beside a frame that runs
-     * off the edge reads as a different screen rather than as the same one
-     * waiting for a picture. The two are one outline now.
+     * This has been three things: a disc in the gutter, the photograph's
+     * bled rectangle, and now the tab. The rule underneath has not moved —
+     * somebody with no picture sees the shape their picture will take — only
+     * the shape has.
      */
-    expect(PROFILE).toMatch(
-      /avatarBlank: \{\s*width: 124,\s*height: 104,\s*borderTopLeftRadius: 26,\s*borderBottomLeftRadius: 26,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
-    );
-    // The gutter is what would pull it back off the edge.
-    const blank = PROFILE.slice(PROFILE.indexOf('avatarBlank: {'));
-    expect(blank.slice(0, blank.indexOf('}'))).not.toMatch(/marginRight/);
-    expect(PROFILE).toMatch(/<View style=\{\[styles\.avatarBlank, \{ backgroundColor: lens\.fill \}\]\}>/);
+    expect(PROFILE).toMatch(/tabBlank: \{ alignItems: 'center', justifyContent: 'center' \}/);
+    expect(PROFILE).toMatch(/styles\.tabFill, styles\.tabBlank, \{ backgroundColor: lens\.fill \}/);
+    expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 
-  it('crops for the largest place it is drawn', () => {
+  it('crops for the shape it is drawn in', () => {
     /*
-     * The picker asked for a square, on the argument that the avatar is a
-     * circle everywhere else — the faces over a cover, the tiles in Lately, the
-     * rows in a thread — and a landscape file is cropped again by every one of
-     * them.
-     *
-     * That is true and it is the smaller loss. A circle takes the middle of a
-     * 6:5 frame, which for a face is the face. A square centre-cropped into a
-     * 124 × 104 box loses the top and bottom of what somebody framed — usually
-     * the top of their head, at the one size where it is unmistakable.
+     * 6:5 was a 124 × 104 box lying on its side. The tab is taller than it is
+     * wide, so a landscape crop is letterboxed into it or cropped again on
+     * the way in — and the second crop is the one nobody chose. The top runs
+     * behind the Dynamic Island, so the face belongs below the middle.
      */
-    expect(PROFILE).toMatch(/aspect: \[6, 5\]/);
-    expect(PROFILE).not.toMatch(/aspect: \[1, 1\]/);
+    expect(PROFILE).toMatch(/aspect: \[6, 7\]/);
+    expect(PROFILE).not.toMatch(/aspect: \[6, 5\]/);
+    expect(PROFILE).toMatch(/contentPosition="bottom"/);
   });
 
   it('grows the letter with the box it is now in', () => {
@@ -364,14 +341,16 @@ describe('a link on a profile', () => {
     );
   });
 
-  it('pulls the bio up against the header', () => {
+  it('centres the bio rather than pulling it up', () => {
     /*
-     * The scroll lays out with `gap: 16`, and the header row's height is set
-     * by the 104pt picture rather than by the text beside it — so the space
-     * above the bio is the gap plus whatever the text column falls short by,
-     * which read as the bio having been left behind by the name it belongs to.
+     * The -8 pulled it against a header whose height was set by a 104pt
+     * picture beside the text. There is no picture beside the text any more,
+     * so the pull is against nothing. The inset keeps a long bio to a
+     * readable measure once centred — full width and centred is a paragraph
+     * ragged on both sides.
      */
-    expect(PROFILE).toMatch(/bio: \{ fontSize: 15, lineHeight: 21, marginTop: -8 \}/);
+    expect(PROFILE).toMatch(/bio: \{[^}]*textAlign: 'center', paddingHorizontal: 36 \}/);
+    expect(PROFILE).not.toMatch(/marginTop: -8/);
   });
 });
 

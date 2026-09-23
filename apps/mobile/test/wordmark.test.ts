@@ -58,10 +58,22 @@ describe('the name', () => {
       ['Home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab'))],
       ['Chats', EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock'))],
       ['Find', EVENTS.slice(EVENTS.indexOf('export function SearchTab'), EVENTS.indexOf('function Result('))],
-      ['Profile', read('src/Profile.tsx')],
     ] as const) {
       expect(source, `${name} should open with the wordmark`).toMatch(/<PageHead/);
     }
+    /*
+     * Three of four, and the profile is the exception on purpose.
+     *
+     * Its picture hangs from the top edge of the screen now, filling the
+     * space the head occupied — and a wordmark over it is a second thing
+     * claiming that space. The corners keep their discs, so nothing the head
+     * carried has been lost except the word, which the other three still say
+     * on the way in.
+     */
+    const PROFILE = read('src/Profile.tsx');
+    expect(PROFILE).not.toMatch(/<PageHead/);
+    expect(PROFILE).toMatch(/accessibilityLabel="Settings"/);
+    expect(PROFILE).toMatch(/accessibilityLabel="New album or group"/);
     // And neither of the two titles survives.
     expect(EVENTS).not.toMatch(/>Your Parea</);
     expect(EVENTS).not.toMatch(/\}\]}>Find</);

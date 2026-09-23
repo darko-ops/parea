@@ -34,27 +34,19 @@ const SCREEN = code(
 describe('the two corners', () => {
   it('puts settings behind the same glyph an album uses', () => {
     /*
-     * One shape in the product that means "everything else about this thing".
-     * The album's own settings are behind a `⋯` in its corner and have been
-     * since the slabs came off that screen.
+     * The two discs are the same controls in the same corners; what has gone
+     * is the row that used to hold them. `PageHead` draws the wordmark
+     * between them, and over a picture hanging from the top edge that is a
+     * second thing claiming the same space — so this screen places them
+     * itself and the other tabs keep the head.
      */
-    expect(SCREEN).toMatch(/<PageHead/);
+    expect(SCREEN).not.toMatch(/<PageHead/);
     expect(SCREEN).toMatch(/accessibilityLabel="Settings"/);
-    // The `⋯` itself lives in `RoundButton` now, so that every corner drawing
-    // one agrees about its size — the profile's was 22pt and the album's 16.
     expect(SCREEN).toMatch(/<More color=\{t\.fg\} \/>/);
     expect(read('src/RoundButton.tsx')).toMatch(/⋯/);
-    /*
-     * And it is the head's `left`, which is the leading corner. The row is
-     * `PageHead` now — the same one every tab opens with, with the product's
-     * name between the two discs — so the corner is named rather than implied
-     * by which child comes first.
-     */
-    const head = SCREEN.slice(SCREEN.indexOf('<PageHead'), SCREEN.indexOf('styles.headLower'));
-    expect(head.indexOf('left={')).toBeGreaterThan(-1);
-    expect(head.indexOf('Settings')).toBeGreaterThan(head.indexOf('left={'));
-    expect(head.indexOf('Settings')).toBeLessThan(head.indexOf('right={'));
-    expect(head.indexOf('New album or group')).toBeGreaterThan(head.indexOf('right={'));
+    // Fixed above the page rather than scrolling with it.
+    expect(PROFILE).toMatch(/corner: \{ position: 'absolute', top: 62, left: 20, zIndex: 3 \}/);
+    expect(PROFILE).toMatch(/cornerRight: \{ left: undefined, right: 20 \}/);
   });
 
   it('is the only place settings is reached from', () => {
@@ -115,11 +107,16 @@ describe('the friends', () => {
 });
 
 describe('the profile details', () => {
-  it('sit below the corners rather than under the clock', () => {
-    // A 28pt name starting a few pixels below the status bar reads as a title
-    // bar; the gap above it is what makes it somebody's name.
-    expect(SCREEN).toMatch(/style=\{\[styles\.head, styles\.headLower\]\}/);
-    expect(PROFILE).toMatch(/headLower: \{ marginTop: 20 \}/);
+  it('sit below the tab rather than under the clock', () => {
+    /*
+     * `headLower` was 20 points of clearance under a row of corner glyphs.
+     * The clearance is the scroll's own `paddingTop` now — the tab's 200 and
+     * 22 under it — because what the content has to clear is the tab, and the
+     * tab is 200 points tall rather than 34.
+     */
+    expect(PROFILE).toMatch(/scroll: \{ paddingTop: 222,/);
+    expect(PROFILE).not.toMatch(/headLower/);
+    expect(PROFILE).toMatch(/const TAB_H = 200;/);
   });
 });
 
@@ -137,13 +134,18 @@ describe('the page arrives in one piece', () => {
   });
 
   it('holds the body until there is a body to draw', () => {
-    // The corners are exempt: they are the same two glyphs before and after,
-    // so holding them back would invent a transition rather than remove one.
-    expect(SCREEN).toMatch(/\{account === undefined \? \(/);
-    const gate = SCREEN.indexOf('account === undefined ?');
-    expect(SCREEN.indexOf('styles.bar')).toBeLessThan(gate);
-    expect(SCREEN.indexOf('styles.headLower')).toBeGreaterThan(gate);
+    /*
+     * A page that builds itself downwards while somebody watches looks broken
+     * even when every piece is right. The corners are exempt because they are
+     * the same two glyphs before and after — and so is the tab, which does
+     * not draw at all until there is an account: an empty tab dropping in
+     * before there is anything to put in it is the page arriving twice.
+     */
+    const gate = SCREEN.indexOf('{account === undefined ? (');
+    expect(gate).toBeGreaterThan(-1);
+    expect(SCREEN.indexOf('styles.head,')).toBeGreaterThan(gate);
     expect(SCREEN.indexOf('styles.grid')).toBeGreaterThan(gate);
+    expect(SCREEN).toMatch(/\{account !== undefined && \(/);
   });
 });
 
@@ -245,5 +247,60 @@ describe('what the `+` makes', () => {
   it('leaves the Groups tab the only place the form is written', () => {
     // One form, not two that drift.
     expect(PROFILE).not.toMatch(/CreateGroupForm/);
+  });
+});
+
+/**
+ * The hanging tab.
+ *
+ * The profile led with a row: a picture bleeding off the right edge, the name
+ * beside it, and the product's wordmark above both. The picture hangs from
+ * the top of the screen now, centred, and everything else reads down the
+ * middle underneath it.
+ */
+describe('the tab that hangs from the top', () => {
+  it('does not scroll — it retracts', () => {
+    /*
+     * Drawn outside the scroll view and above it, so the page passes
+     * underneath. A picture that scrolled away would be the first row of the
+     * content; one that shrinks in place is part of the screen.
+     */
+    expect(PROFILE).toMatch(/inputRange: \[0, 170\]/);
+    expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_W - 56\]/);
+    expect(PROFILE).toMatch(/outputRange: \[TAB_H, TAB_H - 124\]/);
+    expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
+  });
+
+  it('keeps its two animations on two nodes', () => {
+    /*
+     * The retract is width and height, which are layout and JS-driven; the
+     * entrance is a transform and runs natively. On one view React Native
+     * refuses the pair outright — so the outer view carries the size and the
+     * inner one carries the drop.
+     */
+    expect(PROFILE).toMatch(/useNativeDriver: false,/);
+    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
+    const outer = tab.slice(0, tab.indexOf('<Pressable'));
+    expect(outer).toMatch(/width: tabWidth, height: tabHeight/);
+    expect(outer).toMatch(/translateY: drop\.interpolate/);
+  });
+
+  it('drops once, not on every return to the tab', () => {
+    // `active` flips whenever somebody comes back, and a screen that replays
+    // its entrance every time is one that never settles.
+    expect(PROFILE).toMatch(/const dropped = useRef\(false\);/);
+    expect(PROFILE).toMatch(/if \(account === undefined \|\| dropped\.current\) return;/);
+  });
+
+  it('centres without re-measuring on every frame', () => {
+    // `alignSelf` would depend on the animated width, so the centring would
+    // be recomputed for each step of the retract.
+    expect(PROFILE).toMatch(/left: '50%',\s*marginLeft: -TAB_W \/ 2,/);
+  });
+
+  it('draws nothing until there is an account to draw', () => {
+    // An empty tab dropping in before there is anything to put in it is the
+    // page arriving twice.
+    expect(PROFILE).toMatch(/\{account !== undefined && \(/);
   });
 });

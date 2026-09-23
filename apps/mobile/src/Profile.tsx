@@ -41,9 +41,10 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -72,6 +73,10 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
+
+/** The tab at rest. It loses 56 and 124 of these on the way up. */
+const TAB_W = 172;
+const TAB_H = 200;
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -211,6 +216,53 @@ export function ProfileScreen({
    * drawn disabled rather than hidden — a row that changes shape depending on
    * whether you have picked a handle is a row nobody learns.
    */
+  /**
+   * How far the page has been scrolled, and the tab's arrival.
+   *
+   * Two values because they cannot share a driver. The retract is width and
+   * height, which are layout and therefore JS-driven; the drop is a
+   * transform, which is not. Put on one view they would fight — React Native
+   * refuses a JS animation on a node it has moved to the native side — so
+   * they sit on two, one nested in the other.
+   */
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const drop = useRef(new Animated.Value(0)).current;
+
+  /*
+   * Once, when the account first arrives.
+   *
+   * Not on every return to the tab: `active` flips whenever somebody comes
+   * back, and a screen that replays its entrance every time is one that never
+   * settles. `dropped` is the latch.
+   */
+  const dropped = useRef(false);
+  useEffect(() => {
+    if (account === undefined || dropped.current) return;
+    dropped.current = true;
+    Animated.spring(drop, {
+      toValue: 1,
+      damping: 14,
+      stiffness: 140,
+      useNativeDriver: true,
+    }).start();
+  }, [account, drop]);
+
+  /*
+   * The tab retracts as the page moves under it.
+   *
+   * 170 points of scroll takes it from 172 × 200 to 116 × 76 and then stops.
+   * It keeps the top edge and the bottom corners; what changes is how much of
+   * it there is, which is what makes it read as being pulled back up rather
+   * than scrolling away.
+   */
+  const k = scrollY.interpolate({
+    inputRange: [0, 170],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_W - 56] });
+  const tabHeight = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_H, TAB_H - 124] });
+
   const shareProfile = useCallback(() => {
     if (!account?.handle) return;
     void Share.share({ message: `${webBase}/u/${account.handle}` });
@@ -228,7 +280,17 @@ export function ProfileScreen({
       press went nowhere. See the same note in `App.tsx` and on the panel
       below — all three hold the same card.
     */
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      // Drives the retract above. 16ms is one frame; less is work nobody sees.
+      scrollEventThrottle={16}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        // Layout, not transform — see the note on `scrollY`.
+        useNativeDriver: false,
+      })}
+    >
       {/*
         The two things that are not about looking at this profile, in the two
         corners, with the product's name between them.
@@ -249,25 +311,6 @@ export function ProfileScreen({
         third `+` somebody meets in this app and the other two already taught
         it.
       */}
-      <View style={styles.gutter}>
-        <PageHead
-          color={t.fg}
-          left={
-            <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
-              <More color={t.fg} />
-            </RoundButton>
-          }
-          right={
-            <RoundButton
-              t={t}
-              onPress={() => setCreating(true)}
-              accessibilityLabel="New album or group"
-            >
-              <Glyph name="plus" size={20} color={t.fg} />
-            </RoundButton>
-          }
-        />
-      </View>
 
       {/*
         Nothing below the corners until all of it is ready.
@@ -287,7 +330,7 @@ export function ProfileScreen({
         <Waiting fill />
       ) : (
         <>
-      <View style={[styles.head, styles.headLower]}>
+      <View style={[styles.head, styles.gutter]}>
         <View style={styles.who}>
           {name ? (
             <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
@@ -381,24 +424,6 @@ export function ProfileScreen({
           )}
         </View>
 
-        <Pressable
-          onPress={() => setEditing(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Change your profile picture"
-        >
-          {account?.avatarUrl ? (
-            <Image
-              source={{ uri: account.avatarUrl }}
-              style={[styles.avatar, { backgroundColor: t.line }]}
-              contentFit="cover"
-              transition={120}
-            />
-          ) : (
-            <View style={[styles.avatarBlank, { backgroundColor: lens.fill }]}>
-              <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
-            </View>
-          )}
-        </Pressable>
       </View>
 
       {/*
@@ -689,6 +714,87 @@ export function ProfileScreen({
         />
       )}
     </ScrollView>
+
+      {/*
+        The tab, hanging from the top edge.
+
+        Outside the scroll view and above it, because it does not scroll — it
+        retracts. The page passes underneath, which is what makes it read as
+        fixed to the screen rather than as the first row of the content.
+
+        Two views, one inside the other, and the nesting is not arrangement.
+        The outer one is width and height, which are layout and therefore
+        JS-driven by the scroll; the inner one is the entrance, which is a
+        transform and runs natively. On one view React Native refuses the pair
+        outright.
+
+        Only once the account is there: an empty tab dropping in before there
+        is anything to put in it is the page arriving twice.
+      */}
+      {account !== undefined && (
+        <Animated.View
+          style={[styles.tab, { width: tabWidth, height: tabHeight, shadowColor: t.fg }]}
+        >
+          <Animated.View
+            style={[
+              styles.tabFill,
+              {
+                transform: [
+                  {
+                    translateY: drop.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-TAB_H * 1.05, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Change your profile picture"
+              style={styles.tabFill}
+            >
+              {account?.avatarUrl ? (
+                <Image
+                  source={{ uri: account.avatarUrl }}
+                  style={styles.tabFill}
+                  contentFit="cover"
+                  /* The top of this runs behind the Dynamic Island, so the
+                     face belongs below the middle rather than in it. */
+                  contentPosition="bottom"
+                  transition={120}
+                />
+              ) : (
+                <View style={[styles.tabFill, styles.tabBlank, { backgroundColor: lens.fill }]}>
+                  <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
+                </View>
+              )}
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/*
+        The two corners, fixed above everything.
+
+        They were the ends of a `PageHead` row, which this screen no longer
+        draws — the tab is what the top of the profile is now, and a wordmark
+        over it would be a second thing claiming the same space. The discs
+        stay, because what they open has not changed.
+      */}
+      <View style={styles.corner}>
+        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
+          <More color={t.fg} />
+        </RoundButton>
+      </View>
+      <View style={[styles.corner, styles.cornerRight]}>
+        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New album or group">
+          <Glyph name="plus" size={20} color={t.fg} />
+        </RoundButton>
+      </View>
+    </View>
   );
 }
 
@@ -872,7 +978,14 @@ function EditProfile({
        * round ones give up a little width. The endpoint re-encodes whatever
        * arrives, so nothing downstream changes.
        */
-      aspect: [6, 5],
+      /*
+       * 6:7, for a tab that is taller than it is wide.
+       *
+       * It was 6:5 for a 124 × 104 box lying on its side. A landscape crop is
+       * letterboxed into this or cropped again on the way in, and the second
+       * crop is the one nobody chose.
+       */
+      aspect: [6, 7],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -993,7 +1106,43 @@ const styles = StyleSheet.create({
   /* `BELOW_TABS`, not a number chosen by eye. This screen ends in a wall of
      album covers with nothing after it, so whatever it reserves is the only
      thing standing between the last row and the floating bar. */
-  scroll: { paddingTop: 72, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  /* The screen, so the tab and the corners have something to be absolute
+     inside. */
+  screen: { flex: 1 },
+  /*
+   * 222 rather than 72: the tab's 200 and 22 of clearance under it.
+   *
+   * The content starts below the tab rather than behind it, because the tab
+   * is opaque and the first thing under it is somebody's name.
+   */
+  scroll: { paddingTop: 222, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  /*
+   * The tab: flush to the physical top, centred, square above and round below.
+   *
+   * `left: '50%'` with a negative margin of half its width rather than
+   * `alignSelf`, because the width is animated and a centring that depends on
+   * it would re-measure on every frame of the retract. The margin is half the
+   * resting width, and the tab narrows symmetrically about it.
+   */
+  tab: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    marginLeft: -TAB_W / 2,
+    zIndex: 2,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  tabFill: { width: '100%', height: '100%' },
+  tabBlank: { alignItems: 'center', justifyContent: 'center' },
+  /* Above the tab, and fixed: these do not scroll and are not part of it. */
+  corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
+  cornerRight: { left: undefined, right: 20 },
   /* What every row keeps, and the header's picture is the only thing exempt
      from. Named rather than repeated, so "the gutter" stays one number. */
   gutter: { paddingHorizontal: 20 },
@@ -1006,17 +1155,20 @@ const styles = StyleSheet.create({
    * is what lets it end flush against the screen's edge instead of 20 points
    * short of it.
    */
-  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, gap: 14 },
-  /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
-     corner glyphs and the name, which is what stops a 28pt name reading as a
-     title bar. */
-  headLower: { marginTop: 20 },
-  who: { flex: 1, minWidth: 0 },
-  name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
-  handle: { fontSize: 14.5, marginTop: 3 },
+  /*
+   * A centred column, not a row with a picture on the end.
+   *
+   * The picture hangs above it now, so everything under the tab reads down
+   * the middle of the screen — and the text is centred with it rather than
+   * ranged left against nothing.
+   */
+  head: { alignItems: 'center' },
+  who: { alignSelf: 'stretch', alignItems: 'center' },
+  name: { textAlign: 'center', fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
+  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { fontSize: 14.5, marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
   /* Underlined rather than accented: an accent word inside a grey line reads as
      a link in prose, and this is a line of facts. */
   countsLink: { textDecorationLine: 'underline' },
@@ -1113,10 +1265,19 @@ const styles = StyleSheet.create({
    * thought from the line of counts above it, and the link now usually sits
    * between them.
    */
-  bio: { fontSize: 15, lineHeight: 21, marginTop: -8 },
+  /*
+   * Centred, inset, and no negative margin.
+   *
+   * The -8 pulled it against a header whose height was set by a 104pt picture
+   * beside the text. There is no picture beside the text any more, so the
+   * pull is against nothing. The inset keeps a long bio to a readable measure
+   * once it is centred — full width and centred is a paragraph with ragged
+   * edges on both sides.
+   */
+  bio: { fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 },
   /* The same size and rhythm as the counts line it follows, in the accent —
      this is the one thing in the header that goes somewhere. */
-  link: { fontSize: 14.5, marginTop: 6 },
+  link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },
   /* Centred, and given room: this is the only thing on the lower half of the
      page, so it is placed rather than left at the top of an empty run. */
   noAlbums: { alignItems: 'center', gap: 14, paddingTop: 24 },
