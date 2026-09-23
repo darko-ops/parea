@@ -31,6 +31,7 @@ import {
   Image,
   InputAccessoryView,
   Keyboard,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -711,7 +712,19 @@ export default function App() {
               <Waiting size={40} />
             </View>
           ) : (
-            <ScrollView contentContainerStyle={styles.scroll}>
+            /*
+              `keyboardShouldPersistTaps` because this scroller holds a form.
+
+              A ScrollView defaults to `never`, which means that while a field
+              is focused the first tap anywhere else is eaten to dismiss the
+              keyboard and never reaches the child. The sign-in card's code
+              field opens the number pad — which has no return key, so there is
+              no way to put the keyboard away first — and the button under it
+              is the only thing to press. Every press was swallowed, and the
+              screen said nothing, which from the outside is a Sign in button
+              that does not work.
+            */
+            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
               <Pressable onPress={leaveMaking} hitSlop={12} accessibilityRole="button">
                 <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
               </Pressable>
@@ -3867,21 +3880,32 @@ function EventScreen({
         card sitting permanently above the grid amounted to.
       */}
       <Modal visible={gateOpen} animationType="slide" transparent onRequestClose={() => setGateOpen(false)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setGateOpen(false)}>
-          <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
-            <AccountCard
-              api={api}
-              t={t}
-              Button={ButtonEl}
-              gate
-              why="Adding photos needs an account. Looking does not — carry on browsing without one."
-              onSignedIn={() => {
-                setGateOpen(false);
-                onSignedIn();
-              }}
-            />
+        {/*
+          The sheet sits on the bottom edge and iOS does not move a transparent
+          modal for the keyboard, so the card's own Sign in button was behind
+          it — on a sheet that exists for nothing else. See the same wrapper on
+          the Settings panel; both hold the one `AccountCard`.
+        */}
+        <KeyboardAvoidingView
+          style={styles.fill}
+          behavior={RNPlatform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.sheetBackdrop} onPress={() => setGateOpen(false)}>
+            <Pressable style={[styles.sheet, { backgroundColor: t.bg }]} onPress={() => {}}>
+              <AccountCard
+                api={api}
+                t={t}
+                Button={ButtonEl}
+                gate
+                why="Adding photos needs an account. Looking does not — carry on browsing without one."
+                onSignedIn={() => {
+                  setGateOpen(false);
+                  onSignedIn();
+                }}
+              />
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/*
@@ -5906,6 +5930,8 @@ const styles = StyleSheet.create({
      fits two photographs on a screen, so the column still reads as a list
      rather than as one picture at a time. */
   thumb: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#8883' },
+  /* The keyboard avoider around a sheet: full height, no colour of its own. */
+  fill: { flex: 1 },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   /* The same thing without the press handling: the dim is a separate view
      underneath now, so this one only decides where the sheet sits. */

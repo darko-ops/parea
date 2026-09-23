@@ -44,8 +44,10 @@ import { Image } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -215,7 +217,18 @@ export function ProfileScreen({
   }, [account?.handle, webBase]);
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    /*
+      `keyboardShouldPersistTaps`, because signed out this scroller *is* the
+      sign-in form.
+
+      The default is `never`: while a field is focused the first tap anywhere
+      else is spent dismissing the keyboard and the child never sees it. The
+      code step opens the number pad, which has no return key to put the
+      keyboard away with, so "Sign in" was the only thing to press and the
+      press went nowhere. See the same note in `App.tsx` and on the panel
+      below — all three hold the same card.
+    */
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       {/*
         The two things that are not about looking at this profile, in the two
         corners, with the product's name between them.
@@ -514,7 +527,7 @@ export function ProfileScreen({
         <Modal visible animationType="slide" transparent onRequestClose={() => setEditing(false)}>
           <Pressable style={styles.backdrop} onPress={() => setEditing(false)}>
             <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-              <ScrollView contentContainerStyle={styles.panelScroll}>
+              <ScrollView contentContainerStyle={styles.panelScroll} keyboardShouldPersistTaps="handled">
                 <EditProfile
                   api={api}
                   account={account}
@@ -675,31 +688,43 @@ function Settings({
 }) {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-          <ScrollView contentContainerStyle={styles.panelScroll}>
-            <Text style={[styles.panelTitle, { color: t.fg }]}>Settings</Text>
+      {/*
+        A sheet sits on the bottom edge, and on iOS a transparent modal does
+        not move for the keyboard — so the sign-in card's button was under it,
+        on a panel whose whole reason for being here is that button. iOS is
+        told to pad; Android resizes the window itself and padding on top of
+        that lifts the sheet into the middle of the screen.
+      */}
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+            <ScrollView contentContainerStyle={styles.panelScroll} keyboardShouldPersistTaps="handled">
+              <Text style={[styles.panelTitle, { color: t.fg }]}>Settings</Text>
 
-            <AccountCard
-              api={api}
-              t={t}
-              Button={Button}
-              onSignedIn={onSignedIn}
-              onSignedOut={() => {
-                onClose();
-                onSignedOut();
-              }}
-            />
+              <AccountCard
+                api={api}
+                t={t}
+                Button={Button}
+                onSignedIn={onSignedIn}
+                onSignedOut={() => {
+                  onClose();
+                  onSignedOut();
+                }}
+              />
 
-            <Button
-              label="Safety, reporting and contact"
-              t={t}
-              onPress={() => void Linking.openURL('https://parea.photos/safety')}
-            />
-            <Button label="Done" t={t} onPress={onClose} />
-          </ScrollView>
+              <Button
+                label="Safety, reporting and contact"
+                t={t}
+                onPress={() => void Linking.openURL('https://parea.photos/safety')}
+              />
+              <Button label="Done" t={t} onPress={onClose} />
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1060,6 +1085,8 @@ const styles = StyleSheet.create({
      with the same six people apart. */
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
   tileMeta: { fontSize: 12.5 },
+  /* The keyboard avoider around a sheet: full height, no colour of its own. */
+  fill: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   panelScroll: { padding: 16, paddingBottom: 40, gap: 12 },

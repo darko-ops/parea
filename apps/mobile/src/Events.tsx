@@ -65,7 +65,7 @@ import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
 import { BELOW_TABS } from './chrome';
 import { initialOf, lensFor } from './lens';
-import { loadQueue, signOutDevice } from './platform';
+import { loadQueue, saveActorToken, signOutDevice } from './platform';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -2421,6 +2421,22 @@ export function AccountCard({
     setError(null);
     try {
       const result = await api.completeSignIn(email.trim(), code);
+      /*
+       * The keychain, not just the client in memory.
+       *
+       * `completeSignIn` sets the token on the `Api` instance, which is enough
+       * for the rest of this launch and nothing after it: the next cold start
+       * reads the keychain, finds whatever was there before signing in — on a
+       * new phone, nothing — and either carries on as the old actor or mints a
+       * fresh guest. Somebody who had just made an account opened the app
+       * again and was nobody.
+       *
+       * The token is also the one the account resolves to, which may not be
+       * the one this device presented: signing in folds this actor into the
+       * account's, and `result.merged` says when it did. Writing it here is
+       * what makes that fold outlive the session.
+       */
+      await saveActorToken(result.actorToken);
       setAccount({ email: result.email });
       setSent(false);
       setCode('');
