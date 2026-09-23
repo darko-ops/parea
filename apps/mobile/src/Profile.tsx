@@ -41,6 +41,7 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -75,25 +76,24 @@ import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
 
 /**
- * The tab, in two parts, and the split is what makes the picture whole.
+ * The tab: a photograph hanging from the top edge, and a quiet strip over it.
  *
- * `CAP_H` is the strip at the top that holds no picture. The Dynamic Island
- * and the camera sit in it, and a photograph drawn under them is a photograph
- * with a hole punched through the face — which on a profile is the one place
- * it cannot be allowed to happen. The container hangs from the physical top
- * edge, and the picture starts below this.
+ * The picture is the whole of the tab. It runs from the physical top edge
+ * down, which means the Dynamic Island and the camera sit on top of it rather
+ * than above it — and that is the arrangement, not an oversight. What the
+ * island needs is somewhere quiet to sit, which is a much smaller ask than a
+ * strip of its own: `CAP_H` is a scrim over the photograph, dark at the very
+ * top and gone by the bottom of it, and the image carries on underneath.
  *
- * It was 100, and all hundred points of it were photograph: the picture ran
- * the full height of the tab and the ribbon was painted over the top of it,
- * so the top of whatever somebody framed was hidden and the rest was trimmed
- * to fit what was left. That is the wrong trade for this one picture. A
- * profile picture is somebody’s answer to who they are, the crop they chose
- * is the whole of the answer, and the part that went behind the ribbon is
- * usually their face.
+ * The strip used to be opaque, and it cost a picture every time. First it hid
+ * a hundred points of photograph behind it. Then it hid nothing, by starting
+ * the picture underneath it — which bought the ribbon seventy-two points of
+ * the screen and pushed everybody's face down into the middle of it. A
+ * profile picture is somebody's own answer to who they are, and the top of
+ * the screen is where the answer should be.
  *
- * So the ribbon is the no-go zone again and nothing more — 72, the allowance
- * every scroll in this project starts at — the picture begins under it, and
- * there is nothing behind it to lose.
+ * So the picture starts at the top, all of it is visible, and the only thing
+ * that changes across the island's band is how bright it is.
  */
 const TAB_W = 172;
 const CAP_H = 72;
@@ -104,39 +104,15 @@ const CAP_H = 72;
  * ever granted: `allowsEditing` on iOS crops to a square and ignores `aspect`
  * outright, and the endpoint stores a square as well. So every one of those
  * shapes was a portrait box with a square source in it, and `cover` paid the
- * difference out of the sides of somebody’s face — which is what you see
+ * difference out of the sides of somebody's face — which is what you see
  * when you crop yourself carefully and arrive here missing your ears.
  *
  * A box the shape of the crop is the only frame that shows the whole crop.
- * The width is the tab’s, so the height is the tab’s width.
+ * The width is the tab's, so the height is the tab's width — and the tab is
+ * the picture and nothing else, so that is the tab's height too.
  */
 const PHOTO_H = TAB_W;
-const TAB_H = CAP_H + PHOTO_H;
-/**
- * The picture's own colour, carried up into the ribbon.
- *
- * The ribbon was a flat colour with a 24pt gradient fading it down onto the
- * photograph, which is a fade *into* the picture: the top of somebody's face
- * washed out towards a colour that had nothing to do with them. The picture
- * should be the thing that wins. So the ribbon is painted from the photograph
- * instead — its top edge stretched upward to fill the strip.
- *
- * `BLEED` is how much of that edge is stretched. Ten points scaled to the
- * ribbon's height is a smear of the colours actually at the top of the
- * picture rather than an average of the whole thing, and it is mirrored, so
- * the row meeting the photograph is the photograph's own first row and the
- * seam is not a seam. The blur is what stops ten points of somebody's hair
- * from reading as an upside-down fragment of a photograph.
- *
- * The two numbers below are that stretch written as a transform. React Native
- * scales about a view's centre, so the lift is what puts the edge back where
- * the arithmetic wants it: a point `y` down the picture lands at
- * `CAP_H - BLEED_SCALE * y`, which is `CAP_H` at the top of the ribbon and 0
- * at its bottom.
- */
-const BLEED = 10;
-const BLEED_SCALE = CAP_H / BLEED;
-const BLEED_LIFT = CAP_H - ((1 + BLEED_SCALE) * PHOTO_H) / 2;
+const TAB_H = PHOTO_H;
 /** What is left of the picture once the page has been scrolled. */
 const PHOTO_MIN = 26;
 
@@ -834,20 +810,12 @@ export function ProfileScreen({
             ]}
           >
             {/*
-              The picture sits under the ribbon rather than behind it, and the
-              box is the shape of the crop.
+              The picture is the tab: all of it, from the top edge down.
 
-              It ran the full height of the tab with the ribbon painted over
-              the top, which hid a hundred points of it, and the square that
-              the picker actually hands back was then trimmed at the sides to
-              fill what was left. Two cuts, and between them most of a face.
-
-              Every pixel somebody kept is drawn here now: the box is square
-              because the crop is square, so `cover` has nothing to take, and
-              it starts below the ribbon so there is nothing behind it. What
-              softens the join is the fade below — the top line of the picture
-              dissolving upward into the ribbon rather than a photograph with
-              a lid on it.
+              The box is square because the crop is square, so `cover` has
+              nothing to trim, and it starts at the very top so there is no
+              strip above it holding the photograph down the screen. Every
+              pixel somebody kept is drawn, and drawn as high as it goes.
 
               No top corners on the image: a rounded corner is a frame
               announcing itself, and the only shape anybody should be able to
@@ -857,7 +825,7 @@ export function ProfileScreen({
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={[styles.photo, { backgroundColor: tabBack }]}
+              style={[styles.tabFill, { backgroundColor: tabBack }]}
             >
               {account?.avatarUrl ? (
                 <Image
@@ -874,30 +842,30 @@ export function ProfileScreen({
             </Pressable>
 
             {/*
-              The ribbon: the no-go zone, painted from the picture under it.
+              Somewhere quiet for the island to sit, and nothing more.
 
-              The height the camera needs, and nothing legible in it — but its
-              colour is the photograph's, not a swatch. The top edge of the
-              picture is stretched up through it, mirrored so that the row
-              meeting the photograph is the photograph's own first row, and
-              blurred so ten points of somebody's hair reads as colour rather
-              than as an upside-down piece of a photograph.
+              The photograph continues underneath at full strength; this only
+              takes the brightness out of the band the island and the camera
+              occupy, so a black pill has something calm to sit on rather than
+              somebody's eye. Dark rather than a blur: a `BlurView` is uniform
+              and stops dead at its own edge, which over the middle of a
+              photograph is a seam — the same reason the cover's glass covers
+              a whole header or nothing. See `CoverGlass`.
 
-              `tabBack` stays underneath it: it is what the ribbon is before a
-              picture has decoded, and for somebody who has not set one it is
-              the whole tab.
+              Strongest at the very top and gone by the foot of the band, so
+              there is no line anywhere: the picture is simply brighter the
+              further it gets from the island. And only over a photograph —
+              somebody who has not set one has a flat colour and a letter up
+              there, which is quiet already.
             */}
-            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none">
-              {account?.avatarUrl && (
-                <Image
-                  source={{ uri: account.avatarUrl }}
-                  style={styles.bleed}
-                  contentFit="cover"
-                  blurRadius={20}
-                  transition={120}
-                />
-              )}
-            </View>
+            {account?.avatarUrl && (
+              <LinearGradient
+                colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0)']}
+                locations={[0, 0.5, 1]}
+                style={styles.shade}
+                pointerEvents="none"
+              />
+            )}
           </Animated.View>
         </Animated.View>
       )}
@@ -1264,45 +1232,15 @@ const styles = StyleSheet.create({
    * height of the tab and this covers part of it. Fixed height, because the
    * camera does not move.
    */
-  /* The ribbon, and the clip that keeps the bleed inside it. */
-  cap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: CAP_H,
-    overflow: 'hidden',
-    zIndex: 1,
-  },
   /*
-   * The picture's top edge, stretched up to fill the ribbon.
+   * The scrim over the island's band.
    *
-   * Laid out as the picture is — the same width and the same square height —
-   * so `cover` frames it identically and row zero is the same row in both.
-   * The transform then flips it and scales it about its centre; `BLEED_LIFT`
-   * is what puts row zero back on the ribbon's bottom edge. Listed
-   * translate-then-scale, which React Native applies to a point in the other
-   * order, so the lift is in unscaled points.
+   * Absolute and `CAP_H` tall, over a picture that is the full height of the
+   * tab. It does not retract with the tab — the island is the same height
+   * however far the page has been scrolled — which is why it is pinned to the
+   * top rather than laid out above the picture.
    */
-  bleed: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: PHOTO_H,
-    transform: [{ translateY: BLEED_LIFT }, { scaleY: -BLEED_SCALE }],
-  },
-  /*
-   * The picture: everything below the ribbon, and square at rest.
-   *
-   * `bottom: 0` rather than `height: PHOTO_H`, because the tab's height is
-   * animated and the retract has to come out of the picture rather than out
-   * of the ribbon — the camera's strip is the same height however far the
-   * page has been scrolled. At rest `TAB_H - CAP_H` is `PHOTO_H`, which is
-   * `TAB_W`, so the box is square and `cover` trims nothing.
-   */
-  photo: { position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 },
-
+  shade: { position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H, zIndex: 1 },
   tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },

@@ -108,11 +108,11 @@ describe('the friends', () => {
 
 describe('the profile details', () => {
   it('sit below the tab rather than under the clock', () => {
-    // Derived from the tab rather than typed: its height is two numbers that
-    // can each move, and a literal here would be the third place to change.
+    // Derived from the tab rather than typed — and the tab is the picture and
+    // nothing else now, so there is one number rather than a sum.
     expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
+    expect(PROFILE).toMatch(/const TAB_H = PHOTO_H;/);
   });
 });
 
@@ -266,58 +266,65 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
   });
 
-  it('retracts the picture and never the ribbon', () => {
+  it('retracts to the island’s band plus a little picture', () => {
     /*
-     * The ribbon is the no-go zone, and the no-go zone is the same height
-     * however far the page has been scrolled. Shrinking the whole tab would
-     * walk the photograph back up under the camera on the way past.
+     * The island is the same height however far the page has been scrolled,
+     * so what is left at the end of the retract is its band and a sliver of
+     * photograph — and the scrim over that band is pinned to the top rather
+     * than laid out above the picture, so it does not retract with it.
      */
     expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
-    expect(PROFILE).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
+    expect(PROFILE).toMatch(/shade: \{ position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H/);
   });
 
-  it('keeps none of the picture behind the ribbon', () => {
+  it('runs the picture to the top edge, all of it visible', () => {
     /*
-     * The picture ran the full height of the tab with the ribbon painted over
-     * the top, so a hundred points of what somebody framed was hidden — and
-     * the square the picker actually returns was then trimmed at the sides to
-     * fill what was left of a portrait box. Two cuts, and between them most
-     * of a face.
+     * The strip at the top has cost a picture twice. First it was opaque over
+     * the photograph, which hid a hundred points of it. Then the photograph
+     * started underneath it instead, which hid nothing and bought the strip
+     * seventy-two points of screen — pushing everybody's face down into the
+     * middle of the tab. The top of the screen is where somebody's answer to
+     * who they are should be.
      *
-     * A profile picture is somebody's own answer to who they are, and the
-     * crop they chose is the whole of it. So the ribbon is the camera's strip
-     * again and nothing more, and the picture begins underneath it.
+     * So the picture is the whole tab: `TAB_H` is `PHOTO_H` is `TAB_W`, the
+     * square the picker actually returns, drawn from the physical top edge
+     * with nothing above it and nothing trimmed off it.
      */
-    expect(PROFILE).toMatch(/const CAP_H = 72;/);
-    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
-    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
-    // The picture first, the ribbon and its fade over it.
-    expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.cap'));
+    expect(PROFILE).toMatch(/const TAB_W = 172;/);
+    expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
+    expect(PROFILE).toMatch(/const TAB_H = PHOTO_H;/);
+    expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
+    // The picture fills the tab rather than sitting in a box below a strip.
+    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).not.toMatch(/photo: \{ position: 'absolute'/);
     // And no corner on the image to announce a frame.
     expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
   });
 
-  it('carries the picture’s colour up into the ribbon', () => {
+  it('quiets the island’s band rather than covering it', () => {
     /*
-     * The ribbon was a flat colour with a gradient fading it down onto the
-     * photograph — a fade *into* the picture, washing out the top of somebody's
-     * face towards a colour that had nothing to do with them. The picture is
-     * the thing that wins: the ribbon is painted from its top edge, stretched
-     * up to fill the strip.
+     * What the island needs is somewhere calm to sit, which is a far smaller
+     * ask than a strip of its own. The photograph carries on underneath at
+     * full strength; the scrim only takes the brightness out of the band,
+     * strongest at the very top and gone by the foot of it, so there is no
+     * line anywhere.
      *
-     * Mirrored, so the row that meets the photograph is the photograph's own
-     * first row and the seam is not a seam; blurred, so ten points of hair is
-     * colour rather than an upside-down piece of a photograph.
+     * Dark rather than a blur: a `BlurView` is uniform and stops dead at its
+     * own edge, which over the middle of a photograph is a seam — the reason
+     * the cover's glass covers a whole header or nothing.
      */
-    expect(PROFILE).not.toMatch(/LinearGradient/);
-    expect(PROFILE).not.toMatch(/capFade/);
-    expect(PROFILE).toMatch(/const BLEED = 10;/);
-    expect(PROFILE).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
-    expect(PROFILE).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
-    expect(PROFILE).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
-    expect(PROFILE).toMatch(/blurRadius=\{20\}/);
-    // And the ribbon clips it, or the whole picture would be drawn twice.
-    expect(PROFILE).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
+    expect(PROFILE).toMatch(/const CAP_H = 72;/);
+    expect(PROFILE).toMatch(
+      /colors=\{\['rgba\(0,0,0,0\.5\)', 'rgba\(0,0,0,0\.3\)', 'rgba\(0,0,0,0\)'\]\}/,
+    );
+    expect(PROFILE).toMatch(/locations=\{\[0, 0\.5, 1\]\}/);
+    // The comment above `shade` says why; this is that there is no import.
+    expect(code(PROFILE)).not.toMatch(/BlurView/);
+    // The picture first, the scrim over it.
+    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
+    expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.shade'));
+    // And only over a photograph: a letter on a flat colour is quiet already.
+    expect(PROFILE).toMatch(/\{account\?\.avatarUrl && \(\s*<LinearGradient/);
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -357,13 +364,11 @@ describe('the tab that hangs from the top', () => {
 describe('the tab is one object', () => {
   it('paints the ribbon and what is behind the picture from one value', () => {
     /*
-     * A tab that is two colours is two objects. `tabBack` is what the ribbon
-     * and the picture's box are both painted from — which matters most for
-     * the two people the bleed cannot serve: somebody whose picture has not
-     * decoded yet, and somebody who has not set one.
+     * One value behind the whole tab, for the two people there is no
+     * photograph to show: somebody whose picture has not decoded yet, and
+     * somebody who has not set one. A tab that is two colours is two objects.
      */
     expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
-    expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
   });
 });
