@@ -3187,7 +3187,17 @@ const styles = StyleSheet.create({
   /* The name carries the weight and the words carry the colour, which is how
      a line of dialogue reads without a second size. */
   talkWho: { fontWeight: '700' },
-  talkMore: { fontSize: 12.5, lineHeight: 17 },
+  /*
+   * The "+ 2 comments and 3 reactions" line, centred.
+   *
+   * It is not a line of dialogue and it is not anybody's voice — it is a
+   * count of what is behind the bubble, so it is centred in the bubble rather
+   * than ranged left under the words the way a second speaker would be. Now
+   * that the bubble is one fixed width, that centre is the same place on
+   * every card, which is what makes the line scannable down a column instead
+   * of something to find at the end of each quote.
+   */
+  talkMore: { fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred

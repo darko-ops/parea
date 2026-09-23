@@ -704,6 +704,14 @@ describe('the bubble', () => {
     expect(EVENTS).toMatch(/const TALK_W = 0\.75;/);
     expect(EVENTS).toMatch(/const talkWidth = Math\.round\(width \* TALK_W\);/);
     expect(EVENTS).toMatch(/width: talkWidth,/);
+    /*
+     * And the count under the words is centred in it. That line is not
+     * dialogue and not anybody's voice — it is what is behind the bubble — so
+     * it sits in the middle rather than ranged left the way a second speaker
+     * would be. One fixed width means that middle is the same place on every
+     * card, which is what makes it scannable down a column.
+     */
+    expect(EVENTS).toMatch(/talkMore: \{ fontSize: 12\.5, lineHeight: 17, textAlign: 'center' \}/);
   });
 
   it('opens the conversation rather than the album, all the way down', () => {
