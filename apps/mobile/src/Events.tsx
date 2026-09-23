@@ -1014,7 +1014,6 @@ export function ChatsTab({
   t,
   active,
   onOpenGroupThread,
-  onGoToEvents,
   waiting,
   onOpenLately,
   onCreateAlbum,
@@ -1031,7 +1030,6 @@ export function ChatsTab({
   Button: ButtonComponent;
   active: boolean;
   onOpenGroupThread: (group: MyGroupDetail) => void;
-  onGoToEvents: () => void;
 }) {
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -1222,13 +1220,23 @@ export function ChatsTab({
             album they belong to, and turn up in your tray when somebody
             answers you.
           </Text>
-          <Pressable
-            onPress={onGoToEvents}
-            accessibilityRole="button"
-            accessibilityLabel="Go to your albums"
-          >
-            <Text style={[styles.headAction, { color: t.accent }]}>Your albums</Text>
-          </Pressable>
+          {/*
+            The thing that makes a chat, where the chats would be.
+
+            What stood here was a link to the albums tab — an explanation of
+            where conversations come from, offered as a door out of the screen
+            somebody had just opened. It was right when a group could only be
+            made from an evening and nothing here could make one; a room can be
+            made outright now, so the empty chats page gets the control that
+            fills it rather than directions elsewhere.
+
+            Centred in the space the list will occupy, and gone the moment
+            there is one: this whole branch is `nothing`, so the first chat
+            takes the prompt with it.
+          */}
+          <View style={styles.noChats}>
+            <Button label="Create group chat" onPress={onCreateGroup} t={t} primary />
+          </View>
         </View>
       ) : (
         <>
@@ -2098,17 +2106,17 @@ export function SearchTab({
 
           {mine.length === 0 && clusters.length === 0 && (
             /*
-              Where groups come from, rather than a control that cannot work.
-              Somebody here with none has not failed at anything — they have
-              not yet had the second evening with the same people, which is the
-              moment a group is for.
+              The fact, and nothing under it.
+
+              This was four sentences on where groups come from and what the
+              box above would and would not find. All true, and all of it
+              addressed to somebody who has not asked a question yet — a
+              paragraph in front of an empty screen is read as an apology for
+              the screen being empty. What is left is the line that says why
+              there is nothing here.
             */
             <Text style={[styles.body, { color: t.dim }]}>
-              You are not in any groups yet. Groups are for the people who keep
-              turning up — once you have shared a couple of albums with the same
-              faces, they show up here ready to keep together. The box above
-              finds the ones that have chosen to be findable; you would still be
-              asking to be let in.
+              You are not in any groups yet.
             </Text>
           )}
         </>
@@ -2220,32 +2228,6 @@ export function SearchTab({
         </Text>
       )}
 
-      {/*
-        Once, at the foot.
-
-        It used to be said above each of three cards, before anything had been
-        searched for — which is a paragraph of policy in front of an empty
-        screen, and the thing everybody scrolls past. Here it is read by
-        somebody who has just seen what a search returns, which is the moment
-        "and this is what it will never return" means anything.
-      */}
-      {/*
-        What this page can and cannot reach, said once at the foot.
-
-        It named two of the three things the chips offer. Places was missing,
-        and it is the one somebody is most likely to assume works the way the
-        other two do — it does not: a place here is read off the albums this
-        person can already open, never off anybody else's, so it is the one
-        search on this page that asks the server nothing at all.
-
-        Read by somebody who has just seen what a search returns, rather than
-        as a paragraph in front of an empty screen.
-      */}
-      <Text style={[styles.footnote, { color: t.dim }]}>
-        Handles and findable groups only, and places off your own albums.
-        Albums and photos are never searchable — the only way into one is being
-        sent it.
-      </Text>
     </ScrollView>
   );
 }
@@ -2986,6 +2968,9 @@ const styles = StyleSheet.create({
   suggestWhy: { fontSize: 12 },
   suggestAdd: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 18 },
   suggestAddText: { fontSize: 13.5, fontWeight: '600' },
+  /* The one control on an empty chats tab, in the middle of the run the list
+     would fill rather than tucked under the paragraph. */
+  noChats: { alignItems: 'center', paddingTop: 40 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred
@@ -3026,5 +3011,4 @@ const styles = StyleSheet.create({
   resultName: { fontSize: 15.5, fontWeight: '600' },
   resultUnder: { fontSize: 13 },
   placeEvent: { paddingVertical: 6, paddingLeft: 50 },
-  footnote: { fontSize: 13, lineHeight: 18, paddingTop: 4 },
 });

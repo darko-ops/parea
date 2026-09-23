@@ -214,11 +214,23 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/who: \{ flex: 1, minWidth: 0 \}/);
   });
 
-  it('leaves the letter a circle inside the gutter', () => {
-    // A flat lens colour running off the edge is a field of colour, not a face.
-    expect(PROFILE).toMatch(/avatarBlank: \{\s*width: 64,\s*height: 64,\s*borderRadius: 32,\s*marginRight: 20,/);
-    // And it is no longer the photograph's shape with extras layered on it,
-    // which is what would quietly give it the bleed back.
+  it('gives the letter the photograph\'s shape and its bleed', () => {
+    /*
+     * This asserted the opposite until the shape was reversed: a 64pt disc
+     * kept inside the gutter, on the argument that a flat lens colour running
+     * off the edge is a field of colour rather than a face.
+     *
+     * What that missed is what the bleed is for. It says what kind of thing
+     * belongs in this corner, and a disc in a margin beside a frame that runs
+     * off the edge reads as a different screen rather than as the same one
+     * waiting for a picture. The two are one outline now.
+     */
+    expect(PROFILE).toMatch(
+      /avatarBlank: \{\s*width: 124,\s*height: 104,\s*borderTopLeftRadius: 26,\s*borderBottomLeftRadius: 26,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
+    );
+    // The gutter is what would pull it back off the edge.
+    const blank = PROFILE.slice(PROFILE.indexOf('avatarBlank: {'));
+    expect(blank.slice(0, blank.indexOf('}'))).not.toMatch(/marginRight/);
     expect(PROFILE).toMatch(/<View style=\{\[styles\.avatarBlank, \{ backgroundColor: lens\.fill \}\]\}>/);
   });
 
@@ -238,9 +250,10 @@ describe('the header picture', () => {
     expect(PROFILE).not.toMatch(/aspect: \[1, 1\]/);
   });
 
-  it('does not grow the letter with the box it is not in', () => {
-    // The fallback tile is still 64 points across, so its letter is still 25.
-    expect(PROFILE).toMatch(/avatarLetter: \{ fontSize: 25, fontWeight: '700' \}/);
+  it('grows the letter with the box it is now in', () => {
+    // It is the 124 × 104 frame now, not a 64pt disc — and a letter sized for
+    // the disc is lost in a frame with twice the area.
+    expect(PROFILE).toMatch(/avatarLetter: \{ fontSize: 38, fontWeight: '700' \}/);
   });
 });
 

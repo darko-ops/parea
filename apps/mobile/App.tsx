@@ -989,7 +989,62 @@ export default function App() {
         />
       )}
 
-      {route.screen === 'tabs' && (
+      {/*
+        The four tabs need an account. A link does not.
+
+        Every one of them is about things that belong to somebody — the albums
+        you are in, the rooms you are in, the people you know, and you — and
+        signed out each answered with an empty version of itself: a shelf with
+        nothing on it, a search that could find people but never say who you
+        were to them, a profile of nobody. That is not a smaller version of the
+        product, it is a demonstration of it, and the sign-in card was buried
+        at the foot of one of the four.
+
+        What stays open is the thing the product is actually for. An album
+        arrives as its own screen — `event`, reached from a tapped link through
+        `arrive` — and none of this is in its way, so somebody sent an evening
+        still opens it, looks at it and adds to it exactly as before. The gate
+        is on the tabs, which nobody arrives at by being sent something.
+
+        `null` is the answer not yet back, and it gets the spinner rather than
+        the gate: a sign-in prompt that flashes at somebody already signed in
+        is worse than one that lands a moment late. The same rule the
+        make-an-album gate follows above.
+      */}
+      {route.screen === 'tabs' && signedIn !== true && (
+        signedIn === null ? (
+          <View style={[styles.center, { backgroundColor: t.bg }]}>
+            <Waiting size={40} />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <AccountCard
+              api={api}
+              t={t}
+              Button={Button}
+              gate
+              why="Sign in to Parea"
+              onSignedIn={() => {
+                void refreshAccount();
+                void refreshEvents();
+                void refreshGroups();
+                void refreshWaiting();
+                /*
+                 * Nothing behind this gate was drawn as anybody, so there is
+                 * no stale identity in the tabs to discard — but the key is
+                 * bumped anyway, because this is the same event as signing in
+                 * from the profile tab and the two must not differ in what
+                 * they leave lying around. See `identity`.
+                 */
+                setVisited(new Set(['home']));
+                setIdentity((n) => n + 1);
+              }}
+            />
+          </ScrollView>
+        )
+      )}
+
+      {route.screen === 'tabs' && signedIn === true && (
         /*
          * Keyed by the account, so a change of identity takes every tab's state
          * with it. See `identity` above for why this is a key rather than a
@@ -1041,7 +1096,6 @@ export default function App() {
                 }}
                 Button={Button}
                 onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
-                onGoToEvents={() => setTab('home')}
               />
             </Pane>
           )}

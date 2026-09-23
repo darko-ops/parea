@@ -76,9 +76,11 @@ function cards(source: string): string[][] {
 const CARDS = [...cards(APP), ...cards(PROFILE)];
 
 describe('the taps reach the button', () => {
-  it('has a card to sign in with in four places, and no others', () => {
+  it('has a card to sign in with in five places, and no others', () => {
     // The count is the point: it is what makes the loops below exhaustive.
-    expect(cards(APP)).toHaveLength(2);
+    // Three in `App.tsx` — the gate on the tabs, the gate on making an album,
+    // and the sheet over adding photos — and two in the profile.
+    expect(cards(APP)).toHaveLength(3);
     expect(cards(PROFILE)).toHaveLength(2);
     // And every one of them is inside something that scrolls or slides up.
     for (const wrappers of CARDS) expect(wrappers.length).toBeGreaterThan(0);

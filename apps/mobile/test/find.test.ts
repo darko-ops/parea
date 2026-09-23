@@ -59,19 +59,20 @@ describe('the shape', () => {
     expect(TAB).toMatch(/setScope\(id\);\s*\n\s*void search\(query, id\);/);
   });
 
-  it('says the policy once, at the foot', () => {
+  it('carries no policy paragraph at all', () => {
     /*
-     * It used to be above each of three cards, before anything had been
-     * searched for — a paragraph in front of an empty screen, and the thing
-     * everybody scrolls past. Here it is read by somebody who has just seen
-     * what a search returns.
+     * There was a footnote at the foot — "Handles and findable groups only,
+     * and places off your own albums. Albums and photos are never searchable
+     * — the only way into one is being sent it." — and it is gone by request.
+     *
+     * Worth naming what went with it, because the sentence was load-bearing
+     * once: it was the only place in the app that said albums are not
+     * searchable. That rule is still true and still enforced server-side; it
+     * is simply no longer stated here. If it needs saying again it belongs
+     * somewhere somebody is asking the question, not under every search.
      */
-    const foot = TAB.slice(TAB.indexOf('styles.footnote'));
-    // "Albums", not "Events": the schema's word in a sentence a person reads,
-    // which is the half of that rule `wordmark.test.ts` was only checking in
-    // quoted strings.
-    expect(foot).toMatch(/Albums and photos are never\s*\n?\s*searchable/);
-    expect(TAB.match(/never\s*\n?\s*searchable|never are/g) ?? []).toHaveLength(1);
+    expect(TAB).not.toMatch(/styles\.footnote/);
+    expect(TAB).not.toMatch(/never\s*\n?\s*searchable/);
   });
 });
 
@@ -204,29 +205,19 @@ describe('the suggestions row', () => {
 });
 
 /**
- * The line at the foot, which is the only place this page states its limits.
+ * What the page tells you about its own reach, now that the line at the foot
+ * is gone.
  */
 describe('what the page says it can reach', () => {
-  it('names all three of the things its chips offer', () => {
+  it('says it by answering, not by explaining in advance', () => {
     /*
-     * It named two. Places was missing, and it is the one somebody is most
-     * likely to assume works like the other two — it does not: a place here is
-     * read off the albums this person can already open, never off anybody
-     * else's, so it is the one search on the page that asks the server nothing
-     * at all.
+     * The three sentences that used to describe the page's reach are gone —
+     * see `carries no policy paragraph at all`. What is left is the answers
+     * themselves, which say the same thing at the moment it means something:
+     * a handle that matches nothing says so, and so does a group.
      */
-    const foot = flat(TAB.slice(TAB.indexOf('styles.footnote')));
-    expect(foot).toMatch(/Handles/);
-    expect(foot).toMatch(/findable groups/);
-    expect(foot).toMatch(/places off your own albums/);
-  });
-
-  it('still says the thing it was written to say', () => {
-    // The limit that matters most, and the reason the page exists in the shape
-    // it does: nothing gets anybody into an album except being sent it.
-    const foot = flat(TAB.slice(TAB.indexOf('styles.footnote')));
-    expect(foot).toMatch(/Albums and photos are never searchable/);
-    expect(foot).toMatch(/the only way into one is being sent it/);
+    expect(TAB).toMatch(/No handle starts with that\./);
+    expect(TAB).toMatch(/Nothing findable by that name\./);
   });
 });
 

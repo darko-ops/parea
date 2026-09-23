@@ -447,8 +447,16 @@ export function ProfileScreen({
             style={({ pressed }) => [
               styles.action,
               {
-                borderColor: t.line,
-                backgroundColor: t.card,
+                /*
+                 * The same ink border as `Edit profile`, and no fill.
+                 *
+                 * It was a hairline over `card`, which at a glance is not a
+                 * button at all — a filled rectangle beside an outlined one
+                 * reads as the row's disabled half rather than as its second
+                 * control. They are two halves of one row and neither is the
+                 * screen's primary action, so they take the same outline.
+                 */
+                borderColor: t.fg,
                 // Nothing to hand out until there is a handle to put in the
                 // link. Dimmed rather than gone: see `shareProfile`.
                 opacity: !account.handle ? 0.4 : pressed ? 0.6 : 1,
@@ -474,6 +482,31 @@ export function ProfileScreen({
         the picture rather than over it: a scrim block across the bottom of
         every tile is a grid that reads as captioned stock photography.
       */}
+      {/*
+        The shelf before there is anything on it.
+
+        The space under the buttons was simply blank, which on the one tab that
+        is *yours* reads as a page that failed to load rather than as a shelf
+        waiting to be filled. A sentence and the one control that answers it.
+
+        The `+` is the same glyph and the same round button as the one in the
+        corner, because it does the same thing — this is the corner's action
+        brought down to where somebody is looking when they find out there is
+        nothing here. Both go once there is a first album: a prompt to make
+        your first one, standing over a shelf that already has one, is a
+        prompt nobody needs twice.
+      */}
+      {account && events.length === 0 && (
+        <View style={[styles.noAlbums, styles.gutter]}>
+          <Text style={[styles.noAlbumsText, { color: t.dim }]}>
+            No Albums Yet. Create One Now.
+          </Text>
+          <RoundButton t={t} onPress={onCreateEvent} accessibilityLabel="Create an album">
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        </View>
+      )}
+
       {events.length > 0 && (
         <View style={[styles.grid, styles.gutter]}>
           {events.map((event) => {
@@ -1039,21 +1072,34 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 0,
   },
   /*
-   * The letter keeps the gutter, and keeps its circle.
+   * The letter takes the photograph's shape, bleed and all.
    *
-   * A flat lens colour running off the edge is a field of colour, not a face —
-   * the bleed works because a photograph continues past the cut, and a solid
-   * fill has nothing to continue.
+   * It kept a 64pt circle in the gutter, on the argument that a flat colour
+   * has nothing to continue past the cut and so reads as a field of colour
+   * rather than a face. That is true of the colour and false of the frame:
+   * what the bleed is actually doing here is telling you what kind of thing
+   * sits in this corner, and a disc in a margin beside a picture that runs off
+   * the edge reads as a different screen rather than as the same one waiting
+   * for a photograph. Somebody with no picture yet should see the shape their
+   * picture will take.
+   *
+   * Same 124 × 104 and the same two radii as `avatar`, so the two are one
+   * outline with different contents — and no `marginRight`, which is what lets
+   * it reach the edge.
    */
   avatarBlank: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginRight: 20,
+    width: 124,
+    height: 104,
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontSize: 25, fontWeight: '700' },
+  /* Up from 25 with the box it sits in: a letter sized for a 64pt disc is
+     lost in a frame twice the area. */
+  avatarLetter: { fontSize: 38, fontWeight: '700' },
   /*
    * Pulled up against the header above it.
    *
@@ -1071,6 +1117,10 @@ const styles = StyleSheet.create({
   /* The same size and rhythm as the counts line it follows, in the accent —
      this is the one thing in the header that goes somewhere. */
   link: { fontSize: 14.5, marginTop: 6 },
+  /* Centred, and given room: this is the only thing on the lower half of the
+     page, so it is placed rather than left at the top of an empty run. */
+  noAlbums: { alignItems: 'center', gap: 14, paddingTop: 24 },
+  noAlbumsText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },

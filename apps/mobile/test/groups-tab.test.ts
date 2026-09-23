@@ -125,9 +125,16 @@ describe('what the screen may do', () => {
     expect(tab).not.toMatch(/method: 'POST'/);
   });
 
-  it('says where groups come from when there is nothing to recognise', () => {
+  it('says there is nothing to recognise, and no more than that', () => {
+    /*
+     * The second half of this used to assert the explanation under the line —
+     * where groups come from, and what the box above would and would not
+     * find. Four sentences, read by somebody who has not asked a question
+     * yet, which is a paragraph in front of an empty screen. Removed by
+     * request; the line that says why the screen is empty stays.
+     */
     expect(flat(EVENTS)).toMatch(/You are not in any groups yet/);
-    expect(flat(EVENTS)).toMatch(/Groups are for the people who keep turning up/);
+    expect(flat(EVENTS)).not.toMatch(/Groups are for the people who keep turning up/);
   });
 
   it('draws the door as a letter, never as a photograph', () => {
