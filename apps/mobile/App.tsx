@@ -506,7 +506,7 @@ export default function App() {
   }, [api]);
 
   const openListing = useCallback(
-    (event: EventListing, photo?: string) =>
+    (event: EventListing, photo?: string, pane?: Pane) =>
       open(
         {
           id: event.id,
@@ -515,7 +515,7 @@ export default function App() {
           startsAt: event.startsAt,
           endsAt: event.endsAt,
         },
-        undefined,
+        pane,
         undefined,
         photo,
       ),
@@ -3046,6 +3046,22 @@ function EventScreen({
             contentFit="cover"
             transition={120}
           />
+
+          {/*
+            A ring for a photograph with something new on it.
+
+            Inside the tile rather than around it, so the grid's own spacing
+            is untouched — a border on the tile would move every picture
+            beside it by a point and a half the moment somebody commented.
+
+            White, and the same argument as the upload bar: it lies on
+            somebody's photograph, and white with a shadow under it is the one
+            value that reads on all of them. It goes when the conversation is
+            opened, because that is what marks the thread read.
+          */}
+          {item.unseen && (
+            <View pointerEvents="none" style={styles.gridNew} />
+          )}
           {/*
             Whose photograph it is, and nothing else.
 
@@ -5966,6 +5982,27 @@ const styles = StyleSheet.create({
    * A shadow rather than a plate: a chip behind a 13pt glyph is furniture on
    * somebody's photograph, and the whole tile is 129 points wide.
    */
+  /*
+   * The unseen ring, laid inside the tile's own bounds.
+   *
+   * Two points of white with a dark shadow behind it: on a pale photograph
+   * the shadow is what keeps it from disappearing, and on a dark one the
+   * white does the work. Nothing about the grid's geometry changes when it
+   * appears or goes.
+   */
+  gridNew: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
+  },
   gridKept: {
     position: 'absolute',
     top: 6,

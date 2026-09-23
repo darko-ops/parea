@@ -135,6 +135,16 @@ export type FeedPhoto = {
    * are in.
    */
   favourite: boolean;
+  /**
+   * Something somebody else has said or left on it since this viewer last
+   * opened the album's conversation.
+   *
+   * Comments on photographs live in that thread, so there is one marker for
+   * both and it is the one the unread count already uses. Somebody else's,
+   * because a ring that lights up on your own comment teaches people the ring
+   * means nothing.
+   */
+  unseen: boolean;
 };
 
 export type Feed = {

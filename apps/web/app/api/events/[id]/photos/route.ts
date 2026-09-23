@@ -102,6 +102,7 @@ export async function GET(
     uploadDecision,
     accountActorId,
     kept,
+    unseenRows,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
     photosWithCard(db, photoIds),
@@ -208,7 +209,48 @@ export async function GET(
               inArray(schema.photoFavourites.photoId, photoIds),
             ),
           )
-      : Promise.resolve([] as { photoId: string }[])
+      : Promise.resolve([] as { photoId: string }[]),
+    /*
+     * Which photographs have something on them this viewer has not seen.
+     *
+     * "Since I last opened this album's conversation", which is the one
+     * marker there is — `event_thread_read` holds a moment per person per
+     * album, and comments on photographs live in that same thread. So a
+     * picture is unseen when somebody *else* has commented on it or reacted
+     * to it since then.
+     *
+     * Somebody else's, because a mark that lights up on your own comment
+     * teaches people the ring means nothing. And no marker at all means
+     * everything counts, which is right: a person who has never opened the
+     * conversation has seen none of it.
+     *
+     * One query rather than two passes, and raw because it is a union over
+     * two tables that agree on nothing but a photo id.
+     */
+    viewerId && photoIds.length > 0
+      ? db.execute(sql`
+          with mark as (
+            select read_at from "event_thread_read"
+            where event_id = ${event.id} and actor_id = ${viewerId}
+          )
+          select distinct pid from (
+            select m.photo_id as pid
+              from "event_message" m
+             where m.event_id = ${event.id}
+               and m.photo_id is not null
+               and m.deleted_at is null
+               and m.author_actor_id <> ${viewerId}
+               and m.created_at > coalesce((select read_at from mark), 'epoch'::timestamptz)
+            union
+            select r.photo_id as pid
+              from "photo_reaction" r
+              join "photo" p on p.id = r.photo_id
+             where p.event_id = ${event.id}
+               and r.actor_id <> ${viewerId}
+               and r.created_at > coalesce((select read_at from mark), 'epoch'::timestamptz)
+          ) t
+        `)
+      : Promise.resolve({ rows: [] as { pid: string }[] })
   ]);
 
   // See the note on the read: a set, because the question is membership.
@@ -224,6 +266,10 @@ export async function GET(
    * answering it.
    */
   const keptIds = new Set(kept.map((row) => row.photoId));
+  // `db.execute` answers differently across drivers; both shapes are an array.
+  const unseenIds = new Set(
+    (((unseenRows as any)?.rows ?? unseenRows ?? []) as { pid: string }[]).map((r) => r.pid),
+  );
 
   const contributors = people.length;
   const arriving = pendingRows[0]?.n ?? 0;
@@ -334,6 +380,11 @@ export async function GET(
        * they are in.
        */
       favourite: keptIds.has(photo.id),
+      /*
+       * Something somebody else added since this viewer last opened the
+       * conversation. False for a guest, who has no marker and no ring.
+       */
+      unseen: unseenIds.has(photo.id),
     })),
   );
 

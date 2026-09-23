@@ -257,7 +257,15 @@ function EventCard({
    * the "+N" tile land on the grid, and a tile in the strip lands on the
    * photograph it is a picture of.
    */
-  onOpen: (photo?: string) => void;
+  /**
+   * Open the album — at a photograph, or on one of its panes.
+   *
+   * The third argument is what the line under the strip needs: a comment on
+   * the card is a pointer at a conversation, and pressing it should land in
+   * the conversation rather than at the top of the album with the reader left
+   * to find the tab.
+   */
+  onOpen: (photo?: string, pane?: 'photos' | 'talk' | 'people') => void;
   /**
    * The byline, which is a person and should behave like one.
    *
@@ -745,19 +753,51 @@ function EventCard({
         no reactions says nothing here beyond the comment itself.
       */}
       {said && (
+        /*
+          A bubble, because it is somebody's words and not the card's.
+
+          It read as a stray name and a stray sentence — the card's own voice
+          saying something it had no business saying. A speech shape says who
+          is talking before anybody reads a word of it, and once it is a shape
+          it is obviously a thing to press.
+
+          Squared rather than the usual rounded pill: a message bubble with a
+          tail is a message, and this is a *pointer at* a conversation rather
+          than a line of it. A 10pt corner is enough to be a bubble and not so
+          much that it claims to be the thread.
+
+          Nested inside the card's own `Pressable`, which is what makes both
+          work: the inner one takes the touch when it lands on the bubble and
+          the outer one takes everything else. The card still opens the album;
+          this opens the album at its conversation.
+        */
         <View style={styles.talk}>
-          {event.lastMessage && (
-            <Text style={[styles.talkLine, { color: t.fg }]} numberOfLines={1}>
-              <Text style={styles.talkWho}>{event.lastMessage.author}</Text>
-              {'  '}
-              {event.lastMessage.body}
-            </Text>
-          )}
-          {said !== true && (
-            <Text style={[styles.talkMore, { color: t.dim }]} numberOfLines={1}>
-              {said}
-            </Text>
-          )}
+          <Pressable
+            onPress={() => onOpen(undefined, 'talk')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              event.lastMessage
+                ? `${event.lastMessage.author} said ${event.lastMessage.body}. Open the conversation`
+                : 'Open the conversation'
+            }
+            style={({ pressed }) => [
+              styles.bubble,
+              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            {event.lastMessage && (
+              <Text style={[styles.talkLine, { color: t.fg }]} numberOfLines={2}>
+                <Text style={styles.talkWho}>{event.lastMessage.author}</Text>
+                {'  '}
+                {event.lastMessage.body}
+              </Text>
+            )}
+            {said !== true && (
+              <Text style={[styles.talkMore, { color: t.dim }]} numberOfLines={1}>
+                {said}
+              </Text>
+            )}
+          </Pressable>
         </View>
       )}
     </Pressable>
@@ -3083,7 +3123,23 @@ const styles = StyleSheet.create({
   blankNote: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
   /* Under the strip, inside the card's own gutter: this is words about the
      photographs rather than another row of them. */
-  talk: { paddingHorizontal: 14, paddingTop: 10, gap: 2 },
+  talk: { paddingHorizontal: 14, paddingTop: 10 },
+  /*
+   * The bubble: a hairline box with a corner, and no tail.
+   *
+   * `alignSelf: 'flex-start'` so it is the width of what is in it rather than
+   * the width of the card — a full-bleed box is a panel, and a panel is the
+   * card talking rather than somebody in it.
+   */
+  bubble: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    gap: 2,
+  },
   /* One line, and it truncates rather than wrapping — the card is a summary
      and a paragraph in it is the thread. */
   talkLine: { fontSize: 14.5, lineHeight: 20 },

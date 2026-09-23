@@ -616,7 +616,9 @@ describe('the line under the strip', () => {
     expect(EVENTS).toMatch(/\{event\.lastMessage\.body\}/);
     // One line, truncated: the card is a summary and a paragraph in it is the
     // thread.
-    expect(EVENTS).toMatch(/styles\.talkLine, \{ color: t\.fg \}\]\} numberOfLines=\{1\}/);
+    // Two lines in the bubble, not one: a box that clips mid-sentence reads
+    // as broken where a bare line reads as trimmed.
+    expect(EVENTS).toMatch(/styles\.talkLine, \{ color: t\.fg \}\]\} numberOfLines=\{2\}/);
   });
 
   it('counts the rest, not the one already on screen', () => {
@@ -667,5 +669,70 @@ describe('the line under the strip', () => {
     expect(LISTINGS).toMatch(/from "event_message" m[\s\S]{0,120}m\.deleted_at is null/);
     // And a reaction names a picture rather than an album, so this one joins.
     expect(LISTINGS).toMatch(/from "photo_reaction" r\s*\n\s*join "photo" p on p\.id = r\.photo_id/);
+  });
+});
+
+describe('the bubble', () => {
+  it('is a shape, because it is somebody else’s voice', () => {
+    /*
+     * It read as a stray name and a stray sentence — the card's own voice
+     * saying something it had no business saying. A speech shape says who is
+     * talking before anybody reads a word of it.
+     */
+    expect(EVENTS).toMatch(/borderWidth: 1,\s*borderRadius: 10,/);
+    // Squared rather than a pill, and the width of its contents rather than
+    // the width of the card: a full-bleed box is a panel, and a panel is the
+    // card talking rather than somebody in it.
+    expect(EVENTS).toMatch(/alignSelf: 'flex-start'/);
+  });
+
+  it('opens the conversation rather than the album', () => {
+    // A comment on a card is a pointer at a thread; landing at the top of the
+    // album leaves the reader to find the tab.
+    expect(EVENTS).toMatch(/onPress=\{\(\) => onOpen\(undefined, 'talk'\)\}/);
+    expect(EVENTS).toMatch(/onOpen: \(photo\?: string, pane\?: 'photos' \| 'talk' \| 'people'\) => void;/);
+    const APP2 = read('App.tsx');
+    expect(APP2).toMatch(/\(event: EventListing, photo\?: string, pane\?: Pane\)/);
+  });
+
+  it('leaves the card opening the album, as it always did', () => {
+    // Nested inside the `Pressable` that was already there: the inner one
+    // takes the touch on the bubble, the outer one takes everything else.
+    const card = EVENTS.slice(EVENTS.indexOf('function EventCard'), EVENTS.indexOf('function emptyLine'));
+    expect(card).toMatch(/<Pressable onPress=\{\(\) => onOpen\(\)\}/);
+  });
+});
+
+describe('a photograph with something new on it', () => {
+  it('wears a ring, drawn inside its own tile', () => {
+    /*
+     * A border on the tile would move every picture beside it by a point and
+     * a half the moment somebody commented. This is laid over the photograph
+     * instead, so the grid's geometry never changes.
+     */
+    const APP2 = read('App.tsx');
+    expect(APP2).toMatch(/\{item\.unseen && \(/);
+    expect(APP2).toMatch(/gridNew: \{\s*position: 'absolute',\s*top: 0,/);
+    expect(APP2).toMatch(/borderColor: '#fff'/);
+  });
+
+  it('counts somebody else’s, since the reader last opened the thread', () => {
+    /*
+     * A mark that lights up on your own comment teaches people the mark means
+     * nothing. And no marker at all means everything counts, which is right:
+     * somebody who has never opened the conversation has seen none of it.
+     */
+    const FEED = read('../../apps/web/app/api/events/[id]/photos/route.ts');
+    expect(FEED).toMatch(/m\.author_actor_id <> \$\{viewerId\}/);
+    expect(FEED).toMatch(/r\.actor_id <> \$\{viewerId\}/);
+    expect(FEED).toMatch(/coalesce\(\(select read_at from mark\), 'epoch'::timestamptz\)/);
+  });
+
+  it('is one marker for comments and reactions, because they share a thread', () => {
+    // Comments on photographs are messages with a photo id, and the read
+    // marker is the album's. There is no second thing to have read.
+    const FEED = read('../../apps/web/app/api/events/[id]/photos/route.ts');
+    expect(FEED).toMatch(/from "event_thread_read"/);
+    expect(FEED).toMatch(/union/);
   });
 });
