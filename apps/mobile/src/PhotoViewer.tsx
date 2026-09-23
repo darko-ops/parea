@@ -689,11 +689,28 @@ export function PhotoViewer({
               drifts as the buttons change size.
             */}
             {uploader && (
+              /*
+                Two views, and the outer one must not take a touch.
+                *
+                * This was one absolutely positioned `Pressable` spanning
+                * `left: 0` to `right: 0` — which is a full-width target lying
+                * over both corner buttons, painted after them because it is
+                * later in the tree. So the ✕ opened this person's profile
+                * instead of closing the photograph, and the way out of the
+                * viewer was a door into somewhere else entirely.
+                *
+                * The centring has to be full width — it is centred on the
+                * screen rather than on the gap between two buttons, which are
+                * different centres — so the fix is to split the two jobs.
+                * This view does the placing and declines every touch;
+                * the pressable inside it is only as wide as the face and the
+                * handle, which is the only part that should answer to one.
+               */
+              <View style={styles.who} pointerEvents="box-none">
               <Pressable
-                style={styles.who}
+                style={styles.whoTap}
                 // A label, not a control, for somebody with no profile behind
-                // it. `box-none` either way, so the glass underneath still
-                // takes the taps that are about the photograph.
+                // it.
                 onPress={
                   uploader.handle ? () => onOpenPerson(uploader.handle!) : undefined
                 }
@@ -727,6 +744,7 @@ export function PhotoViewer({
                   {uploader.handle ?? uploader.name}
                 </Text>
               </Pressable>
+              </View>
             )}
 
             <Pressable
@@ -963,7 +981,18 @@ const styles = StyleSheet.create({
    * spacing two buttons apart: laid out as a third flex child it would sit in
    * the middle of what those two leave, which moves whenever either does.
    */
-  who: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 4 },
+  /*
+   * The placing, which takes no touches at all.
+   *
+   * Full width, because the square is centred on the screen and not on the
+   * gap between the two buttons — with `space-between` those are different
+   * centres, and the second drifts as the buttons change size. Full width is
+   * also what put an invisible target over the ✕, so this half is
+   * `pointerEvents="box-none"` and only the pressable inside it answers.
+   */
+  who: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  /* And the target, which is the size of what it is drawn around. */
+  whoTap: { alignItems: 'center', gap: 4 },
   /* A square with the corner this product gives every face — a quarter of the
      box — at the size the album's own tiles draw one. */
   whoFace: { width: 34, height: 34, borderRadius: 9, backgroundColor: '#ffffff24' },

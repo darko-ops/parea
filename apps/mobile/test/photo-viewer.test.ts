@@ -610,7 +610,7 @@ describe('whose photograph it is', () => {
      * buttons — with `space-between` those are different centres, and the
      * second drifts as the buttons change size.
      */
-    expect(GESTURE).toMatch(/who: \{ position: 'absolute', left: 0, right: 0, alignItems: 'center'/);
+    expect(GESTURE).toMatch(/who: \{ position: 'absolute', left: 0, right: 0, alignItems: 'center' \}/);
     // A square, like the faces on the tiles: a disc here would be the one
     // round face in a product whose photographs all have corners.
     expect(GESTURE).toMatch(/whoFace: \{ width: 34, height: 34, borderRadius: 9/);
@@ -743,5 +743,34 @@ describe('one page of the pager', () => {
   it('does not crossfade, because a page holds one picture for its life', () => {
     expect(GESTURE).toMatch(/transition=\{0\}/);
     expect(GESTURE).not.toMatch(/transition=\{120\}[\s\S]{0,200}photo\.full/);
+  });
+});
+
+describe('the way out of a photograph', () => {
+  /*
+   * The ✕ opened the uploader's profile.
+   *
+   * The square naming them is centred on the screen rather than on the gap
+   * between the two corner buttons — those are different centres, and the
+   * second drifts as the buttons change size — so it is positioned across the
+   * full width. It was also the pressable, which made it a full-width target
+   * lying over both buttons, painted above them because it comes later in the
+   * tree. Pressing ✕ pressed it.
+   *
+   * The two jobs are split: one view places, the other answers to a touch.
+   */
+  it('closes rather than opening the person who added it', () => {
+    // The placing takes no touches.
+    expect(GESTURE).toMatch(/<View style=\{styles\.who\} pointerEvents="box-none">/);
+    // The target is the size of what is drawn inside it, not of the row.
+    expect(GESTURE).toMatch(/whoTap: \{ alignItems: 'center', gap: 4 \}/);
+    const tap = GESTURE.slice(GESTURE.indexOf('whoTap: {'));
+    expect(tap.slice(0, tap.indexOf('\n'))).not.toMatch(/position: 'absolute'|left: 0|right: 0/);
+  });
+
+  it('keeps the close button reachable at all', () => {
+    // It is the first thing in the row and the only one that leaves.
+    expect(GESTURE).toMatch(/accessibilityLabel="Close"[\s\S]{0,120}✕/);
+    expect(GESTURE).toMatch(/onPress=\{onClose\}/);
   });
 });
