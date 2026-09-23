@@ -28,7 +28,7 @@
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -2377,12 +2377,46 @@ export function AccountCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * Who this device already is, and — for a gate — telling the caller so.
+   *
+   * A gate renders nothing once there is an account, which is right when the
+   * caller is standing in front of an upload and wrong when the caller put
+   * the gate up because it believed there was no account. Those two disagree
+   * whenever the caller's answer is staler than this one, and the screen that
+   * results is empty: no card, because there is an account, and no content,
+   * because the caller is still waiting to be told there is.
+   *
+   * That is exactly what a cold start did to the tab gate. So discovering an
+   * account is reported the same way arriving at one is — a gate that finds
+   * somebody already signed in says so, and the caller replaces it with the
+   * thing it was standing in front of.
+   *
+   * Only for `gate`. The profile draws this card signed in as well as signed
+   * out, and calling back on every mount there would refetch the tab each
+   * time it was looked at.
+   */
+  /*
+   * Held in a ref so the effect below can call it without listing it.
+   *
+   * Every caller passes an inline arrow, so the prop has a new identity on
+   * each render — in the dependency array it would re-run the effect every
+   * render, which is a request to `/api/account/session` per frame.
+   */
+  const announce = useRef(onSignedIn);
+  announce.current = onSignedIn;
+
   useEffect(() => {
     void api
       .account()
-      .then(setAccount)
+      .then((found) => {
+        setAccount(found);
+        // See the note above: a gate that finds an account must say so, or
+        // the caller keeps the gate up over a card that draws nothing.
+        if (found && gate) announce.current();
+      })
       .catch(() => setAccount(null));
-  }, [api]);
+  }, [api, gate]);
 
   const request = useCallback(async () => {
     setBusy(true);

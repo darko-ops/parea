@@ -467,9 +467,31 @@ export default function App() {
     setSignedIn(await api.account().then((a) => a !== null).catch(() => false));
   }, [api]);
 
+  /*
+   * After the token is on the client, never before it.
+   *
+   * This ran on mount, and mount effects run in declaration order — so
+   * `api.account()` went out ahead of the `api.setToken` two hundred lines
+   * below, which is itself behind an `await` on the keychain. The request
+   * therefore carried no bearer token on every cold start, the server
+   * answered `{ account: null }` because it correctly had no idea who was
+   * asking, and the launch answer was `false` for everybody, signed in or
+   * not.
+   *
+   * It was survivable while this only decided whether making an album needed
+   * a sign-in first — that flow re-asks on entry, which is what the note
+   * below is about, and it patched the symptom. Once it gated all four tabs
+   * it was a black screen: the gate drew, its own card asked again *with* the
+   * token, found the account, and in gate mode a card with an account renders
+   * nothing at all. An empty screen with no way off it.
+   *
+   * `ready` is set in the same statement sequence as the token, so keying on
+   * it is what makes "who is this device" a question asked after the device
+   * has its credentials rather than a race against them.
+   */
   useEffect(() => {
-    void refreshAccount();
-  }, [refreshAccount]);
+    if (ready) void refreshAccount();
+  }, [ready, refreshAccount]);
 
   /**
    * Asked again on the way into making an album.

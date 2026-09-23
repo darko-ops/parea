@@ -73,6 +73,48 @@ describe('the tabs need an account', () => {
     expect(APP).toMatch(/const arrival = arrivalFromUrl\(url\);/);
   });
 
+  it('does not ask who the device is before it has its token', () => {
+    /*
+     * The bug that made this gate a black screen, and it was not in the gate.
+     *
+     * `refreshAccount` ran on mount. Mount effects run in declaration order,
+     * so `api.account()` went out ahead of the `api.setToken` in the bootstrap
+     * effect below it — which is itself behind an `await` on the keychain. So
+     * the request carried no bearer token on any cold start, the server
+     * answered `{ account: null }` because nothing identified the caller, and
+     * the launch answer was `false` for everybody.
+     *
+     * Survivable while it only decided whether making an album needed a
+     * sign-in; fatal once it decided whether the app drew at all.
+     */
+    expect(APP).toMatch(/useEffect\(\(\) => \{\s*\n\s*if \(ready\) void refreshAccount\(\);\s*\n\s*\}, \[ready, refreshAccount\]\);/);
+    // And `ready` is still set in the same run as the token, which is what
+    // makes keying on it mean "after the credentials are in hand".
+    const boot = APP.slice(APP.indexOf('const token = await loadActorToken();'));
+    const head = boot.slice(0, boot.indexOf('setReady(true);'));
+    expect(head).toMatch(/api\.setToken\(token\)/);
+  });
+
+  it('never leaves a gate standing over a card that draws nothing', () => {
+    /*
+     * The other half. A gate renders nothing once there is an account, so a
+     * caller holding a stale `false` shows an empty screen: no card, because
+     * there is an account, and no content, because the caller does not know.
+     * Discovery is reported now, the same way arrival is.
+     */
+    const card = EVENTS.slice(EVENTS.indexOf('export function AccountCard'));
+    expect(card).toMatch(/if \(found && gate\) announce\.current\(\);/);
+  });
+
+  it('does not refetch the account once per render', () => {
+    // Every caller passes an inline arrow, so the callback has a new identity
+    // each render — in the dependency array that is one request per frame.
+    const card = EVENTS.slice(EVENTS.indexOf('export function AccountCard'));
+    const effect = card.slice(card.indexOf('void api\n      .account()'));
+    expect(card).toMatch(/const announce = useRef\(onSignedIn\);/);
+    expect(effect.slice(0, effect.indexOf('\n\n'))).toMatch(/\}, \[api, gate\]\);/);
+  });
+
   it('discards whatever the tabs were holding on the way in', () => {
     // Signing in is a change of identity; see `identity` in App.tsx.
     const gate = APP.slice(APP.indexOf("route.screen === 'tabs' && signedIn !== true"));
