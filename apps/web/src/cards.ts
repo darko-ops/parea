@@ -88,6 +88,8 @@ export type CardEvent = {
   memberCount: number;
   /** Uploaded and still being processed. Drives the "still coming in" label. */
   arrivingCount: number;
+  messageCount: number;
+  reactionCount: number;
   /** ISO. Used to decide whether an event is live enough to lead the page. */
   lastActiveAt: string;
   /**
@@ -234,6 +236,10 @@ export async function toCards(
         contributorCount: listing.contributorCount,
         memberCount: listing.memberCount,
         arrivingCount: listing.arrivingCount,
+        // What the card's foot says, under the strip: the newest thing said,
+        // and how much else there is.
+        messageCount: listing.messageCount,
+        reactionCount: listing.reactionCount,
         lastActiveAt: listing.lastActiveAt,
         linkToken: listing.linkToken,
       };

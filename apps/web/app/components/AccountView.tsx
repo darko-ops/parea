@@ -48,6 +48,8 @@ type EventListing = {
   contributorCount: number;
   /** Uploaded and not yet through the deriver. */
   arrivingCount: number;
+  messageCount: number;
+  reactionCount: number;
   photoCount: number;
   /** The one image the card draws, at the size it draws it. See `toCards`. */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
@@ -404,6 +406,8 @@ export function AccountView() {
                 contributorCount: event.contributorCount,
                 memberCount: event.memberCount,
                 arrivingCount: event.arrivingCount,
+                messageCount: event.messageCount,
+                reactionCount: event.reactionCount,
                 lastActiveAt: event.lastActiveAt,
                 // Every card says when it was last added to now, rather than
                 // the first one saying it and the rest saying where they were.

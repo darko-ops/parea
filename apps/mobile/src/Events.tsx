@@ -447,6 +447,33 @@ function EventCard({
    * about the object model here would read as an off-by-one.
    */
   const rest = Math.max(0, event.photoCount - 1 - sheet.length);
+
+  /**
+   * The line under the strip, or nothing.
+   *
+   * `true` means there is a comment to show and nothing else to add; a string
+   * is the "and the rest" line; `null` is a card that says nothing, which is
+   * most of them and is the point — a count of zero under every quiet album
+   * is a column of nothing, and it makes the albums people *have* talked in
+   * harder to pick out.
+   *
+   * The comment on screen is not in the number. `+` means "besides the one
+   * you can read", and "1 comment" printed under the only comment is the kind
+   * of thing that survives forever once it ships.
+   *
+   * Not a hook, deliberately. The empty-album return is above this, and a
+   * hook below an early return is one React refuses outright — see the note
+   * on `useWindowDimensions`. Two comparisons and a join buy nothing from
+   * being memoized anyway.
+   */
+  const said = ((): string | true | null => {
+    const others = Math.max(0, event.messageCount - (event.lastMessage ? 1 : 0));
+    const parts: string[] = [];
+    if (others > 0) parts.push(plural(others, 'comment'));
+    if (event.reactionCount > 0) parts.push(plural(event.reactionCount, 'reaction'));
+    if (parts.length > 0) return `+ ${parts.join(' and ')}`;
+    return event.lastMessage ? true : null;
+  })();
   const tile = sheetTile(width);
 
   /*
@@ -700,6 +727,36 @@ function EventCard({
                 <Text style={styles.sheetRestText}>+{rest}</Text>
               </View>
             </Pressable>
+          )}
+        </View>
+      )}
+
+      {/*
+        What has been said, under the photographs it was said about.
+
+        The card showed what an album holds and nothing about what happened in
+        it, so an evening five people had talked over read exactly like one
+        nobody had opened. One line of somebody's words does more to say an
+        album is alive than any count of them.
+
+        The newest first, in their words. The count underneath is the rest —
+        `+` means "and more besides the one you can read", which is why the
+        line already shown is not in the number. An album with one comment and
+        no reactions says nothing here beyond the comment itself.
+      */}
+      {said && (
+        <View style={styles.talk}>
+          {event.lastMessage && (
+            <Text style={[styles.talkLine, { color: t.fg }]} numberOfLines={1}>
+              <Text style={styles.talkWho}>{event.lastMessage.author}</Text>
+              {'  '}
+              {event.lastMessage.body}
+            </Text>
+          )}
+          {said !== true && (
+            <Text style={[styles.talkMore, { color: t.dim }]} numberOfLines={1}>
+              {said}
+            </Text>
           )}
         </View>
       )}
@@ -3024,6 +3081,16 @@ const styles = StyleSheet.create({
    */
   blank: { alignItems: 'center', gap: 14, paddingTop: 40 },
   blankNote: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  /* Under the strip, inside the card's own gutter: this is words about the
+     photographs rather than another row of them. */
+  talk: { paddingHorizontal: 14, paddingTop: 10, gap: 2 },
+  /* One line, and it truncates rather than wrapping — the card is a summary
+     and a paragraph in it is the thread. */
+  talkLine: { fontSize: 14.5, lineHeight: 20 },
+  /* The name carries the weight and the words carry the colour, which is how
+     a line of dialogue reads without a second size. */
+  talkWho: { fontWeight: '700' },
+  talkMore: { fontSize: 12.5, lineHeight: 17 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred

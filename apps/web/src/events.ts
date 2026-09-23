@@ -163,6 +163,10 @@ export type EventListing = {
    * apart on its own.
    */
   arrivingCount: number;
+  /** Everything said in the album, comments on its photographs included. */
+  messageCount: number;
+  /** Reactions on its photographs. */
+  reactionCount: number;
   lastActiveAt: string;
   /**
    * The earliest photograph in it, ISO, or null for an event with none.
@@ -286,6 +290,34 @@ export async function eventsFor(
         select count(*)::int from "photo" p
         where p.event_id = ${schema.events.id}
           and p.status = 'pending' and p.deleted_at is null
+      )`,
+      /*
+       * What has been said in the album, and what has been said about its
+       * photographs — one number, because from the outside they are one
+       * conversation. A comment on a picture *is* a message with that
+       * picture's id on it; there is no second table and no second count.
+       *
+       * Tombstones do not count. A deleted message leaves a row so the
+       * messages either side do not appear to answer each other, and counting
+       * it would put "3 comments" on a card whose third is gone.
+       */
+      messageCount: sql<number>`(
+        select count(*)::int from "event_message" m
+        where m.event_id = ${schema.events.id} and m.deleted_at is null
+      )`,
+      /*
+       * And the reactions on those photographs.
+       *
+       * Through `photo`, because a reaction names a picture rather than an
+       * album — so this is the only one of the four that has to join, and it
+       * is bounded by the same visibility the photo count uses. A reaction on
+       * a removed photograph is not a reaction anybody can see.
+       */
+      reactionCount: sql<number>`(
+        select count(*)::int from "photo_reaction" r
+        join "photo" p on p.id = r.photo_id
+        where p.event_id = ${schema.events.id}
+          and p.status = 'ready' and p.deleted_at is null
       )`,
       creatorName: schema.actors.displayName,
       creatorHandle: schema.actors.handle,

@@ -527,6 +527,17 @@ export type EventListing = {
    * the cover can draw and open.
    */
   mosaic: { id: string | null; src: string }[];
+  /**
+   * Everything said in the album, comments on its photographs included.
+   *
+   * One number, because from the outside they are one conversation: a comment
+   * on a picture *is* a message with that picture's id on it, and there is no
+   * second table to count. Tombstones are not in it — a deleted message
+   * leaves a row so the ones either side do not appear to answer each other.
+   */
+  messageCount: number;
+  /** Reactions on its photographs, and only on the ones anybody can see. */
+  reactionCount: number;
 } & ThreadLine;
 
 /** A group as a stranger sees it: a door, never the room. */

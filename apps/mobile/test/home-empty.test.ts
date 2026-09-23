@@ -600,3 +600,72 @@ describe('what a card dates an album by', () => {
   });
 });
 
+
+/**
+ * What was said, under the photographs it was said about.
+ *
+ * The card showed what an album holds and nothing about what happened in it,
+ * so an evening five people had talked over read exactly like one nobody had
+ * opened.
+ */
+describe('the line under the strip', () => {
+  it('leads with somebody’s words, not with a number', () => {
+    // One line of what was actually said does more to show an album is alive
+    // than any count of it.
+    expect(EVENTS).toMatch(/<Text style=\{styles\.talkWho\}>\{event\.lastMessage\.author\}<\/Text>/);
+    expect(EVENTS).toMatch(/\{event\.lastMessage\.body\}/);
+    // One line, truncated: the card is a summary and a paragraph in it is the
+    // thread.
+    expect(EVENTS).toMatch(/styles\.talkLine, \{ color: t\.fg \}\]\} numberOfLines=\{1\}/);
+  });
+
+  it('counts the rest, not the one already on screen', () => {
+    /*
+     * `+` means "besides the one you can read". "1 comment" printed under the
+     * only comment is the kind of thing that survives forever once it ships.
+     */
+    expect(EVENTS).toMatch(
+      /const others = Math\.max\(0, event\.messageCount - \(event\.lastMessage \? 1 : 0\)\)/,
+    );
+    expect(EVENTS).toMatch(/`\+ \$\{parts\.join\(' and '\)\}`/);
+  });
+
+  it('says nothing at all about a quiet album', () => {
+    /*
+     * A count of zero under every album is a column of nothing, and it makes
+     * the ones people have talked in harder to pick out. `null` is most
+     * cards.
+     */
+    expect(EVENTS).toMatch(/return event\.lastMessage \? true : null;/);
+    expect(EVENTS).toMatch(/\{said && \(/);
+    // And `true` is "a comment and nothing more to add", which draws the
+    // words without a line under them.
+    expect(EVENTS).toMatch(/\{said !== true && \(/);
+  });
+
+  it('is not a hook, because the empty-album return is above it', () => {
+    // A hook below an early return is one React refuses outright.
+    const card = EVENTS.slice(EVENTS.indexOf('function EventCard'), EVENTS.indexOf('function emptyLine'));
+    expect(card).toMatch(/const said = \(\(\): string \| true \| null => \{/);
+    // Comments stripped: the prose below the return mentions
+    // `useWindowDimensions` by name, and the rule is about calls.
+    const after = card
+      .slice(card.indexOf('if (event.photoCount === 0)'))
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(after).not.toMatch(/use[A-Z]\w*\(/);
+  });
+
+  it('counts both halves of one conversation, server-side', () => {
+    /*
+     * A comment on a picture *is* a message with that picture's id on it, so
+     * there is one number and one table. Tombstones are not in it: a deleted
+     * message leaves a row so the ones either side do not appear to answer
+     * each other.
+     */
+    const LISTINGS = read('../../apps/web/src/events.ts');
+    expect(LISTINGS).toMatch(/from "event_message" m[\s\S]{0,120}m\.deleted_at is null/);
+    // And a reaction names a picture rather than an album, so this one joins.
+    expect(LISTINGS).toMatch(/from "photo_reaction" r\s*\n\s*join "photo" p on p\.id = r\.photo_id/);
+  });
+});
