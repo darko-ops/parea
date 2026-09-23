@@ -49,4 +49,12 @@ COPY services/deriver services/deriver
 # environment at boot, where the answer actually lives.
 RUN PAREA_MODERATION=manual NODE_ENV=development npx tsx services/deriver/src/index.ts probe
 
+# The port `serve` listens on, and what `fly.toml` points `internal_port` at.
+EXPOSE 8080
+
+# `watch` rather than `serve` as the image default: running this container by
+# hand has no QStash in front of it, and `serve` refuses to start without
+# signing keys. Production does not use this line — `fly.toml` sets the
+# process — and the poll is still the right answer against a local database
+# nobody is billed for.
 CMD ["npx", "tsx", "services/deriver/src/index.ts", "watch"]

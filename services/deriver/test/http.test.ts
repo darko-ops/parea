@@ -15,6 +15,8 @@
 
 import { Receiver } from '@upstash/qstash';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -223,5 +225,43 @@ describe('the shape of a request', () => {
     expect(res.status).toBe(400);
     expect(res.nonRetryable).toBe(true);
     expect(asked).toEqual([]);
+  });
+});
+
+/**
+ * The one string that has to be identical in two places.
+ *
+ * QStash signs the destination into every token, so the deriver verifies
+ * against the URL the *sender* used. `DERIVER_JOB_URL` in the web app's
+ * environment and `DERIVER_PUBLIC_URL` in `fly.toml` are that URL written
+ * twice, and a mismatch does not degrade anything — it rejects every genuine
+ * delivery with a 401, which QStash retries and then sends to the dead letter
+ * queue. Nothing is derived and the logs say "bad signature", which points at
+ * the keys rather than at the URL.
+ */
+describe('where deliveries are sent and where they are expected', () => {
+  const read = (name: string) =>
+    readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
+
+  it('are the same URL in the app config and the machine config', () => {
+    const sends = /^DERIVER_JOB_URL=(.+)$/m.exec(read('../../../apps/web/.env.example'));
+    const expects = /DERIVER_PUBLIC_URL = "(.+)"/.exec(read('../fly.toml'));
+
+    expect(sends?.[1], 'DERIVER_JOB_URL missing from .env.example').toBeTruthy();
+    expect(expects?.[1], 'DERIVER_PUBLIC_URL missing from fly.toml').toBeTruthy();
+    expect(sends![1]).toBe(expects![1]);
+  });
+
+  it('name the path the server actually serves', () => {
+    // Three ways to write the same route, and only one of them is executable.
+    const expects = /DERIVER_PUBLIC_URL = "(.+)"/.exec(read('../fly.toml'))?.[1];
+    expect(expects).toBeTruthy();
+    expect(new URL(expects!).pathname).toBe(JOB_PATH);
+  });
+
+  it('point at the port the container exposes', () => {
+    const internal = /internal_port = (\d+)/.exec(read('../fly.toml'))?.[1];
+    expect(internal).toBeTruthy();
+    expect(read('../Dockerfile')).toContain(`EXPOSE ${internal}`);
   });
 });

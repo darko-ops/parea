@@ -20,6 +20,7 @@
     "@parea/urls": "*",
     "@parea/zip": "*",
     "@sentry/nextjs": "^10.70.0",
+    "@upstash/qstash": "^2.11.3",
     "drizzle-orm": "^0.45.2",
     "next": "^16.3.0",
     "postgres": "^3.4.9",

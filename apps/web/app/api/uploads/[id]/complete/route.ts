@@ -36,6 +36,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { currentActorId, requesterFor } from '@/session';
+import { publishDerive } from '@/queue';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -104,6 +105,32 @@ export async function POST(
     .update(schema.events)
     .set({ lastActiveAt: new Date() })
     .where(eq(schema.events.id, event.id));
+
+  /*
+   * And tell the deriver, because nothing else is looking.
+   *
+   * It used to poll for `pending` rows every five seconds, which found this
+   * one whether or not anybody said anything — and that poll is what kept a
+   * Neon compute awake around the clock until a month's quota was gone. The
+   * cost was the asking, not the answering.
+   *
+   * Awaited, and a failure fails the request. Under the poll a dropped
+   * wake-up cost nothing; now it is a photograph that is never derived and
+   * never reported. This endpoint is safe to call again — it re-heads storage
+   * and rewrites the same timestamp — so failing is a retry the uploader can
+   * see, where answering 200 and hoping is a queue less reliable than the loop
+   * it replaced.
+   *
+   * `not-configured` is development, where `deriver watch` still polls a
+   * database nobody is billed for. In production `env.ts` reports the missing
+   * variable and the health check says so.
+   */
+  try {
+    await publishDerive(photo.id);
+  } catch (err) {
+    console.error(`could not queue ${photo.id} for deriving:`, err);
+    return NextResponse.json({ error: 'queue_unavailable' }, { status: 503 });
+  }
 
   return NextResponse.json({ id: photo.id, status: 'pending', size: head.size });
 }

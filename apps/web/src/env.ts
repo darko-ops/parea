@@ -111,6 +111,23 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'QSTASH_TOKEN',
+      present: has('QSTASH_TOKEN'),
+      // Without it `complete` answers 503 and the upload is refused, which is
+      // deliberate: the deriver no longer polls, so a photo nobody announced
+      // is a photo nobody derives. Loud beats stranded.
+      consequence: 'uploads cannot be queued for deriving, and are refused',
+      requiredInProduction: true,
+    },
+    {
+      name: 'DERIVER_JOB_URL',
+      present: has('DERIVER_JOB_URL'),
+      // Paired with the token: configured to publish with nowhere to publish
+      // to is the one combination that looks live and strands every photo.
+      consequence: 'queued work has no destination; uploads are refused',
+      requiredInProduction: true,
+    },
+    {
       name: 'MAIL_PROVIDER',
       // Not "is it set" — unset is fine and means the default. This reports
       // whether the mailer can be *built*, so the answer is false only when
