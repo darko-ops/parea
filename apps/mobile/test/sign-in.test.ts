@@ -157,3 +157,36 @@ describe('the card still says what it always said', () => {
     expect(CARD).toMatch(/textContentType="oneTimeCode"/);
   });
 });
+
+describe('a refused attempt is not a refused code', () => {
+  /*
+   * Both routes answer 429 when this source has spent its allowance, and the
+   * card used to fold that into the sentence for a wrong code. It is the one
+   * refusal where "try again" is advice that cannot work, and the person is
+   * usually holding a perfectly good code while being told it expired — so
+   * they ask for another, spend more of the allowance, and are told the same
+   * thing again. The server's own note calls the 429 the one answer here that
+   * describes the caller rather than any address, which is what makes it safe
+   * to repeat out loud.
+   */
+  it('says so when the code could not even be tried', () => {
+    const verify = CARD.slice(CARD.indexOf('const verify'), CARD.indexOf('const signOut'));
+    expect(verify).toMatch(/err instanceof ApiError && err\.code === 'too_many_requests'/);
+    expect(verify).toMatch(/Wait an hour/);
+    // And still says the old thing for a code that was simply wrong.
+    expect(verify).toMatch(/That code did not work/);
+  });
+
+  it('says so when no more codes will be sent', () => {
+    const request = CARD.slice(CARD.indexOf('const request'), CARD.indexOf('const verify'));
+    expect(request).toMatch(/err instanceof ApiError && err\.code === 'too_many_requests'/);
+    expect(request).toMatch(/Try again in an hour/);
+  });
+
+  it('warns that asking again is what stops the mail', () => {
+    // The trap is silent on the server by design — a distinguishable "that
+    // address has had enough" would answer the question the endpoint refuses
+    // to answer — so the only place it can be said is in general, here.
+    expect(CARD).toMatch(/Asking over and over\s+stops the mail for an hour/);
+  });
+});

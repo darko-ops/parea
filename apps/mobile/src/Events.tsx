@@ -43,6 +43,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { ApiError } from './api';
 import type {
   Api,
   Cluster,
@@ -2407,10 +2408,21 @@ export function AccountCard({
     try {
       await api.requestSignIn(email.trim());
       setSent(true);
-    } catch {
-      // The server answers the same however it went, so the only thing that
-      // can be reported here is that the request itself did not land.
-      setError('Could not ask for a code. Try again in a moment.');
+    } catch (err) {
+      /*
+       * One exception to "the server answers the same however it went".
+       *
+       * A 429 describes this caller, who already knows how many times they
+       * have pressed the button, and says nothing about any address — so it
+       * is the one refusal that can be repeated honestly. Folding it into
+       * "try again in a moment" sent people back to press it again, which is
+       * the one thing that could not help.
+       */
+      setError(
+        err instanceof ApiError && err.code === 'too_many_requests'
+          ? 'Too many codes asked for from here. Try again in an hour.'
+          : 'Could not ask for a code. Try again in a moment.',
+      );
     } finally {
       setBusy(false);
     }
@@ -2450,8 +2462,21 @@ export function AccountCard({
         );
       }
       onSignedIn();
-    } catch {
-      setError('That code did not work. Codes expire after ten minutes.');
+    } catch (err) {
+      /*
+       * A refused code and a refused *attempt* are different sentences.
+       *
+       * They used to be the same one, and it was the wrong one at exactly the
+       * wrong moment: somebody holding a good code was told it had not worked,
+       * so they asked for another — spending the allowance again — and were
+       * told the same thing about that one. Nothing in the message pointed at
+       * waiting, which was the only thing that would have helped.
+       */
+      setError(
+        err instanceof ApiError && err.code === 'too_many_requests'
+          ? 'Too many tries from here. Wait an hour, then use the code you have.'
+          : 'That code did not work. Codes expire after ten minutes.',
+      );
     } finally {
       setBusy(false);
     }
@@ -2597,7 +2622,8 @@ export function AccountCard({
       {sent && (
         <Text style={[styles.small, { color: t.dim }]}>
           Sent, if that address is one we can reach. It works once and expires
-          in ten minutes — check spam if it is not there.
+          in ten minutes — check spam if it is not there. Asking over and over
+          stops the mail for an hour, so use the last one that arrived.
         </Text>
       )}
     </View>

@@ -81,6 +81,12 @@ export function SignIn({
         body: JSON.stringify({ email }),
       });
       if (res.status === 400) throw new Error('That does not look like an email address.');
+      // A 429 describes this caller and no address, so it is the one refusal
+      // here that can be repeated honestly — and the only one where "try again
+      // in a moment" is advice that cannot work.
+      if (res.status === 429) {
+        throw new Error('Too many codes asked for from here. Try again in an hour.');
+      }
       if (!res.ok) throw new Error('Could not ask for a code. Try again in a moment.');
       setStage('code');
     } catch (err) {
@@ -99,6 +105,11 @@ export function SignIn({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, code }),
       });
+      if (res.status === 429) {
+        // Not the same sentence as a bad code: somebody holding a good one was
+        // told it had failed, and asked for another they could not have.
+        throw new Error('Too many tries from here. Wait an hour, then use the code you have.');
+      }
       if (!res.ok) {
         throw new Error('That code did not work. Codes expire after ten minutes.');
       }

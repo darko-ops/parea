@@ -11,7 +11,7 @@ import { NextResponse } from 'next/server';
 
 import { accountFor, consumeCode, signIn } from '@/accounts';
 import { getDb } from '@/db';
-import { SIGN_IN_LIMIT, withinLimit } from '@/ratelimit';
+import { SIGN_IN_VERIFY_LIMIT, withinLimit } from '@/ratelimit';
 import {
   actorToken,
   currentActorId,
@@ -63,7 +63,10 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  if (!(await withinLimit(db, SIGN_IN_LIMIT, process.env.SESSION_SECRET))) {
+  // Not `SIGN_IN_LIMIT`, which is the budget for *sending* mail. Presenting a
+  // code sends none, and sharing one bucket meant a few requests spent the
+  // allowance for answering them. See the note on the limit.
+  if (!(await withinLimit(db, SIGN_IN_VERIFY_LIMIT, process.env.SESSION_SECRET))) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
 
