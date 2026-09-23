@@ -38,6 +38,25 @@ import { Client } from '@upstash/qstash';
 
 export type PublishResult = 'published' | 'not-configured';
 
+/**
+ * What QStash will accept as a deduplication id.
+ *
+ * Narrower than the documented rule on purpose. The rule that bit was "cannot
+ * contain ':'", and a fix that removed exactly the colon would be a fix
+ * against one example of a constraint nobody here can see — the next
+ * separator somebody reaches for is as likely to be refused as the last one.
+ *
+ * So the key is built rather than interpolated, and anything outside
+ * `[A-Za-z0-9_-]` becomes a hyphen. Photo ids are UUIDs and survive that
+ * untouched, which means this is a guard rather than a transformation: it
+ * exists so that a future caller passing something stranger cannot strand
+ * every upload, and so there is one place to put the rule and one test to
+ * hold it.
+ */
+export function deduplicationKey(photoId: string): string {
+  return `derive-${photoId}`.replace(/[^A-Za-z0-9_-]/g, '-');
+}
+
 let client: Client | null = null;
 
 function queue(): Client | null {
@@ -103,8 +122,21 @@ export async function publishDerive(photoId: string): Promise<PublishResult> {
      * — to one delivery. It is not a guarantee, and the deriver does not rely
      * on it: `processPhoto` returns early on a photo that is already ready,
      * and the handler refuses a second delivery that overlaps the first.
+     *
+     * A hyphen, not a colon. QStash refuses a deduplication id containing one
+     * — `{"error":"DeduplicationId cannot contain ':'"}` — and it refuses it
+     * at publish time, which is inside the `try` in `complete`. So every
+     * upload after this feature shipped ended the same way: the bytes reached
+     * storage, `complete` threw, the row never got its `bytesAt`, the deriver
+     * will not claim a row without one, and the photograph stayed 'pending'
+     * forever while the client retried a request that could not ever succeed.
+     * An album with a cover and nothing in it.
+     *
+     * `deduplicationKey` below is what keeps that from being expressible
+     * again: the rule is in one function with a test against it, rather than
+     * in a template literal nobody can see is wrong.
      */
-    deduplicationId: `derive:${photoId}`,
+    deduplicationId: deduplicationKey(photoId),
   });
 
   return 'published';
