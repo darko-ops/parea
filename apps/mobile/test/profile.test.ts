@@ -211,7 +211,10 @@ describe('the header picture', () => {
      * the shape has.
      */
     expect(PROFILE).toMatch(/tabBlank: \{ alignItems: 'center', justifyContent: 'center' \}/);
-    expect(PROFILE).toMatch(/styles\.tabFill, styles\.tabBlank, \{ backgroundColor: lens\.fill \}/);
+    // The lens is on the tab now rather than on the letter's box — see
+    // `tabBack`, which is what keeps the cap and the panel one colour.
+    expect(PROFILE).toMatch(/styles\.tabFill, styles\.tabBlank\]/);
+    expect(PROFILE).toMatch(/: lens\.fill;/);
     expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 

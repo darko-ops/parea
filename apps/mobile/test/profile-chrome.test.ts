@@ -292,7 +292,14 @@ describe('the tab that hangs from the top', () => {
      */
     const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
     expect(tab.indexOf('styles.cap')).toBeLessThan(tab.indexOf('styles.shot'));
-    expect(PROFILE).toMatch(/const CAP_H = 54;/);
+    expect(PROFILE).toMatch(/const CAP_H = 72;/);
+    /*
+     * 72 and not 54. The island ends at about 54, and a picture whose top
+     * edge is exactly where the cutout ends reads as having only just got out
+     * of the way — the extra eighteen points are the difference between
+     * clearing it and looking like it cleared it. It is also the allowance
+     * every scroll in this project already starts at.
+     */
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -326,5 +333,20 @@ describe('the tab that hangs from the top', () => {
     // An empty tab dropping in before there is anything to put in it is the
     // page arriving twice.
     expect(PROFILE).toMatch(/\{account !== undefined && \(/);
+  });
+});
+
+describe('the tab is one object', () => {
+  it('paints the cap and the panel from one value', () => {
+    /*
+     * They are two views, and a tab that is two colours is two objects. What
+     * is behind the photograph is what the strip above it is: the lens for
+     * somebody with no picture, the line colour while a picture decodes.
+     */
+    expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
+    expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.shot, \{ backgroundColor: tabBack \}/);
+    // And nothing paints its own: a second source is how they drift.
+    expect(PROFILE).not.toMatch(/backgroundColor: t\.card \}\] \/>/);
   });
 });

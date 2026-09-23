@@ -83,13 +83,18 @@ import { Waiting } from './Waiting';
  * it cannot be allowed to happen. So the container still hangs from the
  * physical top edge, and the picture starts below this.
  *
- * 54 rather than a measured inset because this project carries no safe-area
+ * 72 rather than a measured inset because this project carries no safe-area
  * library: every screen here starts at a fixed allowance — 72 on the scrolls,
- * 62 for the corner discs — and this is that same kind of number for the one
- * device feature that eats content.
+ * 62 for the corner discs — and this is that same number for the one device
+ * feature that eats content.
+ *
+ * It was 54, which is the island and nothing more, and a picture whose top
+ * edge is exactly where the cutout ends reads as having only just got out of
+ * the way. The extra eighteen points are the difference between clearing it
+ * and looking like it cleared it.
  */
 const TAB_W = 172;
-const CAP_H = 54;
+const CAP_H = 72;
 /** The picture itself, entirely below the cap. */
 const PHOTO_H = 140;
 const TAB_H = CAP_H + PHOTO_H;
@@ -278,6 +283,17 @@ export function ProfileScreen({
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
+  /**
+   * What the tab is made of, behind the picture.
+   *
+   * One value used twice, which is the point: the cap and the panel are two
+   * views, and a tab that is two colours is two objects. Whatever sits behind
+   * the photograph is what the strip above it is — the lens for somebody with
+   * no picture, and the line colour for somebody whose picture has not
+   * decoded yet.
+   */
+  const tabBack = account?.avatarUrl ? t.line : lens.fill;
+
   const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_W - 56] });
   /*
    * The cap does not retract; only the picture under it does.
@@ -785,13 +801,13 @@ export function ProfileScreen({
               this read as hanging rather than floating — and it is
               deliberately empty. The Dynamic Island is in it.
             */}
-            <View style={[styles.cap, { backgroundColor: t.card }]} />
+            <View style={[styles.cap, { backgroundColor: tabBack }]} />
 
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={styles.shot}
+              style={[styles.shot, { backgroundColor: tabBack }]}
             >
               {account?.avatarUrl ? (
                 <Image
@@ -801,7 +817,7 @@ export function ProfileScreen({
                   transition={120}
                 />
               ) : (
-                <View style={[styles.tabFill, styles.tabBlank, { backgroundColor: lens.fill }]}>
+                <View style={[styles.tabFill, styles.tabBlank]}>
                   <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
                 </View>
               )}
