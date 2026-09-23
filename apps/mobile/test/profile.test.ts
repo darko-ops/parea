@@ -218,19 +218,20 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 
-  it('asks for a taller source than the frame, to keep the sides', () => {
+  it('draws the crop in a box the shape of the crop', () => {
     /*
-     * The tab is 172 by 268 — about 9:15 — and the crop is 9:16. That hands
-     * `cover` a source with height to spare, so it fits the width and trims a
-     * little off the top and bottom instead, and every pixel of the left and
-     * right survives.
+     * This frame asked for 1:1, then 6:5, then 9:16, and was given a square
+     * every time: `allowsEditing` on iOS crops to a square and ignores
+     * `aspect` outright, and the endpoint stores a square too. So each of
+     * those shapes was a portrait box with a square source in it, and `cover`
+     * paid the difference out of the sides of somebody's face.
      *
-     * A crop that matched the frame exactly was still tight at the sides, and
-     * the landscape one before it was eating arms and the edges of a coat —
-     * most of what makes somebody recognisable at this size.
+     * The frame is the shape of the crop now, so there is nothing to pay:
+     * `PHOTO_H` is `TAB_W`, and [1, 1] makes Android crop the same square iOS
+     * has always cropped.
      */
-    expect(PROFILE).toMatch(/aspect: \[9, 16\]/);
-    expect(PROFILE).toMatch(/const VISIBLE_H = 168;/);
+    expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
+    expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
     expect(PROFILE).toMatch(/const TAB_W = 172;/);
   });
 

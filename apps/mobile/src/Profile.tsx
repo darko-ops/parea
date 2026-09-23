@@ -76,40 +76,43 @@ import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
 
 /**
- * The tab, in two parts, and the split is the point.
+ * The tab, in two parts, and the split is what makes the picture whole.
  *
  * `CAP_H` is the strip at the top that holds no picture. The Dynamic Island
  * and the camera sit in it, and a photograph drawn under them is a photograph
  * with a hole punched through the face — which on a profile is the one place
- * it cannot be allowed to happen. So the container still hangs from the
- * physical top edge, and the picture starts below this.
+ * it cannot be allowed to happen. The container hangs from the physical top
+ * edge, and the picture starts below this.
  *
- * It has been 54 and then 72, and both were the no-go zone and nothing more:
- * 54 is the island, 72 is the allowance every scroll in this project starts
- * at. Both left a picture whose top edge is exactly where the obstruction
- * ends, which reads as having only just got out of the way.
+ * It was 100, and all hundred points of it were photograph: the picture ran
+ * the full height of the tab and the ribbon was painted over the top of it,
+ * so the top of whatever somebody framed was hidden and the rest was trimmed
+ * to fit what was left. That is the wrong trade for this one picture. A
+ * profile picture is somebody’s answer to who they are, the crop they chose
+ * is the whole of the answer, and the part that went behind the ribbon is
+ * usually their face.
  *
- * 100 is not about the camera. It is how much photograph there is behind the
- * ribbon — the picture starts at the top of the tab, so the ribbon's height
- * *is* the overlap, and a hundred points of it is what makes the image look
- * like it continues up into the ribbon rather than beginning under it. Past
- * about 120 the ribbon stops being a ribbon and becomes a header.
+ * So the ribbon is the no-go zone again and nothing more — 72, the allowance
+ * every scroll in this project starts at — the picture begins under it, and
+ * there is nothing behind it to lose.
  */
 const TAB_W = 172;
-const CAP_H = 100;
+const CAP_H = 72;
 /**
- * How much of the picture is in front of the ribbon.
+ * The picture is square, because the crop is square.
  *
- * The picture is not this tall — it is the whole tab, `CAP_H` included, and
- * the ribbon is drawn over the top of it. This is only the part anybody sees.
+ * This frame has asked for 1:1, then 6:5, then 9:16, and not one of those was
+ * ever granted: `allowsEditing` on iOS crops to a square and ignores `aspect`
+ * outright, and the endpoint stores a square as well. So every one of those
+ * shapes was a portrait box with a square source in it, and `cover` paid the
+ * difference out of the sides of somebody’s face — which is what you see
+ * when you crop yourself carefully and arrive here missing your ears.
  *
- * Taller than it is wide, because the thing in a profile picture is a person
- * standing up. The panel was 172 × 140 and a portrait crop into a landscape
- * box loses the sides of somebody — their arms, the edges of a coat, the
- * shape that makes them recognisable at this size.
+ * A box the shape of the crop is the only frame that shows the whole crop.
+ * The width is the tab’s, so the height is the tab’s width.
  */
-const VISIBLE_H = 168;
-const TAB_H = CAP_H + VISIBLE_H;
+const PHOTO_H = TAB_W;
+const TAB_H = CAP_H + PHOTO_H;
 /** What is left of the picture once the page has been scrolled. */
 const PHOTO_MIN = 26;
 
@@ -807,25 +810,30 @@ export function ProfileScreen({
             ]}
           >
             {/*
-              The picture fills the whole tab, the cap included.
+              The picture sits under the ribbon rather than behind it, and the
+              box is the shape of the crop.
 
-              It was a panel *under* a strip, and that is what you could see:
-              ribbon, seam, photograph. Three things stacked rather than one.
-              Now the picture runs the full height and the ribbon is painted
-              over the top of it, so the image has no visible top edge at all
-              — it carries on upward behind the ribbon and is hidden there.
-              Masking rather than framing, which is the difference between a
-              picture tucked into the bookmark and a tile pasted under a bar.
+              It ran the full height of the tab with the ribbon painted over
+              the top, which hid a hundred points of it, and the square that
+              the picker actually hands back was then trimmed at the sides to
+              fill what was left. Two cuts, and between them most of a face.
 
-              No top corners on the image for the same reason: a rounded
-              corner is a frame announcing itself, and the only shape anybody
-              should be able to see is the bottom of the bookmark.
+              Every pixel somebody kept is drawn here now: the box is square
+              because the crop is square, so `cover` has nothing to take, and
+              it starts below the ribbon so there is nothing behind it. What
+              softens the join is the fade below — the top line of the picture
+              dissolving upward into the ribbon rather than a photograph with
+              a lid on it.
+
+              No top corners on the image: a rounded corner is a frame
+              announcing itself, and the only shape anybody should be able to
+              see is the bottom of the bookmark.
             */}
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={[styles.tabFill, { backgroundColor: tabBack }]}
+              style={[styles.photo, { backgroundColor: tabBack }]}
             >
               {account?.avatarUrl ? (
                 <Image
@@ -842,20 +850,23 @@ export function ProfileScreen({
             </Pressable>
 
             {/*
-              The ribbon, over the picture rather than above it.
+              The ribbon: the no-go zone, and nothing else in it.
 
-              Opaque, and the height of the no-go zone: the camera sits in it
-              and the top of the photograph is behind it.
+              Opaque, the height the camera needs, and no photograph under it
+              to be lost. It is still drawn over the tab rather than above it
+              so that the two are one object with one colour.
             */}
             <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none" />
 
             {/*
-              And a short fade under it, so the join is not a line.
+              And the top line of the picture fading up into it.
 
-              Twenty-four points from the ribbon's own colour to nothing. Not
-              a gradient anybody should notice — just enough that the picture
-              seems to come out from under the ribbon rather than to begin
-              immediately below it.
+              Twenty-four points from the ribbon's own colour to nothing, laid
+              over the first twenty-four points of the photograph. Not a
+              gradient anybody should notice — just enough that the picture
+              rises into the ribbon rather than stopping against it, which is
+              the whole of what the old overlap was buying and costs none of
+              the image to buy.
             */}
             <LinearGradient
               colors={[tabBack, 'transparent']}
@@ -1053,37 +1064,21 @@ function EditProfile({
       mediaTypes: ['images'],
       allowsEditing: true,
       /*
-       * 6:5, because the header draws it in a 124 × 104 box.
+       * Square, and this is the first time that is true rather than asked for.
        *
-       * This was square, on the argument that the avatar is a circle
-       * everywhere else in the product — the faces over a cover, the tiles in
-       * Lately, the rows in a thread — so a landscape file would be cropped
-       * again by every one of them. That is true and it is the smaller loss: a
-       * circle takes the middle of a 6:5 frame, which for a face is the face,
-       * where a square centre-cropped into a landscape box loses the top and
-       * bottom of what somebody framed — usually the top of their head, at the
-       * one size where it is unmistakable.
+       * It has been [1,1], then [6,5], then [9,16], each one reasoned from the
+       * shape of the frame it was going to land in. None of them ever reached
+       * anybody: `allowsEditing` on iOS presents a square crop box and ignores
+       * `aspect` completely, and the endpoint resizes to a square as well. So
+       * whatever was typed here, a square came back — and the header then cut
+       * the sides off it to fill a portrait box.
        *
-       * So the crop is chosen for the largest place it is drawn, and the small
-       * round ones give up a little width. The endpoint re-encodes whatever
-       * arrives, so nothing downstream changes.
+       * [1,1] makes Android crop the same square iOS has always cropped, and
+       * the header draws that square whole. The value of a profile picture is
+       * that somebody chose the framing; the app's job is to not overrule it
+       * twice on the way to the screen.
        */
-      /*
-       * Taller than the frame it lands in, on purpose.
-       *
-       * The tab is 172 by 268, which is about 9:15. Asking for 9:16 hands
-       * `cover` a source with height to spare — so it fits the width and
-       * trims a little off the top and bottom instead, and every pixel of the
-       * left and right survives. A crop that matched the frame exactly was
-       * still tight at the sides; a landscape one before it was eating arms
-       * and the edges of a coat, which is most of what makes somebody
-       * recognisable at this size.
-       *
-       * The top of what somebody frames goes behind the ribbon — a hundred
-       * points of it — which in almost every portrait anybody takes is the
-       * space above their head.
-       */
-      aspect: [9, 16],
+      aspect: [1, 1],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -1245,16 +1240,19 @@ const styles = StyleSheet.create({
    * camera does not move.
    */
   cap: { position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H, zIndex: 1 },
-  /* The join, softened. Sits directly under the ribbon. */
+  /* The top line of the picture, fading up into the ribbon. Sits over the
+     first 24 points of the photograph rather than in the gap above it. */
   capFade: { position: 'absolute', top: CAP_H, left: 0, right: 0, height: 24, zIndex: 1 },
   /*
-   * The picture, under the cap and rounded away from it.
+   * The picture: everything below the ribbon, and square at rest.
    *
-   * `flex: 1` so the retract takes it out of the picture rather than out of
-   * the cap — the tab shrinks by shrinking this. The top corners are what
-   * make the cap read as a ribbon behind a panel rather than as dead space
-   * above a photograph.
+   * `bottom: 0` rather than `height: PHOTO_H`, because the tab's height is
+   * animated and the retract has to come out of the picture rather than out
+   * of the ribbon — the camera's strip is the same height however far the
+   * page has been scrolled. At rest `TAB_H - CAP_H` is `PHOTO_H`, which is
+   * `TAB_W`, so the box is square and `cover` trims nothing.
    */
+  photo: { position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 },
 
   tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */

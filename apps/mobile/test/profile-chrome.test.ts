@@ -112,7 +112,7 @@ describe('the profile details', () => {
     // can each move, and a literal here would be the third place to change.
     expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ VISIBLE_H;/);
+    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
   });
 });
 
@@ -276,35 +276,35 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).toMatch(/cap: \{ position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H/);
   });
 
-  it('hides the top of the picture behind the ribbon', () => {
+  it('keeps none of the picture behind the ribbon', () => {
     /*
-     * It was a panel *under* a strip, and that is what you could see: ribbon,
-     * seam, photograph — three things stacked rather than one. The picture
-     * runs the full height of the tab now and the ribbon is painted over it,
-     * so the image has no visible top edge at all.
+     * The picture ran the full height of the tab with the ribbon painted over
+     * the top, so a hundred points of what somebody framed was hidden — and
+     * the square the picker actually returns was then trimmed at the sides to
+     * fill what was left of a portrait box. Two cuts, and between them most
+     * of a face.
      *
-     * Masking rather than framing, which is the difference between a picture
-     * tucked into the bookmark and a tile pasted under a bar.
+     * A profile picture is somebody's own answer to who they are, and the
+     * crop they chose is the whole of it. So the ribbon is the camera's strip
+     * again and nothing more, and the picture begins underneath it.
      */
+    expect(PROFILE).toMatch(/const CAP_H = 72;/);
+    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
     const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
-    // The picture first, the ribbon over it.
+    // The picture first, the ribbon and its fade over it.
     expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.cap'));
     // And no corner on the image to announce a frame.
     expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
-    /*
-     * A hundred, and it is not about the camera any more. The picture starts
-     * at the top of the tab, so the ribbon's height *is* how much photograph
-     * is behind it — and a hundred points of overlap is what makes the image
-     * look like it continues up into the ribbon rather than beginning under
-     * it. Past about 120 the ribbon stops being a ribbon and becomes a
-     * header.
-     */
-    expect(PROFILE).toMatch(/const CAP_H = 100;/);
   });
 
-  it('softens the join rather than drawing a line', () => {
-    // Twenty-four points from the ribbon's colour to nothing: enough that the
-    // picture comes out from under it rather than starting below it.
+  it('fades the top line of the picture up into the ribbon', () => {
+    /*
+     * Twenty-four points from the ribbon's colour to nothing, laid over the
+     * first twenty-four points of the photograph rather than in a gap above
+     * it — so the picture rises into the ribbon rather than stopping against
+     * it. That is what the old hundred-point overlap was buying, and this
+     * costs none of the image to buy.
+     */
     expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
     expect(PROFILE).toMatch(/capFade: \{ position: 'absolute', top: CAP_H,[^}]*height: 24/);
   });
@@ -352,7 +352,7 @@ describe('the tab is one object', () => {
      */
     expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
     expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
     expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
   });
 });
