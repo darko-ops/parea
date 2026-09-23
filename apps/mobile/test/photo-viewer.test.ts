@@ -701,14 +701,44 @@ describe('the photographs either side', () => {
     expect(GESTURE).toMatch(/Animated\.timing\(strip, \{/);
   });
 
-  it('returns to centre on the photograph, not in the animation', () => {
+  it('returns to centre before the frame is drawn, not after it', () => {
     /*
-     * Resetting in the animation's own callback flashes: for the frame
-     * between the reset and the caller's re-render, the row is centred on the
-     * photograph being left. Keyed on the id, the value returns to zero in
-     * the same commit that brings the new neighbours in.
+     * Both of the obvious places flash a frame of the wrong photograph.
+     *
+     * In the animation's callback, before the caller has swapped: the row
+     * re-centres on the picture being left, so it comes back.
+     *
+     * In a `useEffect` after the swap: effects run *after* the frame is
+     * drawn, and that frame has the new photograph in the middle slot with
+     * the row still a screen to the left — which puts the slot beyond it on
+     * the glass. The picture *after* the one asked for, for a frame, which
+     * reads as loading because it is a third photograph out of nowhere.
+     *
+     * This is the reported bug, and `useLayoutEffect` is what fixes it: the
+     * content and the offset change in one commit.
      */
-    expect(GESTURE).toMatch(/useEffect\(\(\) => \{\s*strip\.setValue\(0\);\s*\}, \[photo\.id, strip\]\)/);
+    expect(GESTURE).toMatch(
+      /useLayoutEffect\(\(\) => \{\s*strip\.setValue\(0\);\s*\}, \[photo\.id, strip\]\)/,
+    );
+    // The distinction is the whole fix, so the weaker hook must not creep
+    // back in for this one value.
+    expect(GESTURE).not.toMatch(/useEffect\(\(\) => \{\s*strip\.setValue\(0\)/);
+  });
+
+  it('does not crossfade the slot whose picture changes', () => {
+    /*
+     * The other half of the same flash. A fade is a fade *from the previous
+     * source*, so the photograph being left ghosted over the one arriving at
+     * the moment the row landed — which looked like loading and was the
+     * opposite: the picture had been on the glass as the neighbour for the
+     * whole gesture and was already decoded.
+     */
+    const middle = GESTURE.slice(
+      GESTURE.indexOf('transform: [{ translateX: pan.x }'),
+      GESTURE.indexOf("<View style={{ width, height: '100%' }}>", GESTURE.indexOf('uri: photo.full')),
+    );
+    expect(middle).toMatch(/transition=\{0\}/);
+    expect(middle).not.toMatch(/transition=\{120\}/);
   });
 
   it('never holds the album itself', () => {

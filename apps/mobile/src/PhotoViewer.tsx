@@ -28,7 +28,7 @@
  */
 
 import { Image as ExpoImage } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -206,18 +206,28 @@ export function PhotoViewer({
   const strip = useRef(new Animated.Value(0)).current;
 
   /*
-   * Back to centre when the photograph changes, and not before.
+   * Back to centre when the photograph changes, before anything is drawn.
    *
    * The swipe animates the row a whole screen across, which leaves the
-   * neighbour under the glass and the strip a screen off centre. Resetting it
-   * in the animation's own callback is the obvious thing and it flashes: for
-   * the frame between the reset and the caller's re-render, the row is centred
-   * on the photograph being left.
+   * neighbour under the glass and the strip a screen off centre. Two ways to
+   * put it back, and both of the obvious ones flash a frame of the wrong
+   * photograph:
    *
-   * Keyed on the id instead, so the value returns to zero in the same commit
-   * that brings the new neighbours in. Nothing to look at in between.
+   *   - in the animation's callback, before the caller has swapped: the row
+   *     re-centres on the picture being left, so you see it come back.
+   *   - in a `useEffect` after the swap: effects run *after* the frame is
+   *     drawn, and that frame has the new photograph in the middle slot with
+   *     the row still a screen to the left — which puts the slot beyond it on
+   *     the glass. The photograph after the one you asked for, for a frame.
+   *     That is the flash, and it reads as a load because it is a third
+   *     picture appearing from nowhere.
+   *
+   * `useLayoutEffect` is the one that works: React commits the new
+   * neighbours, this runs synchronously before the frame is presented, and
+   * the content and the offset change together. There is no in-between state
+   * to see.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     strip.setValue(0);
   }, [photo.id, strip]);
 
@@ -676,7 +686,21 @@ export function PhotoViewer({
             // photograph is the point, and cropping it to fill the glass is the
             // one thing a viewer must not do.
             contentFit="contain"
-            transition={120}
+            /*
+             * No crossfade, which is the other half of the flash.
+             *
+             * This slot's source changes on every swipe, and a fade is a fade
+             * *from the previous source* — so the photograph being left ghosted
+             * over the one arriving, at the exact moment the row landed. It
+             * looked like loading and it was the opposite: the picture is
+             * already decoded, because it spent the whole gesture on the glass
+             * as the neighbour.
+             *
+             * The cost is the first photograph of a session, which now appears
+             * rather than fades. That one is worth losing: a fade there is a
+             * flourish, and a fade here was a bug.
+             */
+            transition={0}
           />
         </Animated.View>
 
