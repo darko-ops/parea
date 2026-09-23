@@ -122,3 +122,29 @@ describe('the second shelf', () => {
     expect(APP).toMatch(/Only you see this\./);
   });
 });
+
+describe('which ones were kept, on the contact sheet', () => {
+  it('marks a kept tile, in the corner the byline is not in', () => {
+    /*
+     * A tile already carries who added it, bottom-left. This is the other
+     * question somebody scanning two hundred asks — which of these did I keep
+     * — and the two are in different corners so they never meet.
+     */
+    expect(APP).toMatch(/\{item\.favourite && \(/);
+    expect(APP).toMatch(/<Glyph name="star" size=\{13\} color="#fff" filled \/>/);
+    expect(APP).toMatch(/gridKept: \{\s*position: 'absolute',\s*top: 6,\s*right: 6,/);
+  });
+
+  it('carries its own contrast, because it lies on a photograph', () => {
+    // White with a shadow rather than a chip: furniture behind a 13pt glyph
+    // on a 129pt tile is more of the tile than the glyph.
+    const kept = APP.slice(APP.indexOf('gridKept: {'));
+    expect(kept.slice(0, kept.indexOf('},'))).toMatch(/shadowColor: '#000'/);
+  });
+
+  it('is not a control, for the reason the face beside it is not', () => {
+    // A 16pt target inside a 129pt tile is a place the tile stops opening the
+    // photograph for no reason a thumb can predict.
+    expect(APP).toMatch(/\{item\.favourite && \(\s*<View pointerEvents="none" style=\{styles\.gridKept\}>/);
+  });
+});

@@ -3006,6 +3006,27 @@ function EventScreen({
             the tile stops opening the photograph for no reason a thumb can
             predict, so this is decoration and the whole tile stays one press.
           */}
+          {/*
+            Kept, in the corner opposite the face.
+
+            The tile already carries who added it, bottom-left. This is the
+            other question somebody scanning a contact sheet asks — which of
+            these did I keep — and the two never meet because they are in
+            different corners.
+
+            Filled and white with a shadow under it, for the reason the upload
+            bar is: it lies on an arbitrary photograph, and white with its own
+            edge is the only value that reads on all of them. Not a control. A
+            16pt target inside a 129pt tile is a place the tile stops opening
+            the photograph for no reason a thumb can predict; the star is
+            pressed in the viewer, where there is room for it.
+          */}
+          {item.favourite && (
+            <View pointerEvents="none" style={styles.gridKept}>
+              <Glyph name="star" size={13} color="#fff" filled />
+            </View>
+          )}
+
           {who && (
             <View pointerEvents="none" style={styles.gridBy}>
               {who.avatarUrl ? (
@@ -5847,6 +5868,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 3,
+  },
+  /*
+   * Opposite the byline, and carrying its own contrast.
+   *
+   * A shadow rather than a plate: a chip behind a 13pt glyph is furniture on
+   * somebody's photograph, and the whole tile is 129 points wide.
+   */
+  gridKept: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 2.5,
+    shadowOffset: { width: 0, height: 0 },
   },
   /* 16 rather than the column's 24: a tile is a third of the screen, and the
      same face drawn at the same size would be a fifth of the photograph. The

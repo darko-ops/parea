@@ -185,7 +185,7 @@ export async function GET(
      * once.
      */
     decide(db, event, 'upload', requester),
-    currentAccountActorId(),,
+    currentAccountActorId(),
     /*
      * Which of these this viewer kept, asked once for the page.
      *
@@ -212,7 +212,18 @@ export async function GET(
   ]);
 
   // See the note on the read: a set, because the question is membership.
-  const keptIds = new Set((kept ?? []).map((row: { photoId: string }) => row.photoId));
+  /*
+   * See the note on the read: a set, because the question is membership.
+   *
+   * No `?? []` here, and that matters. There was one, and it was covering a
+   * stray second comma in the array above — `[a, , b]` is an elided element,
+   * so `kept` destructured to a hole, the query landed in a slot nothing
+   * read, and every photograph came back unkept while the query ran on every
+   * load and was thrown away. TypeScript said `kept` was possibly undefined,
+   * which was the hole speaking; the fallback silenced it rather than
+   * answering it.
+   */
+  const keptIds = new Set(kept.map((row) => row.photoId));
 
   const contributors = people.length;
   const arriving = pendingRows[0]?.n ?? 0;

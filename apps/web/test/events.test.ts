@@ -14,6 +14,7 @@ import { groupSlug, newLinkToken, schema } from '@parea/core';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -453,5 +454,75 @@ describe('leaving an event', () => {
     expect(
       await leaveEvent(db, '00000000-0000-0000-0000-000000000000', person),
     ).toEqual({ left: false, reason: 'not_found' });
+  });
+});
+
+/**
+ * Which photographs this viewer kept, and the hole that hid them.
+ *
+ * The feed carries a `favourite` flag per photograph, read once for the page
+ * and scoped to the viewer. It reported false for everything while the writes
+ * were succeeding, and the cause was a stray second comma in the array of
+ * parallel reads: `[a, , b]` is an elided element, so the destructured name
+ * took the hole, the query landed one slot further along where nothing read
+ * it, and it ran on every load with its result discarded.
+ *
+ * TypeScript said the name was possibly undefined — which was the hole
+ * speaking — and a `?? []` silenced it rather than answering it.
+ */
+describe('the feed says which photographs were kept', () => {
+  const ROUTE = readFileSync(
+    fileURLToPath(new URL('../app/api/events/[id]/photos/route.ts', import.meta.url)),
+    'utf8',
+  );
+
+  it('destructures as many names as the array has entries', () => {
+    /*
+     * The real check, and the one a type error cannot make: an elision is
+     * valid JavaScript and valid TypeScript, so nothing but counting catches
+     * it. Commas inside the comments are why this counts bracket depth rather
+     * than splitting on them.
+     */
+    const open = ROUTE.indexOf('  ] = await Promise.all([');
+    const names = ROUTE.slice(ROUTE.indexOf('  const [\n    hasCard,') + 9, open)
+      .split('\n')
+      .map((line) => line.trim().replace(/,$/, ''))
+      .filter(Boolean);
+
+    const body = ROUTE.slice(ROUTE.indexOf('[', open) + 1, ROUTE.indexOf('\n  ]);', open));
+    const stripped = body
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+    let depth = 0;
+    let entries = 1;
+    let holes = 0;
+    let sinceComma = '';
+    for (const ch of stripped) {
+      if ('([{'.includes(ch)) depth++;
+      else if (')]}'.includes(ch)) depth--;
+      else if (ch === ',' && depth === 0) {
+        if (sinceComma.trim() === '') holes++;
+        entries++;
+        sinceComma = '';
+        continue;
+      }
+      sinceComma += ch;
+    }
+    if (sinceComma.trim() === '') entries--;
+
+    expect(holes, 'an elided element: two commas in a row').toBe(0);
+    expect(entries).toBe(names.length);
+  });
+
+  it('reads the flag off the query rather than around it', () => {
+    // The fallback that hid the hole. Its absence is the assertion.
+    expect(ROUTE).toMatch(/const keptIds = new Set\(kept\.map\(\(row\) => row\.photoId\)\);/);
+    expect(ROUTE).toMatch(/favourite: keptIds\.has\(photo\.id\)/);
+  });
+
+  it('scopes it to the viewer and to this page', () => {
+    expect(ROUTE).toMatch(/eq\(schema\.photoFavourites\.actorId, viewerId\)/);
+    expect(ROUTE).toMatch(/inArray\(schema\.photoFavourites\.photoId, photoIds\)/);
   });
 });
