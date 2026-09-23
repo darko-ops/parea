@@ -76,27 +76,27 @@ import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
 
 /**
- * The tab: a photograph hanging from the top edge, and a quiet strip over it.
+ * The tab: a strip the camera owns, and a photograph beginning where it ends.
  *
- * The picture is the whole of the tab. It runs from the physical top edge
- * down, which means the Dynamic Island and the camera sit on top of it rather
- * than above it — and that is the arrangement, not an oversight. What the
- * island needs is somewhere quiet to sit, which is a much smaller ask than a
- * strip of its own: `CAP_H` is a scrim over the photograph, dark at the very
- * top and gone by the bottom of it, and the image carries on underneath.
+ * `CAP_H` is the island. Not the allowance a scroll starts at, not a margin
+ * chosen for the look of it — the distance from the physical top edge to the
+ * bottom of the black pill the front camera lives in, plus a couple of points
+ * so the picture is not touching it. Everything above 56 is a decision about
+ * design; 56 itself is a fact about the phone, and a face drawn into it is a
+ * face with a camera through it.
  *
- * The strip used to be opaque, and it cost a picture every time. First it hid
- * a hundred points of photograph behind it. Then it hid nothing, by starting
- * the picture underneath it — which bought the ribbon seventy-two points of
- * the screen and pushed everybody's face down into the middle of it. A
- * profile picture is somebody's own answer to who they are, and the top of
- * the screen is where the answer should be.
+ * This number has been 100, then 72, then 0, and each move was right about
+ * the thing before it and wrong about the phone. 100 and 72 were strips of
+ * flat colour that pushed somebody's face into the middle of the screen. 0
+ * gave the face the top of the screen and gave it to the camera as well.
  *
- * So the picture starts at the top, all of it is visible, and the only thing
- * that changes across the island's band is how bright it is.
+ * What is in the strip is the photograph's own colour rather than a swatch —
+ * its top edge carried up through it, and a scrim over that so the pill has
+ * something calm to sit on. So nothing above the picture is dead space, and
+ * nothing of the picture is behind the pill.
  */
 const TAB_W = 172;
-const CAP_H = 72;
+const CAP_H = 56;
 /**
  * The picture is square, because the crop is square.
  *
@@ -108,11 +108,29 @@ const CAP_H = 72;
  * when you crop yourself carefully and arrive here missing your ears.
  *
  * A box the shape of the crop is the only frame that shows the whole crop.
- * The width is the tab's, so the height is the tab's width — and the tab is
- * the picture and nothing else, so that is the tab's height too.
+ * The width is the tab's, so the height is the tab's width.
  */
 const PHOTO_H = TAB_W;
-const TAB_H = PHOTO_H;
+const TAB_H = CAP_H + PHOTO_H;
+/**
+ * The picture's top edge, carried up through the strip.
+ *
+ * `BLEED` is how much of that edge is stretched to fill it. Ten points scaled
+ * to the strip's height is the colours actually at the top of the picture
+ * rather than an average of the whole of it; mirrored, so the row that meets
+ * the photograph is the photograph's own first row and the seam is not a
+ * seam; blurred, so ten points of somebody's hair is colour rather than an
+ * upside-down piece of a photograph.
+ *
+ * The two numbers are that stretch written as a transform. React Native
+ * scales about a view's centre, so the lift is what puts the edge back where
+ * the arithmetic wants it: a point `y` down the picture lands at
+ * `CAP_H - BLEED_SCALE * y`, which is `CAP_H` at the top of the strip and 0
+ * at its bottom.
+ */
+const BLEED = 10;
+const BLEED_SCALE = CAP_H / BLEED;
+const BLEED_LIFT = CAP_H - ((1 + BLEED_SCALE) * PHOTO_H) / 2;
 /** What is left of the picture once the page has been scrolled. */
 const PHOTO_MIN = 26;
 
@@ -810,12 +828,13 @@ export function ProfileScreen({
             ]}
           >
             {/*
-              The picture is the tab: all of it, from the top edge down.
+              The picture, beginning where the camera stops.
 
               The box is square because the crop is square, so `cover` has
-              nothing to trim, and it starts at the very top so there is no
-              strip above it holding the photograph down the screen. Every
-              pixel somebody kept is drawn, and drawn as high as it goes.
+              nothing to trim: every pixel somebody kept is drawn. It starts
+              at `CAP_H` because the alternative is a face with a camera
+              through it, and as high as it goes is only worth having as high
+              as the phone allows.
 
               No top corners on the image: a rounded corner is a frame
               announcing itself, and the only shape anybody should be able to
@@ -825,7 +844,7 @@ export function ProfileScreen({
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={[styles.tabFill, { backgroundColor: tabBack }]}
+              style={[styles.photo, { backgroundColor: tabBack }]}
             >
               {account?.avatarUrl ? (
                 <Image
@@ -842,30 +861,43 @@ export function ProfileScreen({
             </Pressable>
 
             {/*
-              Somewhere quiet for the island to sit, and nothing more.
+              The camera's strip: the picture's colour, and a shadow to sit in.
 
-              The photograph continues underneath at full strength; this only
-              takes the brightness out of the band the island and the camera
-              occupy, so a black pill has something calm to sit on rather than
-              somebody's eye. Dark rather than a blur: a `BlurView` is uniform
-              and stops dead at its own edge, which over the middle of a
-              photograph is a seam — the same reason the cover's glass covers
-              a whole header or nothing. See `CoverGlass`.
+              Two layers over `tabBack`, and neither of them is a photograph
+              anybody is meant to read. The first is the top edge of theirs,
+              stretched up through the strip and blurred, so what is above the
+              picture is the picture's own colour rather than a swatch chosen
+              by the app. The second is a scrim over that, strongest at the
+              very top and gone by the foot of it, so the black pill has
+              something calm to sit on and there is no line where it ends.
 
-              Strongest at the very top and gone by the foot of the band, so
-              there is no line anywhere: the picture is simply brighter the
-              further it gets from the island. And only over a photograph —
-              somebody who has not set one has a flat colour and a letter up
-              there, which is quiet already.
+              Dark rather than a blur for the scrim: a `BlurView` is uniform
+              and stops dead at its own edge, which is a seam — the same
+              reason the cover's glass covers a whole header or nothing. See
+              `CoverGlass`.
+
+              Both only over a photograph. Somebody who has not set one has a
+              flat colour and a letter up there, which is quiet already, and a
+              shadow across the top of it would be weather.
             */}
-            {account?.avatarUrl && (
-              <LinearGradient
-                colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0)']}
-                locations={[0, 0.5, 1]}
-                style={styles.shade}
-                pointerEvents="none"
-              />
-            )}
+            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none">
+              {account?.avatarUrl && (
+                <>
+                  <Image
+                    source={{ uri: account.avatarUrl }}
+                    style={styles.bleed}
+                    contentFit="cover"
+                    blurRadius={20}
+                    transition={120}
+                  />
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0)']}
+                    locations={[0, 0.5, 1]}
+                    style={styles.shade}
+                  />
+                </>
+              )}
+            </View>
           </Animated.View>
         </Animated.View>
       )}
@@ -1233,14 +1265,50 @@ const styles = StyleSheet.create({
    * camera does not move.
    */
   /*
-   * The scrim over the island's band.
+   * The camera's strip, and the clip that keeps the bleed inside it.
    *
-   * Absolute and `CAP_H` tall, over a picture that is the full height of the
-   * tab. It does not retract with the tab — the island is the same height
-   * however far the page has been scrolled — which is why it is pinned to the
-   * top rather than laid out above the picture.
+   * It does not retract with the tab: the island is the same height however
+   * far the page has been scrolled, so this is pinned to the top and the
+   * picture below it is what shrinks.
    */
-  shade: { position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H, zIndex: 1 },
+  cap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: CAP_H,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  /*
+   * The picture's top edge, stretched up to fill the strip.
+   *
+   * Laid out as the picture is — the same width and the same square height —
+   * so `cover` frames it identically and row zero is the same row in both.
+   * The transform then flips it and scales it about its centre; `BLEED_LIFT`
+   * is what puts row zero back on the strip's bottom edge. Listed
+   * translate-then-scale, which React Native applies to a point in the other
+   * order, so the lift is in unscaled points.
+   */
+  bleed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: PHOTO_H,
+    transform: [{ translateY: BLEED_LIFT }, { scaleY: -BLEED_SCALE }],
+  },
+  /* The shadow the pill sits in, over the whole strip and nothing below it. */
+  shade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /*
+   * The picture: everything below the strip, and square at rest.
+   *
+   * `bottom: 0` rather than `height: PHOTO_H`, because the tab's height is
+   * animated and the retract has to come out of the picture rather than out
+   * of the camera's strip. At rest `TAB_H - CAP_H` is `PHOTO_H`, which is
+   * `TAB_W`, so the box is square and `cover` trims nothing.
+   */
+  photo: { position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 },
   tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },

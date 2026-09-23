@@ -108,11 +108,11 @@ describe('the friends', () => {
 
 describe('the profile details', () => {
   it('sit below the tab rather than under the clock', () => {
-    // Derived from the tab rather than typed — and the tab is the picture and
-    // nothing else now, so there is one number rather than a sum.
+    // Derived from the tab rather than typed: its height is two numbers that
+    // can each move, and a literal here would be the third place to change.
     expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = PHOTO_H;/);
+    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
   });
 });
 
@@ -274,57 +274,62 @@ describe('the tab that hangs from the top', () => {
      * than laid out above the picture, so it does not retract with it.
      */
     expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
-    expect(PROFILE).toMatch(/shade: \{ position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H/);
+    expect(PROFILE).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
+    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
   });
 
-  it('runs the picture to the top edge, all of it visible', () => {
+  it('starts the picture where the camera stops, and shows all of it', () => {
     /*
-     * The strip at the top has cost a picture twice. First it was opaque over
-     * the photograph, which hid a hundred points of it. Then the photograph
-     * started underneath it instead, which hid nothing and bought the strip
-     * seventy-two points of screen — pushing everybody's face down into the
-     * middle of the tab. The top of the screen is where somebody's answer to
-     * who they are should be.
+     * This number has been 100, then 72, then 0, and each move was right
+     * about the one before it and wrong about the phone. 100 and 72 were
+     * strips of flat colour that pushed somebody's face into the middle of
+     * the screen; 0 gave the face the top of the screen and gave it to the
+     * front camera as well.
      *
-     * So the picture is the whole tab: `TAB_H` is `PHOTO_H` is `TAB_W`, the
-     * square the picker actually returns, drawn from the physical top edge
-     * with nothing above it and nothing trimmed off it.
+     * 56 is not a design decision at all — it is the distance to the bottom
+     * of the pill the camera lives in, plus a couple of points so the picture
+     * is not touching it. Below that, the square the picker actually returns,
+     * drawn whole: `PHOTO_H` is `TAB_W`, so `cover` trims nothing.
      */
+    expect(PROFILE).toMatch(/const CAP_H = 56;/);
     expect(PROFILE).toMatch(/const TAB_W = 172;/);
     expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
-    expect(PROFILE).toMatch(/const TAB_H = PHOTO_H;/);
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
-    // The picture fills the tab rather than sitting in a box below a strip.
-    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).not.toMatch(/photo: \{ position: 'absolute'/);
+    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
     // And no corner on the image to announce a frame.
     expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
   });
 
-  it('quiets the island’s band rather than covering it', () => {
+  it('fills the camera’s strip from the picture, and shades it', () => {
     /*
-     * What the island needs is somewhere calm to sit, which is a far smaller
-     * ask than a strip of its own. The photograph carries on underneath at
-     * full strength; the scrim only takes the brightness out of the band,
-     * strongest at the very top and gone by the foot of it, so there is no
-     * line anywhere.
+     * Two layers, and neither is a photograph anybody is meant to read. The
+     * picture's top edge is stretched up through the strip so that what sits
+     * above it is its own colour rather than a swatch — mirrored, so the row
+     * meeting the photograph is the photograph's own first row and the seam
+     * is not a seam. Then a scrim over that, gone by the foot of the strip,
+     * so the pill has something calm to sit on and there is no line where it
+     * ends.
      *
-     * Dark rather than a blur: a `BlurView` is uniform and stops dead at its
-     * own edge, which over the middle of a photograph is a seam — the reason
-     * the cover's glass covers a whole header or nothing.
+     * Dark rather than a blur for the scrim: a `BlurView` is uniform and
+     * stops dead at its own edge, which is a seam — the reason the cover's
+     * glass covers a whole header or nothing.
      */
-    expect(PROFILE).toMatch(/const CAP_H = 72;/);
+    expect(PROFILE).toMatch(/const BLEED = 10;/);
+    expect(PROFILE).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
+    expect(PROFILE).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
+    expect(PROFILE).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
+    expect(PROFILE).toMatch(/blurRadius=\{20\}/);
     expect(PROFILE).toMatch(
       /colors=\{\['rgba\(0,0,0,0\.5\)', 'rgba\(0,0,0,0\.3\)', 'rgba\(0,0,0,0\)'\]\}/,
     );
     expect(PROFILE).toMatch(/locations=\{\[0, 0\.5, 1\]\}/);
-    // The comment above `shade` says why; this is that there is no import.
+    // The comment by `shade` says why; this is that there is no import.
     expect(code(PROFILE)).not.toMatch(/BlurView/);
-    // The picture first, the scrim over it.
-    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
-    expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.shade'));
-    // And only over a photograph: a letter on a flat colour is quiet already.
-    expect(PROFILE).toMatch(/\{account\?\.avatarUrl && \(\s*<LinearGradient/);
+    // The strip clips the bleed, or the whole picture would be drawn twice.
+    expect(PROFILE).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
+    // And both only over a photograph: a letter on a flat colour is quiet
+    // already, and a shadow across the top of it would be weather.
+    expect(PROFILE).toMatch(/\{account\?\.avatarUrl && \(\s*<>/);
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -369,6 +374,7 @@ describe('the tab is one object', () => {
      * somebody who has not set one. A tab that is two colours is two objects.
      */
     expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
-    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
   });
 });
