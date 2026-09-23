@@ -218,23 +218,19 @@ describe('the header picture', () => {
     expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 
-  it('crops for the shape it is drawn in', () => {
+  it('crops for the whole tab, not the part you can see', () => {
     /*
-     * The panel is 172 by 140, which is 6:5 — so what somebody frames in the
-     * picker is very nearly what they get, and there is no second crop on the
-     * way in.
+     * The picture fills all of it, ribbon included, so the frame the crop has
+     * to match is the tab — 172 by 240, which is 5:7. Match it and `cover`
+     * trims nothing, which is the fix for a landscape box eating the sides of
+     * somebody standing up.
      *
-     * This went to 6:7 for a moment, when the tab was one tall box with the
-     * picture running up behind the Dynamic Island. It is not one box: the
-     * top 54 points are a cap that holds no picture, and once the frame and
-     * the crop agree there is nothing left for `contentPosition` to bias.
+     * The top of what somebody frames goes behind the ribbon: about three
+     * tenths, which is the space above a head in almost every portrait
+     * anybody takes.
      */
-    expect(PROFILE).toMatch(/aspect: \[6, 5\]/);
-    // Comments stripped: the note beside the crop explains why there is
-    // nothing left to bias, and names the prop to do it.
-    const code = PROFILE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code).not.toMatch(/contentPosition/);
-    expect(PROFILE).toMatch(/const PHOTO_H = 140;/);
+    expect(PROFILE).toMatch(/aspect: \[5, 7\]/);
+    expect(PROFILE).toMatch(/const VISIBLE_H = 168;/);
     expect(PROFILE).toMatch(/const TAB_W = 172;/);
   });
 

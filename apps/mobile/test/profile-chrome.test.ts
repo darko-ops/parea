@@ -108,15 +108,11 @@ describe('the friends', () => {
 
 describe('the profile details', () => {
   it('sit below the tab rather than under the clock', () => {
-    /*
-     * `headLower` was 20 points of clearance under a row of corner glyphs.
-     * The clearance is the scroll's own `paddingTop` now, and it is derived
-     * from the tab rather than typed — the tab's height is two numbers that
-     * can each move, and a literal here would be the third place to change.
-     */
+    // Derived from the tab rather than typed: its height is two numbers that
+    // can each move, and a literal here would be the third place to change.
     expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
+    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ VISIBLE_H;/);
   });
 });
 
@@ -270,36 +266,39 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
   });
 
-  it('retracts the picture and never the cap', () => {
+  it('retracts the picture and never the ribbon', () => {
     /*
-     * The cap is the unsafe zone, and the unsafe zone is the same height
+     * The ribbon is the no-go zone, and the no-go zone is the same height
      * however far the page has been scrolled. Shrinking the whole tab would
      * walk the photograph back up under the camera on the way past.
      */
     expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
-    expect(PROFILE).toMatch(/cap: \{ height: CAP_H \}/);
-    // `flex: 1` is what takes the retract out of the picture rather than the
-    // cap: the cap is fixed, so the shrinking lands here.
-    expect(PROFILE).toMatch(/shot: \{\s*flex: 1,/);
+    expect(PROFILE).toMatch(/cap: \{ position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H/);
   });
 
-  it('keeps the camera clear of the photograph entirely', () => {
+  it('hides the top of the picture behind the ribbon', () => {
     /*
-     * The first version ran the picture up to the physical top edge with the
-     * Dynamic Island over it, which on a profile is a hole punched through
-     * somebody's face. The container still hangs from the top; the picture
-     * starts below the cap.
+     * It was a panel *under* a strip, and that is what you could see: ribbon,
+     * seam, photograph — three things stacked rather than one. The picture
+     * runs the full height of the tab now and the ribbon is painted over it,
+     * so the image has no visible top edge at all.
+     *
+     * Masking rather than framing, which is the difference between a picture
+     * tucked into the bookmark and a tile pasted under a bar.
      */
     const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
-    expect(tab.indexOf('styles.cap')).toBeLessThan(tab.indexOf('styles.shot'));
+    // The picture first, the ribbon over it.
+    expect(tab.indexOf('uri: account.avatarUrl')).toBeLessThan(tab.indexOf('styles.cap'));
+    // And no corner on the image to announce a frame.
+    expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
     expect(PROFILE).toMatch(/const CAP_H = 72;/);
-    /*
-     * 72 and not 54. The island ends at about 54, and a picture whose top
-     * edge is exactly where the cutout ends reads as having only just got out
-     * of the way — the extra eighteen points are the difference between
-     * clearing it and looking like it cleared it. It is also the allowance
-     * every scroll in this project already starts at.
-     */
+  });
+
+  it('softens the join rather than drawing a line', () => {
+    // Twenty-four points from the ribbon's colour to nothing: enough that the
+    // picture comes out from under it rather than starting below it.
+    expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
+    expect(PROFILE).toMatch(/capFade: \{ position: 'absolute', top: CAP_H,[^}]*height: 24/);
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -337,16 +336,15 @@ describe('the tab that hangs from the top', () => {
 });
 
 describe('the tab is one object', () => {
-  it('paints the cap and the panel from one value', () => {
+  it('paints the ribbon and what is behind the picture from one value', () => {
     /*
-     * They are two views, and a tab that is two colours is two objects. What
-     * is behind the photograph is what the strip above it is: the lens for
-     * somebody with no picture, the line colour while a picture decodes.
+     * A tab that is two colours is two objects — and the fade reads from the
+     * same value, so a ribbon that changed colour without it would fade to
+     * the wrong thing.
      */
     expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
     expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).toMatch(/styles\.shot, \{ backgroundColor: tabBack \}/);
-    // And nothing paints its own: a second source is how they drift.
-    expect(PROFILE).not.toMatch(/backgroundColor: t\.card \}\] \/>/);
+    expect(PROFILE).toMatch(/styles\.tabFill, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
   });
 });

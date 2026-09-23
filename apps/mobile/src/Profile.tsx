@@ -41,6 +41,7 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -95,9 +96,19 @@ import { Waiting } from './Waiting';
  */
 const TAB_W = 172;
 const CAP_H = 72;
-/** The picture itself, entirely below the cap. */
-const PHOTO_H = 140;
-const TAB_H = CAP_H + PHOTO_H;
+/**
+ * How much of the picture is in front of the ribbon.
+ *
+ * The picture is not this tall — it is the whole tab, `CAP_H` included, and
+ * the ribbon is drawn over the top of it. This is only the part anybody sees.
+ *
+ * Taller than it is wide, because the thing in a profile picture is a person
+ * standing up. The panel was 172 × 140 and a portrait crop into a landscape
+ * box loses the sides of somebody — their arms, the edges of a coat, the
+ * shape that makes them recognisable at this size.
+ */
+const VISIBLE_H = 168;
+const TAB_H = CAP_H + VISIBLE_H;
 /** What is left of the picture once the page has been scrolled. */
 const PHOTO_MIN = 26;
 
@@ -795,19 +806,25 @@ export function ProfileScreen({
             ]}
           >
             {/*
-              The cap: the strip the camera sits in, and nothing else.
+              The picture fills the whole tab, the cap included.
 
-              It is the tab arriving from the top edge — the part that makes
-              this read as hanging rather than floating — and it is
-              deliberately empty. The Dynamic Island is in it.
+              It was a panel *under* a strip, and that is what you could see:
+              ribbon, seam, photograph. Three things stacked rather than one.
+              Now the picture runs the full height and the ribbon is painted
+              over the top of it, so the image has no visible top edge at all
+              — it carries on upward behind the ribbon and is hidden there.
+              Masking rather than framing, which is the difference between a
+              picture tucked into the bookmark and a tile pasted under a bar.
+
+              No top corners on the image for the same reason: a rounded
+              corner is a frame announcing itself, and the only shape anybody
+              should be able to see is the bottom of the bookmark.
             */}
-            <View style={[styles.cap, { backgroundColor: tabBack }]} />
-
             <Pressable
               onPress={() => setEditing(true)}
               accessibilityRole="button"
               accessibilityLabel="Change your profile picture"
-              style={[styles.shot, { backgroundColor: tabBack }]}
+              style={[styles.tabFill, { backgroundColor: tabBack }]}
             >
               {account?.avatarUrl ? (
                 <Image
@@ -822,6 +839,28 @@ export function ProfileScreen({
                 </View>
               )}
             </Pressable>
+
+            {/*
+              The ribbon, over the picture rather than above it.
+
+              Opaque, and the height of the no-go zone: the camera sits in it
+              and the top of the photograph is behind it.
+            */}
+            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none" />
+
+            {/*
+              And a short fade under it, so the join is not a line.
+
+              Twenty-four points from the ribbon's own colour to nothing. Not
+              a gradient anybody should notice — just enough that the picture
+              seems to come out from under the ribbon rather than to begin
+              immediately below it.
+            */}
+            <LinearGradient
+              colors={[tabBack, 'transparent']}
+              style={styles.capFade}
+              pointerEvents="none"
+            />
           </Animated.View>
         </Animated.View>
       )}
@@ -1029,16 +1068,18 @@ function EditProfile({
        * arrives, so nothing downstream changes.
        */
       /*
-       * 6:5, which is the shape of the panel the picture is actually drawn
-       * in — 172 by 140.
+       * 5:7, which is the shape of the whole tab — 172 by 240.
        *
-       * This went to 6:7 when the tab was one tall box. It is not: the top 54
-       * points are the cap, which holds no picture, so what somebody frames
-       * in the picker is very nearly what they get and there is no second
-       * crop on the way in. A crop that matches the frame is also what makes
-       * `contentPosition` unnecessary — there is nothing left to bias.
+       * The picture fills all of it, ribbon included, so the frame the crop
+       * has to match is the tab and not the part of it anybody can see. Match
+       * it and `cover` trims nothing: no sides lost, which is what a
+       * landscape crop was doing to people standing up.
+       *
+       * The top of what somebody frames goes behind the ribbon — about three
+       * tenths of it — which is the space above a head in almost every
+       * portrait anybody takes.
        */
-      aspect: [6, 5],
+      aspect: [5, 7],
       quality: 0.9,
     });
     if (picked.canceled || !picked.assets[0]) return;
@@ -1192,8 +1233,16 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tabFill: { width: '100%', height: '100%' },
-  /* The no-content strip. Fixed, because the camera does not move. */
-  cap: { height: CAP_H },
+  /*
+   * The ribbon, laid over the top of the picture.
+   *
+   * Absolute rather than a first child, because the picture is the full
+   * height of the tab and this covers part of it. Fixed height, because the
+   * camera does not move.
+   */
+  cap: { position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H, zIndex: 1 },
+  /* The join, softened. Sits directly under the ribbon. */
+  capFade: { position: 'absolute', top: CAP_H, left: 0, right: 0, height: 24, zIndex: 1 },
   /*
    * The picture, under the cap and rounded away from it.
    *
@@ -1202,14 +1251,7 @@ const styles = StyleSheet.create({
    * make the cap read as a ribbon behind a panel rather than as dead space
    * above a photograph.
    */
-  shot: {
-    flex: 1,
-    overflow: 'hidden',
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-  },
+
   tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
