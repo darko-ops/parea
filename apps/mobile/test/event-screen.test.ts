@@ -24,6 +24,7 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
+const VIEWER = read('src/PhotoViewer.tsx');
 const API = read('src/api.ts');
 const GLYPH = read('src/Glyph.tsx');
 
@@ -348,8 +349,9 @@ describe('a photograph in an album', () => {
 
   it('draws the handle, not the display name', () => {
     // A column of names reads as captions; a column of handles reads as
-    // attribution. The name is the fallback for somebody who has no handle.
-    expect(APP).toMatch(/\{who\.handle \?\? who\.name\}/);
+    // attribution. The column is gone and the rule moved with the byline: the
+    // viewer's square is the only place a photograph is attributed in words.
+    expect(VIEWER).toMatch(/\{uploader\.handle \?\? uploader\.name\}/);
   });
 
   it('saves one photograph without asking about megabytes', () => {
@@ -372,7 +374,14 @@ describe('a photograph in an album', () => {
     const save = APP.slice(APP.indexOf('const saveOne'), APP.indexOf('const sendCover'));
     expect(save).toMatch(/url: photo\.original/);
     expect(save).not.toMatch(/Alert\.alert\([\s\S]{0,80}Save \$\{/);
-    expect(APP).toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
+    /*
+     * The corner button on a column row is gone with the row. The save is not:
+     * it is the `⋯` sheet inside the viewer, which is where somebody looking
+     * at one picture actually is — see the test below, which checks it sits
+     * above the three destructive rows.
+     */
+    expect(APP).not.toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
+    expect(APP).toMatch(/onDownload=\{\(\) => \{/);
   });
 
   it('offers the same save from the photograph’s own menu', () => {
@@ -469,93 +478,67 @@ describe('a photograph in an album', () => {
     expect(LIBRARY).toMatch(/requestPermissionsAsync\(false, \['photo'\]\)/);
   });
 
-  it('says what has happened to a photograph, and nothing when nothing has', () => {
+  it('no longer captions a photograph with what has happened to it', () => {
     /*
-     * "0 comments" under every picture in a quiet album is a column of nothing,
-     * and it is worse than nothing: it makes the pictures people *have* said
-     * something about harder to pick out. So each half appears only when it is
-     * not zero, and neither appearing means no line at all.
-     */
-    expect(APP).toMatch(/const said = \[/);
-    expect(APP).toMatch(/\.filter\(Boolean\)\s*\.join\(' · '\)/);
-    expect(APP).toMatch(/\{said !== '' && \(/);
-    // Singular and plural on both halves, because "1 comments" is the kind of
-    // thing that survives forever once it ships.
-    expect(APP).toMatch(/=== 1 \? 'comment' : 'comments'/);
-    expect(APP).toMatch(/=== 1 \? 'reaction' : 'reactions'/);
-  });
-
-  it('counts comments off the thread it already has', () => {
-    /*
-     * A comment is an event message with a `photo_id`, so the number is a pass
-     * over a list already in hand rather than a request. Built once: a filter
-     * inside `renderItem` is a walk of the whole conversation per row.
+     * Each row carried "2 comments · 3 reactions", suppressed when both were
+     * zero. It was a property of the column, and it went with it.
      *
-     * Tombstones do not count. A deleted comment leaves a row so the messages
-     * either side do not appear to answer each other, and counting it would put
-     * "1 comment" under a photograph whose only comment is gone.
+     * The counts are not lost, they are one press further away: the viewer
+     * lists who reacted and opens the comments on the photograph they are
+     * about, which is the screen that has room to name people rather than
+     * count them. What the grid no longer offers is the at-a-glance sweep —
+     * which picture in an album of two hundred people have talked about.
      */
-    expect(APP).toMatch(/const talk = useMemo\(/);
-    expect(APP).toMatch(/if \(!message\.photoId \|\| message\.deleted\) continue;/);
+    expect(APP).not.toMatch(/const said = \[/);
+    expect(APP).not.toMatch(/=== 1 \? 'reaction' : 'reactions'/);
+    // Where it went.
+    expect(VIEWER).toMatch(/styles\.said\b/);
   });
 
-  it('keeps the counts clear of the save in the other corner', () => {
-    expect(APP).toMatch(/tileSaid: \{\s*position: 'absolute',\s*left: 10,\s*bottom: 14,\s*maxWidth: '72%'/);
+  it('no longer counts comments per photograph on the album screen', () => {
+    // The map existed for the column's caption and had no other reader. The
+    // viewer is handed the album's thread filtered to one photograph, which
+    // is the same rows read from the other end and needs no tally.
+    expect(APP).not.toMatch(/const talk = useMemo\(/);
+    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id\)\}/);
   });
 
-  it('gives each of the three its own corner', () => {
+  it('keeps no corners on a photograph, because it draws no full-width one', () => {
+    // Four things were arranged around a column row — byline, date, counts,
+    // save. The row is gone and so are its corners.
+    for (const gone of ['tileSaid', 'tileBy', 'tileWhen', 'tileSave']) {
+      expect(APP, gone).not.toMatch(new RegExp(`styles\\.${gone}\\b`));
+    }
+  });
+
+  it('leaves the tile one thing in one corner', () => {
     /*
-     * Who added it top-left, when it arrived top-right, and the save below
-     * them. The top strip is a line of text at each end, and a control in it
-     * would be a third thing competing with two labels for the same forty
-     * points — down in its own corner it is the only thing there, which is what
-     * a control should be.
-     *
-     * The byline's width stops short of the date, so a long handle truncates
-     * rather than running under it.
+     * The column gave each of four things a corner. A tile is a third of the
+     * screen and can carry one: the face, which is what makes a contact sheet
+     * of five people legible as five people.
      */
-    expect(APP).toMatch(/tileBy: \{\s*position: 'absolute',\s*top: 10,\s*left: 10,/);
-    expect(APP).toMatch(/tileWhen: \{\s*position: 'absolute',\s*top: 10,\s*right: 10,/);
-    expect(APP).toMatch(/tileSave: \{ position: 'absolute', right: 10, bottom: 10,/);
-    expect(APP).toMatch(/maxWidth: '62%'/);
+    expect(APP).toMatch(/styles\.gridBy/);
+    expect(APP).toMatch(/gridFace: \{ width: 16, height: 16, borderRadius: 4 \}/);
+    // And it is decoration — a 16pt target inside a 129pt tile is a place the
+    // tile stops opening the photograph for no reason a thumb can predict.
+    expect(APP).toMatch(/<View pointerEvents="none" style=\{styles\.gridBy\}>/);
   });
 
-  it('dates each one by when it arrived, not by when it was taken', () => {
+  it('no longer dates each photograph on the album screen', () => {
     /*
-     * `takenAt` falls back to `addedAt`, so for most photographs the two agree —
-     * a phone that uploads the same evening. They diverge exactly where the
-     * difference is worth having: somebody adding last summer's pictures
-     * tonight. "Taken in July" says what it is; "added today" says it is new to
-     * you, and a grid somebody is scanning wants the second.
+     * "added today" sat in a column row's top-right corner and told you which
+     * pictures were new to you. It went with the row, and nothing on the grid
+     * replaces it — the album's own date is still on the card that opens it,
+     * and a photograph's is not shown anywhere now.
      */
-    expect(API).toMatch(/addedAt: string;/);
-    expect(APP).toMatch(/const added = shortDate\(item\.addedAt\)/);
-    expect(APP).not.toMatch(/shortDate\(item\.takenAt\)/);
+    expect(APP).not.toMatch(/const added = shortDate\(item\.addedAt\)/);
   });
 
-  it('pins the date to the corner rather than trailing the handle', () => {
-    /*
-     * It sat inside the byline, on the argument that who added a photograph and
-     * when are one fact. They are — but they are one fact of very different
-     * weights, and riding on the end of a name that can be any length meant
-     * landing somewhere different on every row. A date that moves is a date
-     * nobody reads; a column you can run your eye down is the only way a date
-     * in a grid is worth anything.
-     */
-    // Comments stripped: the prose between the two blocks explains the move,
-    // so a raw slice ends in a comment rather than in the markup being checked.
-    const jsx = code(APP);
-    // A `Pressable` since the byline became a way to open the person it names.
-    const by = jsx.slice(
-      jsx.indexOf('style={styles.tileBy}'),
-      jsx.indexOf('{added &&'),
-    );
-    expect(by).toMatch(/styles\.tileHandle/);
-    // The byline's conditional closes before the date begins, so the date is a
-    // sibling of it rather than a child — which is what lets it be pinned.
-    // `{}` is what the comment stripper leaves behind where a JSX comment was.
-    expect(by.trimEnd()).toMatch(/<\/Pressable>\s*\)\}\s*(\{\})?$/);
-    expect(by).not.toMatch(/styles\.tileWhen/);
+  it('keeps the album’s own dates, which were never the column’s', () => {
+    // `dateLabel` on a card is a different thing from a photograph's "added
+    // today" and is unaffected by the column going.
+    const EVENTS = read('src/Events.tsx');
+    expect(EVENTS).toMatch(/dateLabel\(/);
   });
 
   it('dates a photograph to the year', () => {
@@ -596,16 +579,16 @@ describe('a photograph in an album', () => {
     expect(short).not.toMatch(/weekday/);
   });
 
-  it('shadows the corners rather than dimming the photograph', () => {
+  it('never dims a photograph to label it', () => {
     /*
-     * These are the pictures themselves, not a header. Darkening one to label
-     * it is the product having an opinion about somebody's photograph, so the
-     * scrim is weaker than the cover's and clear through the middle, which is
-     * most of it.
+     * The column put a gradient top and bottom of every picture so its four
+     * corner labels stayed readable. With the labels gone the gradient goes
+     * too, and the rule it was serving is kept where labels remain: the
+     * viewer's own byline carries a text shadow rather than a plate, and the
+     * tile's face is a face rather than a caption over a scrim.
      */
-    expect(APP).toMatch(
-      /colors=\{\['rgba\(0,0,0,0\.34\)', 'rgba\(0,0,0,0\)', 'rgba\(0,0,0,0\.34\)'\]\}/,
-    );
+    expect(APP).not.toMatch(/styles\.tileScrim|rgba\(0,0,0,0\.34\)/);
+    expect(VIEWER).toMatch(/textShadowColor: 'rgba\(0,0,0,0\.6\)'/);
   });
 });
 

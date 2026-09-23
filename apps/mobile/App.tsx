@@ -2111,27 +2111,6 @@ function EventScreen({
     [feed],
   );
 
-  /**
-   * How many comments each photograph has.
-   *
-   * Counted off the thread the album already has rather than asked for: a
-   * comment is an event message with a `photo_id`, so the number is a pass over
-   * a list that is already in hand. Built once, for the same reason the byline
-   * is — `messages.filter` inside a `renderItem` is a walk of the whole
-   * conversation per row.
-   *
-   * Tombstones do not count. A deleted comment leaves a row so the messages
-   * either side of it do not appear to answer each other, and counting it would
-   * put "1 comment" under a photograph whose only comment is gone.
-   */
-  const talk = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const message of feed?.messages ?? []) {
-      if (!message.photoId || message.deleted) continue;
-      counts.set(message.photoId, (counts.get(message.photoId) ?? 0) + 1);
-    }
-    return counts;
-  }, [feed]);
 
   /**
    * The photographs by id, for the comments that are about one.
@@ -2759,52 +2738,14 @@ function EventScreen({
 
   const { width } = useWindowDimensions();
 
-  /**
-   * Which of the two views of the photographs is showing.
-   *
-   * The grid is the default and sits on the left, because it is the view that
-   * answers "what is in here" — a screenful is nine photographs rather than
-   * one, and somebody opening an album they have already seen is usually
-   * looking for a particular picture. The column is one photograph per row at
-   * the width of the screen, which is looking rather than finding.
-   *
-   * Both of these shipped at different times as *the* view, and the argument
-   * for each was right about a different moment. Keeping both and making the
-   * choice a swipe is cheaper than being right about which moment matters more.
-   */
-  const [view, setView] = useState<'grid' | 'column'>('grid');
-  const pager = useRef<ScrollView | null>(null);
   const gridList = useRef<FlatList<FeedPhoto> | null>(null);
-  const columnList = useRef<FlatList<FeedPhoto> | null>(null);
 
-  /**
-   * The photograph at the top of whichever view is showing.
-   *
-   * Kept so that swiping between the two lands on the same pictures. Without
-   * it, a swipe at photograph 90 of 200 arrives at the top of the other view,
-   * which reads as the gesture having reloaded the album.
-   *
-   * A ref rather than state: it changes on every scroll frame and nothing
-   * renders from it.
-   */
-  const anchor = useRef(0);
-  const onSeen = useCallback(
-    ({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
-      const first = viewableItems[0]?.index;
-      if (typeof first === 'number') anchor.current = first;
-    },
-    [],
-  );
 
   /*
-   * Uniform rows in both views, which is what lets either be scrolled to an
-   * index it has not drawn.
-   *
-   * The column's rows are the screen's width at 4:5 plus the gap; the grid's
-   * are a third of the width, square, plus the same gap. Without
+   * Uniform rows, which is what lets the list be scrolled to an index it has
+   * not drawn yet. A third of the width, square, plus the gap — without
    * `getItemLayout`, `scrollToIndex` warns rather than arrives.
    */
-  const columnRow = width * (5 / 4) + PHOTO_GAP;
   /*
    * One tile, measured rather than flexed.
    *
@@ -2824,14 +2765,6 @@ function EventScreen({
    */
   const gridTile = (width - PHOTO_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
   const gridRowHeight = gridTile + PHOTO_GAP;
-  const columnLayout = useCallback(
-    (_data: unknown, index: number) => ({
-      length: columnRow,
-      offset: columnRow * index,
-      index,
-    }),
-    [columnRow],
-  );
   const gridLayout = useCallback(
     (_data: unknown, index: number) => {
       // By row, because `numColumns` puts three items at one offset.
@@ -2850,12 +2783,6 @@ function EventScreen({
    * therefore do exactly the same thing, rather than the button being a
    * shortcut that skips the half of the work somebody would notice missing.
    */
-  const showView = useCallback(
-    (which: 'grid' | 'column') => {
-      pager.current?.scrollTo({ x: which === 'column' ? width : 0, animated: true });
-    },
-    [width],
-  );
 
   /**
    * The swipe has landed: say which view it landed on, and go to the pictures
@@ -2864,17 +2791,6 @@ function EventScreen({
    * Only the list that has just come into view is moved. The one being left is
    * about to be off screen, and scrolling it would be a jump nobody sees.
    */
-  const onPaged = useCallback(
-    (event: { nativeEvent: { contentOffset: { x: number } } }) => {
-      const next = event.nativeEvent.contentOffset.x > width / 2 ? 'column' : 'grid';
-      setView(next);
-      const list = next === 'column' ? columnList.current : gridList.current;
-      const count = feed?.photos.length ?? 0;
-      if (!list || anchor.current <= 0 || anchor.current >= count) return;
-      list.scrollToIndex({ index: anchor.current, animated: false });
-    },
-    [feed?.photos.length, width],
-  );
 
   /**
    * One photograph as a tile, a third of the screen across.
@@ -2943,197 +2859,6 @@ function EventScreen({
     [byline, gridTile],
   );
 
-  /**
-   * One photograph, the width of the screen.
-   *
-   * Lifted out of the list so the two views can share it. The grid draws a
-   * tile instead — see `renderTile` — and what the two have in common is the
-   * photograph, not the furniture round it.
-   */
-  const renderColumn = useCallback(
-    ({ item }: { item: FeedPhoto }) => {
-        const who = item.by ? byline.get(item.by) : undefined;
-        const added = shortDate(item.addedAt);
-        /*
-         * What has happened to this photograph, if anything has.
-         *
-         * Only the halves that are not zero, and no line at all when
-         * both are: "0 comments" under every picture in a quiet album
-         * is a column of nothing, and it is worse than nothing because
-         * it makes the pictures people *have* said something about
-         * harder to pick out.
-         */
-        const said = [
-          talk.get(item.id)
-            ? `${talk.get(item.id)} ${talk.get(item.id) === 1 ? 'comment' : 'comments'}`
-            : null,
-          item.reactions.length
-            ? `${item.reactions.length} ${item.reactions.length === 1 ? 'reaction' : 'reactions'}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return (
-          <Pressable style={styles.tile} onPress={() => setSelected(item)}>
-            {/*
-              The 1280 now that a row is the whole width of the screen:
-              393 points is 1179 device pixels on a 3× phone, and the 640
-              that was right for a third of a row cannot fill one. Both
-              fall back the same way — each is null only until the
-              deriver has been round, and `src` is then all there is.
-            */}
-            <ExpoImage
-              source={{ uri: item.grid ?? item.card ?? item.src }}
-              style={styles.thumb}
-              contentFit="cover"
-              transition={120}
-            />
-
-            {/*
-              Just enough shadow in the two corners to carry white.
-
-              Top and bottom only, and weaker than the cover's: these
-              are the photographs themselves rather than a header, and
-              darkening one to label it is the product having an opinion
-              about somebody's picture. Clear through the middle, which
-              is most of it.
-            */}
-            <LinearGradient
-              colors={['rgba(0,0,0,0.34)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.34)']}
-              locations={[0, 0.32, 1]}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-
-            {/*
-              Whose it is, top left.
-
-              An album is several people's photographs in one column and
-              it never said which was whose — the People pane counted
-              them and the grid attributed none of them. The handle
-              rather than the display name: a column of names reads as
-              captions, a column of handles reads as attribution.
-            */}
-            {who && (
-              /*
-                The byline goes to the person, the rest of the row goes
-                to the photograph.
-
-                Nested inside the row's own `Pressable`, which is what
-                makes both work: the inner one takes the touch when it
-                lands on the face or the handle, and the outer one takes
-                everything else. It stopped being `pointerEvents="none"`
-                for exactly this.
-
-                Only when there is a handle. Somebody who arrived by
-                link and added photographs has a name and a face here
-                and no profile to open, and a control that does nothing
-                is worse than a label that never offered.
-              */
-              <Pressable
-                onPress={
-                  who.handle ? () => onOpenPerson(who.handle!) : undefined
-                }
-                disabled={!who.handle}
-                accessibilityRole={who.handle ? 'button' : 'text'}
-                accessibilityLabel={
-                  who.handle
-                    ? `${who.handle}, see their profile`
-                    : who.name
-                }
-                hitSlop={6}
-                style={styles.tileBy}
-              >
-                {who.avatarUrl ? (
-                  <ExpoImage
-                    source={{ uri: who.avatarUrl }}
-                    style={styles.tileFace}
-                    contentFit="cover"
-                    transition={120}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.tileFace,
-                      styles.tileFaceBlank,
-                      { backgroundColor: lensFor(who.key).fill },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.tileInitial, { color: lensFor(who.key).ink }]}
-                    >
-                      {initialOf(who.name)}
-                    </Text>
-                  </View>
-                )}
-                <Text style={styles.tileHandle} numberOfLines={1}>
-                  {who.handle ?? who.name}
-                </Text>
-              </Pressable>
-            )}
-
-            {/*
-              When it arrived, opposite the person who added it.
-
-              It sat inside the byline, on the argument that who and
-              when are one fact. They are — but they are one fact of
-              very different weights: the handle is what you read, and
-              the date is what you check. In the same line the date rode
-              on the end of a name that can be any length, so it landed
-              somewhere different on every row and the column had no
-              edge. Pinned to the corner it is a column you can run your
-              eye down, which is the only way a date in a grid is worth
-              anything.
-            */}
-            {added && (
-              <Text style={styles.tileWhen} pointerEvents="none">
-                {added}
-              </Text>
-            )}
-
-            {/*
-              What people have done with it, bottom left.
-
-              Words rather than glyphs and a number. Two counts in the
-              corner of a photograph are read once, if at all, and
-              "3 comments" is legible at a glance where a speech bubble
-              with a 3 beside it asks somebody to decode two symbols
-              first. There is room: the row is the width of the screen.
-            */}
-            {said !== '' && (
-              <Text style={styles.tileSaid} pointerEvents="none" numberOfLines={1}>
-                {said}
-              </Text>
-            )}
-
-            {/*
-              And a way to keep it, bottom right.
-
-              Saving one photograph out of somebody else's evening is
-              the common case and it had no control at all: the only way
-              was Download Album, which is the whole thing and a
-              question about megabytes first.
-            */}
-            <Pressable
-              onPress={() => void saveOne(item)}
-              disabled={savingOne !== null}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={
-                savingOne === item.id ? 'Saving' : 'Save this photo'
-              }
-              style={({ pressed }) => [
-                styles.tileSave,
-                { opacity: savingOne === item.id ? 0.5 : pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Glyph name="download" size={18} color="#fff" />
-            </Pressable>
-          </Pressable>
-        );
-    },
-    [byline, onOpenPerson, savingOne, saveOne, t, talk],
-  );
 
   /*
    * The auto-select sheet, which has to be decided *after* every hook above.
@@ -3566,150 +3291,51 @@ function EventScreen({
             )}
 
             {/*
-              One photograph per row, the width of the screen.
+              The grid, and only the grid.
 
-              It was a three-column grid of 121pt squares, which is a contact
-              sheet: good for finding a photograph you already know is in
-              there, and nothing at all like looking at one. Every square was
-              also a crop — `contentFit="cover"` on a 1:1 tile throws away the
-              ends of everything anybody shot in portrait.
+              There were two views of the same photographs — this one and a
+              column of full-width pictures, a horizontal pager apart, with a
+              two-glyph control naming them. Both had shipped as *the* view at
+              different times and the argument for each was right about a
+              different moment, so both were kept and the choice made a swipe.
 
-              A column of full-width pictures is what the home screen does with
-              evenings, and this is the same argument one level down: the
-              photograph is the thing, so it gets the width. Square corners and
-              no side gutter for the same reason the cards have none.
+              What that missed is that the moments are not equal. An album is
+              the thing you scan; a photograph is the thing you look at, and
+              looking at one now has a screen of its own that the column was
+              standing in for — full bleed, pinch to zoom, and a swipe between
+              pictures. The column was a viewer with a scroll bar, and keeping
+              it meant the album had two answers to "how do I look at this"
+              and no clear one.
             */}
-            {/*
-              Which view is showing — and, now, how to change it.
-
-              It was two 4pt bars with the one you were on filled: an indicator
-              rather than a control, on the reasoning that the gesture is the
-              swipe and this only had to say the swipe existed. It never did
-              say that. A short mark under a row of tabs is read as a tab
-              underline, which is a thing that *reports* where you are, so
-              nobody learned there was a second view to reach.
-
-              Two glyphs, each a small drawing of the layout it opens — a
-              2×2 of squares, and one tall frame. The literal icon is the right
-              one here for once: both views hold the same photographs and
-              differ only in how they are laid out, so a diagram of the layout
-              is a complete description.
-
-              And they are pressable, which is the other half of the fix. The
-              swipe still works and is still the faster way; a control that
-              names the two views is what makes somebody try it.
-            */}
-            <View style={styles.viewBar}>
-              <View style={styles.viewTrack}>
-                {(
-                  [
-                    ['grid', 'grid', 'Grid'],
-                    ['column', 'portrait', 'One at a time'],
-                  ] as const
-                ).map(([which, glyph, label]) => (
-                  <Pressable
-                    key={which}
-                    onPress={() => showView(which)}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: view === which }}
-                    accessibilityLabel={label}
-                    style={styles.viewSegment}
-                  >
-                    <Glyph
-                      name={glyph}
-                      size={18}
-                      /* The same pairing the tab bubble uses: the one you are
-                         on steps up to `fg` and gains half a unit of stroke,
-                         because at 18 points a change of value alone is easy
-                         to miss. */
-                      weight={view === which ? 2.4 : 1.8}
-                      color={view === which ? t.fg : t.dim}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/*
-              Two views of the same photographs, side by side.
-
-              A horizontal pager rather than a control that swaps the list:
-              swiping between them is the gesture the bar above describes, and
-              it is the one that makes the two feel like two views of one thing
-              rather than two screens. `pagingEnabled` does the snapping.
-            */}
-            <ScrollView
-              ref={pager}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={onPaged}
-              style={styles.pager}
-            >
-              <View style={{ width }}>
-                <FlatList
-                  ref={gridList}
-                  numColumns={GRID_COLUMNS}
-                  columnWrapperStyle={styles.gridRow}
-                  getItemLayout={gridLayout}
-                  onViewableItemsChanged={onSeen}
-                  data={feed?.photos ?? []}
-                  keyExtractor={(photo) => photo.id}
-                  contentContainerStyle={styles.gridContent}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      tintColor={t.dim}
-                      onRefresh={async () => {
-                        setRefreshing(true);
-                        await refresh();
-                        setRefreshing(false);
-                      }}
-                    />
-                  }
-                  ListEmptyComponent={
-                    feed ? (
-                      <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
-                        Nothing here yet. Add yours and everyone else will see there
-                        is something to add to.
-                      </Text>
-                    ) : null
-                  }
-                  renderItem={renderTile}
+            <FlatList
+              ref={gridList}
+              numColumns={GRID_COLUMNS}
+              columnWrapperStyle={styles.gridRow}
+              getItemLayout={gridLayout}
+              data={feed?.photos ?? []}
+              keyExtractor={(photo) => photo.id}
+              contentContainerStyle={styles.gridContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  tintColor={t.dim}
+                  onRefresh={async () => {
+                    setRefreshing(true);
+                    await refresh();
+                    setRefreshing(false);
+                  }}
                 />
-              </View>
-
-              <View style={{ width }}>
-                <FlatList
-                  ref={columnList}
-                  getItemLayout={columnLayout}
-                  onViewableItemsChanged={onSeen}
-                  data={feed?.photos ?? []}
-                  keyExtractor={(photo) => photo.id}
-                  contentContainerStyle={styles.gridContent}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      tintColor={t.dim}
-                      onRefresh={async () => {
-                        setRefreshing(true);
-                        await refresh();
-                        setRefreshing(false);
-                      }}
-                    />
-                  }
-                  ListEmptyComponent={
-                    feed ? (
-                      <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
-                        Nothing here yet. Add yours and everyone else will see there
-                        is something to add to.
-                      </Text>
-                    ) : null
-                  }
-                  renderItem={renderColumn}
-                />
-              </View>
-            </ScrollView>
+              }
+              ListEmptyComponent={
+                feed ? (
+                  <Text style={[styles.body, { color: t.dim, padding: 28 }]}>
+                    Nothing here yet. Add yours and everyone else will see there
+                    is something to add to.
+                  </Text>
+                ) : null
+              }
+              renderItem={renderTile}
+            />
           </>
         ) : pane === 'talk' ? (
           <Thread
@@ -4011,6 +3637,36 @@ function EventScreen({
               // on showing the counts as they were before the tap.
               feed?.photos.find((p) => p.id === selected.id) ?? selected
             }
+            /*
+              Whose it is, off the same map the tiles use.
+
+              The album attributed its photographs in the column and the column
+              is gone; this is where that went. `by` is null for an uploader
+              who has left, and the viewer draws nothing rather than an
+              anonymous square.
+            */
+            uploader={selected.by ? (byline.get(selected.by) ?? null) : null}
+            onOpenPerson={onOpenPerson}
+            /*
+              The photographs either side, as two callbacks.
+
+              Computed here because the album is here: the viewer is handed one
+              photograph and never the list. `null` at an end is what the
+              gesture reads to know it has run out — it springs back rather
+              than paging into nothing.
+
+              Against `feed?.photos`, which is the order the grid draws, so a
+              swipe moves through the album in the order somebody just
+              scrolled past rather than in some other one.
+            */
+            {...(() => {
+              const all = feed?.photos ?? [];
+              const at = all.findIndex((p) => p.id === selected.id);
+              return {
+                onPrev: at > 0 ? () => setSelected(all[at - 1]!) : null,
+                onNext: at >= 0 && at < all.length - 1 ? () => setSelected(all[at + 1]!) : null,
+              };
+            })()}
             /*
               The album's own thread, filtered to this photograph.
               
@@ -5619,18 +5275,6 @@ const styles = StyleSheet.create({
    * labels, so they read as being about the picture rather than as controls
    * belonging to the app.
    */
-  tileBy: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    /* Short of the date in the opposite corner, so a long handle truncates
-       rather than running under it. A date with a year is about eighty points,
-       and the corners are inset by ten each. */
-    maxWidth: '62%',
-  },
   /*
    * A rounded square, not a circle.
    *
@@ -5643,17 +5287,6 @@ const styles = StyleSheet.create({
    * The overlapping crowd over a cover stays circular. That row only reads as
    * a crowd because the circles overlap, which squares do not do.
    */
-  tileFace: { width: 24, height: 24, borderRadius: 6 },
-  tileFaceBlank: { alignItems: 'center', justifyContent: 'center' },
-  tileInitial: { fontSize: 11, fontWeight: '700' },
-  tileHandle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
   /*
    * Below the two labels, in the corner nothing else wants.
    *
@@ -5662,21 +5295,8 @@ const styles = StyleSheet.create({
    * the same forty points. Down here it is the only thing in its corner, which
    * is what a control should be.
    */
-  tileSave: { position: 'absolute', right: 10, bottom: 10, padding: 4 },
   /* Opposite the save, and short of it: the two never meet however many
      comments a photograph collects. */
-  tileSaid: {
-    position: 'absolute',
-    left: 10,
-    bottom: 14,
-    maxWidth: '72%',
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.92)',
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
   /*
    * Opposite the byline, pinned to the corner rather than trailing the handle.
    *
@@ -5684,16 +5304,6 @@ const styles = StyleSheet.create({
    * and a date that moves is a date nobody reads. Dimmer than the handle: it is
    * the part you check rather than the part you read.
    */
-  tileWhen: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    fontSize: 12.5,
-    color: 'rgba(255,255,255,0.78)',
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
   uploadBar: {
     position: 'absolute',
     bottom: 0,
@@ -5881,9 +5491,6 @@ const styles = StyleSheet.create({
      by the screen's edge is what says there is more. */
   /* No side gutter: the photographs run to both edges, as the home cards do. */
   gridContent: { paddingBottom: 12, gap: PHOTO_GAP },
-  /* The pager holds two full-width pages, so it must not shrink to its
-     content: without `flex` the lists have no height to scroll inside. */
-  pager: { flex: 1 },
   /* `flex-start`, so a last row of one or two starts at the left edge and
      stops. The default is `stretch`, which on a row of fixed-width children
      does nothing — but it is the pairing that matters: the tiles are sized in
@@ -5918,23 +5525,6 @@ const styles = StyleSheet.create({
   gridFace: { width: 16, height: 16, borderRadius: 4 },
   gridFaceBlank: { alignItems: 'center', justifyContent: 'center' },
   gridInitial: { fontSize: 8, fontWeight: '700' },
-  /*
-   * The bar that says which view is showing, and nothing else.
-   *
-   * It had a white strip behind it, which made three pieces of chrome between
-   * the tabs and the photographs where two will do — and a white one in dark
-   * mode besides. What is left is the space, which the album's own background
-   * shows through.
-   */
-  viewBar: { paddingTop: 6, paddingBottom: 6 },
-  /* The two halves of the screen, each with its glyph in the middle of it: the
-     left one opens the view on the left and the right one the view on the
-     right, so where the control sits is also what it does. */
-  viewTrack: { flexDirection: 'row', paddingHorizontal: 20 },
-  /* Tall enough to be a target rather than a picture. 34 against an 18pt glyph
-     is 8 points of slop each side, which is what stops a press at the top of a
-     scrolling album from landing on the first row of photographs instead. */
-  viewSegment: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center' },
   h1: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
@@ -5999,7 +5589,6 @@ const styles = StyleSheet.create({
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, alignItems: 'center' },
   buttonText: { fontSize: 16, fontWeight: '600' },
   listRow: { paddingVertical: 10 },
-  tile: { flex: 1 },
   /* 4:5 rather than square, and no radius.
      A 1:1 crop takes the ends off everything shot in portrait, which is most
      of what a phone shoots at an evening; 4:5 is the tallest shape that still

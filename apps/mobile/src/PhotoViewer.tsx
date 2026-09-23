@@ -109,6 +109,10 @@ export function PhotoViewer({
   onClose,
   onChanged,
   onOptions,
+  uploader,
+  onOpenPerson,
+  onPrev,
+  onNext,
 }: {
   api: Api;
   /** Which album, for posting a comment against this photograph. */
@@ -133,6 +137,38 @@ export function PhotoViewer({
   onChanged: () => Promise<void>;
   /** The `⋯`: remove, ask for it down, report, block. */
   onOptions: () => void;
+  /**
+   * Whose photograph this is, for the square at the top.
+   *
+   * Looked up by the caller rather than here: an album is a long list and the
+   * map it comes out of is built once over there. Null for a photograph whose
+   * uploader has gone, which draws nothing — an empty square in the middle of
+   * the chrome would be a claim about somebody.
+   */
+  uploader: { name: string; handle: string | null; avatarUrl: string | null } | null;
+  /**
+   * Opening the person whose photograph this is.
+   *
+   * The album's column used to carry this — the handle beside each row was a
+   * press — and the column is gone. Without it a photograph is the one place
+   * in the product that shows you somebody and offers no way to them.
+   *
+   * Only ever called with a handle. Somebody who arrived by a link and added
+   * photographs has a name and a face and no profile, and the square draws as
+   * a label for them rather than as a control that does nothing.
+   */
+  onOpenPerson: (handle: string) => void;
+  /**
+   * The photographs either side, or null at an end.
+   *
+   * Callbacks rather than a list and an index: the viewer never holds the
+   * album, and the caller already re-reads the current photograph off the
+   * feed on every render so that a reaction is not shown stale. Null is what
+   * the gesture below reads to know it has run out — it springs back rather
+   * than paging into nothing.
+   */
+  onPrev: (() => void) | null;
+  onNext: (() => void) | null;
 }) {
   const { width, height } = useWindowDimensions();
 
@@ -263,7 +299,30 @@ export function PhotoViewer({
            * and how they discover mid-drag which way they are going.
            */
           if (now.current.scale <= 1) {
-            pan.setValue({ x: 0, y: g.dy / 3 });
+            /*
+             * Whichever axis the finger has committed to, and only that one.
+             *
+             * Sideways moves between photographs; up and down are the two
+             * gestures this space already had. Deciding per frame from the
+             * larger of the two — rather than latching on the first move —
+             * keeps a drag that starts ambiguous from sticking to the wrong
+             * axis, and the release below reads the same comparison, so what
+             * somebody sees follow their finger is what happens when they
+             * let go.
+             *
+             * A third of the distance, as the vertical always did: enough to
+             * show the gesture is there and to say which way it is going,
+             * short of dragging the next photograph in — which would need the
+             * album on this screen, and it is not here.
+             */
+            if (Math.abs(g.dx) > Math.abs(g.dy)) {
+              // Nothing that way. The picture stays put rather than offering
+              // a movement that ends in a spring back to where it started.
+              const wall = g.dx > 0 ? !onPrev : !onNext;
+              pan.setValue({ x: wall ? 0 : g.dx / 3, y: 0 });
+            } else {
+              pan.setValue({ x: 0, y: g.dy / 3 });
+            }
             return;
           }
           if (!from.current) {
@@ -304,6 +363,34 @@ export function PhotoViewer({
             }
           }
 
+          /*
+           * Sideways, between the photographs.
+           *
+           * The same two thresholds the vertical uses, against `dx` and `vx`:
+           * a gesture that is far enough or fast enough counts, so a short
+           * flick works and a long careful drag does too.
+           *
+           * Right goes back and left goes forward, which is the direction the
+           * picture moved under the finger rather than the direction of travel
+           * through the album — dragging a photograph to the right should
+           * bring in the one on its left, the way every other set of pages on
+           * this phone behaves.
+           *
+           * `settle(1)` before the caller changes the photograph, so the next
+           * one arrives centred rather than inheriting the offset this one was
+           * dragged to.
+           */
+          if (now.current.scale <= 1 && Math.abs(g.dx) > Math.abs(g.dy)) {
+            const far = Math.abs(g.dx) > SWIPE;
+            const flung = Math.abs(g.vx) > FLING;
+            const go = g.dx > 0 ? onPrev : onNext;
+            if ((far || flung) && go) {
+              settle(1);
+              go();
+              return;
+            }
+          }
+
           if (!moved) {
             const at = Date.now();
             if (at - lastTap.current < DOUBLE_TAP_MS) {
@@ -327,7 +414,7 @@ export function PhotoViewer({
           settle(now.current.scale);
         },
       }),
-    [onClose, pan, scale, settle, zoomTo],
+    [onClose, onNext, onPrev, pan, scale, settle, zoomTo],
   );
 
   /*
@@ -483,6 +570,67 @@ export function PhotoViewer({
             >
               <Text style={styles.roundGlyph}>✕</Text>
             </Pressable>
+            {/*
+              Whose photograph this is, in the middle of the chrome.
+
+              The album used to say it in the column, beside each picture, and
+              the column is gone — so the attribution moved to the screen the
+              column was standing in for. Centred rather than tucked beside
+              the close button because it is not a control: the two round
+              glyphs either side are the things to press, and a face between
+              them reads as a label, which is what it is.
+
+              A square, like the faces on the tiles. A disc here would be the
+              one round face in a product whose photographs all have corners,
+              and at this size the difference is what tells you it is a
+              picture of somebody rather than a button.
+
+              Absolutely positioned so that it is centred on the *screen* and
+              not on whatever space is left between the two buttons — with
+              `space-between` those are different centres, and the second one
+              drifts as the buttons change size.
+            */}
+            {uploader && (
+              <Pressable
+                style={styles.who}
+                // A label, not a control, for somebody with no profile behind
+                // it. `box-none` either way, so the glass underneath still
+                // takes the taps that are about the photograph.
+                onPress={
+                  uploader.handle ? () => onOpenPerson(uploader.handle!) : undefined
+                }
+                disabled={!uploader.handle}
+                accessibilityRole={uploader.handle ? 'button' : 'text'}
+                accessibilityLabel={
+                  uploader.handle
+                    ? `${uploader.handle}, see their profile`
+                    : `Added by ${uploader.name}`
+                }
+                hitSlop={8}
+              >
+                {uploader.avatarUrl ? (
+                  <ExpoImage
+                    source={{ uri: uploader.avatarUrl }}
+                    style={styles.whoFace}
+                    contentFit="cover"
+                    transition={120}
+                  />
+                ) : (
+                  <View style={[styles.whoFace, styles.whoBlank]}>
+                    <Text style={styles.whoInitial}>
+                      {(uploader.handle ?? uploader.name).slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                {/* The handle where there is one, for the reason the column
+                    gave: a name under a picture reads as a caption, a handle
+                    reads as attribution. */}
+                <Text style={styles.whoName} numberOfLines={1}>
+                  {uploader.handle ?? uploader.name}
+                </Text>
+              </Pressable>
+            )}
+
             <Pressable
               onPress={onOptions}
               hitSlop={14}
@@ -710,6 +858,29 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  /*
+   * The uploader, centred on the screen rather than on the gap.
+   *
+   * `left: 0; right: 0; alignItems: 'center'` inside a row that is already
+   * spacing two buttons apart: laid out as a third flex child it would sit in
+   * the middle of what those two leave, which moves whenever either does.
+   */
+  who: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 4 },
+  /* A square with the corner this product gives every face — a quarter of the
+     box — at the size the album's own tiles draw one. */
+  whoFace: { width: 34, height: 34, borderRadius: 9, backgroundColor: '#ffffff24' },
+  whoBlank: { alignItems: 'center', justifyContent: 'center' },
+  whoInitial: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  /* On the glass, so it has to carry its own contrast: a shadow rather than a
+     plate, for the same reason the photograph is not dimmed to label it. */
+  whoName: {
+    color: '#fff',
+    fontSize: 12.5,
+    fontWeight: '600',
+    maxWidth: 180,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 4,
   },
   /*
    * The comment box, on the glass rather than inside the panel.

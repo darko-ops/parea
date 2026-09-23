@@ -486,7 +486,15 @@ describe('pressing a byline', () => {
   });
 
   it('opens the person on a photograph', () => {
-    expect(APP).toMatch(/onOpenPerson\(who\.handle!\)/);
+    /*
+     * This was the album's column, where every row carried a pressable
+     * handle. The column is gone and the path is not: the viewer's square
+     * names the uploader and opens them, which is the one place a photograph
+     * now shows you somebody.
+     */
+    const VIEWER = read('src/PhotoViewer.tsx');
+    expect(VIEWER).toMatch(/onOpenPerson\(uploader\.handle!\)/);
+    expect(APP).toMatch(/onOpenPerson=\{onOpenPerson\}/);
     expect(APP).toMatch(/<EventScreen[\s\S]{0,900}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
   });
 
@@ -511,14 +519,13 @@ describe('pressing a byline', () => {
 
   it('offers nothing where there is no profile to open', () => {
     /*
-     * Somebody who arrived by link has a name and a face and no handle. A
-     * control that does nothing is worse than a label that never offered, so
-     * both are disabled and neither claims to be a button.
+     * Somebody who arrived by a link and added photographs has a name and a
+     * face and no profile. A control that does nothing is worse than a label,
+     * so both surfaces draw one.
      */
-    expect(EVENTS).toMatch(/disabled=\{!event\.creator\.handle\}/);
-    expect(APP).toMatch(/disabled=\{!who\.handle\}/);
-    expect(EVENTS).toMatch(/accessibilityRole=\{event\.creator\.handle \? 'button' : 'text'\}/);
-    expect(APP).toMatch(/accessibilityRole=\{who\.handle \? 'button' : 'text'\}/);
+    const VIEWER = read('src/PhotoViewer.tsx');
+    expect(VIEWER).toMatch(/disabled=\{!uploader\.handle\}/);
+    expect(VIEWER).toMatch(/accessibilityRole=\{uploader\.handle \? 'button' : 'text'\}/);
   });
 });
 

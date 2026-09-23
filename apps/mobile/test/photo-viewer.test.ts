@@ -80,8 +80,11 @@ describe('the gesture', () => {
      * nothing to pan when the picture is already inside the screen. Zoomed in,
      * this branch takes the finger back and neither gesture can fire.
      */
-    expect(GESTURE).toMatch(/if \(now\.current\.scale <= 1\) \{\s*pan\.setValue/);
+    expect(GESTURE).toMatch(/if \(now\.current\.scale <= 1\) \{/);
+    // Three gestures share that space now — see the block below — and each
+    // names the axis it is on, so a diagonal cannot fire two of them.
     expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\)/);
+    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dx\) > Math\.abs\(g\.dy\)/);
   });
 
   it('will not let the edges leave the glass', () => {
@@ -137,7 +140,16 @@ describe('reacting to a photograph', () => {
     expect(API).toMatch(/reactions: \{ emoji: string; name: string; mine: boolean \}\[\]/);
     expect(GESTURE).toMatch(/\{r\.mine \? 'You' : r\.name\}/);
     expect(GESTURE).not.toMatch(/`@\$\{/);
-    expect(GESTURE).not.toMatch(/actorId|avatarUrl/);
+    expect(GESTURE).not.toMatch(/actorId/);
+    /*
+     * `avatarUrl` used to be absent from this whole file and the assertion
+     * said so. It is here now, once, for the uploader's square at the top —
+     * which is a different thing from a reaction row and is the only face the
+     * viewer draws. What the rule was protecting is that a *reaction* is a
+     * name and an emoji, so that is what is checked.
+     */
+    const reactions = GESTURE.slice(GESTURE.indexOf('r.mine ?'));
+    expect(reactions.slice(0, reactions.indexOf('</'))).not.toMatch(/avatarUrl/);
   });
 
   it('reads downward from the newest, over the comment bar', () => {
@@ -627,5 +639,92 @@ describe('the emoji sheet', () => {
   it('keeps the flag out of state', () => {
     // As state it would rebuild the responder on every scroll frame.
     expect(PICKER).toMatch(/const atTop = useRef\(true\)/);
+  });
+});
+
+/**
+ * Moving between photographs, and saying whose each one is.
+ *
+ * Both arrived when the album's column went. The column was one photograph per
+ * row at the width of the screen — a viewer with a scroll bar — and it carried
+ * the two things this screen now has to: you could scroll from one picture to
+ * the next, and every row said who had added it.
+ */
+describe('the photographs either side', () => {
+  it('moves on a horizontal swipe, at fit only', () => {
+    /*
+     * Zoomed in the same finger is a pan, and there is no spare gesture: the
+     * branch that takes the finger back for panning is the one above this.
+     * `scale <= 1` is what keeps a drag across a magnified photograph from
+     * throwing it to the next one.
+     */
+    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dx\) > Math\.abs\(g\.dy\)/);
+    expect(GESTURE).toMatch(/const go = g\.dx > 0 \? onPrev : onNext;/);
+  });
+
+  it('uses the same two thresholds the vertical does', () => {
+    // A short flick and a long deliberate drag should both count, which is
+    // what having a distance *and* a velocity buys.
+    expect(GESTURE).toMatch(/const far = Math\.abs\(g\.dx\) > SWIPE;/);
+    expect(GESTURE).toMatch(/const flung = Math\.abs\(g\.vx\) > FLING;/);
+  });
+
+  it('springs back at the ends rather than paging into nothing', () => {
+    // `onPrev`/`onNext` are null at an end, and the drag does not follow the
+    // finger into a wall it cannot pass.
+    expect(GESTURE).toMatch(/if \(\(far \|\| flung\) && go\)/);
+    expect(GESTURE).toMatch(/const wall = g\.dx > 0 \? !onPrev : !onNext;/);
+  });
+
+  it('centres the next photograph rather than inheriting an offset', () => {
+    // `settle(1)` before the caller swaps the picture: without it the one
+    // arriving starts wherever the one leaving was dragged to.
+    expect(GESTURE).toMatch(/settle\(1\);\s*go\(\);/);
+  });
+
+  it('never holds the album itself', () => {
+    /*
+     * Two callbacks rather than a list and an index. The caller already
+     * re-reads the current photograph off the feed on every render so a
+     * reaction is not shown stale, and a second copy of the order in here is
+     * a second thing to keep in step with it.
+     */
+    expect(GESTURE).not.toMatch(/photos: FeedPhoto\[\]|index: number/);
+    expect(APP).toMatch(/const at = all\.findIndex\(\(p\) => p\.id === selected\.id\);/);
+    expect(APP).toMatch(/onPrev: at > 0 \? \(\) => setSelected\(all\[at - 1\]!\) : null/);
+    expect(APP).toMatch(/onNext: at >= 0 && at < all\.length - 1/);
+  });
+});
+
+describe('whose photograph it is', () => {
+  it('is a square in the middle of the chrome', () => {
+    /*
+     * Centred on the screen rather than on the gap between the two round
+     * buttons — with `space-between` those are different centres, and the
+     * second drifts as the buttons change size.
+     */
+    expect(GESTURE).toMatch(/who: \{ position: 'absolute', left: 0, right: 0, alignItems: 'center'/);
+    // A square, like the faces on the tiles: a disc here would be the one
+    // round face in a product whose photographs all have corners.
+    expect(GESTURE).toMatch(/whoFace: \{ width: 34, height: 34, borderRadius: 9/);
+  });
+
+  it('opens the person, which is the path the column used to carry', () => {
+    expect(GESTURE).toMatch(/onOpenPerson\(uploader\.handle!\)/);
+    expect(APP).toMatch(/onOpenPerson=\{onOpenPerson\}/);
+  });
+
+  it('is a label, not a control, for somebody with no profile', () => {
+    // Somebody who arrived by a link and added photographs has a name and a
+    // face and nothing behind them.
+    expect(GESTURE).toMatch(/disabled=\{!uploader\.handle\}/);
+    expect(GESTURE).toMatch(/accessibilityRole=\{uploader\.handle \? 'button' : 'text'\}/);
+  });
+
+  it('draws nothing at all for an uploader who has gone', () => {
+    // `by` is null there, and an anonymous square in the middle of the chrome
+    // would be a claim about somebody.
+    expect(GESTURE).toMatch(/\{uploader && \(/);
+    expect(APP).toMatch(/uploader=\{selected\.by \? \(byline\.get\(selected\.by\) \?\? null\) : null\}/);
   });
 });
