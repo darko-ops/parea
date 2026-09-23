@@ -148,11 +148,55 @@ describe('a chats tab with no chats', () => {
   });
 
   it('offers a room rather than directions to another tab', () => {
-    expect(CHATS).toMatch(/label="Create group chat"[\s\S]{0,40}onPress=\{onCreateGroup\}/);
+    const blank = CHATS.slice(CHATS.indexOf('<View style={styles.blank}>'));
+    expect(blank.slice(0, blank.indexOf('</View>'))).toMatch(/onPress=\{onCreateGroup\}/);
     // The way out that used to stand here, and the prop that fed it.
     expect(CHATS).not.toMatch(/Your albums/);
     expect(CHATS).not.toMatch(/onGoToEvents/);
     expect(APP).not.toMatch(/onGoToEvents/);
+  });
+});
+
+describe('an empty page says so the same way everywhere', () => {
+  /*
+   * Three screens can be empty — the shelf on the profile, the feed on Home,
+   * and the chats tab — and they said so three different ways: a centred note
+   * over a `+`, a bordered card holding two sentences and a filled button,
+   * and a link to a different tab. One shape now, which is what the profile's
+   * already was.
+   */
+  it('is a note over a round plus, not a card or a filled button', () => {
+    for (const [name, source] of [
+      ['home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab'))],
+      ['chats', CHATS],
+    ] as const) {
+      const at = source.indexOf('<View style={styles.blank}>');
+      expect(at, `${name} must use the shared empty-page block`).toBeGreaterThan(-1);
+      const block = source.slice(at, source.indexOf('</View>', at));
+      expect(block, name).toMatch(/styles\.blankNote/);
+      expect(block, name).toMatch(/<RoundButton/);
+      expect(block, name).toMatch(/<Glyph name="plus"/);
+      // The two things it replaced.
+      expect(block, name).not.toMatch(/styles\.card|primary/);
+    }
+  });
+
+  it('measures all three from one place', () => {
+    // The profile keeps its own copy — it is a different StyleSheet — so the
+    // numbers are pinned against each other here instead.
+    expect(EVENTS).toMatch(/blank: \{ alignItems: 'center', gap: 14, paddingTop: 40 \}/);
+    expect(EVENTS).toMatch(/blankNote: \{ fontSize: 15, lineHeight: 21, textAlign: 'center' \}/);
+    expect(PROFILE).toMatch(/noAlbums: \{ alignItems: 'center', gap: 14, paddingTop: 24 \}/);
+    expect(PROFILE).toMatch(/noAlbumsText: \{ fontSize: 15, lineHeight: 21, textAlign: 'center' \}/);
+  });
+
+  it('says the same words about the same absence', () => {
+    // Home and the profile are both a shelf with no albums on it.
+    expect(EVENTS).toMatch(/No Albums Yet\. Create One Now\./);
+    expect(PROFILE).toMatch(/No Albums Yet\. Create One Now\./);
+    // Chats has a heading of its own above the button, so the note under it
+    // is the half the heading has not already said.
+    expect(CHATS).toMatch(/>Create One Now\.</);
   });
 });
 

@@ -902,17 +902,26 @@ export function HomeTab({
 
       {loading && filled.length === 0 && <Waiting fill />}
 
+      {/*
+        A line and the one stroke that answers it — the shape the profile's
+        empty shelf uses, and the same words, because it is the same absence.
+
+        It was a bordered card holding two sentences and a filled button: a
+        panel, on a page whose every other row is a photograph, drawing more
+        attention empty than the cards draw full. The sentence it lost said
+        that albums you are sent open when you tap the link, which is true and
+        is not something somebody needs told while looking at an empty screen
+        — it describes what happens elsewhere, later, without them doing
+        anything.
+      */}
       {!loading && filled.length === 0 && (
-        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-          {/* No longer points at `Open a link`, which is not on this screen
-              any more. An album somebody sends you opens itself when you tap
-              it, so the only thing left for this card to offer is the one
-              action that is here. */}
-          <Text style={[styles.body, { color: t.fg }]}>
-            Nothing here yet. Albums you are sent open when you tap the link,
-            and the ones you make show up here.
+        <View style={styles.blank}>
+          <Text style={[styles.blankNote, { color: t.dim }]}>
+            No Albums Yet. Create One Now.
           </Text>
-          <Button label="Create album" onPress={onCreate} t={t} primary />
+          <RoundButton t={t} onPress={onCreate} accessibilityLabel="Create an album">
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
         </View>
       )}
 
@@ -1230,12 +1239,25 @@ export function ChatsTab({
             made outright now, so the empty chats page gets the control that
             fills it rather than directions elsewhere.
 
+            A line and a stroke rather than a filled button, which is the
+            profile's shape and now the product's: the three screens that can
+            be empty say so the same way. The line is short because the
+            heading above has already said what is missing — repeating it over
+            the button would be the screen telling somebody twice.
+
             Centred in the space the list will occupy, and gone the moment
             there is one: this whole branch is `nothing`, so the first chat
             takes the prompt with it.
           */}
-          <View style={styles.noChats}>
-            <Button label="Create group chat" onPress={onCreateGroup} t={t} primary />
+          <View style={styles.blank}>
+            <Text style={[styles.blankNote, { color: t.dim }]}>Create One Now.</Text>
+            <RoundButton
+              t={t}
+              onPress={onCreateGroup}
+              accessibilityLabel="Create a group chat"
+            >
+              <Glyph name="plus" size={20} color={t.fg} />
+            </RoundButton>
           </View>
         </View>
       ) : (
@@ -3002,9 +3024,16 @@ const styles = StyleSheet.create({
   suggestWhy: { fontSize: 12 },
   suggestAdd: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 18 },
   suggestAddText: { fontSize: 13.5, fontWeight: '600' },
-  /* The one control on an empty chats tab, in the middle of the run the list
-     would fill rather than tucked under the paragraph. */
-  noChats: { alignItems: 'center', paddingTop: 40 },
+  /*
+   * An empty page, on the two tabs that can be one.
+   *
+   * The same three numbers as the profile's `noAlbums`, plus the room the
+   * list would have taken: a note, a gap, and the `+` under it, all centred.
+   * Held here rather than per-tab so the shape cannot drift between the
+   * screens that use it — which is the whole reason it is shared.
+   */
+  blank: { alignItems: 'center', gap: 14, paddingTop: 40 },
+  blankNote: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred
