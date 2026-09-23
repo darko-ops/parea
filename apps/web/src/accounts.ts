@@ -176,6 +176,32 @@ export async function signIn(
   return result;
 }
 
+/**
+ * Points an actor at an account, and refuses to pretend it worked.
+ *
+ * This was two bare `update`s, and a bare update that matches nothing is
+ * silent. When it matched nothing — an actor id from a cookie whose row no
+ * longer existed — sign-in still answered 200 with an account that belonged
+ * to nobody, and the very next request reported the person signed out. The
+ * failure had no symptom except the thing not working.
+ *
+ * `returning` turns that into an error at the point it happens, where the
+ * route answers 500 and the log says which actor. Callers reach here only
+ * after `ensureActor`, which now guarantees the row exists; this is the
+ * assertion that the guarantee held.
+ */
+async function link(db: Db, accountId: string, actorId: string): Promise<void> {
+  const updated = await db
+    .update(schema.actors)
+    .set({ accountId, kind: 'user' })
+    .where(eq(schema.actors.id, actorId))
+    .returning({ id: schema.actors.id });
+
+  if (updated.length === 0) {
+    throw new Error(`cannot bind account to actor ${actorId}: no such actor`);
+  }
+}
+
 async function bindAccount(
   db: Db,
   email: string,
@@ -189,10 +215,7 @@ async function bindAccount(
 
   if (!existing) {
     const [account] = await db.insert(schema.accounts).values({ email }).returning();
-    await db
-      .update(schema.actors)
-      .set({ accountId: account!.id, kind: 'user' })
-      .where(eq(schema.actors.id, actorId));
+    await link(db, account!.id, actorId);
     return { actorId, email, merged: false };
   }
 
@@ -206,10 +229,7 @@ async function bindAccount(
 
   // An account whose actor is gone: adopt this one rather than stranding it.
   if (!canonical) {
-    await db
-      .update(schema.actors)
-      .set({ accountId: existing.id, kind: 'user' })
-      .where(eq(schema.actors.id, actorId));
+    await link(db, existing.id, actorId);
     return { actorId, email, merged: false };
   }
 

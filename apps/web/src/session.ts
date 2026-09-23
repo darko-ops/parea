@@ -172,17 +172,52 @@ export async function signOutBrowser(): Promise<void> {
   }
 }
 
-/** Creates a guest actor and sets the cookie. Call only when contributing. */
+/**
+ * Creates a guest actor and sets the cookie. Call only when contributing.
+ *
+ * ## Why the presented id is checked against the table
+ *
+ * A cookie outlives the row it names. Not hypothetically: the production
+ * database was replaced, and every browser carrying an actor cookie from the
+ * old one presented an id that no longer existed.
+ *
+ * Trusting it produced the worst shape of failure available. `ensureActor`
+ * returned the id without creating anything, `bindAccount` wrote the account
+ * and then updated an actor that was not there — matching no rows and
+ * reporting nothing — and the endpoint answered 200. The next request asked
+ * which account that actor belonged to, found no actor, and said signed out.
+ * A success that signs nobody in, with no error anywhere: the form simply
+ * cleared and people typed the code again.
+ *
+ * The same thing happens without a migration. An actor deleted by a merge, a
+ * restore from an older snapshot, a database reset in development — anything
+ * that removes the row while the cookie survives.
+ *
+ * So the id is only worth what the table says. One extra read on a path that
+ * already writes, in exchange for a state that cannot be diagnosed from the
+ * outside.
+ */
 export async function ensureActor(db: Db, displayName?: string): Promise<string> {
   const existing = await currentActorId();
   if (existing) {
-    if (displayName) {
-      await db
-        .update(schema.actors)
-        .set({ displayName })
-        .where(eq(schema.actors.id, existing));
+    const [row] = await db
+      .select({ id: schema.actors.id })
+      .from(schema.actors)
+      .where(eq(schema.actors.id, existing))
+      .limit(1);
+
+    if (row) {
+      if (displayName) {
+        await db
+          .update(schema.actors)
+          .set({ displayName })
+          .where(eq(schema.actors.id, existing));
+      }
+      return existing;
     }
-    return existing;
+    // Falls through and mints a new one. The stale cookie is overwritten
+    // below rather than cleared first: a browser that presented a dead id
+    // should leave with a live one, not with nothing.
   }
 
   const [actor] = await db

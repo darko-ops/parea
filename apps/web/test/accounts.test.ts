@@ -684,3 +684,80 @@ describe('one place to change a profile', () => {
     expect(edit).toMatch(/method: 'PATCH'/);
   });
 });
+
+/**
+ * A cookie that outlived the row it names.
+ *
+ * The production database was replaced and every browser kept its actor
+ * cookie, so each one presented an id that no longer existed. What followed
+ * was the least diagnosable shape a bug can take: `ensureActor` handed the
+ * dead id straight back, `bindAccount` created the account and then updated an
+ * actor that was not there, the update matched no rows and said nothing, and
+ * the endpoint answered 200. The next request asked which account that actor
+ * belonged to, found no actor, and reported signed out — so the form cleared
+ * and people typed the code again, correctly, forever.
+ *
+ * A migration is only the loudest way to get here. A merge that removed the
+ * row, a restore from an older snapshot, a reset in development: any of them
+ * leaves a live cookie naming a dead actor.
+ *
+ * These are about the two halves of that. `signIn` must refuse to report
+ * success it did not achieve, and the result must be an actor that really
+ * holds the account.
+ */
+describe('signing in with an actor that no longer exists', () => {
+  it('refuses rather than reporting a success nobody can use', async () => {
+    // An id shaped like an actor's and belonging to none — which is exactly
+    // what a cookie from a replaced database presents.
+    const ghost = crypto.randomUUID();
+
+    await expect(signIn(db, 'ghost@example.com', ghost)).rejects.toThrow(/no such actor/);
+  });
+
+  it('leaves no account stranded when it refuses', async () => {
+    const ghost = crypto.randomUUID();
+    await signIn(db, 'stranded@example.com', ghost).catch(() => {});
+
+    /*
+     * The account row is written before the link is attempted, so a refusal
+     * can leave one behind with nothing pointing at it. That is recoverable
+     * and deliberately so: `bindAccount` adopts an account whose actor is gone
+     * the next time somebody signs in with that address, which is the branch
+     * this asserts still works. The failure to avoid is silence, not the row.
+     */
+    const [account] = await db
+      .select()
+      .from(schema.accounts)
+      .where(eq(schema.accounts.email, 'stranded@example.com'));
+    expect(account).toBeTruthy();
+
+    // And a real actor signing in with that address picks it up.
+    const [real] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    const result = await signIn(db, 'stranded@example.com', real!.id);
+    expect(result.actorId).toBe(real!.id);
+
+    const [linked] = await db
+      .select()
+      .from(schema.actors)
+      .where(eq(schema.actors.id, real!.id));
+    expect(linked!.accountId).toBe(account!.id);
+    expect(linked!.kind).toBe('user');
+  });
+
+  it('really links the actor when it does report success', async () => {
+    /*
+     * The assertion the original code was missing. `signIn` returning without
+     * throwing said nothing about whether the actor ended up holding the
+     * account — and for a month of cookies, it did not.
+     */
+    const [actor] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    await signIn(db, 'real@example.com', actor!.id);
+
+    const [row] = await db
+      .select()
+      .from(schema.actors)
+      .where(eq(schema.actors.id, actor!.id));
+    expect(row!.accountId).toBeTruthy();
+    expect(await accountFor(db, actor!.id)).toMatchObject({ email: 'real@example.com' });
+  });
+});
