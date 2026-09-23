@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CONCURRENCY,
   MAX_ATTEMPTS,
+  MAX_FILES_PER_PRESIGN,
   MAX_REPRESIGN_ROUNDS,
   Offline,
   RETRY_BACKOFF_MS,
@@ -869,5 +870,104 @@ describe('a grant that is stale the moment it arrives', () => {
 
     expect(presigns).toBe(2);
     expect(queue.doneCount).toBe(1);
+  });
+});
+
+/**
+ * The bound on one presign request, which the queue did not know about.
+ *
+ * The route refuses a batch over `MAX_FILES_PER_PRESIGN` and refuses it
+ * *whole* — `parseFiles` answers null rather than a short list, before any row
+ * is written. The queue sent "the whole pending batch" in one call. So
+ * choosing fifty-one photographs uploaded none of them, recorded none of them
+ * as pending, and left an album with a cover on it and nothing in it.
+ *
+ * What made it invisible is that everything downstream behaved correctly. The
+ * request was well formed, the refusal was the documented one, and the catch
+ * did what it was written to do — to every item in the album, including the
+ * ones the server never saw.
+ */
+describe('presigning more files than one request may carry', () => {
+  const overSized = (files: { name: string }[]) => {
+    if (files.length > MAX_FILES_PER_PRESIGN) {
+      // Exactly what the route does: null from `parseFiles`, 400, no rows.
+      throw new Error('400 invalid_files');
+    }
+  };
+
+  it('splits the batch instead of being refused whole', async () => {
+    const seen: number[] = [];
+    const h = harness({
+      async presign(_eventId, files) {
+        overSized(files);
+        seen.push(files.length);
+        return files.map((f) => ({
+          photoId: `photo-${f.name}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: { 'content-type': f.type },
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+
+    const queue = new UploadQueue(h.deps, { items: [] });
+    const many = Array.from({ length: MAX_FILES_PER_PRESIGN + 1 }, (_, n) => file(n));
+    queue.add('event-1', many);
+    await queue.run('event-1');
+
+    // Two calls, and no call over the bound.
+    expect(seen).toEqual([MAX_FILES_PER_PRESIGN, 1]);
+    // Every photograph, not fifty of them and not none.
+    expect(h.completed).toHaveLength(many.length);
+    expect(queue.state.items.every((i) => i.status === 'done')).toBe(true);
+  });
+
+  it('sends exactly one call at the bound', async () => {
+    // The off-by-one that would make the fix cost a round trip on every
+    // ordinary batch.
+    const h = harness();
+    const queue = new UploadQueue(h.deps, { items: [] });
+    queue.add('event-1', Array.from({ length: MAX_FILES_PER_PRESIGN }, (_, n) => file(n)));
+    await queue.run('event-1');
+    expect(h.presignCalls).toBe(1);
+  });
+
+  it('spends an attempt only on the chunk that was refused', async () => {
+    /*
+     * The other half of the old behaviour: one refused request failed every
+     * item queued for the album. With four chunks and one bad one, three
+     * batches of photographs should be untouched by it.
+     */
+    let call = 0;
+    const h = harness({
+      async presign(_eventId, files) {
+        overSized(files);
+        call += 1;
+        if (call === 1) throw new Error('500 server error');
+        return files.map((f) => ({
+          photoId: `photo-${f.name}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: { 'content-type': f.type },
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+
+    const queue = new UploadQueue(h.deps, { items: [] });
+    queue.add('event-1', Array.from({ length: MAX_FILES_PER_PRESIGN * 2 }, (_, n) => file(n)));
+    await queue.run('event-1');
+
+    const spent = queue.state.items.filter((i) => i.attempts > 0);
+    expect(spent).toHaveLength(MAX_FILES_PER_PRESIGN);
+
+    /*
+     * And everything still arrives. A refused chunk goes back to `pending`
+     * rather than to `failed` — one attempt of `MAX_ATTEMPTS` — so the same
+     * run picks it up again and the person loses nothing but a round trip.
+     * That is what makes the per-chunk accounting matter: had the failure
+     * been charged to all hundred, the budget for the real retry would have
+     * been spent by photographs that never left the phone.
+     */
+    expect(h.completed).toHaveLength(MAX_FILES_PER_PRESIGN * 2);
   });
 });

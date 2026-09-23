@@ -23,10 +23,15 @@
  * IndexedDB store holding the `File` handle.
  */
 
+// Imported as well as re-exported: a `export ... from` binds nothing locally,
+// and the queue below chunks by this.
+import { MAX_FILES_PER_PRESIGN } from './accepted';
+
 export {
   ACCEPTED_MIME,
   ACCEPT_ATTRIBUTE,
   acceptedMime,
+  MAX_FILES_PER_PRESIGN,
   type AcceptedMime,
 } from './accepted';
 
@@ -477,7 +482,22 @@ export class UploadQueue {
     }
   }
 
-  /** One presign call per event covers the whole pending batch. */
+  /**
+   * Presign what is waiting, in chunks the route will accept.
+   *
+   * This said "one presign call per event covers the whole pending batch" and
+   * did exactly that. The route bounds a request at `MAX_FILES_PER_PRESIGN`
+   * and refuses a longer one *whole* — `parseFiles` answers null rather than
+   * a short list, before a single row is written — so a batch of fifty-one
+   * came back 400, the catch below failed every item in it, and nothing was
+   * uploaded or even recorded as pending. From the outside: an album with a
+   * cover on it and no photographs in it, missing from a home page that only
+   * lists albums with something in them.
+   *
+   * Chunked rather than capped, because the bound is on the request and not
+   * on the person: choosing two hundred photographs is four calls, which is
+   * what it always should have been.
+   */
   private async presignPending(eventId?: string): Promise<void> {
     const pending = this.items.filter(
       (i) => i.status === 'pending' && (!eventId || i.eventId === eventId),
@@ -492,26 +512,43 @@ export class UploadQueue {
     }
 
     for (const [eventId, items] of byEvent) {
-      try {
-        const granted = await this.deps.presign(
-          eventId,
-          items.map((i) => ({ name: i.name, size: i.size, type: i.mime })),
-        );
-        items.forEach((item, index) => {
-          const grant = granted[index];
-          if (!grant) return;
-          item.photoId = grant.photoId;
-          item.uploadUrl = grant.url;
-          item.headers = grant.headers;
-          item.expiresAt = new Date(grant.expiresAt).getTime();
-          item.status = 'presigned';
-        });
-      } catch (err) {
-        for (const item of items) this.fail(item, err);
-        // Nothing else will presign either.
-        if (this.paused) break;
+      let stop = false;
+      for (let at = 0; at < items.length; at += MAX_FILES_PER_PRESIGN) {
+        const chunk = items.slice(at, at + MAX_FILES_PER_PRESIGN);
+        try {
+          const granted = await this.deps.presign(
+            eventId,
+            chunk.map((i) => ({ name: i.name, size: i.size, type: i.mime })),
+          );
+          chunk.forEach((item, index) => {
+            const grant = granted[index];
+            if (!grant) return;
+            item.photoId = grant.photoId;
+            item.uploadUrl = grant.url;
+            item.headers = grant.headers;
+            item.expiresAt = new Date(grant.expiresAt).getTime();
+            item.status = 'presigned';
+          });
+        } catch (err) {
+          /*
+           * This chunk's items, not the event's.
+           *
+           * One refused request used to spend an attempt on every photograph
+           * queued for the album, including the hundred the server never saw.
+           * A chunk that fails is a chunk that failed.
+           */
+          for (const item of chunk) this.fail(item, err);
+          // No signal: the next chunk would fail the same way, and each would
+          // cost a real attempt against a network that is not there.
+          if (this.paused) {
+            stop = true;
+            break;
+          }
+        }
+        await this.deps.save(this.state);
       }
-      await this.deps.save(this.state);
+      // Nothing else will presign either.
+      if (stop) break;
     }
   }
 

@@ -6,7 +6,7 @@
  */
 
 import { schema } from '@parea/core';
-import { acceptedMime } from '@parea/upload';
+import { acceptedMime, MAX_FILES_PER_PRESIGN } from '@parea/upload';
 import { and, count, eq, isNull, sum } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -28,7 +28,6 @@ export const runtime = 'nodejs';
  * more than anyone brings back from a party, and if someone hits one it is
  * worth knowing rather than silently allowing.
  */
-const MAX_FILES_PER_REQUEST = 50;
 const MAX_BYTES_PER_FILE = 200 * 1024 * 1024;
 const MAX_PHOTOS_PER_ACTOR_PER_EVENT = 500;
 const MAX_BYTES_PER_ACTOR_PER_EVENT = 5 * 1024 * 1024 * 1024;
@@ -214,7 +213,16 @@ async function used(
 
 function parseFiles(value: unknown): FileRequest[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
-  if (value.length > MAX_FILES_PER_REQUEST) return null;
+  /*
+   * The same constant the queue chunks by, imported rather than restated.
+   *
+   * It was a fifty here and nothing at all on the client, which sent every
+   * photograph waiting for an album in one call. Fifty-one was refused whole
+   * — note that this returns null rather than a short list, so no row is
+   * written and nothing partially succeeds — and the uploader had no way to
+   * know why. See `MAX_FILES_PER_PRESIGN`.
+   */
+  if (value.length > MAX_FILES_PER_PRESIGN) return null;
 
   const out: FileRequest[] = [];
   for (const raw of value) {
