@@ -113,6 +113,16 @@ const CAP_H = 56;
 const PHOTO_H = TAB_W;
 const TAB_H = CAP_H + PHOTO_H;
 /**
+ * What the tab narrows to as the page moves under it.
+ *
+ * Named rather than written as `TAB_W - 56` at the one place it was used,
+ * because the centring is derived from it as well — and a width that came
+ * from one expression and a centre that came from another is exactly how the
+ * two came apart: the tab kept its left edge and lost 56 points off the
+ * right, so it walked 28 points to the left on the way up.
+ */
+const TAB_MIN_W = TAB_W - 56;
+/**
  * The picture's top edge, carried up through the strip.
  *
  * `BLEED` is how much of that edge is stretched to fill it. Ten points scaled
@@ -327,7 +337,23 @@ export function ProfileScreen({
    */
   const tabBack = account?.avatarUrl ? t.line : lens.fill;
 
-  const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_W - 56] });
+  const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_MIN_W] });
+  /*
+   * Half the width it currently has, so the centre stays the centre.
+   *
+   * `left: '50%'` puts the tab's *left edge* on the middle of the screen and
+   * the margin pulls it back by half its width. That half was a constant —
+   * half the resting width — so while the tab narrowed the left edge did not
+   * move and the right edge came in alone. The comment on `tab` claimed it
+   * narrowed symmetrically; it drifted 28 points left instead, which is what
+   * you see at the end of a scroll.
+   *
+   * Interpolated from the same `k` as the width, so the two cannot disagree.
+   * It is a layout property like the width and shares its JS driver, so this
+   * adds a number to a frame that was already being laid out rather than a
+   * measurement pass — which was the reason `alignSelf` was turned down.
+   */
+  const tabInset = k.interpolate({ inputRange: [0, 1], outputRange: [-TAB_W / 2, -TAB_MIN_W / 2] });
   /*
    * The cap does not retract; only the picture under it does.
    *
@@ -810,7 +836,10 @@ export function ProfileScreen({
       */}
       {account !== undefined && (
         <Animated.View
-          style={[styles.tab, { width: tabWidth, height: tabHeight, shadowColor: t.fg }]}
+          style={[
+            styles.tab,
+            { width: tabWidth, marginLeft: tabInset, height: tabHeight, shadowColor: t.fg },
+          ]}
         >
           <Animated.View
             style={[
@@ -1237,16 +1266,17 @@ const styles = StyleSheet.create({
   /*
    * The tab: flush to the physical top, centred, square above and round below.
    *
-   * `left: '50%'` with a negative margin of half its width rather than
-   * `alignSelf`, because the width is animated and a centring that depends on
-   * it would re-measure on every frame of the retract. The margin is half the
-   * resting width, and the tab narrows symmetrically about it.
+   * `left: '50%'` rather than `alignSelf`, because the width is animated and a
+   * centring that depends on it would re-measure on every frame of the
+   * retract. That puts the tab's left edge on the middle of the screen; what
+   * brings it back to centre is `tabInset`, which is animated beside the
+   * width rather than held here — see the note on it. A constant margin here
+   * is what made the tab drift left as it narrowed.
    */
   tab: {
     position: 'absolute',
     top: 0,
     left: '50%',
-    marginLeft: -TAB_W / 2,
     zIndex: 2,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,

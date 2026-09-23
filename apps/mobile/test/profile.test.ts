@@ -185,7 +185,9 @@ describe('the header picture', () => {
      * children because the rows below still want it.
      */
     expect(PROFILE).toMatch(/tab: \{\s*position: 'absolute',\s*top: 0,\s*left: '50%',/);
-    expect(PROFILE).toMatch(/marginLeft: -TAB_W \/ 2/);
+    // And centred by an animated margin rather than a constant one, so it
+    // stays centred while it narrows — see `tabInset`.
+    expect(PROFILE).toMatch(/marginLeft: tabInset/);
     // Square at the top, round at the bottom: a tab pulled down, not a card.
     expect(PROFILE).toMatch(/borderBottomLeftRadius: 28,\s*borderBottomRightRadius: 28,/);
     expect(PROFILE).toMatch(/gutter: \{ paddingHorizontal: 20 \}/);

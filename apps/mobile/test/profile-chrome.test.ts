@@ -262,7 +262,7 @@ describe('the tab that hangs from the top', () => {
      * content; one that shrinks in place is part of the screen.
      */
     expect(PROFILE).toMatch(/inputRange: \[0, 170\]/);
-    expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_W - 56\]/);
+    expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_MIN_W\]/);
     expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
   });
 
@@ -342,7 +342,7 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).toMatch(/useNativeDriver: false,/);
     const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
     const outer = tab.slice(0, tab.indexOf('<Pressable'));
-    expect(outer).toMatch(/width: tabWidth, height: tabHeight/);
+    expect(outer).toMatch(/width: tabWidth, marginLeft: tabInset, height: tabHeight/);
     expect(outer).toMatch(/translateY: drop\.interpolate/);
   });
 
@@ -353,10 +353,24 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).toMatch(/if \(account === undefined \|\| dropped\.current\) return;/);
   });
 
-  it('centres without re-measuring on every frame', () => {
-    // `alignSelf` would depend on the animated width, so the centring would
-    // be recomputed for each step of the retract.
-    expect(PROFILE).toMatch(/left: '50%',\s*marginLeft: -TAB_W \/ 2,/);
+  it('stays centred while it narrows', () => {
+    /*
+     * `left: '50%'` puts the tab's *left edge* on the middle of the screen,
+     * and a negative margin of half its width brings it back. That half was a
+     * constant — half the resting width — so as the tab narrowed the left
+     * edge stayed put and only the right edge came in: it walked 28 points to
+     * the left on the way up, which is what you saw at the end of a scroll.
+     *
+     * The margin is interpolated from the same `k` as the width now, off the
+     * same `TAB_MIN_W`, so the two cannot disagree. Still not `alignSelf`,
+     * which would depend on the animated width and re-measure every frame.
+     */
+    expect(PROFILE).toMatch(/left: '50%',\s*zIndex: 2,/);
+    expect(PROFILE).not.toMatch(/marginLeft: -TAB_W \/ 2,/);
+    expect(PROFILE).toMatch(/const TAB_MIN_W = TAB_W - 56;/);
+    expect(PROFILE).toMatch(
+      /const tabInset = k\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[-TAB_W \/ 2, -TAB_MIN_W \/ 2\] \}\);/,
+    );
   });
 
   it('draws nothing until there is an account to draw', () => {
