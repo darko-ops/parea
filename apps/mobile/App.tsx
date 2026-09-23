@@ -3631,12 +3631,22 @@ function EventScreen({
           <PhotoViewer
             api={api}
             eventId={event.id}
-            photo={
-              // Re-read off the feed rather than held: a reaction refreshes the
-              // feed, and the copy captured when the tile was tapped would go
-              // on showing the counts as they were before the tap.
-              feed?.photos.find((p) => p.id === selected.id) ?? selected
-            }
+            /*
+              The album and a position in it, rather than one photograph.
+
+              The viewer pages through it natively now — see the note on
+              `Page` — so it needs the list. Still the feed's own array and
+              the feed's own order, which is the order the grid draws, and
+              `onIndex` hands the position straight back so the two cannot
+              drift: `selected` stays the thing every other part of this
+              screen is about, including the options sheet and the comments.
+            */
+            photos={feed?.photos ?? [selected]}
+            index={Math.max(0, (feed?.photos ?? []).findIndex((p) => p.id === selected.id))}
+            onIndex={(at) => {
+              const there = (feed?.photos ?? [])[at];
+              if (there) setSelected(there);
+            }}
             /*
               Whose it is, off the same map the tiles use.
 

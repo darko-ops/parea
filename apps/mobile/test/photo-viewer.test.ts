@@ -50,11 +50,6 @@ describe('the picture', () => {
     expect(GESTURE).toMatch(/accessibilityLabel="Photo options"/);
   });
 
-  it('shows the counts as they are now, not as they were when tapped', () => {
-    // A reaction refreshes the feed; the copy captured at tap time would go on
-    // showing what it showed before the tap.
-    expect(APP).toMatch(/feed\?\.photos\.find\(\(p\) => p\.id === selected\.id\) \?\? selected/);
-  });
 });
 
 describe('the gesture', () => {
@@ -71,21 +66,6 @@ describe('the gesture', () => {
     expect(GESTURE).toMatch(/Math\.max\(\s*1,\s*Math\.min\(MAX_SCALE,/);
   });
 
-  it('only pans a picture bigger than the screen', () => {
-    /*
-     * Otherwise the photograph slides around inside its own frame.
-     *
-     * At fit the same finger is a vertical gesture instead — up to leave, down
-     * to open the comments — and that space was free precisely because there is
-     * nothing to pan when the picture is already inside the screen. Zoomed in,
-     * this branch takes the finger back and neither gesture can fire.
-     */
-    expect(GESTURE).toMatch(/if \(now\.current\.scale <= 1\) \{/);
-    // Three gestures share that space now — see the block below — and each
-    // names the axis it is on, so a diagonal cannot fire two of them.
-    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\)/);
-    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dx\) > Math\.abs\(g\.dy\)/);
-  });
 
   it('will not let the edges leave the glass', () => {
     // Half the extra width and height is the whole overhang; past it the pan
@@ -100,11 +80,6 @@ describe('the gesture', () => {
     expect(GESTURE).toMatch(/if \(next <= 1\) \{[\s\S]{0,400}toValue: \{ x: 0, y: 0 \}/);
   });
 
-  it('does not flash the chrome on every double tap', () => {
-    // The single tap waits out the double-tap window before acting.
-    expect(GESTURE).toMatch(/if \(lastTap\.current === at\) setChrome/);
-    expect(GESTURE).toMatch(/at - lastTap\.current < DOUBLE_TAP_MS/);
-  });
 
   it('reads the live transform through listeners, not a private field', () => {
     /*
@@ -258,21 +233,6 @@ describe('reacting to a photograph', () => {
  * what they must *not* do to each other.
  */
 describe('what a finger means at fit', () => {
-  it('leaves downward and talks upward', () => {
-    /*
-     * It was the other way round, on the argument that each gesture should move
-     * something in the direction it actually goes: the comments are below, so
-     * pull them up; the album is behind, so push the photograph away. That is
-     * sound and it loses, because it is reasoning — and nobody reasons about a
-     * swipe.
-     *
-     * Every photo viewer on this phone dismisses downward and every sheet
-     * arrives from below when you pull up. Those are habits somebody already
-     * has, and a screen that inverts both to be internally consistent is one
-     * where the first swipe does the wrong thing to everybody.
-     */
-    expect(GESTURE).toMatch(/if \(g\.dy > 0\) onClose\(\);\s*else setTalking\(true\)/);
-  });
 
   it('refuses a diagonal', () => {
     // A flick past a photograph would otherwise close it.
@@ -642,124 +602,6 @@ describe('the emoji sheet', () => {
   });
 });
 
-/**
- * Moving between photographs, and saying whose each one is.
- *
- * Both arrived when the album's column went. The column was one photograph per
- * row at the width of the screen — a viewer with a scroll bar — and it carried
- * the two things this screen now has to: you could scroll from one picture to
- * the next, and every row said who had added it.
- */
-describe('the photographs either side', () => {
-  it('moves on a horizontal swipe, at fit only', () => {
-    /*
-     * Zoomed in the same finger is a pan, and there is no spare gesture: the
-     * branch that takes the finger back for panning is the one above this.
-     * `scale <= 1` is what keeps a drag across a magnified photograph from
-     * throwing it to the next one.
-     */
-    expect(GESTURE).toMatch(/now\.current\.scale <= 1 && Math\.abs\(g\.dx\) > Math\.abs\(g\.dy\)/);
-    expect(GESTURE).toMatch(/const go = g\.dx > 0 \? onPrev : onNext;/);
-  });
-
-  it('uses the same two thresholds the vertical does', () => {
-    // A short flick and a long deliberate drag should both count, which is
-    // what having a distance *and* a velocity buys.
-    expect(GESTURE).toMatch(/const far = Math\.abs\(g\.dx\) > SWIPE;/);
-    expect(GESTURE).toMatch(/const flung = Math\.abs\(g\.vx\) > FLING;/);
-  });
-
-  it('springs back at the ends rather than paging into nothing', () => {
-    // `onPrev`/`onNext` are null at an end, and the drag does not follow the
-    // finger into a wall it cannot pass.
-    expect(GESTURE).toMatch(/if \(\(far \|\| flung\) && go\)/);
-    expect(GESTURE).toMatch(/const wall = g\.dx > 0 \? !onPrev : !onNext;/);
-  });
-
-  it('carries the row the rest of the way before the photograph changes', () => {
-    /*
-     * The travel finishes first and the caller is told after. Swapping first
-     * and animating second is what made this a jump: the picture changed
-     * under a finger that was still mid-gesture.
-     */
-    expect(GESTURE).toMatch(/toValue: g\.dx > 0 \? width : -width/);
-    // Guarded: a gesture interrupted by another leaves the strip where the
-    // new one wants it, and must not also change the photograph.
-    expect(GESTURE).toMatch(/if \(!finished\) return;/);
-    /*
-     * And ordered: within the branch that pages, the only `go()` is the one
-     * inside the animation's callback. A `go()` ahead of the animation is
-     * exactly the old behaviour, and it would leave every assertion above
-     * this one still passing.
-     */
-    const branch = GESTURE.slice(
-      GESTURE.indexOf('const go = g.dx > 0 ? onPrev : onNext;'),
-      GESTURE.indexOf('Animated.spring(strip, {'),
-    );
-    expect(branch.match(/\bgo\(\);/g) ?? []).toHaveLength(1);
-    expect(branch.indexOf('Animated.timing(strip')).toBeLessThan(branch.indexOf('go();'));
-    // A spring would overshoot, and an overshoot shows a sliver of the
-    // photograph on the far side of the one arriving.
-    expect(GESTURE).toMatch(/Animated\.timing\(strip, \{/);
-  });
-
-  it('returns to centre before the frame is drawn, not after it', () => {
-    /*
-     * Both of the obvious places flash a frame of the wrong photograph.
-     *
-     * In the animation's callback, before the caller has swapped: the row
-     * re-centres on the picture being left, so it comes back.
-     *
-     * In a `useEffect` after the swap: effects run *after* the frame is
-     * drawn, and that frame has the new photograph in the middle slot with
-     * the row still a screen to the left — which puts the slot beyond it on
-     * the glass. The picture *after* the one asked for, for a frame, which
-     * reads as loading because it is a third photograph out of nowhere.
-     *
-     * This is the reported bug, and `useLayoutEffect` is what fixes it: the
-     * content and the offset change in one commit.
-     */
-    expect(GESTURE).toMatch(
-      /useLayoutEffect\(\(\) => \{\s*strip\.setValue\(0\);\s*\}, \[photo\.id, strip\]\)/,
-    );
-    // The distinction is the whole fix, so the weaker hook must not creep
-    // back in for this one value.
-    expect(GESTURE).not.toMatch(/useEffect\(\(\) => \{\s*strip\.setValue\(0\)/);
-  });
-
-  it('does not crossfade the slot whose picture changes', () => {
-    /*
-     * The other half of the same flash. A fade is a fade *from the previous
-     * source*, so the photograph being left ghosted over the one arriving at
-     * the moment the row landed — which looked like loading and was the
-     * opposite: the picture had been on the glass as the neighbour for the
-     * whole gesture and was already decoded.
-     */
-    const middle = GESTURE.slice(
-      GESTURE.indexOf('transform: [{ translateX: pan.x }'),
-      GESTURE.indexOf("<View style={{ width, height: '100%' }}>", GESTURE.indexOf('uri: photo.full')),
-    );
-    expect(middle).toMatch(/transition=\{0\}/);
-    expect(middle).not.toMatch(/transition=\{120\}/);
-  });
-
-  it('never holds the album itself', () => {
-    /*
-     * Two callbacks rather than a list and an index. The caller already
-     * re-reads the current photograph off the feed on every render so a
-     * reaction is not shown stale, and a second copy of the order in here is
-     * a second thing to keep in step with it.
-     */
-    expect(GESTURE).not.toMatch(/photos: FeedPhoto\[\]|index: number/);
-    expect(APP).toMatch(/const at = all\.findIndex\(\(p\) => p\.id === selected\.id\);/);
-    expect(APP).toMatch(/onPrev: back \? \(\) => setSelected\(back\) : null/);
-    expect(APP).toMatch(/onNext: on \? \(\) => setSelected\(on\) : null/);
-    // It takes the two neighbours as pictures now, because the swipe shows
-    // them — but two is not the album.
-    expect(GESTURE).toMatch(/prev: FeedPhoto \| null;/);
-    expect(GESTURE).toMatch(/next: FeedPhoto \| null;/);
-  });
-});
 
 describe('whose photograph it is', () => {
   it('is a square in the middle of the chrome', () => {
@@ -794,90 +636,112 @@ describe('whose photograph it is', () => {
   });
 });
 
-describe('the row the swipe moves', () => {
-  it('is three photographs wide and sits a screen to the left', () => {
-    // The middle slot is the glass; the other two are just off it, which is
-    // what puts an edge under the finger the moment it moves.
-    expect(GESTURE).toMatch(/width: width \* 3,\s*left: -width,/);
+
+
+/**
+ * Paging through an album, and the flash that took four attempts.
+ *
+ * The first three kept a hand-rolled row of three photographs and tried to
+ * put it back to centre at the moment the middle one changed. Centring is an
+ * offset and changing the picture is a React commit, and those cross to the
+ * native side on different schedules — so one of the two was always late and
+ * a frame was drawn with them out of step. What people saw was the photograph
+ * they had just left, centred under the new window, for a split second.
+ *
+ * Moving the reset earlier (`useLayoutEffect`), and then attaching the
+ * animated value only while a gesture ran, made the JS side tidier and left
+ * the race exactly where it was. It cannot be won from here: detaching a
+ * native animated node is itself a native operation with its own schedule.
+ *
+ * So the row is gone. A horizontal pager does not move relative to itself and
+ * is never re-centred; the only thing that changes is a scroll offset the
+ * platform owns end to end, and there is no moment for this code to
+ * synchronise with anything.
+ */
+describe('the pager', () => {
+  it('is the platform’s, not a row this file moves', () => {
+    expect(GESTURE).toMatch(/<FlatList[\s\S]{0,400}horizontal\s*\n\s*pagingEnabled/);
+    // Every part of the hand-rolled row, and the reset that could not be made
+    // to land on the right frame.
+    expect(GESTURE).not.toMatch(/const strip = useRef|styles\.strip|sliding|PAGE_MS/);
+    expect(GESTURE).not.toMatch(/strip\.setValue/);
   });
 
-  it('follows the finger one for one, and resists at an end', () => {
+  it('opens on the photograph that was tapped', () => {
+    // `getItemLayout` is what lets it jump to an index without measuring
+    // everything before it.
+    expect(GESTURE).toMatch(/initialScrollIndex=\{index\}/);
+    expect(GESTURE).toMatch(/length: width, offset: width \* at, index: at/);
+  });
+
+  it('does not page while a photograph is magnified', () => {
+    // The same sideways finger means two different things at 1× and at 3×,
+    // and only the page itself can tell them apart.
+    expect(GESTURE).toMatch(/scrollEnabled=\{!zoomed\}/);
+    expect(GESTURE).toMatch(/onZoomed\(value > 1\)/);
+  });
+
+  it('reports where it landed once it has stopped', () => {
     /*
-     * The vertical gestures move a third of the distance because they are a
-     * hint about what release will do. This is not a hint — the next
-     * photograph is on the glass, and its edge has to arrive under the finger
-     * pulling it.
+     * `onMomentumScrollEnd` rather than a viewability callback: the index is
+     * what the chrome and the comment box are about, and changing those under
+     * a finger still moving is worse than changing them a moment late.
      */
-    expect(GESTURE).toMatch(/strip\.setValue\(wall \? g\.dx \/ 6 : g\.dx\)/);
-    expect(GESTURE).toMatch(/const wall = g\.dx > 0 \? !onPrev : !onNext;/);
+    expect(GESTURE).toMatch(/onMomentumScrollEnd=/);
+    expect(GESTURE).toMatch(/const at = Math\.round\(offset \/ width\);/);
+    expect(GESTURE).toMatch(/if \(at !== index && at >= 0 && at < photos\.length\) onIndex\(at\);/);
   });
 
-  it('gives every slot the height of the row', () => {
-    /*
-     * `shot` is `height: '100%'`, so a slot sized to its content resolves
-     * that against zero and the photograph does not draw at all. `stretch`
-     * rather than `center` on the row, and a height on each slot.
-     */
-    expect(GESTURE).toMatch(/alignItems: 'stretch'/);
-    expect(GESTURE.match(/width, height: '100%'/g) ?? []).toHaveLength(3);
-  });
-
-  it('zooms the middle photograph only', () => {
-    /*
-     * The neighbours are drawn flat: whichever becomes the middle one is
-     * re-rendered as the middle one, at fit, which is where a photograph you
-     * have just arrived at should start.
-     */
-    // The middle is the only slot with a transform on it.
-    expect(GESTURE).toMatch(
-      /transform: \[\{ translateX: pan\.x \}[\s\S]{0,200}uri: photo\.full/,
-    );
-    // And the two either side are plain views, which is what says so.
-    expect(GESTURE).toMatch(/<View style=\{\{ width, height: '100%' \}\}>\s*\{prev &&/);
-    expect(GESTURE).toMatch(/<View style=\{\{ width, height: '100%' \}\}>\s*\{next &&/);
-    expect(GESTURE.match(/\{ scale \}/g) ?? []).toHaveLength(1);
-  });
-
-  it('leaves the slot empty at an end rather than collapsing it', () => {
-    // The row's geometry is three screens whether or not the outer two hold
-    // anything; a missing slot would shift the middle off the glass.
-    expect(GESTURE).toMatch(/\{prev && \(/);
-    expect(GESTURE).toMatch(/\{next && \(/);
+  it('keeps one answer for which photograph is on the glass', () => {
+    // Derived from the index rather than passed beside it, so the chrome and
+    // the page under it cannot disagree.
+    expect(GESTURE).toMatch(/const photo = photos\[index\] \?\? photos\[0\]!;/);
+    // And the caller is told, so the options sheet and the comments follow.
+    expect(APP).toMatch(/onIndex=\{\(at\) => \{/);
+    expect(APP).toMatch(/if \(there\) setSelected\(there\);/);
   });
 });
 
-describe('landing without a flash', () => {
-  /*
-   * This took three attempts, and the first two failed for the same reason:
-   * `strip` is native-driven, so `strip.setValue(0)` is an instruction that
-   * crosses to the native side on its own schedule while the photograph is
-   * swapped by a React commit that crosses on a different one. Nothing in JS
-   * orders those two — `useLayoutEffect` sequences the JS side and leaves the
-   * native value exactly as unsynchronised as before.
-   *
-   * The frame where the new middle photograph is in place and the row has not
-   * come back to centre shows the slot *beyond* it: the picture after the one
-   * you swiped to, from nowhere. That is what read as loading.
-   */
-  it('draws the row from a literal when nothing is moving it', () => {
-    // A number React commits with the photographs themselves, so landing a
-    // swipe is one frame rather than a handshake between two schedulers.
-    expect(GESTURE).toMatch(/transform: \[\{ translateX: sliding \? strip : 0 \}\]/);
-  });
-
-  it('swaps the photograph and recentres in one commit', () => {
-    // Both are state, so React batches them into a single render.
-    expect(GESTURE).toMatch(/go\(\);\s*setSliding\(false\);/);
-  });
-
-  it('attaches the animated value only while a gesture is running', () => {
-    expect(GESTURE).toMatch(/onPanResponderGrant: \(\) => \{[\s\S]{0,200}setSliding\(true\)/);
+describe('one page of the pager', () => {
+  it('never claims a touch as it lands', () => {
     /*
-     * And every way out of a gesture hands it back. A path that forgets
-     * leaves the row drawn from a value nothing is updating, which is a
-     * photograph stuck off centre — worse than the flash this replaces.
+     * A child that takes the responder on touch down stops the scroll view
+     * under it from ever starting. So this waits for a move and takes only
+     * what the pager has no use for — a pinch, a pan of a magnified picture,
+     * and a vertical drag.
      */
-    expect(GESTURE.match(/setSliding\(false\)/g) ?? []).toHaveLength(6);
-    expect(GESTURE).toMatch(/onPanResponderTerminate: \(\) => \{[\s\S]{0,160}setSliding\(false\)/);
+    expect(GESTURE).toMatch(/onStartShouldSetPanResponder: \(\) => false/);
+    expect(GESTURE).toMatch(/if \(now\.current\.scale > 1\) return true;/);
+    expect(GESTURE).toMatch(/return Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\) && Math\.abs\(g\.dy\) > TAP_SLOP;/);
+  });
+
+  it('takes its taps from a Pressable instead', () => {
+    // Which is the other half of not claiming on touch down: a tap used to be
+    // a release with no movement in it, and that needed the start-claim.
+    expect(GESTURE).toMatch(/<Pressable style=\{\{ width, height \}\} onPress=\{tap\}>/);
+    expect(GESTURE).toMatch(/at - lastTap\.current < DOUBLE_TAP_MS/);
+    expect(GESTURE).toMatch(/if \(lastTap\.current === at\) onChrome\(\);/);
+  });
+
+  it('keeps down-to-leave and up-to-talk', () => {
+    // Two habits somebody already has. Unchanged by the pager, because the
+    // pager only ever wanted the other axis.
+    expect(GESTURE).toMatch(/if \(g\.dy > 0\) onClose\(\);\s*else onTalk\(\);/);
+    expect(GESTURE).toMatch(/const far = Math\.abs\(g\.dy\) > SWIPE;/);
+    expect(GESTURE).toMatch(/const flung = Math\.abs\(g\.vy\) > FLING;/);
+  });
+
+  it('holds its own zoom, so leaving a page leaves its magnification', () => {
+    // A component per photograph rather than one transform over a moving row:
+    // whichever page you arrive at is at fit, which is where a photograph you
+    // have just reached should start.
+    const page = GESTURE.slice(GESTURE.indexOf('function Page('), GESTURE.indexOf('export function PhotoViewer'));
+    expect(page).toMatch(/const scale = useRef\(new Animated\.Value\(1\)\)/);
+    expect(page).toMatch(/const pan = useRef\(new Animated\.ValueXY/);
+  });
+
+  it('does not crossfade, because a page holds one picture for its life', () => {
+    expect(GESTURE).toMatch(/transition=\{0\}/);
+    expect(GESTURE).not.toMatch(/transition=\{120\}[\s\S]{0,200}photo\.full/);
   });
 });

@@ -28,10 +28,10 @@
  */
 
 import { Image as ExpoImage } from 'expo-image';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Easing,
+  FlatList,
   KeyboardAvoidingView,
   PanResponder,
   Platform,
@@ -44,6 +44,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+
 import type { Api, FeedPhoto, Message } from './api';
 import { EmojiPicker } from './Emoji';
 import { Glyph } from './Glyph';
@@ -54,15 +56,6 @@ const MAX_SCALE = 4;
 
 /** Where a double tap lands, and where the second one comes back from. */
 const TAP_SCALE = 2.5;
-
-/**
- * How long the row takes to finish a swipe the finger started.
- *
- * Short, because the travel is already most of the way done by the time
- * anybody lets go — this is the remainder, not the journey. Long enough to be
- * a movement rather than a cut, which is the whole point of the row.
- */
-const PAGE_MS = 180;
 
 /** Two taps closer together than this are one gesture. */
 const DOUBLE_TAP_MS = 280;
@@ -108,136 +101,53 @@ const distance = (touches: { pageX: number; pageY: number }[]) => {
   return Math.hypot(a!.pageX - b!.pageX, a!.pageY - b!.pageY);
 };
 
-export function PhotoViewer({
-  api,
-  eventId,
-  photo,
-  comments,
-  t,
-  canReact,
-  canPost,
-  onClose,
-  onChanged,
-  onOptions,
-  uploader,
-  onOpenPerson,
-  prev,
-  next,
-  onPrev,
-  onNext,
-}: {
-  api: Api;
-  /** Which album, for posting a comment against this photograph. */
-  eventId: string;
-  photo: FeedPhoto;
-  /**
-   * What has been said about this photograph, oldest first.
-   *
-   * The event's own thread, filtered to this picture. Comments are not a second
-   * kind of message and there is no second table: `event_message` has carried a
-   * `photo_id` since the web let somebody reply to a photograph, and this is
-   * the same rows read from the other end. A comment here is a line in the
-   * album's conversation that happens to be about a picture.
-   */
-  comments: Message[];
-  t: GroupTheme;
-  /** Whether this viewer may leave a reaction. The server's answer. */
-  canReact: boolean;
-  /** Whether they may say something. The same answer, from the same place. */
-  canPost: boolean;
-  onClose: () => void;
-  onChanged: () => Promise<void>;
-  /** The `⋯`: remove, ask for it down, report, block. */
-  onOptions: () => void;
-  /**
-   * Whose photograph this is, for the square at the top.
-   *
-   * Looked up by the caller rather than here: an album is a long list and the
-   * map it comes out of is built once over there. Null for a photograph whose
-   * uploader has gone, which draws nothing — an empty square in the middle of
-   * the chrome would be a claim about somebody.
-   */
-  uploader: { name: string; handle: string | null; avatarUrl: string | null } | null;
-  /**
-   * Opening the person whose photograph this is.
-   *
-   * The album's column used to carry this — the handle beside each row was a
-   * press — and the column is gone. Without it a photograph is the one place
-   * in the product that shows you somebody and offers no way to them.
-   *
-   * Only ever called with a handle. Somebody who arrived by a link and added
-   * photographs has a name and a face and no profile, and the square draws as
-   * a label for them rather than as a control that does nothing.
-   */
-  onOpenPerson: (handle: string) => void;
-  /**
-   * The photographs either side, and the two ways to go to them.
-   *
-   * The pictures as well as the callbacks, because the swipe shows them: the
-   * three sit in a row and the row moves with the finger, so the edge of the
-   * next one is already on the glass before anybody has decided to go there.
-   * Drawn only while they are the neighbours — this is three images, never
-   * the album.
-   *
-   * Still not a list and an index. The caller owns the order and already
-   * re-reads the current photograph off the feed on every render so that a
-   * reaction is not shown stale; a second copy of the order in here is a
-   * second thing to keep in step with it. Null at an end is what the gesture
-   * reads to know it has run out.
-   */
-  prev: FeedPhoto | null;
-  next: FeedPhoto | null;
-  onPrev: (() => void) | null;
-  onNext: (() => void) | null;
-}) {
-  const { width, height } = useWindowDimensions();
 
+/**
+ * One photograph in the pager, with its own zoom.
+ *
+ * A component per page rather than one gesture over a moving row, and that is
+ * the fix for a flash that three attempts could not remove.
+ *
+ * The row was three photographs wide and had to be put back to centre every
+ * time the middle one changed. Centring is an offset and changing the picture
+ * is a React commit, and those cross to the native side on different
+ * schedules — so one frame always showed the pair out of step. Whichever way
+ * it was ordered, something wrong was drawn for a frame: the photograph just
+ * left, sitting centred under the new window, was the one people saw.
+ *
+ * A horizontal pager has no such moment. The list of photographs does not
+ * move relative to itself and nothing is ever re-centred; the only thing that
+ * changes is the scroll offset, which the platform owns end to end. Landing
+ * on a page is not an event this code has to synchronise with anything.
+ *
+ * What it costs is that the gesture has to share. The pager wants horizontal
+ * drags and this wants everything else, so the responder claims a move only
+ * when it is vertical or when the picture is zoomed — and taps come through a
+ * `Pressable` rather than through the responder, because claiming on touch
+ * down is what stops a scroll view scrolling at all.
+ */
+function Page({
+  photo,
+  width,
+  height,
+  onClose,
+  onTalk,
+  onChrome,
+  onZoomed,
+}: {
+  photo: FeedPhoto;
+  width: number;
+  height: number;
+  onClose: () => void;
+  /** Up, at fit: the comments about this photograph. */
+  onTalk: () => void;
+  /** A single tap: the glass, with nothing on it. */
+  onChrome: () => void;
+  /** Whether this page is magnified, which is what stops the pager paging. */
+  onZoomed: (zoomed: boolean) => void;
+}) {
   const scale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  /**
-   * How far the row of three has been dragged, with 0 meaning centred.
-   *
-   * Separate from `pan`, which is this photograph's own offset when it is
-   * zoomed in. The two never move at once — `pan` is only reachable above
-   * 1×, the strip only at fit — but they are different things and sharing a
-   * value would make the photograph's zoomed position leak into where its
-   * neighbours sit.
-   */
-  const strip = useRef(new Animated.Value(0)).current;
-
-  /**
-   * Whether a gesture is in flight, and therefore whether the row is being
-   * driven by the animated value at all.
-   *
-   * This exists because of a flash that survived two fixes, and the reason it
-   * survived is worth writing down: `strip` is native-driven, so
-   * `strip.setValue(0)` is an instruction that crosses to the native side on
-   * its own schedule, while the photograph is swapped by a React commit that
-   * crosses on a different one. Nothing available in JS orders those two
-   * against each other — `useLayoutEffect` sequences the JS side and leaves
-   * the native value exactly as unsynchronised as before. So the frame where
-   * the new middle photograph is in place and the row has not yet come back
-   * to centre is a frame showing the slot *beyond* it: the picture after the
-   * one you swiped to, from nowhere, which is what read as loading.
-   *
-   * The race is removed rather than won. At rest the row's offset is a plain
-   * `0` in the rendered style — a number React commits with everything else —
-   * and the animated value is attached only while a finger or an animation is
-   * actually moving it. So the commit that brings the new neighbours in is
-   * also the commit that centres the row, because they are one object.
-   */
-  const [sliding, setSliding] = useState(false);
-
-  /*
-   * And the value itself goes back to zero for the next gesture.
-   *
-   * Nothing is looking at it by the time this runs — the row is being drawn
-   * from the literal above — so its timing no longer matters, which is the
-   * whole point of the arrangement.
-   */
-  useLayoutEffect(() => {
-    strip.setValue(0);
-  }, [photo.id, strip]);
 
   /*
    * The committed transform, readable synchronously.
@@ -249,7 +159,10 @@ export function PhotoViewer({
    */
   const now = useRef({ scale: 1, x: 0, y: 0 });
   useEffect(() => {
-    const s = scale.addListener(({ value }) => (now.current.scale = value));
+    const s = scale.addListener(({ value }) => {
+      now.current.scale = value;
+      onZoomed(value > 1);
+    });
     const p = pan.addListener(({ x, y }) => {
       now.current.x = x;
       now.current.y = y;
@@ -258,25 +171,11 @@ export function PhotoViewer({
       scale.removeListener(s);
       pan.removeListener(p);
     };
-  }, [pan, scale]);
+  }, [onZoomed, pan, scale]);
 
   /** What the gesture started from, set on the first move of each kind. */
   const from = useRef<{ scale: number; x: number; y: number; span: number } | null>(null);
   const lastTap = useRef(0);
-
-  const [chrome, setChrome] = useState(true);
-  /**
-   * Whether the comments are open.
-   *
-   * A panel over the photograph rather than a screen of its own: what somebody
-   * is saying is about the picture, and a comment read without it in view is a
-   * remark about nothing. It covers the lower half and the picture stays above.
-   */
-  const [talking, setTalking] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  /** The face: our own emoji grid, since the system will not lend us its one. */
-  const [picking, setPicking] = useState(false);
 
   const settle = useCallback(
     (next: number) => {
@@ -325,16 +224,24 @@ export function PhotoViewer({
   const responder = useMemo(
     () =>
       PanResponder.create({
-        // The picture takes every touch on it: a tap is a gesture here too.
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        /*
+         * Never on touch down, which is what leaves the pager able to page.
+         *
+         * A child that claims the responder as a finger lands stops the
+         * scroll view underneath from ever starting, so this waits for a move
+         * and takes only the ones the pager has no use for: a pinch, a pan of
+         * a magnified picture, and a vertical drag. Sideways at fit belongs
+         * to the pager, and saying so here is the whole negotiation.
+         */
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (evt, g) => {
+          if (evt.nativeEvent.touches.length >= 2) return true;
+          if (now.current.scale > 1) return true;
+          return Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > TAP_SLOP;
+        },
         // A second finger arriving mid-drag turns a pan into a pinch.
         onPanResponderGrant: () => {
           from.current = null;
-          // Hand the row to the animated value for the length of the gesture.
-          // At 0 it draws exactly where the literal did, so the handover is
-          // not visible.
-          setSliding(true);
         },
         onPanResponderMove: (evt, g) => {
           const touches = evt.nativeEvent.touches;
@@ -356,54 +263,14 @@ export function PhotoViewer({
           /*
            * At fit, one finger is a vertical gesture rather than a pan.
            *
-           * There is nothing to pan — the picture is already inside the screen —
-           * so this space was doing nothing, which is exactly why the two new
-           * gestures live here and not on top of something. Zoomed in, the
-           * branch below takes the finger back for panning and neither of them
-           * can fire.
-           *
-           * The photograph follows the finger at a third of the distance. Not
-           * for the animation: it is how somebody finds out the gesture exists,
-           * and how they discover mid-drag which way they are going.
+           * There is nothing to pan — the picture is already inside the screen
+           * — and sideways never reaches here, because the responder above
+           * leaves it to the pager. The photograph follows the finger at a
+           * third of the distance: not for the animation, but so somebody
+           * finds out mid-drag that the gesture exists and which way it goes.
            */
           if (now.current.scale <= 1) {
-            /*
-             * Whichever axis the finger has committed to, and only that one.
-             *
-             * Sideways moves between photographs; up and down are the two
-             * gestures this space already had. Deciding per frame from the
-             * larger of the two — rather than latching on the first move —
-             * keeps a drag that starts ambiguous from sticking to the wrong
-             * axis, and the release below reads the same comparison, so what
-             * somebody sees follow their finger is what happens when they
-             * let go.
-             *
-             * A third of the distance, as the vertical always did: enough to
-             * show the gesture is there and to say which way it is going,
-             * short of dragging the next photograph in — which would need the
-             * album on this screen, and it is not here.
-             */
-            if (Math.abs(g.dx) > Math.abs(g.dy)) {
-              /*
-               * One for one, because the neighbour is really there.
-               *
-               * The vertical gestures move the photograph a third of the
-               * distance — they are a hint that something will happen on
-               * release. This is not a hint: the next photograph is on the
-               * glass and its edge has to arrive under the finger that is
-               * pulling it, or the row is a picture of a swipe rather than
-               * one.
-               *
-               * At an end there is nothing to bring in, so the row resists
-               * instead — a sixth of the distance, which moves enough to say
-               * the gesture was seen and not enough to show the black behind
-               * it.
-               */
-              const wall = g.dx > 0 ? !onPrev : !onNext;
-              strip.setValue(wall ? g.dx / 6 : g.dx);
-            } else {
-              pan.setValue({ x: 0, y: g.dy / 3 });
-            }
+            pan.setValue({ x: 0, y: g.dy / 3 });
             return;
           }
           if (!from.current) {
@@ -412,159 +279,240 @@ export function PhotoViewer({
           pan.setValue({ x: from.current.x + g.dx, y: from.current.y + g.dy });
         },
         onPanResponderRelease: (_evt, g) => {
-          const moved = Math.hypot(g.dx, g.dy) > TAP_SLOP;
           from.current = null;
 
           /*
            * Down leaves, up talks.
            *
-           * It was the other way round, on the argument that each gesture
-           * should move something in the direction it actually goes: the
-           * comments are below, so pull them up; the album is behind, so push
-           * the photograph away. That reasoning is sound and it loses, because
-           * it is reasoning — and nobody reasons about a swipe.
-           *
-           * Every photo viewer on this phone dismisses downward, and every
-           * sheet on it arrives from below when you pull up. Those are two
-           * habits somebody already has, and a screen that inverts both to be
-           * internally consistent is a screen where the first swipe does the
-           * wrong thing to everybody who has ever used a phone.
-           *
-           * Vertical only: `dy` has to beat `dx`, or a diagonal flick past a
-           * photograph closes it.
+           * Every photo viewer on this phone dismisses downward and every
+           * sheet arrives from below when you pull up. Those are two habits
+           * somebody already has, and a screen that inverts them to be
+           * internally consistent is one where the first swipe does the wrong
+           * thing to everybody who has ever used a phone.
            */
           if (now.current.scale <= 1 && Math.abs(g.dy) > Math.abs(g.dx)) {
             const far = Math.abs(g.dy) > SWIPE;
             const flung = Math.abs(g.vy) > FLING;
             if (far || flung) {
               settle(1);
-              // Nothing moved the row, so it can go back on its literal at
-              // once. Every path out of a gesture has to do this or the next
-              // photograph is drawn from a value nothing is updating.
-              setSliding(false);
               if (g.dy > 0) onClose();
-              else setTalking(true);
+              else onTalk();
               return;
             }
           }
 
-          /*
-           * Sideways, between the photographs.
-           *
-           * The same two thresholds the vertical uses, against `dx` and `vx`:
-           * a gesture that is far enough or fast enough counts, so a short
-           * flick works and a long careful drag does too.
-           *
-           * Right goes back and left goes forward, which is the direction the
-           * picture moved under the finger rather than the direction of travel
-           * through the album — dragging a photograph to the right should
-           * bring in the one on its left, the way every other set of pages on
-           * this phone behaves.
-           *
-           * `settle(1)` before the caller changes the photograph, so the next
-           * one arrives centred rather than inheriting the offset this one was
-           * dragged to.
-           */
-          if (now.current.scale <= 1 && Math.abs(g.dx) > Math.abs(g.dy)) {
-            const far = Math.abs(g.dx) > SWIPE;
-            const flung = Math.abs(g.vx) > FLING;
-            const go = g.dx > 0 ? onPrev : onNext;
-            if ((far || flung) && go) {
-              /*
-               * The rest of the way first, and the change of photograph after.
-               *
-               * The row finishes the travel the finger started — a whole
-               * screen, so the neighbour lands exactly where the current one
-               * was — and only then is the caller told. Swapping first and
-               * animating after is what made this a flicker and a jump: the
-               * picture changed under a finger that was still mid-gesture.
-               *
-               * `timing` rather than `spring`: a spring overshoots, and an
-               * overshoot here shows a sliver of the photograph on the far
-               * side of the one arriving.
-               */
-              Animated.timing(strip, {
-                toValue: g.dx > 0 ? width : -width,
-                duration: PAGE_MS,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver: true,
-              }).start(({ finished }) => {
-                // Only if it actually arrived. A gesture interrupted by
-                // another one leaves the strip where the new one wants it.
-                if (!finished) return;
-                /*
-                 * The two halves of the swap, in one React commit.
-                 *
-                 * `go()` puts the neighbour in the middle slot and `false`
-                 * puts the row back on its literal offset, and because both
-                 * are state they are batched into a single render. The frame
-                 * that shows the new photograph is the first frame it exists
-                 * in, centred, with nothing in between — which is what could
-                 * not be arranged while the offset was an animated value the
-                 * native side owned.
-                 */
-                go();
-                setSliding(false);
-              });
-              return;
-            }
-            // Short of both thresholds, or nothing that way: back to centre,
-            // and the row is handed back once it is actually there.
-            Animated.spring(strip, {
-              toValue: 0,
-              useNativeDriver: true,
-              bounciness: 0,
-            }).start(({ finished }) => {
-              if (finished) setSliding(false);
-            });
-            return;
-          }
-
-          if (!moved) {
-            setSliding(false);
-            const at = Date.now();
-            if (at - lastTap.current < DOUBLE_TAP_MS) {
-              lastTap.current = 0;
-              zoomTo(now.current.scale > 1 ? 1 : TAP_SCALE);
-            } else {
-              lastTap.current = at;
-              // Only if no second tap follows. A single tap that hid the
-              // chrome immediately would flash it on every double tap.
-              setTimeout(() => {
-                if (lastTap.current === at) setChrome((on) => !on);
-              }, DOUBLE_TAP_MS);
-            }
-            return;
-          }
-
-          setSliding(false);
           settle(now.current.scale);
         },
         onPanResponderTerminate: () => {
           from.current = null;
-          setSliding(false);
           settle(now.current.scale);
         },
       }),
-    [onClose, onNext, onPrev, pan, scale, settle, strip, width, zoomTo],
+    [onClose, onTalk, pan, scale, settle],
   );
 
-  /*
-   * What the tap did, before the server has said anything.
+  /**
+   * The taps, outside the responder.
    *
-   * A reaction used to wait on two round trips: the POST, and then a refresh
-   * of the *entire* album feed — every photograph, the roster, the thread —
-   * because that feed is where the counts live. Against a database in another
-   * region that is most of a second in which nothing on screen changes, and
-   * the pill was disabled for all of it. It felt broken because it was, in the
-   * only sense that matters to somebody holding the phone.
-   *
-   * So the answer is drawn immediately and reconciled afterwards. The overlay
-   * is what this device believes it has changed; the feed is still the truth,
-   * and when it arrives it replaces this. A tap that the server refuses is
-   * undone by that same arrival, which is why the catch does not need to put
-   * anything back by hand.
+   * They used to be its release with no movement in it, which needed the
+   * responder to claim on touch down — and that is exactly what stops the
+   * pager from scrolling. A `Pressable` takes them instead and the two do not
+   * compete: a press that turns into a drag is cancelled and the drag reaches
+   * the responder or the pager, whichever wants it.
    */
+  const tap = useCallback(() => {
+    const at = Date.now();
+    if (at - lastTap.current < DOUBLE_TAP_MS) {
+      lastTap.current = 0;
+      zoomTo(now.current.scale > 1 ? 1 : TAP_SCALE);
+      return;
+    }
+    lastTap.current = at;
+    // Only if no second tap follows. A single tap that hid the chrome
+    // immediately would flash it on every double tap.
+    setTimeout(() => {
+      if (lastTap.current === at) onChrome();
+    }, DOUBLE_TAP_MS);
+  }, [onChrome, zoomTo]);
+
+  return (
+    <Pressable style={{ width, height }} onPress={tap}>
+      <Animated.View
+        style={[
+          styles.shot,
+          { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] },
+        ]}
+        {...responder.panHandlers}
+      >
+        <ExpoImage
+          source={{ uri: photo.full }}
+          style={styles.shot}
+          // `contain`, never `cover`: this is the screen where the whole
+          // photograph is the point, and cropping it to fill the glass is the
+          // one thing a viewer must not do.
+          contentFit="contain"
+          /*
+           * No crossfade. A fade is a fade from the previous source, and in a
+           * pager the previous source is a different photograph — so the one
+           * being left would ghost over the one arriving. Nothing to fade from
+           * here anyway: each page holds one picture for its whole life.
+           */
+          transition={0}
+        />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+export function PhotoViewer({
+  api,
+  eventId,
+  comments,
+  t,
+  canReact,
+  canPost,
+  onClose,
+  onChanged,
+  onOptions,
+  uploader,
+  onOpenPerson,
+  photos,
+  index,
+  onIndex,
+}: {
+  api: Api;
+  /** Which album, for posting a comment against this photograph. */
+  eventId: string;
+  /**
+   * What has been said about this photograph, oldest first.
+   *
+   * The event's own thread, filtered to this picture. Comments are not a second
+   * kind of message and there is no second table: `event_message` has carried a
+   * `photo_id` since the web let somebody reply to a photograph, and this is
+   * the same rows read from the other end. A comment here is a line in the
+   * album's conversation that happens to be about a picture.
+   */
+  comments: Message[];
+  t: GroupTheme;
+  /** Whether this viewer may leave a reaction. The server's answer. */
+  canReact: boolean;
+  /** Whether they may say something. The same answer, from the same place. */
+  canPost: boolean;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+  /** The `⋯`: remove, ask for it down, report, block. */
+  onOptions: () => void;
+  /**
+   * Whose photograph this is, for the square at the top.
+   *
+   * Looked up by the caller rather than here: an album is a long list and the
+   * map it comes out of is built once over there. Null for a photograph whose
+   * uploader has gone, which draws nothing — an empty square in the middle of
+   * the chrome would be a claim about somebody.
+   */
+  uploader: { name: string; handle: string | null; avatarUrl: string | null } | null;
+  /**
+   * Opening the person whose photograph this is.
+   *
+   * The album's column used to carry this — the handle beside each row was a
+   * press — and the column is gone. Without it a photograph is the one place
+   * in the product that shows you somebody and offers no way to them.
+   *
+   * Only ever called with a handle. Somebody who arrived by a link and added
+   * photographs has a name and a face and no profile, and the square draws as
+   * a label for them rather than as a control that does nothing.
+   */
+  onOpenPerson: (handle: string) => void;
+  /**
+   * The album, and which of it is on the glass.
+   *
+   * A list and an index now, which reverses an earlier decision — the viewer
+   * used to be handed one photograph and its two neighbours, on the argument
+   * that the caller owns the order and a second copy of it in here is a
+   * second thing to keep in step.
+   *
+   * What changed is the pager. A window of three has to be re-centred every
+   * time the middle one changes, and re-centring is an offset moving while
+   * the content moves, which cannot be made to land in one frame. A list
+   * never moves relative to itself: the platform scrolls it, and there is no
+   * moment to synchronise. That needs the list.
+   *
+   * It is not a second copy — the same array the caller renders from, passed
+   * rather than derived, and `onIndex` hands the position straight back so
+   * the two do not drift.
+   */
+  photos: FeedPhoto[];
+  index: number;
+  onIndex: (next: number) => void;
+}) {
+  const { width, height } = useWindowDimensions();
+
+  /**
+   * The photograph the chrome is about.
+   *
+   * Derived rather than passed, so that it and the page under it can never
+   * disagree — they are the same index into the same array.
+   */
+  const photo = photos[index] ?? photos[0]!;
+
+  /**
+   * Whether the page on the glass is magnified.
+   *
+   * The pager must not page while somebody is panning around inside a
+   * photograph: the same sideways finger means two different things at 1× and
+   * at 3×, and the only one that can tell them apart is the page itself.
+   */
+  const [zoomed, setZoomed] = useState(false);
+
+  const [chrome, setChrome] = useState(true);
+  /**
+   * Whether the comments are open.
+   *
+   * A panel over the photograph rather than a screen of its own: what somebody
+   * is saying is about the picture, and a comment read without it in view is a
+   * remark about nothing. It covers the lower half and the picture stays above.
+   */
+  const [talking, setTalking] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  /** The full picker, over the row of six. */
+  const [picking, setPicking] = useState(false);
+
+  /*
+   * Where the pager lands, reported once it has stopped.
+   *
+   * `onMomentumScrollEnd` rather than a viewability callback: the index is
+   * what the chrome and the comment box are about, and changing those under a
+   * finger that is still moving is worse than changing them a moment late.
+   */
+  const onSettled = useCallback(
+    (offset: number) => {
+      const at = Math.round(offset / width);
+      if (at !== index && at >= 0 && at < photos.length) onIndex(at);
+    },
+    [index, onIndex, photos.length, width],
+  );
+
+  const layout = useCallback(
+    (_: unknown, at: number) => ({ length: width, offset: width * at, index: at }),
+    [width],
+  );
+
+  const renderPage = useCallback(
+    ({ item }: { item: FeedPhoto }) => (
+      <Page
+        photo={item}
+        width={width}
+        height={height}
+        onClose={onClose}
+        onTalk={() => setTalking(true)}
+        onChrome={() => setChrome((on) => !on)}
+        onZoomed={setZoomed}
+      />
+    ),
+    [height, onClose, width],
+  );
+
   const [pending, setPending] = useState<Map<string, boolean>>(new Map());
 
   /*
@@ -673,92 +621,40 @@ export function PhotoViewer({
   return (
     <View style={styles.root}>
       {/*
-        Three photographs in a row, centred on the middle one.
+        The album, one photograph per page, scrolled by the platform.
 
-        The row is a screen wider than the screen on each side, and sits a
-        screen to the left of its own origin, so the middle slot is the glass
-        and the other two are just off it. Dragging moves the row, which is
-        what puts the edge of the next photograph under the finger pulling it
-        — a swipe used to move this photograph alone and then swap it, which
-        is a transition somebody watches rather than one they are doing.
+        A hand-rolled row of three came before this and could not be made
+        seamless. It had to be put back to centre every time the middle
+        photograph changed, and an offset moving while the content moves is
+        two different systems being asked to land on the same frame — so one
+        of them was always late, and the picture just left was drawn centred
+        under the new window for long enough to see.
 
-        Only three. The album can be two hundred, and the neighbours are the
-        only ones that can be reached without letting go.
+        A pager has no such moment. The list does not move relative to itself,
+        nothing is re-centred, and the only thing that changes is a scroll
+        offset the platform owns end to end.
+
+        Windowed rather than whole: an album can be hundreds, and `FlatList`
+        keeps a handful of pages mounted either side. `getItemLayout` is what
+        lets it open on the photograph that was tapped without measuring
+        everything before it.
       */}
-      <Animated.View
-        style={[
-          styles.strip,
-          {
-            width: width * 3,
-            left: -width,
-            /*
-             * The whole fix for the flash, in one ternary.
-             *
-             * At rest this is a number React commits with the photographs
-             * themselves, so landing a swipe is one frame: new neighbours,
-             * row centred, nothing in between. While a gesture is running the
-             * animated value takes over, which is what makes the drag smooth
-             * and native-driven — and it is only ever attached when something
-             * is genuinely moving it.
-             */
-            transform: [{ translateX: sliding ? strip : 0 }],
-          },
-        ]}
-        {...responder.panHandlers}
-      >
-        {/*
-          The neighbours, drawn flat.
-
-          No zoom and no gesture of their own: whichever becomes the middle one
-          is re-rendered as the middle one, at fit, which is where a photograph
-          you have just arrived at should start. `null` leaves the slot empty
-          rather than collapsing it — the row's geometry is three screens
-          whether or not there is anything in the outer two, and a missing
-          slot would shift the middle off the glass.
-        */}
-        <View style={{ width, height: '100%' }}>
-          {prev && (
-            <ExpoImage source={{ uri: prev.full }} style={styles.shot} contentFit="contain" />
-          )}
-        </View>
-
-        <Animated.View
-          style={[
-            { width, height: '100%' },
-            { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] },
-          ]}
-        >
-          <ExpoImage
-            source={{ uri: photo.full }}
-            style={styles.shot}
-            // `contain`, never `cover`: this is the screen where the whole
-            // photograph is the point, and cropping it to fill the glass is the
-            // one thing a viewer must not do.
-            contentFit="contain"
-            /*
-             * No crossfade, which is the other half of the flash.
-             *
-             * This slot's source changes on every swipe, and a fade is a fade
-             * *from the previous source* — so the photograph being left ghosted
-             * over the one arriving, at the exact moment the row landed. It
-             * looked like loading and it was the opposite: the picture is
-             * already decoded, because it spent the whole gesture on the glass
-             * as the neighbour.
-             *
-             * The cost is the first photograph of a session, which now appears
-             * rather than fades. That one is worth losing: a fade there is a
-             * flourish, and a fade here was a bug.
-             */
-            transition={0}
-          />
-        </Animated.View>
-
-        <View style={{ width, height: '100%' }}>
-          {next && (
-            <ExpoImage source={{ uri: next.full }} style={styles.shot} contentFit="contain" />
-          )}
-        </View>
-      </Animated.View>
+      <FlatList
+        data={photos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        initialScrollIndex={index}
+        getItemLayout={layout}
+        keyExtractor={(item: FeedPhoto) => item.id}
+        // Paging stops while a photograph is magnified: the same sideways
+        // finger means two different things at 1× and at 3×.
+        scrollEnabled={!zoomed}
+        onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) =>
+          onSettled(e.nativeEvent.contentOffset.x)
+        }
+        renderItem={renderPage}
+      />
 
       {chrome && (
         <>
@@ -1051,24 +947,6 @@ const styles = StyleSheet.create({
   /* Black, not the theme's background. A photograph is judged against what is
      around it, and a light grey surround changes what the picture looks like. */
   root: { flex: 1, backgroundColor: '#000' },
-  /*
-   * The row of three, laid across the screen.
-   *
-   * `position: 'absolute'` with a `top`/`bottom` of zero rather than `flex`,
-   * because it is three screens wide inside a container that is one: a flex
-   * child would be squeezed back to the width of its parent and the three
-   * slots would each be a third of the glass.
-   */
-  strip: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    /* `stretch`, so each slot is the height of the row. Under `center` a slot
-       with only a width is sized to its content, which is nothing, and every
-       photograph inside one resolves its own `height: '100%'` against zero. */
-    alignItems: 'stretch',
-  },
   shot: { width: '100%', height: '100%' },
   top: {
     position: 'absolute',
