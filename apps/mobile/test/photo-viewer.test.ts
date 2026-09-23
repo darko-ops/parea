@@ -675,10 +675,21 @@ describe('the pager', () => {
   });
 
   it('does not page while a photograph is magnified', () => {
-    // The same sideways finger means two different things at 1× and at 3×,
-    // and only the page itself can tell them apart.
+    /*
+     * Said twice, from both ends, and the second is the one that cannot be a
+     * frame late: `scrollEnabled` is React state set from an animation
+     * listener, and the termination request is read at the instant the pager
+     * asks. The same sideways finger means two different things at 1× and at
+     * 3×.
+     */
     expect(GESTURE).toMatch(/scrollEnabled=\{!zoomed\}/);
-    expect(GESTURE).toMatch(/onZoomed\(value > 1\)/);
+    expect(GESTURE).toMatch(/onPanResponderTerminationRequest: \(\) => now\.current\.scale <= 1/);
+  });
+
+  it('tells the pager about zoom on a change, not on every frame', () => {
+    // The listener runs per animation frame; a `setState` there re-renders
+    // the whole viewer for every frame of every pinch.
+    expect(GESTURE).toMatch(/if \(zoomed !== told\.current\)/);
   });
 
   it('reports where it landed once it has stopped', () => {
@@ -703,24 +714,41 @@ describe('the pager', () => {
 });
 
 describe('one page of the pager', () => {
-  it('never claims a touch as it lands', () => {
+  it('claims the touch, and hands it over when the pager asks', () => {
     /*
-     * A child that takes the responder on touch down stops the scroll view
-     * under it from ever starting. So this waits for a move and takes only
-     * what the pager has no use for — a pinch, a pan of a magnified picture,
-     * and a vertical drag.
+     * Declining on the way down was the obvious way to leave the pager able
+     * to page, and it cost every gesture that is not a page: a responder that
+     * never claims never receives a release, so there were no taps — and the
+     * `Pressable` put over the top to catch them claimed the touch itself and
+     * starved this of the vertical swipes, the pinch and the pan.
+     *
+     * One responder owns the gesture, and the negotiation is a request to
+     * give it up rather than a refusal to take it.
      */
-    expect(GESTURE).toMatch(/onStartShouldSetPanResponder: \(\) => false/);
-    expect(GESTURE).toMatch(/if \(now\.current\.scale > 1\) return true;/);
-    expect(GESTURE).toMatch(/return Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\) && Math\.abs\(g\.dy\) > TAP_SLOP;/);
+    expect(GESTURE).toMatch(/onStartShouldSetPanResponder: \(\) => true/);
+    expect(GESTURE).toMatch(/onMoveShouldSetPanResponder: \(\) => true/);
+    expect(GESTURE).toMatch(/onPanResponderTerminationRequest:/);
+    // And nothing over the top of it competing for the same touch.
+    const page = GESTURE.slice(GESTURE.indexOf('function Page('), GESTURE.indexOf('export function PhotoViewer'));
+    expect(page).not.toMatch(/<Pressable/);
   });
 
-  it('takes its taps from a Pressable instead', () => {
-    // Which is the other half of not claiming on touch down: a tap used to be
-    // a release with no movement in it, and that needed the start-claim.
-    expect(GESTURE).toMatch(/<Pressable style=\{\{ width, height \}\} onPress=\{tap\}>/);
+  it('reads a tap as a release with nothing in it', () => {
+    expect(GESTURE).toMatch(/if \(Math\.hypot\(g\.dx, g\.dy\) <= TAP_SLOP\)/);
     expect(GESTURE).toMatch(/at - lastTap\.current < DOUBLE_TAP_MS/);
+    expect(GESTURE).toMatch(/zoomTo\(now\.current\.scale > 1 \? 1 : TAP_SCALE\)/);
     expect(GESTURE).toMatch(/if \(lastTap\.current === at\) onChrome\(\);/);
+  });
+
+  it('does not nudge the picture on a drag the pager is about to take', () => {
+    /*
+     * A sideways drag at fit spends its first few points in the move handler
+     * before the pager asks for it. Following those would push the photograph
+     * down and snap it back on every swipe between pictures.
+     */
+    expect(GESTURE).toMatch(
+      /if \(Math\.abs\(g\.dy\) > Math\.abs\(g\.dx\)\) pan\.setValue\(\{ x: 0, y: g\.dy \/ 3 \}\);/,
+    );
   });
 
   it('keeps down-to-leave and up-to-talk', () => {

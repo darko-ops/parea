@@ -158,10 +158,18 @@ function Page({
    * component is a leak that only shows up after a hundred photographs.
    */
   const now = useRef({ scale: 1, x: 0, y: 0 });
+  /** The last thing the pager was told, so it is told only on a change. */
+  const told = useRef(false);
   useEffect(() => {
     const s = scale.addListener(({ value }) => {
       now.current.scale = value;
-      onZoomed(value > 1);
+      // A `setState` per animation frame would re-render the viewer for every
+      // frame of every pinch. The pager only cares which side of 1× this is.
+      const zoomed = value > 1;
+      if (zoomed !== told.current) {
+        told.current = zoomed;
+        onZoomed(zoomed);
+      }
     });
     const p = pan.addListener(({ x, y }) => {
       now.current.x = x;
@@ -225,20 +233,32 @@ function Page({
     () =>
       PanResponder.create({
         /*
-         * Never on touch down, which is what leaves the pager able to page.
+         * The picture takes every touch on it, and gives it up when asked.
          *
-         * A child that claims the responder as a finger lands stops the
-         * scroll view underneath from ever starting, so this waits for a move
-         * and takes only the ones the pager has no use for: a pinch, a pan of
-         * a magnified picture, and a vertical drag. Sideways at fit belongs
-         * to the pager, and saying so here is the whole negotiation.
+         * Declining the touch on the way down was the obvious way to leave
+         * the pager able to page, and it cost every gesture that is not a
+         * page: a responder that never claims never receives a release, so
+         * there were no taps, and a `Pressable` put over the top to catch
+         * them claimed the touch itself and starved this of the rest.
+         *
+         * So this claims, as it always did, and the negotiation moves to
+         * `onPanResponderTerminationRequest` below — which is the mechanism
+         * for exactly this: a gesture living inside something that scrolls.
          */
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (evt, g) => {
-          if (evt.nativeEvent.touches.length >= 2) return true;
-          if (now.current.scale > 1) return true;
-          return Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > TAP_SLOP;
-        },
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        /*
+         * Yes at fit, no while magnified.
+         *
+         * The pager asks for the touch when it decides a drag is a scroll,
+         * and at fit that is right — sideways across a photograph that fits
+         * the screen means the next photograph. Zoomed in it is wrong: the
+         * same finger is panning around inside the picture, and handing it
+         * over mid-pan would throw the album sideways instead. `scrollEnabled`
+         * says the same thing from the other end; this is the half that
+         * cannot be lost to a frame of stale state.
+         */
+        onPanResponderTerminationRequest: () => now.current.scale <= 1,
         // A second finger arriving mid-drag turns a pan into a pinch.
         onPanResponderGrant: () => {
           from.current = null;
@@ -270,7 +290,15 @@ function Page({
            * finds out mid-drag that the gesture exists and which way it goes.
            */
           if (now.current.scale <= 1) {
-            pan.setValue({ x: 0, y: g.dy / 3 });
+            /*
+             * Only once the finger has committed to the vertical.
+             *
+             * A sideways drag at fit belongs to the pager, and it spends its
+             * first few points here before the pager decides to ask for it.
+             * Moving the photograph on those would nudge it down and snap it
+             * back on every swipe between pictures.
+             */
+            if (Math.abs(g.dy) > Math.abs(g.dx)) pan.setValue({ x: 0, y: g.dy / 3 });
             return;
           }
           if (!from.current) {
@@ -301,42 +329,44 @@ function Page({
             }
           }
 
+          /*
+           * A release with nothing in it is a tap.
+           *
+           * Back here from a `Pressable`, which is where it had to go while
+           * this declined the touch on the way down — and which took the
+           * touch from everything else in the process. One responder owns the
+           * gesture again, and a tap is the case where the gesture turned out
+           * to be nothing.
+           */
+          if (Math.hypot(g.dx, g.dy) <= TAP_SLOP) {
+            const at = Date.now();
+            if (at - lastTap.current < DOUBLE_TAP_MS) {
+              lastTap.current = 0;
+              zoomTo(now.current.scale > 1 ? 1 : TAP_SCALE);
+            } else {
+              lastTap.current = at;
+              // Only if no second tap follows. A single tap that hid the
+              // chrome immediately would flash it on every double tap.
+              setTimeout(() => {
+                if (lastTap.current === at) onChrome();
+              }, DOUBLE_TAP_MS);
+            }
+            return;
+          }
+
           settle(now.current.scale);
         },
         onPanResponderTerminate: () => {
+          // The pager took it. Whatever this was doing, put the picture back.
           from.current = null;
           settle(now.current.scale);
         },
       }),
-    [onClose, onTalk, pan, scale, settle],
+    [onChrome, onClose, onTalk, pan, scale, settle, zoomTo],
   );
 
-  /**
-   * The taps, outside the responder.
-   *
-   * They used to be its release with no movement in it, which needed the
-   * responder to claim on touch down — and that is exactly what stops the
-   * pager from scrolling. A `Pressable` takes them instead and the two do not
-   * compete: a press that turns into a drag is cancelled and the drag reaches
-   * the responder or the pager, whichever wants it.
-   */
-  const tap = useCallback(() => {
-    const at = Date.now();
-    if (at - lastTap.current < DOUBLE_TAP_MS) {
-      lastTap.current = 0;
-      zoomTo(now.current.scale > 1 ? 1 : TAP_SCALE);
-      return;
-    }
-    lastTap.current = at;
-    // Only if no second tap follows. A single tap that hid the chrome
-    // immediately would flash it on every double tap.
-    setTimeout(() => {
-      if (lastTap.current === at) onChrome();
-    }, DOUBLE_TAP_MS);
-  }, [onChrome, zoomTo]);
-
   return (
-    <Pressable style={{ width, height }} onPress={tap}>
+    <View style={{ width, height }}>
       <Animated.View
         style={[
           styles.shot,
@@ -360,7 +390,7 @@ function Page({
           transition={0}
         />
       </Animated.View>
-    </Pressable>
+    </View>
   );
 }
 
