@@ -889,13 +889,19 @@ export function HomeTab({
   loading: boolean;
   t: TabTheme;
   /**
-   * Open an album, at a photograph or at the top of it.
+   * Open an album: at a photograph, at a pane, or at the top of it.
    *
    * The second argument is what the strip under a cover needs: a tile there is
    * a picture of one photograph, and pressing it should arrive at that
    * photograph rather than at the grid it is somewhere inside.
+   *
+   * The third is what the bubble needs, and this signature is the reason it
+   * did not work: the card asked for `'talk'`, this type had no room for it,
+   * and the handler below dropped it — so pressing somebody's words landed on
+   * the grid and left the reader to find the tab. `App` has taken a pane
+   * since panes existed; only the two lines between here and there had not.
    */
-  onOpen: (event: EventListing, photo?: string) => void;
+  onOpen: (event: EventListing, photo?: string, pane?: 'photos' | 'talk' | 'people') => void;
   onRefresh: () => Promise<void>;
   /** How many things are waiting on an answer, for the badge on the envelope. */
   waiting: number;
@@ -1064,7 +1070,7 @@ export function HomeTab({
           now={now}
           onOpenPerson={onOpenPerson}
           t={t}
-          onOpen={(photo) => onOpen(event, photo)}
+          onOpen={(photo, pane) => onOpen(event, photo, pane)}
         />
       ))}
 

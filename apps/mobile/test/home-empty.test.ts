@@ -706,13 +706,30 @@ describe('the bubble', () => {
     expect(EVENTS).toMatch(/width: talkWidth,/);
   });
 
-  it('opens the conversation rather than the album', () => {
-    // A comment on a card is a pointer at a thread; landing at the top of the
-    // album leaves the reader to find the tab.
+  it('opens the conversation rather than the album, all the way down', () => {
+    /*
+     * A comment on a card is a pointer at a thread; landing at the top of the
+     * album leaves the reader to find the tab.
+     *
+     * Every link in the chain, because the one that was missing was in the
+     * middle of it and cost nothing to compile. The card asked for `'talk'`,
+     * `App` had taken a pane since panes existed, and `HomeTab` in between
+     * typed its handler as `(event, photo)` and called it with two arguments
+     * — so the pane was dropped silently and the bubble opened the grid.
+     */
     expect(EVENTS).toMatch(/onPress=\{\(\) => onOpen\(undefined, 'talk'\)\}/);
     expect(EVENTS).toMatch(/onOpen: \(photo\?: string, pane\?: 'photos' \| 'talk' \| 'people'\) => void;/);
+    // The link that was broken: the tab's own type, and the handler it hands
+    // each card.
+    expect(EVENTS).toMatch(
+      /onOpen: \(event: EventListing, photo\?: string, pane\?: 'photos' \| 'talk' \| 'people'\) => void;/,
+    );
+    expect(EVENTS).toMatch(/onOpen=\{\(photo, pane\) => onOpen\(event, photo, pane\)\}/);
     const APP2 = read('App.tsx');
     expect(APP2).toMatch(/\(event: EventListing, photo\?: string, pane\?: Pane\)/);
+    // And the far end: the route's pane is what the album screen starts on.
+    expect(APP2).toMatch(/initialPane=\{route\.pane\}/);
+    expect(APP2).toMatch(/useState<Pane>\(initialPane \?\? 'photos'\)/);
   });
 
   it('leaves the card opening the album, as it always did', () => {
