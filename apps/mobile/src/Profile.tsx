@@ -41,7 +41,6 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -113,6 +112,31 @@ const CAP_H = 72;
  */
 const PHOTO_H = TAB_W;
 const TAB_H = CAP_H + PHOTO_H;
+/**
+ * The picture's own colour, carried up into the ribbon.
+ *
+ * The ribbon was a flat colour with a 24pt gradient fading it down onto the
+ * photograph, which is a fade *into* the picture: the top of somebody's face
+ * washed out towards a colour that had nothing to do with them. The picture
+ * should be the thing that wins. So the ribbon is painted from the photograph
+ * instead — its top edge stretched upward to fill the strip.
+ *
+ * `BLEED` is how much of that edge is stretched. Ten points scaled to the
+ * ribbon's height is a smear of the colours actually at the top of the
+ * picture rather than an average of the whole thing, and it is mirrored, so
+ * the row meeting the photograph is the photograph's own first row and the
+ * seam is not a seam. The blur is what stops ten points of somebody's hair
+ * from reading as an upside-down fragment of a photograph.
+ *
+ * The two numbers below are that stretch written as a transform. React Native
+ * scales about a view's centre, so the lift is what puts the edge back where
+ * the arithmetic wants it: a point `y` down the picture lands at
+ * `CAP_H - BLEED_SCALE * y`, which is `CAP_H` at the top of the ribbon and 0
+ * at its bottom.
+ */
+const BLEED = 10;
+const BLEED_SCALE = CAP_H / BLEED;
+const BLEED_LIFT = CAP_H - ((1 + BLEED_SCALE) * PHOTO_H) / 2;
 /** What is left of the picture once the page has been scrolled. */
 const PHOTO_MIN = 26;
 
@@ -850,29 +874,30 @@ export function ProfileScreen({
             </Pressable>
 
             {/*
-              The ribbon: the no-go zone, and nothing else in it.
+              The ribbon: the no-go zone, painted from the picture under it.
 
-              Opaque, the height the camera needs, and no photograph under it
-              to be lost. It is still drawn over the tab rather than above it
-              so that the two are one object with one colour.
+              The height the camera needs, and nothing legible in it — but its
+              colour is the photograph's, not a swatch. The top edge of the
+              picture is stretched up through it, mirrored so that the row
+              meeting the photograph is the photograph's own first row, and
+              blurred so ten points of somebody's hair reads as colour rather
+              than as an upside-down piece of a photograph.
+
+              `tabBack` stays underneath it: it is what the ribbon is before a
+              picture has decoded, and for somebody who has not set one it is
+              the whole tab.
             */}
-            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none" />
-
-            {/*
-              And the top line of the picture fading up into it.
-
-              Twenty-four points from the ribbon's own colour to nothing, laid
-              over the first twenty-four points of the photograph. Not a
-              gradient anybody should notice — just enough that the picture
-              rises into the ribbon rather than stopping against it, which is
-              the whole of what the old overlap was buying and costs none of
-              the image to buy.
-            */}
-            <LinearGradient
-              colors={[tabBack, 'transparent']}
-              style={styles.capFade}
-              pointerEvents="none"
-            />
+            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none">
+              {account?.avatarUrl && (
+                <Image
+                  source={{ uri: account.avatarUrl }}
+                  style={styles.bleed}
+                  contentFit="cover"
+                  blurRadius={20}
+                  transition={120}
+                />
+              )}
+            </View>
           </Animated.View>
         </Animated.View>
       )}
@@ -1239,10 +1264,34 @@ const styles = StyleSheet.create({
    * height of the tab and this covers part of it. Fixed height, because the
    * camera does not move.
    */
-  cap: { position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H, zIndex: 1 },
-  /* The top line of the picture, fading up into the ribbon. Sits over the
-     first 24 points of the photograph rather than in the gap above it. */
-  capFade: { position: 'absolute', top: CAP_H, left: 0, right: 0, height: 24, zIndex: 1 },
+  /* The ribbon, and the clip that keeps the bleed inside it. */
+  cap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: CAP_H,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  /*
+   * The picture's top edge, stretched up to fill the ribbon.
+   *
+   * Laid out as the picture is — the same width and the same square height —
+   * so `cover` frames it identically and row zero is the same row in both.
+   * The transform then flips it and scales it about its centre; `BLEED_LIFT`
+   * is what puts row zero back on the ribbon's bottom edge. Listed
+   * translate-then-scale, which React Native applies to a point in the other
+   * order, so the lift is in unscaled points.
+   */
+  bleed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: PHOTO_H,
+    transform: [{ translateY: BLEED_LIFT }, { scaleY: -BLEED_SCALE }],
+  },
   /*
    * The picture: everything below the ribbon, and square at rest.
    *

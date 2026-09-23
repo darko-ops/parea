@@ -273,7 +273,7 @@ describe('the tab that hangs from the top', () => {
      * walk the photograph back up under the camera on the way past.
      */
     expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
-    expect(PROFILE).toMatch(/cap: \{ position: 'absolute', top: 0, left: 0, right: 0, height: CAP_H/);
+    expect(PROFILE).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
   });
 
   it('keeps none of the picture behind the ribbon', () => {
@@ -297,16 +297,27 @@ describe('the tab that hangs from the top', () => {
     expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
   });
 
-  it('fades the top line of the picture up into the ribbon', () => {
+  it('carries the picture’s colour up into the ribbon', () => {
     /*
-     * Twenty-four points from the ribbon's colour to nothing, laid over the
-     * first twenty-four points of the photograph rather than in a gap above
-     * it — so the picture rises into the ribbon rather than stopping against
-     * it. That is what the old hundred-point overlap was buying, and this
-     * costs none of the image to buy.
+     * The ribbon was a flat colour with a gradient fading it down onto the
+     * photograph — a fade *into* the picture, washing out the top of somebody's
+     * face towards a colour that had nothing to do with them. The picture is
+     * the thing that wins: the ribbon is painted from its top edge, stretched
+     * up to fill the strip.
+     *
+     * Mirrored, so the row that meets the photograph is the photograph's own
+     * first row and the seam is not a seam; blurred, so ten points of hair is
+     * colour rather than an upside-down piece of a photograph.
      */
-    expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
-    expect(PROFILE).toMatch(/capFade: \{ position: 'absolute', top: CAP_H,[^}]*height: 24/);
+    expect(PROFILE).not.toMatch(/LinearGradient/);
+    expect(PROFILE).not.toMatch(/capFade/);
+    expect(PROFILE).toMatch(/const BLEED = 10;/);
+    expect(PROFILE).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
+    expect(PROFILE).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
+    expect(PROFILE).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
+    expect(PROFILE).toMatch(/blurRadius=\{20\}/);
+    // And the ribbon clips it, or the whole picture would be drawn twice.
+    expect(PROFILE).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -346,13 +357,13 @@ describe('the tab that hangs from the top', () => {
 describe('the tab is one object', () => {
   it('paints the ribbon and what is behind the picture from one value', () => {
     /*
-     * A tab that is two colours is two objects — and the fade reads from the
-     * same value, so a ribbon that changed colour without it would fade to
-     * the wrong thing.
+     * A tab that is two colours is two objects. `tabBack` is what the ribbon
+     * and the picture's box are both painted from — which matters most for
+     * the two people the bleed cannot serve: somebody whose picture has not
+     * decoded yet, and somebody who has not set one.
      */
     expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
     expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
     expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).toMatch(/colors=\{\[tabBack, 'transparent'\]\}/);
   });
 });
