@@ -2,24 +2,35 @@
 # rewrite metadata without re-encoding pixels), libheif with an HEVC decoder
 # (to read iPhone HEIC — sharp's bundled libvips parses the container but
 # cannot decode HEVC), and the heif-convert CLI the fallback shells out to.
-FROM node:22-bookworm-slim
-
-# No libheif-plugin-libde265 here, and that is not the same package list as
-# CI's. libheif only moved its decoders out into separate plugin packages in
-# 1.17; bookworm ships 1.15, where libde265 is a dependency of libheif1 and
-# linked straight in. So the plugin package does not exist on this base at all
-# — `apt-get install` fails with "Unable to locate package" and takes the whole
-# build with it. CI runs a newer Ubuntu where the split has happened and the
-# name is correct, which is where it was copied from.
+# Trixie, for libheif. Bookworm ships 1.15.1, and 1.15 rejects a modern iPhone
+# photograph outright:
 #
-# What matters is that HEVC actually decodes, not which package supplied it,
-# and the probe below is what establishes that. If this base ever moves to
-# trixie or later, the plugin goes back in — by then libheif1 alone decodes
-# nothing.
+#   Could not read HEIF/AVIF file: Invalid input: Unspecified:
+#   Too many auxiliary image references
+#
+# A photograph off a current iPhone carries several auxiliary images — an HDR
+# gain map, depth — and 1.15's ceiling on how many it will follow is below
+# what the camera writes. So `heif-convert` failed, the fallback in
+# `buildDerivatives` caught nothing, and every HEIC upload ended `failed` with
+# "bad seek" from sharp: the container parses, the pixels never decode, and
+# the one thing that could have decoded them refused to open the file.
+#
+# It failed on real photographs only. The probe's fixture is a minimal HEVC
+# sample with no auxiliary images at all, so it decoded happily on 1.15 and
+# the image built green — see the note on the probe below, which is the part
+# of this that still does not catch it.
+FROM node:22-trixie-slim
+
+# The plugin is back, exactly as the note it replaces predicted. libheif moved
+# its decoders out into separate packages in 1.17, so on trixie `libheif1`
+# alone decodes nothing at all and the HEVC decoder has to be asked for by
+# name. On bookworm the same line failed the build with "Unable to locate
+# package", which is why it was not here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libimage-exiftool-perl \
       libheif1 \
       libheif-examples \
+      libheif-plugin-libde265 \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
@@ -43,6 +54,14 @@ COPY services/deriver services/deriver
 # on codecs and binaries, which are properties of the image; scanner and
 # classifier credentials are properties of a deployment and are not present
 # here, so `watch` re-runs the same probe against the real environment.
+#
+# Its reach is narrower than it looks, and the libheif upgrade above is the
+# proof: the fixture it decodes is a minimal HEVC sample with no auxiliary
+# images, so it passed on a libheif that could not open any photograph an
+# iPhone has ever taken. It answers "is there an HEVC decoder", not "can this
+# read what the cameras people own actually produce". Closing that gap needs a
+# real photograph in the repository, which is a licensing and size question
+# rather than a technical one.
 #
 # The posture is declared only to get past the runtime gate during a build. It
 # says nothing about how the deployment reviews content — that is read from the

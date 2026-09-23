@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LocalObjectStore } from '../src/objects';
 import { createHandler } from '../src/serve';
@@ -233,5 +233,38 @@ describe('what QStash is told to stop retrying', () => {
     const reply = await createHandler(deps())('');
     expect(reply.status).toBe(400);
     expect(reply.nonRetryable).toBe(true);
+  });
+});
+
+/**
+ * What a delivery says about itself.
+ *
+ * `serve` is the only mode production runs and it printed nothing at all —
+ * not on success, not on failure. `fail` writes `failed` to the row and
+ * returns a reason the row has no column for, so the reason existed for the
+ * length of one function call and was then gone.
+ *
+ * Every HEIC upload failed for weeks on a libheif too old to open an iPhone
+ * photograph, and from outside the machine that looked identical to a machine
+ * doing its job: it woke, it served, the album stayed empty. Finding it meant
+ * putting a row back to `pending` and draining it by hand, because `drain`
+ * prints what `serve` threw away.
+ */
+describe('what the log says', () => {
+  it('names the reason, which is the only place it survives', async () => {
+    const said: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => void said.push(a.join(' ')));
+    const err = vi.spyOn(console, 'error').mockImplementation((...a) => void said.push(a.join(' ')));
+    try {
+      // A photograph that cannot exist fails in the pipeline and is terminal,
+      // which is the same shape as the decoder failure that hid for weeks.
+      const id = crypto.randomUUID();
+      const reply = await createHandler(deps())(id);
+      expect(reply.status).toBe(489);
+      expect(said.some((l) => l.includes(id))).toBe(true);
+    } finally {
+      log.mockRestore();
+      err.mockRestore();
+    }
   });
 });

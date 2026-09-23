@@ -133,6 +133,7 @@ export function createHandler(
        * reason. Only `failed` is a thing that went wrong.
        */
       if (outcome.status !== 'failed') {
+        console.log(`${outcome.status.padEnd(11)} ${photoId}`);
         return { status: 200, body: `${outcome.status} ${photoId}` };
       }
       /*
@@ -143,6 +144,22 @@ export function createHandler(
        * seconds, so it goes to the dead letter queue instead, where it is a
        * thing somebody can look at rather than a thing that keeps happening.
        */
+      /*
+       * Said out loud, because nothing else says it.
+       *
+       * `fail` writes `failed` to the row and returns the reason; the row has
+       * no column for it and this reply goes to QStash. So in `serve` — the
+       * only mode production runs — the reason existed for the length of one
+       * function call and was then gone. Every HEIC upload failed for weeks
+       * with a decoder error nobody could see, and finding it meant putting a
+       * row back to `pending` and draining it by hand to make `drain` print
+       * the same string this line now prints.
+       *
+       * One line per delivery, success or not. A worker whose only failure
+       * mode is invisible is one that fails quietly for as long as nobody
+       * happens to look at the photographs.
+       */
+      console.error(`failed      ${photoId}  ${outcome.reason}`);
       return {
         status: 489,
         body: `failed ${photoId}: ${outcome.reason}`,
@@ -152,7 +169,9 @@ export function createHandler(
       // Thrown rather than returned means the pipeline did not get far enough
       // to decide anything — a dropped connection, a storage timeout. The row
       // is untouched and the work is worth attempting again.
-      return { status: 500, body: err instanceof Error ? err.message : String(err) };
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`threw       ${photoId}  ${message.split('\n')[0]}`);
+      return { status: 500, body: message };
     } finally {
       inFlight.delete(photoId);
     }
