@@ -676,10 +676,39 @@ describe('the photographs either side', () => {
     expect(GESTURE).toMatch(/const wall = g\.dx > 0 \? !onPrev : !onNext;/);
   });
 
-  it('centres the next photograph rather than inheriting an offset', () => {
-    // `settle(1)` before the caller swaps the picture: without it the one
-    // arriving starts wherever the one leaving was dragged to.
-    expect(GESTURE).toMatch(/settle\(1\);\s*go\(\);/);
+  it('carries the row the rest of the way before the photograph changes', () => {
+    /*
+     * The travel finishes first and the caller is told after. Swapping first
+     * and animating second is what made this a jump: the picture changed
+     * under a finger that was still mid-gesture.
+     */
+    expect(GESTURE).toMatch(/toValue: g\.dx > 0 \? width : -width/);
+    expect(GESTURE).toMatch(/if \(finished\) go\(\);/);
+    /*
+     * And ordered: within the branch that pages, the only `go()` is the one
+     * inside the animation's callback. A `go()` ahead of the animation is
+     * exactly the old behaviour, and it would leave every assertion above
+     * this one still passing.
+     */
+    const branch = GESTURE.slice(
+      GESTURE.indexOf('const go = g.dx > 0 ? onPrev : onNext;'),
+      GESTURE.indexOf('Animated.spring(strip, {'),
+    );
+    expect(branch.match(/\bgo\(\)/g) ?? []).toHaveLength(1);
+    expect(branch.indexOf('Animated.timing(strip')).toBeLessThan(branch.indexOf('go()'));
+    // A spring would overshoot, and an overshoot shows a sliver of the
+    // photograph on the far side of the one arriving.
+    expect(GESTURE).toMatch(/Animated\.timing\(strip, \{/);
+  });
+
+  it('returns to centre on the photograph, not in the animation', () => {
+    /*
+     * Resetting in the animation's own callback flashes: for the frame
+     * between the reset and the caller's re-render, the row is centred on the
+     * photograph being left. Keyed on the id, the value returns to zero in
+     * the same commit that brings the new neighbours in.
+     */
+    expect(GESTURE).toMatch(/useEffect\(\(\) => \{\s*strip\.setValue\(0\);\s*\}, \[photo\.id, strip\]\)/);
   });
 
   it('never holds the album itself', () => {
@@ -691,8 +720,12 @@ describe('the photographs either side', () => {
      */
     expect(GESTURE).not.toMatch(/photos: FeedPhoto\[\]|index: number/);
     expect(APP).toMatch(/const at = all\.findIndex\(\(p\) => p\.id === selected\.id\);/);
-    expect(APP).toMatch(/onPrev: at > 0 \? \(\) => setSelected\(all\[at - 1\]!\) : null/);
-    expect(APP).toMatch(/onNext: at >= 0 && at < all\.length - 1/);
+    expect(APP).toMatch(/onPrev: back \? \(\) => setSelected\(back\) : null/);
+    expect(APP).toMatch(/onNext: on \? \(\) => setSelected\(on\) : null/);
+    // It takes the two neighbours as pictures now, because the swipe shows
+    // them — but two is not the album.
+    expect(GESTURE).toMatch(/prev: FeedPhoto \| null;/);
+    expect(GESTURE).toMatch(/next: FeedPhoto \| null;/);
   });
 });
 
@@ -726,5 +759,57 @@ describe('whose photograph it is', () => {
     // would be a claim about somebody.
     expect(GESTURE).toMatch(/\{uploader && \(/);
     expect(APP).toMatch(/uploader=\{selected\.by \? \(byline\.get\(selected\.by\) \?\? null\) : null\}/);
+  });
+});
+
+describe('the row the swipe moves', () => {
+  it('is three photographs wide and sits a screen to the left', () => {
+    // The middle slot is the glass; the other two are just off it, which is
+    // what puts an edge under the finger the moment it moves.
+    expect(GESTURE).toMatch(/width: width \* 3, left: -width, transform: \[\{ translateX: strip \}\]/);
+  });
+
+  it('follows the finger one for one, and resists at an end', () => {
+    /*
+     * The vertical gestures move a third of the distance because they are a
+     * hint about what release will do. This is not a hint — the next
+     * photograph is on the glass, and its edge has to arrive under the finger
+     * pulling it.
+     */
+    expect(GESTURE).toMatch(/strip\.setValue\(wall \? g\.dx \/ 6 : g\.dx\)/);
+    expect(GESTURE).toMatch(/const wall = g\.dx > 0 \? !onPrev : !onNext;/);
+  });
+
+  it('gives every slot the height of the row', () => {
+    /*
+     * `shot` is `height: '100%'`, so a slot sized to its content resolves
+     * that against zero and the photograph does not draw at all. `stretch`
+     * rather than `center` on the row, and a height on each slot.
+     */
+    expect(GESTURE).toMatch(/alignItems: 'stretch'/);
+    expect(GESTURE.match(/width, height: '100%'/g) ?? []).toHaveLength(3);
+  });
+
+  it('zooms the middle photograph only', () => {
+    /*
+     * The neighbours are drawn flat: whichever becomes the middle one is
+     * re-rendered as the middle one, at fit, which is where a photograph you
+     * have just arrived at should start.
+     */
+    // The middle is the only slot with a transform on it.
+    expect(GESTURE).toMatch(
+      /transform: \[\{ translateX: pan\.x \}[\s\S]{0,200}uri: photo\.full/,
+    );
+    // And the two either side are plain views, which is what says so.
+    expect(GESTURE).toMatch(/<View style=\{\{ width, height: '100%' \}\}>\s*\{prev &&/);
+    expect(GESTURE).toMatch(/<View style=\{\{ width, height: '100%' \}\}>\s*\{next &&/);
+    expect(GESTURE.match(/\{ scale \}/g) ?? []).toHaveLength(1);
+  });
+
+  it('leaves the slot empty at an end rather than collapsing it', () => {
+    // The row's geometry is three screens whether or not the outer two hold
+    // anything; a missing slot would shift the middle off the glass.
+    expect(GESTURE).toMatch(/\{prev && \(/);
+    expect(GESTURE).toMatch(/\{next && \(/);
   });
 });

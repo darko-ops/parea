@@ -31,6 +31,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   KeyboardAvoidingView,
   PanResponder,
   Platform,
@@ -53,6 +54,15 @@ const MAX_SCALE = 4;
 
 /** Where a double tap lands, and where the second one comes back from. */
 const TAP_SCALE = 2.5;
+
+/**
+ * How long the row takes to finish a swipe the finger started.
+ *
+ * Short, because the travel is already most of the way done by the time
+ * anybody lets go — this is the remainder, not the journey. Long enough to be
+ * a movement rather than a cut, which is the whole point of the row.
+ */
+const PAGE_MS = 180;
 
 /** Two taps closer together than this are one gesture. */
 const DOUBLE_TAP_MS = 280;
@@ -111,6 +121,8 @@ export function PhotoViewer({
   onOptions,
   uploader,
   onOpenPerson,
+  prev,
+  next,
   onPrev,
   onNext,
 }: {
@@ -159,14 +171,22 @@ export function PhotoViewer({
    */
   onOpenPerson: (handle: string) => void;
   /**
-   * The photographs either side, or null at an end.
+   * The photographs either side, and the two ways to go to them.
    *
-   * Callbacks rather than a list and an index: the viewer never holds the
-   * album, and the caller already re-reads the current photograph off the
-   * feed on every render so that a reaction is not shown stale. Null is what
-   * the gesture below reads to know it has run out — it springs back rather
-   * than paging into nothing.
+   * The pictures as well as the callbacks, because the swipe shows them: the
+   * three sit in a row and the row moves with the finger, so the edge of the
+   * next one is already on the glass before anybody has decided to go there.
+   * Drawn only while they are the neighbours — this is three images, never
+   * the album.
+   *
+   * Still not a list and an index. The caller owns the order and already
+   * re-reads the current photograph off the feed on every render so that a
+   * reaction is not shown stale; a second copy of the order in here is a
+   * second thing to keep in step with it. Null at an end is what the gesture
+   * reads to know it has run out.
    */
+  prev: FeedPhoto | null;
+  next: FeedPhoto | null;
   onPrev: (() => void) | null;
   onNext: (() => void) | null;
 }) {
@@ -174,6 +194,32 @@ export function PhotoViewer({
 
   const scale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  /**
+   * How far the row of three has been dragged, with 0 meaning centred.
+   *
+   * Separate from `pan`, which is this photograph's own offset when it is
+   * zoomed in. The two never move at once — `pan` is only reachable above
+   * 1×, the strip only at fit — but they are different things and sharing a
+   * value would make the photograph's zoomed position leak into where its
+   * neighbours sit.
+   */
+  const strip = useRef(new Animated.Value(0)).current;
+
+  /*
+   * Back to centre when the photograph changes, and not before.
+   *
+   * The swipe animates the row a whole screen across, which leaves the
+   * neighbour under the glass and the strip a screen off centre. Resetting it
+   * in the animation's own callback is the obvious thing and it flashes: for
+   * the frame between the reset and the caller's re-render, the row is centred
+   * on the photograph being left.
+   *
+   * Keyed on the id instead, so the value returns to zero in the same commit
+   * that brings the new neighbours in. Nothing to look at in between.
+   */
+  useEffect(() => {
+    strip.setValue(0);
+  }, [photo.id, strip]);
 
   /*
    * The committed transform, readable synchronously.
@@ -316,10 +362,23 @@ export function PhotoViewer({
              * album on this screen, and it is not here.
              */
             if (Math.abs(g.dx) > Math.abs(g.dy)) {
-              // Nothing that way. The picture stays put rather than offering
-              // a movement that ends in a spring back to where it started.
+              /*
+               * One for one, because the neighbour is really there.
+               *
+               * The vertical gestures move the photograph a third of the
+               * distance — they are a hint that something will happen on
+               * release. This is not a hint: the next photograph is on the
+               * glass and its edge has to arrive under the finger that is
+               * pulling it, or the row is a picture of a swipe rather than
+               * one.
+               *
+               * At an end there is nothing to bring in, so the row resists
+               * instead — a sixth of the distance, which moves enough to say
+               * the gesture was seen and not enough to show the black behind
+               * it.
+               */
               const wall = g.dx > 0 ? !onPrev : !onNext;
-              pan.setValue({ x: wall ? 0 : g.dx / 3, y: 0 });
+              strip.setValue(wall ? g.dx / 6 : g.dx);
             } else {
               pan.setValue({ x: 0, y: g.dy / 3 });
             }
@@ -385,10 +444,38 @@ export function PhotoViewer({
             const flung = Math.abs(g.vx) > FLING;
             const go = g.dx > 0 ? onPrev : onNext;
             if ((far || flung) && go) {
-              settle(1);
-              go();
+              /*
+               * The rest of the way first, and the change of photograph after.
+               *
+               * The row finishes the travel the finger started — a whole
+               * screen, so the neighbour lands exactly where the current one
+               * was — and only then is the caller told. Swapping first and
+               * animating after is what made this a flicker and a jump: the
+               * picture changed under a finger that was still mid-gesture.
+               *
+               * `timing` rather than `spring`: a spring overshoots, and an
+               * overshoot here shows a sliver of the photograph on the far
+               * side of the one arriving.
+               */
+              Animated.timing(strip, {
+                toValue: g.dx > 0 ? width : -width,
+                duration: PAGE_MS,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }).start(({ finished }) => {
+                // Only if it actually arrived. A gesture interrupted by
+                // another one leaves the strip where the new one wants it.
+                if (finished) go();
+              });
               return;
             }
+            // Short of both thresholds, or nothing that way: back to centre.
+            Animated.spring(strip, {
+              toValue: 0,
+              useNativeDriver: true,
+              bounciness: 0,
+            }).start();
+            return;
           }
 
           if (!moved) {
@@ -414,7 +501,7 @@ export function PhotoViewer({
           settle(now.current.scale);
         },
       }),
-    [onClose, onNext, onPrev, pan, scale, settle, zoomTo],
+    [onClose, onNext, onPrev, pan, scale, settle, strip, width, zoomTo],
   );
 
   /*
@@ -540,22 +627,64 @@ export function PhotoViewer({
 
   return (
     <View style={styles.root}>
+      {/*
+        Three photographs in a row, centred on the middle one.
+
+        The row is a screen wider than the screen on each side, and sits a
+        screen to the left of its own origin, so the middle slot is the glass
+        and the other two are just off it. Dragging moves the row, which is
+        what puts the edge of the next photograph under the finger pulling it
+        — a swipe used to move this photograph alone and then swap it, which
+        is a transition somebody watches rather than one they are doing.
+
+        Only three. The album can be two hundred, and the neighbours are the
+        only ones that can be reached without letting go.
+      */}
       <Animated.View
         style={[
-          styles.stage,
-          { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] },
+          styles.strip,
+          { width: width * 3, left: -width, transform: [{ translateX: strip }] },
         ]}
         {...responder.panHandlers}
       >
-        <ExpoImage
-          source={{ uri: photo.full }}
-          style={styles.shot}
-          // `contain`, never `cover`: this is the screen where the whole
-          // photograph is the point, and cropping it to fill the glass is the
-          // one thing a viewer must not do.
-          contentFit="contain"
-          transition={120}
-        />
+        {/*
+          The neighbours, drawn flat.
+
+          No zoom and no gesture of their own: whichever becomes the middle one
+          is re-rendered as the middle one, at fit, which is where a photograph
+          you have just arrived at should start. `null` leaves the slot empty
+          rather than collapsing it — the row's geometry is three screens
+          whether or not there is anything in the outer two, and a missing
+          slot would shift the middle off the glass.
+        */}
+        <View style={{ width, height: '100%' }}>
+          {prev && (
+            <ExpoImage source={{ uri: prev.full }} style={styles.shot} contentFit="contain" />
+          )}
+        </View>
+
+        <Animated.View
+          style={[
+            { width, height: '100%' },
+            { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] },
+          ]}
+        >
+          <ExpoImage
+            source={{ uri: photo.full }}
+            style={styles.shot}
+            // `contain`, never `cover`: this is the screen where the whole
+            // photograph is the point, and cropping it to fill the glass is the
+            // one thing a viewer must not do.
+            contentFit="contain"
+            transition={120}
+          />
+        </Animated.View>
+
+        <View style={{ width, height: '100%' }}>
+          {next && (
+            <ExpoImage source={{ uri: next.full }} style={styles.shot} contentFit="contain" />
+          )}
+        </View>
       </Animated.View>
 
       {chrome && (
@@ -849,7 +978,24 @@ const styles = StyleSheet.create({
   /* Black, not the theme's background. A photograph is judged against what is
      around it, and a light grey surround changes what the picture looks like. */
   root: { flex: 1, backgroundColor: '#000' },
-  stage: { flex: 1 },
+  /*
+   * The row of three, laid across the screen.
+   *
+   * `position: 'absolute'` with a `top`/`bottom` of zero rather than `flex`,
+   * because it is three screens wide inside a container that is one: a flex
+   * child would be squeezed back to the width of its parent and the three
+   * slots would each be a third of the glass.
+   */
+  strip: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    /* `stretch`, so each slot is the height of the row. Under `center` a slot
+       with only a width is sized to its content, which is nothing, and every
+       photograph inside one resolves its own `height: '100%'` against zero. */
+    alignItems: 'stretch',
+  },
   shot: { width: '100%', height: '100%' },
   top: {
     position: 'absolute',

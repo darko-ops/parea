@@ -3662,9 +3662,15 @@ function EventScreen({
             {...(() => {
               const all = feed?.photos ?? [];
               const at = all.findIndex((p) => p.id === selected.id);
+              const back = at > 0 ? all[at - 1]! : null;
+              const on = at >= 0 && at < all.length - 1 ? all[at + 1]! : null;
               return {
-                onPrev: at > 0 ? () => setSelected(all[at - 1]!) : null,
-                onNext: at >= 0 && at < all.length - 1 ? () => setSelected(all[at + 1]!) : null,
+                // The pictures, for the row the swipe drags; the callbacks,
+                // for what it means when it lands.
+                prev: back,
+                next: on,
+                onPrev: back ? () => setSelected(back) : null,
+                onNext: on ? () => setSelected(on) : null,
               };
             })()}
             /*
