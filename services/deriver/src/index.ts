@@ -2,11 +2,13 @@
 /**
  * Deriver entrypoint.
  *
- * Three commands:
+ * Four commands:
  *   probe   verify this container can actually do the job, and exit non-zero
  *           if it cannot
  *   once    drain the pending queue and stop
  *   watch   poll for pending photos forever
+ *   serve   listen for deliveries and derive what they name, which is the
+ *           same work without the asking — see `serve.ts`
  *   backfill <kind>
  *           encode one derivative size for photographs that predate it, and
  *           stop. Needed once per size added after the product had events in
@@ -27,6 +29,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
+import { createJobServer, JOB_PATH, receiverFromEnv } from './http';
+import { createHandler, DEFAULT_CONCURRENCY } from './serve';
 import {
   canDecode,
   canDecodeViaHeifConvert,
@@ -247,7 +251,12 @@ async function main(): Promise<void> {
     process.exit(await probe(scanner, moderator));
   }
 
-  if (command !== 'once' && command !== 'watch' && command !== 'backfill') {
+  if (
+    command !== 'once' &&
+    command !== 'watch' &&
+    command !== 'serve' &&
+    command !== 'backfill'
+  ) {
     console.error(`unknown command: ${command}`);
     console.error('usage: deriver <probe|once|watch|backfill <kind>>');
     process.exit(2);
@@ -264,6 +273,67 @@ async function main(): Promise<void> {
     const handled = await drain(500, ingest());
     console.log(`${handled} photo(s) processed`);
     process.exit(0);
+  }
+
+  /*
+   * Work arriving rather than being looked for.
+   *
+   * `watch` asks the database every five seconds whether anything is pending,
+   * and the asking is the cost: an open connection is a compute that never
+   * suspends, which is how forty days of an idle worker exhausted a month of
+   * Neon and took sign-in with it. This listens instead, and between
+   * deliveries the process does nothing and the machine can stop.
+   */
+  if (command === 'serve') {
+    const receiver = receiverFromEnv();
+    if (!receiver) {
+      // Refusing to start rather than listening unauthenticated. This endpoint
+      // does real work on request; an unsigned one is somebody else deciding
+      // what this machine spends its time on.
+      console.error(
+        'QSTASH_CURRENT_SIGNING_KEY and QSTASH_NEXT_SIGNING_KEY are required to serve',
+      );
+      process.exit(2);
+    }
+
+    const publicUrl = process.env.DERIVER_PUBLIC_URL;
+    if (!publicUrl) {
+      // QStash signs the destination into the token, so verification compares
+      // against the URL the sender used. Behind Fly's proxy that cannot be
+      // rebuilt from the request, and guessing it wrong rejects every real
+      // delivery — better to say so at boot than once an hour in the logs.
+      console.error('DERIVER_PUBLIC_URL is required to serve (it is signed into every delivery)');
+      process.exit(2);
+    }
+
+    const concurrency = Number(process.env.DERIVER_CONCURRENCY ?? DEFAULT_CONCURRENCY);
+    const port = Number(process.env.PORT ?? 8080);
+    const server = createJobServer({
+      handle: createHandler(ingest(), { concurrency }),
+      receiver,
+      publicUrl,
+    });
+
+    /*
+     * Finish what is in flight before going.
+     *
+     * Fly sends SIGTERM when it stops a machine, and a delivery is only
+     * answered once its photo is derived — so closing the listener and letting
+     * open requests drain is what turns a stop into "that one finished" rather
+     * than "that one is retried in twelve seconds". `close` stops accepting
+     * and waits.
+     */
+    for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+      process.on(signal, () => {
+        console.log(`${signal}: no longer accepting, finishing what is in flight`);
+        server.close(() => process.exit(0));
+      });
+    }
+
+    server.listen(port, () => {
+      console.log(`serving ${JOB_PATH} on :${port}, ${concurrency} at a time`);
+    });
+    return;
   }
 
   if (command === 'backfill') {
