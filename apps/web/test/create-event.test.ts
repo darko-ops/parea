@@ -43,8 +43,32 @@ describe('the window a creator sends', () => {
     expect(parseWindow(END, START)).toBe('invalid');
   });
 
-  it('is refused when it has no duration', () => {
-    expect(parseWindow(START, START)).toBe('invalid');
+  it('is allowed when it has no duration, because one photograph is a moment', () => {
+    /*
+     * This asserted the opposite, and the opposite made an ordinary album
+     * impossible to create.
+     *
+     * The client sends the span the chosen photographs actually cover. One
+     * photograph starts and ends at the instant it was taken, so the window
+     * has no width — and the whole creation came back 400 `invalid_window`.
+     * An album of a single picture could not be made at all, nor one whose
+     * photographs were taken inside the same second.
+     *
+     * The rule is about corruption: a window running backwards is stored
+     * happily and then pre-selects the wrong photographs for every
+     * contributor. A window of no width does nothing of the kind — it offers
+     * nothing extra, which is the honest answer when there is one photograph
+     * to go on.
+     */
+    const window = parseWindow(START, START) as { startsAt: Date; endsAt: Date };
+    expect(window.startsAt.getTime()).toBe(window.endsAt.getTime());
+  });
+
+  it('is still refused when it runs backwards by a millisecond', () => {
+    // The distinction the fix above rests on: backwards is the fault, and
+    // "no width" is one millisecond away from it.
+    const back = new Date(new Date(START).getTime() - 1).toISOString();
+    expect(parseWindow(START, back)).toBe('invalid');
   });
 
   it('is refused when only one end is given', () => {
