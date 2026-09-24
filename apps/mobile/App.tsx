@@ -3701,13 +3701,10 @@ function EventScreen({
           <Thread
             actions={eventThread}
             /*
-             * A board, not a chat. See the note at the top of `Thread.tsx`.
-             *
-             * This tab is called Comments and was drawn as a messenger: your
-             * own words in an accent bubble against the right-hand edge, a
-             * round arrow to send them, and a box offering to message
-             * everyone in the album. One column, one shape per comment, and
-             * a reaction drawn with the photograph it was left on.
+             * A board rather than a chat, which is now a choice of words —
+             * Post and "Add a comment…" — plus the reaction lines drawing
+             * the photograph they were left on. See the note at the top of
+             * `Thread.tsx` for how the rest of the difference went away.
              */
             shape="board"
             /*

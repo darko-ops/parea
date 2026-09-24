@@ -33,40 +33,44 @@
  * conversation and watching it jump once. It also makes "reaching the bottom"
  * `onStartReached` — the vocabulary is upside down and the behaviour is not.
  *
- * ## Two rooms, one file: `shape`
+ * ## Two rooms, one drawing: `shape`
  *
  * A group's chat and an album's comments are the same thread with the same
- * rules, and they are not the same room. A chat is people talking to each
- * other; a board is people talking about a set of photographs, and it had
- * been drawn as the first — your own words in an accent bubble against the
- * right-hand edge, a round arrow to send them, and a box that offered to
- * "message everyone in this album". A reader arriving on a tab called
- * Comments found a group chat.
+ * rules, and this file had drawn them as two things: your own words in an
+ * accent bubble against the right-hand edge, a round arrow to send them, and
+ * a box that offered to "message everyone in this album". A reader arriving
+ * on a tab called Comments found a messenger.
  *
- * `shape` is the whole of the difference and it is deliberately one prop
- * rather than two components: everything that is *hard* here — who may post,
- * the tombstones, the mention rules, marking it read — is the same in both
- * rooms, and a second copy of it is a second place for the rules to be wrong.
+ * The board was rewritten first and then the chat followed it, one piece at a
+ * time, and what is left of the difference is the words. Both rooms are a
+ * face, a name, a time and the words, with nothing drawn around any of them;
+ * both hang your own from the right-hand edge; both type into the site's own
+ * composer. `shape` chooses between Post and Send, between "Add a comment…"
+ * and "Message the group…", and between two empty-state lines. That is all it
+ * does, and the prop stays because a room still has to be able to say which
+ * one it is.
  *
- *   - `chat` fills a bubble behind your own words, which is how a messenger
- *     says who said what. The strip it used to type into — a pill and a round
- *     arrow with a rule over them — is gone; both rooms share the site's
- *     composer now and differ only in the words on it, Send against Post.
- *   - `board` is a face, a name, a time and the words, with no fill behind
- *     any of them — the shape the web's thread has always had, and the shape
- *     of every comment section anybody has read. A reaction is a row in that
- *     column too, with the photograph it is about where a comment has its
- *     author's face.
+ * Each piece went for its own reason, and they are worth keeping straight:
  *
- * Both hang your own from the right-hand edge. That was the board's one
- * remaining difference and it was the wrong one: a column with everybody in
- * it reads as a wall of other people's remarks with yours buried in it, and a
- * side is seen before anything is read. What the board does not take with it
- * is the fill — the side is an alignment, not a costume.
+ *   - **The fill.** A bubble is how a messenger says who is speaking, and the
+ *     side of the screen already says it. A column of solid blocks is read as
+ *     traffic; what is in this one is people talking about an evening, at the
+ *     length people write when they are not being charged a bubble for it.
+ *   - **The side.** Kept, in both rooms. It is seen before a word is read and
+ *     it is how anybody finds the last thing they said themselves. An
+ *     alignment, not a costume: the block moves and its lines do not.
+ *   - **The strip.** A pill and a round arrow with a rule across the screen
+ *     is a messenger's furniture, and the card the site draws is better in
+ *     both rooms — see the note beside it.
  *
- * What does *not* change with the shape is the order. Oldest at the top and
- * the newest against the box you type in is not a messenger's invention —
- * every comment section under a photograph does the same — and it is what the
+ * One prop rather than two components, throughout: everything that is *hard*
+ * here — who may post, the tombstones, the mention rules, marking it read —
+ * is the same in both rooms, and a second copy of it is a second place for
+ * the rules to be wrong.
+ *
+ * What was never the difference is the order. Oldest at the top and the
+ * newest against the box you type in is not a messenger's invention — every
+ * comment section under a photograph does the same — and it is what the
  * unread count is counted from.
  */
 
@@ -106,7 +110,7 @@ export type Mentionable = { key: string; name: string; mine: boolean };
  * wrong. `Reactions` is optional: a group message has none yet, and the row of
  * pills is simply not drawn when there is no way to add one.
  */
-/** A chat sides with the speaker; a board is one column. See the file's note. */
+/** Which room this is, which is now only which words it uses. See the note. */
 export type ThreadShape = 'chat' | 'board';
 
 export type ThreadActions = {
@@ -353,10 +357,7 @@ export function Thread({
           data={live}
           inverted
           keyExtractor={(message) => message.id}
-          /* More air on a board: a chat separates its turns with bubbles, and
-             a column of unbordered paragraphs needs the gap to do that work
-             instead. */
-          contentContainerStyle={[styles.list, board && styles.listBoard]}
+          contentContainerStyle={styles.list}
           keyboardDismissMode="interactive"
           // Inverted, so the start of the list is the bottom of the screen.
           // Arriving there is the definition of having read it — the same rule
@@ -515,23 +516,17 @@ function Row({
 
   const mine = message.author.mine;
   /*
-   * Two questions, and they used to be one.
+   * Which edge this block hangs from, and yours hangs from the right.
    *
-   * `sided` is which edge the block hangs from, and yours hangs from the
-   * right in both rooms. A comment board that put everybody in one column
-   * read as a wall of other people's remarks with yours buried in it: the
-   * name says "You" and a name is a thing you read, where a side is a thing
-   * you see before reading anything. It is also how anybody scans back for
-   * the last thing they themselves said.
+   * It is the one thing about a row that is seen before a word of it is
+   * read, and it is how anybody finds the last thing they said themselves —
+   * the name answers that only once you are already reading.
    *
-   * `bubbled` is whether the words sit in a fill, and that stays the chat's
-   * alone. A bubble is a turn in a conversation; a comment is a remark about
-   * a set of photographs, and two pastel fills down a column are what made
-   * this read as a messenger in the first place. The side is an alignment,
-   * not a costume.
+   * It used to carry a fill with it in a chat, and the two came apart: the
+   * side is an alignment, the fill was a costume. See the note beside the
+   * words below.
    */
   const sided = mine;
-  const bubbled = shape === 'chat' && mine;
   const lens = lensFor(message.author.key);
 
   /**
@@ -595,12 +590,14 @@ function Row({
      * a picture being answered. It opens that photograph, which is the same
      * tap the thumbnail above a comment already takes.
      *
-     * The centred line stays for the two cases that have no picture to show:
-     * a chat, where a reaction is about the room, and a board whose feed no
-     * longer holds the photograph — one that has just been deleted, which is
-     * a gap rather than a reason to draw nothing.
+     * The centred line stays for the cases with no picture to show: a group's
+     * room, where nothing has a photograph behind it, and a board whose feed
+     * no longer holds the one this was left on — just deleted, say, which is
+     * a gap rather than a reason to draw nothing. `about` is the whole of the
+     * question and the shape is not part of it: only a caller that hands over
+     * a `photoOf` has pictures for these lines to be about.
      */
-    if (shape === 'board' && about) {
+    if (about) {
       return (
         <View style={styles.reactedRow}>
           <Pressable
@@ -771,21 +768,25 @@ function Row({
               </Pressable>
             )}
 
-            {bubbled ? (
-              <View style={[styles.bubble, { backgroundColor: t.accent }]}>
-                <Text style={[styles.bodyText, { color: t.onAccent }]}>
-                  {/* Inside your own bubble the accent is the background, so a
-                      mention is marked by weight instead of by colour — the
-                      distinction still has to survive, or `@ana` in a message
-                      you sent reads as three characters of prose. */}
-                  {withMentions(message.body, styles.mentionOnAccent)}
-                </Text>
-              </View>
-            ) : (
-              <Text style={[styles.bodyText, { color: t.fg }]}>
-                {withMentions(message.body, { color: t.accent })}
-              </Text>
-            )}
+            {/*
+              The words on the page, in both rooms and whoever wrote them.
+
+              Yours used to sit in a fill of the accent in a chat. The fill is
+              what a messenger uses to say who is speaking, and the side of
+              the screen already says it — which is why the board could drop
+              the fill and keep the side and lose nothing. A group's room is
+              the same reading problem: a column of solid blocks is read as
+              traffic, and what is actually in it is people talking about an
+              evening, at the length people write when they are not being
+              charged a bubble for it.
+
+              So one treatment, and `@ana` goes back to the accent in every
+              message rather than being marked by weight inside a fill it can
+              no longer be coloured against.
+            */}
+            <Text style={[styles.bodyText, { color: t.fg }]}>
+              {withMentions(message.body, { color: t.accent })}
+            </Text>
           </Pressable>
         )}
 
@@ -1018,11 +1019,12 @@ function explain(err: unknown): string {
 const styles = StyleSheet.create({
   pane: { flex: 1 },
   /* Inverted, so `paddingTop` is the gap under the composer and the column
-     grows upwards from it. */
-  list: { padding: 14, paddingHorizontal: 16, gap: 16 },
-  /* A chat separates its turns with bubbles; a board is a column of
-     unbordered paragraphs, and the gap is what does that work instead. */
-  listBoard: { gap: 22 },
+     grows upwards from it.
+
+     22 between rows, where the bubbles could live on 16: nothing is drawn
+     around a turn in either room now, so the gap is the only thing separating
+     one from the next. The site's board runs 18 against a narrower column. */
+  list: { padding: 14, paddingHorizontal: 16, gap: 22 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 },
   /* Quieter than the heading it replaced, and centred as one line.
 
@@ -1067,16 +1069,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },
   bodyText: { fontSize: 15, lineHeight: 21 },
-  mentionOnAccent: { fontWeight: '700' },
-  /* Square at the corner nearest the avatar, which is the shape every
-     messenger uses to say which side a message came from. */
-  bubble: {
-    borderRadius: 14,
-    borderBottomRightRadius: 4,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    alignSelf: 'flex-end',
-  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   chipsMine: { justifyContent: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },

@@ -276,22 +276,29 @@ describe('what is native rather than borrowed', () => {
 });
 
 /**
- * The album's Comments tab is a board, and a group's room is a chat.
+ * The album's Comments tab and a group's room are one drawing.
  *
- * Same thread, same rules, one prop apart. It had been drawn as a messenger
- * in both: your own words in an accent bubble against the right-hand edge, a
- * round arrow to send them, and a box offering to "message everyone in this
- * album" — which a reader arriving on a tab called Comments met as a group
- * chat, and a reader in an actual group met as a sentence about an album.
+ * Both had been drawn as a messenger: your own words in an accent bubble
+ * against the right-hand edge, a round arrow to send them, and a box offering
+ * to "message everyone in this album" — which a reader arriving on a tab
+ * called Comments met as a group chat, and a reader in an actual group met as
+ * a sentence about an album.
+ *
+ * The board was rewritten first and the chat followed it a piece at a time,
+ * each piece for its own reason. What is left of `shape` is the words: Post
+ * against Send, "Add a comment…" against "Message the group…", and two empty
+ * lines. The pieces and their reasons are what this pins.
  */
-describe('a board is not a chat', () => {
+describe('two rooms, one drawing', () => {
   const VIEWER = read('src/Thread.tsx');
 
   it('is one prop, not a second component', () => {
     /*
      * Everything that is hard here — who may post, the tombstones, the
      * mention rules, marking it read — is the same in both rooms, and a
-     * second copy of it is a second place for the rules to be wrong.
+     * second copy of it is a second place for the rules to be wrong. The prop
+     * stays now that it only picks words: a room still has to be able to say
+     * which one it is.
      */
     expect(VIEWER).toMatch(/export type ThreadShape = 'chat' \| 'board';/);
     expect(VIEWER).toMatch(/shape\?: ThreadShape;/);
@@ -302,21 +309,29 @@ describe('a board is not a chat', () => {
     expect(GROUP).not.toMatch(/shape=/);
   });
 
-  it('hangs your own from the right in both rooms, and fills only in a chat', () => {
+  it('hangs your own from the right, and draws no fill in either room', () => {
     /*
      * Two questions that used to be one. Which edge a block hangs from is
-     * seen before a word of it is read, and a board that put everybody in one
-     * column read as a wall of other people's remarks with yours buried in
-     * it. What made that column a messenger was the fill behind the words,
-     * which is the chat's alone: the side is an alignment, not a costume.
+     * seen before a word of it is read, and a column with everybody in it
+     * reads as a wall of other people's words with yours buried in it — so
+     * the side stays, in both rooms.
+     *
+     * The fill is what a messenger uses to say who is speaking, and the side
+     * already says it. A column of solid blocks is read as traffic; what is
+     * in this one is people talking about an evening. The side is an
+     * alignment, not a costume.
      */
     expect(VIEWER).toMatch(/const sided = mine;/);
-    expect(VIEWER).toMatch(/const bubbled = shape === 'chat' && mine;/);
     const row = between(VIEWER, 'function Row({', 'function People({');
     for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
       expect(row).toContain(`sided && ${style}`);
     }
-    expect(row).toMatch(/\{bubbled \? \(\s*<View style=\{\[styles\.bubble/);
+    expect(VIEWER).not.toMatch(/styles\.bubble|mentionOnAccent/);
+    // One treatment for the words, so `@ana` is in the accent in every
+    // message rather than marked by weight inside a fill it cannot colour
+    // against.
+    expect(row).toMatch(/withMentions\(message\.body, \{ color: t\.accent \}\)/);
+    expect(row.match(/withMentions\(/g)).toHaveLength(1);
     /*
      * And the block turns round without its lines turning with it:
      * `alignItems`, never `textAlign`. Right-aligned prose over three lines
@@ -364,11 +379,11 @@ describe('a board is not a chat', () => {
      * no stylesheet between the clients.
      *
      * In the group's room too. A chat had the strip every messenger has, a
-     * pill and a round arrow with a rule over them, and what tells a reader
-     * which room they are in is the conversation above the box rather than
-     * the box: bubbles on sides in a chat, one column on a board. Drawing two
-     * kinds of furniture to say what the content already says is how an app
-     * ends up with two of everything.
+     * pill and a round arrow with a rule over them, and the ↑ disc earns its
+     * place beside a pill rather than inside a card. What a reader is told
+     * about the room they are in belongs in the words on the button, not in
+     * two kinds of furniture — which is how an app ends up with two of
+     * everything.
      */
     const CSS = read('../../apps/web/app/globals.css');
     const web = (rule: string) => CSS.slice(CSS.indexOf(rule), CSS.indexOf('}', CSS.indexOf(rule)));
@@ -497,7 +512,10 @@ describe('a reaction is a line, not a message', () => {
      * says what a row is about. It opens that photograph, which is the same
      * tap the thumbnail above a comment already takes.
      */
-    expect(VIEWER).toMatch(/if \(shape === 'board' && about\) \{/);
+    /* `about` is the whole of the question: only a caller that hands over a
+       `photoOf` has pictures for these lines to be about, which is the album
+       and not a group's room. */
+    expect(VIEWER).toMatch(/if \(about\) \{/);
     expect(VIEWER).toMatch(/onPress=\{\(\) => onOpenPhoto\?\.\(about\.id\)\}/);
     // The face's own 32 and the row's own 10, so the column has one left edge
     // whatever kind of line is on it — and squared, because that slot holds a
