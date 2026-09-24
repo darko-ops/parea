@@ -2,6 +2,7 @@
 
 import { ago } from '@parea/cards';
 
+import { RailIcon } from './RailIcon';
 import { useImageFailure } from './useImageFailure';
 
 /**
@@ -72,6 +73,9 @@ export function PhotoTile({
     srcSetAvif?: string | null;
     full: string;
     takenAt: string;
+    /** Whether this reader kept it. Theirs alone, so this marks and never
+        counts — see the `favourite` route. */
+    favourite?: boolean;
   };
   /** This photograph's own page. */
   href: string;
@@ -110,7 +114,9 @@ export function PhotoTile({
               : 'Select this photo'
             : failed
               ? 'Photo could not be loaded — open for options'
-              : 'Open photo'
+              : photo.favourite
+                ? 'Open photo — kept'
+                : 'Open photo'
         }
         style={{ aspectRatio: `1 / ${failed ? 0.667 : ratio}` }}
       >
@@ -159,6 +165,28 @@ export function PhotoTile({
       </a>
 
       <span className="tile-scrim" aria-hidden="true" />
+
+      {/*
+        Kept, as a mark rather than a control.
+
+        Pressing happens on the photograph's own page, which is where the app
+        puts it too: a star on every tile is a row of controls over somebody's
+        pictures, and a grid of two hundred would be two hundred of them. This
+        only answers the question the shortlist raises while scanning — which
+        of these did I keep.
+
+        Always drawn, not on hover with the rest of the chrome. The overlay is
+        things you can *do* to a tile and this is a fact about it, and a fact
+        that appears when the pointer arrives is one nobody can scan for.
+
+        `aria-hidden`, because the tile's own link already says it: see the
+        label below.
+      */}
+      {photo.favourite && (
+        <span className="tile-kept" aria-hidden="true">
+          <RailIcon glyph="star" weight={2} filled />
+        </span>
+      )}
 
       {/*
         The checkbox is always there rather than only in selection mode: it is

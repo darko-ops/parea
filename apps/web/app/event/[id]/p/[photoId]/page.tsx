@@ -19,7 +19,7 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { avatarUrl } from '@/accounts';
@@ -154,6 +154,35 @@ export default async function PhotoPage({
   const full = (row: typeof photo) =>
     imageSrc(row, hasDerivatives(row) ? 'full' : 'orig', event.capEpoch);
 
+  /*
+   * Whether this reader has kept this photograph, and whether they may.
+   *
+   * An account rather than an actor, which is the route's own rule: a guest
+   * actor is a credential in one browser, and a shortlist that cannot survive
+   * a new one is a shortlist that quietly empties. Somebody without one is not
+   * offered the star at all rather than offered it and refused.
+   *
+   * One row read, and it is only ever this reader's. Nothing on this page says
+   * how many people kept the photograph, because there is no such number to
+   * say — `photo_favourite` is a table of its own so that a read of an album
+   * cannot become a score.
+   */
+  const accountId = await currentAccountActorId();
+  const kept =
+    accountId != null &&
+    (
+      await db
+        .select({ one: schema.photoFavourites.photoId })
+        .from(schema.photoFavourites)
+        .where(
+          and(
+            eq(schema.photoFavourites.photoId, photo.id),
+            eq(schema.photoFavourites.actorId, accountId),
+          ),
+        )
+        .limit(1)
+    ).length > 0;
+
   return (
     <Shell>
       <PhotoView
@@ -168,6 +197,8 @@ export default async function PhotoPage({
             (uploader?.handle ? `@${uploader.handle}` : 'Someone'),
           byAvatar: await avatarUrl(uploader?.avatarKey ?? null),
           ...when(photo.capturedAt, photo.uploadedAt),
+          favourite: kept,
+          canKeep: accountId != null,
         }}
         position={{ index, total: rows.length }}
         /*
@@ -209,8 +240,7 @@ export default async function PhotoPage({
         people={await contributorsOf(db, event.id, rows, viewerId)}
         members={await membersOf(db, event.id)}
         canPost={
-          (await decide(db, event, 'contribute', requester)).allow &&
-          (await currentAccountActorId()) != null
+          (await decide(db, event, 'contribute', requester)).allow && accountId != null
         }
       />
     </Shell>

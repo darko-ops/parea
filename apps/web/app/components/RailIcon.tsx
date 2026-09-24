@@ -49,7 +49,42 @@ export type RailGlyph =
   | 'groups'
   | 'settings'
   /* Create. The app's own `+`, in the app's own round chrome. */
-  | 'plus';
+  | 'plus'
+  /*
+   * Kept, or not — the one glyph here that is also a state, which is why it
+   * is the one that takes a fill. See `filled`.
+   */
+  | 'star';
+
+/**
+ * The star, as a path.
+ *
+ * Ten points: five out at 9.2 from the middle of the 24-unit frame, five in at
+ * 0.382 of that, alternating, starting straight up. The inner ratio is the one
+ * that makes a five-pointed star read as one — larger and it rounds into a
+ * pentagon, smaller and it thins into a spider.
+ *
+ * Built rather than written out, which is how the app's `Glyph.tsx` has it and
+ * for its reason: the numbers are then the reasoning rather than the output of
+ * it, and the same shape is exact at every size. The two are the same ten
+ * points, so the star on a phone and the star in a browser are one drawing.
+ */
+const STAR = (() => {
+  const mid = 12;
+  const outer = 9.2;
+  const inner = outer * 0.382;
+  const points: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    // Start at the top: a star with a point up is the only orientation
+    // anybody reads as a star.
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    points.push(
+      `${(mid + r * Math.cos(angle)).toFixed(2)} ${(mid + r * Math.sin(angle)).toFixed(2)}`,
+    );
+  }
+  return `M ${points.join(' L ')} Z`;
+})();
 
 export function RailIcon({
   glyph,
@@ -62,9 +97,20 @@ export function RailIcon({
    * change in value alone is easy to miss. 2 is the family's own.
    */
   weight = 2,
+  /**
+   * Filled rather than outlined, for a glyph that is also a state.
+   *
+   * The family is strokes on nothing, which is right for every glyph that
+   * names a place or an action. The star is the one that also answers a
+   * question — kept, or not — and outline against solid is how that reads at a
+   * glance, without a second colour or a badge. The app's own note, because it
+   * is the app's own decision.
+   */
+  filled = false,
 }: {
   glyph: RailGlyph;
   weight?: number;
+  filled?: boolean;
 }) {
   return (
     <svg
@@ -72,7 +118,7 @@ export function RailIcon({
       width="18"
       height="18"
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={weight}
       strokeLinecap="round"
@@ -162,6 +208,7 @@ export function RailIcon({
           <line x1="5" y1="12" x2="19" y2="12" />
         </>
       )}
+      {glyph === 'star' && <path d={STAR} />}
       {glyph === 'profile' && (
         // A head and shoulders, which is what the avatar beside it will be.
         <>

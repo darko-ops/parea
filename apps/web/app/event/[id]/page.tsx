@@ -1,6 +1,6 @@
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 
 import { EventView } from '@/../app/components/EventView';
@@ -84,6 +84,35 @@ export default async function EventPage({
   // Asked once for the page rather than per row — see `photosWithCard`.
   const hasCard = await photosWithCard(db, rows.map((row) => row.id));
 
+  /*
+   * Which of these this reader kept, in one read.
+   *
+   * On the first paint rather than left to the client, because the Kept tab is
+   * a filter over the photographs already in hand: seeded without it, that tab
+   * opens empty and fills a moment later, which reads as a shortlist that lost
+   * something. The same set the feed route computes, and for the same reason
+   * it is per-reader and never counted — see `photo_favourite`.
+   *
+   * An account, not an actor. A guest actor is a credential in one browser,
+   * and somebody without an account has kept nothing.
+   */
+  const accountId = await currentAccountActorId();
+  const kept = new Set(
+    accountId == null || rows.length === 0
+      ? []
+      : (
+          await db
+            .select({ photoId: schema.photoFavourites.photoId })
+            .from(schema.photoFavourites)
+            .where(
+              and(
+                eq(schema.photoFavourites.actorId, accountId),
+                inArray(schema.photoFavourites.photoId, rows.map((row) => row.id)),
+              ),
+            )
+        ).map((row) => row.photoId),
+  );
+
   const photos = await Promise.all(
     rows.map(async (photo) => ({
       id: photo.id,
@@ -102,6 +131,7 @@ export default async function EventPage({
       height: photo.height,
       mine: viewerId != null && photo.uploaderId === viewerId,
       by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
+      favourite: kept.has(photo.id),
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
       /*
        * Two sizes, so the browser can pick one that matches the slot.
@@ -265,9 +295,7 @@ export default async function EventPage({
      * `/api/events/[id]/photos`, because this page draws the first one and
      * that route replaces it.
      */
-    canAdd:
-      (await decide(db, event, 'upload', requester)).allow &&
-      (await currentAccountActorId()) != null,
+    canAdd: (await decide(db, event, 'upload', requester)).allow && accountId != null,
           /*
            * Where this reader stands with the album's set of hosts.
            *
@@ -281,7 +309,7 @@ export default async function EventPage({
           hosting: await hostingFor(
             db,
             event,
-            await currentAccountActorId(),
+            accountId,
             (await decide(db, event, 'contribute', requester)).allow,
           ),
           arriving: pending?.n ?? 0,
@@ -318,5 +346,7 @@ function photoCounts(rows: { uploaderId: string | null }[]): Map<string, number>
  * the event rather than on an error.
  */
 function tabOf(value: string | undefined): EventTab {
-  return value === 'conversation' || value === 'people' ? value : 'photos';
+  return value === 'conversation' || value === 'people' || value === 'kept'
+    ? value
+    : 'photos';
 }

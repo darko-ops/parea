@@ -2663,6 +2663,28 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   width: 19px; height: 19px; fill: none; stroke: currentColor;
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
+/* The star is a `<button>` where the others are links, so it has the global
+   button rule to undo: that one fills every button with the accent, which is
+   the one thing this row of quiet outlines must not be. */
+.photo-star { padding: 0; background: none; cursor: pointer; }
+/* The same mark on a tile, in the corner the chrome does not use.
+
+   White with a shadow under it rather than a coloured star: it sits on
+   somebody's photograph, which can be any colour, and the one ink that reads
+   on all of them is the one the rest of the tile's chrome already uses. */
+.tile-kept {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  display: inline-flex; color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(20, 23, 28, .55));
+  pointer-events: none;
+}
+.tile-kept svg { width: 17px; height: 17px; }
+/* Kept, and the fill is the whole of how that reads. The rule above sets
+   `fill: none` on every glyph in this row — right for five drawings that are
+   outlines and wrong for the one that is also a state. */
+.photo-star-on { border-color: var(--fg); }
+.photo-star-on svg { fill: currentColor; }
+.photo-star:disabled { cursor: default; }
 
 /* Nothing on the shelf yet: a line and the one stroke that answers it.
 

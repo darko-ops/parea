@@ -36,6 +36,8 @@ const VIEW = await read('../app/components/PhotoView.tsx');
 const TILE = await read('../app/components/PhotoTile.tsx');
 const EVENT = await read('../app/components/EventView.tsx');
 const REACT = await read('../app/components/PhotoReactions.tsx');
+const ROUTE_EVENT = await read('../app/event/[id]/page.tsx');
+const STAR = await read('../app/components/Star.tsx');
 const CSS = await readFile(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
   'utf8',
@@ -245,5 +247,105 @@ describe('paging through the event', () => {
     // photograph somebody just opened.
     expect(VIEW).toMatch(/scrollLeft/);
     expect(VIEW).not.toMatch(/scrollIntoView/);
+  });
+});
+
+/**
+ * Keeping a photograph, which the web could not do.
+ *
+ * The table, the route and the phone have had this since before the web's
+ * photo page existed, and `favourite` has been on every photograph the feed
+ * returns the whole time, read by nobody. So the shortlist somebody made on
+ * their phone was invisible in a browser and could not be added to from one.
+ *
+ * The property worth testing hardest is the one that is easy to lose by
+ * accident: this is a shortlist and never a score. There is no count of who
+ * else kept a photograph anywhere in the product, and the moment there is one
+ * an album is a feed.
+ */
+describe('the star', () => {
+  it('says what it will do, and what it is, in the two places each belongs', () => {
+    // A control's name is the verb; the state is `aria-pressed`, which is
+    // where a screen reader looks for it. Putting the state in the name makes
+    // the button announce the same thing twice and neither of them an action.
+    expect(STAR).toMatch(/aria-label=\{kept \? 'Remove from your kept photos' : 'Keep this photo'\}/);
+    expect(STAR).toMatch(/aria-pressed=\{kept\}/);
+  });
+
+  it('fills on the press and puts itself back if the server refuses', () => {
+    /*
+     * A toggle that waits for a round trip before it changes is a toggle
+     * somebody presses twice. Optimistic, then corrected — and corrected to
+     * the server's own answer rather than to the guess, because one row's
+     * existence is the whole state.
+     */
+    expect(STAR).toMatch(/setKept\(want\);\s*\n\s*setBusy\(true\)/);
+    expect(STAR).toMatch(/catch \{\s*\n\s*setKept\(!want\);/);
+    expect(STAR).toMatch(/method: want \? 'PUT' : 'DELETE'/);
+  });
+
+  it('is absent without an account rather than present and refused', () => {
+    // A guest actor is a credential in one browser, and a shortlist that
+    // cannot survive a new one quietly empties. The route answers 401; a star
+    // that answers "sign in" is a star that was not a star.
+    expect(STAR).toMatch(/if \(!canKeep\) return null;/);
+    expect(ROUTE).toMatch(/canKeep: accountId != null/);
+  });
+
+  it('marks a tile and does not put a control on it', () => {
+    /*
+     * Pressing happens on the photograph's own page, which is where the phone
+     * puts it: a star on every tile is a row of controls over somebody's
+     * pictures, and a grid of two hundred is two hundred of them. The tile
+     * answers the question the shortlist raises while scanning and nothing
+     * else — so it is `aria-hidden` with the fact folded into the link's own
+     * name, and it never carries a number.
+     */
+    const mark = TILE.slice(TILE.indexOf('photo.favourite && ('), TILE.indexOf('</span>', TILE.indexOf('photo.favourite && (')));
+    expect(mark).toMatch(/aria-hidden="true"/);
+    expect(mark).not.toMatch(/<button|onClick|count/);
+    expect(TILE).toMatch(/'Open photo — kept'/);
+  });
+
+  it('counts nobody', () => {
+    // The one property that turns a shortlist into a score. `photo_favourite`
+    // is a table of its own so a read of an album cannot become one, and
+    // nothing drawn from it may say how many.
+    for (const source of [STAR, TILE, VIEW]) {
+      expect(source).not.toMatch(/favouriteCount|keptCount|favourites\.length/);
+    }
+  });
+});
+
+describe('the Kept tab', () => {
+  it('filters what is already in hand rather than asking again', () => {
+    /*
+     * `favourite` is on every photograph the feed returns, so the shortlist is
+     * a pass over a list in hand — and it is right the moment the feed is
+     * re-read, which is what coming back from a photograph's own page does.
+     *
+     * Filtered from `visible`, not from `feed.photos`: a photograph hidden
+     * from this reader is hidden on both, and a filter applied to one page and
+     * not the other is two answers to what the album contains.
+     */
+    expect(EVENT).toMatch(/const kept = visible\.filter\(\(photo\) => photo\.favourite\)/);
+    expect(EVENT).toMatch(/\['kept', 'Kept', 'star'\]/);
+  });
+
+  it('is seeded on the first paint, so it does not open empty and fill', () => {
+    // One read, per reader, for the photographs on the page. Without it the
+    // tab opens with nothing in it and the shortlist arrives a moment later,
+    // which reads as having lost something.
+    expect(ROUTE_EVENT).toMatch(/photoFavourites/);
+    expect(ROUTE_EVENT).toMatch(/favourite: kept\.has\(photo\.id\)/);
+    expect(ROUTE_EVENT).toMatch(/accountId == null \|\| rows\.length === 0/);
+  });
+
+  it('says where the star is when there is nothing in it', () => {
+    // Not a failure and not an empty album: somebody who has kept nothing has
+    // simply not kept anything yet, and the sentence says where the control is
+    // rather than that something is wrong. The phone's words.
+    expect(EVENT).toMatch(/Nothing kept yet\. Open a photograph and press the star/);
+    expect(EVENT).toMatch(/Only you see this\./);
   });
 });

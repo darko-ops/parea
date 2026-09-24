@@ -32,6 +32,7 @@ import type { PhotoReaction } from '@/photoReactions';
 
 import { Face } from './Faces';
 import { PhotoReactions } from './PhotoReactions';
+import { Star } from './Star';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
 import { useImageFailure } from './useImageFailure';
@@ -50,6 +51,10 @@ export type PhotoSubject = {
   /** "Friday 14 March, 21:40", worded by the server. See the route. */
   when: string;
   whenAgo: string;
+  /** Whether this reader has kept it. Theirs alone — see `Star`. */
+  favourite: boolean;
+  /** Whether keeping is offered: an account, not a guest actor. */
+  canKeep: boolean;
 };
 
 export function PhotoView({
@@ -245,6 +250,16 @@ export function PhotoView({
             />
 
             <span className="photo-verbs-do">
+              {/*
+                Keeping, first of the three on this side.
+
+                Before Download because it is the one somebody does *while
+                looking* — a shortlist is made in passing, and a download is a
+                decision to take the picture away. The app puts it in the same
+                corner for the same reason.
+              */}
+              <Star photoId={photo.id} kept={photo.favourite} canKeep={photo.canKeep} />
+
               <a
                 className="photo-icon"
                 href={photo.full}

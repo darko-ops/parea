@@ -67,6 +67,15 @@ type Photo = {
   mine: boolean;
   /** Which contributor chip this belongs to. Opaque — see `contributors.ts`. */
   by: string | null;
+  /**
+   * Whether this reader kept it, and nobody else's answer.
+   *
+   * The route has sent this on every photograph since the phone got the star,
+   * and nothing here read it. It is a shortlist, never a score: there is no
+   * count of who else kept a picture, because `photo_favourite` is a table of
+   * its own so that a read of an album cannot become one.
+   */
+  favourite: boolean;
 };
 
 type Person = {
@@ -177,6 +186,18 @@ const TABS = [
    * is people going back and forth, which is a room. See `RailIcon`.
    */
   ['conversation', 'Thread', 'bubble'],
+  /*
+   * The shortlist, which is a pass over a list already in hand.
+   *
+   * `favourite` is on every photograph the feed returns, so this filters
+   * rather than fetches — and it stays right the instant a star is pressed on
+   * a photograph's own page, because coming back here re-reads the feed.
+   *
+   * Kept, which is the app's word for it. A tab is a place, and "Kept" names
+   * what is in this one; "Favourites" names a feeling about it. It is also the
+   * shorter of the two in a row that now has four.
+   */
+  ['kept', 'Kept', 'star'],
   ['people', 'People', 'groups'],
 ] as const;
 
@@ -447,6 +468,15 @@ export function EventView({
   const visible = feed.photos;
   const fresh = visible.filter((photo) => !atArrival.current.has(photo.id));
   const earlier = visible.filter((photo) => atArrival.current.has(photo.id));
+  /*
+   * The part of the album this reader kept.
+   *
+   * A pass over a list in hand rather than a second request: `favourite` is
+   * already on every photograph the feed returns, so the shortlist costs
+   * nothing and is right the moment the feed is re-read — which is what
+   * happens on coming back from a photograph's own page, where the star is.
+   */
+  const kept = visible.filter((photo) => photo.favourite);
 
   const togglePick = useCallback((id: string) => {
     setPicked((current) => {
@@ -938,6 +968,40 @@ export function EventView({
             onSeen={markSeen}
           />
           <SiteFooter />
+        </div>
+      )}
+
+      {tab === 'kept' && (
+        <div className="event-body">
+          {/*
+            The shortlist, and what it says when there is none.
+
+            Filtered from `visible` rather than from `feed.photos`, so the
+            contributor chips and the moderation state apply here exactly as
+            they do on the gallery — a photograph hidden from you is hidden on
+            both, and a filter applied on one page and not the other is two
+            answers to what this album contains.
+
+            No `Just added` split and no contribute tile. This is a page about
+            what you chose, so a section of what arrived while you were away
+            belongs on the album, and an invitation to add more belongs where
+            the adding is.
+          */}
+          {kept.length === 0 ? (
+            <p className="muted empty">
+              Nothing kept yet. Open a photograph and press the star, and it
+              turns up here. Only you see this.
+            </p>
+          ) : (
+            <Masonry
+              photos={kept}
+              eventId={eventId}
+              picked={picked}
+              onPick={togglePick}
+              people={feed.people}
+              lead={null}
+            />
+          )}
         </div>
       )}
 
