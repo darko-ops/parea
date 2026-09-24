@@ -64,17 +64,12 @@
      made on their behalf, and a portrait in a landscape frame should not
      arrive matted differently from a landscape one. */
   --photo-bed: #ebebef;
-  /* The two message bubbles, taken from the mark — its blue and its mint, the
-     only colours this product claims. Pastels, so each carries the darkened
-     same-hue ink the lens tiles use; white on either is unreadable and black
-     on either reads as a highlighter. */
-  /* A shade lighter than the mark's blue itself. On a bubble the colour is a
-     surface rather than a mark, and the mark's own weight reads as heavy
-     against the mint opposite it. */
-  --bubble-mine: #aec2fc;
-  --bubble-mine-ink: #21335f;
-  --bubble-them: #9cdec5;
-  --bubble-them-ink: #24503f;
+  /* No message-bubble colours here any more. The thread is a comment board
+     and a comment is prose on the page: `--fg` on `--bg`, like every other
+     paragraph on the site. The pair that used to live here were the mark's
+     blue and mint, and taking them out is the point rather than a side
+     effect — two pastel fills down a column are what made a list of
+     statements about an evening read as two people texting. */
   /* A line on Activity that arrived since the last look. White at 70% over the
      page: enough to read as a block of new things without becoming a highlight
      colour, which is what a tint would be — and there is no per-item read
@@ -299,8 +294,14 @@ button.secondary {
 /* Mark and word as one lockup. 4px rather than 8: the mark is a circle
    cluster with visual air already built into its bounding box, so a gap that
    measures correctly reads as a gap that is too wide. */
+/* The name, centred, and nothing beside it.
+
+   It was the mark and the word as a lockup, left-aligned over the rows. The
+   app's head centres the word and has never carried the mark — the top of a
+   screen says whose product this is, and the mark says in a picture what the
+   wordmark is already saying in letters. */
 .rail-mark {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; justify-content: center;
   padding: 0 10px 14px;
 }
 /* Garet on the name and nowhere else. A display face set at 15px through a
@@ -407,20 +408,36 @@ button.secondary {
    Invites to a screen reader. */
 .narrow-only { display: none; }
 
-/* Below tablet the rail is a wordmark and a hamburger.
+/* Below tablet the rail is a head, and the rows go behind a button in it.
 
-   It used to be the same rows laid out sideways, which worked at four and
-   stopped at six: the bar scrolled horizontally, so Profile hung half off the
-   screen and Settings and Create Event were past the edge with nothing to say
-   they were there. A row of destinations you cannot see is not navigation.
+   Four shapes in four versions of this rule. Sideways first, which worked at
+   four rows and stopped at six — the bar scrolled, so Profile hung half off
+   the screen and Settings was past the edge with nothing to say it was there.
+   Then behind a hamburger in the trailing corner. Then a capsule floating at
+   the foot, the shape the app's tab bar has.
 
-   The mobile client has a bottom tab bar for this, and a 212px column on a
-   phone-width browser is most of the screen — so neither shape was available
-   and the rows go behind a button instead. */
+   The capsule is gone and the button is back, in the leading corner. Six
+   glyphs in a capsule is a row nobody reads, and the two that would have to go
+   to make four are the two the web has and the app does not; a menu holds six
+   without asking anybody to recognise a picture of Settings. Leading rather
+   than trailing because it opens everything else, and a control that does that
+   belongs before the everything else rather than after it. */
 @media (max-width: 720px) {
   .shell { display: block; }
   .rail {
-    width: auto; flex-direction: row; align-items: center; gap: 2px;
+    /*
+     * Three tracks, and the middle one is the name.
+     *
+     * A row with `margin-right: auto` on the lockup put the word at the
+     * leading edge; the app's head flexes both sides equally so the word sits
+     * in the middle of the screen rather than in the middle of what the
+     * controls leave. `1fr auto 1fr` is that, without either side measuring
+     * the other: the menu is 40 points and Create is a pill, and a row that
+     * centred on their average would be close enough to centred to read as a
+     * mistake.
+     */
+    width: auto; display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 2px;
     border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 14px;
     /* Undo the desktop stickiness rather than inherit it sideways: a bar
        pinned to the top costs 50px of a phone screen on every page, and
@@ -430,10 +447,21 @@ button.secondary {
        off the page, which is what puts it under the button that opened it. */
     position: relative; height: auto; overflow: visible;
   }
-  .rail-mark { padding: 0; margin-right: auto; }
+  /*
+     Placed rather than auto-placed: the middle track, whatever the sides hold.
 
+     The button is 40 points and Create is a pill, and a row that centred on
+     their average would be close enough to centred to read as a mistake. Both
+     sides being a track wide is what the app's head achieves with equal flex,
+     and it is why the word sits in the middle of the *screen*.
+  */
+  .rail-mark { padding: 0; grid-column: 2; justify-self: center; }
+
+  /* The button, in the leading track — where the bar's first track was left
+     empty when the rows floated at the foot. */
   .rail-burger {
     display: flex; align-items: center; justify-content: center; position: relative;
+    grid-column: 1; justify-self: start;
     flex: none; width: 40px; height: 40px; border-radius: 10px;
     background: none; border: 1px solid transparent; color: var(--fg);
     padding: 0;
@@ -441,14 +469,14 @@ button.secondary {
   .rail-burger:hover { border-color: var(--line); }
   .rail-open .rail-burger { background: var(--accent-soft); color: var(--accent-ink); }
   /* Three rules, drawn rather than set as a glyph: ☰ is a character whose
-     weight and width come from whichever font answers for it, and at 40px that
-     is the difference between a control and a smudge. */
+     weight and width come from whichever font answers for it, and at 40px
+     that is the difference between a control and a smudge. */
   .rail-burger-lines { display: flex; flex-direction: column; gap: 4px; width: 18px; }
   .rail-burger-lines > * {
     display: block; height: 2px; border-radius: 2px; background: currentColor;
   }
-  /* The unread count, on the closed button. A menu that hides the one row that
-     carries a number is a menu somebody has to open to learn there was
+  /* The unread count, on the closed button. A menu that hides the one row
+     that carries a number is a menu somebody has to open to learn there was
      nothing in it. */
   .rail-burger .badge {
     position: absolute; top: 2px; right: 2px;
@@ -462,6 +490,9 @@ button.secondary {
   .rail-nav { display: none; }
   .rail-open .rail-nav {
     display: flex; flex-direction: column; gap: 4px;
+    /* Across all three tracks, though it is taken out of flow anyway: a panel
+       placed in one column would size the bar's tracks to its contents. */
+    grid-column: 1 / -1;
     position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
     padding: 8px 12px 14px;
     background: var(--card); border-bottom: 1px solid var(--line);
@@ -482,7 +513,9 @@ button.secondary {
      rather than this. */
   .rail-create {
     display: flex; align-items: center; gap: 5px; flex: none;
-    margin-right: 4px; padding: 0 12px; height: 34px;
+    /* The trailing track, at its trailing edge. */
+    grid-column: 3; justify-self: end;
+    padding: 0 12px; height: 34px;
     border-radius: 999px; background: var(--accent); color: #fff;
     font-size: 14px; font-weight: 600; line-height: 1; text-decoration: none;
     white-space: nowrap;
@@ -813,10 +846,14 @@ button.secondary {
 .cards { border-top: 1px solid var(--hairline); padding-top: 22px; }
 
 @media (max-width: 700px) {
-  .card-cover, .card-new, .card-empty { height: 260px; min-height: 260px; }
+  .card-cover, .card-empty { height: 260px; min-height: 260px; }
+  /* The shape wins over the breakpoint: a cover that knows how tall it is does
+     not want a phone-sized letterbox imposed on it either. */
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 @media (max-width: 460px) {
-  .card-cover, .card-new, .card-empty { height: 300px; min-height: 300px; }
+  .card-cover, .card-empty { height: 300px; min-height: 300px; }
+  .card-cover[style*="--card-aspect"] { height: auto; min-height: 0; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -850,9 +887,16 @@ button.secondary {
 /* The cover. `--hairline` behind it rather than white: a cover that will not
    load — the URLs are signed and expire — leaves a flat grey rectangle the
    size of the picture rather than a hole in the grid or a broken glyph. */
+/* `--card-aspect` is the cover's own width-over-height, set inline by the card
+   for a cover that has one. The height is the fallback for everything else: a
+   photograph standing in for a cover, and covers stored before the shape was
+   recorded — which are 3:2, which is what 320px at this width is. */
 .card-cover {
   position: relative; height: 320px; border-radius: 16px; overflow: hidden;
   background: var(--hairline);
+}
+.card-cover[style*="--card-aspect"] {
+  height: auto; aspect-ratio: var(--card-aspect);
 }
 .card-cover picture { display: block; width: 100%; height: 100%; }
 .card-cover img {
@@ -868,26 +912,11 @@ button.secondary {
   .card-cover img, .card:hover .card-cover img { transition: none; transform: none; }
 }
 
-/* "Being added to now", top left, on white so it is legible over any
-   photograph. Only ever up for an hour — see `isLive`. */
-.card-live {
-  position: absolute; left: 12px; top: 12px;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border-radius: 999px;
-  background: rgba(255, 255, 255, .93);
-  font-size: 11.5px; font-weight: 600; color: #3d6a55;
-}
-.card-live-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: #a5dcc6;
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) { .card-live-dot { animation: none; } }
-
 /* Half over the photograph. Below it they read as metadata; overlapping, they
    read as the people who were there. */
 /* `position: relative` is load-bearing, not decoration: the cover above is
-   positioned (it holds the live badge), so a static row of faces paints
-   *under* it and shows as a row of half-circles. */
+   positioned to clip the photograph to its corners, so a static row of faces
+   paints *under* it and shows as a row of half-circles. */
 .card-faces {
   display: flex; align-items: center; margin: -16px 0 0 12px;
   position: relative; z-index: 1;
@@ -971,16 +1000,10 @@ button.secondary {
 .lenses > * { border-radius: 50%; display: block; }
 .lenses > * + * { margin-left: -5px; }
 
-.card-new {
-  border: 1px dashed var(--line-dashed); border-radius: 16px; height: 320px;
-  display: flex; flex-direction: column; justify-content: center; gap: 10px;
-  padding: 20px; text-decoration: none; color: inherit; background: none;
-}
-.card-new strong { font-size: 17px; font-weight: 600; }
-.card-new span { font-size: 13.5px; color: var(--dim); line-height: 1.5; }
-/* Wider overlap at this size — the -5px that reads as "just touching" on a
-   14px circle is barely a notch on an 18px one. */
-.card-new .lenses > * + * { margin-left: -6px; }
+/* No `.card-new`. It was a dashed 320px panel holding a heading and two
+   sentences, rendered into every grid of albums whether or not there was
+   anything beside it — and on an empty shelf it *was* the page. `.blank` is
+   what answers that absence now, in the app's words. */
 
 /* ---------------------------------------------------------------------------
    Home — one hero and a list, rather than a grid of equal cards.
@@ -1115,7 +1138,16 @@ button.secondary {
 
 /* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
+/* Why there is no Add photos button. Above the gallery, in the flow, at the
+   weight of the other lines that explain the album to the person reading it —
+   not a warning: nothing has gone wrong. */
+.host-ask { margin: 0 0 4px; }
+
 .person-empty { margin: 0; padding: 28px 0; font-size: 15px; }
+/* What the padlocks below it are for. Directly under the heading and above the
+   list, because it is the list's own caption rather than a note about the
+   page. */
+.person-locked-note { margin: -4px 0 12px; font-size: 13.5px; }
 
 /* Somebody's albums, on their profile.
 
@@ -1138,8 +1170,12 @@ button.secondary {
 }
 /* The locked one's square. Not a broken image and not a padlock: an empty
    frame, which is what is actually being said. */
+/* Hatching, and a padlock in the middle of it on the ones that are shut. The
+   flex is what centres the glyph; without a glyph in it the box is the same
+   hatched square it always was. */
 .album-cover-empty {
-  display: block; width: 100%; height: 100%; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; border-radius: 11px; color: var(--dim-soft);
   background: repeating-linear-gradient(
     -45deg, var(--hairline), var(--hairline) 2px, transparent 2px, transparent 7px
   );
@@ -1686,6 +1722,10 @@ button.secondary {
   text-decoration: none; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 7px;
 }
+/* The glyph beside the word, at the size the app draws it in its own tab
+   strip. Glyph *and* word, where the app is glyph-only: three tabs across 393
+   points is a row with no room for labels and a browser's is not. */
+.event-tab .rail-icon { width: 19px; height: 19px; }
 .event-tab-on {
   color: var(--fg); font-weight: 600;
   border-bottom: 2px solid var(--accent); margin-bottom: -1px;
@@ -2091,31 +2131,46 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .faces > * + * { margin-left: -6px; }
 .face-lens { display: block; border-radius: 50%; }
-/* Yours on the right, everybody else's on the left — the arrangement every
-   message list has, and the reason it is worth having is that you can tell
-   whose a message is before reading a word of it.
+/* Your own, on the right.
 
-   Mirrored rather than restyled: the same row, reversed, so there is one set of
-   rules for a message and the side is the only difference. The avatar goes with
-   it, which is what makes a short message on a wide column still obviously
-   yours — alignment alone is a weak signal when the text is three words. */
+   The mirror and the fill used to be one decision and they are two. Yours sat
+   on the right *in the mark's blue*, with everybody else's on the left in its
+   mint, and the fills are what made a list of remarks about an evening read
+   as two people texting — those are gone, see `.message` below.
+
+   The side stays, because it is doing something the name cannot. A column
+   with everybody in it is a wall of other people's comments with yours
+   somewhere in it; which edge a block hangs from is seen before a word is
+   read, and it is how anybody finds the last thing they themselves said.
+
+   Mirrored rather than restyled: the same row, reversed, so there is one set
+   of rules for a comment and the side is the only difference. The avatar goes
+   with it — a block hanging off the right with its face still on the left is
+   neither side. */
 .message-mine { flex-direction: row-reverse; }
-.message-mine .message-body { text-align: right; }
-/* Yours in the mark's blue, everybody else's in its mint. Which way round is
-   not arbitrary: blue is the colour this product already uses for the thing
-   you are doing — every filled button on every screen — so the bubble you
-   wrote matches the button you pressed to write it. */
-.message-mine .message-text {
-  background: var(--bubble-mine); color: var(--bubble-mine-ink);
-  border-bottom-left-radius: 16px; border-bottom-right-radius: 5px;
-  margin-left: auto;
-}
-/* The meta line and the reactions have to turn round too, or the name, the
-   time and the menu stay pinned to an edge the message is no longer on. */
-.message-mine .message-meta { flex-direction: row-reverse; }
+/* The meta line, the thumbnail and the reactions go to that edge too, or the
+   name, the time and the menu stay pinned to one the comment is no longer on.
 
+   Pushed rather than reversed. `row-reverse` was the bubble's, and it reads
+   the line backwards — "just now You" — for the sake of keeping the name next
+   to the face. The name goes first in every other row on this page, and a
+   board is read rather than glanced at, so the line keeps its order and the
+   whole of it moves right. The app's meta is one string and cannot reverse
+   anyway; this is the pair of them agreeing. */
+.message-mine .message-meta { justify-content: flex-end; }
+.message-mine .message-about { margin-left: auto; }
 .message-mine .reactions { justify-content: flex-end; }
-/* The way to add one is on hover and on focus, like the `···` beside it. A
+/* And the lines do not turn round with the block.
+
+   No `text-align: right`, which is what the bubble had. A short comment
+   shrinks to its words and sits against the right edge, which is the whole of
+   what a side is for; a comment that wraps keeps its lines starting at one
+   left edge, because right-aligned prose over three lines is read a word at a
+   time while the eye hunts for where each one begins. Three words in a bubble
+   can take that and a paragraph cannot — so the edit box, which is a form and
+   never wanted it either, needs no exception any more. */
+/* The way to add a reaction is on hover and on focus, like the `···` beside
+   it. A
    quiet thread was a column of `+` buttons, one under every bubble, each
    offering to react to a sentence nobody had reacted to. Reactions that exist
    stay visible always — they are what somebody said. */
@@ -2125,11 +2180,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* Beside the time rather than pushed to the far edge of the column. `auto`
    put it at the opposite end of an 820px row from the message it belongs to. */
 .message-meta .dots { margin-left: 6px; }
-.message-mine .message-meta .dots { margin-left: 0; margin-right: 6px; }
-/* The edit box is a form, not prose: right-aligned text in a textarea you are
-   typing into is somebody else's idea of helpful. */
-.message-mine .message-edit { text-align: left; }
-.message-mine .message-edit .row { justify-content: flex-end; }
 /* Three dots and the panel they open. Two of these — the options on your own
     message, and the event's settings in the head — so one set of rules. */
 .dots { position: relative; flex: none; }
@@ -2216,15 +2266,22 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    plus a portalled sheet on a phone: one thread, two shapes, two ways in and
    two ways out. A tab is one shape at every width. */
 .thread { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
-.thread-list { display: flex; flex-direction: column; gap: 10px; }
+/* 18, where the bubbles could live on 10.
+   Two fills stacked ten points apart are obviously two things; two
+   paragraphs that close together are one. With nothing drawn around a
+   comment, the gap is the only thing separating it from the next one. */
+.thread-list { display: flex; flex-direction: column; gap: 18px; }
 /* An invitation rather than a report of emptiness. */
 .thread-empty {
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
   padding: 40px 0;
 }
-.thread-empty h2 { font-size: 21px; font-weight: 700; margin: 0; }
+/* No heading any more. It was a 21pt title over a paragraph, which is a screen
+   describing itself; what is left is one quiet line, set at the weight of the
+   furniture around it and read once. */
 .thread-empty p {
-  margin: 0; font-size: 14.5px; color: var(--dim); max-width: 480px; line-height: 1.5;
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--dim);
+  max-width: 480px; line-height: 1.5;
 }
 .thread-composer {
   display: flex; flex-direction: column; gap: 8px;
@@ -2263,16 +2320,17 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .thread-actions { display: flex; align-items: center; gap: 12px; }
 .thread-note { flex: 1; font-size: 12.5px; color: var(--dim-soft); }
 .thread-actions button { padding: 9px 16px; font-size: 14px; border-radius: 10px; }
-/* One message, as a bubble.
+/* One comment: a face, a name, a time and the words.
 
-   It was a row of plain text under a name, which reads as a comment section —
-   a list of statements about the event. A thread is people talking to each
-   other, and the shape everybody already knows for that is a bubble on a side.
+   This was bubbles on sides, on the argument that a thread is people talking
+   to each other and a bubble is the shape everybody knows for that. It is the
+   shape everybody knows for a *messenger*, and this column is not one: it is
+   what was said about somebody's evening, read under the photographs of it,
+   on a tab called Comments. The app's board and this are now the same drawing
+   — see the note at the top of `apps/mobile/src/Thread.tsx`.
 
-   The two fills are the mark's own blue and mint, which is the only place this
-   product takes colour from. They are pastels, so the ink on them is the same
-   darkened same-hue pair the lens tiles use — a pastel with white text on it
-   is unreadable, and a pastel with black text on it looks like a highlighter. */
+   A list of statements about the event is what it was called when the bubbles
+   went in, and that is exactly what a comment section is. */
 .message { display: flex; gap: 10px; align-items: flex-start; }
 .message-face {
   width: 32px; height: 32px; border-radius: 50%; flex: none;
@@ -2280,42 +2338,91 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   overflow: hidden; object-fit: cover;
   background: var(--accent-soft); color: var(--accent-ink);
   font-size: 13px; font-weight: 600;
-  /* Beside the bubble's first line, which is what this offset buys: the name
-     and time sit above the bubble, so a face aligned to the top of the *body*
-     would be level with the name and a face aligned to its bottom would be
-     under the reactions. Neither is beside the message. */
-  margin-top: 19px;
+  /* Level with the name, which is the line it belongs to. The bubble wanted
+     19px of offset here — the name and time sat above it, so a face at the
+     top of the body was beside the meta rather than beside the words. With
+     no bubble the name *is* the top of the comment, and a face level with it
+     is what every comment section does. */
+  margin-top: 0;
 }
-/* Bounded, so a long message does not run the width of an 820px column and
-   stop reading as a bubble at all. `fit-content` so a three-word one is three
-   words wide. */
-.message-body { min-width: 0; max-width: min(78%, 520px); }
+/* Bounded for the measure rather than for the bubble.
+
+   78% was there so a long message did not run the width of an 820px column
+   and stop reading as a bubble. Nothing has to read as a bubble now, and the
+   reason to cap a line of prose is the older one: past about 70 characters
+   the eye loses its place coming back to the left edge. 600px at this size is
+   roughly that. */
+.message-body { min-width: 0; max-width: min(100%, 600px); }
 .message-meta {
   display: flex; align-items: baseline; gap: 8px;
   font-size: 12.5px; color: var(--dim-soft);
-  /* Outside the bubble, above it: the name and the time are about the message
-     rather than part of what was said. */
-  padding: 0 4px 3px;
+  /* The 4px of horizontal inset went with the bubble it was lining up
+     against: with the words flush to the column, a name indented past them
+     is the one thing on the row that is out of column. */
+  padding: 0 0 2px;
 }
 .message-meta strong { color: var(--fg); font-weight: 600; }
+/* The photograph a comment is about: a thumbnail the size of two lines of the
+   text under it, so the row still reads as a sentence with a subject rather
+   than as a picture with a caption. The app's board uses the same 52. */
+.message-about {
+  display: block; width: 52px; height: 52px; margin: 2px 0 6px;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.message-about img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Prose on the page: no fill, no radius, no padding holding it off a surface
+   it no longer has. Line height a little looser than the bubble's, because a
+   paragraph with nothing around it is read rather than glanced at. */
 .message-text {
-  margin: 0; padding: 9px 13px; font-size: 14.5px; line-height: 1.45;
-  overflow-wrap: anywhere; border-radius: 16px;
-  background: var(--bubble-them); color: var(--bubble-them-ink);
-  /* The corner nearest the face, squared off. One corner is the whole of what
-     makes a bubble point at somebody. */
-  border-bottom-left-radius: 5px;
-  width: fit-content;
+  margin: 0; font-size: 14.5px; line-height: 1.55;
+  overflow-wrap: anywhere; color: var(--fg);
 }
 .message-edit { display: grid; gap: 8px; margin-top: 4px; }
 .thread-gone { font-size: 13px; font-style: italic; margin: 0; }
-.mention { font-weight: 600; }
-/* Weight rather than colour inside a bubble: accent ink on the mark's blue is
-   two blues arguing, and the bubble already carries the colour. */
-.message-text .mention { color: inherit; text-decoration: underline;
-  text-decoration-thickness: 1px; text-underline-offset: 2px; }
-/* Reactions live on messages and never on photographs: a photograph of
-   somebody's evening that can be scored is a post, and this is not a feed. */
+/* A reaction, which is a line rather than a message — and was a blank one.
+
+   The feed merges every reaction in the album into the thread so that one
+   column reads in one order, and this file never knew the difference: each
+   drew as a message with a face, a name, a time and an empty bubble.
+
+   The photograph goes at the same 32 and the same 10-point gap a message's
+   face has, and square rather than round: that slot holds a person in every
+   other row and a picture in this one, and the corner is the difference the
+   eye reads first.
+
+   Centred, though, where a comment hangs from an edge. Along the left with
+   the comments it put a thing nobody said on the same edge as the things
+   people did say, and a run of them read as comments with no words in them.
+   Down the middle it is an aside in the conversation rather than a turn in
+   it — the same place a date separator would go. */
+.thread-reacted {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin: 0; font-size: 13.5px; line-height: 1.4;
+}
+.thread-reacted strong { color: var(--fg); font-weight: 600; }
+.thread-reacted-shot {
+  width: 32px; height: 32px; flex: none; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line); display: block;
+}
+.thread-reacted-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A mention, marked and never resolved — see `withMentions`.
+
+   In the accent now as well as bold, which is what the app has always drawn
+   and what this could not: a mention inside a bubble of the mark's blue
+   cannot carry accent ink, two blues arguing, so there was a second rule
+   underlining it instead. With the fill gone the colour is available, and one
+   rule beats two — `@ana` reads the same in a comment as it does anywhere
+   else in the product. */
+.mention { font-weight: 600; color: var(--accent); }
+/* Reactions, on a message and now on a photograph.
+
+   This said "never on photographs: a photograph of somebody's evening that
+   can be scored is a post, and this is not a feed", which stopped being true
+   the day the app shipped `photo_reaction` — and what was left was a site that
+   could not show a reaction somebody had left on a phone. The argument is
+   answered rather than waived: a pill here names the people in it, so what a
+   photograph carries is who said something about it rather than a number it
+   scored. See `PhotoReactions`. */
 .reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .reaction {
   padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
@@ -2426,12 +2533,67 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border: 1px dashed var(--line-dashed); border-radius: 12px; background: #f1f1f4;
 }
 
+/* The two verbs, at the two ends of the picture.
+
+   Reacting on the left and saving on the right, which is the app's own
+   arrangement: both are one tap about the photograph, so they belong at the
+   ends rather than in the middle of the line that says who took it. The
+   byline under this is identity and nothing else. */
+.photo-verbs {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 12px; min-height: 34px;
+}
+.photo-verbs-do { display: flex; align-items: center; gap: 6px; flex: none; }
+/* No top margin, unlike a message's: this row *is* the row rather than
+   something under one. */
+.photo-reactions { margin-top: 0; }
+/* A square disc for a glyph, at the size the pills beside it stand. Download
+   was a bordered word — `Download`, 14px, 9 by 14 — which read as the loudest
+   thing under the photograph. */
+.photo-icon {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--fg);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.photo-icon:hover { border-color: var(--accent); color: var(--accent-ink); }
+.photo-icon svg {
+  width: 19px; height: 19px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Nothing on the shelf yet: a line and the one stroke that answers it.
+
+   The app's empty state, in its words and its shape — see the note where it
+   is drawn. What it replaces is a `Create Album` panel rendered into the grid
+   whether or not there was anything else in it, which on an empty shelf was
+   the whole page: a bordered box with a heading and two sentences, drawing
+   more attention empty than the cards draw full.
+
+   The `+` is the same disc the app's is, which is the same disc as a rail
+   row's height: a bordered circle rather than a filled button, because this
+   is an offer and not the thing the page is about. */
+.blank {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 40px 0 8px;
+}
+.blank-note { margin: 0; font-size: 15px; line-height: 1.4; color: var(--dim); }
+.blank-do {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--line); color: var(--fg); text-decoration: none;
+  font-size: 20px; line-height: 1;
+}
+.blank-do:hover { border-color: var(--accent); color: var(--accent-ink); }
+
 .photo-by { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* Upward. Every other menu in the product hangs off a header near the top of
    the page; this one hangs off a row that sits under 560px of photograph, so
    downward puts its items under the fold of a laptop screen — a menu you have
-   to scroll to read is one somebody thinks did not open. */
-.photo-by .dots-body { top: auto; bottom: calc(100% + 8px); }
+   to scroll to read is one somebody thinks did not open.
+
+   On `.photo-verbs` now rather than `.photo-by`: the menu moved up a row to
+   sit beside the download it used to duplicate. */
+.photo-verbs .dots-body { top: auto; bottom: calc(100% + 8px); }
 .photo-by-face {
   width: 36px; height: 36px; border-radius: 50%; flex: none; object-fit: cover;
   display: flex; align-items: center; justify-content: center;
@@ -2442,12 +2604,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-by-who { display: block; font-size: 15px; }
 .photo-by-who strong { font-weight: 600; }
 .photo-by-when { display: block; font-size: 12.5px; color: var(--dim-soft); }
-.photo-get {
-  flex: none; padding: 9px 14px; border-radius: 10px;
-  border: 1px solid var(--line); color: var(--fg); text-decoration: none;
-  font-size: 13.5px; font-weight: 600;
-}
-.photo-get:hover { border-color: var(--accent); color: var(--accent-ink); }
 /* What happened to a report, where the menu was. Not a toast: this is the only
    account somebody gets, and a message that fades is one they can miss. */
 /* Its own line under the row rather than a fourth item in it: it is a
@@ -2932,43 +3088,60 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .group-invite-go button { flex: none; padding: 10px 16px; border-radius: 10px; font-size: 14px; }
 .group-invite-said { margin: 0; font-size: 13px; color: var(--dim); }
 
-.group-month { margin-top: 26px; }
-.group-month .day-head { margin-bottom: 12px; }
-.group-month .day-head h2 { font-weight: 700; }
-.archive { display: flex; flex-direction: column; gap: 12px; }
-.archive-row {
-  display: flex; align-items: center; gap: 16px;
-  text-decoration: none; color: inherit; border-radius: 13px;
+/* The shelf: a group's albums, two across.
+
+   It was an archive — a row per album with a 180px cover, name, date, faces
+   and counts, under month headings — which produced a third way of drawing
+   the same object, next to the cards on the home page and the list on a
+   profile. Cover, name, date is what the app's shelf shows and what a shelf
+   needs; the headings went with the rows, because every tile carries its own
+   date and that is what they were saying.
+
+   `auto-fill` rather than a fixed two, so the same shelf is two columns on a
+   phone and four on a wide screen without a second rule about when. 200 is
+   the width below which a cover stops being a photograph. */
+.group-shelf {
+  display: grid; gap: 18px 14px; margin-top: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
-.archive-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.archive-cover {
-  position: relative; flex: none; width: 180px; height: 112px;
+.shelf-album { text-decoration: none; color: inherit; display: block; }
+.shelf-album:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.shelf-cover {
+  position: relative; display: block; aspect-ratio: 3 / 2;
   border-radius: 13px; overflow: hidden; background: var(--photo-bed);
 }
-.archive-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 160ms ease; }
-.archive-row:hover .archive-cover img { transform: scale(1.02); }
+.shelf-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 160ms ease; }
+.shelf-album:hover .shelf-cover img { transform: scale(1.02); }
 @media (prefers-reduced-motion: reduce) {
-  .archive-cover img { transition: none; }
-  .archive-row:hover .archive-cover img { transform: none; }
+  .shelf-cover img { transition: none; }
+  .shelf-album:hover .shelf-cover img { transform: none; }
 }
-.archive-none { display: block; width: 100%; height: 100%; background: var(--photo-bed); }
-.archive-what { flex: 1; min-width: 0; }
-.archive-line { display: flex; align-items: baseline; gap: 9px; }
-.archive-name {
-  flex: 1; min-width: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+/* Dashed, which reads as "nothing here" rather than as a very dark
+   photograph — the call every other empty tile in the product makes. */
+.shelf-none {
+  display: block; width: 100%; height: 100%;
+  border: 1px dashed var(--line); border-radius: 13px; background: transparent;
+}
+/* What has moved since you last looked. A dot rather than a count: the number
+   is precision nobody asked for on a tile this size. */
+.shelf-pip {
+  position: absolute; top: 9px; right: 9px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--page);
+}
+.shelf-name {
+  display: block; margin-top: 8px; font-size: 15px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.archive-when { flex: none; font-size: 12.5px; color: var(--dim-soft); }
-.archive-meta {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 7px; font-size: 12.5px; color: var(--dim);
-}
-.archive-faces { display: inline-flex; flex: none; }
-.archive-face {
-  width: 20px; height: 20px; border-radius: 50%; object-fit: cover; display: block;
-  background: var(--accent-soft); box-shadow: 0 0 0 1.5px var(--page);
-}
-.archive-face + .archive-face { margin-left: -6px; }
+.shelf-meta { display: block; margin-top: 2px; font-size: 12.5px; color: var(--dim); }
+
+/* The conversation, under its own tab. The composer sticks to the foot of the
+   viewport on an album's page; here the page is short enough that it simply
+   sits where it lands, which is what `static` in the component undoes. */
+.group-chat { margin-top: 22px; }
+
+/* A signature that aged out. The tile's own bed, at the tile's own size, so
+   the shelf does not develop a hole where a cover used to be. */
+.shelf-failed { display: block; width: 100%; height: 100%; background: var(--photo-bed); }
 
 /* With no archive, making one *is* the page. */
 .group-empty { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 26px; }

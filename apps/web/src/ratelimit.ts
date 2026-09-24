@@ -113,6 +113,35 @@ export const SIGN_IN_ADDRESS_LIMIT: Limit = {
 };
 
 /**
+ * Presenting a code, per source. Its own bucket, and that is the whole point.
+ *
+ * `SIGN_IN_LIMIT` is a *mail* budget — every word of its note above is about
+ * the deployment sending messages to an address a stranger chose, and ten an
+ * hour is sized for that. The verify route was spending from it too, which
+ * quietly made the two compete: a person who asked for a few codes and then
+ * mistyped one had no allowance left to present the code already sitting in
+ * their inbox. What they were told was "That code did not work. Codes expire
+ * after ten minutes" — so they asked for another, which they could not have
+ * either. Testing the sign-in screen for ten minutes was enough to do it.
+ *
+ * Guessing is already bounded, and bounded better, by `MAX_CODE_ATTEMPTS`:
+ * five tries *per code*, counted on the row so a fresh code cannot reset it.
+ * What that cannot see is one source spraying guesses across many addresses,
+ * because every address is a new row with a new allowance. This is that, and
+ * nothing else.
+ *
+ * Thirty an hour is past anything honest — five codes is all one address can
+ * receive in an hour and each allows five tries, so twenty-five is the ceiling
+ * on a person working their own inbox — and far short of what a million-guess
+ * space needs.
+ */
+export const SIGN_IN_VERIFY_LIMIT: Limit = {
+  name: 'sign-in-verify',
+  max: 30,
+  windowSeconds: 3600,
+};
+
+/**
  * An opaque, stable-per-window handle for the caller.
  *
  * Returns null when no address is available, which is the local-development

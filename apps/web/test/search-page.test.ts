@@ -71,7 +71,7 @@ describe('what the page offers before anybody types', () => {
   it('names the three things it finds', () => {
     // The page's answer to "what can I find here". It used to be a paragraph
     // of rules, which describes the page instead of being it.
-    for (const scope of ['All', 'People', 'Events', 'Groups']) {
+    for (const scope of ['All', 'People', 'Albums', 'Groups']) {
       expect(VIEW).toMatch(new RegExp(`\\['\\w+', '${scope}'\\]`));
     }
   });
@@ -105,7 +105,7 @@ describe('what the page offers before anybody types', () => {
     // What went is every use of it that draws a list nobody asked for.
     expect(VIEW).not.toMatch(/!asking && wantsEvents/);
     expect(VIEW).not.toMatch(/IDLE_EVENTS|events\.slice/);
-    expect(VIEW).toMatch(/Events are never recommended/);
+    expect(VIEW).toMatch(/Albums are never recommended/);
   });
 
   it('offers groups as a door and never as a way in', () => {

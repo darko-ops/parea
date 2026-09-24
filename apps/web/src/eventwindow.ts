@@ -35,7 +35,25 @@ export function parseWindow(
   const endsAt = asDate(rawEnd);
   if (rawStart == null && rawEnd == null) return null;
   if (!startsAt || !endsAt) return 'invalid';
-  if (endsAt.getTime() <= startsAt.getTime()) return 'invalid';
+  /*
+   * Backwards is invalid. Instant is not.
+   *
+   * This refused `endsAt <= startsAt`, which reads as "a window has to have
+   * some width" and turns out to refuse a real and ordinary album: one made
+   * from a single photograph. The span of one picture starts and ends at the
+   * moment it was taken, the client sends exactly that, and the whole
+   * creation came back 400 — so an album of one photograph could not be made
+   * at all, and neither could one whose photographs were all taken inside the
+   * same second.
+   *
+   * What the check is for is corruption: a window that runs backwards would
+   * be stored happily and then pre-select the wrong photographs for every
+   * contributor. A window of no width does nothing of the kind. It offers
+   * nothing extra to the next person, which is the honest answer when there
+   * is one photograph to go on — and `resolveWindow` widens from what has
+   * actually been uploaded once there is more than one.
+   */
+  if (endsAt.getTime() < startsAt.getTime()) return 'invalid';
   return { startsAt, endsAt };
 }
 

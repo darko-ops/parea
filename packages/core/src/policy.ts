@@ -12,7 +12,29 @@
 
 import { timingSafeEqual } from 'node:crypto';
 
-export type Capability = 'view' | 'contribute' | 'download' | 'administer';
+/**
+ * `upload` is `contribute` plus the album's own answer about photographs.
+ *
+ * They were one capability, and six routes checked it: posting a message,
+ * reacting to a message, reacting to a photograph, presigning an upload,
+ * completing one, and the feed's own "may I speak". That was tolerable while
+ * the only setting was a boolean meaning "this album is finished" — closing it
+ * closing the conversation too is at least arguable.
+ *
+ * It stops being arguable at three settings. "Only the host adds photographs"
+ * is a thing people want for an evening where one person had the camera, and
+ * it must not mean "only the host may speak" — everybody else is there to look
+ * and to say something about what they are looking at.
+ *
+ * So the split is: `contribute` is being entitled to take part, and `upload`
+ * is that plus permission to put photographs in. Everything that was a message
+ * or a reaction stays on the first; the two upload routes move to the second.
+ *
+ * What changes for an album already closed: its conversation reopens. That is
+ * the honest reading of a setting called "who can add photos" — the album is
+ * finished, and the people in it can still talk about it.
+ */
+export type Capability = 'view' | 'contribute' | 'upload' | 'download' | 'administer';
 
 /**
  * `hasAccount` is required rather than optional on purpose. Every call site has
@@ -29,7 +51,7 @@ export type PolicyEvent = {
   capEpoch: number;
   accessPolicy: string;
   joinsOpen: boolean;
-  uploadsOpen: boolean;
+  contributePolicy: string;
   createdBy: string;
   groupId: string | null;
   deletedAt: Date | null;
@@ -45,6 +67,17 @@ export type Presented = {
   /** Epoch carried by a stored capability (web cookie / native token). */
   capEpoch?: number;
   isParticipant?: boolean;
+  /**
+   * This actor's `event_participant.role` is `host`.
+   *
+   * Separate from `isParticipant` rather than a stronger value of it, because
+   * it answers a different question and is read in one place: a host may
+   * `upload` to an album set to `host`, and may do nothing else a participant
+   * cannot. In particular it is not `administer` — a host adds photographs,
+   * and renaming the album, letting people in and deleting it stay with
+   * whoever made it.
+   */
+  isEventHost?: boolean;
   isGroupMember?: boolean;
   isGroupAdmin?: boolean;
 };
@@ -56,6 +89,7 @@ export type DenyReason =
   | 'stale_capability'
   | 'joins_closed'
   | 'uploads_closed'
+  | 'host_only'
   | 'not_administrator'
   | 'sign_in_required'
   | 'approval_required';
@@ -103,6 +137,78 @@ export const PRIVATE = 'private';
 
 const KNOWN_POLICIES: readonly string[] = [PUBLIC, PRIVATE];
 
+/**
+ * Whoever the album is open to can add to it.
+ *
+ * Deliberately deferred rather than restated: on a private album that is the
+ * people in it, and on a public one it is whoever holds the link. Saying it
+ * twice is how the two settings come to disagree, and the day they do the
+ * wrong one wins silently.
+ */
+export const CONTRIBUTE_EVERYONE = 'everyone';
+
+/**
+ * The hosts: whoever made it, a group's admins, and anybody made a host of it.
+ *
+ * The case the boolean could not say. An evening where a few people were
+ * taking photographs and everybody else is there to look at them is not the
+ * same as a closed album, and offering only "open" and "closed" made it one or
+ * the other.
+ *
+ * Group admins are included because `administer` already treats them as the
+ * host of anything in their group — an album nobody in the group could add to
+ * except its original maker would strand the room's own archive the day that
+ * person left.
+ *
+ * `isEventHost` is the third, and it is the one this value is named for: a
+ * participant the host promoted, or one whose `event_host_request` was
+ * approved. It was labelled "Only me" in both clients while it already meant
+ * more than one person on a group album, which is the label this corrects
+ * rather than the behaviour.
+ *
+ * A host is not an administrator. Adding photographs is all this grants; see
+ * `isEventHost`.
+ */
+export const CONTRIBUTE_HOST = 'host';
+
+/**
+ * The person who made it, and nobody else at all.
+ *
+ * What "Only me" was supposed to mean and did not: `host` has always included
+ * a group's admins, so on an album inside a group the strictest setting on
+ * offer was still several people. Now that a host can promote somebody it
+ * would have been several more, and a setting called "Only me" that admits
+ * whoever an admin decides to admit is a setting that lies.
+ *
+ * Deliberately narrow: not even a group admin, who can still `administer` the
+ * album — change this setting included. That is the honest shape. The album's
+ * photographs are one person's to put in; what the album *is* stays the
+ * group's.
+ */
+export const CONTRIBUTE_CREATOR = 'creator';
+
+/**
+ * Nobody, the maker included. An album that is finished is finished.
+ *
+ * No longer offered by either client — the question is "who can add photos",
+ * and "nobody, including you" turned out to be a way of ending an album that
+ * people reached for by accident and could not find their way back out of.
+ * `0034_event_hosts` moves the albums that held it to `creator`.
+ *
+ * Still understood here, and that is not an oversight. A value that exists in
+ * one deployed client and not in the engine is a value that fails closed on
+ * the wrong side of a rollback, and this one has an unambiguous meaning; the
+ * cost of keeping it is a branch nothing writes any more.
+ */
+export const CONTRIBUTE_NOBODY = 'nobody';
+
+const KNOWN_CONTRIBUTE: readonly string[] = [
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_CREATOR,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
+];
+
 export function authorize(
   actor: PolicyActor,
   capability: Capability,
@@ -125,6 +231,7 @@ export function authorize(
   const signedIn = actor?.hasAccount === true;
 
   const isCreator = actor != null && actor.id === event.createdBy;
+  const isEventHost = Boolean(presented.isEventHost);
   const isGroupAdmin = Boolean(presented.isGroupAdmin);
   const isGroupMember = Boolean(presented.isGroupMember) || isGroupAdmin;
   const isParticipant = Boolean(presented.isParticipant);
@@ -211,16 +318,48 @@ export function authorize(
   const alreadyIn = isParticipant || isGroupMember || isCreator;
   if (!event.joinsOpen && !alreadyIn) return deny('joins_closed');
 
-  // Adding photos names who added them, on every event and whatever its access
+  // Taking part names who took part, on every event and whatever its access
   // policy. Viewing a link-open event stays anonymous; contributing does not,
   // because an upload is the one action here that puts someone else's bytes in
-  // front of strangers and has to be attributable afterwards.
-  if (capability === 'contribute' && !signedIn) {
+  // front of strangers and has to be attributable afterwards — and a message
+  // addresses a room.
+  if ((capability === 'contribute' || capability === 'upload') && !signedIn) {
     return deny('sign_in_required');
   }
 
-  if (capability === 'contribute' && !event.uploadsOpen) {
-    return deny('uploads_closed');
+  if (capability === 'upload') {
+    /*
+     * Fail closed on an unrecognised policy, exactly as the access policy does
+     * above: a value nobody has taught this function about must shut the album
+     * rather than open it. It is also what makes the migration off
+     * `uploads_open` safe in either order.
+     */
+    if (!KNOWN_CONTRIBUTE.includes(event.contributePolicy)) return deny('uploads_closed');
+
+    if (event.contributePolicy === CONTRIBUTE_NOBODY) return deny('uploads_closed');
+
+    /*
+     * `creator` and `host` both deny somebody who can see everything and was
+     * invited by name, which is why they share a reason of their own:
+     * "closed" and "not yours to add to" are different sentences and a client
+     * should be able to say which.
+     *
+     * They differ in who is let through, and the difference is the point of
+     * having both. `creator` is one person. `host` is that person plus a
+     * group's admins plus anybody promoted — which is the set a client offers
+     * "ask to be a host" against, and the reason `host_only` is the answer it
+     * acts on rather than just reports.
+     */
+    if (event.contributePolicy === CONTRIBUTE_CREATOR && !isCreator) {
+      return deny('host_only');
+    }
+
+    if (
+      event.contributePolicy === CONTRIBUTE_HOST &&
+      !(isCreator || isGroupAdmin || isEventHost)
+    ) {
+      return deny('host_only');
+    }
   }
 
   return ALLOW;
@@ -243,6 +382,7 @@ export function denyStatus(reason: DenyReason): 404 | 403 {
     case 'stale_capability':
     case 'joins_closed':
     case 'uploads_closed':
+    case 'host_only':
     case 'not_administrator':
     // 403, not 404: every path that reaches this has already presented a real
     // credential, so the event's existence is not being disclosed by saying

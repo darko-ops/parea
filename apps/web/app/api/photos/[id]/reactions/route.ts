@@ -28,7 +28,7 @@ import {
   reactionCountFor,
   togglePhotoReaction,
 } from '@/photoReactions';
-import { isReaction } from '@/reactions';
+import { isEmoji } from '@/reactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -84,10 +84,19 @@ export async function POST(
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };
-  // A closed set offered by the interface and checked here. The column is
-  // bounded by length rather than by a list — see the schema note.
-  if (!isReaction(body.emoji)) {
-    return NextResponse.json({ error: 'unknown_reaction' }, { status: 400 });
+  /*
+   * Any emoji, not one of six.
+   *
+   * The picker offered a closed set and this checked against it, so the list
+   * was both the vocabulary and the validation. The app can reach the system
+   * keyboard now, which means the set is open and the question changes from
+   * "which emoji do we like" to "is this an emoji at all" — `isEmoji` answers
+   * that, and the rule doing the real work is that it must be a single
+   * grapheme. Without that, the column under a photograph is an unmoderated
+   * text channel reached through a box labelled "pick an emoji".
+   */
+  if (!isEmoji(body.emoji)) {
+    return NextResponse.json({ error: 'not_an_emoji' }, { status: 400 });
   }
 
   /*

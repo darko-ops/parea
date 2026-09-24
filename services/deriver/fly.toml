@@ -1,10 +1,20 @@
-# Ingest runs as a long-lived worker, not a request handler.
+# Ingest is woken by work arriving, not by looking for it.
 #
-# It polls for pending photos and processes them one at a time. There is no
-# HTTP surface, so no health check and no autoscaling — and deliberately a
-# single machine: two would race on the same pending rows, and the pipeline is
-# not built for that (design §7.5 notes serial processing as the first thing to
-# change if ingest ever becomes the bottleneck).
+# It was a long-lived worker polling for pending photos every five seconds.
+# The queries cost nothing; being connected did. Neon suspends a compute only
+# once nothing is connected, so the poll meant a database that never slept —
+# forty days of an idle machine exhausted a month's quota and took sign-in down
+# with it.
+#
+# Now QStash delivers one signed request per photo and the machine starts to
+# answer it. Between uploads there is nothing running here and nothing holding
+# the database open.
+#
+# Still deliberately a single machine: two would race on the same rows, and the
+# pipeline is not built for that (design §7.5 notes serial processing as the
+# first thing to change if ingest becomes the bottleneck). The machine also has
+# one core, so a second concurrent derive would contend rather than help — see
+# DEFAULT_CONCURRENCY, which carries the measurements.
 
 app = "parea-deriver"
 primary_region = "lhr"
@@ -14,27 +24,83 @@ primary_region = "lhr"
 
 [env]
   NODE_ENV = "production"
-  DERIVER_POLL_MS = "5000"
+  # Signed into every delivery, so it must match DERIVER_JOB_URL in the web
+  # app's environment exactly. Not a secret, and not inferrable from the
+  # request: behind Fly's proxy the app sees plain HTTP and a rewritten host,
+  # so rebuilding it here would reject every genuine delivery.
+  DERIVER_PUBLIC_URL = "https://parea-deriver.fly.dev/jobs/photo"
 
 [processes]
-  # `watch` re-runs the boot probe and refuses to start if this machine cannot
-  # decode HEIC, strip metadata, or reach a child-safety scanner.
-  worker = "npx tsx services/deriver/src/index.ts watch"
+  # `serve` re-runs the boot probe, and additionally refuses to start without
+  # the signing keys — this endpoint does real work on request, so an unsigned
+  # one is somebody else deciding what this machine spends its time on. The
+  # probe still refuses a machine that cannot decode HEIC, strip metadata, or
+  # reach a child-safety scanner.
+  worker = "npx tsx services/deriver/src/index.ts serve"
+
+# The surface QStash delivers to, and the thing that starts the machine.
+#
+# `auto_start_machines` is what replaces the poll: a delivery arrives, Fly
+# starts the machine to serve it. `min_machines_running = 0` is the other half
+# — without it one machine stays up forever and none of this saves anything.
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = "stop"
+  min_machines_running = 0
+  processes = ["worker"]
+
+  # A delivery is answered only once its photo is derived, so a request in
+  # flight *is* work in progress — which is exactly what stops Fly stopping the
+  # machine mid-job. One at a time, for the same reason DEFAULT_CONCURRENCY is
+  # one: a single core.
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 1
+    soft_limit = 1
+
+  # Liveness only. Deliberately not a readiness check that opens a database
+  # connection: a machine kept awake answering health checks is the poll loop
+  # this replaced, wearing a different name.
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
 
 [[vm]]
   # libvips and libheif want headroom on a 4000x3000 HEIC; 512MB is not enough.
   #
   # 2GB rather than 1GB because MAX_INPUT_PIXELS in derivatives.ts allows 400MP.
-  # A real upload arrived at 17000x17000 — 289MP, 1.7MB compressed, and about
-  # 1.16GB as raw RGBA. At 1GB the limit and the machine disagreed: raising one
-  # without the other converts a photo that fails cleanly into an OOM kill, and
-  # an OOM takes ingest down for every photo rather than for the one that
-  # caused it. These two numbers are a pair; move them together.
+  # A real upload arrived at 17000x17000 — 289MP, 1.7MB compressed. At 1GB the
+  # limit and the machine disagreed: raising one without the other converts a
+  # photo that fails cleanly into an OOM kill, and an OOM takes ingest down for
+  # every photo rather than for the one that caused it. These two numbers are a
+  # pair; move them together.
+  #
+  # The estimate that sized this said "about 1.16GB as raw RGBA" for that
+  # upload. Measured on this machine, deriving all five sizes from it peaked at
+  # 173MB and took 1.2 seconds — sharp shrinks on load for JPEG, decoding
+  # straight to the size being asked for rather than materialising the raster.
+  # Four sizes from 12MP to 289MP all stayed under 325MB.
+  #
+  # The 2GB stays anyway, and not out of caution for its own sake: libheif
+  # cannot shrink on load, so a large HEIC is the case this was chosen for and
+  # is the one case that could not be measured here. The machine segfaults
+  # merely generating a raster that size, which is how the first attempt at
+  # measuring this produced a crash and nearly reported it as a derive failure.
+  # Shrinking this wants a real HEIC from a real phone first.
   memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
 
-# Exactly one. Scaling this out needs claim-based work distribution first.
+# Exactly one. Scaling this out needs claim-based work distribution first —
+# the in-process guard in serve.ts stops two deliveries of the same photo
+# overlapping on *this* machine and says nothing about a second one.
+#
+# `auto_start` and `auto_stop` are gone from here: [http_service] above owns
+# that now, and leaving a second pair of switches saying `false` would quietly
+# contradict it.
 [machines]
-  auto_start = false
-  auto_stop = false

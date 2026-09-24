@@ -16,7 +16,15 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
-import { areFriends, befriend, findPeople, friendsOf, requestsFor, unfriend } from '@/friends';
+import {
+  areFriends,
+  befriend,
+  findPeople,
+  friendsOf,
+  requestsFor,
+  suggestionsFor,
+  unfriend,
+} from '@/friends';
 
 import { stripComments } from './support/source';
 
@@ -255,3 +263,94 @@ describe('the requests waiting on you', () => {
     expect(await findPeople(db, null, 'amber')).toEqual([]);
   });
 });
+
+/**
+ * People worth asking, which the app now draws on Find.
+ *
+ * `suggestionsFor` has existed since the web's Find page was written, and the
+ * web called it directly as a server component. The app cannot, so it reaches
+ * it through `/api/people/suggestions` — and a query nothing outside one
+ * server-rendered page had ever exercised is worth exercising before a second
+ * client starts drawing faces from it.
+ */
+describe('people you may know', () => {
+  it('is friends of your friends, most mutuals first', async () => {
+    const me = await person('me');
+    const ana = await person('ana');
+    const bo = await person('bo');
+    // Known by both of my friends; should lead.
+    const common = await person('common');
+    // Known by one; should follow.
+    const distant = await person('distant');
+
+    await befriend(db, me, ana);
+    await befriend(db, me, bo);
+    await befriend(db, ana, common);
+    await befriend(db, bo, common);
+    await befriend(db, ana, distant);
+
+    const suggested = await suggestionsFor(db, me);
+    expect(suggested.map((p) => p.handle)).toEqual(['common', 'distant']);
+    expect(suggested[0]!.mutuals).toBe(2);
+    expect(suggested[1]!.mutuals).toBe(1);
+  });
+
+  it('leaves out you, your friends, and anyone already asked', async () => {
+    const me = await person('me');
+    const ana = await person('ana');
+    const already = await person('already');
+    const pending = await person('pending');
+
+    await befriend(db, me, ana);
+    await befriend(db, ana, already);
+    await befriend(db, ana, pending);
+    // Already friends with one of my friend's friends.
+    await befriend(db, me, already);
+    // And a request open with the other, in either direction.
+    await db.insert(schema.friendRequests).values({ fromActorId: me, toActorId: pending });
+
+    const suggested = await suggestionsFor(db, me);
+    expect(suggested.map((p) => p.handle)).toEqual([]);
+  });
+
+  it('leaves out a device that never signed in', async () => {
+    /*
+     * The same test everything here applies for "a person": an account, not a
+     * device. A guest is somebody who opened a link, and suggesting them would
+     * be suggesting a browser.
+     */
+    const me = await person('me');
+    const ana = await person('ana');
+    const device = await guest('device');
+    await befriend(db, me, ana);
+    await befriend(db, ana, device);
+
+    expect(await suggestionsFor(db, me)).toEqual([]);
+  });
+
+  it('answers nothing for somebody with no friends, rather than failing', async () => {
+    // Which is the common case on a new account, and it is arithmetic rather
+    // than an error — the row in the app says so in words.
+    expect(await suggestionsFor(db, await person('lonely'))).toEqual([]);
+    expect(await suggestionsFor(db, null)).toEqual([]);
+  });
+
+  it('hands the app URLs and a count, never a storage key', async () => {
+    const ROUTE = stripComments(
+      readFileSync(
+        fileURLToPath(new URL('../app/api/people/suggestions/route.ts', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(ROUTE).toMatch(/avatar: await avatarUrl\(person\.avatarKey\)/);
+    expect(ROUTE).not.toMatch(/avatarKey,/);
+    expect(ROUTE).not.toMatch(/avatarKey:/);
+    // And the mutual count, which is the whole difference between a suggestion
+    // and a list.
+    expect(ROUTE).toMatch(/mutuals: person\.mutuals/);
+    // Signed in, not merely present.
+    expect(ROUTE).toMatch(/isSignedIn/);
+    expect(ROUTE).toMatch(/sign_in_required/);
+  });
+});
+

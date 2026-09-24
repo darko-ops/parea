@@ -111,6 +111,32 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'QSTASH_TOKEN',
+      present: has('QSTASH_TOKEN'),
+      // Without it `complete` answers 503 and the upload is refused, which is
+      // deliberate: the deriver no longer polls, so a photo nobody announced
+      // is a photo nobody derives. Loud beats stranded.
+      consequence: 'uploads cannot be queued for deriving, and are refused',
+      requiredInProduction: true,
+    },
+    {
+      name: 'QSTASH_URL',
+      present: has('QSTASH_URL'),
+      // Optional, and only because the library has a default that is right for
+      // one region. An account elsewhere publishing to the default endpoint is
+      // told "user not found in this region", which reads like a bad token.
+      consequence: 'publishes go to the default region, which may not be yours',
+      requiredInProduction: false,
+    },
+    {
+      name: 'DERIVER_JOB_URL',
+      present: has('DERIVER_JOB_URL'),
+      // Paired with the token: configured to publish with nowhere to publish
+      // to is the one combination that looks live and strands every photo.
+      consequence: 'queued work has no destination; uploads are refused',
+      requiredInProduction: true,
+    },
+    {
       name: 'MAIL_PROVIDER',
       // Not "is it set" — unset is fine and means the default. This reports
       // whether the mailer can be *built*, so the answer is false only when

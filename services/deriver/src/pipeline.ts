@@ -213,46 +213,83 @@ export async function processPhoto(
     const keyOf = (d: { kind: DerivativeKind; format: ImageFormat }) =>
       derivativeKey(photo.eventId, hex, d.kind, d.format);
 
-    for (const derivative of derivatives) {
-      await objects.put(keyOf(derivative), derivative.bytes, derivative.mime);
-    }
+    /*
+     * Together, because they are seven independent round trips to storage and
+     * nothing downstream distinguishes the order they land in. One at a time
+     * put seven latencies end to end into every photograph, on a deriver that
+     * handles photographs one at a time — so it was seven round trips of the
+     * whole queue's waiting, per photo, for no ordering anybody relies on.
+     *
+     * `Promise.all` rejects on the first failure, which is what is wanted and
+     * is what the sequential loop did too: the throw leaves `processPhoto`
+     * before the row is promoted to `ready`, so the photo stays `pending` and
+     * the next poll has another go. The objects that did land are written over
+     * by that attempt, because their keys come from the content hash.
+     */
+    await Promise.all(
+      derivatives.map((derivative) =>
+        objects.put(keyOf(derivative), derivative.bytes, derivative.mime),
+      ),
+    );
 
-    await db
-      .update(schema.photos)
-      .set({
-        storageKey: finalKey,
-        contentHash,
-        crc32: crc32(stripped),
-        byteSize: stripped.length,
-        mime,
-        width: dimensions.width ?? metadata.width,
-        height: dimensions.height ?? metadata.height,
-        capturedAt: metadata.capturedAt,
-        capturedOffsetMinutes: metadata.capturedOffsetMinutes,
-        status: 'ready',
-      })
-      .where(eq(schema.photos.id, photo.id));
+    /*
+     * `ready` and the rows that make it true, committed together.
+     *
+     * These were two statements, and the window between them was permanent
+     * damage rather than a retry: `status` went to `ready` first, so a crash
+     * before the derivative rows landed left a photo that every later attempt
+     * refused to touch — the guard at the top of this function returns early
+     * on `ready`, which is exactly what makes re-running safe and exactly what
+     * makes this unrecoverable. The objects were in storage, the rows were
+     * not, and the album quietly served originals for every size forever.
+     *
+     * Rare by hand and routine under retries, which is why it is worth fixing
+     * before anything starts retrying on purpose: a scheduler turns "the
+     * process happened to die in a 5ms window" into a thing that occurs.
+     *
+     * The uploads above stay outside. They are idempotent by construction —
+     * the keys are content hashes, so a second attempt overwrites the same
+     * bytes — and holding a transaction open across an object store is how a
+     * slow network turns into held Postgres connections.
+     */
+    await db.transaction(async (tx: typeof db) => {
+      await tx
+        .update(schema.photos)
+        .set({
+          storageKey: finalKey,
+          contentHash,
+          crc32: crc32(stripped),
+          byteSize: stripped.length,
+          mime,
+          width: dimensions.width ?? metadata.width,
+          height: dimensions.height ?? metadata.height,
+          capturedAt: metadata.capturedAt,
+          capturedOffsetMinutes: metadata.capturedOffsetMinutes,
+          status: 'ready',
+        })
+        .where(eq(schema.photos.id, photo.id));
 
-    await db
-      .insert(schema.derivatives)
-      .values(
-        derivatives.map((d) => ({
-          photoId: photo.id,
-          kind: d.kind,
-          format: d.format,
-          storageKey: keyOf(d),
-          width: d.width,
-          height: d.height,
-          mime: d.mime,
-          // Same reason the original records them (§10): "download as JPEG"
-          // archives these objects, and an archive can only carry an exact
-          // Content-Length if every member's size and CRC are known before
-          // anything is read. The bytes are in hand here and nowhere else.
-          byteSize: d.bytes.length,
-          crc32: crc32(d.bytes),
-        })),
-      )
-      .onConflictDoNothing();
+      await tx
+        .insert(schema.derivatives)
+        .values(
+          derivatives.map((d) => ({
+            photoId: photo.id,
+            kind: d.kind,
+            format: d.format,
+            storageKey: keyOf(d),
+            width: d.width,
+            height: d.height,
+            mime: d.mime,
+            // Same reason the original records them (§10): "download as JPEG"
+            // archives these objects, and an archive can only carry an exact
+            // Content-Length if every member's size and CRC are known before
+            // anything is read. The bytes are in hand here and nowhere else.
+            byteSize: d.bytes.length,
+            crc32: crc32(d.bytes),
+          })),
+        )
+        .onConflictDoNothing();
+    });
 
     // Only once the row points at the new key. Deleting first would leave a
     // window where a crash loses the photo entirely.

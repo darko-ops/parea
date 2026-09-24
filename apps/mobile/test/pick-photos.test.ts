@@ -94,7 +94,10 @@ describe('the form, once the photographs have been chosen', () => {
   const form = code(CREATE);
 
   it('asks four things and posts', () => {
-    expect(form).toMatch(/WHAT WAS IT\?/);
+    // `CAPTION`, not `WHAT WAS IT?`: the framed cover sits above this field
+    // now, and a caption is what words under a picture are called.
+    expect(form).toMatch(/CAPTION/);
+    expect(form).not.toMatch(/WHAT WAS IT\?/);
     expect(form).toMatch(/WHERE/);
     expect(form).toMatch(/WHO IS IN IT/);
     expect(form).toMatch(/WHO CAN SEE IT/);
@@ -106,15 +109,75 @@ describe('the form, once the photographs have been chosen', () => {
     // phrase resolved to a six-hour box.
     expect(form).not.toMatch(/WHEN</);
     expect(form).not.toMatch(/WHEN_OPTIONS|windowFor|eventDateFor/);
-    expect(form).toMatch(/windowOf\(chosen\)/);
+    // Off what is going in, not off what was chosen: the row under the cover
+    // can take photographs out, and dropping the last four of the night moves
+    // when the album ends.
+    expect(form).toMatch(/windowOf\(photos\)/);
   });
 
-  it('no longer asks for a cover', () => {
-    // It asked somebody to pick a leading photograph out of the library they
-    // had just picked photographs out of.
+  it('never asks which picture leads — the first one chosen does', () => {
+    /*
+     * It used to ask, as `EVENT COVER`: a whole second trip through the library
+     * to pick one of the pictures you had just picked, which is the same act
+     * twice. Then it asked again on a page of its own. The rule is the order of
+     * the selection, and the row on this screen is how it is changed.
+     */
     expect(form).not.toMatch(/EVENT COVER/);
     expect(form).not.toMatch(/ImagePicker/);
-    expect(form).toMatch(/const cover = chosen\[0\] \?\? null/);
+    expect(form).toMatch(/const cover = photos\[0\] \?\? null/);
+  });
+
+  it('asks how it is framed on arrival, once', () => {
+    /*
+     * Framing behind a control is framing most people never find, and the cover
+     * is the one thing on this screen everybody else sees. So the frame comes
+     * up by itself — and exactly once: the ref is set before the state change
+     * and never released, so React's pair of development invocations opens one
+     * framer rather than two.
+     */
+    expect(form).toMatch(/if \(asked\.current \|\| chosen\.length === 0\) return;/);
+    expect(form).toMatch(/asked\.current = true;\s*setFramerOpen\(true\);/);
+  });
+
+  it('frames the photographs already chosen, not ones picked again', () => {
+    /*
+     * `allowsEditing` is the obvious answer and cannot be used: iOS offers that
+     * crop UI only as part of picking, so reaching for it means the whole camera
+     * roll in front of somebody who chose these pictures ten seconds ago.
+     *
+     * The album goes in with it, so a different one can be tried in the frame —
+     * which is the only place the question "does this work as a card" can
+     * actually be answered.
+     */
+    expect(form).toMatch(/<CoverFramer/);
+    expect(form).toMatch(/photos=\{photos\}/);
+    expect(form).toMatch(/coverId=\{cover\.id\}/);
+  });
+
+  it('treats a photograph kept from the frame as a promotion', () => {
+    // One path to "which one leads", so the cover cannot become a second fact
+    // that disagrees with the order of the list.
+    expect(form).toMatch(/if \(picked\) promote\(picked\);/);
+    // And the framing lands after it, because `promote` centres what it is
+    // handed.
+    expect(form).toMatch(/if \(picked\) promote\(picked\);\s*setFraming\(next\);/);
+  });
+
+  it('takes a cancelled frame for an answer', () => {
+    // Backing out leaves the first photograph leading, centred, which is what
+    // the window would have shown anyway. It must not block the form or ask
+    // again.
+    expect(form).toMatch(/onCancel=\{\(\) => setFramerOpen\(false\)\}/);
+    expect(form).toMatch(/useState<CoverFraming>\(CENTRED\)/);
+  });
+
+  it('has no page between the picker and itself', () => {
+    // That page drew the cover in a 3:2 window and let somebody drag it. It
+    // was a whole step everybody paid for so that some people could pan a
+    // photograph, and the operating system already does it better.
+    expect(APP).not.toMatch(/screen: 'cover'/);
+    expect(APP).not.toMatch(/FrameCover/);
+    expect(APP).toMatch(/route\.screen === 'pick'[\s\S]{0,400}screen: 'create'/);
   });
 
   it('asks who is in it whether or not a run was detected', () => {
@@ -271,11 +334,19 @@ describe('the two paths that still handed iOS a library file', () => {
   it('copies the cover too, which the first fix missed', () => {
     /*
      * The cover goes up on a background session exactly as a photograph does,
-     * and `chosen[0].uri` is an asset path — so it failed the same way and was
-     * the half of this that got missed.
+     * and an asset's own `uri` is a path inside the Photos container that the
+     * background daemon cannot open — so it failed the same way, and was the
+     * half of this that got missed.
+     *
+     * It is not sent from the form at all now. Sending it there meant sending
+     * it before any photograph existed, with no id to record it against, and
+     * the card then showed the cover and its own source picture side by side.
+     * The album sends it once that photograph has been presigned — and copies
+     * it into the sandbox there, for the original reason.
      */
-    expect(CREATE).toMatch(/sandboxCopy\(cover\.id\)/);
-    expect(CREATE).not.toMatch(/uploadCover\(target\.url, target\.headers, cover\.uri\)/);
+    expect(CREATE).not.toMatch(/uploadCover/);
+    expect(APP).toMatch(/const copy = await sandboxCopy\(local\);/);
+    expect(APP).toMatch(/await sendCover\(copy\.uri, initialCover, item\.photoId\)/);
   });
 
   it('leaves the avatar upload alone, which never needed it', () => {
@@ -296,29 +367,62 @@ describe('the bar, and when the album is actually full', () => {
      */
     expect(APP).toMatch(/const outstanding = uploading \+ \(feed\?\.arriving \?\? 0\)/);
     expect(APP).toMatch(/\(batch - outstanding\) \/ batch/);
-    // And it goes when both halves are done, which is the moment the album is
-    // full rather than the moment the phone stopped sending.
-    expect(APP).toMatch(/if \(outstanding === 0\) \{\s*setBatch\(null\);\s*setProgress\(null\);/);
+    /*
+     * And a zero is held rather than believed. `uploading` drops the instant
+     * the last byte leaves, while the feed is still the one fetched before any
+     * of this began — it says `arriving: 0` because it was read before the rows
+     * existed. Believing that ended the batch on a stale answer, which is the
+     * bar vanishing partway with the album still empty.
+     */
+    expect(APP).toMatch(/const settle = setTimeout\(\(\) => \{\s*setBatch\(null\);\s*setProgress\(null\);/);
+    expect(APP).toMatch(/return \(\) => clearTimeout\(settle\)/);
   });
 
   it('asks again while anything is still being processed', () => {
     // The deriver tells nobody when it is done, so without this the album sits
     // on whatever it knew when it opened.
-    expect(APP).toMatch(/if \(!feed \|\| feed\.arriving === 0\) return;/);
-    expect(APP).toMatch(/setInterval\(\(\) => void refresh\(\), 2000\)/);
-    // And not at all otherwise: an album nobody is adding to must not poll in
-    // somebody's pocket.
-    expect(APP).toMatch(/return \(\) => clearInterval\(timer\)/);
+    /*
+     * The condition is a ref, not a dependency, and that distinction is the
+     * whole bug it was written for. As a dependency it included `uploading`,
+     * which the queue writes every 400ms — so the effect tore its two-second
+     * timer down and built a new one four hundred milliseconds into every wait.
+     * It never reached the end of a cycle, so it never fired: what looked like
+     * "polling stops after the first photograph" was polling that had never
+     * started, with the single post-upload refresh doing all the work.
+     */
+    expect(APP).toMatch(/stillComing\.current = uploading > 0 \|\| \(feed\?\.arriving \?\? 0\) > 0/);
+    expect(APP).toMatch(/if \(stillComing\.current\) void refresh\(\);/);
+    // Made once, from a stable callback, so nothing re-renders it away.
+    expect(APP).toMatch(/setInterval\(\(\)[\s\S]{0,80}\}, 2000\);\s*return \(\) => clearInterval\(timer\);\s*\}, \[refresh\]\);/);
   });
 
-  it('sits on the cover’s own edge, in white', () => {
+  it('sits on the cover’s own edge, in white that can be seen', () => {
     // It was on the page's top edge, sixteen points lower, reading as a line
     // floating in the gap.
     expect(APP).toMatch(/uploadBar: \{\s*position: 'absolute',\s*bottom: 0,/);
-    expect(APP).toMatch(/backgroundColor: '#fff',/);
-    // Drawn inside the cover, after the scrim that makes white legible.
+    /*
+     * White, and this has been both.
+     *
+     * It was white, then the accent — because the bottom two points of the
+     * header are the page's own near-white by design, where a white line is
+     * not there at all. It is white again by request, and the objection was
+     * real, so the line carries its own contrast now: a soft dark shadow
+     * under 2.5 points reads as an edge rather than a glow and survives both
+     * ends of the fade.
+     *
+     * The accent was never right over the top of it. Most of the bar's length
+     * lies on somebody's photograph, and a blue chosen to sit on this
+     * product's own surfaces is one more colour competing with whatever is in
+     * the picture.
+     */
+    expect(APP).toMatch(/styles\.uploadBar,[\s\S]{0,800}\{ backgroundColor: '#fff' \}/);
+    const bar = APP.slice(APP.indexOf('uploadBar: {'), APP.indexOf('uploadBar: {') + 1400);
+    expect(bar).toMatch(/shadowColor: '#000'/);
+    expect(bar).toMatch(/shadowOpacity: 0\.45/);
+    // Drawn inside the cover, and still above everything that fades under it.
     const cover = APP.slice(APP.indexOf('<View style={styles.cover}>'));
     expect(cover.indexOf('styles.uploadBar')).toBeLessThan(cover.indexOf('styles.coverBack'));
+    expect(cover.indexOf('styles.coverFoot')).toBeLessThan(cover.indexOf('styles.uploadBar'));
   });
 });
 
@@ -332,7 +436,9 @@ describe('what happens to the photographs', () => {
      */
     expect(APP).toMatch(/initialUpload/);
     expect(APP).toMatch(/await enqueue\(await resolveForUpload\(initialUpload\)\)/);
-    expect(APP).toMatch(/route\.chosen\.map\(\(photo\) => photo\.id\)/);
+    // The form's list, not the picker's: the row under the cover has a ⊗ on
+    // every tile, so what arrives is not always what was chosen.
+    expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 
   it('are sent once, however often the effect re-runs', () => {
@@ -344,5 +450,91 @@ describe('what happens to the photographs', () => {
 
   it('says so rather than failing silently', () => {
     expect(APP).toMatch(/Could not start those uploads/);
+  });
+});
+
+/**
+ * Typing a name with a keyboard in the way.
+ *
+ * The caption field sits below a strip of detected runs, deliberately — the
+ * screen opens on the photographs rather than on a text box. Which is exactly
+ * why focusing it has to move the page: the field is below the fold by design,
+ * so the keyboard that comes up when somebody taps it comes up over the thing
+ * they tapped, and what that looks like is typing blind.
+ */
+describe('the fields on the create screen', () => {
+  const CREATE = readFileSync(
+    fileURLToPath(new URL('../src/CreateEvent.tsx', import.meta.url).href),
+    'utf8',
+  );
+
+  it('brings the focused field above the keyboard', () => {
+    // Measured rather than guessed: a constant would be wrong the moment the
+    // strip above is there or is not.
+    expect(CREATE).toMatch(/const measureField = useCallback\(/);
+    expect(CREATE).toMatch(/onLayout=\{measureField\('name'\)\}/);
+    expect(CREATE).toMatch(/onFocus=\{\(\) => bringIntoView\('name'\)\}/);
+    // The label above belongs to the field, so the scroll stops short of it.
+    expect(CREATE).toMatch(/Math\.max\(top - 24, 0\)/);
+  });
+
+  it('gives the scroll somewhere to move to', () => {
+    /*
+     * The other half, and neither works alone: the scroll used to end at its
+     * content, so a field near the foot had nowhere to scroll *to* — the
+     * keyboard came up over it and the view was already at the bottom.
+     */
+    expect(CREATE).toMatch(/automaticallyAdjustKeyboardInsets/);
+    // And a tap on a pill while a field has focus presses the pill rather than
+    // spending itself dismissing the keyboard.
+    expect(CREATE).toMatch(/keyboardShouldPersistTaps="handled"/);
+  });
+});
+
+/**
+ * The duplicate on a card of four photographs.
+ *
+ * An album of four showed a cover and three thumbnails under it, and one of
+ * the three was the cover again. Not a rendering fault: the card already
+ * skips `mosaic[0]`, and the server already drops the photograph a cover was
+ * cropped from — where it knows which one that was.
+ *
+ * It did not know. The form sent the cover the moment the album existed,
+ * before a single photograph had been presigned, so there was no id to name
+ * it by and `coverPhotoId` was written null. Setting a cover from inside an
+ * album has always passed the id and has never had this.
+ */
+describe('a cover that knows which photograph it came from', () => {
+  it('is sent once that photograph has an id, not before', () => {
+    // The wait: the queue item for the first chosen picture, with a photoId.
+    expect(APP).toMatch(/const local = initialUpload\?\.\[0\];/);
+    expect(APP).toMatch(/uploads\.items\.find\(\(i\) => i\.id === local && i\.eventId === event\.id\)/);
+    expect(APP).toMatch(/if \(!item\?\.photoId\) return;/);
+  });
+
+  it('names it, which is the whole point', () => {
+    expect(APP).toMatch(/sendCover\(copy\.uri, initialCover, item\.photoId\)/);
+    // `sendCover` hands it to the route as `?photo=`, which is what the
+    // server records and later uses to drop it from the strip.
+    expect(APP).toMatch(/api\.coverTarget\(event\.id, framing, photoId\)/);
+    const API = read('src/api.ts');
+    expect(API).toMatch(/if \(photoId\) query\.set\('photo', photoId\);/);
+  });
+
+  it('sends one cover, however often the queue is saved', () => {
+    // The queue state changes on every save, and this effect watches it.
+    expect(APP).toMatch(/const coverSent = useRef\(false\);/);
+    expect(APP).toMatch(/coverSent\.current = true;/);
+  });
+
+  it('leaves the card looking right in the meantime', () => {
+    /*
+     * Uncovered, a card leads with `mosaic[0]` — which is that same
+     * photograph. So the seconds before the cover lands show the same
+     * picture, unframed, rather than a gap.
+     */
+    const CARDS = read('../../apps/web/src/cards.ts');
+    expect(CARDS).toMatch(/const cover = await coverSrc\(listing\.coverKey\);\s*if \(cover\) return cover;/);
+    expect(CARDS).toMatch(/const first = listing\.mosaic\[0\];/);
   });
 });

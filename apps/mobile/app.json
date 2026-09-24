@@ -10,7 +10,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "photos.parea",
-      "associatedDomains": ["applinks:parea.photos"],
+      "associatedDomains": [
+        "applinks:parea.photos",
+        "applinks:www.parea.photos"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocalNetworkUsageDescription": "Load the app from the development server running on your own machine. The App Store build talks only to parea.photos and never asks for this."
@@ -47,11 +50,15 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           }
         ]
       }
@@ -60,14 +67,29 @@
       "package": "photos.parea",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-background.png",
         "backgroundColor": "#ffffff"
       },
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "parea.photos", "pathPrefix": "/e" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "https",
+              "host": "parea.photos",
+              "pathPrefix": "/e"
+            },
+            {
+              "scheme": "https",
+              "host": "www.parea.photos",
+              "pathPrefix": "/e"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -87,7 +109,9 @@
         {
           "photosPermission": "Save everyone's photos from this event to your camera roll.",
           "savePhotosPermission": "Save everyone's photos from this event to your camera roll.",
-          "granularPermissions": ["photo"]
+          "granularPermissions": [
+            "photo"
+          ]
         }
       ],
       [
@@ -99,7 +123,33 @@
         }
       ],
       "expo-notifications",
-      ["expo-secure-store", { "faceIDPermission": false }]
-    ]
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Garet-Book.ttf"
+          ]
+        }
+      ],
+      "expo-image"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6b89aa4c-b218-47bd-b96c-6105bb1f73a8"
+      }
+    },
+    "owner": "rrsrch",
+    "updates": {
+      "url": "https://u.expo.dev/6b89aa4c-b218-47bd-b96c-6105bb1f73a8"
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    }
   }
 }

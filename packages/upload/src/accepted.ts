@@ -78,3 +78,26 @@ export function acceptedMime(type: string): AcceptedMime | null {
     ? (bare as AcceptedMime)
     : null;
 }
+
+
+/**
+ * How many files may be presigned in one request.
+ *
+ * Here for the same reason the mime list is here, and it is the same failure
+ * one level along: the presign route bounded a batch at fifty and the queue
+ * that calls it sent "the whole pending batch" in a single call, with no idea
+ * a bound existed. Choose fifty-one photographs and the request was refused
+ * whole — `parseFiles` answers null rather than a short list, before any row
+ * is written — so every item failed, nothing reached storage, and the album
+ * had no pending photographs to show for it. The person saw an album with a
+ * cover and nothing in it.
+ *
+ * A rule stated in one place and enforced in another is a rule the two ends
+ * eventually disagree about. Now the queue chunks by this and the route
+ * refuses by this, and they cannot drift apart without the test noticing.
+ *
+ * Fifty is the route's own number, kept: it is an anti-catastrophe bound
+ * rather than a product limit, and nothing about a person choosing two
+ * hundred photographs should change it — that is what chunking is for.
+ */
+export const MAX_FILES_PER_PRESIGN = 50;

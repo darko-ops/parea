@@ -17,8 +17,10 @@
  * The `Message` shape, imported rather than redeclared, because one client
  * component draws both and a thread that behaves differently depending on
  * which room it is in is two threads to reason about. `photoId` is always
- * null — a group owns no photographs, they belong to the events under it — and
- * `reactions` is always empty; see the note on `groupMessages` in the schema.
+ * null — a group owns no photographs, they belong to the events under it.
+ * `reactions` used to be always empty and is not any more: `group_message_
+ * reaction` is its own table for the reason the schema note gives, and the
+ * tally is built here exactly as `messagesFor` builds the event one.
  *
  * Blocking is enforced the same way and for the same reason: in SQL rather
  * than after the fact, so that adding a `limit` later cannot silently return a
@@ -66,6 +68,39 @@ export async function groupMessagesFor(
   groupId: string,
   viewerId: string | null,
 ): Promise<Message[]> {
+  /*
+   * The reactions, asked for beside the thread rather than after it.
+   *
+   * Scoped through the message's group rather than through a list of ids, so
+   * the question needs nothing from the query below and both go at once —
+   * `messagesFor` explains at length why that matters against a database in
+   * another region. It reads the same rows either way: every reaction in this
+   * group is a reaction on one of the messages that query returns, and any
+   * belonging to a message the viewer cannot see is dropped below, where the
+   * tally is built from `rows`.
+   *
+   * Not awaited here. Started here, awaited once the messages are back.
+   */
+  const reactionRows = db
+    .select({
+      messageId: schema.groupMessageReactions.messageId,
+      emoji: schema.groupMessageReactions.emoji,
+      actorId: schema.groupMessageReactions.actorId,
+    })
+    .from(schema.groupMessageReactions)
+    .innerJoin(
+      schema.groupMessages,
+      eq(schema.groupMessages.id, schema.groupMessageReactions.messageId),
+    )
+    .where(eq(schema.groupMessages.groupId, groupId))
+    // Ordered, because the tally is built by walking these rows and their
+    // order is the order the pills come out in. See the long note on the
+    // event version of this query — the bug is the same bug.
+    .orderBy(
+      asc(schema.groupMessageReactions.createdAt),
+      asc(schema.groupMessageReactions.emoji),
+    );
+
   const rows = await db
     .select({
       id: schema.groupMessages.id,
@@ -103,6 +138,19 @@ export async function groupMessagesFor(
 
   if (rows.length === 0) return [];
 
+  const reactions = await reactionRows;
+
+  /** message id → emoji → {count, mine}. Built once rather than per message. */
+  const byMessage = new Map<string, Map<string, { count: number; mine: boolean }>>();
+  for (const reaction of reactions) {
+    const forMessage = byMessage.get(reaction.messageId) ?? new Map();
+    const tally = forMessage.get(reaction.emoji) ?? { count: 0, mine: false };
+    tally.count += 1;
+    if (viewerId != null && reaction.actorId === viewerId) tally.mine = true;
+    forMessage.set(reaction.emoji, tally);
+    byMessage.set(reaction.messageId, forMessage);
+  }
+
   // One presign per author, not per message.
   const faces = new Map<string, string | null>();
   for (const row of rows) {
@@ -118,7 +166,7 @@ export async function groupMessagesFor(
       createdAt: row.createdAt.toISOString(),
       edited: row.editedAt != null,
       deleted,
-      // A group has no photographs of its own, and no reactions yet.
+      // A group has no photographs of its own: they belong to its events.
       photoId: null,
       author: {
         key: memberKey(groupId, row.authorId),
@@ -126,9 +174,70 @@ export async function groupMessagesFor(
         mine: viewerId != null && row.authorId === viewerId,
         avatarUrl: faces.get(row.authorId) ?? null,
       },
-      reactions: [],
+      /*
+       * In the order the query returned them — by when each was left — which
+       * is what walking the rows into a map preserves.
+       *
+       * Deliberately not by count. A pill that moves when somebody else taps
+       * it is a pill you mis-tap, and a row that rearranges itself between
+       * two polls is a row nobody trusts. That is also why the query has an
+       * `order by` at all; see the note on it.
+       */
+      reactions: [...(byMessage.get(row.id) ?? new Map())].map(([emoji, tally]) => ({
+        emoji,
+        count: tally.count,
+        mine: tally.mine,
+      })),
     };
   });
+}
+
+/** How many this person has already left on this group message. */
+export async function groupReactionCountFor(
+  db: Db,
+  messageId: string,
+  actorId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.groupMessageReactions)
+    .where(
+      and(
+        eq(schema.groupMessageReactions.messageId, messageId),
+        eq(schema.groupMessageReactions.actorId, actorId),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
+/**
+ * On, or off again.
+ *
+ * One verb because the control is one pill: the delete runs first and its
+ * result is the answer, so there is no read-then-write for two taps to race
+ * through. `toggleReaction` in `messages.ts` is the same function about the
+ * other table.
+ */
+export async function toggleGroupReaction(
+  db: Db,
+  messageId: string,
+  actorId: string,
+  emoji: string,
+): Promise<'added' | 'removed'> {
+  const removed = await db
+    .delete(schema.groupMessageReactions)
+    .where(
+      and(
+        eq(schema.groupMessageReactions.messageId, messageId),
+        eq(schema.groupMessageReactions.actorId, actorId),
+        eq(schema.groupMessageReactions.emoji, emoji),
+      ),
+    )
+    .returning({ emoji: schema.groupMessageReactions.emoji });
+  if (removed.length > 0) return 'removed';
+
+  await db.insert(schema.groupMessageReactions).values({ messageId, actorId, emoji });
+  return 'added';
 }
 
 /** Adds a message. The caller has already established membership. */
@@ -225,7 +334,51 @@ export type ThreadSummary = {
   unreadCount: number;
 };
 
-export const EMPTY_SUMMARY: ThreadSummary = { lastMessage: null, unreadCount: 0 };
+/**
+ * Nothing said yet, in a shape both summaries accept.
+ *
+ * Typed by what it is rather than as a `ThreadSummary`: the event summary
+ * below carries two more fields on its message, and a `null` message has
+ * neither shape to satisfy — declaring the null narrowly is what lets one
+ * constant stand in for an empty thread of either kind.
+ */
+export const EMPTY_SUMMARY: { lastMessage: null; unreadCount: number } = {
+  lastMessage: null,
+  unreadCount: 0,
+};
+
+/**
+ * The same line, plus a face, for an album's card on Home.
+ *
+ * A row in the Groups tab draws a name and some words; the card on Home draws
+ * the person who said them — a 22pt circle beside the reply, which needs
+ * their picture and, when they have not set one, a stable key to colour the
+ * letter by. That is two more columns on a query that was already joining
+ * `actor`, and nothing extra for the tab that does not want them, which is
+ * why this is a second type rather than two optional fields on the first.
+ *
+ * `avatarKey` and not a URL: presigning is a round trip per row and this
+ * function answers for a whole page at once. The route signs it, and a
+ * storage key does not cross that boundary — see the note in the route.
+ *
+ * `authorKey` is what `lensFor` is given on the client. Their handle when
+ * they have one, and their actor id when they do not: the point of the lens
+ * is that somebody's colour is theirs and does not change the day they write
+ * a name in, so it cannot be keyed on a display name.
+ */
+export type EventThreadSummary = {
+  lastMessage:
+    | {
+        author: string;
+        body: string;
+        at: string;
+        mine: boolean;
+        avatarKey: string | null;
+        authorKey: string;
+      }
+    | null;
+  unreadCount: number;
+};
 
 /**
  * A name for a row, without presigning anything.
@@ -278,8 +431,8 @@ export async function eventThreadSummaries(
   db: Db,
   eventIds: string[],
   viewerId: string | null,
-): Promise<Map<string, ThreadSummary>> {
-  const summaries = new Map<string, ThreadSummary>();
+): Promise<Map<string, EventThreadSummary>> {
+  const summaries = new Map<string, EventThreadSummary>();
   if (eventIds.length === 0) return summaries;
 
   const latest = rowsOf<{
@@ -290,10 +443,11 @@ export async function eventThreadSummaries(
     author_actor_id: string;
     display_name: string | null;
     handle: string | null;
+    avatar_key: string | null;
   }>(await db.execute(sql`
     select distinct on (m.event_id)
       m.event_id, m.body, m.created_at, m.deleted_at, m.author_actor_id,
-      a.display_name, a.handle
+      a.display_name, a.handle, a.avatar_key
     from "event_message" m
     join "actor" a on a.id = m.author_actor_id
     where m.event_id in (${idList(eventIds)})
@@ -307,6 +461,16 @@ export async function eventThreadSummaries(
         body: row.deleted_at != null ? 'Message deleted' : row.body,
         at: new Date(row.created_at).toISOString(),
         mine: viewerId != null && row.author_actor_id === viewerId,
+        /*
+         * The face beside the reply on an album's card.
+         *
+         * A deleted message keeps it, the same way it keeps the name: the row
+         * exists to say somebody said something and took it back, and a
+         * tombstone with nobody attached to it is a gap rather than a
+         * retraction.
+         */
+        avatarKey: row.avatar_key,
+        authorKey: row.handle ?? row.author_actor_id,
       },
       unreadCount: 0,
     });

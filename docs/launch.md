@@ -86,7 +86,8 @@ generates all three shared secrets together so they cannot disagree, writes
 `apps/web/.env.local`, applies migrations and seeds the code pool. Idempotent,
 deletes nothing.
 
-- [ ] Neon project, `npm run db:migrate`.
+- [ ] Neon project, `npm run db:migrate`. Only the first time: a production
+      deploy runs it from `vercel-build` after this. See `docs/deploy.md`.
 - [ ] R2 bucket, lifecycle rule on `tmp/manifest/` expiring after 1 day, and no
       public access. Confirm the rule landed —
       `npx wrangler r2 bucket lifecycle list parea` should name

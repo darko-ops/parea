@@ -17,9 +17,43 @@
  * the rail already says which row you are on with a background and a colour.
  */
 
-export type RailGlyph = 'home' | 'invites' | 'groups' | 'search' | 'profile' | 'settings';
+export type RailGlyph =
+  | 'home'
+  | 'invites'
+  | 'groups'
+  | 'search'
+  | 'profile'
+  | 'settings'
+  /*
+   * The three a tab strip needs, ported from the app's `Glyph.tsx` — which
+   * took the rail's own drawings in the first place, so this is the set
+   * coming back rather than a second set arriving.
+   *
+   * `bubble` against `bubbles` is the distinction that makes them worth
+   * having: one is a remark about a thing, which is an album's comments, and
+   * two is people going back and forth, which is a group's chat. The app
+   * checked that it survives at 22 points, which is the size both clients
+   * draw them at.
+   */
+  | 'photos'
+  | 'bubble'
+  | 'bubbles';
 
-export function RailIcon({ glyph }: { glyph: RailGlyph }) {
+export function RailIcon({
+  glyph,
+  /**
+   * A heavier stroke for the row you are on.
+   *
+   * The app's bar does the same and its note is the argument: the selected
+   * glyph steps up in value *and* in weight, because one without the other is
+   * half a state — and on a bar floating over a bright photograph a two-step
+   * change in value alone is easy to miss. 2 is the family's own.
+   */
+  weight = 2,
+}: {
+  glyph: RailGlyph;
+  weight?: number;
+}) {
   return (
     <svg
       className="rail-icon"
@@ -28,7 +62,7 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={weight}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -40,6 +74,35 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
         <>
           <path d="M3.5 10.5 12 4l8.5 6.5" />
           <path d="M5.5 9.5V20h13V9.5" />
+        </>
+      )}
+      {glyph === 'photos' && (
+        /* A photograph behind a photograph, which is what an album is — the
+           frame is the stack and the picture inside it is the one on top. The
+           horizon and the sun are drawn lighter than the frame so the tile
+           still reads as a stack rather than as a box full of lines. */
+        <>
+          <rect x="8" y="4" width="12.5" height="12.5" rx="2" />
+          <path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
+          <circle cx="12" cy="8" r="1.05" strokeWidth={weight * 0.8} />
+          <path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={weight * 0.8} />
+        </>
+      )}
+      {glyph === 'bubble' && (
+        /* One rounded box with a tail off the bottom-left. The tail is what
+           makes it a bubble rather than a rounded rectangle, so it is
+           generous — a fifth of the height — because anything smaller closes
+           up into the box's own stroke. */
+        <path d="M6 4h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-5 4.5 2-4.5H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" />
+      )}
+      {glyph === 'bubbles' && (
+        /* Two of them, overlapping: a conversation. Only the two sides of the
+           one behind that clear the front one — a whole second outline
+           crossing the first reads as one lumpy shape rather than as two
+           bubbles. */
+        <>
+          <path d="M9 2.5h10A2.5 2.5 0 0 1 21.5 5v5A2.5 2.5 0 0 1 19 12.5" />
+          <path d="M4 8h10a2.5 2.5 0 0 1 2.5 2.5v5A2.5 2.5 0 0 1 14 18H8l-4 3.5 1-3.5H4a2.5 2.5 0 0 1-2.5-2.5v-5A2.5 2.5 0 0 1 4 8z" />
         </>
       )}
       {glyph === 'invites' && (

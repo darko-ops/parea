@@ -573,6 +573,20 @@ const FRESH = (actorId: string, since: Date) => sql<number>`(
 export type GroupEvent = {
   id: string;
   name: string;
+  /**
+   * What a client needs to *open* it, as distinct from what it needs to draw.
+   *
+   * The web has neither, because it navigates to a route by id. The native
+   * client cannot: opening an album there means handing the screen a summary,
+   * and the album then presents a credential and asks the library for the
+   * photographs taken while the evening was on. Without the token it has
+   * nothing to present; without the window it falls through to the system
+   * picker for every album reached through a group, which is most of them once
+   * a group exists — and the reason it would is invisible.
+   */
+  linkToken: string;
+  startsAt: string | null;
+  endsAt: string | null;
   /** Presigned, or null for an event with nothing in it yet. */
   cover: string | null;
   photoCount: number;
@@ -607,6 +621,9 @@ export async function groupArchive(
     .select({
       id: schema.events.id,
       name: schema.events.name,
+      linkToken: schema.events.linkToken,
+      startsAt: schema.events.startsAt,
+      endsAt: schema.events.endsAt,
       capEpoch: schema.events.capEpoch,
       coverKey: schema.events.coverKey,
       eventDate: schema.events.eventDate,
@@ -651,16 +668,30 @@ export async function groupArchive(
     rows.map(async (row) => ({
       id: row.id,
       name: row.name,
+      linkToken: row.linkToken,
+      startsAt: row.startsAt?.toISOString() ?? null,
+      endsAt: row.endsAt?.toISOString() ?? null,
       cover: await eventCover(row),
       photoCount: row.photoCount,
       faces: await Promise.all((row.faceKeys ?? []).map((key) => avatarUrl(key))),
       people: row.people,
-      // The event's own date when the host gave it one, else when it was last
-      // added to — never `created_at`, which is when somebody made the page.
-      at: (row.eventDate
-        ? new Date(`${row.eventDate}T00:00:00Z`)
-        : row.lastActiveAt
-      ).toISOString(),
+      /*
+       * When the album was made.
+       *
+       * This was the host's own event date where they set one and the last
+       * time anything was added otherwise — explicitly "never `created_at`,
+       * which is when somebody made the page". That is reversed, and asked
+       * for: a shelf of albums is read as a list of things that were started,
+       * and dating one by the evening it is *about* means a group's archive
+       * and a person's shelf disagree with the card on the home screen, which
+       * has led with `created_at` since it stopped leading with a photograph's
+       * timestamp.
+       *
+       * The evening's own date has not gone anywhere — it is what an album's
+       * own header says, where the subject is the evening rather than the
+       * album — it is simply not what a shelf sorts and labels by.
+       */
+      at: row.createdAt.toISOString(),
       fresh: row.fresh,
     })),
   );
@@ -696,9 +727,65 @@ export type GroupPerson = {
   name: string;
   /** The first name only, for the label under a face. */
   firstName: string;
+  /** Without the `@`, and null for somebody who has no profile to open. */
+  handle: string | null;
   avatarUrl: string | null;
   role: 'member' | 'admin';
 };
+
+/**
+ * How many members have been at every album in the group.
+ *
+ * The sentence the group screen leads its people row with — "six of you have
+ * been to every one" — and it is the one fact about a room that says something
+ * a count of heads does not: whether this is a group of people who all turn up
+ * or a group with a core and a fringe.
+ *
+ * Null where the answer would be a technicality. A group with no albums yet has
+ * everybody trivially at all nought of them, and "eleven of you have been to
+ * every one" over an empty archive is the screen being clever at somebody.
+ *
+ * Membership, not participation, is the outer set: somebody who has been to
+ * every album *and left the group* is not one of "you".
+ */
+export async function attendedEvery(db: Db, groupId: string): Promise<number | null> {
+  const answer = await db.execute(sql`
+    with albums as (
+      select id from "event"
+      where group_id = ${groupId} and deleted_at is null
+    )
+    select
+      (select count(*)::int from albums) as albums,
+      (
+        select count(*)::int from "group_member" gm
+        where gm.group_id = ${groupId}
+          and not exists (
+            select 1 from albums a
+            where not exists (
+              select 1 from "event_participant" ep
+              where ep.event_id = a.id and ep.actor_id = gm.actor_id
+            )
+          )
+      ) as everyone
+  `);
+
+  /*
+   * `db.execute` answers a `{ rows }` object on postgres.js and a bare array on
+   * PGlite. Both appear in this codebase — the dev server and the test suite —
+   * so neither shape may be assumed, and assuming one is not a wrong number: a
+   * destructured object is not iterable, so it throws and the group screen
+   * answers 500. `suggestedGroups` and `clustersFor` say the same thing a few
+   * hundred lines apart, which is how often it has caught somebody.
+   */
+  const rows = (answer as unknown as Row[] | { rows: Row[] });
+  const [row] = Array.isArray(rows) ? rows : (rows.rows ?? []);
+
+  if (!row || Number(row.albums) === 0) return null;
+  return Number(row.everyone);
+}
+
+/** What the query above answers with, per row. */
+type Row = { albums: number | string; everyone: number | string };
 
 /**
  * Everybody in a group: admins first, then by how long they have been in it.
@@ -733,6 +820,16 @@ export async function groupPeople(db: Db, groupId: string): Promise<GroupPerson[
         actorId: row.actorId,
         name,
         firstName: name.replace(/^@/, '').split(/\s+/)[0]!,
+        /*
+         * The handle on its own, and null for somebody who has none.
+         *
+         * `name` already falls back to `@handle` for a person with no display
+         * name, which is right for a caption and useless for navigation: a
+         * client opening somebody's profile needs the handle *as* a handle,
+         * and there is no profile at all for an actor without one. Null is how
+         * a face says it cannot be pressed.
+         */
+        handle: row.handle,
         avatarUrl: await avatarUrl(row.avatarKey),
         role: row.role,
       };

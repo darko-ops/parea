@@ -12,19 +12,22 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, asc, countDistinct, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
+import { avatarUrl } from '@/accounts';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
+import { tagsForPhotos } from '@/photoTags';
 import { getDb } from '@/db';
+import { hostingFor } from '@/hosts';
 import { invitedTo, membersOf, rosterFrom } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
-import { reactionsForPhotos } from '@/photoReactions';
+import { reactionLines, reactionsForPhotos } from '@/photoReactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -87,6 +90,7 @@ export async function GET(
   const [
     hasCard,
     reactions,
+    tags,
     people,
     pendingRows,
     messages,
@@ -96,13 +100,20 @@ export async function GET(
     members,
     invited,
     contributeDecision,
+    uploadDecision,
     accountActorId,
+    kept,
+    unseenRows,
+    reacted,
   ] = await Promise.all([
     // Asked once for the page rather than per row — see `photosWithCard`.
     photosWithCard(db, photoIds),
     // And the reactions, for the same reason: an album is a column of every
     // picture in the event, and a query per row grows with it.
     reactionsForPhotos(db, photoIds, viewerId),
+    // And who is in them, for the third time the same reason: one query for
+    // the page, not one per row.
+    tagsForPhotos(db, event.id, photoIds, viewerId),
     // The contribution count is a recruiting device, not a statistic: "6
     // people, 88 photos" is what gets the seventh person to add theirs
     // (design §2). Kept as a number as well as a list.
@@ -168,8 +179,107 @@ export async function GET(
     // Not `viewerId != null`, which is true for a guest — the composer would
     // have been drawn for somebody the server was always going to refuse.
     decide(db, event, 'contribute', requester),
+    /*
+     * And the same question about photographs, which is no longer the same
+     * answer: `upload` is `contribute` plus the album's own setting about who
+     * may add. Asked here so that both clients draw the add button from the
+     * server's decision rather than each re-deriving it from the policy — the
+     * rule that makes "two clients, one protocol" mean the decision is taken
+     * once.
+     */
+    decide(db, event, 'upload', requester),
     currentAccountActorId(),
+    /*
+     * Which of these this viewer kept, asked once for the page.
+     *
+     * A set of ids rather than a flag joined onto every row: the answer is
+     * "which of these" and most albums have none, so the empty case costs an
+     * empty set rather than a column of `false` the width of the event.
+     *
+     * Private by construction — scoped to `viewerId`, and there is no shape
+     * in this response that could carry somebody else's. See
+     * `photo_favourite`, which is a table of its own so that a read of the
+     * reactions can never accidentally publish one.
+     */
+    viewerId && photoIds.length > 0
+      ? db
+          .select({ photoId: schema.photoFavourites.photoId })
+          .from(schema.photoFavourites)
+          .where(
+            and(
+              eq(schema.photoFavourites.actorId, viewerId),
+              inArray(schema.photoFavourites.photoId, photoIds),
+            ),
+          )
+      : Promise.resolve([] as { photoId: string }[]),
+    /*
+     * Which photographs have something on them this viewer has not seen.
+     *
+     * "Since I last opened this album's conversation", which is the one
+     * marker there is — `event_thread_read` holds a moment per person per
+     * album, and comments on photographs live in that same thread. So a
+     * picture is unseen when somebody *else* has commented on it or reacted
+     * to it since then.
+     *
+     * Somebody else's, because a mark that lights up on your own comment
+     * teaches people the ring means nothing. And no marker at all means
+     * everything counts, which is right: a person who has never opened the
+     * conversation has seen none of it.
+     *
+     * One query rather than two passes, and raw because it is a union over
+     * two tables that agree on nothing but a photo id.
+     */
+    viewerId && photoIds.length > 0
+      ? db.execute(sql`
+          with mark as (
+            select read_at from "event_thread_read"
+            where event_id = ${event.id} and actor_id = ${viewerId}
+          )
+          select distinct pid from (
+            select m.photo_id as pid
+              from "event_message" m
+             where m.event_id = ${event.id}
+               and m.photo_id is not null
+               and m.deleted_at is null
+               and m.author_actor_id <> ${viewerId}
+               and m.created_at > coalesce((select read_at from mark), 'epoch'::timestamptz)
+            union
+            select r.photo_id as pid
+              from "photo_reaction" r
+              join "photo" p on p.id = r.photo_id
+             where p.event_id = ${event.id}
+               and r.actor_id <> ${viewerId}
+               and r.created_at > coalesce((select read_at from mark), 'epoch'::timestamptz)
+          ) t
+        `)
+      : Promise.resolve({ rows: [] as { pid: string }[] }),
+    /*
+     * The reactions, as lines for the thread rather than pills for a photo.
+     *
+     * A reaction is a thing somebody did in this album at a moment, and the
+     * conversation is where the album's moments are read in order. Left off
+     * it, the thread says five people were quiet on an evening they were not.
+     */
+    reactionLines(db, event.id, viewerId, (actorId) => contributorKey(event.id, actorId))
   ]);
+
+  // See the note on the read: a set, because the question is membership.
+  /*
+   * See the note on the read: a set, because the question is membership.
+   *
+   * No `?? []` here, and that matters. There was one, and it was covering a
+   * stray second comma in the array above — `[a, , b]` is an elided element,
+   * so `kept` destructured to a hole, the query landed in a slot nothing
+   * read, and every photograph came back unkept while the query ran on every
+   * load and was thrown away. TypeScript said `kept` was possibly undefined,
+   * which was the hole speaking; the fallback silenced it rather than
+   * answering it.
+   */
+  const keptIds = new Set(kept.map((row) => row.photoId));
+  // `db.execute` answers differently across drivers; both shapes are an array.
+  const unseenIds = new Set(
+    (((unseenRows as any)?.rows ?? unseenRows ?? []) as { pid: string }[]).map((r) => r.pid),
+  );
 
   const contributors = people.length;
   const arriving = pendingRows[0]?.n ?? 0;
@@ -184,6 +294,25 @@ export async function GET(
       mime: photo.mime,
       byteSize: photo.byteSize,
       takenAt: (photo.capturedAt ?? photo.uploadedAt).toISOString(),
+      /*
+       * When it arrived, which is not when it was taken.
+       *
+       * `takenAt` above falls back to this one, so for most photographs the two
+       * agree — a phone that uploads the same evening. They diverge exactly
+       * where the difference is worth having: somebody adding last summer's
+       * pictures to an album tonight. "Taken in July" says what it is; "added
+       * today" says it is new to you, and the album's grid wants the second.
+       */
+      addedAt: photo.uploadedAt.toISOString(),
+      /*
+       * Who the uploader says is in it.
+       *
+       * By the same opaque per-event key a contributor gets, for a reason that
+       * matters more here than there: this one is about somebody's face, and an
+       * actor id would make "who is in this photograph" a fact that follows
+       * them out of the album.
+       */
+      tags: tags.get(photo.id) ?? [],
       // Surfaced so the client can offer "remove" only where it will work.
       mine: viewerId != null && photo.uploaderId === viewerId,
       // Which contributor chip this photo belongs to. A per-event digest, not
@@ -252,6 +381,20 @@ export async function GET(
        * the client draws no row of pills rather than an empty one.
        */
       reactions: reactions.get(photo.id) ?? [],
+      /*
+       * Whether this viewer kept it, and nobody else's answer.
+       *
+       * Flat false for a guest, which is honest rather than hidden: keeping
+       * needs an account, so somebody without one has kept nothing and the
+       * star in the viewer is a thing they are offered rather than a state
+       * they are in.
+       */
+      favourite: keptIds.has(photo.id),
+      /*
+       * Something somebody else added since this viewer last opened the
+       * conversation. False for a guest, who has no marker and no ring.
+       */
+      unseen: unseenIds.has(photo.id),
     })),
   );
 
@@ -263,25 +406,82 @@ export async function GET(
    * else it is zero, not because the number is secret but because a count of
    * decisions you cannot make is a notification about somebody else's job.
    */
-  const [waitingRow] = canAdminister
-    ? await db
-        .select({ n: countDistinct(schema.eventAccessRequests.id) })
-        .from(schema.eventAccessRequests)
-        .where(
-          and(
-            eq(schema.eventAccessRequests.eventId, event.id),
-            eq(schema.eventAccessRequests.status, 'open'),
-          ),
-        )
-    : [{ n: 0 }];
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  /*
+   * The second wave, and it is one wave rather than three.
+   *
+   * All three of these needed an answer from the first: the two counts need
+   * `canAdminister`, and where this reader stands with the hosts needs
+   * `accountActorId`. None of them needs any of the others, so they go
+   * together — the same reasoning as the eleven above, applied to the
+   * leftovers rather than abandoned for them.
+   */
+  const [waitingRows, hostWaitingRows, hosting] = await Promise.all([
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventAccessRequests.id) })
+          .from(schema.eventAccessRequests)
+          .where(
+            and(
+              eq(schema.eventAccessRequests.eventId, event.id),
+              eq(schema.eventAccessRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * And the people already inside asking to be able to add.
+     *
+     * Counted into the same badge, because it is the same sentence from the
+     * host's side: somebody is waiting on a decision only you can make. Two
+     * badges over one `⋯` would be two things to learn for a distinction that
+     * does not change what they do next — open the manage screen, where the
+     * two queues are separate lists.
+     */
+    canAdminister
+      ? db
+          .select({ n: countDistinct(schema.eventHostRequests.id) })
+          .from(schema.eventHostRequests)
+          .where(
+            and(
+              eq(schema.eventHostRequests.eventId, event.id),
+              eq(schema.eventHostRequests.status, 'open'),
+            ),
+          )
+      : Promise.resolve([{ n: 0 }]),
+    /*
+     * Where this reader stands with the album's set of hosts.
+     *
+     * The same helper `/event/[id]` calls to draw the first frame — a notice
+     * that appears or disappears between the server render and this response
+     * is the page contradicting itself while somebody watches.
+     */
+    hostingFor(db, event, accountActorId, contributeDecision.allow),
+  ]);
+
+  /*
+   * People waiting on this host, for the badge on the settings menu.
+   *
+   * Only computed for somebody who can actually answer them — for everybody
+   * else it is zero, not because the number is secret but because a count of
+   * decisions you cannot make is a notification about somebody else's job.
+   */
+  const waiting = (waitingRows[0]?.n ?? 0) + (hostWaitingRows[0]?.n ?? 0);
 
   return NextResponse.json({
     event: {
       id: event.id,
       name: event.name,
-      uploadsOpen: event.uploadsOpen,
+      contributePolicy: event.contributePolicy,
       canAdminister,
-      waiting: waitingRow?.n ?? 0,
+      waiting,
       groupId: event.groupId,
       groupName: group?.name ?? null,
       caption: event.caption,
@@ -312,12 +512,36 @@ export async function GET(
        */
       coverUrl: await coverSrc(event.coverKey),
       /*
+       * What the cover was cut from, and where the window sat on it.
+       *
+       * So that "change the cover" opens on the picture it is currently made
+       * of, framed as it was left, rather than on an empty camera roll. Both
+       * are null for a cover set before this was recorded and for one chosen
+       * off the camera roll — and a client reads either as "start from the
+       * album's own photographs", which is the right answer to both.
+       *
+       * An id rather than a URL, because the client already holds every
+       * photograph in this response: it is a key into `photos` below, and
+       * presigning a second copy of one of them would be a second capability
+       * granted for a picture already granted.
+       *
+       * Sent to everybody rather than only to whoever can change it, on the
+       * same reasoning as `coverUrl` directly above: it is one id and three
+       * numbers, and a field that appears and disappears depending on who is
+       * asking is a second thing to get wrong.
+       */
+      coverPhotoId: event.coverPhotoId,
+      coverFraming:
+        event.coverX === null || event.coverY === null
+          ? null
+          : { x: event.coverX, y: event.coverY, zoom: event.coverZoom ?? 1 },
+      /*
        * Worded here rather than in the browser.
        *
        * It is a relative time, and the head is rendered on the server before
        * it is hydrated in the client: two clocks, one of which is somebody's
-       * laptop. A minute's disagreement between them is "59m ago" against "1h
-       * ago", which React resolves by throwing the tree away. The client
+       * laptop. A minute's disagreement between them is "59 min ago" against
+       * "1 hr ago", which React resolves by throwing the tree away. The client
        * re-reads this string every time it polls, so it stays honest.
        */
       added: ago(event.lastActiveAt, new Date()),
@@ -326,8 +550,57 @@ export async function GET(
     people,
     members,
     roster: rosterFrom(members, invited, photoCounts(rows)),
-    messages,
+    /*
+     * One conversation, in one order.
+     *
+     * Merged here rather than handed over as two lists, because the ordering
+     * is the whole point of a thread and two lists interleaved on the phone
+     * is the ordering decided twice — once here for messages and again there
+     * for everything. A reaction carries `emoji` and no body; that is what
+     * makes it a reaction, and the thread draws it as a line rather than as a
+     * message with nothing in it.
+     */
+    messages: [
+      ...messages,
+      ...(await Promise.all(
+        reacted.map(async (line) => ({
+        id: line.id,
+        body: '',
+        emoji: line.emoji,
+        createdAt: line.createdAt.toISOString(),
+        edited: false,
+        deleted: false,
+        author: {
+          key: line.author.key,
+          name: line.author.name,
+          mine: line.author.mine,
+          // Signed the same way a message's is — see `messagesFor`.
+          avatarUrl: await avatarUrl(line.author.avatarKey),
+        },
+        photoId: line.photoId,
+        reactions: [],
+        })),
+      )),
+    ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     canPost: contributeDecision.allow && accountActorId != null,
+    /*
+     * Whether *this* person may add photographs, which is a different question
+     * from whether they may speak — see the note beside the decision above.
+     * Both clients drew their add button off `uploadsOpen`, which answered a
+     * question about the album rather than about the reader: on a host-only
+     * album that would have offered the button to everybody and refused it at
+     * the server.
+     */
+    canAdd: uploadDecision.allow && accountActorId != null,
+    /*
+     * The album's set of hosts, from this reader's point of view.
+     *
+     * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+     * button", and this answers "and if not, is there something to do about
+     * it". Keeping them apart is what stops a client inferring one from the
+     * other and getting the `creator` case wrong.
+     */
+    hosting,
     arriving,
     count: photos.length,
     photos,

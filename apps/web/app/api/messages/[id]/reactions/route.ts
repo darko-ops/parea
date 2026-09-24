@@ -16,8 +16,8 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
-import { eventOfMessage, toggleReaction } from '@/messages';
-import { isReaction } from '@/reactions';
+import { eventOfMessage, reactionCountForMessage, toggleReaction } from '@/messages';
+import { MAX_PER_MESSAGE, isEmoji } from '@/reactions';
 import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -49,16 +49,46 @@ export async function POST(
 
   const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };
   /*
-   * The closed set is enforced here, not in the column.
+   * Any emoji, not one of six.
    *
-   * The column takes any short string, which is what keeps the offered set a
-   * design decision rather than a migration. That only works if the one door
-   * into the table is narrow — otherwise "any text under 32 characters,
-   * attributed to you, shown to everybody in the event" is a message field
-   * with no length limit worth mentioning.
+   * This checked `isReaction` — the closed set the picker used to offer — so
+   * the list was both the vocabulary and the validation. It stopped being
+   * both the day the app put a `+` beside those six: everything reached
+   * through it came back 400 `unknown_reaction`, which the client swallows,
+   * so choosing an emoji from the grid looked like a tap that did nothing.
+   *
+   * The photo route made this move already and the reasoning is its: the
+   * question is "is this an emoji at all" rather than "is it one of the ones
+   * we like", and the rule doing the real work inside `isEmoji` is that it
+   * must be a single grapheme. Without that, a row of pills under a comment
+   * is an unmoderated text channel reached through a box labelled "pick an
+   * emoji" — and the column's own length check is the second lock on it.
    */
-  if (!isReaction(body.emoji)) {
-    return NextResponse.json({ error: 'unknown_reaction' }, { status: 400 });
+  if (!isEmoji(body.emoji)) {
+    return NextResponse.json({ error: 'not_an_emoji' }, { status: 400 });
+  }
+
+  /*
+   * And a ceiling, which the closed set used to be.
+   *
+   * Six offered and six enforced meant nobody could reach a seventh; with the
+   * set open it is a limit somebody can hit while meaning well, so the
+   * seventh is refused with `too_many` rather than silently dropped. Checked
+   * before adding and never before removing — somebody at the limit must
+   * still be able to take one back, and a check that ran on both would leave
+   * them stuck with six they cannot undo.
+   */
+  const already = await reactionCountForMessage(db, id, actorId);
+  if (already >= MAX_PER_MESSAGE) {
+    const state = await toggleReaction(db, id, actorId, body.emoji);
+    if (state === 'added') {
+      // It was not one of theirs, so the toggle just added a seventh. Put it
+      // back and refuse — cheaper than a read to find out first, and the race
+      // between the two is a reaction nobody loses.
+      await toggleReaction(db, id, actorId, body.emoji);
+      return NextResponse.json({ error: 'too_many', max: MAX_PER_MESSAGE }, { status: 409 });
+    }
+    return NextResponse.json({ state });
   }
 
   const state = await toggleReaction(db, id, actorId, body.emoji);

@@ -21,10 +21,9 @@
  * the second after they made it.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   Share,
@@ -32,13 +31,17 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
+import { Image as ExpoImage } from 'expo-image';
+
+import { ContributeChoice } from './ContributeChoice';
+import { CENTRED, CoverFramer, CoverShot, type CoverFraming } from './CoverFramer';
 import { InvitePicker } from './InvitePeople';
-import type { Api, InvitablePerson } from './api';
+import type { Api, ContributePolicy, InvitablePerson } from './api';
 import type { GroupTheme } from './Groups';
-import { uploadCover } from './platform';
-import { sandboxCopy, windowOf, type LibraryPhoto } from './library';
+import { windowOf, type LibraryPhoto } from './library';
 
 /**
  * The day an album happened, as `YYYY-MM-DD`.
@@ -110,7 +113,20 @@ export function CreateEvent({
   chosen?: LibraryPhoto[];
   t: GroupTheme;
   onCancel: () => void;
-  onCreated: (event: CreatedEvent) => void;
+  /**
+   * The album, and what is actually going into it.
+   *
+   * The photographs are a second argument because this form can now take them
+   * away: the row under the cover has a ⊗ on every tile, so what arrives is not
+   * always what was chosen. `CreatedEvent` deliberately does not carry them —
+   * see the note above it.
+   */
+  /**
+   * `framing` is the third argument because the cover is no longer sent from
+   * here — see the note where it used to be. The album sends it once the
+   * photograph has an id.
+   */
+  onCreated: (event: CreatedEvent, photos: LibraryPhoto[], framing: CoverFraming) => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -129,24 +145,85 @@ export function CreateEvent({
    * album with no date is the common case, and a card dates itself by its
    * earliest photograph.
    */
-  const span = useMemo(() => windowOf(chosen), [chosen]);
-  /*
-   * The cover is the first photograph chosen, and there is no second question.
+  /**
+   * What is going in, which is not always what was chosen.
    *
-   * This used to be its own trip through `ImagePicker`: somebody picked the
-   * album's photographs, then picked one of them again out of the whole camera
-   * roll to lead it. The order of the selection on the page before already says
-   * which one leads, which is what the numbered badges on those tiles mean.
+   * The row under the cover can take photographs out and can promote one to
+   * lead, so this form owns the list rather than reading the picker's. The
+   * window is read off it for the same reason: dropping the last four
+   * photographs of the night moves when the album ends.
    */
-  const cover = chosen[0] ?? null;
+  const [photos, setPhotos] = useState<LibraryPhoto[]>(chosen);
+  const span = useMemo(() => windowOf(photos), [photos]);
+  /**
+   * How the cover sits in the card.
+   *
+   * Two percentages rather than a cropped file: the original goes up untouched
+   * and this is a fact about it, which is what lets somebody reframe later
+   * without the picture having been through a lossy round trip in between.
+   */
+  const [framing, setFraming] = useState<CoverFraming>(CENTRED);
+  const [framerOpen, setFramerOpen] = useState(false);
+  /**
+   * The cover's shape, measured off the picture as it draws.
+   *
+   * A cover takes its photograph's own shape now rather than a fixed letterbox,
+   * and this screen has no way to know it until the image has decoded. Null
+   * means "not yet", which draws the widest a cover may be — the shape every
+   * cover used to be — and settles a moment later.
+   */
+  const [shape, setShape] = useState<{ w: number; h: number } | null>(null);
+  /** The first photograph in the album leads it. That rule is not this screen's. */
+  const cover = photos[0] ?? null;
+  const { width } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Putting the field somebody is typing in above the keyboard.
+   *
+   * The screen is a column of fields under a strip of detected runs, so the
+   * one that gets typed in first sits well down it — and tapping a field
+   * raises a keyboard over the bottom half of the phone without moving the
+   * page. What that looks like is typing blind: the caret is under the
+   * keyboard, and so is the text going into it.
+   *
+   * Measured rather than guessed. Each field reports its own offset inside the
+   * scroll through `onLayout`, and focusing one scrolls to it less a margin,
+   * so the label above stays visible and the field does not land flush against
+   * the top edge. A guessed constant would be wrong the moment the strip above
+   * is there or is not.
+   *
+   * `automaticallyAdjustKeyboardInsets` on the scroll is the other half: it is
+   * what makes room to scroll into. Without it a field near the foot has
+   * nowhere to go.
+   */
+  const scroller = useRef<ScrollView>(null);
+  const fieldTops = useRef<Record<string, number>>({});
+
+  const measureField = useCallback(
+    (key: string) => (event: { nativeEvent: { layout: { y: number } } }) => {
+      fieldTops.current[key] = event.nativeEvent.layout.y;
+    },
+    [],
+  );
+
+  const bringIntoView = useCallback((key: string) => {
+    const top = fieldTops.current[key];
+    if (top === undefined) return;
+    // The label sits above the box and belongs to it, so the scroll stops
+    // short of the field rather than on it.
+    scroller.current?.scrollTo({ y: Math.max(top - 24, 0), animated: true });
+  }, []);
 
   // A name, and nothing else. The page before answered when, and whether there
   // are photographs at all is not this screen's business to insist on.
   const ready = Boolean(name.trim());
   /** Public unless the creator says otherwise — a forwarded link still works. */
   const [isPrivate, setIsPrivate] = useState(false);
+  /* Everyone, which is what an album is usually for. The other two are
+     choices somebody makes on purpose. */
+  const [contribute, setContribute] = useState<ContributePolicy>('everyone');
   /**
    * Who gets asked, held until there is an album to ask them into.
    *
@@ -157,15 +234,50 @@ export function CreateEvent({
   const [invitees, setInvitees] = useState<InvitablePerson[]>([]);
 
   /**
-   * One photograph, from the system picker.
+   * Asked once, on arrival, rather than waited for.
    *
-   * The system picker rather than the library reader that detection uses, and
-   * deliberately: picking one image needs no permission at all on iOS, and
-   * asking for the whole library to choose a cover would be the app requesting
-   * everything in order to take one thing. Detection asks for that access when
-   * it is what detection is for, and offers it after a contribution rather
-   * than in front of one — design §7.4.
+   * Framing behind a control is framing most people never find, and the cover
+   * is the one thing on this screen everybody else sees — it is the album's
+   * face on a home screen before anybody has read a word of it. So the frame
+   * comes up by itself, the same way the album's photographs were asked for by
+   * opening a picker rather than by offering a button.
+   *
+   * Cancelling is a real answer and costs nothing: the first photograph leads,
+   * centred, which is exactly what the window below would have shown anyway.
+   * The pill on the picture is how somebody comes back to it.
+   *
+   * The ref is set before the state change and never released, so React's pair
+   * of development invocations opens one framer rather than two. `useUploads`
+   * has the cautionary version of this — a flag cleared in the cleanup, which
+   * made the two runs cancel each other out perfectly.
    */
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || chosen.length === 0) return;
+    asked.current = true;
+    setFramerOpen(true);
+  }, [chosen.length]);
+
+  /** Out of the album, and out of the window if it was leading it. */
+  const drop = useCallback((photo: LibraryPhoto) => {
+    setPhotos((was) => was.filter((p) => p.id !== photo.id));
+  }, []);
+
+  /**
+   * This one leads, from now on.
+   *
+   * It clears an explicit framing, because that framing was a decision about a
+   * different photograph — keeping it would leave the window showing something
+   * nobody just chose.
+   */
+  const promote = useCallback((photo: LibraryPhoto) => {
+    setPhotos((was) => [photo, ...was.filter((p) => p.id !== photo.id)]);
+    setFraming(CENTRED);
+    // Another picture, another shape — and the old framing was a decision about
+    // the one being replaced.
+    setShape(null);
+  }, []);
+
   const create = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -191,6 +303,7 @@ export function CreateEvent({
         startsAt,
         endsAt,
         accessPolicy: isPrivate ? 'private' : 'public',
+        contributePolicy: contribute,
       });
       /*
        * Sent, not waited for.
@@ -202,26 +315,23 @@ export function CreateEvent({
        * would have looked without a cover, which is why nothing here surfaces
        * one.
        */
-      if (cover) {
-        /*
-         * Copied into our own sandbox first, like the photographs.
-         *
-         * `cover.uri` is the asset's own path inside the Photos container, and
-         * the cover goes up on a background session exactly as a photograph
-         * does — so it hit the same wall and for a while it was the half of this
-         * I had missed:
-         *
-         *   Failed to issue sandbox extension for file
-         *   file:///var/mobile/Media/DCIM/100APPLE/IMG_0891.PNG
-         *
-         * The profile's avatar upload needs none of this: it comes from the
-         * system picker, which already hands back a copy in our own sandbox.
-         */
-        const target = api.coverTarget(created.id);
-        void sandboxCopy(cover.id)
-          .then((local) => uploadCover(target.url, target.headers, local.uri))
-          .catch(() => {});
-      }
+      /*
+       * The cover is not sent from here any more, and that is a bug fix.
+       *
+       * It went up the moment the album existed — before a single photograph
+       * did — so there was no server id to name it by, and the route wrote
+       * `coverPhotoId: null`. The server drops the photograph a cover was
+       * made from only where it knows which one that was, so it could not
+       * drop this one: the card led with the cover and then showed the same
+       * picture again as the first thumbnail under it. An album of four
+       * appeared to hold a duplicate.
+       *
+       * It is sent from the album instead, once the photograph it was cropped
+       * from has been presigned and has an id worth recording. The framing
+       * travels with `onCreated`; the picture is `photos[0]`, which is what
+       * `cover` is, and therefore the first of the ids the album is handed to
+       * upload.
+       */
 
       /*
        * The invitations, sent and not waited for.
@@ -246,19 +356,35 @@ export function CreateEvent({
        * event with them, and it used to be reachable only by tapping through a
        * sheet about the link.
        */
-      onCreated({
-        id: created.id,
-        name: created.name,
-        linkToken: created.linkToken,
-        startsAt,
-        endsAt,
-      });
+      onCreated(
+        {
+          id: created.id,
+          name: created.name,
+          linkToken: created.linkToken,
+          startsAt,
+          endsAt,
+        },
+        photos,
+        framing,
+      );
     } catch {
-      setError('Could not make the event. Try again in a moment.');
+      setError('Could not make the album. Try again in a moment.');
     } finally {
       setBusy(false);
     }
-  }, [api, cover, groupId, invitees, isPrivate, name, onCreated, place, span]);
+  }, [
+    api,
+    cover,
+    framing,
+    groupId,
+    invitees,
+    isPrivate,
+    name,
+    onCreated,
+    photos,
+    place,
+    span,
+  ]);
 
   /*
    * No share sheet between posting and the album.
@@ -281,7 +407,23 @@ export function CreateEvent({
    */
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <ScrollView
+      ref={scroller}
+      contentContainerStyle={styles.scroll}
+      /*
+       * Room under the last field for the keyboard to stand in.
+       *
+       * The scroll used to end at its content, so on a phone the fields near
+       * the foot had nowhere to scroll *to*: the keyboard came up over them
+       * and the view was already at the bottom. iOS insets the scroll by the
+       * keyboard's height with this, which is what gives `bringIntoView`
+       * somewhere to move to — the two are one fix and neither works alone.
+       */
+      automaticallyAdjustKeyboardInsets
+      // A tap on a pill while a field has focus should press the pill, not
+      // spend itself dismissing the keyboard.
+      keyboardShouldPersistTaps="handled"
+    >
       {/*
         A modal header rather than a back chevron, and the commit action is in
         it as well as at the foot. Not duplication for its own sake: the
@@ -293,7 +435,7 @@ export function CreateEvent({
           <Text style={[styles.headerSide, { color: t.accent }]}>Cancel</Text>
         </Pressable>
         <Text style={[styles.headerTitle, { color: t.fg }]}>
-          {groupName ? `New in ${groupName}` : 'New event'}
+          {groupName ? `New in ${groupName}` : 'New album'}
         </Text>
         <Pressable
           onPress={create}
@@ -329,8 +471,135 @@ export function CreateEvent({
         an evening after the fact.
       */}
 
-      <View style={styles.field}>
-        <Text style={[styles.fieldLabel, { color: t.dim }]}>WHAT WAS IT?</Text>
+      {/*
+        The album, before anything is said about it.
+
+        The card's own shape, so this is the card rather than a preview of one,
+        and it sits above the caption for the reason a caption sits under a
+        photograph: the picture is the subject and the words are about it.
+
+        Pressing it opens the system cropper — see `frameCover`. There was a
+        page between the picker and this form that did the same job with a drag,
+        and it was a whole step for something the operating system already does
+        better.
+      */}
+      {cover && (
+        <Pressable
+          onPress={() => setFramerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change how the cover is framed"
+          style={({ pressed }) => [styles.coverRow, { opacity: pressed ? 0.85 : 1 }]}
+        >
+          <CoverShot
+            uri={cover.uri}
+            natural={shape}
+            framing={framing}
+            width={width - 40}
+            onNatural={setShape}
+          />
+          <View style={[styles.coverDo, { backgroundColor: t.card }]}>
+            <Text style={[styles.coverDoText, { color: t.fg }]}>Reframe</Text>
+          </View>
+        </Pressable>
+      )}
+
+      {framerOpen && cover && (
+        <CoverFramer
+          photos={photos}
+          coverId={cover.id}
+          initial={framing}
+          t={t}
+          onCancel={() => setFramerOpen(false)}
+          onConfirm={(id, next) => {
+            /*
+             * A photograph tried in the frame and kept is a promotion, so it
+             * goes through the same path the row below uses — which is what
+             * keeps "the first one leads" true rather than making the cover a
+             * second, separate fact that could disagree with the order.
+             *
+             * `promote` centres the framing, because it is about to be given a
+             * picture it has no framing for. So the framing is set after it,
+             * and this order is the whole of why it works.
+             *
+             * Skipped when the cover did not change, which is the common case:
+             * it would reorder an array to the same order and re-measure a
+             * shape that has not moved, for one visible flicker of the
+             * preview.
+             */
+            const picked = id === cover.id ? null : photos.find((photo) => photo.id === id);
+            if (picked) promote(picked);
+            setFraming(next);
+            setFramerOpen(false);
+          }}
+        />
+      )}
+
+      {/*
+        What is going in, and the two things somebody wants to do to it here.
+
+        Above the caption because it is about the photographs, and the caption
+        is about the album they make. Tapping one promotes it to the front;
+        tapping its ⊗ takes it out. Both used to live on a page of their own.
+      */}
+      {photos.length > 0 && (
+        <View style={styles.field}>
+          <View style={styles.fieldHead}>
+            <Text style={[styles.fieldLabel, { color: t.dim }]}>IN THIS ALBUM</Text>
+            <Text style={[styles.small, { color: t.dim }]}>
+              {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.strip}
+          >
+            {photos.map((photo, index) => (
+              <View key={photo.id} style={styles.cell}>
+                <Pressable
+                  onPress={() => promote(photo)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    index === 0 ? 'Cover photo' : 'Use this as the cover'
+                  }
+                  accessibilityState={{ selected: index === 0 }}
+                  style={[
+                    styles.thumb,
+                    {
+                      borderColor: index === 0 ? t.accent : 'transparent',
+                      borderWidth: index === 0 ? 2 : 0,
+                    },
+                  ]}
+                >
+                  <ExpoImage
+                    source={{ uri: photo.uri }}
+                    style={styles.thumbShot}
+                    contentFit="cover"
+                    transition={100}
+                  />
+                </Pressable>
+                {/*
+                  Outside the picture's corner rather than on it: a ⊗ drawn over
+                  a thumbnail is a ⊗ over somebody's face as often as not, and
+                  the two controls have to be tellable apart by thumb.
+                */}
+                <Pressable
+                  onPress={() => drop(photo)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove photo ${index + 1}`}
+                  style={[styles.remove, { backgroundColor: t.fg }]}
+                >
+                  <Text style={[styles.removeMark, { color: t.bg }]}>×</Text>
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      <View style={styles.field} onLayout={measureField('name')}>
+        <Text style={[styles.fieldLabel, { color: t.dim }]}>CAPTION</Text>
         <TextInput
           value={name}
           onChangeText={setName}
@@ -339,6 +608,11 @@ export function CreateEvent({
           // Deliberately not autoFocus. It was, when this screen opened on a
           // name field; now the detected runs are above it and a keyboard
           // covering them on arrival hides the one thing worth looking at.
+          //
+          // Which is exactly why focusing it has to move the page: the field
+          // is below the fold by design, so the keyboard that comes up when
+          // somebody taps it comes up over the thing they tapped.
+          onFocus={() => bringIntoView('name')}
           maxLength={120}
           style={[
             styles.input,
@@ -348,7 +622,7 @@ export function CreateEvent({
         />
       </View>
 
-      <View style={styles.field}>
+      <View style={styles.field} onLayout={measureField('place')}>
         <View style={styles.fieldHead}>
           <Text style={[styles.fieldLabel, { color: t.dim }]}>WHERE</Text>
           <Text style={[styles.small, { color: t.dim }]}>Optional</Text>
@@ -358,6 +632,8 @@ export function CreateEvent({
           onChangeText={setPlace}
           placeholder="Add a place"
           placeholderTextColor={t.dim}
+          // Further down than the caption, so more covered, not less.
+          onFocus={() => bringIntoView('place')}
           maxLength={80}
           style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.card }]}
         />
@@ -466,6 +742,42 @@ export function CreateEvent({
               ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
               : 'Anyone can see it, no account needed. Adding photos always needs one.'}
           </Text>
+
+          {/*
+            And who can add to it, which is a different question and was not
+            asked at all.
+
+            Every album accepted everybody's photographs, and the only way to
+            change that was a switch on the manage screen that turned uploading
+            off for everyone including the host. An evening where one person
+            had the camera is an ordinary thing to want and there was no way to
+            say it — which is the kind of setting people find out about by
+            being surprised.
+
+            The same component and the same three answers the settings sheet
+            uses. Asked here because it is cheap to answer while the album is
+            being named, and changeable afterwards because the first thirty
+            seconds is the worst moment to decide anything.
+          */}
+          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+            WHO CAN ADD PHOTOS
+          </Text>
+          <ContributeChoice
+            t={t}
+            value={contribute}
+            /*
+              The visibility chosen two fields up, not a saved policy — there
+              is no saved album yet.
+
+              The two questions compose, so what this one's answers are called
+              depends on the other's: "Everyone" on a public album is whoever
+              opens the link, and on a private one it is the members. Reading
+              the live switch means tapping "private" renames the option under
+              the thumb rather than leaving a word that stopped being true.
+            */
+            accessPolicy={isPrivate ? 'private' : 'public'}
+            onChange={setContribute}
+          />
       </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
@@ -510,6 +822,37 @@ const styles = StyleSheet.create({
   },
   headerSide: { fontSize: 16 },
   headerTitle: { fontSize: 16, fontWeight: '600' },
+  /* Inset by the page's own 20, unlike the full-bleed window on the screen
+     before: this one is inside a form, and a picture running to the glass in
+     the middle of a column of fields reads as a different screen starting. */
+  coverRow: { borderRadius: 14, overflow: 'hidden', marginBottom: 6 },
+  /* On the picture, bottom right, so the control is where the thing it acts on
+     is — and small, because the picture is what this block is for. */
+  coverDo: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  coverDoText: { fontSize: 13, fontWeight: '600' },
+  strip: { paddingTop: 8, paddingRight: 28, gap: 14 },
+  /* Room above and right of each tile for the ⊗ to sit outside the picture. */
+  cell: { paddingTop: 8, paddingRight: 8 },
+  thumb: { width: 72, height: 72, borderRadius: 10, overflow: 'hidden' },
+  thumbShot: { width: '100%', height: '100%' },
+  remove: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeMark: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   field: { gap: 8 },
   fieldHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* All-caps and small: a section marker, not the question. The question is

@@ -172,17 +172,52 @@ export async function signOutBrowser(): Promise<void> {
   }
 }
 
-/** Creates a guest actor and sets the cookie. Call only when contributing. */
+/**
+ * Creates a guest actor and sets the cookie. Call only when contributing.
+ *
+ * ## Why the presented id is checked against the table
+ *
+ * A cookie outlives the row it names. Not hypothetically: the production
+ * database was replaced, and every browser carrying an actor cookie from the
+ * old one presented an id that no longer existed.
+ *
+ * Trusting it produced the worst shape of failure available. `ensureActor`
+ * returned the id without creating anything, `bindAccount` wrote the account
+ * and then updated an actor that was not there — matching no rows and
+ * reporting nothing — and the endpoint answered 200. The next request asked
+ * which account that actor belonged to, found no actor, and said signed out.
+ * A success that signs nobody in, with no error anywhere: the form simply
+ * cleared and people typed the code again.
+ *
+ * The same thing happens without a migration. An actor deleted by a merge, a
+ * restore from an older snapshot, a database reset in development — anything
+ * that removes the row while the cookie survives.
+ *
+ * So the id is only worth what the table says. One extra read on a path that
+ * already writes, in exchange for a state that cannot be diagnosed from the
+ * outside.
+ */
 export async function ensureActor(db: Db, displayName?: string): Promise<string> {
   const existing = await currentActorId();
   if (existing) {
-    if (displayName) {
-      await db
-        .update(schema.actors)
-        .set({ displayName })
-        .where(eq(schema.actors.id, existing));
+    const [row] = await db
+      .select({ id: schema.actors.id })
+      .from(schema.actors)
+      .where(eq(schema.actors.id, existing))
+      .limit(1);
+
+    if (row) {
+      if (displayName) {
+        await db
+          .update(schema.actors)
+          .set({ displayName })
+          .where(eq(schema.actors.id, existing));
+      }
+      return existing;
     }
-    return existing;
+    // Falls through and mints a new one. The stale cookie is overwritten
+    // below rather than cleared first: a browser that presented a dead id
+    // should leave with a live one, not with nothing.
   }
 
   const [actor] = await db
@@ -190,7 +225,28 @@ export async function ensureActor(db: Db, displayName?: string): Promise<string>
     .values({ kind: 'guest', displayName: displayName ?? null })
     .returning();
 
-  await issueActorCookie(actor!.id);
+  /*
+   * A cookie for a browser, and nothing for a native client.
+   *
+   * This issued one unconditionally, which quietly handed the app a second
+   * identity: iOS keeps a shared cookie jar and sends it without being asked,
+   * and `currentActorId` reads the cookie *before* the bearer token. So a phone
+   * that had ever reached this line was thereafter identified by something it
+   * had no way to clear — and signing out, which clears the token and the
+   * keychain, left the server still answering as the person who signed out.
+   *
+   * The rule was already written down one route away, at sign-in: "browsers
+   * only: native carries the same value as a bearer token and has no cookie jar
+   * worth writing to". This is that rule, applied where an actor is actually
+   * minted.
+   *
+   * A native caller that gets here has no way to learn the actor it just
+   * created, which is a real gap and not a new one — the cookie was hiding it
+   * rather than solving it. The app does not rely on it: `POST /api/session`
+   * mints an actor and hands back a token, which is how the phone gets an
+   * identity it can keep and can throw away.
+   */
+  if (await fromBrowser()) await issueActorCookie(actor!.id);
   return actor!.id;
 }
 

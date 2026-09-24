@@ -31,7 +31,9 @@ import { useCallback, useState } from 'react';
 import type { GroupEvent, GroupPerson } from '@/groups';
 
 import { Face } from './Faces';
+import { GroupChat } from './GroupChat';
 import { MemberPicker, nameOf, type Person } from './MemberPicker';
+import { RailIcon, type RailGlyph } from './RailIcon';
 import { Menu } from './Menu';
 import { SiteFooter } from './SiteFooter';
 import { useImageFailure } from './useImageFailure';
@@ -48,13 +50,34 @@ type GroupData = {
   people: GroupPerson[];
   /** The tile's colour, decided on the server so both screens agree. */
   lens: { fill: string; ink: string };
-  /** Events grouped by month, worded server-side. See the page. */
-  months: { label: string; ids: string[] }[];
   /** "Fri 14 Mar" per event id, formatted on the server for the same reason. */
   dates: Record<string, string>;
 };
 
-export function GroupView({ group }: { group: GroupData }) {
+/**
+ * Which pane is showing, and it is the URL rather than state.
+ *
+ * `?tab=` for the reason an album's three tabs use one: a link to the room's
+ * people is a link somebody can send, and Back is the way out of it.
+ */
+export type GroupTab = 'albums' | 'chat' | 'people';
+
+/*
+ * The three, with the app's own drawings beside them.
+ *
+ * Glyph *and* word, where the app's segmented control is glyph-only: a phone
+ * has three tabs across 393 points and a browser has a row with room in it,
+ * and a word that fits is a word worth keeping. What matters is that the
+ * picture is the same picture — `bubbles` for a room where people are talking
+ * to each other, against the single `bubble` an album's comments carry.
+ */
+const TABS: [GroupTab, string, RailGlyph][] = [
+  ['albums', 'Albums', 'photos'],
+  ['chat', 'Chat', 'bubbles'],
+  ['people', 'People', 'groups'],
+];
+
+export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -181,7 +204,9 @@ export function GroupView({ group }: { group: GroupData }) {
     );
   }
 
-  const byId = new Map(group.events.map((event) => [event.id, event]));
+  /** Where a tab points. Albums is the bare path, like an album's photographs. */
+  const hrefFor = (id: GroupTab) =>
+    id === 'albums' ? `/group/${group.id}` : `/group/${group.id}?tab=${id}`;
 
   return (
     <main className="group-page">
@@ -205,7 +230,7 @@ export function GroupView({ group }: { group: GroupData }) {
           <h1>{group.name}</h1>
           <p className="group-head-meta">
             {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'} ·{' '}
-            {group.events.length} {group.events.length === 1 ? 'event' : 'events'}
+            {group.events.length} {group.events.length === 1 ? 'album' : 'albums'}
             {group.role === 'admin' && ' · you run this'}
           </p>
         </div>
@@ -216,7 +241,7 @@ export function GroupView({ group }: { group: GroupData }) {
             aria-expanded={creating}
             onClick={() => setCreating((was) => !was)}
           >
-            New event here
+            New album here
           </button>
           {/*
             One item, and no "Manage group" beside it.
@@ -254,6 +279,31 @@ export function GroupView({ group }: { group: GroupData }) {
         </div>
       </header>
 
+      {/*
+        Three tabs, and the same three an album has.
+
+        A room and an evening are the same kind of object to somebody reading
+        — a thing with pictures in it, a conversation about them, and the
+        people it belongs to — and drawing them two ways makes a reader learn
+        the product twice. The app reached this first; this is the same screen.
+      */}
+      <nav className="event-tabs" aria-label="This group">
+        {TABS.map(([id, label, glyph]) => (
+          <a
+            key={id}
+            href={hrefFor(id)}
+            className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
+            aria-current={tab === id ? 'page' : undefined}
+          >
+            <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      {/* Under any tab, because the button that opens it is in the header
+          rather than in the albums. Making one from the People tab and being
+          shown nothing is a button that appears broken. */}
       {creating && (
         <form className="group-create" onSubmit={createEvent}>
           <label htmlFor="ev" className="visually-hidden">
@@ -285,7 +335,13 @@ export function GroupView({ group }: { group: GroupData }) {
         because the same people keep turning up; this is the only line on the
         screen that says so, and it earns its place by standing in for a
         heading over the faces.
+
+        On its own tab now rather than above the archive. It is the pane about
+        people, which is where the people belong — and the invite that opens
+        under it is the one thing an admin comes here to do.
       */}
+      {tab === 'people' && (
+      <>
       <section className="people-strip">
         <span className="people-strip-label">The same people, every time</span>
         <div className="people-strip-row">
@@ -360,81 +416,78 @@ export function GroupView({ group }: { group: GroupData }) {
           )}
         </div>
       )}
-
-      {group.events.length === 0 ? (
-        /* With no archive, making one *is* the page — so the action comes to
-           the front rather than staying behind the header button. */
-        <div className="group-empty">
-          <p>Nothing yet.</p>
-          <button type="button" className="group-new" onClick={() => setCreating(true)}>
-            New event here
-          </button>
-        </div>
-      ) : (
-        group.months.map((month) => (
-          <section className="group-month" key={month.label}>
-            <div className="day-head">
-              <h2>{month.label}</h2>
-              <span className="day-rule" aria-hidden="true" />
-            </div>
-            <div className="archive">
-              {month.ids.map((id) => {
-                const event = byId.get(id);
-                if (!event) return null;
-                return (
-                  <a className="archive-row" href={`/event/${event.id}`} key={event.id}>
-                    <span className="archive-cover">
-                      {event.cover ? (
-                        <EventCover src={event.cover} />
-                      ) : (
-                        <span className="archive-none" aria-hidden="true" />
-                      )}
-                      {event.fresh > 0 && (
-                        <span className="fresh">
-                          <span className="fresh-dot" aria-hidden="true" />
-                          {event.fresh} new
-                        </span>
-                      )}
-                    </span>
-                    <span className="archive-what">
-                      <span className="archive-line">
-                        <span className="archive-name">{event.name}</span>
-                        <span className="archive-when">{group.dates[event.id]}</span>
-                      </span>
-                      <span className="archive-meta">
-                        <span className="archive-faces">
-                          {event.faces.map((src, i) => (
-                            <Face
-                              key={i}
-                              src={src}
-                              size={20}
-                              className="archive-face"
-                              fallback={<span />}
-                            />
-                          ))}
-                        </span>
-                        {event.people} {event.people === 1 ? 'person' : 'people'} ·{' '}
-                        {event.photoCount} {event.photoCount === 1 ? 'photo' : 'photos'}
-                      </span>
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-          </section>
-        ))
+      </>
       )}
+
+      {tab === 'chat' && <GroupChat groupId={group.id} />}
+
+      {tab === 'albums' &&
+        (group.events.length === 0 ? (
+          /* With no shelf, making one *is* the page — so the action comes to
+             the front rather than staying behind the header button. */
+          <div className="group-empty">
+            <p>Nothing yet.</p>
+            <button type="button" className="group-new" onClick={() => setCreating(true)}>
+              New album here
+            </button>
+          </div>
+        ) : (
+          /*
+            The shelf, two across.
+
+            It was an archive: a row per album — cover, name, date, faces,
+            counts — under month headings, on the argument that an archive is
+            read by when. What that produced was a third way of drawing the
+            same object, next to the cards on the home page and the list on a
+            profile. Two columns of cover, name and date is the shelf the app
+            draws for a group and for a person, and the month headings went
+            with it: every tile carries its own date, which is what those
+            headings were saying.
+          */
+          <div className="group-shelf">
+            {group.events.map((event) => (
+              <a className="shelf-album" href={`/event/${event.id}`} key={event.id}>
+                <span className="shelf-cover">
+                  {event.cover ? (
+                    <EventCover src={event.cover} />
+                  ) : (
+                    /* An album with nothing in it yet still belongs here — it
+                       is one of the things this room has, and leaving it out
+                       would make the shelf disagree with the count above. */
+                    <span className="shelf-none" aria-hidden="true" />
+                  )}
+                  {/* What has moved since you last looked, which is the one
+                      thing a room knows that a person's shelf does not. */}
+                  {event.fresh > 0 && <span className="shelf-pip" aria-hidden="true" />}
+                </span>
+                <span className="shelf-name">{event.name}</span>
+                <span className="shelf-meta">
+                  {event.photoCount === 0
+                    ? 'Nothing in it yet'
+                    : `${group.dates[event.id]} · ${event.photoCount}`}
+                </span>
+              </a>
+            ))}
+          </div>
+        ))}
 
       {/*
         The sentence that makes `Leave this group` safe to hide in a menu.
         Without it, leaving reads as though it might take the photographs with
         it — and somebody who believes that will never press it, or will press
         it and be frightened.
+
+        At the foot of the albums, which is where somebody arrives having
+        scrolled them — exactly when "what happens to all this if I go" occurs
+        to them. Under the other two panes it would be a sentence about
+        photographs attached to a conversation.
       */}
+      {tab === 'albums' && (
       <p className="group-note">
-        Photos live in the events, not in the group. Leaving stops the next one
-        reaching you — it takes nothing away from the events you were in.
+        Photos live in the albums, not in the group. Leaving stops the next one
+        reaching you — it takes nothing away from the albums you were in.
       </p>
+      )}
 
       <SiteFooter />
     </main>
@@ -445,12 +498,13 @@ export function GroupView({ group }: { group: GroupData }) {
  * An event's picture, which is presigned and therefore expires.
  *
  * A tab left open outlives the signature, and the browser's answer to that is
- * the broken-image glyph on a row whose whole job is to be recognisable. The
- * box keeps its size and falls back to the warm bed instead.
+ * the broken-image glyph on a tile whose whole job is to be recognisable. The
+ * box keeps its size and falls back to the warm bed instead — which is what
+ * the tile's own background already is, so the span only has to be empty.
  */
 function EventCover({ src }: { src: string }) {
   const { ref, failed, onError } = useImageFailure(src);
-  if (failed) return <span className="archive-none" aria-hidden="true" />;
+  if (failed) return <span className="shelf-failed" aria-hidden="true" />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img ref={ref} src={src} alt="" onError={onError} />;
 }

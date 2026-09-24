@@ -30,6 +30,17 @@ export type Member = {
   avatarUrl: string | null;
   /** Whose event it is. Drawn first and labelled. */
   isCreator: boolean;
+  /**
+   * One of the people who may add photographs to a `host` album.
+   *
+   * A grant, not a rank: it buys `upload` on an album set to `host` and
+   * nothing else — not renaming, not letting anybody in, not deleting. The
+   * creator is one whether or not the column says so, which is why this is
+   * `role === 'host' || isCreator` rather than the column alone: a client
+   * drawing "who can add" should not have to remember that the creator is
+   * the exception.
+   */
+  isHost: boolean;
 };
 
 /**
@@ -70,6 +81,7 @@ export async function membersOf(
       displayName: schema.actors.displayName,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
+      role: schema.eventParticipants.role,
     })
     .from(schema.eventParticipants)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.eventParticipants.actorId))
@@ -88,6 +100,7 @@ export async function membersOf(
       // never crosses the boundary; see `accounts.avatarUrl`.
       avatarUrl: await avatarUrl(row.avatarKey),
       isCreator: row.actorId === host,
+      isHost: row.role === 'host' || row.actorId === host,
     })),
   );
 
@@ -119,6 +132,17 @@ export type Roster = {
   /** How many of the photographs on this page are theirs. */
   photoCount: number;
   role: 'creator' | 'contributor' | 'viewer' | 'invited';
+  /**
+   * Whether they may add photographs to a `host` album.
+   *
+   * Beside `role` rather than folded into it, and the two are different kinds
+   * of fact: `role` describes what somebody has *done* here — made it, added
+   * to it, only looked — and this is something they were *granted*. Merging
+   * them would make a host who has not added anything indistinguishable from
+   * a contributor, which is exactly the pair the manage screen has to tell
+   * apart.
+   */
+  isHost: boolean;
   /** For somebody invited and not yet arrived: when the invitation was sent. */
   invitedAt: string | null;
 };
@@ -164,6 +188,9 @@ export async function invitedTo(db: Db, eventId: string): Promise<Roster[]> {
       avatarUrl: await avatarUrl(row.avatarKey),
       photoCount: 0,
       role: 'invited' as const,
+      // Nobody who is not in yet is a host of anything: the role lives on the
+      // participant row, and an invitation is the absence of one.
+      isHost: false,
       invitedAt: row.createdAt.toISOString(),
     })),
   );
@@ -193,6 +220,7 @@ export function rosterFrom(
       : (counts.get(member.actorId) ?? 0) > 0
         ? ('contributor' as const)
         : ('viewer' as const),
+    isHost: member.isHost,
     invitedAt: null,
   }));
 

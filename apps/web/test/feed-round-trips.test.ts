@@ -84,7 +84,32 @@ describe('the feed asks for everything at once', () => {
     // `waiting` needs `canAdminister` to have come back; the photo URLs need
     // `hasCard` and `reactions`. Both stay in order, deliberately.
     expect(FEED).toMatch(/const canAdminister = adminDecision\.allow/);
-    expect(FEED).toMatch(/const \[waitingRow\] = canAdminister/);
+    expect(FEED).toMatch(/const \[waitingRows, hostWaitingRows, hosting\] = await Promise\.all/);
+  });
+
+  it('makes the leftovers one wave rather than three', () => {
+    /*
+     * The two queues a host is waiting on, and where this reader stands with
+     * the album's hosts. All three needed an answer from the first wave — two
+     * need `canAdminister`, the third needs `accountActorId` and the
+     * `contribute` decision — and none of them needs either of the others.
+     *
+     * Written one after another they are three more round trips to a database
+     * in another region, which is the exact shape the first wave exists to
+     * stop. The guard against re-introducing it is that there is one `await`
+     * between the first wave and the response.
+     */
+    const after = FEED.slice(FEED.indexOf('const contributors = people.length'));
+    const body = after.slice(0, after.indexOf('return NextResponse.json'));
+    /*
+     * Top-level statements only. The photo mapping below is full of `await`s
+     * and every one of them is inside a `rows.map` that `Promise.all` already
+     * runs together — counting those would make this test fail on the shape it
+     * is supposed to be protecting.
+     */
+    const waves = body.match(/^ {2}const .* = await/gm) ?? [];
+    // One for the photo rows, one for this wave. Nothing in series after that.
+    expect(waves.length).toBeLessThanOrEqual(2);
   });
 });
 

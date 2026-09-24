@@ -32,8 +32,15 @@ import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
 
-/** Displayed at 64px and at 2x on the way to a retina screen. Twice that is plenty. */
-const EDGE = 256;
+/**
+ * The largest place it is drawn, at 3x.
+ *
+ * 256 was sized for a 64px avatar, and the profile header has since grown to
+ * a 172pt square — 516 physical pixels on a phone, which a 256px JPEG reaches
+ * by being upscaled to twice its size. 512 is that, near enough, and an
+ * avatar is one small file per person.
+ */
+const EDGE = 512;
 /** A generous phone photograph. Past this it is not a profile picture. */
 const MAX_BYTES = 12 * 1024 * 1024;
 
@@ -55,7 +62,17 @@ export async function POST(request: Request) {
       // Bakes in orientation, so a picture taken sideways is not stored
       // sideways for everyone who lacks the tag to correct it.
       .rotate()
-      .resize({ width: EDGE, height: EDGE, fit: 'cover', position: 'attention' })
+      /*
+       * Square, and centred rather than clever.
+       *
+       * `attention` picks the crop itself from where the detail is, which is
+       * the right default for a cover somebody never framed. This picture was
+       * framed: the picker hands back a square the uploader chose, so there
+       * is nothing here for `cover` to trim — and on the day something
+       * non-square arrives, honouring the middle of what they sent beats
+       * a second opinion about where their face is.
+       */
+      .resize({ width: EDGE, height: EDGE, fit: 'cover', position: 'centre' })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
   } catch {

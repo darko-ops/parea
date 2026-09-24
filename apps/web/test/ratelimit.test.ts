@@ -21,6 +21,8 @@ import {
   CREATE_EVENT_LIMIT,
   PRESIGN_LIMIT,
   SIGN_IN_ADDRESS_LIMIT,
+  SIGN_IN_LIMIT,
+  SIGN_IN_VERIFY_LIMIT,
   consume,
   expiredBefore,
   staleRateLimits,
@@ -262,5 +264,53 @@ describe('the bound on what one address receives', () => {
     // an authorization decision, and the caps that must not fail open are
     // elsewhere.
     expect(await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, undefined, 'sam@example.com')).toBe(true);
+  });
+});
+
+describe('sending a code and answering one are separate allowances', () => {
+  /*
+   * They were one, and the two competed. `SIGN_IN_LIMIT` is a mail budget —
+   * its whole justification is that this deployment will post a message to an
+   * address a stranger chose — and the verify route, which sends nothing, was
+   * spending from it. Ten requests an hour covers asking a few times *or*
+   * answering a few times, and a person doing both ran out while holding a
+   * good code. The message they got said the code had expired.
+   */
+  const SECRET = 'test-secret';
+  const source = 'src-key';
+
+  it('does not share a bucket', async () => {
+    expect(SIGN_IN_VERIFY_LIMIT.name).not.toBe(SIGN_IN_LIMIT.name);
+
+    // Spend the mail budget to its limit.
+    for (let i = 0; i < SIGN_IN_LIMIT.max; i++) {
+      await consume(db, source, SIGN_IN_LIMIT);
+    }
+    expect((await consume(db, source, SIGN_IN_LIMIT)).allowed).toBe(false);
+
+    // The code in the inbox is still answerable. This is the whole fix.
+    expect((await consume(db, source, SIGN_IN_VERIFY_LIMIT)).allowed).toBe(true);
+  });
+
+  it('leaves room for every code an address can legitimately receive', async () => {
+    /*
+     * Five codes an hour per address, five tries per code — so twenty-five
+     * answers is the most an honest person working their own inbox can need,
+     * and the bound has to sit above it or it fires on the real case.
+     *
+     * `MAX_CODE_ATTEMPTS` is 5 and lives in `accounts.ts`; it is the per-code
+     * bound and the one that actually stops guessing. This is only the bound
+     * on a source spraying across addresses, which that one cannot see.
+     */
+    expect(SIGN_IN_VERIFY_LIMIT.max).toBeGreaterThan(SIGN_IN_ADDRESS_LIMIT.max * 5);
+  });
+
+  it('still bounds a source spraying guesses across addresses', async () => {
+    // The thing the per-code counter cannot bound, because every new address
+    // is a new row with a fresh five.
+    for (let i = 0; i < SIGN_IN_VERIFY_LIMIT.max; i++) {
+      await consume(db, source, SIGN_IN_VERIFY_LIMIT);
+    }
+    expect((await consume(db, source, SIGN_IN_VERIFY_LIMIT)).allowed).toBe(false);
   });
 });

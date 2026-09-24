@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import { GroupView } from '@/../app/components/GroupView';
+import { GroupView, type GroupTab } from '@/../app/components/GroupView';
 import { getDb } from '@/db';
 import {
   findGroup,
@@ -38,35 +38,28 @@ const DAY = new Intl.DateTimeFormat('en-GB', {
 });
 
 /**
- * Which month heading an event sits under.
- *
- * Computed here, in the same pass that formats the dates, for the reason
- * `activity.ts` gives about its day buckets: a boundary worked out in the
- * browser can disagree with the one the HTML was rendered against, and React
- * answers a text mismatch by throwing the tree away.
- *
- * "This month" for the current one, because that is what somebody calls it,
- * and the month's own name for everything before.
- */
-function monthOf(iso: string, now: Date): string {
-  const at = new Date(iso);
-  return at.getUTCFullYear() === now.getUTCFullYear() &&
-    at.getUTCMonth() === now.getUTCMonth()
-    ? 'This month'
-    : MONTH.format(at);
-}
-
-/**
  * A group — the running archive, for members. Non-members get the door, and
  * only if the group is findable; otherwise it is indistinguishable from a
  * group that does not exist.
  */
 export default async function GroupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab: asked } = await searchParams;
+  /*
+   * Which pane, out of the URL rather than out of state.
+   *
+   * The album's three tabs do the same: a link to the room's people is a link
+   * somebody can send, and Back is the way out of it. Anything unrecognised
+   * falls to the albums rather than 404ing — a stale `?tab=archive` in
+   * somebody's history should open the room, not refuse it.
+   */
+  const tab: GroupTab = asked === 'chat' || asked === 'people' ? asked : 'albums';
   const db = getDb();
   const group = await findGroup(db, id);
   if (!group) notFound();
@@ -93,28 +86,10 @@ export default async function GroupPage({
         ])
       : [[], []];
 
-  const now = new Date();
-
-  /*
-   * Contiguous runs of one month, in the order the events already have.
-   *
-   * Contiguous rather than collected, like the activity feed's days: the list
-   * is sorted newest-first by the query, so a month's events are already
-   * together. Grouping into a map would quietly reorder them if that stopped
-   * being true; this way a mis-sorted list draws the same heading twice, which
-   * is visibly wrong rather than silently rearranged.
-   */
-  const months: { label: string; ids: string[] }[] = [];
-  for (const event of events) {
-    const label = monthOf(event.at, now);
-    const last = months[months.length - 1];
-    if (last && last.label === label) last.ids.push(event.id);
-    else months.push({ label, ids: [event.id] });
-  }
-
   return (
     <Shell current="groups">
       <GroupView
+        tab={tab}
         group={{
           id: group.id,
           name: group.name,
@@ -128,9 +103,15 @@ export default async function GroupPage({
           events,
           people,
           lens: lensFor(group.id),
-          months,
-          // Formatted here rather than in the browser, for the reason the
-          // month headings are: two clocks, one of them somebody's laptop.
+          /*
+           * Formatted here rather than in the browser.
+           *
+           * Two clocks, one of them somebody's laptop: a date worked out in
+           * the browser can disagree with the one the HTML was rendered
+           * against, and React answers a text mismatch by throwing the tree
+           * away. The month headings this used to sit beside are gone — every
+           * tile carries its own date now, which is what they were saying.
+           */
           dates: Object.fromEntries(
             events.map((event) => [event.id, DAY.format(new Date(event.at))]),
           ),

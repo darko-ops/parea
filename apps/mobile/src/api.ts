@@ -9,14 +9,47 @@
 
 import { Offline, type PresignRequest, type PresignResponse } from '@parea/upload';
 
+/**
+ * Who may add photographs to an album.
+ *
+ * Three answers where there was a boolean. `everyone` defers to who can see
+ * it; `host` is the person who made it and a group's admins; `nobody` closes
+ * the album to everybody including its maker.
+ */
+/**
+ * Who may add photographs.
+ *
+ * `creator` is one person; `host` is that person plus a group's admins plus
+ * anybody made a host of the album. `nobody` is no longer offered by either
+ * client — see `CONTRIBUTE_NOBODY` on the server — and stays in the type
+ * because an album can still be holding it.
+ */
+export type ContributePolicy = 'everyone' | 'creator' | 'host' | 'nobody';
+
 export type EventSummary = {
   id: string;
   name: string;
   linkToken: string;
   capEpoch: number;
-  uploadsOpen: boolean;
+  /** Who may add photographs: `everyone`, `host` or `nobody`. */
+  contributePolicy: ContributePolicy;
   startsAt: string | null;
   endsAt: string | null;
+};
+
+/**
+ * Somebody named in a photograph.
+ *
+ * A tag is a claim the uploader makes about a third party, which is why it
+ * carries `mine`: the person named can take it off without asking, and the
+ * interface needs to know which row is theirs to offer that.
+ */
+export type PhotoTag = {
+  key: string;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  mine: boolean;
 };
 
 export type FeedPhoto = {
@@ -47,7 +80,39 @@ export type FeedPhoto = {
   byteSize: number;
   mime: string;
   takenAt: string;
+  /**
+   * When it arrived in the album, which is not when it was taken.
+   *
+   * `takenAt` falls back to this, so for most photographs the two agree. They
+   * diverge exactly where the difference is worth having: somebody adding last
+   * summer's pictures tonight. The grid dates them by this one — "added today"
+   * is what tells you a row is new to you.
+   */
+  addedAt: string;
+  /**
+   * Who the uploader says is in it.
+   *
+   * Keyed the same opaque per-event way a contributor is — never an actor id.
+   * That matters more here than it does for a byline: this one is about
+   * somebody's face, and an id would make "who is in this photograph" a fact
+   * that follows them out of the album.
+   */
+  tags: PhotoTag[];
   mine: boolean;
+  /**
+   * Who added it, as the opaque per-event key — never an actor id.
+   *
+   * The server has sent this all along and this client never declared it, so
+   * the album had no way to say whose photograph a row was. Look it up in
+   * `Feed.people`, which carries the name, the handle and the face for the same
+   * key; null for a photograph whose uploader is gone.
+   *
+   * A key rather than the person themselves because an album of two hundred
+   * pictures taken by five people is five names, not two hundred — and because
+   * the key is what keeps the association inside this event. See
+   * `contributors.ts` on the server.
+   */
+  by: string | null;
   /**
    * Who reacted, and with what. Newest first.
    *
@@ -59,13 +124,48 @@ export type FeedPhoto = {
    * Empty for a photograph nobody has reacted to, which is most of them.
    */
   reactions: { emoji: string; name: string; mine: boolean }[];
+  /**
+   * Whether *this* viewer kept it, and never anybody else's answer.
+   *
+   * A shortlist of an album, private to the person who made it — the server
+   * scopes it to the viewer and there is no shape in the response that could
+   * carry somebody else's. False for a guest, which is honest rather than
+   * hidden: keeping needs an account, so somebody without one has kept
+   * nothing and the star is a thing they are offered rather than a state they
+   * are in.
+   */
+  favourite: boolean;
+  /**
+   * Something somebody else has said or left on it since this viewer last
+   * opened the album's conversation.
+   *
+   * Comments on photographs live in that thread, so there is one marker for
+   * both and it is the one the unread count already uses. Somebody else's,
+   * because a ring that lights up on your own comment teaches people the ring
+   * means nothing.
+   */
+  unseen: boolean;
 };
 
 export type Feed = {
   event: {
     id: string;
+    /**
+     * What it is called, as the server currently has it.
+     *
+     * Read rather than taken from the `SavedEvent` the screen was opened with:
+     * that one is a copy made when the album was first reached and does not
+     * move when somebody renames it. The header follows this.
+     */
     name: string;
-    uploadsOpen: boolean;
+    /**
+     * Who may add photographs, as the album has it.
+     *
+     * A different question from whether *you* may — see `canAdd` below, which
+     * is the server's decision about the reader. This one is for the settings
+     * sheet, which has to show which of the three is currently chosen.
+     */
+    contributePolicy: ContributePolicy;
     canAdminister: boolean;
     /**
      * Who can see it, as it stands: `public` or `private`.
@@ -89,6 +189,19 @@ export type Feed = {
      * depending on who is asking, which is a second thing to get wrong.
      */
     coverUrl: string | null;
+    /**
+     * Which photograph the cover was cut from, and where the window sat.
+     *
+     * So that changing the cover opens on the picture it is currently made of,
+     * framed as it was left. Both are null for a cover set before this was
+     * recorded and for one chosen off the camera roll — and either way the
+     * answer is the same: start from the album's own photographs.
+     *
+     * An id rather than a URL: it is a key into `photos` below, which this
+     * response already carries.
+     */
+    coverPhotoId: string | null;
+    coverFraming: { x: number; y: number; zoom: number } | null;
     /** When the event was, ISO — what the line under the name dates it by. */
     startsAt: string | null;
   };
@@ -121,7 +234,23 @@ export type Feed = {
    * else. The same person in two events has two keys, so it cannot be used to
    * follow somebody between them.
    */
-  people: { key: string; name: string; photoCount: number; mine: boolean }[];
+  people: {
+    key: string;
+    name: string;
+    /**
+     * The handle alone, without the `@`. Null for a guest who arrived by link.
+     *
+     * Beside `name` rather than instead of it, because `name` already falls
+     * back to `@handle` for somebody with no display name — the byline on a
+     * photograph wants the handle *as a handle*, and the face row over the
+     * cover wants the name.
+     */
+    handle: string | null;
+    /** Presigned, as every face that crosses this boundary is. */
+    avatarUrl: string | null;
+    photoCount: number;
+    mine: boolean;
+  }[];
   /** Everybody in it with what they have put in, plus whoever was asked. */
   roster: Roster[];
   /**
@@ -142,6 +271,31 @@ export type Feed = {
    * always going to refuse.
    */
   canPost: boolean;
+  /**
+   * Whether *this* person may add photographs.
+   *
+   * The server's decision rather than a fact about the album, which is what
+   * `uploadsOpen` was: on a host-only album that would have drawn the add
+   * button for everybody and had it refused on the way up.
+   */
+  canAdd: boolean;
+  /**
+   * Where this reader stands with the album's set of hosts.
+   *
+   * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+   * button", and this answers "and if not, is there something to do about it".
+   * Decided by the server for the same reason `canAdd` is — re-deriving it
+   * here from `contributePolicy` would be the policy written a third time, and
+   * the day it drifts the app offers a button the server refuses.
+   */
+  hosting: {
+    /** Already one of the people who may add. */
+    isHost: boolean;
+    /** The album is set to `host` and this reader is not one, so asking is a thing. */
+    canAsk: boolean;
+    /** What their last ask left standing, or null for never having asked. */
+    asked: 'open' | 'approved' | 'declined' | null;
+  };
 };
 
 /** Somebody in an event: a name, a face, and whether it is their event. */
@@ -152,6 +306,8 @@ export type Member = {
   handle: string | null;
   avatarUrl: string | null;
   isCreator: boolean;
+  /** One of the people who may add to a `host` album. True of the creator. */
+  isHost: boolean;
 };
 
 /** A member with what they have put in — what the People pane lists. */
@@ -162,8 +318,26 @@ export type Roster = {
   avatarUrl: string | null;
   photoCount: number;
   role: 'creator' | 'contributor' | 'viewer' | 'invited';
+  /**
+   * Whether they may add photographs to a `host` album.
+   *
+   * Beside `role` rather than folded into it: `role` describes what somebody
+   * has *done* here, and this is something they were granted. Merged, a host
+   * who has not added anything would be indistinguishable from a contributor,
+   * which is exactly the pair the settings sheet has to tell apart.
+   */
+  isHost: boolean;
   /** For somebody asked and not yet arrived: when the invitation was sent. */
   invitedAt: string | null;
+};
+
+/** Somebody already in an album, asking to be one of the people who may add. */
+export type HostRequest = {
+  id: string;
+  actorId: string;
+  createdAt: string;
+  displayName: string | null;
+  handle: string | null;
 };
 
 /**
@@ -184,6 +358,16 @@ export type Message = {
   /** Set when this is a comment on one photograph rather than to the thread. */
   photoId: string | null;
   reactions: { emoji: string; count: number; mine: boolean }[];
+  /**
+   * Set when this line is a reaction rather than something somebody wrote.
+   *
+   * A reaction is a thing somebody did in the album at a moment, and the
+   * thread is where the album's moments are read in order — so it arrives
+   * merged into the messages and in their order, rather than as a second list
+   * to interleave here. Its presence is what tells them apart: a reaction
+   * carries an emoji and no body.
+   */
+  emoji?: string;
 };
 
 /**
@@ -244,8 +428,10 @@ export type Cluster = {
  * drift. `lastMessage` is null for a thread nobody has said anything in — a
  * door rather than an error, and the row says so in words.
  */
+export type Said = { author: string; body: string; at: string; mine: boolean };
+
 export type ThreadLine = {
-  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  lastMessage: Said | null;
   /** Posted since this viewer last read it. Zero when signed out. */
   unreadCount: number;
 };
@@ -291,7 +477,15 @@ export type EventListing = {
   /** Uploaded and not through the deriver yet. */
   arrivingCount: number;
   lastActiveAt: string;
-  /** The earliest photograph in it, ISO — what a card dates an evening by. */
+  /** When the album was made, ISO — the date its card leads with. */
+  createdAt: string;
+  /**
+   * The earliest photograph in it, ISO.
+   *
+   * No longer what the home card dates an album by — see `createdAt`. Kept
+   * because the profile still dates a shelf of albums by the evening they are
+   * about, which is a different question from when somebody posted one.
+   */
   firstPhotoAt: string | null;
   /** The host's line under the name, or null. */
   caption: string | null;
@@ -305,6 +499,18 @@ export type EventListing = {
    * moves, along with everything else signed against it.
    */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
+  /**
+   * The cover's shape, width over height, or null.
+   *
+   * Null for a photograph standing in for a cover, and for a cover stored
+   * before the shape was recorded — both of which the card draws in the
+   * letterbox it always drew, which is what those covers are.
+   *
+   * Bounded on the way in by `coverAspect` on the server, and clamped again on
+   * the way out: it is a number off the wire, and one bad row should cost a
+   * card its shape rather than cost the screen its layout.
+   */
+  coverAspect?: number | null;
   /**
    * The people in it, host first: whoever the card draws circles for.
    *
@@ -329,18 +535,48 @@ export type EventListing = {
   /** Whose event it is, in the two names the card prints together. */
   creator: { name: string | null; handle: string | null; avatarUrl: string | null };
   /**
-   * Signed thumbnail URLs, most recent first, at most four.
+   * The images the card can draw, the one it leads with first.
    *
    * Signed by the server: this client has no image secret and must not have
    * one. They expire with the event's `cap_epoch`, so rotating a link stops
    * the old thumbnails resolving along with everything else.
    *
-   * The card leads with `cover` now rather than arranging these four, and this
-   * stays because the response still carries it — the field is what the
-   * `/api/events` mosaic was for, and nothing else reads it yet.
+   * `id` is the photograph's, and it is null on exactly one entry: a chosen
+   * cover, which is its own re-encoded object rather than a row in the album.
+   * So the first entry answers the question a card needs answered — whether
+   * the picture it leads with is one of the photographs or a separate image in
+   * front of them — and every entry after it is a photograph the strip under
+   * the cover can draw and open.
    */
-  mosaic: string[];
-} & ThreadLine;
+  mosaic: { id: string | null; src: string }[];
+  /**
+   * Everything said in the album, comments on its photographs included.
+   *
+   * One number, because from the outside they are one conversation: a comment
+   * on a picture *is* a message with that picture's id on it, and there is no
+   * second table to count. Tombstones are not in it — a deleted message
+   * leaves a row so the ones either side do not appear to answer each other.
+   */
+  messageCount: number;
+  /** Reactions on its photographs, and only on the ones anybody can see. */
+  reactionCount: number;
+  /**
+   * The newest thing said in it, and who said it.
+   *
+   * Not `ThreadLine`, which is the shape a *row* in the Groups tab wants: a
+   * name, some words, a time. An album's card on Home draws the person as
+   * well — a 22pt face beside their reply — so it needs their picture and,
+   * for somebody who has not set one, a stable key to colour the letter by.
+   *
+   * `authorKey` rather than the name: `lensFor` exists so that somebody's
+   * colour is theirs and does not change the day they write a name in, which
+   * a display name cannot promise. The server sends their handle, or their
+   * actor id when they have no handle.
+   */
+  lastMessage: (Said & { avatarUrl: string | null; authorKey: string }) | null;
+  /** Posted since this viewer last read it. Zero when signed out. */
+  unreadCount: number;
+};
 
 /** A group as a stranger sees it: a door, never the room. */
 export type GroupDoor = {
@@ -352,6 +588,53 @@ export type GroupDoor = {
   canJoinDirectly: boolean;
 };
 
+/**
+ * One album in a group, as the room draws it.
+ *
+ * The four bare columns this used to be — id, name, token, a date — were
+ * enough to render a blue word, which is what the group screen did with them
+ * in a product whose subject is photographs. Everything added here is what
+ * makes a row recognisable: the picture, how much of it there is, who was
+ * there. The same shape the web's group page has been drawing all along.
+ */
+export type GroupAlbum = {
+  id: string;
+  name: string;
+  /** Presigned, or null for an album with nothing in it yet. */
+  cover: string | null;
+  photoCount: number;
+  /** Up to three contributor pictures. Null where somebody has none. */
+  faces: (string | null)[];
+  /** Everybody in it, which is not the same as everybody who put something in. */
+  people: number;
+  /** ISO. The album's own date where it has one, else when it last moved. */
+  at: string;
+  /** Arrived since this person last looked. Zero draws no pip. */
+  fresh: number;
+  /** What opening it needs — see the note on `GroupEvent` on the server. */
+  linkToken: string;
+  startsAt: string | null;
+  endsAt: string | null;
+};
+
+/** Somebody in a group. */
+export type GroupPerson = {
+  actorId: string;
+  name: string;
+  /** The name a face is captioned with, where a full one would not fit. */
+  firstName: string;
+  /**
+   * Without the `@`, and null for somebody with no profile to open.
+   *
+   * `name` already falls back to `@handle` where there is no display name,
+   * which is right for a caption and useless for navigation. Null is how a
+   * face says it cannot be pressed.
+   */
+  handle: string | null;
+  avatarUrl: string | null;
+  role: 'member' | 'admin';
+};
+
 export type GroupRoom = {
   id: string;
   name: string;
@@ -359,15 +642,20 @@ export type GroupRoom = {
   member: true;
   role: 'member' | 'admin';
   findable: boolean;
-  events: {
-    id: string;
-    name: string;
-    linkToken: string;
-    eventDate: string | null;
-    createdAt: string;
-    startsAt: string | null;
-    endsAt: string | null;
-  }[];
+  events: GroupAlbum[];
+  /** ISO. When the room started — the other half of the line under its name. */
+  createdAt: string;
+  /**
+   * How many members have been at every album in it.
+   *
+   * Null for a group with no albums, where everybody has trivially been to all
+   * nought of them. The one fact about a room that a count of heads does not
+   * give: whether this is a group where everyone turns up, or one with a core
+   * and a fringe.
+   */
+  everyAlbum: number | null;
+  /** Everybody in it, admins first. Empty for a group being read as a door. */
+  people: GroupPerson[];
 };
 
 export type GroupView = GroupDoor | GroupRoom;
@@ -389,12 +677,72 @@ export type JoinRequest = {
  */
 export type PendingRequest = {
   key: string;
-  kind: 'invite' | 'friend' | 'join';
+  /*
+   * Four, not three.
+   *
+   * `group_invite` was missing here while the server had been sending it since
+   * groups gained invitations — so a group invitation arriving on a phone hit a
+   * lookup table with three keys in it and drew a card with no buttons, or
+   * threw reading a label off `undefined`. The one kind of ask that arrives
+   * from somebody you may not know yet was the one the app could not answer.
+   */
+  /*
+   * Five, and the fifth is the only one nothing else announces.
+   *
+   * `host` is somebody already in one of your albums asking to be able to add
+   * photographs to it. There is no push for it — see the route — so this list
+   * and the badge over the album's own `⋯` are the whole of how it reaches
+   * anybody, which is why a client that did not know the kind would drop the
+   * ask on the floor rather than merely draw it plainly.
+   */
+  kind: 'invite' | 'friend' | 'join' | 'group_invite' | 'host';
   id: string;
   eventId: string | null;
+  /** Which group, for the kind that has one. Null for the other three. */
+  groupId?: string | null;
   title: string;
   detail: string;
   at: string;
+  /**
+   * The picture on the card, presigned. Null draws the title's first letter.
+   *
+   * Whichever thing the card is *about*: an event for an invitation or a
+   * request to come in, a person for a friend request.
+   */
+  image?: string | null;
+  /** "2 hours ago", worded by the server. Present on Lately's copy. */
+  when?: string;
+};
+
+/**
+ * One line of what has already happened.
+ *
+ * The read half of Lately, and the mirror of the web's `ActivityRow`. Worded,
+ * dated and bucketed on the server — see `src/when.ts` there for why a phone's
+ * own clock is the wrong one to decide "Today" with.
+ */
+export type ActivityRow = {
+  id: string;
+  who: string;
+  what: string;
+  /** "4 hours ago". */
+  when: string;
+  /** Where to go, as a web path. Null for a line with nowhere to be. */
+  href: string | null;
+  /** A person's picture, or the event's newest photograph. */
+  image: string | null;
+  /** The photographs the line is about. Only `photos_added` has any. */
+  images: string[];
+  /** "Today", "Earlier this week", "March" — the server's words. */
+  bucket: string;
+  /** Arrived since the last look. */
+  unread: boolean;
+};
+
+/** Both halves of Lately, in the shape one request answers. */
+export type Lately = {
+  waiting: PendingRequest[];
+  items: ActivityRow[];
 };
 
 /**
@@ -413,9 +761,19 @@ export type Person = {
   displayName: string | null;
   /** Presigned for an hour. The storage key never crosses this boundary. */
   avatar: string | null;
+  /** The line they wrote about themselves, which the site has always shown. */
+  bio: string | null;
   standing: Standing;
   /** Only when they are the one waiting: the id the answer goes to. */
   requestId: string | null;
+  /**
+   * Their own three totals, in the order the page prints them.
+   *
+   * Worked out by `profileFor` on the server, like the standing beside it, so
+   * this screen and the web's `/u/<handle>` say the same numbers rather than
+   * each counting for themselves.
+   */
+  counts: { albums: number; photos: number; friends: number };
 };
 
 /**
@@ -446,7 +804,8 @@ export type ProfileAlbum = {
   locked: boolean;
   /** Null when locked. */
   photoCount: number | null;
-  eventDate: string | null;
+  /** When it was made, ISO — what a shelf of albums is dated by. */
+  createdAt: string;
   thumb: string | null;
 };
 
@@ -469,6 +828,15 @@ export type InvitablePerson = {
 };
 
 /**
+ * One of them, with the reason they are being suggested.
+ *
+ * `mutuals` is how many of your own friends already know them, and it is the
+ * whole difference between a suggestion and a list: "3 mutual friends" is what
+ * makes an unfamiliar handle worth tapping.
+ */
+export type SuggestedPerson = InvitablePerson & { mutuals: number };
+
+/**
  * You, as your own profile draws you.
  *
  * `/api/account/session` has answered with all of this for as long as the web
@@ -481,6 +849,14 @@ export type Account = {
   email: string;
   displayName: string | null;
   bio: string | null;
+  /**
+   * The one link on their profile, with its scheme.
+   *
+   * Always `http:` or `https:` — the server refuses anything else, which is
+   * what makes it safe to hand to `Linking.openURL` without a second check on
+   * this side. Shown without the scheme; see `Profile.tsx`.
+   */
+  link: string | null;
   handle: string | null;
   avatarUrl: string | null;
 };
@@ -527,7 +903,29 @@ export class Api {
 
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+      res = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers,
+        /*
+         * Never a cookie. This phone is its bearer token and nothing else.
+         *
+         * iOS keeps a shared cookie jar and `fetch` uses it without being
+         * asked, so a single `Set-Cookie` anywhere in the API gave this app a
+         * second identity it did not know it had — and the server reads the
+         * cookie *first*, so that second identity outranked the token.
+         *
+         * What that cost: signing out cleared the token, the keychain and every
+         * screen, and the next request still arrived as the person who had just
+         * signed out. Their groups and their profile came back from the server,
+         * which looks exactly like a client that failed to clear its state and
+         * is not.
+         *
+         * The server already says this is the rule — "native carries the same
+         * value as a bearer token and has no cookie jar worth writing to" — and
+         * this is the client half of making it true.
+         */
+        credentials: 'omit',
+      });
     } catch {
       // `fetch` rejects rather than answering, which at a venue means no
       // signal. Distinguished from an HTTP error because the upload queue
@@ -600,6 +998,8 @@ export class Api {
     createdByName?: string;
     /** Two values and no others. Omitted means public. */
     accessPolicy?: 'public' | 'private';
+    /** Who may add photographs. Absent means `everyone`, as it always was. */
+    contributePolicy?: ContributePolicy;
   }): Promise<{ id: string; name: string; linkToken: string; url: string; code: string | null }> {
     return this.call('/api/events', {
       method: 'POST',
@@ -718,6 +1118,26 @@ export class Api {
   }
 
   /**
+   * The same tap, on a group's message.
+   *
+   * Its own path for the reason the two above have theirs: the ids come out of
+   * different tables and could collide, and a route asked to guess which is a
+   * route that can guess wrong. `group_message_reaction` is a third table of
+   * the same shape, because what bounds a reaction is what bounds the thing it
+   * is on — membership here, where an event's comments have a capability to
+   * weigh and a photograph has `visiblePhotos`.
+   *
+   * Toggles, like the other two, so the caller never has to know which state
+   * it is in before it acts.
+   */
+  reactToGroupMessage(messageId: string, emoji: string): Promise<unknown> {
+    return this.call(`/api/group-messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
+  }
+
+  /**
    * The same tap, on a photograph rather than on a message.
    *
    * Its own path because the ids come out of two tables, and a route that had
@@ -731,7 +1151,76 @@ export class Api {
     );
   }
 
+  /**
+   * Ends the album, for everybody.
+   *
+   * `administer` on the server, so this is the host's action — the route
+   * refuses anybody else, and the sheet only offers it to somebody it would
+   * accept. Tombstoned rather than erased: the purge job is what actually takes
+   * the objects, which is why this returns immediately.
+   */
+  deleteEvent(eventId: string): Promise<unknown> {
+    return this.call(`/api/events/${eventId}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Takes this person out of the album, and nothing else.
+   *
+   * Not a smaller delete: the photographs stay, because they belong to the
+   * evening rather than to whoever carried them there, and the link still
+   * works. It is "take this off my list" rather than "never again" — blocking
+   * is the tool for that, and it is about a person rather than a room.
+   */
+  leaveEvent(
+    eventId: string,
+  ): Promise<{ left: boolean; wasIn: boolean; throughGroup: string | null }> {
+    return this.call<{ left: boolean; wasIn: boolean; throughGroup: string | null }>(
+      `/api/events/${eventId}/participation`,
+      { method: 'DELETE' },
+    );
+  }
+
+  /**
+   * Say who is in a photograph, or take a name off it.
+   *
+   * The server decides who may: only the uploader can add one, and either the
+   * uploader or the person named can remove one — somebody does not have to ask
+   * permission to stop being named in a picture.
+   *
+   * By actor id rather than by the opaque key the feed draws with, because this
+   * is the one direction that needs to name a person to the server. The id
+   * comes from the album's own roster, which is also the only set of people who
+   * may be tagged.
+   */
+  tagPhoto(photoId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/photos/${photoId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId }),
+    });
+  }
+
+  untagPhoto(photoId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/photos/${photoId}/tags`, {
+      method: 'DELETE',
+      body: JSON.stringify({ actorId }),
+    });
+  }
+
   /** One tap, and the same tap again takes it off. The route toggles. */
+  /**
+   * Keep a photograph, or stop keeping it.
+   *
+   * `PUT` and `DELETE` rather than a toggle, because a toggle retries badly:
+   * a press that times out and is sent again would undo itself. The state is
+   * what the caller asked for, and the server's answer is the same whether or
+   * not it had to change anything.
+   */
+  setFavourite(photoId: string, on: boolean): Promise<{ favourite: boolean }> {
+    return this.call(`/api/photos/${photoId}/favourite`, {
+      method: on ? 'PUT' : 'DELETE',
+    });
+  }
+
   react(messageId: string, emoji: string): Promise<unknown> {
     return this.call(`/api/messages/${messageId}/reactions`, {
       method: 'POST',
@@ -807,9 +1296,35 @@ export class Api {
   }
 
   /**
+   * Both halves of Lately, in one request.
+   *
+   * `requests()` above answers the top half on its own and stays that way —
+   * the bubble on Home wants nothing else. This screen wants both at once, and
+   * two round trips to draw one screen means the cards and the feed arrive
+   * separately, so it lays itself out twice. On a phone the second trip is the
+   * one that happens on a train.
+   */
+  activity(): Promise<Lately> {
+    return this.call<Lately>('/api/activity');
+  }
+
+  /**
+   * How many things are waiting, for the badge on the envelope.
+   *
+   * Its own small request rather than the length of the list above, because
+   * the badge is drawn on a tab somebody may never open and fetching fifty
+   * rows to render a number is fifty rows of somebody's data allowance for one
+   * digit. The same route the web rail's badge asks.
+   */
+  async waiting(): Promise<number> {
+    const { waiting } = await this.call<{ waiting: number }>('/api/invites');
+    return waiting ?? 0;
+  }
+
+  /**
    * Answer one, wherever it is answered.
    *
-   * The three routes disagree about the word for yes — a host *approves*
+   * The four routes disagree about the word for yes — a host *approves*
    * somebody into an event, where an invitation is *accepted* — and that
    * difference belongs here rather than in the screen, which should only know
    * that somebody pressed the left button or the right one.
@@ -818,6 +1333,14 @@ export class Api {
     switch (request.kind) {
       case 'invite':
         return this.call(`/api/invites/${request.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: yes ? 'accept' : 'decline' }),
+        });
+      // Its own route, and not the one above: an event invitation and a group
+      // invitation are two tables, answered by two endpoints that each decide
+      // separately who may say yes.
+      case 'group_invite':
+        return this.call(`/api/group-invites/${request.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ action: yes ? 'accept' : 'decline' }),
         });
@@ -831,6 +1354,17 @@ export class Api {
         });
       case 'join':
         return this.call(`/api/events/${request.eventId}/access-requests`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            requestId: request.id,
+            action: yes ? 'approve' : 'decline',
+          }),
+        });
+      // Approving writes `host` onto their participant row, which is the
+      // grant. Same verb as a join and a different table: they are already in,
+      // and what they asked for is the photographs.
+      case 'host':
+        return this.call(`/api/events/${request.eventId}/host-requests`, {
           method: 'PATCH',
           body: JSON.stringify({
             requestId: request.id,
@@ -907,6 +1441,8 @@ export class Api {
   updateProfile(patch: {
     displayName?: string | null;
     bio?: string | null;
+    /** Sent as written. The server adds the scheme and refuses the rest. */
+    link?: string | null;
     handle?: string | null;
   }): Promise<{ ok?: boolean }> {
     return this.call('/api/account', {
@@ -961,13 +1497,46 @@ export class Api {
     return this.call(`/api/events/${eventId}/cover`, { method: 'DELETE' });
   }
 
-  coverTarget(eventId: string): { url: string; headers: Record<string, string> } {
+  /**
+   * Where the cover is sent, and how it should sit when it gets there.
+   *
+   * `framing` is the two `object-position` percentages the cover screen drew
+   * its preview with. They travel in the query rather than the body because
+   * the body is the photograph — the native uploader streams it from disk and
+   * must not be asked to wrap it in anything.
+   *
+   * Omitted only by a caller with no way to ask, which is what leaves the
+   * route's `attention` crop in place for the web.
+   */
+  coverTarget(
+    eventId: string,
+    framing?: { x: number; y: number; zoom?: number } | null,
+    /**
+     * Which of the album's photographs these bytes are, when they are one.
+     *
+     * Recorded by the route so the frame can be reopened on it. Omitted for a
+     * picture off the camera roll, which has no id here to give — and the
+     * route writes null in that case rather than leaving the last one standing.
+     */
+    photoId?: string | null,
+  ): { url: string; headers: Record<string, string> } {
     const headers: Record<string, string> = {
       'content-type': 'image/jpeg',
       'x-parea-client': this.client,
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
-    return { url: `${this.baseUrl}/api/events/${eventId}/cover`, headers };
+    const query = new URLSearchParams();
+    if (framing) {
+      query.set('cx', String(Math.round(framing.x)));
+      query.set('cy', String(Math.round(framing.y)));
+      // Rounded to two places rather than to an integer: zoom is a multiplier
+      // and 1 to 4 is the whole of its range, so whole numbers would be four
+      // settings.
+      query.set('cz', (framing.zoom ?? 1).toFixed(2));
+    }
+    if (photoId) query.set('photo', photoId);
+    const where = query.size > 0 ? `?${query}` : '';
+    return { url: `${this.baseUrl}/api/events/${eventId}/cover${where}`, headers };
   }
 
   // --- people ----------------------------------------------------------
@@ -1047,10 +1616,89 @@ export class Api {
    * ones already in — the screen says so, because "private" sounds like it
    * should mean the opposite.
    */
+  /**
+   * Who may add photographs, changed after the fact.
+   *
+   * The same endpoint the access policy goes through and for the same reason:
+   * it is one field on the album, and the route refuses a value `authorize`
+   * would not recognise rather than storing it — a typo in the column seals
+   * the album rather than opening it.
+   */
+  /**
+   * Asking to be one of the people who may add to this album.
+   *
+   * Only meaningful where the feed says `hosting.canAsk`; the server refuses
+   * everywhere else rather than trusting the client to have checked, and the
+   * status it answers with is what the screen should show — a repeat ask on
+   * something already declined comes back `declined` rather than reopening it,
+   * and a button that said "Asked" over that would be pressing past somebody's
+   * no on their behalf.
+   */
+  askToHost(eventId: string): Promise<{ status?: string }> {
+    return this.call(`/api/events/${eventId}/host-requests`, { method: 'POST' });
+  }
+
+  /** The queue, for whoever administers the album. 404 for everybody else. */
+  async hostRequests(eventId: string): Promise<HostRequest[]> {
+    const { requests } = await this.call<{ requests: HostRequest[] }>(
+      `/api/events/${eventId}/host-requests`,
+    );
+    return requests ?? [];
+  }
+
+  answerHostRequest(eventId: string, requestId: string, yes: boolean): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/host-requests`, {
+      method: 'PATCH',
+      body: JSON.stringify({ requestId, action: yes ? 'approve' : 'decline' }),
+    });
+  }
+
+  /**
+   * Making somebody a host, or taking it back.
+   *
+   * One call with a boolean rather than two, because the two are the same
+   * write to the same column and the control is a toggle.
+   */
+  setEventHost(eventId: string, actorId: string, host: boolean): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/hosts`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId, host }),
+    });
+  }
+
+  setContributePolicy(eventId: string, contributePolicy: ContributePolicy): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ contributePolicy }),
+    });
+  }
+
   setAccessPolicy(eventId: string, accessPolicy: 'public' | 'private'): Promise<unknown> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ accessPolicy }),
+    });
+  }
+
+  /**
+   * What the album is called, changed after the fact.
+   *
+   * Same endpoint and same field the create screen writes and the web's manage
+   * screen edits — the route has accepted `name` since events had one. What
+   * was missing was any way to reach it from a phone once the album existed,
+   * which made it the one thing you had to get right in the thirty seconds
+   * before anybody arrived, on a screen where you had not yet seen a single
+   * photograph.
+   *
+   * The one field on that route that cannot be emptied: it is what an album is
+   * called on a card, in a notification and in the thread, and a blank in all
+   * of those is a space nobody can point at. The route refuses `''` and
+   * anything past 120, and the screen refuses both first.
+   */
+  setName(eventId: string, name: string): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
     });
   }
 
@@ -1081,6 +1729,41 @@ export class Api {
       method: 'POST',
       body: JSON.stringify({ actorId }),
     });
+  }
+
+  /**
+   * Taking an ask back, and unfriending, through one door.
+   *
+   * The endpoint clears the friendship and both open requests between the two
+   * actors, which is exactly what withdrawing needs: a request somebody
+   * changed their mind about should leave nothing behind, least of all a row
+   * that makes the next ask look already answered.
+   *
+   * Named for what the screen does with it. "Delete the friendship" is the
+   * endpoint's name for it and the wrong one here — nothing was ever agreed.
+   */
+  unaskFriend(actorId: string): Promise<unknown> {
+    return this.call(`/api/friends?actorId=${encodeURIComponent(actorId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * People worth asking, for the resting state of Find.
+   *
+   * Friends of friends, most mutuals first — the same `suggestionsFor` the
+   * web's own Find page draws, reached through a route because the app cannot
+   * call a server component.
+   *
+   * Empty rather than an error for a guest: a suggestion is derived from a
+   * friendship graph and a device that has never signed in has none, which is
+   * an answer rather than a failure.
+   */
+  async suggestedPeople(): Promise<SuggestedPerson[]> {
+    const { people } = await this.call<{ people: SuggestedPerson[] }>(
+      '/api/people/suggestions',
+    );
+    return people ?? [];
   }
 
   /** Answering one, from their page rather than from the bubble on home. */

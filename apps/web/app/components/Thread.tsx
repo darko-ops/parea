@@ -34,11 +34,23 @@ import { Face } from './Faces';
 import { Mark } from './Mark';
 import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
+import { useImageFailure } from './useImageFailure';
 
 type Person = { key: string; name: string; photoCount: number; mine: boolean };
 
+/**
+ * Which room this thread is, which decides every route it talks to.
+ *
+ * Two ids where one room exists is a pair that eventually disagrees, so the
+ * kind travels with the id rather than beside it. A group's messages are a
+ * different table reached through different paths — `/api/group-messages/…`
+ * rather than `/api/messages/…` — because the ids could collide and a route
+ * asked to guess which table it was handed is one that can guess wrong.
+ */
+export type ThreadRoom = { kind: 'event'; id: string } | { kind: 'group'; id: string };
+
 export type ThreadProps = {
-  eventId: string;
+  room: ThreadRoom;
   messages: Message[];
   /** Whether this viewer may post — `contribute`, and signed in. */
   canPost: boolean;
@@ -46,6 +58,16 @@ export type ThreadProps = {
   people: Person[];
   /** Everybody in the event. Kept for the mention list's fallback names. */
   members: Member[];
+  /**
+   * The photograph a line is about, by id.
+   *
+   * Optional, and absent under a single photograph — the picture is already
+   * on the screen there, and a thumbnail of it beside every reaction to it
+   * is the page saying the same thing twice. The event's own board hands it
+   * over: that column is where every reaction in the album is read in order,
+   * and it is the one place that has to say *which* one.
+   */
+  photoOf?: (photoId: string) => { id: string; src: string } | null;
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
   /**
@@ -73,11 +95,12 @@ export type ThreadProps = {
  * each person has put in.
  */
 export function Thread({
-  eventId,
+  room,
   messages,
   canPost,
   people,
   members,
+  photoOf,
   onChanged,
   onSeen,
 }: ThreadProps) {
@@ -97,6 +120,38 @@ export function Thread({
   const listRef = useRef<HTMLDivElement>(null);
 
   const live = messages.filter((m) => !m.deleted || m.body === '');
+
+  /*
+   * The photograph a line is about, and its page.
+   *
+   * The href is built here rather than in the row because this is where the
+   * event is known — and it is a link rather than a handler for the reason
+   * `PhotoTile` is: the middle-click, the Copy-link and the Back button all
+   * come from the element.
+   */
+  const aboutOf = useCallback(
+    (photoId: string | null) => {
+      // A group owns no photographs, so nothing in one is about a picture and
+      // there is no page to link to even if it were.
+      const photo = room.kind === 'event' && photoId ? (photoOf?.(photoId) ?? null) : null;
+      return photo ? { src: photo.src, href: `/event/${room.id}/p/${photo.id}` } : null;
+    },
+    [room, photoOf],
+  );
+
+  /*
+   * Where the four verbs go, which is the whole of what a room changes here.
+   *
+   * Posting is scoped by the room; editing, deleting and reacting are scoped
+   * by the message, and a group's messages live in their own table behind
+   * their own paths. Computed once rather than branched at four call sites.
+   */
+  const postTo =
+    room.kind === 'group'
+      ? `/api/groups/${room.id}/messages`
+      : `/api/events/${room.id}/messages`;
+  const messageAt = (id: string) =>
+    room.kind === 'group' ? `/api/group-messages/${id}` : `/api/messages/${id}`;
 
   /*
    * Stay at the bottom, but only if that is where you already were.
@@ -120,7 +175,7 @@ export function Thread({
     setPosting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/messages`, {
+      const res = await fetch(postTo, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body }),
@@ -136,11 +191,11 @@ export function Thread({
     } finally {
       setPosting(false);
     }
-  }, [draft, posting, eventId, onChanged]);
+  }, [draft, posting, postTo, onChanged]);
 
   const react = useCallback(
     async (id: string, emoji: string) => {
-      await fetch(`/api/messages/${id}/reactions`, {
+      await fetch(`${messageAt(id)}/reactions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ emoji }),
@@ -153,7 +208,7 @@ export function Thread({
   const remove = useCallback(
     async (id: string) => {
       if (!confirm('Delete this message? It leaves a gap saying it was deleted.')) return;
-      await fetch(`/api/messages/${id}`, { method: 'DELETE' }).catch(() => {});
+      await fetch(messageAt(id), { method: 'DELETE' }).catch(() => {});
       await onChanged();
     },
     [onChanged],
@@ -163,7 +218,7 @@ export function Thread({
     async (id: string, body: string) => {
       const text = body.trim();
       if (!text) return;
-      await fetch(`/api/messages/${id}`, {
+      await fetch(messageAt(id), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body: text }),
@@ -195,11 +250,18 @@ export function Thread({
           */
           <div className="thread-empty">
             <Mark size={48} />
-            <h2>Talk about the moment</h2>
-            <p>
-              Ask for a missing photo, share what happened or let everyone know
-              when you’ve added yours.
-            </p>
+            {/*
+              One line, where it was a heading and a paragraph explaining what
+              a conversation is for. Nobody needs telling; what an empty board
+              needs is a reason to say the first thing.
+
+              It named the awkwardness of an empty room, which is a chat's
+              nudge and was the same sentence the app's chat says. This sits
+              under a wall of photographs somebody has just scrolled, so it
+              names those instead — and it is still the same words the app's
+              board says, because it is the same empty board.
+            */}
+            <p>Say something about these photographs.</p>
           </div>
         )}
 
@@ -214,6 +276,7 @@ export function Thread({
             onSave={(body) => save(message.id, body)}
             onDelete={() => remove(message.id)}
             onReact={(emoji) => react(message.id, emoji)}
+            about={aboutOf(message.photoId)}
           />
         ))}
       </div>
@@ -312,7 +375,7 @@ function Composer({
         className="thread-field"
         rows={1}
         value={draft}
-        placeholder="Message everyone in this event…"
+        placeholder="Add a comment…"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           // Enter posts, Shift+Enter is a new line. The opposite of a document
@@ -331,9 +394,9 @@ function Composer({
           There was a standing line here — who can read it, and that Enter
           sends. It is gone, and the argument it lost to is that a sentence
           under every message anybody ever writes is a sentence nobody reads
-          after the first day. What it was buying is now bought elsewhere: who
-          can read it is what the placeholder says, and Enter-sends is a
-          convention the box behaves like anyway.
+          after the first day. Enter-sends is a convention the box behaves
+          like anyway, and who may read a comment is the album's own setting
+          — said where that is decided rather than under every draft.
 
           The slot stays for errors, which are the one thing worth a line here
           — and they are the reason this is not simply deleted.
@@ -355,8 +418,12 @@ function Composer({
  * react to get rid of it. Not shared with `Menu` itself because the picker is
  * not a popover: its buttons sit in the row of reactions rather than in a
  * panel over them, so there is nothing to hand a `children` function.
+ *
+ * Exported for the photograph's own picker, which is this control in another
+ * place: a second copy of "dismiss this" is a second chance to forget the
+ * Escape half of it.
  */
-function useDismiss(open: boolean, close: () => void) {
+export function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -387,6 +454,7 @@ function Row({
   onSave,
   onDelete,
   onReact,
+  about,
 }: {
   message: Message;
   canPost: boolean;
@@ -396,10 +464,22 @@ function Row({
   onSave: (body: string) => void;
   onDelete: () => void;
   onReact: (emoji: string) => void;
+  /** The photograph this line is about, and its page. Null where there is none. */
+  about?: { src: string; href: string } | null;
 }) {
   const [body, setBody] = useState(message.body);
   const [picking, setPicking] = useState(false);
   const pickerRef = useDismiss(picking, useCallback(() => setPicking(false), []));
+  /*
+   * The thumbnail's failure path, which this page needs like every other.
+   *
+   * These URLs are signed against the event's `cap_epoch`, so they stop
+   * resolving for ordinary reasons — a rotated link, a page out of the
+   * back-forward cache. A failed one leaves the line reading "Ana reacted ❤️"
+   * with nothing beside it, which is the same thing the app draws when the
+   * feed no longer holds the photograph.
+   */
+  const shot = useImageFailure(about?.src ?? '');
 
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
@@ -408,7 +488,50 @@ function Row({
     return <p className="muted thread-gone">Message deleted</p>;
   }
 
+  /*
+   * A reaction, which is a line rather than a message — and was a blank one.
+   *
+   * The feed merges every reaction in the album into the thread so that one
+   * column reads in one order. This file never learned the difference, so
+   * each of them drew as a message with a face, a name, a time and an empty
+   * paragraph: a board on an album people had reacted all over was a column
+   * of comments nobody had written.
+   *
+   * The photograph goes where a comment has its author's face — the thing
+   * the row is about, in the slot that says what a row is about — and it
+   * links to that picture, which is the question somebody reading a reaction
+   * actually has. Without one it is the quiet line the app draws in the same
+   * case: under a single photograph, where the picture is already on screen.
+   */
+  if (message.emoji) {
+    const who = message.author.mine ? 'You' : message.author.name;
+    return (
+      <p className="muted thread-reacted">
+        {about && !shot.failed && (
+          <a href={about.href} className="thread-reacted-shot" aria-label="The photograph it is on">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={shot.ref} src={about.src} alt="" onError={shot.onError} />
+          </a>
+        )}
+        <span>
+          <strong>{who}</strong> reacted {message.emoji}
+        </span>
+      </p>
+    );
+  }
+
   return (
+    /*
+     * One shape for every comment, and yours on the right.
+     *
+     * `message-mine` used to carry both: the mirrored row *and* the mark's
+     * blue instead of its mint, everything in a bubble. The fill is what made
+     * this a messenger and it is gone. The side is not the same thing — a
+     * column with everybody in it reads as a wall of other people's remarks
+     * with yours buried in it, and which edge a block hangs from is seen
+     * before a word of it is read. The class is the alignment now, and
+     * nothing else.
+     */
     <div className={`message${message.author.mine ? ' message-mine' : ''}`}>
       {/*
         Their actual picture. `Face` rather than a bare `<img>` for the reason
@@ -439,6 +562,27 @@ function Row({
             <MessageMenu onEdit={onEdit} onDelete={onDelete} />
           )}
         </div>
+
+        {/*
+          The photograph this was said about, where it was said about one.
+
+          A comment written under a picture is a line in this same board
+          carrying its `photo_id` — one thread, two ways in. This column drew
+          the words and dropped the picture, so "look at her face in this one"
+          arrived with no *this one* in it: the same sentence meant two
+          different things depending on where you read it, and here it meant
+          nothing. The app's board has shown it since the merge landed.
+
+          Small, above the words rather than beside them: it is the subject of
+          the sentence under it, not an illustration of it, and a thumbnail
+          big enough to look at would make this a second copy of the album.
+        */}
+        {about && !shot.failed && !editing && (
+          <a href={about.href} className="message-about" aria-label="The photograph this is about">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={shot.ref} src={about.src} alt="" onError={shot.onError} />
+          </a>
+        )}
 
         {editing ? (
           <div className="message-edit">

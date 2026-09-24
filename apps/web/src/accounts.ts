@@ -176,6 +176,32 @@ export async function signIn(
   return result;
 }
 
+/**
+ * Points an actor at an account, and refuses to pretend it worked.
+ *
+ * This was two bare `update`s, and a bare update that matches nothing is
+ * silent. When it matched nothing — an actor id from a cookie whose row no
+ * longer existed — sign-in still answered 200 with an account that belonged
+ * to nobody, and the very next request reported the person signed out. The
+ * failure had no symptom except the thing not working.
+ *
+ * `returning` turns that into an error at the point it happens, where the
+ * route answers 500 and the log says which actor. Callers reach here only
+ * after `ensureActor`, which now guarantees the row exists; this is the
+ * assertion that the guarantee held.
+ */
+async function link(db: Db, accountId: string, actorId: string): Promise<void> {
+  const updated = await db
+    .update(schema.actors)
+    .set({ accountId, kind: 'user' })
+    .where(eq(schema.actors.id, actorId))
+    .returning({ id: schema.actors.id });
+
+  if (updated.length === 0) {
+    throw new Error(`cannot bind account to actor ${actorId}: no such actor`);
+  }
+}
+
 async function bindAccount(
   db: Db,
   email: string,
@@ -189,10 +215,7 @@ async function bindAccount(
 
   if (!existing) {
     const [account] = await db.insert(schema.accounts).values({ email }).returning();
-    await db
-      .update(schema.actors)
-      .set({ accountId: account!.id, kind: 'user' })
-      .where(eq(schema.actors.id, actorId));
+    await link(db, account!.id, actorId);
     return { actorId, email, merged: false };
   }
 
@@ -206,10 +229,7 @@ async function bindAccount(
 
   // An account whose actor is gone: adopt this one rather than stranding it.
   if (!canonical) {
-    await db
-      .update(schema.actors)
-      .set({ accountId: existing.id, kind: 'user' })
-      .where(eq(schema.actors.id, actorId));
+    await link(db, existing.id, actorId);
     return { actorId, email, merged: false };
   }
 
@@ -224,6 +244,13 @@ export type AccountProfile = {
   displayName: string | null;
   /** A line or two somebody wrote about themselves. Null draws nothing. */
   bio: string | null;
+  /**
+   * The one link on their profile, with its scheme. Null draws nothing.
+   *
+   * Always `http:` or `https:` — see the normalisation in `account/route.ts`,
+   * which is the only thing that writes this column.
+   */
+  link: string | null;
   handle: string | null;
   /** Presigned and short-lived. The bucket is private; see `avatarUrl`. */
   avatarUrl: string | null;
@@ -243,6 +270,7 @@ export async function accountFor(
       email: schema.accounts.email,
       displayName: schema.actors.displayName,
       bio: schema.actors.bio,
+      link: schema.actors.link,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
       // The last two digits, never the number — there is no number to send.

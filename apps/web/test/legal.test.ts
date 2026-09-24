@@ -109,21 +109,25 @@ describe('the closed list of what is collected', () => {
      * Counted against the union rather than the word "three", so a fourth kind
      * fails here instead of quietly making the sentence wrong again.
      */
-    expect(NOTIFICATION_KINDS).toHaveLength(8);
-    expect(PRIVACY).toMatch(/eight\s+notifications/);
+    expect(NOTIFICATION_KINDS).toHaveLength(10);
+    expect(PRIVACY).toMatch(/ten\s+notifications/);
 
     // One phrase per kind, each distinguishing it from the others. The fourth
     // arrived after this test did, and the test is what made the page follow.
     expect(PRIVACY, 'nudge').toMatch(/have not added anything to/);
-    expect(PRIVACY, 'group_event').toMatch(/new event in a group/);
+    expect(PRIVACY, 'group_event').toMatch(/new album in a group/);
     expect(PRIVACY, 'removal_answered').toMatch(/answer when you have asked/);
     expect(PRIVACY, 'access_requested').toMatch(/somebody is asking to come into a private/);
     expect(PROSE, 'friend_requested').toMatch(/somebody wants to be friends/);
-    expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an event/);
+    expect(PROSE, 'event_invited').toMatch(/somebody has asked you into an album/);
     expect(PROSE, 'group_invited').toMatch(/somebody has asked you into a group/);
     // Distinguished from the one above by the verb, which is the whole
     // difference: one waits for an answer and this one does not.
     expect(PRIVACY, 'group_added').toMatch(/put you in a group they made/);
+    expect(PRIVACY, 'photo_comment').toMatch(/commented on a photograph you added/);
+    // The only one that reports a claim made *about* somebody rather than
+    // something that happened to them, which the page says out loud.
+    expect(PRIVACY, 'photo_tagged').toMatch(/said\s+you are in a photograph/);
   });
 
   it('discloses everything an account row holds about a person', () => {
@@ -153,6 +157,7 @@ describe('the closed list of what is collected', () => {
     const DISCLOSED: Record<string, RegExp> = {
       display_name: /display name/i,
       bio: /<h3>A line about you/,
+      link: /<h3>A link, if you add one<\/h3>/,
       handle: /<h3>A handle<\/h3>/,
       avatar_key: /<h3>A profile picture/,
       // Two columns, one promise, and the promise is the unusual half: the
@@ -204,11 +209,14 @@ describe('the closed list of what is collected', () => {
       device: /notification token/i,
       photo: /Photos and videos you upload/,
       observation: /[Ff]ive facts/,
-      event: /That you made an event/,
-      event_participant: /records that you are in that event/,
-      event_access_request: /asked to join a private event/,
-      group_member: /events and groups you are in/i,
-      group_join_request: /asked to join a private event or a group/,
+      event: /That you made an album/,
+      event_participant: /records that you are in that album/,
+      event_access_request: /asked to join a private album/,
+      // Asked by somebody already in the album, which is the difference
+      // between this and the row above: not "let me in" but "let me add".
+      event_host_request: /asked to be one of the people who can add photographs/,
+      group_member: /albums and groups you are in/i,
+      group_join_request: /asked to join a private album or a group/,
       report: /asked for a photo of you to be taken down/,
       block: /blocked somebody/,
       // Kept because the law requires it, and described at length in its own
@@ -217,17 +225,27 @@ describe('the closed list of what is collected', () => {
       moderation_action: /Child safety scanning/,
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
-      event_invite: /somebody invited you into an event/,
-      group_invite: /invited you into an event, or\s+into a group/,
+      event_invite: /somebody invited you into an album/,
+      group_invite: /invited you into an album, or\s+into a group/,
       event_message: /anything you post in it/,
       message_reaction: /reactions you leave on other people/,
       // Which emoji, on which picture — and, since the viewer names people,
       // who left it.
       photo_reaction: /react to a photograph itself, without saying anything/,
+      // Which picture, and that it was you. The disclosure has to carry the
+      // part that makes it different in kind from a reaction: it is shown to
+      // nobody, and not counted anywhere either.
+      photo_favourite: /keep a photograph, which is a shortlist of an album that is\s+yours alone/,
       group_message: /what you say in a group is kept with that\s+group/,
+      // The same disclosure the album's thread makes, in the other room: a
+      // reaction there is shown under your name to the people in it.
+      group_message_reaction: /reactions you leave on what other members say/,
       // One time per thread per person, and never shown to anybody else.
       event_thread_read: /the moment you last read it/,
       group_thread_read: /the moment you last read it/,
+      // Which picture, which person, and who said so — the third being the
+      // part that makes a tag different in kind from a reaction.
+      photo_tag: /tag the people in it/,
       hidden_activity: /identifier of that line and nothing/,
     };
 
@@ -255,8 +273,8 @@ describe('the closed list of what is collected', () => {
     // Pinned to the sentence that was wrong, not to the words in it: the page
     // still says, truthfully, that visiting without opening an event records
     // nothing, and a looser pattern failed on that.
-    expect(PRIVACY).not.toMatch(/Browsing an event[^.]*creates no record/);
-    expect(PRIVACY).toMatch(/records that you are in that event/);
+    expect(PRIVACY).not.toMatch(/Browsing an album[^.]*creates no record/);
+    expect(PRIVACY).toMatch(/records that you are in that album/);
   });
 
   it('names every third party that handles data', () => {
@@ -389,14 +407,14 @@ describe('what showing a name beside a photograph discloses', () => {
     expect(namesThem, 'the event page no longer names contributors').toBe(true);
 
     expect(PROSE, 'the page does not say who can see your name').toMatch(
-      /everyone who can see that event can see that they are yours/,
+      /everyone who can see that album can see that they are yours/,
     );
   });
 
   it('keeps the distinction between looking and adding', () => {
-    // Looking at an event must not put somebody in the list, and the page has
+    // Looking at an album must not put somebody in the list, and the page has
     // to keep saying which of the two does — "who was there" and "who added
     // photographs" are different sets, and only one of them is published.
-    expect(PROSE).toMatch(/Looking at an event does not put you in that list/);
+    expect(PROSE).toMatch(/Looking at an album does not put you in that list/);
   });
 });

@@ -101,7 +101,8 @@ export default async function PersonPage({
         locked: album.locked,
         cover: await coverSrc(album.coverKey),
         photoCount: album.photoCount,
-        date: dateLabel(album.eventDate ?? album.lastActiveAt),
+        // When it was made, like every other shelf of albums.
+        date: dateLabel(album.createdAt),
       })),
   );
 
@@ -117,6 +118,9 @@ export default async function PersonPage({
             avatar: await avatarUrl(person.avatarKey),
             standing: person.standing,
             requestId: person.requestId,
+            // Worked out by `profileFor` with the standing, so this page and
+            // the app's version of it print the same three figures.
+            counts: person.counts,
           }}
           // The same cards the home screen and your own profile draw, from the
           // same builder: an event should not look like a different kind of

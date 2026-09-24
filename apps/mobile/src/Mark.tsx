@@ -59,8 +59,87 @@ export const MARK_FILLS = {
   centre: '#a16eb9',
 } as const;
 
-export function Mark({ size = 22 }: { size?: number }) {
+/**
+ * The same seven regions in one colour, for drawing on the product's own
+ * surface.
+ *
+ * Not a second logo: the geometry is `MARK_CENTRES` and `MARK_R` exactly as
+ * the coloured one, and `brand.test.ts` still pins those against the other
+ * three copies. What changes is that the regions are told apart by how much
+ * white they carry rather than by hue.
+ *
+ * They have to be told apart by *something*, and that is the whole reason
+ * this is a ramp rather than one flat fill. The three circles sit on an
+ * equilateral arrangement, so their union is unchanged by a third of a turn —
+ * a solid white silhouette rotating is a solid white silhouette, and the
+ * spinner stops reading as motion at all. The lenses are what makes the turn
+ * visible, and here they are the only thing that does.
+ *
+ * Alpha, which the coloured mark refuses for good reason: there, letting
+ * transparency decide four of the seven values is how the pink-over-mint lens
+ * becomes a muddy neutral. Here there is one colour and alpha is the axis.
+ */
+const MARK_MONO = {
+  /** One person. Present, and the quietest thing on the mark. */
+  alone: 0.38,
+  /** Two of them at the same evening. */
+  pair: 0.64,
+  /** Everyone was there — the subject of the whole mark, and the brightest. */
+  centre: 1,
+} as const;
+
+export function Mark({
+  size = 22,
+  /**
+   * One colour throughout, for a surface that has already chosen its own.
+   *
+   * The spinner asks for this: it is drawn over the app's background on
+   * eleven screens, and three brand colours turning in the middle of
+   * somebody else's photographs is the mark competing with the thing it is
+   * waiting for.
+   *
+   * A colour rather than a flag, because the right one depends on what is
+   * behind it. White was the first answer and it is only half of one — the
+   * light theme's background is `#f7f8fa`, where a white mark is not there at
+   * all. The caller knows which surface this is landing on; this does not.
+   */
+  tint,
+}: {
+  size?: number;
+  tint?: string;
+}) {
   const [pink, blue, mint] = MARK_CENTRES;
+  const mono = tint !== undefined;
+  const fill = mono
+    ? {
+        pink: tint,
+        blue: tint,
+        mint: tint,
+        pinkOnBlue: tint,
+        pinkOnMint: tint,
+        blueOnMint: tint,
+        centre: tint,
+      }
+    : MARK_FILLS;
+  const alpha = mono
+    ? {
+        pink: MARK_MONO.alone,
+        blue: MARK_MONO.alone,
+        mint: MARK_MONO.alone,
+        pinkOnBlue: MARK_MONO.pair,
+        pinkOnMint: MARK_MONO.pair,
+        blueOnMint: MARK_MONO.pair,
+        centre: MARK_MONO.centre,
+      }
+    : {
+        pink: 1,
+        blue: 1,
+        mint: 1,
+        pinkOnBlue: 1,
+        pinkOnMint: 1,
+        blueOnMint: 1,
+        centre: 1,
+      };
   /*
    * Ids unique to this instance.
    *
@@ -90,25 +169,25 @@ export function Mark({ size = 22 }: { size?: number }) {
         </ClipPath>
       </Defs>
 
-      <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={MARK_FILLS.pink} />
-      <Circle cx={blue.cx} cy={blue.cy} r={MARK_R} fill={MARK_FILLS.blue} />
-      <Circle cx={mint.cx} cy={mint.cy} r={MARK_R} fill={MARK_FILLS.mint} />
+      <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={fill.pink} fillOpacity={alpha.pink} />
+      <Circle cx={blue.cx} cy={blue.cy} r={MARK_R} fill={fill.blue} fillOpacity={alpha.blue} />
+      <Circle cx={mint.cx} cy={mint.cy} r={MARK_R} fill={fill.mint} fillOpacity={alpha.mint} />
 
       <G clipPath={`url(#${id}-blue)`}>
-        <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={MARK_FILLS.pinkOnBlue} />
+        <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={fill.pinkOnBlue} fillOpacity={alpha.pinkOnBlue} />
       </G>
       <G clipPath={`url(#${id}-mint)`}>
-        <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={MARK_FILLS.pinkOnMint} />
+        <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={fill.pinkOnMint} fillOpacity={alpha.pinkOnMint} />
       </G>
       <G clipPath={`url(#${id}-mint)`}>
-        <Circle cx={blue.cx} cy={blue.cy} r={MARK_R} fill={MARK_FILLS.blueOnMint} />
+        <Circle cx={blue.cx} cy={blue.cy} r={MARK_R} fill={fill.blueOnMint} fillOpacity={alpha.blueOnMint} />
       </G>
 
       {/* Everyone was there. Drawn last because the three lenses above each
           cover this region on their way past. */}
       <G clipPath={`url(#${id}-blue)`}>
         <G clipPath={`url(#${id}-mint)`}>
-          <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={MARK_FILLS.centre} />
+          <Circle cx={pink.cx} cy={pink.cy} r={MARK_R} fill={fill.centre} fillOpacity={alpha.centre} />
         </G>
       </G>
     </Svg>

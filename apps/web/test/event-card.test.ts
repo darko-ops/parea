@@ -120,7 +120,7 @@ describe('the relative time is derived once, on the server', () => {
     // return the tail of that sentence and not a whole one.
     const now = new Date('2026-08-15T12:00:00Z');
     expect(ago(new Date('2026-08-14T12:00:00Z'), now)).toBe('1 day ago');
-    expect(ago(new Date('2026-08-15T11:40:00Z'), now)).toBe('20m ago');
+    expect(ago(new Date('2026-08-15T11:40:00Z'), now)).toBe('20 min ago');
   });
 });
 
@@ -143,20 +143,66 @@ describe('the pictures cross the boundary as URLs, never as keys', () => {
      * happened the first time somebody did: `coverKey` went onto the listing
      * for the cards to read, and `...rest` would have published it.
      */
-    expect(API).toMatch(/const \{ creator, coverKey, faces: faceRows, \.\.\.rest \} = listing/);
+    expect(API).toMatch(
+      /const \{ creator, coverKey, coverPhotoId, faces: faceRows, \.\.\.rest \} = listing/,
+    );
+    // `coverPhotoId` joins them for the same reason: it is only read to decide
+    // what the mosaic holds, and a client has no use for it.
+    expect(API).not.toMatch(/coverPhotoId:/);
     expect(API).toMatch(/avatarUrl: await avatarUrl\(creator\.avatarKey\)/);
-    expect(API).not.toMatch(/avatarKey,/);
     expect(API).not.toMatch(/coverKey:/);
     // The faces leave as URLs too, by the same rule.
     expect(API).toMatch(/avatarUrl: await avatarUrl\(face\.avatarKey\)/);
-    expect(API).not.toMatch(/avatarKey,/);
+    /*
+     * And no key is ever *written into* the answer. The rule is about what
+     * this object emits, not about the word appearing: stripping a key by
+     * destructuring it out — which is what the line above does to the listing
+     * and what the reply's face needs — is the shape that prevents the leak
+     * rather than one that causes it.
+     */
+    expect(API).not.toMatch(/avatarKey:/);
   });
 
-  it('sends the cover as a URL, at the front of the mosaic', () => {
+  it('signs the reply’s face here too, and strips its key', () => {
+    /*
+     * The thread summary is spread into the answer, so the moment the card
+     * started drawing the person who said the last thing, that spread was one
+     * field away from publishing a storage key. `eventThreadSummaries`
+     * answers for a whole page in two queries and cannot presign per row
+     * without an N+1, so it hands back the key and the signing happens on
+     * this side of the boundary — beside the cover's, under the same rule.
+     */
+    expect(API).toMatch(/const \{ avatarKey, \.\.\.said \} = thread\.lastMessage;/);
+    expect(API).toMatch(/lastMessage: \{ \.\.\.said, avatarUrl: await avatarUrl\(avatarKey\) \}/);
+    // An empty thread is handed straight back: there is nothing to sign, and
+    // a `lastMessage` of null has no key in it to strip.
+    expect(API).toMatch(/if \(!thread\.lastMessage\) return thread;/);
+  });
+
+  it('sends the cover as a URL, at the front of the mosaic, with a null id', () => {
     // Both clients draw an event by its mosaic, so the cover leads by being
     // first in it rather than by a second field each of them has to learn.
     expect(API).toMatch(/const cover = await coverSrc\(listing\.coverKey\)/);
-    expect(API).toMatch(/mosaic: \[\.\.\.\(cover \? \[cover\] : \[\]\), \.\.\.mosaic\]/);
+    expect(API).toMatch(/\.\.\.\(cover \? \[\{ id: null, src: cover \}\] : \[\]\),/);
+    /*
+     * And behind it, every photograph *except* the one the cover was cropped
+     * out of. A chosen cover is its own object, so that photograph was still
+     * in the list underneath it — the card drew one picture twice, large as
+     * the cover and small as a thumbnail three rows down, and an album of a
+     * single photograph did nothing else.
+     */
+    expect(API).toMatch(/mosaic\.filter\(\(photo\) => photo\.id !== coverPhotoId\)/);
+    /*
+     * The id is null because there is nothing to name: a chosen cover is its
+     * own object under `ev/<id>/cover.jpg`, re-encoded by sharp on the way in,
+     * with no photograph row behind it.
+     *
+     * Which makes the null the answer to the one question a client has about
+     * the first entry — is the picture this card leads with one of the album's
+     * photographs, or a separate image standing in front of them. Every entry
+     * after it is a photograph, and carries the id a tap needs to open it.
+     */
+    expect(API).toMatch(/listing\.mosaic\.map\(async \(photo\) => \(\{\s*\n\s*id: photo\.id,/);
   });
 
   it('answers whether a cover is set, on the event feed', () => {

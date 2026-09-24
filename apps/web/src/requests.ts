@@ -7,12 +7,21 @@
  * These are the other kind: somebody is on the other end waiting, and nothing
  * resolves until you say yes or no.
  *
- * Four sources, because there are four ways somebody can be waiting on you:
+ * Five sources, because there are five ways somebody can be waiting on you:
  *
  *   - an invitation to an event, which is `event_invite`
  *   - an invitation to a group, which is `group_invite`
  *   - a friend request
  *   - somebody asking into an event *you* run, which is `event_access_request`
+ *   - somebody already in one of your albums asking to be able to add
+ *     photographs to it, which is `event_host_request`
+ *
+ * The fifth is here rather than given a screen of its own for the same reason
+ * the fourth is: it is answerable from the album's People tab and nowhere
+ * else, and a host with four albums would have four places to look and no
+ * reason to look at any of them. It is also the one kind of ask in the product
+ * that sends no notification at all, which makes this list the whole of how it
+ * reaches anybody.
  *
  * The third is the one that was missing. It has always been answerable from an
  * event's Members tab and nowhere else, so a host with four events had four
@@ -28,7 +37,7 @@
  * wrong place to put it.
  */
 
-import { schema } from '@parea/core';
+import { CONTRIBUTE_HOST, schema } from '@parea/core';
 import { and, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
@@ -38,7 +47,12 @@ import { pendingGroupInvites } from './groups';
 import { imageSrc } from './images';
 import { pendingInvites } from './invites';
 
-export type PendingRequestKind = 'invite' | 'friend' | 'join' | 'group_invite';
+export type PendingRequestKind =
+  | 'invite'
+  | 'friend'
+  | 'join'
+  | 'group_invite'
+  | 'host';
 
 export type PendingRequest = {
   /** Unique across kinds: two tables can hand out the same uuid. */
@@ -147,6 +161,77 @@ export async function joinRequestsFor(
 }
 
 /**
+ * Open asks to be able to add photographs to albums this actor administers.
+ *
+ * The same shape as `joinRequestsFor` directly above, down to the `exists` for
+ * the group half and the reason it is an `exists` — and deliberately a second
+ * function rather than a `union`, because the two questions are asked of two
+ * tables and folding them into one query would mean a change to either having
+ * to be reasoned about against both.
+ *
+ * Narrowed to albums actually set to `host`. An album whose setting moved to
+ * `everyone` while somebody's ask was open has answered it by making it moot:
+ * they can add. Leaving the row in the queue would put a question in front of
+ * a host that no longer has an answer, and approving it would grant a role
+ * nothing currently reads.
+ */
+export async function hostRequestsFor(
+  db: Db,
+  actorId: string | null,
+): Promise<PendingRequest[]> {
+  if (!actorId) return [];
+
+  const adminOfItsGroup = exists(
+    db
+      .select({ one: schema.groupMembers.actorId })
+      .from(schema.groupMembers)
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, schema.events.groupId),
+          eq(schema.groupMembers.actorId, actorId),
+          eq(schema.groupMembers.role, 'admin'),
+        ),
+      ),
+  );
+
+  const rows = await db
+    .select({
+      id: schema.eventHostRequests.id,
+      at: schema.eventHostRequests.createdAt,
+      eventId: schema.events.id,
+      eventName: schema.events.name,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+    })
+    .from(schema.eventHostRequests)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventHostRequests.eventId))
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.eventHostRequests.actorId))
+    .where(
+      and(
+        eq(schema.eventHostRequests.status, 'open'),
+        isNull(schema.events.deletedAt),
+        eq(schema.events.contributePolicy, CONTRIBUTE_HOST),
+        or(eq(schema.events.createdBy, actorId), adminOfItsGroup),
+      ),
+    )
+    .orderBy(desc(schema.eventHostRequests.createdAt));
+
+  return rows.map((row) => ({
+    key: `host:${row.id}`,
+    kind: 'host' as const,
+    id: row.id,
+    eventId: row.eventId,
+    title: nameOf(row.displayName, row.handle),
+    // What they are asking for, said as what it would let them do rather than
+    // as the name of a role: "wants to be a host" is a title, and the decision
+    // in front of the reader is about photographs.
+    detail: `would like to add photos to ${row.eventName}`,
+    at: row.at.toISOString(),
+    image: null,
+  }));
+}
+
+/**
  * The part of the queue the rail's badge was not already counting.
  *
  * `invitesWaiting` counts open invitations along with what is new — so the two
@@ -164,15 +249,19 @@ export async function otherRequestsWaiting(
   actorId: string | null,
 ): Promise<number> {
   if (!actorId) return 0;
-  const [friends, joins, groupInvites] = await Promise.all([
+  const [friends, joins, groupInvites, hosts] = await Promise.all([
     requestsFor(db, actorId),
     joinRequestsFor(db, actorId),
     // Counted here too, or the badge reads zero while the page it points at
     // holds an unanswered invitation — which is the badge quietly training
     // somebody not to trust it, the exact failure this function exists for.
     pendingGroupInvites(db, actorId),
+    // And the fifth. It matters more here than the others do: nothing else in
+    // the product tells anybody a host request has arrived, so a badge that
+    // did not count it would leave the ask with no route to a human at all.
+    hostRequestsFor(db, actorId),
   ]);
-  return friends.length + joins.length + groupInvites.length;
+  return friends.length + joins.length + groupInvites.length + hosts.length;
 }
 
 /**
@@ -189,7 +278,7 @@ export async function pendingRequestsFor(
 ): Promise<PendingRequest[]> {
   if (!actorId) return [];
 
-  const [invites, friends, joins, groupInvites] = await Promise.all([
+  const [invites, friends, joins, groupInvites, hosts] = await Promise.all([
     pendingInvites(db, actorId),
     // The same query the Friends page runs, rather than a second one shaped
     // slightly differently: two surfaces showing one queue have to agree about
@@ -205,6 +294,15 @@ export async function pendingRequestsFor(
      * to already know about is not that place — you have never seen this group.
      */
     pendingGroupInvites(db, actorId),
+    /*
+     * And the fifth, which is the only one that arrives nowhere else.
+     *
+     * A host request sends no push — it is somebody already inside asking for
+     * a little more, and interrupting an evening for it would be spending the
+     * notification budget on the least urgent thing in the product. This list
+     * and the badge over the album's own `⋯` are the whole of how it is seen.
+     */
+    hostRequestsFor(db, actorId),
   ]);
 
   const all: PendingRequest[] = [
@@ -248,6 +346,7 @@ export async function pendingRequestsFor(
       image: null as string | null,
     })),
     ...joins,
+    ...hosts,
   ];
 
   const sorted = all.sort((a, b) => b.at.localeCompare(a.at));

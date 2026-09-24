@@ -14,24 +14,43 @@
  * row because the product treats a group as persistent identity while the web
  * gave it no address of its own.
  *
- * ## Below tablet it is a wordmark and a hamburger
+ * ## The head is the name, centred
  *
- * It was the same rows laid out sideways, which fitted while there were four
- * of them and stopped at six: the bar scrolled horizontally, so Profile hung
- * half off the screen and Settings and Create Event were past the edge with
- * nothing to say they were there. A row of destinations you cannot see is not
- * navigation.
+ * The app's is, and this had the mark and the word as a lockup at the leading
+ * edge. Two things went: the mark, because the top of a screen says whose
+ * product this is and the wordmark already says it in letters — and the
+ * colour, which on a page whose subject is somebody else's photographs is the
+ * one thing up there competing with them. Below tablet the bar is three
+ * tracks, so the name sits in the middle of the screen rather than in the
+ * middle of what the controls leave.
  *
- * So the rows go behind a button, in the corner a thumb reaches. The panel is
- * the same list in the same order, drawn as the column it already is on a wide
- * screen — one set of markup rather than a phone copy of it.
+ * ## Below tablet the rows go behind a button in the leading corner
  *
- * `'use client'` for that one piece of state, which is a change: this used to
- * render on whichever side it was used from. A `<details>` would have avoided
+ * Four shapes in four versions of this file, and the last two are worth
+ * keeping straight. They were laid out sideways first, which fitted at four
+ * rows and stopped at six — the bar scrolled, so Profile hung half off the
+ * screen and Settings was past the edge with nothing to say it was there.
+ * Then behind a hamburger in the trailing corner. Then as a capsule floating
+ * at the foot, the shape the app's tab bar has.
+ *
+ * The capsule is gone and the button is back, in the *leading* corner this
+ * time. The rail is six destinations and the app's bar is four: six glyphs in
+ * a capsule is a row nobody reads, and the two that would have to go are the
+ * two the web has and the app does not. A menu holds six without asking
+ * anybody to recognise a picture of Settings.
+ *
+ * Leading rather than trailing, which is where it was: it is the first thing
+ * on the row and the first thing a reader meets, and a control that opens
+ * everything else belongs before the everything else rather than after it.
+ *
+ * Still one set of markup. `.rail-nav` is a column on a laptop and a panel
+ * under the bar on a phone — the same list in the same order, drawn as the
+ * column it already is, rather than a phone copy of it.
+ *
+ * `'use client'` for that one piece of state. A `<details>` would have avoided
  * it and cannot, because the same element has to be a dropdown on a phone and
  * an always-open column on a laptop, and CSS cannot force a closed disclosure
- * back open. The cost is a few hundred bytes on a component that was already
- * on every page.
+ * back open.
  *
  * Reached through `Shell` rather than used directly — a rail without the flex
  * parent it expects renders as a full-width band above the content.
@@ -42,7 +61,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { InvitesBadge } from './InvitesBadge';
-import { Mark } from './Mark';
 import { RailIcon, type RailGlyph } from './RailIcon';
 
 export type RailPage =
@@ -96,6 +114,7 @@ const ROWS: {
   { href: '/account', label: 'Profile', page: 'you', glyph: 'profile' },
 ];
 
+
 export function Rail({ current }: { current: RailPage }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
@@ -132,11 +151,50 @@ export function Rail({ current }: { current: RailPage }) {
       aria-label="Sections"
       ref={ref}
     >
+      {/*
+        Only on a phone, and only there: on a wide screen the rows are already
+        the page's left-hand edge, and a button that hides visible navigation
+        adds a step to everything.
+
+        In the leading corner, before the name — it opens everything else, so
+        it belongs ahead of the everything else rather than after it. The
+        unread count rides on the closed button, because what it hides
+        includes the one row that ever carries a number, and a menu that
+        conceals it is a menu somebody opens to find out there was nothing to
+        find.
+      */}
+      <button
+        type="button"
+        className="rail-burger"
+        aria-expanded={open}
+        aria-controls="rail-nav"
+        aria-label={open ? 'Close the menu' : 'Menu'}
+        onClick={() => setOpen((was) => !was)}
+      >
+        <span className="rail-burger-lines" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+        {!open && current !== 'invites' && <InvitesBadge />}
+      </button>
+
+      {/*
+        The name, and only the name.
+
+        It was the mark and the word as a lockup — three coloured circles with
+        `parea` beside them. The app's own head has never had the mark in it:
+        the top of a screen says whose product this is, and the mark says that
+        in a picture the wordmark is already saying in letters. Two marks
+        stacked at the top of every page is the brand asserted twice, and the
+        one carrying colour into a page whose subject is somebody else's
+        photographs is the one to drop.
+
+        It is still the icon on a home screen, the face of the sign-in card
+        and the figure over an empty thread — places with nothing else in them
+        to say what this is.
+      */}
       <div className="rail-mark">
-        {/* Sized at the call site rather than by the default: this is the
-            one lockup it appears in, and the number is a relationship to the
-            wordmark beside it rather than a property of the mark. */}
-        <Mark size={30} />
         <span className="wordmark">Parea</span>
       </div>
 
@@ -156,35 +214,10 @@ export function Rail({ current }: { current: RailPage }) {
         link twice is two tab stops and two things for a screen reader to
         announce, so only one of them exists at a time.
       */}
-      <a href="/" className="rail-create" aria-label="Create an event">
+      <a href="/" className="rail-create" aria-label="Create an album">
         <span aria-hidden="true">+</span>
         <span>Create</span>
       </a>
-
-      {/*
-        Only on a phone, and only there: on a wide screen the rows are already
-        the page's left-hand edge, and a button that hides visible navigation
-        adds a step to everything.
-
-        The unread count rides on the closed button, because what it hides
-        includes the one row that ever carries a number — a menu that conceals
-        it is a menu somebody opens to find out there was nothing to find.
-      */}
-      <button
-        type="button"
-        className="rail-burger"
-        aria-expanded={open}
-        aria-controls="rail-nav"
-        aria-label={open ? 'Close the menu' : 'Menu'}
-        onClick={() => setOpen((was) => !was)}
-      >
-        <span className="rail-burger-lines" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        {!open && current !== 'invites' && <InvitesBadge />}
-      </button>
 
       <div className="rail-nav" id="rail-nav">
 
@@ -200,7 +233,7 @@ export function Rail({ current }: { current: RailPage }) {
         >
           {/* The glyph, then the word. Both, because a rail of five icons is a
               puzzle and a rail of five words is a list you have to read. */}
-          <RailIcon glyph={row.glyph} />
+          <RailIcon glyph={row.glyph} weight={current === row.page ? 2.5 : 2} />
           <span className="rail-label">{row.label}</span>
           {/*
             Only on the row it belongs to, and only when the page is not the
@@ -235,7 +268,7 @@ export function Rail({ current }: { current: RailPage }) {
           className="rail-row rail-settings"
           aria-current={current === 'settings' ? 'page' : undefined}
         >
-          <RailIcon glyph="settings" />
+          <RailIcon glyph="settings" weight={current === 'settings' ? 2.5 : 2} />
           <span className="rail-label">Settings</span>
         </a>
         </div>

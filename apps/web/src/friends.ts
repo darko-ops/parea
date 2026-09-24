@@ -148,13 +148,15 @@ export async function suggestionsFor(
 ): Promise<Suggestion[]> {
   if (!actorId) return [];
 
-  const rows = await db.execute<{
+  type Row = {
     actorId: string;
     handle: string | null;
     displayName: string | null;
     avatarKey: string | null;
     mutuals: number;
-  }>(sql`
+  };
+
+  const answer = await db.execute<Row>(sql`
     select
       a.id            as "actorId",
       a.handle        as "handle",
@@ -191,7 +193,20 @@ export async function suggestionsFor(
     limit ${SUGGESTION_LIMIT}
   `);
 
-  return [...rows];
+  /*
+   * `db.execute` answers a `{ rows }` object on one driver and a bare array on
+   * the other. Both appear in this codebase — production and the test suite —
+   * so neither shape may be assumed. The note is in `groups.ts` twice and this
+   * is the third place to have learned it.
+   *
+   * It spread the result directly, which throws on the object shape rather
+   * than returning the wrong number. This ran only on the web's Find page, a
+   * server component, and so only ever on the driver where it happened to
+   * work — the first test ever written against it failed on the line below.
+   * Now that the app draws from it too, it gets both.
+   */
+  const rows = answer as unknown as Row[] | { rows: Row[] };
+  return Array.isArray(rows) ? rows : (rows.rows ?? []);
 }
 
 /**

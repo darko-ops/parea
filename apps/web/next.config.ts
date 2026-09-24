@@ -45,8 +45,51 @@ const config: NextConfig = {
    *
    * `/invites` stays: it was a 308 to a path that has not moved since.
    */
+  /*
+   * The apex to `www`, in the app rather than at the edge.
+   *
+   * Vercel can redirect a domain to another, and did — a project-level 308 on
+   * `parea.photos`. The trouble is that it is all-or-nothing: there is no way
+   * to exempt a path, and two paths must not be redirected.
+   *
+   * `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
+   * are fetched by iOS and by Android to decide whether this app may claim
+   * links on a host, and *neither platform follows a redirect to find them*.
+   * So while the edge redirect stood, the apex could never be verified: every
+   * `parea.photos/e/<token>` link opened a browser, whatever the app declared.
+   * Both platforms match the host before fetching anything, so the apex has to
+   * be claimed and therefore has to serve its own association files.
+   *
+   * Everything else still goes to `www`, which is the canonical host — one
+   * place for a session cookie to live, and one URL for a page.
+   *
+   * `has.value` is compiled as `new RegExp('^' + value + '$')`, so this cannot
+   * match `www.parea.photos` and cannot loop. The dot is escaped because the
+   * value is a regex and an unescaped one would also match `pareaXphotos`.
+   *
+   * Before `/invites`, so apex traffic lands on `www` in one hop and is
+   * redirected once more from there, rather than bouncing within the apex and
+   * then leaving it.
+   */
   async redirects() {
-    return [{ source: '/invites', destination: '/activity', permanent: true }];
+    const apex = [{ type: 'host' as const, value: 'parea\\.photos' }];
+    return [
+      // The bare host. `/:path(...)` below cannot match an empty path, so the
+      // root needs saying separately.
+      {
+        source: '/',
+        has: apex,
+        destination: 'https://www.parea.photos/',
+        permanent: true,
+      },
+      {
+        source: '/:path((?!\\.well-known/).*)',
+        has: apex,
+        destination: 'https://www.parea.photos/:path',
+        permanent: true,
+      },
+      { source: '/invites', destination: '/activity', permanent: true },
+    ];
   },
 
   async headers() {

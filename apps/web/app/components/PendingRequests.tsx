@@ -52,6 +52,12 @@ const ANSWERS: Record<
   // Not "Accept": this one is a door being opened onto photographs of an
   // evening, and the word for that is not the word for agreeing to something.
   join: { yes: 'approve', no: 'decline', yesLabel: 'Let in', noLabel: 'Not now' },
+  /*
+   * Not "Let in": they are already in. What is being asked for here is the
+   * ability to add photographs to an album they can already see, so the word
+   * is the thing itself rather than a door.
+   */
+  host: { yes: 'approve', no: 'decline', yesLabel: 'Let them add', noLabel: 'Not now' },
 };
 
 function endpoint(request: PendingRequest): { url: string; body: Record<string, string> } {
@@ -67,6 +73,11 @@ function endpoint(request: PendingRequest): { url: string; body: Record<string, 
       };
     case 'group_invite':
       return { url: `/api/group-invites/${request.id}`, body: {} };
+    case 'host':
+      return {
+        url: `/api/events/${request.eventId}/host-requests`,
+        body: { requestId: request.id },
+      };
   }
 }
 

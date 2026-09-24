@@ -9,6 +9,8 @@
  * content-type nobody accepts.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { GET as aasa } from '../app/.well-known/apple-app-site-association/route';
@@ -100,5 +102,63 @@ describe('assetlinks.json', () => {
     expect(body[0].target.sha256_cert_fingerprints).toEqual([PRINT, second]);
     expect(body[0].target.package_name).toBe(ANDROID_PACKAGE);
     expect(body[0].relation).toEqual(['delegate_permission/common.handle_all_urls']);
+  });
+});
+
+/**
+ * The association files, and the redirect that used to hide them.
+ *
+ * `parea.photos` was redirected to `www.parea.photos` by a project-level 308
+ * on Vercel — all-or-nothing, with no way to exempt a path. Both of these
+ * files are fetched by a platform deciding whether this app may claim links on
+ * a host, and neither iOS nor Android follows a redirect to find one. So the
+ * apex could never be verified: every `parea.photos/e/<token>` link opened a
+ * browser however the app was configured, and nothing anywhere said why.
+ *
+ * The redirect lives in `next.config.ts` now, where it can carve out one path.
+ * These check the carve-out is still there and still cannot loop.
+ */
+describe('the apex redirect leaves the association files alone', () => {
+  const CONFIG = readFileSync(
+    fileURLToPath(new URL('../next.config.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it('exempts /.well-known and nothing else', () => {
+    expect(CONFIG).toMatch(/source: '\/:path\(\(\?!\\\\\.well-known\/\)\.\*\)'/);
+    // And the bare host, which the pattern above cannot match: `/:path(...)`
+    // does not match an empty path, so `/` needs its own rule or the apex
+    // home page silently stops redirecting.
+    expect(CONFIG).toMatch(/source: '\/',\s*\n\s*has: apex/);
+  });
+
+  it('matches the apex only, so it cannot redirect to itself', () => {
+    /*
+     * `has.value` is compiled as `new RegExp('^' + value + '$')`, so an
+     * anchored `parea\.photos` cannot match `www.parea.photos`. Without the
+     * anchoring this would be an infinite redirect on the live site, which is
+     * why the escaping is asserted rather than assumed: an unescaped dot also
+     * matches `pareaXphotos`, and the day that resolves is the day this loops.
+     */
+    expect(CONFIG).toMatch(/value: 'parea\\\\\.photos'/);
+    expect(CONFIG).toMatch(/destination: 'https:\/\/www\.parea\.photos/);
+  });
+
+  it('keeps both files fail-closed when unconfigured', () => {
+    // A file naming the wrong team or no fingerprint verifies nothing and is
+    // cached hard by both platforms. Absent beats wrong.
+    const aasa = readFileSync(
+      fileURLToPath(
+        new URL('../app/.well-known/apple-app-site-association/route.ts', import.meta.url).href,
+      ),
+      'utf8',
+    );
+    const links = readFileSync(
+      fileURLToPath(new URL('../app/.well-known/assetlinks.json/route.ts', import.meta.url).href),
+      'utf8',
+    );
+    for (const [name, source] of [['aasa', aasa], ['assetlinks', links]] as const) {
+      expect(source, name).toMatch(/status: 404/);
+    }
   });
 });

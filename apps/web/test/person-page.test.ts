@@ -268,7 +268,7 @@ describe('what the page looks like', () => {
      * left is the honest one: they have not made anything.
      */
     expect(VIEW).toMatch(
-      /standing === 'friends' \? 'No Events Available Yet' : 'Nothing here yet'/,
+      /standing === 'friends' \? 'No albums to show yet' : 'Nothing here yet'/,
     );
     expect(VIEW).not.toMatch(/Account Private/);
   });
@@ -287,7 +287,7 @@ describe('what the page looks like', () => {
       ),
     );
     expect(NATIVE).toMatch(
-      /standing === 'friends' \? 'No Events Available Yet' : 'Nothing here yet'/,
+      /standing === 'friends' \? 'No albums to show yet' : 'Nothing here yet'/,
     );
   });
 });

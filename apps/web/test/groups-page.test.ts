@@ -206,9 +206,15 @@ describe('what a non-member is handed', () => {
   });
 
   it('draws no faces, covers or event count on the door', () => {
-    const door = GROUP.slice(GROUP.indexOf('if (!group.member)'), GROUP.indexOf('const byId'));
+    const door = GROUP.slice(
+      GROUP.indexOf('if (!group.member)'),
+      GROUP.indexOf('const hrefFor'),
+    );
     expect(door).not.toBe('');
-    expect(door).not.toMatch(/<Face|archive|EventCover|events\.length/);
+    expect(door).not.toMatch(/<Face|shelf-|EventCover|events\.length/);
+    /* And no tabs either: a door has no albums, no conversation and no list of
+       people, so it does not draw three that would all be empty. */
+    expect(door).not.toMatch(/event-tabs|GroupChat/);
   });
 });
 
@@ -231,19 +237,115 @@ describe('inside a group', () => {
   });
 
   it('says what leaving costs, which is what makes hiding it safe', () => {
-    expect(GROUP).toContain('Photos live in the events, not in the group.');
+    expect(GROUP).toContain('Photos live in the albums, not in the group.');
   });
 
-  it('words its months and dates on the server', () => {
-    // A boundary computed in the browser can disagree with the HTML it is
-    // hydrating, and React answers that by throwing the tree away.
-    expect(GROUP_PAGE).toMatch(/function monthOf/);
+  it('words its dates on the server', () => {
+    /*
+     * A date computed in the browser can disagree with the HTML it is
+     * hydrating, and React answers that by throwing the tree away.
+     *
+     * The month headings that used to be worded here went with the rows they
+     * headed: every tile on the shelf carries its own date, which is what
+     * they were saying.
+     */
+    expect(GROUP_PAGE).toMatch(/dates: Object\.fromEntries\(/);
+    expect(GROUP_PAGE).not.toMatch(/function monthOf/);
     expect(GROUP).not.toMatch(/toLocaleDateString|new Intl\.DateTimeFormat/);
+  });
+
+  it('is shaped like an album: three tabs, and the URL says which', async () => {
+    /*
+     * A room and an evening are the same kind of object to somebody reading —
+     * a thing with pictures in it, a conversation about them, and the people
+     * it belongs to. `?tab=` rather than state, for the reason the album's
+     * three use it: a link to the room's people is a link somebody can send,
+     * and Back is the way out of it.
+     */
+    expect(GROUP).toMatch(/const TABS: \[GroupTab, string, RailGlyph\]\[\] = \[/);
+    expect(GROUP).toMatch(/\['albums', 'Albums', 'photos'\]/);
+    expect(GROUP).toMatch(/\['chat', 'Chat', 'bubbles'\]/);
+    expect(GROUP).toMatch(/\['people', 'People', 'groups'\]/);
+    /*
+     * The app's own drawings beside the words. Two bubbles for a room where
+     * people are talking to each other, against the single bubble an album's
+     * comments carry — the distinction the app checked survives at the size
+     * both clients draw them.
+     */
+    expect(GROUP).toMatch(/<RailIcon glyph=\{glyph\} weight=\{tab === id \? 2\.5 : 2\} \/>/);
+    const EVENT = await read('../app/components/EventView.tsx');
+    expect(EVENT).toMatch(/\['conversation', 'Thread', 'bubble'\]/);
+    const ICONS = await read('../app/components/RailIcon.tsx');
+    for (const glyph of ['photos', 'bubble', 'bubbles']) {
+      expect(ICONS, glyph).toMatch(new RegExp(`glyph === '${glyph}'`));
+    }
+    expect(GROUP).toMatch(/className="event-tabs"/);
+    expect(GROUP_PAGE).toMatch(
+      /const tab: GroupTab = asked === 'chat' \|\| asked === 'people' \? asked : 'albums';/,
+    );
+    // Anything unrecognised falls to the albums rather than 404ing: a stale
+    // `?tab=archive` in somebody's history should open the room, not refuse it.
+    expect(GROUP_PAGE).toMatch(/searchParams: Promise<\{ tab\?: string \}>;/);
+  });
+
+  it('shelves albums two across rather than as a month-by-month archive', () => {
+    /*
+     * A row per album with a 180px cover, name, date, faces and counts, under
+     * month headings, was a third way of drawing the same object — next to
+     * the cards on the home page and the shelf in the app. Cover, name, date
+     * is what a shelf shows.
+     */
+    expect(GROUP).toMatch(/className="group-shelf"/);
+    expect(GROUP).toMatch(/className="shelf-album"/);
+    expect(GROUP).not.toMatch(/group-month|archive-row|group\.months/);
+    expect(CSS).toMatch(/\.group-shelf \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(200px, 1fr\)\)/);
+    // What a room knows that a person's shelf does not.
+    expect(GROUP).toMatch(/className="shelf-pip"/);
+  });
+
+  it('holds the group’s conversation rather than having none', async () => {
+    /*
+     * The site had no way into a group's thread at all — the room existed,
+     * the endpoint existed, and nothing drew it. `Thread` takes a room now
+     * rather than an event id, which is what let one component serve both.
+     */
+    const CHAT = await read('../app/components/GroupChat.tsx');
+    const THREAD = await read('../app/components/Thread.tsx');
+    expect(GROUP).toMatch(/\{tab === 'chat' && <GroupChat groupId=\{group\.id\} \/>\}/);
+    expect(THREAD).toMatch(/export type ThreadRoom =/);
+    expect(THREAD).toMatch(/room\.kind === 'group'\s*\?\s*`\/api\/groups\/\$\{room\.id\}\/messages`/);
+    expect(THREAD).toMatch(/room\.kind === 'group' \? `\/api\/group-messages\/\$\{id\}` : `\/api\/messages\/\$\{id\}`/);
+    expect(CHAT).toMatch(/room=\{\{ kind: 'group', id: groupId \}\}/);
+    // Polled, because a group has no feed to fold the thread into — and only
+    // while the tab is in front.
+    expect(CHAT).toMatch(/document\.visibilityState === 'visible'/);
+    expect(CHAT).toMatch(/setInterval\(tick, 4000\)/);
   });
 
   it('never prints a raw date string', () => {
     // What it did: `2025-09-12` beside an event name.
-    expect(GROUP).not.toMatch(/event\.eventDate|event\.eventDate/);
+    expect(GROUP).not.toMatch(/event\.eventDate/);
+  });
+
+  it('dates an album by when it was made', async () => {
+    /*
+     * `groupArchive` dated one by the host's own event date, falling back to
+     * when it was last added to — and said explicitly "never `created_at`,
+     * which is when somebody made the page". Reversed, and asked for: a shelf
+     * is read as a list of things that were started, and dating albums by the
+     * evenings they are about made a group's shelf and a person's disagree
+     * with the card on the home page, which has led with `created_at` since it
+     * stopped leading with a photograph's timestamp.
+     */
+    const GROUPS_SRC = await read('../src/groups.ts');
+    expect(GROUPS_SRC).toMatch(/at: row\.createdAt\.toISOString\(\),/);
+    expect(GROUPS_SRC).not.toMatch(/at: \(row\.eventDate/);
+    // The same rule on both profiles, which is where it was asked about.
+    expect(await read('../app/components/AccountView.tsx')).toMatch(
+      /date: dateLabel\(event\.createdAt\),/,
+    );
+    expect(await read('../app/u/[handle]/page.tsx')).toMatch(/date: dateLabel\(album\.createdAt\),/);
+    expect(await read('../src/people.ts')).toMatch(/createdAt: row\.createdAt\.toISOString\(\),/);
   });
 });
 

@@ -30,6 +30,7 @@ import { hasDerivatives, imageSources, imageSrc } from '@/images';
 import { membersOf } from '@/members';
 import { messagesFor } from '@/messages';
 import { viewerContext } from '@/moderation';
+import { reactionsForPhotos } from '@/photoReactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 import { PhotoView } from '@/../app/components/PhotoView';
 import { Shell } from '@/../app/components/Shell';
@@ -195,6 +196,16 @@ export default async function PhotoPage({
         messages={await messagesFor(db, event.id, viewerId, (actorId) =>
           contributorKey(event.id, actorId),
         )}
+        /*
+         * What has been left on this photograph, and by whom.
+         *
+         * `reactionsForPhotos` for one id: the album's own feed asks it for
+         * two hundred, and asking it for one is the same query with a shorter
+         * list. The site had no way to leave or read a reaction at all — the
+         * table, the route and the app have had them for a while, and this
+         * page simply never grew the control.
+         */
+        reactions={(await reactionsForPhotos(db, [photo.id], viewerId)).get(photo.id) ?? []}
         people={await contributorsOf(db, event.id, rows, viewerId)}
         members={await membersOf(db, event.id)}
         canPost={
@@ -211,7 +222,7 @@ export default async function PhotoPage({
  *
  * Both halves are computed on the server because both would otherwise
  * disagree with it: `ago` is relative to a clock, and a laptop a minute out
- * renders "59m ago" against the server's "1h ago", which React resolves by
+ * renders "59 min ago" against the server's "1 hr ago", which React resolves by
  * throwing the tree away.
  *
  * The distinction the line makes is real rather than cosmetic. `captured_at`

@@ -206,6 +206,177 @@ describe('an event looks like an event wherever it is listed', () => {
  * a panel as tall as the screen. It is a pill in the bar now, beside the menu
  * rather than inside it.
  */
+/**
+ * The head is the name, centred, and nothing else.
+ *
+ * It was the mark and the word as a lockup at the leading edge. The app's own
+ * head has never carried the mark: the top of a screen says whose product this
+ * is, and the mark says in a picture what the wordmark is already saying in
+ * letters — and the one of the two carrying colour onto a page whose subject
+ * is somebody else's photographs is the one to drop.
+ */
+describe('the head of the shell', () => {
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const CSS = read(join(APP, 'globals.css'));
+  const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
+
+  it('is the wordmark alone, with no mark beside it', () => {
+    const lockup = RAIL.slice(
+      RAIL.indexOf('className="rail-mark"'),
+      RAIL.indexOf('className="rail-create"'),
+    );
+    expect(lockup).toMatch(/className="wordmark">Parea</);
+    expect(lockup).not.toMatch(/<Mark/);
+    // Gone from the file, not merely from the row.
+    expect(RAIL).not.toMatch(/import \{ Mark \}/);
+    /*
+     * And still the mark everywhere it is the only thing saying what this is:
+     * the icon on a home screen, the face of the sign-in card, the figure
+     * over an empty thread.
+     */
+    expect(read(join(APP, 'components/LoginScreen.tsx'))).toMatch(/<Mark size=\{72\}/);
+    expect(read(join(APP, 'components/Thread.tsx'))).toMatch(/<Mark size=\{48\}/);
+  });
+
+  it('centres it, on the rail and in the bar', () => {
+    /*
+     * `1fr auto 1fr` below tablet rather than `margin-right: auto` on the
+     * lockup: the app's head flexes both sides equally so the word sits in
+     * the middle of the screen rather than in the middle of what the controls
+     * leave. The menu is 40 points and Create is a pill, and a row centred on
+     * their average is close enough to centred to read as a mistake.
+     */
+    expect(CSS).toMatch(/\.rail-mark \{[^}]*justify-content: center/);
+    expect(MOBILE).toMatch(/grid-template-columns: 1fr auto 1fr/);
+    /* Gone as a rule. It survives in the note that says why, which is where
+       a reversed decision belongs. */
+    expect(MOBILE).not.toMatch(/^\s*margin-right: auto;/m);
+    /*
+     * Placed rather than auto-placed, and the first track is deliberately
+     * empty — the hamburger used to sit in it. The app's head has the same
+     * empty slot: what keeps the word in the middle of the screen is that
+     * both sides are a track wide whether or not anything is in them.
+     */
+    expect(MOBILE).toMatch(/\.rail-mark \{ padding: 0; grid-column: 2; justify-self: center; \}/);
+    expect(MOBILE).toMatch(/\.rail-create \{[^}]*grid-column: 3; justify-self: end/);
+  });
+
+  it('reads leading control, name, trailing control', () => {
+    /*
+     * The order the app's head has and the order a screen reader gets: the
+     * button that opens everything else, then whose product this is, then the
+     * one thing it makes. Leading rather than trailing, which is where the
+     * button was — a control that opens the rest belongs ahead of the rest.
+     */
+    expect(RAIL.indexOf('className="rail-burger"')).toBeLessThan(
+      RAIL.indexOf('className="rail-mark"'),
+    );
+    expect(RAIL.indexOf('className="rail-mark"')).toBeLessThan(
+      RAIL.indexOf('className="rail-create"'),
+    );
+    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*grid-column: 1; justify-self: start/);
+  });
+});
+
+/**
+ * Below tablet the rows go behind a button in the leading corner.
+ *
+ * Four shapes in four versions of this: sideways, which stopped at six rows;
+ * behind a hamburger in the trailing corner; a capsule floating at the foot,
+ * the shape the app's tab bar has; and now the button again, on the other
+ * side. Six glyphs in a capsule is a row nobody reads, and the two that would
+ * have to go to make four are the two the web has and the app does not.
+ */
+describe('the menu on a narrow screen', () => {
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const CSS = read(join(APP, 'globals.css'));
+  const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
+
+  it('is the same markup the rail is, hung under the head', () => {
+    /*
+     * One list, two shapes: a column on a laptop and that same column in a
+     * panel on a phone — not a phone copy of it. Full width, because a panel
+     * narrower than the screen invites a tap on the half of the row that is
+     * not the panel.
+     */
+    expect(MOBILE).toMatch(/\.rail-nav \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-open \.rail-nav \{[\s\S]{0,200}flex-direction: column/);
+    expect(MOBILE).toMatch(/\.rail-open \.rail-nav \{[\s\S]{0,260}left: 0; right: 0; top: 100%/);
+    expect(RAIL).toMatch(/<span className="rail-label">\{row\.label\}<\/span>/);
+  });
+
+  it('carries the one number the menu would otherwise hide', () => {
+    // A menu that conceals the row with the count is a menu somebody opens to
+    // learn there was nothing in it.
+    expect(RAIL).toMatch(/\{!open && current !== 'invites' && <InvitesBadge \/>\}/);
+    expect(MOBILE).toMatch(/\.rail-burger \.badge \{/);
+  });
+
+  it('closes on a tap away and on Escape', () => {
+    // The two rules `Menu` applies to its panel, for the same reason: a panel
+    // whose only exit is choosing something makes you navigate to be rid of
+    // it. `mousedown` rather than `click`, or the panel closes between a link
+    // being pressed and the navigation starting.
+    expect(RAIL).toMatch(/document\.addEventListener\('mousedown', away\)/);
+    expect(RAIL).toMatch(/e\.key === 'Escape'/);
+  });
+
+  it('exists only below tablet, where the rows are hidden', () => {
+    // On a wide screen the rows are the page's left edge, and a button that
+    // hides visible navigation adds a step to everything.
+    expect(CSS).toMatch(/\.rail-burger \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*display: flex/);
+  });
+});
+
+/**
+ * Nothing on the shelf yet.
+ *
+ * A line and the one stroke that answers it, in the app's words — replacing a
+ * `Create Album` panel that was rendered into every grid of albums whether or
+ * not there was anything beside it.
+ */
+describe('an empty shelf', () => {
+  const CSS = read(join(APP, 'globals.css'));
+  const HOME = read(join(APP, 'components/HomeView.tsx'));
+  const ACCOUNT = read(join(APP, 'components/AccountView.tsx'));
+
+  it('says the same seven words the app says', () => {
+    const APP_EVENTS = read(
+      fileURLToPath(new URL('../../mobile/src/Events.tsx', import.meta.url)),
+    );
+    for (const source of [HOME, ACCOUNT, APP_EVENTS]) {
+      expect(source).toMatch(/No Albums Yet\. Create One Now\./);
+    }
+  });
+
+  it('draws only when the shelf is empty, and not under a filter', () => {
+    /*
+     * The card was "the affordance, not a result" and so was always there;
+     * with nothing else in the grid it was the whole page. Making one is a
+     * control in the head on both clients, and a second button for it at the
+     * foot of a scrolling grid is furniture rather than affordance.
+     *
+     * Not under a search or a person filter either: "create an album" is not
+     * an answer to "which of these has Priya in it".
+     */
+    expect(HOME).toMatch(/\{!searching && !person && shown\.length === 0 && \(/);
+    expect(ACCOUNT).toMatch(/\{lens !== 'joined' && shown\.length === 0 && \(/);
+    // Gone, not hidden.
+    expect(HOME).not.toMatch(/CreateCard/);
+    expect(ACCOUNT).not.toMatch(/CreateCard/);
+    expect(CSS).not.toMatch(/^\.card-new \{/m);
+  });
+
+  it('is a line and a stroke rather than a panel', () => {
+    // A bordered box on a page whose every other row is a photograph draws
+    // more attention empty than the cards draw full.
+    expect(CSS).toMatch(/\.blank-note \{[^}]*color: var\(--dim\)/);
+    expect(CSS).toMatch(/\.blank-do \{[^}]*border-radius: 50%/);
+    expect(CSS).toMatch(/\.blank-do \{[^}]*border: 1px solid var\(--line\)/);
+  });
+});
+
 describe('the create button on a narrow screen', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const CSS = read(join(APP, 'globals.css'));
@@ -224,7 +395,7 @@ describe('the create button on a narrow screen', () => {
   it('says what it makes, for anyone who cannot see the pill', () => {
     // The `+` is decorative and the word carries the meaning, so the label has
     // to name the thing rather than leave a screen reader reading "plus".
-    expect(RAIL).toMatch(/aria-label="Create an event"/);
+    expect(RAIL).toMatch(/aria-label="Create an album"/);
     expect(RAIL).toMatch(/aria-hidden="true">\+</);
   });
 

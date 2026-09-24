@@ -42,6 +42,19 @@ export type CardEvent = {
    */
   cover: { src: string; sources: { type: string; src: string }[] } | null;
   /**
+   * The cover's shape, width over height.
+   *
+   * Sent rather than measured in the browser, because the card has to reserve
+   * the right space before the image arrives — a shelf that relays itself out
+   * as each cover loads is a list that jumps under a cursor.
+   *
+   * Null when the lead image is a photograph rather than a cover: those have no
+   * one shape and the card keeps its old letterbox for them. A cover stored
+   * before the shape was recorded is also null, and is in fact 3:2 — which is
+   * what that letterbox is.
+   */
+  coverAspect: number | null;
+  /**
    * When it was last added to, as "3 days ago".
    *
    * Built here rather than in the component because it is a relative time: the
@@ -75,6 +88,8 @@ export type CardEvent = {
   memberCount: number;
   /** Uploaded and still being processed. Drives the "still coming in" label. */
   arrivingCount: number;
+  messageCount: number;
+  reactionCount: number;
   /** ISO. Used to decide whether an event is live enough to lead the page. */
   lastActiveAt: string;
   /**
@@ -192,6 +207,9 @@ export async function toCards(
                 sources: await imageSources(first, 'grid', listing.capEpoch),
               }
             : null,
+        // Only the cover has a shape of its own. A photograph standing in for
+        // one is drawn in the letterbox, as it always was.
+        coverAspect: cover ? listing.coverAspect : null,
         added: ago(new Date(listing.lastActiveAt), now),
         date: dateLabel(listing.eventDate ?? listing.startsAt ?? listing.firstPhotoAt),
         live: isLive(listing.lastActiveAt, now),
@@ -218,6 +236,10 @@ export async function toCards(
         contributorCount: listing.contributorCount,
         memberCount: listing.memberCount,
         arrivingCount: listing.arrivingCount,
+        // What the card's foot says, under the strip: the newest thing said,
+        // and how much else there is.
+        messageCount: listing.messageCount,
+        reactionCount: listing.reactionCount,
         lastActiveAt: listing.lastActiveAt,
         linkToken: listing.linkToken,
       };

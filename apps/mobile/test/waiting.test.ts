@@ -147,14 +147,28 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
       'src/Profile.tsx',
     ]) {
       expect(read(name), `${name} still draws a ring for a screen`).toMatch(/<Waiting/);
     }
-    // The three that keep it, deliberately.
-    for (const name of ['src/CreateGroup.tsx', 'src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
+    /*
+     * The two that keep it, deliberately.
+     *
+     * `CreateGroup.tsx` used to be a third. Its ring belonged to the form that
+     * unfolded inside it, and that form is a page now — `NewGroup.tsx`, which
+     * reports the same wait as a word in its bar ("Creating…") because it has a
+     * bar to put one in and a card did not.
+     */
+    for (const name of ['src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
       expect(read(name), `${name} should keep its inline ring`).toMatch(/<ActivityIndicator/);
     }
   });
@@ -167,7 +181,14 @@ describe('where it replaced the ring', () => {
       'src/Door.tsx',
       'src/Person.tsx',
       'src/Groups.tsx',
-      'src/GroupThread.tsx',
+      /*
+       * `src/GroupThread.tsx` was here and is not any more — not because it
+       * stopped waiting, but because the wait moved one file down. A thread
+       * that has not arrived and a thread with nothing in it are the same
+       * shape and mean opposite things, and only `Thread` draws either, so
+       * that is where the two are now told apart.
+       */
+      'src/Thread.tsx',
       'src/Events.tsx',
     ]) {
       expect(read(name), `${name} draws both`).not.toMatch(/<ActivityIndicator/);
@@ -187,5 +208,58 @@ describe('the mark it turns', () => {
   it('costs no new dependency', () => {
     // `react-native-svg` arrived with the glyphs.
     expect(MARK).toMatch(/from 'react-native-svg'/);
+  });
+});
+
+/**
+ * The mark as an instrument rather than as a signature.
+ *
+ * It turns over the app's own background on eleven screens, and three brand
+ * colours revolving in the middle of somebody's photographs is the logo
+ * competing with the thing it is waiting for.
+ */
+describe('the spinner is one colour', () => {
+  const MARK = read('src/Mark.tsx');
+
+  it('draws the mark in one colour', () => {
+    expect(read('src/Waiting.tsx')).toMatch(/<Mark size=\{size\} tint=/);
+    // A colour rather than a flag, because the right one depends on what is
+    // behind it — see the test below.
+    expect(MARK).toMatch(/const mono = tint !== undefined;/);
+  });
+
+  it('takes the theme’s own ink, so it is there in both', () => {
+    /*
+     * White was the first answer and it is half of one: the light theme's
+     * background is `#f7f8fa`, where a white mark is not there at all. These
+     * two are the `fg` of each palette in `App.tsx`.
+     */
+    const WAITING = read('src/Waiting.tsx');
+    expect(WAITING).toMatch(/const dark = useColorScheme\(\) === 'dark';/);
+    expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#14171c'\}/);
+    const APP = read('App.tsx');
+    expect(APP).toMatch(/fg: '#f2f4f7'/);
+    expect(APP).toMatch(/fg: '#14171c'/);
+  });
+
+  it('still tells the seven regions apart, or it would not read as turning', () => {
+    /*
+     * The three circles sit on an equilateral arrangement, so the silhouette
+     * is unchanged by a third of a turn — a flat white mark rotating is a
+     * flat white mark. The lenses are the only thing that shows the movement,
+     * so white alone is not enough and the ramp is not decoration.
+     */
+    expect(MARK).toMatch(/alone: 0\.38/);
+    expect(MARK).toMatch(/pair: 0\.64/);
+    expect(MARK).toMatch(/centre: 1,/);
+    expect(MARK).toMatch(/fillOpacity=\{alpha\.centre\}/);
+  });
+
+  it('leaves the brand mark exactly where it was', () => {
+    // Same geometry, same seven colours, still pinned against the other three
+    // copies by `brand.test.ts`. `mono` is a way of drawing it, not a logo.
+    expect(MARK).toMatch(/export const MARK_R = 200;/);
+    expect(MARK).toMatch(/pink: '#ffa6ad'/);
+    expect(MARK).toMatch(/: MARK_FILLS;/);
   });
 });

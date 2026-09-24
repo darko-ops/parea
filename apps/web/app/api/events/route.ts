@@ -7,6 +7,9 @@
  */
 
 import {
+  CONTRIBUTE_EVERYONE,
+  CONTRIBUTE_HOST,
+  CONTRIBUTE_NOBODY,
   PRIVATE,
   PUBLIC,
   newLinkToken,
@@ -44,6 +47,7 @@ type Body = {
    * 'request_access' (private, the host lets each person in). Public default.
    */
   accessPolicy?: unknown;
+  contributePolicy?: unknown;
   /**
    * Whether the link admits anybody who holds it. Off means only the people
    * the host adds get in — the same switch as `joinsOpen` on the manage
@@ -92,9 +96,20 @@ export async function GET() {
         // cannot sign anything — it has no image secret and must not — and a
         // storage key is an internal address that has no business crossing
         // this boundary at all.
+        /*
+         * Each entry carries the photograph's id beside its URL.
+         *
+         * It used to be the URL alone, which was enough while the mosaic was
+         * four tiles that opened the album. The native card draws a strip of
+         * them under the cover now and a tap on one opens *that* photograph,
+         * and a signed URL is not a thing the album screen can look a
+         * photograph up by — it expires with `cap_epoch`, and the feed the
+         * album fetches signs its own.
+         */
         const mosaic = await Promise.all(
-          listing.mosaic.map((photo) =>
-            imageSrc(
+          listing.mosaic.map(async (photo) => ({
+            id: photo.id,
+            src: await imageSrc(
               {
                 eventId: listing.id,
                 storageKey: photo.storageKey,
@@ -103,7 +118,7 @@ export async function GET() {
               'thumb',
               listing.capEpoch,
             ),
-          ),
+          })),
         );
         /*
          * The avatar leaves as a URL, and the key does not leave at all.
@@ -129,7 +144,7 @@ export async function GET() {
             isCreator: face.isCreator,
           })),
         );
-        const { creator, coverKey, faces: faceRows, ...rest } = listing;
+        const { creator, coverKey, coverPhotoId, faces: faceRows, ...rest } = listing;
         return {
           ...rest,
           /*
@@ -140,8 +155,33 @@ export async function GET() {
            * second rule about which image wins. `coverKey` is destructured out
            * above and never reaches the response: it is a storage key, and the
            * paragraph above about photo keys applies to it word for word.
+           *
+           * With a null id, which is the honest answer and a useful one. A
+           * chosen cover is its own object under `ev/<id>/cover.jpg` — sharp
+           * re-encodes the bytes on the way in, so there is no photograph row
+           * behind it to name. The null is therefore exactly the question a
+           * client wants answered about the first entry: is the picture this
+           * card leads with one of the album's photographs, or a separate
+           * image standing in front of them.
            */
-          mosaic: [...(cover ? [cover] : []), ...mosaic],
+          mosaic: [
+            ...(cover ? [{ id: null, src: cover }] : []),
+            /*
+             * And never the photograph the cover was framed out of.
+             *
+             * The card leads with the cover and draws the rest of this
+             * underneath it, so leaving that photograph in the list put the
+             * same picture on the card twice — once large and once small,
+             * three rows apart. An album of a single photograph showed it as
+             * the cover and then as the only thumbnail, which is where it was
+             * impossible to read as anything but a bug.
+             *
+             * `coverPhotoId` is destructured out above and never reaches the
+             * response: the client needs the list to be right, not the reason
+             * it is right.
+             */
+            ...mosaic.filter((photo) => photo.id !== coverPhotoId),
+          ],
           /*
            * The single image the web's card leads with, at the size it is
            * drawn — `grid`, not one of the `thumb`s above. The mosaic stays
@@ -172,7 +212,25 @@ export async function GET() {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),
           },
-          ...(threads.get(listing.id) ?? EMPTY_SUMMARY),
+          ...(await (async () => {
+            /*
+             * The conversation's last line, with its face signed.
+             *
+             * Spread wholesale until the card started drawing the person who
+             * said it. `eventThreadSummaries` answers for the whole page in
+             * two queries and hands back a storage key rather than a URL —
+             * presigning inside it would be a round trip per row — so the
+             * signing happens here, beside the cover's, and the key itself
+             * stops at this boundary the way every other one does.
+             */
+            const thread = threads.get(listing.id) ?? EMPTY_SUMMARY;
+            if (!thread.lastMessage) return thread;
+            const { avatarKey, ...said } = thread.lastMessage;
+            return {
+              ...thread,
+              lastMessage: { ...said, avatarUrl: await avatarUrl(avatarKey) },
+            };
+          })()),
         };
       }),
     ),
@@ -239,6 +297,27 @@ export async function POST(request: Request) {
   }
   const accessPolicy = requested as (typeof OFFERED)[number];
 
+  /*
+   * Who may add photographs, decided at the same moment and by the same rule:
+   * unrecognised values are refused rather than defaulted, because `authorize`
+   * fails closed on a policy it does not know and a typo reaching the column
+   * would seal the album its maker had just created.
+   *
+   * Absent means `everyone`, which is what every album has always been and
+   * what an album is usually for. The other two are chosen on purpose.
+   */
+  const wantsContribute =
+    body.contributePolicy === undefined ? CONTRIBUTE_EVERYONE : body.contributePolicy;
+  const CONTRIBUTE_OFFERED = [
+    CONTRIBUTE_EVERYONE,
+    CONTRIBUTE_HOST,
+    CONTRIBUTE_NOBODY,
+  ] as const;
+  if (!CONTRIBUTE_OFFERED.includes(wantsContribute as (typeof CONTRIBUTE_OFFERED)[number])) {
+    return NextResponse.json({ error: 'invalid_contribute_policy' }, { status: 400 });
+  }
+  const contributePolicy = wantsContribute as (typeof CONTRIBUTE_OFFERED)[number];
+
   // Creating inside a group is the whole point of having one: its members get
   // access without anyone re-solving "how do I reach everyone" (design §3).
   let groupId: string | null = null;
@@ -257,6 +336,7 @@ export async function POST(request: Request) {
       linkToken: newLinkToken(),
       createdBy: actorId,
       accessPolicy,
+      contributePolicy,
       eventDate: asDateString(body.eventDate),
       // Typed by the host, never derived from the photos — there is no
       // location in them to derive from, by design (§7.6).

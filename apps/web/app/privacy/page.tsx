@@ -70,11 +70,11 @@ export default function PrivacyPage() {
           </p>
           <p className="muted">
             It is created when you open a link somebody sent you, and a row
-            records that you are in that event. That row is what lets the person
+            records that you are in that album. That row is what lets the person
             who made it stop new people joining later without turning out
             everyone already there &mdash; the switch cannot mean anything
             without knowing who was already in. Visiting the site without
-            opening an event creates no record of you.
+            opening an album creates no record of you.
           </p>
 
           <h3>An email address, only if you ask for an account</h3>
@@ -100,12 +100,12 @@ export default function PrivacyPage() {
           </p>
           <p className="muted">
             Two places show your name or handle to other people. Somebody
-            deciding whether to let you into their private event sees it,
+            deciding whether to let you into their private album sees it,
             because that is the decision they are being asked to make. And once
-            you add photos to an event, everyone who can see that event can see
+            you add photos to an album, everyone who can see that album can see
             that they are yours &mdash; the photographs are grouped by who took
             them, so that a set of two hundred from six people can be read at
-            all. Looking at an event does not put you in that list; adding to
+            all. Looking at an album does not put you in that list; adding to
             it does.
           </p>
 
@@ -115,6 +115,15 @@ export default function PrivacyPage() {
             see it. Nothing verifies it and nothing is done with it &mdash; it
             is there because a name and a handle tell somebody almost nothing
             about who just added forty photographs to their evening.
+          </p>
+
+          <h3>A link, if you add one</h3>
+          <p className="muted">
+            One web address, optional, shown under your name on your profile to
+            anybody who can see it. Nothing verifies where it goes and nothing
+            follows it &mdash; it is stored as you typed it, with{' '}
+            <code>https</code> added if you left it off, and refused if it is
+            not a web address. Clearing the field removes it.
           </p>
 
           <h3>The names of the albums you make</h3>
@@ -143,22 +152,26 @@ export default function PrivacyPage() {
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
             Only in the app, only after you allow it, and only used for the
-            eight notifications this product sends: one reminder about an event
-            you joined and have not added anything to, a new event in a group
+            ten notifications this product sends: one reminder about an album
+            you joined and have not added anything to, a new album in a group
             you are in, the host&rsquo;s answer when you have asked for a photo
             of you to be taken down, that somebody is asking to come into a private
-            event you made, that somebody wants to be friends, that somebody
-            has asked you into an event, that somebody has asked you into a
-            group, and that somebody has put you in a group they made.
+            album you made, that somebody wants to be friends, that somebody
+            has asked you into an album, that somebody has asked you into a
+            group, that somebody has put you in a group they made, that somebody
+            has commented on a photograph you added, and that somebody has said
+            you are in a photograph. The last of those is the only one that
+            tells you about a claim somebody else has made about you, which is
+            why it is sent rather than left to be found.
           </p>
 
           <h3>Five facts about how the product is used</h3>
           <p className="muted">
             A closed list, recorded in our own database, never sent anywhere:
-            that someone joined an event, that an archive was downloaded, that a
+            that someone joined an album, that an archive was downloaded, that a
             photo suggestion was shown, how much of a suggestion was kept, and
             that the plain picker was used instead. They answer one question
-            &mdash; does anyone other than the person who made the event actually
+            &mdash; does anyone other than the person who made the album actually
             add photos &mdash; and nothing else is collected &ldquo;in case it is
             useful later&rdquo;.
           </p>
@@ -167,7 +180,7 @@ export default function PrivacyPage() {
           <p className="muted">
             That you asked somebody to be your friend, what they said, and who
             is on your list. Friends exist so that somebody can put you into an
-            event directly instead of sending you a link, and that is the whole
+            album directly instead of sending you a link, and that is the whole
             of what being one does.
           </p>
           <p className="muted">
@@ -175,7 +188,7 @@ export default function PrivacyPage() {
             start of it, by anybody signed in. That is a change from how this
             worked before, when nobody could be found at all. What a search
             returns is a handle and whatever name you chose to show: never your
-            email address, never your events, never your photos, and never who
+            email address, never your albums, never your photos, and never who
             else you know. Nobody is listed, there are no suggestions, and
             somebody has to be told your handle before they can look you up.
           </p>
@@ -183,11 +196,15 @@ export default function PrivacyPage() {
           <h3>What you did here</h3>
           <p className="muted">
             The product keeps a record of the things you do that involve other
-            people, because most of them cannot work without one. Which events
-            and groups you are in. That you made an event. That you asked to
-            join a private event or a group, what was decided, and by whom. That
+            people, because most of them cannot work without one. Which albums
+            and groups you are in. That you made an album. That you asked to
+            join a private album or a group, what was decided, and by whom. That
+            you asked to be one of the people who can add photographs to an
+            album you are already in, what was decided, and by whom &mdash;
+            kept for the same reason the one above it is, so that asking twice
+            is not two questions and a no stays a no. That
             you asked for a photo of you to be taken down, along with whatever
-            you wrote in the note. That somebody invited you into an event, or
+            you wrote in the note. That somebody invited you into an album, or
             into a group, who it was, and whether you accepted &mdash; kept so
             that being asked twice is not two questions, and so a decline stays
             declined. That you blocked somebody &mdash; kept so it
@@ -195,15 +212,15 @@ export default function PrivacyPage() {
           </p>
           <p className="muted">
             None of it is a feed and none of it is shown to anyone it is not
-            about: a host sees who is asking to come into their own event, and
+            about: a host sees who is asking to come into their own album, and
             that is the whole of who can see what.
           </p>
 
-          <h3>What you write in an event&rsquo;s thread</h3>
+          <h3>What you write in an album&rsquo;s thread</h3>
           <p className="muted">
-            Every event has a thread, and anything you post in it &mdash;
+            Every album has a thread, and anything you post in it &mdash;
             including a comment on one photograph &mdash; is kept with that
-            event and shown, under your name, to everybody who can see it. So
+            album and shown, under your name, to everybody who can see it. So
             are the reactions you leave on other people&rsquo;s messages. It is
             not private, it is not a direct message, and there is no version of
             it that only one person sees.
@@ -225,16 +242,38 @@ export default function PrivacyPage() {
             does not appear in the reactions you see, exactly as their messages
             and their photographs do not.
           </p>
+          <p className="muted">
+            You can keep a photograph, which is a shortlist of an album that is
+            yours alone. What is kept is which picture and that it was you —
+            nothing else, and it is shown to nobody. Nobody in the album is told
+            what you kept, no count of it appears anywhere, and the person who
+            added the photograph cannot see that you did. It is stored apart
+            from reactions for that reason rather than as one more kind of
+            them. Tapping the star again removes the record.
+          </p>
+          <p className="muted">
+            Whoever added a photograph can tag the people in it. A tag is a
+            claim somebody else makes about you, so it works differently from
+            everything above: what is kept is which picture, which person, and{' '}
+            <em>who said so</em>. Only people already in that album can be
+            tagged — tagging is not a way to point at somebody who cannot see
+            the album — and only the person who added the photograph can add
+            one. Being tagged gives you nothing you did not already have: it is
+            a label, not access. You can take a tag of yourself off at any time
+            without asking the person who added it, and doing so removes the
+            record.
+          </p>
 
           <h3>What you write in a group</h3>
           <p className="muted">
             A group has a thread of its own, separate from the threads on the
-            events inside it, and what you say in a group is kept with that
-            group and shown under your name to its members. Membership is the
-            whole of the rule: there is no link that opens a group&rsquo;s
-            conversation, and somebody who can see the photographs in one of
-            its events cannot read it. Editing, deleting and blocking work
-            exactly as they do in an event&rsquo;s thread.
+            albums inside it, and what you say in a group is kept with that
+            group and shown under your name to its members. So are the
+            reactions you leave on what other members say there. Membership is
+            the whole of the rule: there is no link that opens a
+            group&rsquo;s conversation, and somebody who can see the
+            photographs in one of its albums cannot read it. Editing, deleting
+            and blocking work exactly as they do in an album&rsquo;s thread.
           </p>
 
           <h3>How far you have read</h3>
@@ -243,7 +282,7 @@ export default function PrivacyPage() {
             one line per thread per person: the moment you last read it. Not
             what you read, not how long you looked, and nothing about
             individual messages &mdash; a single time, overwritten each time
-            you open the thread again, for each event and group thread you have
+            you open the thread again, for each album and group thread you have
             opened. It is never shown to anybody else: nothing here tells one
             person whether another has read what they wrote.
           </p>
@@ -269,7 +308,7 @@ export default function PrivacyPage() {
           <h3>Notifications you have hidden</h3>
           <p className="muted">
             The Activity page is worked out when you open it, from things that
-            already happened &mdash; a reaction, a mention, an event you were
+            already happened &mdash; a reaction, a mention, an album you were
             let into. Nothing is stored to make that list. When you hide a line
             from it, what is kept is the identifier of that line and nothing
             else, so it can be left out next time. It is not a record of what
@@ -320,7 +359,7 @@ export default function PrivacyPage() {
               images and downloads.
             </li>
             <li>
-              <strong>Neon</strong> &mdash; the database: events, who is in them,
+              <strong>Neon</strong> &mdash; the database: albums, who is in them,
               and the records described above.
             </li>
             <li>
@@ -383,8 +422,8 @@ export default function PrivacyPage() {
               they contain no address.
             </li>
             <li>
-              <strong>Events and the records of who was in them</strong> &mdash;
-              until the event is deleted.
+              <strong>Albums and the records of who was in them</strong> &mdash;
+              until the album is deleted.
             </li>
             <li>
               <strong>Child-safety records</strong> &mdash; as described above,
@@ -403,19 +442,19 @@ export default function PrivacyPage() {
             <li>
               <strong>Ask for a photo of you to be taken down</strong>, even if
               you did not upload it and have no account. The request goes to
-              whoever created the event; if they have not answered in 48 hours
+              whoever created the album; if they have not answered in 48 hours
               the photo is hidden automatically while they decide.
             </li>
             <li>
               <strong>Block someone</strong>, which hides everything they upload
-              from your view and stops them joining events you created. They are
+              from your view and stops them joining albums you created. They are
               not told.
             </li>
             <li>
               <strong>Delete your account</strong> at <a href="/account">/account</a>,
               or in the app. Two separate things are offered: removing the
               account and the email address, which leaves your photos in other
-              people&rsquo;s events where they can still be removed one at a
+              people&rsquo;s albums where they can still be removed one at a
               time; or removing the account and everything you ever uploaded.
             </li>
             <li>

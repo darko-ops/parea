@@ -27,7 +27,7 @@
  */
 
 import { ago } from '@parea/cards';
-import { PRIVATE } from '@parea/core';
+import { CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
 import type { Message } from '@/messages';
 import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -41,6 +41,7 @@ import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
 import { Mark } from './Mark';
+import { RailIcon } from './RailIcon';
 import { useUploads } from './useUploads';
 
 /** Faces in the head before the count takes over. Three, as on the cards. */
@@ -78,7 +79,14 @@ type Feed = {
   event: {
     id: string;
     name: string;
-    uploadsOpen: boolean;
+    /**
+     * Who may add photographs, as the album has it.
+     *
+     * A different question from whether *this* reader may — that is `canAdd`
+     * below. This one is for the People tab, which offers "Make a host" only
+     * on an album where being one means anything.
+     */
+    contributePolicy: string;
     canAdminister: boolean;
     groupId: string | null;
     groupName: string | null;
@@ -110,6 +118,30 @@ type Feed = {
   messages: Message[];
   /** Whether this viewer may post — `contribute`, and signed in. */
   canPost: boolean;
+  /*
+   * Whether *this* reader may add photographs, which is the server's decision
+   * rather than a fact about the album. It was `event.uploadsOpen`, which
+   * answered a question about the album: on a host-only one that would have
+   * drawn the add button for everybody and had it refused at the server.
+   *
+   * Beside `canPost` rather than inside `event`, because the two are the same
+   * kind of thing — what this person may do — and neither is a property of the
+   * album.
+   */
+  canAdd: boolean;
+  /**
+   * Where this reader stands with the album's set of hosts.
+   *
+   * Beside `canAdd` rather than inside it: `canAdd` answers "draw the add
+   * button", and this answers "and if not, is there something to do about it".
+   * Both are the server's, for the same reason — re-deriving either here would
+   * be the policy written a third time.
+   */
+  hosting: {
+    isHost: boolean;
+    canAsk: boolean;
+    asked: 'open' | 'approved' | 'declined' | null;
+  };
   /** Uploaded and not yet through the deriver — anybody's, not just this tab's. */
   arriving: number;
   count: number;
@@ -126,7 +158,7 @@ const INGEST_POLLS = 30;
 
 /** The three panes, in the order the header draws them. */
 const TABS = [
-  ['photos', 'Photos'],
+  ['photos', 'Photos', 'photos'],
   /*
    * "Thread", and the route is still `?tab=conversation`.
    *
@@ -136,8 +168,15 @@ const TABS = [
    * that. Thread is what people call this — a run of messages about one thing
    * — and it is a shorter word in a row of three.
    */
-  ['conversation', 'Thread'],
-  ['people', 'People'],
+  /*
+   * One bubble, where a group's chat carries two.
+   *
+   * The distinction is the app's and it is worth having on both clients: one
+   * is a remark about a thing, which is what an album's comments are, and two
+   * is people going back and forth, which is a room. See `RailIcon`.
+   */
+  ['conversation', 'Thread', 'bubble'],
+  ['people', 'People', 'groups'],
 ] as const;
 
 export type EventTab = (typeof TABS)[number][0];
@@ -217,7 +256,7 @@ export function EventView({
   const atArrival = useRef(new Set(initial.photos.map((photo) => photo.id)));
 
   /*
-   * When this person last read the thread, per event.
+   * When this person last read the thread, per album.
    *
    * In `localStorage` rather than on the server, and that is a deliberate
    * limit rather than a shortcut: a read receipt on the server is a record of
@@ -260,6 +299,45 @@ export function EventView({
   }, [eventId]);
 
   const uploads = useUploads(eventId, refresh);
+
+  /**
+   * Handing somebody the camera, or taking it back.
+   *
+   * Straight to a refresh rather than an optimistic flip: the roster is the
+   * server's list and this writes to it, so the honest thing for the row to
+   * show is what came back. It is one click on a page nobody is scrolling
+   * fast, which is the case where a round trip is affordable.
+   */
+  const setHost = useCallback(
+    async (actorId: string, host: boolean) => {
+      const res = await fetch(`/api/events/${eventId}/hosts`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorId, host }),
+      });
+      if (res.ok) await refresh();
+    },
+    [eventId, refresh],
+  );
+
+  /**
+   * Asking to be one of the people who may add.
+   *
+   * The server's answer is what lands, not an assumed `open`: a repeat ask on
+   * something already declined comes back `declined` rather than reopening it,
+   * and a line that said "Asked" over that would be pressing past somebody's
+   * no on their behalf.
+   */
+  const [hostAsk, setHostAsk] = useState<string | null>(null);
+  const askToHost = useCallback(async () => {
+    const res = await fetch(`/api/events/${eventId}/host-requests`, { method: 'POST' });
+    if (!res.ok) return;
+    const body = (await res.json().catch(() => ({}))) as { status?: string };
+    setHostAsk(body.status ?? 'open');
+    // Approved happens when the host had already promoted them and this page
+    // had not come round yet: the album can be added to now.
+    if (body.status === 'approved') await refresh();
+  }, [eventId, refresh]);
 
   /*
    * The host, and the first few faces beside them.
@@ -415,7 +493,7 @@ export function EventView({
           {/* The way back, as a glyph and a hit area rather than a word: it is
               the one control here that is about the page rather than about the
               event. */}
-          <a href="/events" className="event-back" aria-label="Back to your events">
+          <a href="/events" className="event-back" aria-label="Back to your albums">
             {'\u2039'}
           </a>
 
@@ -458,7 +536,7 @@ export function EventView({
           </div>
 
           <div className="event-actions">
-            {feed.event.uploadsOpen && session.account && (
+            {feed.canAdd && session.account && (
               /*
                 A label, not a button that calls `.click()`. A label *is* the
                 control for the input it names, so keyboard, pointer and screen
@@ -534,8 +612,8 @@ export function EventView({
             <Menu
               label={
                 feed.event.waiting > 0
-                  ? `This event — ${feed.event.waiting} waiting`
-                  : 'This event'
+                  ? `This album — ${feed.event.waiting} waiting`
+                  : 'This album'
               }
               glyph="···"
               tone="quiet"
@@ -594,7 +672,7 @@ export function EventView({
                   )}
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
-                      Manage event
+                      Manage album
                       {feed.event.waiting > 0 && (
                         <span className="badge">{feed.event.waiting}</span>
                       )}
@@ -619,14 +697,15 @@ export function EventView({
           shape, and `?tab=` means a link to the roster is a link somebody can
           send and Back is the way out of it.
         */}
-        <nav className="event-tabs" aria-label="This event">
-          {TABS.map(([id, label]) => (
+        <nav className="event-tabs" aria-label="This album">
+          {TABS.map(([id, label, glyph]) => (
             <a
               key={id}
               href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
               className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
               aria-current={tab === id ? 'page' : undefined}
             >
+              <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
               {label}
               {id === 'conversation' && unread > 0 && (
                 <span className="event-tab-count">{unread}</span>
@@ -635,7 +714,7 @@ export function EventView({
           ))}
         </nav>
 
-        {feed.event.uploadsOpen && session.account && (
+        {feed.canAdd && session.account && (
           <input
             id="add-photos"
             className="visually-hidden"
@@ -660,7 +739,7 @@ export function EventView({
 
       {tab === 'photos' && (
         <div className="event-body">
-          {feed.event.uploadsOpen && session.known && !session.account && (
+          {feed.canAdd && session.known && !session.account && (
             // Adding names who added. Shown here rather than behind a link to
             // /account, because being sent away mid-task loses the picker they
             // were about to use — and on a phone, the photos they had chosen.
@@ -668,6 +747,39 @@ export function EventView({
               why="Adding photos needs an account. Looking does not — you can carry on browsing without one."
               onSignedIn={session.refresh}
             />
+          )}
+
+          {/*
+            Why there is no Add photos button, and the one thing to do about it.
+
+            A header with the control simply missing is the page looking
+            broken: the reader can see the album, can talk in it, and cannot
+            work out where the button went. Saying "hosts add the photographs
+            here" is the difference between a refusal and a rule.
+
+            Only where asking is actually a thing — `canAsk` is the server's
+            answer, not a reading of `contributePolicy`, so an album set to
+            "Only me" says its piece and offers nothing, which is correct:
+            there is no set to join and a button to ask would make "Only me"
+            something its owner has to keep defending.
+
+            A declined ask reads as the album's rule rather than as a verdict.
+            Telling somebody they were turned down is the host's to do, not the
+            page's — the same reasoning a friend request follows.
+          */}
+          {!feed.canAdd && feed.hosting.canAsk && (
+            <p className="panel-note host-ask">
+              {hostAsk === 'open' || feed.hosting.asked === 'open' ? (
+                'Asked to be a host. You can add photos once that is answered.'
+              ) : (
+                <>
+                  Hosts add the photographs here.{' '}
+                  <button type="button" className="link-button" onClick={askToHost}>
+                    Ask to be a host
+                  </button>
+                </>
+              )}
+            </p>
           )}
 
           {/*
@@ -724,7 +836,7 @@ export function EventView({
             onPick={togglePick}
             people={feed.people}
             lead={
-              feed.event.uploadsOpen && session.account && !picked ? (
+              feed.canAdd && session.account && !picked ? (
                 <label htmlFor="add-photos" className="tile-add">
                   <span className="tile-add-lenses" aria-hidden="true">
                     <span />
@@ -792,11 +904,22 @@ export function EventView({
       {tab === 'conversation' && (
         <div className="event-body event-column">
           <Thread
-            eventId={eventId}
+            room={{ kind: 'event', id: eventId }}
             messages={feed.messages}
             canPost={feed.canPost}
             people={feed.people}
             members={feed.members}
+            /*
+             * The photograph a line is about, for the reactions merged into
+             * this column. The page already holds every photograph in the
+             * event, so this is a lookup rather than a second way to ask for
+             * one — and a reaction that cannot say which picture it is on is
+             * a line nobody can act on.
+             */
+            photoOf={(photoId) => {
+              const photo = feed.photos.find((one) => one.id === photoId);
+              return photo ? { id: photo.id, src: photo.src } : null;
+            }}
             onChanged={refresh}
             onSeen={markSeen}
           />
@@ -810,6 +933,9 @@ export function EventView({
             roster={feed.roster}
             linkToken={feed.event.linkToken}
             accessPolicy={feed.event.accessPolicy}
+            canAdminister={feed.event.canAdminister}
+            hosted={feed.event.contributePolicy === CONTRIBUTE_HOST}
+            onSetHost={(actorId, host) => void setHost(actorId, host)}
             onInvite={() => setSharing(true)}
           />
           <SiteFooter />
@@ -993,12 +1119,27 @@ function People({
   roster,
   linkToken,
   accessPolicy,
+  canAdminister,
+  hosted,
+  onSetHost,
   onInvite,
 }: {
   roster: Roster[];
   linkToken: string;
   /** Decides what the line under the link is allowed to promise. */
   accessPolicy: string;
+  /**
+   * Whether this reader may hand the camera over.
+   *
+   * Promotion is `administer`-only on the server, so the set of people who can
+   * add cannot grow without the album's owner — the property that makes
+   * "Hosts" safe to offer as a contribute setting at all. Drawing the control
+   * for anybody else would be the page promising what the server refuses.
+   */
+  canAdminister: boolean;
+  /** Only worth asking about on an album actually set to `host`. */
+  hosted: boolean;
+  onSetHost: (actorId: string, host: boolean) => void;
   onInvite: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1012,7 +1153,7 @@ function People({
             {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
           </h2>
           <p className="muted">
-            Invite everyone who was there so the event has every perspective.
+            Invite everyone who was there so the album has every perspective.
           </p>
         </div>
         <button type="button" onClick={onInvite}>
@@ -1053,7 +1194,33 @@ function People({
                     : 'Nothing added yet'}
               </div>
             </div>
-            <span className={`role role-${person.role}`}>{ROLE_WORDS[person.role]}</span>
+            {/*
+              The toggle, and the three things that have to be true for it.
+
+              Somebody already in — an open invitation has no participant row
+              and therefore no role to set. Not the creator, who is a host by
+              being the creator and whose row the server refuses to write. And
+              only where the setting means anything: on `everyone` they can
+              already add, and on `creator` the point is that there is no set to
+              join, so a "Make a host" beside every name would be offering a
+              promotion into a group of one.
+            */}
+            {canAdminister &&
+            hosted &&
+            person.actorId &&
+            person.role !== 'invited' &&
+            person.role !== 'creator' ? (
+              <button
+                type="button"
+                className={person.isHost ? 'secondary small' : 'small'}
+                aria-pressed={person.isHost}
+                onClick={() => onSetHost(person.actorId!, !person.isHost)}
+              >
+                {person.isHost ? 'Host' : 'Make a host'}
+              </button>
+            ) : (
+              <span className={`role role-${person.role}`}>{ROLE_WORDS[person.role]}</span>
+            )}
           </li>
         ))}
       </ul>

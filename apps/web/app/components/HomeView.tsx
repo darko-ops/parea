@@ -52,13 +52,11 @@ export function HomeView({
   /** "Evening, Nadia" — worded on the server. Null for somebody with no name. */
   greeting,
   people,
-  footer,
   children,
 }: {
   haystacks: Record<string, string>;
   greeting: string | null;
   people: RowPerson[];
-  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [query, setQuery] = useState('');
@@ -128,7 +126,7 @@ export function HomeView({
             type="button"
             className="search-go"
             aria-expanded={open}
-            aria-label="Search your events"
+            aria-label="Search your albums"
             onClick={() => {
               if (open && query.trim() === '') setOpen(false);
               else setOpen(true);
@@ -141,8 +139,8 @@ export function HomeView({
             type="search"
             className="search-field"
             value={query}
-            placeholder="Search your events"
-            aria-label="Search your events"
+            placeholder="Search your albums"
+            aria-label="Search your albums"
             tabIndex={open ? 0 : -1}
             onChange={(e) => setQuery(e.target.value)}
             onBlur={collapse}
@@ -205,7 +203,7 @@ export function HomeView({
 
           {person && (
             <span className="people-filter">
-              Showing events with <b>{first(person.name)}</b> ·{' '}
+              Showing albums with <b>{first(person.name)}</b> ·{' '}
               <button type="button" className="link-button" onClick={() => setSelected(null)}>
                 clear
               </button>
@@ -214,13 +212,34 @@ export function HomeView({
         </div>
       )}
 
-      <div className="cards">
-        {shown}
-        {/* Always rendered: it is the affordance, not a result. Except under a
-            person filter, where "create an event" is not an event Priya was
-            at, and the grid is answering that question. */}
-        {!person && footer}
-      </div>
+      <div className="cards">{shown}</div>
+
+      {/*
+        A line and the one stroke that answers it, where a card used to be.
+
+        The last cell of the grid was a `Create Album` panel — a bordered box
+        with a heading and two sentences in it, always rendered because it was
+        "the affordance, not a result". With nothing else in the grid it was
+        the whole page: an empty screen whose one object was an advertisement
+        for the product you are already inside.
+
+        The app answers the same absence with a sentence and a `+`, and the
+        note beside it makes the argument this borrows — a panel on a page
+        whose every other row is a photograph draws more attention empty than
+        the cards draw full. Both clients now say the same seven words.
+
+        Not repeated when there *are* albums: making one is a control in the
+        head on both clients, and a second button for it at the foot of a
+        scrolling grid is furniture rather than affordance.
+      */}
+      {!searching && !person && shown.length === 0 && (
+        <div className="blank">
+          <p className="blank-note">No Albums Yet. Create One Now.</p>
+          <a className="blank-do" href="/" aria-label="Create an album">
+            <span aria-hidden="true">+</span>
+          </a>
+        </div>
+      )}
 
       {/*
         Said, rather than left as an empty grid. An empty grid with a create

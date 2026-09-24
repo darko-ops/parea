@@ -41,11 +41,15 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -62,12 +66,83 @@ import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
+import { PageHead } from './PageHead';
 import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
+import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
+
+/**
+ * The tab: a strip the camera owns, and a photograph beginning where it ends.
+ *
+ * `CAP_H` is the island. Not the allowance a scroll starts at, not a margin
+ * chosen for the look of it — the distance from the physical top edge to the
+ * bottom of the black pill the front camera lives in, plus a couple of points
+ * so the picture is not touching it. Everything above 56 is a decision about
+ * design; 56 itself is a fact about the phone, and a face drawn into it is a
+ * face with a camera through it.
+ *
+ * This number has been 100, then 72, then 0, and each move was right about
+ * the thing before it and wrong about the phone. 100 and 72 were strips of
+ * flat colour that pushed somebody's face into the middle of the screen. 0
+ * gave the face the top of the screen and gave it to the camera as well.
+ *
+ * What is in the strip is the photograph's own colour rather than a swatch —
+ * its top edge carried up through it, and a scrim over that so the pill has
+ * something calm to sit on. So nothing above the picture is dead space, and
+ * nothing of the picture is behind the pill.
+ */
+const TAB_W = 172;
+const CAP_H = 56;
+/**
+ * The picture is square, because the crop is square.
+ *
+ * This frame has asked for 1:1, then 6:5, then 9:16, and not one of those was
+ * ever granted: `allowsEditing` on iOS crops to a square and ignores `aspect`
+ * outright, and the endpoint stores a square as well. So every one of those
+ * shapes was a portrait box with a square source in it, and `cover` paid the
+ * difference out of the sides of somebody's face — which is what you see
+ * when you crop yourself carefully and arrive here missing your ears.
+ *
+ * A box the shape of the crop is the only frame that shows the whole crop.
+ * The width is the tab's, so the height is the tab's width.
+ */
+const PHOTO_H = TAB_W;
+const TAB_H = CAP_H + PHOTO_H;
+/**
+ * What the tab narrows to as the page moves under it.
+ *
+ * Named rather than written as `TAB_W - 56` at the one place it was used,
+ * because the centring is derived from it as well — and a width that came
+ * from one expression and a centre that came from another is exactly how the
+ * two came apart: the tab kept its left edge and lost 56 points off the
+ * right, so it walked 28 points to the left on the way up.
+ */
+const TAB_MIN_W = TAB_W - 56;
+/**
+ * The picture's top edge, carried up through the strip.
+ *
+ * `BLEED` is how much of that edge is stretched to fill it. Ten points scaled
+ * to the strip's height is the colours actually at the top of the picture
+ * rather than an average of the whole of it; mirrored, so the row that meets
+ * the photograph is the photograph's own first row and the seam is not a
+ * seam; blurred, so ten points of somebody's hair is colour rather than an
+ * upside-down piece of a photograph.
+ *
+ * The two numbers are that stretch written as a transform. React Native
+ * scales about a view's centre, so the lift is what puts the edge back where
+ * the arithmetic wants it: a point `y` down the picture lands at
+ * `CAP_H - BLEED_SCALE * y`, which is `CAP_H` at the top of the strip and 0
+ * at its bottom.
+ */
+const BLEED = 10;
+const BLEED_SCALE = CAP_H / BLEED;
+const BLEED_LIFT = CAP_H - ((1 + BLEED_SCALE) * PHOTO_H) / 2;
+/** What is left of the picture once the page has been scrolled. */
+const PHOTO_MIN = 26;
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -207,16 +282,125 @@ export function ProfileScreen({
    * drawn disabled rather than hidden — a row that changes shape depending on
    * whether you have picked a handle is a row nobody learns.
    */
+  /**
+   * How far the page has been scrolled, and the tab's arrival.
+   *
+   * Two values because they cannot share a driver. The retract is width and
+   * height, which are layout and therefore JS-driven; the drop is a
+   * transform, which is not. Put on one view they would fight — React Native
+   * refuses a JS animation on a node it has moved to the native side — so
+   * they sit on two, one nested in the other.
+   */
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const drop = useRef(new Animated.Value(0)).current;
+
+  /*
+   * Once, when the account first arrives.
+   *
+   * Not on every return to the tab: `active` flips whenever somebody comes
+   * back, and a screen that replays its entrance every time is one that never
+   * settles. `dropped` is the latch.
+   */
+  const dropped = useRef(false);
+  useEffect(() => {
+    if (account === undefined || dropped.current) return;
+    dropped.current = true;
+    Animated.spring(drop, {
+      toValue: 1,
+      damping: 14,
+      stiffness: 140,
+      useNativeDriver: true,
+    }).start();
+  }, [account, drop]);
+
+  /*
+   * The tab retracts as the page moves under it.
+   *
+   * 170 points of scroll takes it from 172 × 200 to 116 × 76 and then stops.
+   * It keeps the top edge and the bottom corners; what changes is how much of
+   * it there is, which is what makes it read as being pulled back up rather
+   * than scrolling away.
+   */
+  const k = scrollY.interpolate({
+    inputRange: [0, 170],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  /**
+   * What the tab is made of, behind the picture.
+   *
+   * One value used twice, which is the point: the cap and the panel are two
+   * views, and a tab that is two colours is two objects. Whatever sits behind
+   * the photograph is what the strip above it is — the lens for somebody with
+   * no picture, and the line colour for somebody whose picture has not
+   * decoded yet.
+   */
+  const tabBack = account?.avatarUrl ? t.line : lens.fill;
+
+  const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_MIN_W] });
+  /*
+   * Half the width it currently has, so the centre stays the centre.
+   *
+   * `left: '50%'` puts the tab's *left edge* on the middle of the screen and
+   * the margin pulls it back by half its width. That half was a constant —
+   * half the resting width — so while the tab narrowed the left edge did not
+   * move and the right edge came in alone. The comment on `tab` claimed it
+   * narrowed symmetrically; it drifted 28 points left instead, which is what
+   * you see at the end of a scroll.
+   *
+   * Interpolated from the same `k` as the width, so the two cannot disagree.
+   * It is a layout property like the width and shares its JS driver, so this
+   * adds a number to a frame that was already being laid out rather than a
+   * measurement pass — which was the reason `alignSelf` was turned down.
+   */
+  const tabInset = k.interpolate({ inputRange: [0, 1], outputRange: [-TAB_W / 2, -TAB_MIN_W / 2] });
+  /*
+   * The cap does not retract; only the picture under it does.
+   *
+   * It is the unsafe zone, and the unsafe zone is the same height however far
+   * the page has been scrolled. Shrinking the whole tab would walk the
+   * photograph back up under the camera on the way past.
+   */
+  const tabHeight = k.interpolate({
+    inputRange: [0, 1],
+    outputRange: [TAB_H, CAP_H + PHOTO_MIN],
+  });
+
   const shareProfile = useCallback(() => {
     if (!account?.handle) return;
     void Share.share({ message: `${webBase}/u/${account.handle}` });
   }, [account?.handle, webBase]);
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
+    /*
+      `keyboardShouldPersistTaps`, because signed out this scroller *is* the
+      sign-in form.
+
+      The default is `never`: while a field is focused the first tap anywhere
+      else is spent dismissing the keyboard and the child never sees it. The
+      code step opens the number pad, which has no return key to put the
+      keyboard away with, so "Sign in" was the only thing to press and the
+      press went nowhere. See the same note in `App.tsx` and on the panel
+      below — all three hold the same card.
+    */
+    <View style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      // Drives the retract above. 16ms is one frame; less is work nobody sees.
+      scrollEventThrottle={16}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        // Layout, not transform — see the note on `scrollY`.
+        useNativeDriver: false,
+      })}
+    >
       {/*
         The two things that are not about looking at this profile, in the two
-        corners, above everything that is.
+        corners, with the product's name between them.
+
+        The name is what the other three tabs open with, and this one used to
+        open with two discs and a gap. Same row, same height, same place — see
+        `PageHead`.
 
         Settings used to be half of the row under the bio, which put the
         product's two destructive verbs beside `Edit profile` and gave the
@@ -230,19 +414,6 @@ export function ProfileScreen({
         third `+` somebody meets in this app and the other two already taught
         it.
       */}
-      <View style={styles.bar}>
-        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
-          <More color={t.fg} />
-        </RoundButton>
-
-        <RoundButton
-          t={t}
-          onPress={() => setCreating(true)}
-          accessibilityLabel="New album or group"
-        >
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
-      </View>
 
       {/*
         Nothing below the corners until all of it is ready.
@@ -262,7 +433,7 @@ export function ProfileScreen({
         <Waiting fill />
       ) : (
         <>
-      <View style={[styles.head, styles.headLower]}>
+      <View style={[styles.head, styles.gutter]}>
         <View style={styles.who}>
           {name ? (
             <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
@@ -308,33 +479,54 @@ export function ProfileScreen({
               suppressHighlighting
               accessibilityRole={friends?.length ? 'button' : undefined}
               accessibilityLabel={
-                friends?.length ? `${friends.length} friends, see them` : undefined
+                friends?.length
+                  ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}, see them`
+                  : undefined
               }
               style={friends?.length ? styles.countsLink : undefined}
             >
-              {friends === null ? '—' : friends.length} friends
+              {/*
+                Singular, like the two counts beside it.
+                *
+                * This one said "1 friends" while the albums and the photographs
+                * either side of it got their ternary — the third fact in a line
+                * of three, written last and written differently. The em dash
+                * stands in while the list is still arriving, and takes the
+                * plural because it is not a number.
+                */}
+              {friends === null ? '—' : friends.length}{' '}
+              {friends !== null && friends.length === 1 ? 'friend' : 'friends'}
             </Text>
           </Text>
+
+          {/*
+            The one link, under the counts and above the bio.
+
+            Here rather than under the bio because it belongs with the facts:
+            the line above it is what this person has, and an address is the
+            same kind of thing. Under the bio it would read as a footnote to
+            the sentence rather than as part of the header.
+
+            Shown without its scheme. `https://` in front of a domain is four
+            characters of protocol on a screen about a person, and the stored
+            value keeps it so that opening needs no guessing — the server
+            refuses anything that is not http or https, which is what makes
+            this safe to hand straight to the browser.
+          */}
+          {account?.link && (
+            <Text
+              onPress={() => void Linking.openURL(account.link!)}
+              suppressHighlighting
+              accessibilityRole="link"
+              accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+              numberOfLines={1}
+              style={[styles.link, { color: t.accent }]}
+            >
+              {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+          )}
         </View>
 
-        <Pressable
-          onPress={() => setEditing(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Change your profile picture"
-        >
-          {account?.avatarUrl ? (
-            <Image
-              source={{ uri: account.avatarUrl }}
-              style={[styles.avatar, { backgroundColor: t.line }]}
-              contentFit="cover"
-              transition={120}
-            />
-          ) : (
-            <View style={[styles.avatar, styles.avatarBlank, { backgroundColor: lens.fill }]}>
-              <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
-            </View>
-          )}
-        </Pressable>
       </View>
 
       {/*
@@ -342,9 +534,11 @@ export function ProfileScreen({
         most and somebody wrote it on purpose; an ellipsis in the middle of it
         says less than the third line would have.
       */}
-      {account?.bio && <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>}
+      {account?.bio && (
+        <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{account.bio}</Text>
+      )}
       {account === null && (
-        <Text style={[styles.bio, { color: t.dim }]}>
+        <Text style={[styles.bio, styles.gutter, { color: t.dim }]}>
           This device is not signed in. The albums below are the ones its links
           reach; signing in is what makes them a new phone away.
         </Text>
@@ -362,7 +556,7 @@ export function ProfileScreen({
         the bio should be.
       */}
       {account && (
-        <View style={styles.actions}>
+        <View style={[styles.actions, styles.gutter]}>
           <Pressable
             onPress={() => setEditing(true)}
             accessibilityRole="button"
@@ -381,8 +575,16 @@ export function ProfileScreen({
             style={({ pressed }) => [
               styles.action,
               {
-                borderColor: t.line,
-                backgroundColor: t.card,
+                /*
+                 * The same ink border as `Edit profile`, and no fill.
+                 *
+                 * It was a hairline over `card`, which at a glance is not a
+                 * button at all — a filled rectangle beside an outlined one
+                 * reads as the row's disabled half rather than as its second
+                 * control. They are two halves of one row and neither is the
+                 * screen's primary action, so they take the same outline.
+                 */
+                borderColor: t.fg,
                 // Nothing to hand out until there is a handle to put in the
                 // link. Dimmed rather than gone: see `shareProfile`.
                 opacity: !account.handle ? 0.4 : pressed ? 0.6 : 1,
@@ -397,7 +599,9 @@ export function ProfileScreen({
       {/* Not signed in: the card that asks is the screen, because there is no
           profile to draw and nothing for Settings to hold. */}
       {account === null && (
-        <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        <View style={styles.gutter}>
+          <AccountCard api={api} t={t} Button={Button} onSignedIn={() => { void load(); onSignedIn(); }} />
+        </View>
       )}
 
       {/*
@@ -406,10 +610,40 @@ export function ProfileScreen({
         the picture rather than over it: a scrim block across the bottom of
         every tile is a grid that reads as captioned stock photography.
       */}
+      {/*
+        The shelf before there is anything on it.
+
+        The space under the buttons was simply blank, which on the one tab that
+        is *yours* reads as a page that failed to load rather than as a shelf
+        waiting to be filled. A sentence and the one control that answers it.
+
+        The `+` is the same glyph and the same round button as the one in the
+        corner, because it does the same thing — this is the corner's action
+        brought down to where somebody is looking when they find out there is
+        nothing here. Both go once there is a first album: a prompt to make
+        your first one, standing over a shelf that already has one, is a
+        prompt nobody needs twice.
+      */}
+      {account && events.length === 0 && (
+        <View style={[styles.noAlbums, styles.gutter]}>
+          <Text style={[styles.noAlbumsText, { color: t.dim }]}>
+            No Albums Yet. Create One Now.
+          </Text>
+          <RoundButton t={t} onPress={onCreateEvent} accessibilityLabel="Create an album">
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        </View>
+      )}
+
       {events.length > 0 && (
-        <View style={styles.grid}>
+        <View style={[styles.grid, styles.gutter]}>
           {events.map((event) => {
-            const when = dateLabel(event.eventDate ?? event.firstPhotoAt);
+            /* When the album was made, which is what the card on the home
+               screen already leads with. It read `eventDate ?? firstPhotoAt`
+               — the evening it was about, falling back to when the earliest
+               photograph in it was taken — so one shelf dated albums by their
+               subject while every other surface dated them by themselves. */
+            const when = dateLabel(event.createdAt);
             return (
               <Pressable
                 key={event.id}
@@ -459,7 +693,7 @@ export function ProfileScreen({
         <Modal visible animationType="slide" transparent onRequestClose={() => setEditing(false)}>
           <Pressable style={styles.backdrop} onPress={() => setEditing(false)}>
             <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-              <ScrollView contentContainerStyle={styles.panelScroll}>
+              <ScrollView contentContainerStyle={styles.panelScroll} keyboardShouldPersistTaps="handled">
                 <EditProfile
                   api={api}
                   account={account}
@@ -588,6 +822,139 @@ export function ProfileScreen({
         />
       )}
     </ScrollView>
+
+      {/*
+        The tab, hanging from the top edge.
+
+        Outside the scroll view and above it, because it does not scroll — it
+        retracts. The page passes underneath, which is what makes it read as
+        fixed to the screen rather than as the first row of the content.
+
+        Two views, one inside the other, and the nesting is not arrangement.
+        The outer one is width and height, which are layout and therefore
+        JS-driven by the scroll; the inner one is the entrance, which is a
+        transform and runs natively. On one view React Native refuses the pair
+        outright.
+
+        Only once the account is there: an empty tab dropping in before there
+        is anything to put in it is the page arriving twice.
+      */}
+      {account !== undefined && (
+        <Animated.View
+          style={[
+            styles.tab,
+            { width: tabWidth, marginLeft: tabInset, height: tabHeight, shadowColor: t.fg },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.tabFill,
+              {
+                transform: [
+                  {
+                    translateY: drop.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-TAB_H * 1.05, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {/*
+              The picture, beginning where the camera stops.
+
+              The box is square because the crop is square, so `cover` has
+              nothing to trim: every pixel somebody kept is drawn. It starts
+              at `CAP_H` because the alternative is a face with a camera
+              through it, and as high as it goes is only worth having as high
+              as the phone allows.
+
+              No top corners on the image: a rounded corner is a frame
+              announcing itself, and the only shape anybody should be able to
+              see is the bottom of the bookmark.
+            */}
+            <Pressable
+              onPress={() => setEditing(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Change your profile picture"
+              style={[styles.photo, { backgroundColor: tabBack }]}
+            >
+              {account?.avatarUrl ? (
+                <Image
+                  source={{ uri: account.avatarUrl }}
+                  style={styles.tabFill}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View style={[styles.tabFill, styles.tabBlank]}>
+                  <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
+                </View>
+              )}
+            </Pressable>
+
+            {/*
+              The camera's strip: the picture's colour, and a shadow to sit in.
+
+              Two layers over `tabBack`, and neither of them is a photograph
+              anybody is meant to read. The first is the top edge of theirs,
+              stretched up through the strip and blurred, so what is above the
+              picture is the picture's own colour rather than a swatch chosen
+              by the app. The second is a scrim over that, strongest at the
+              very top and gone by the foot of it, so the black pill has
+              something calm to sit on and there is no line where it ends.
+
+              Dark rather than a blur for the scrim: a `BlurView` is uniform
+              and stops dead at its own edge, which is a seam — the same
+              reason the cover's glass covers a whole header or nothing. See
+              `CoverGlass`.
+
+              Both only over a photograph. Somebody who has not set one has a
+              flat colour and a letter up there, which is quiet already, and a
+              shadow across the top of it would be weather.
+            */}
+            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none">
+              {account?.avatarUrl && (
+                <>
+                  <Image
+                    source={{ uri: account.avatarUrl }}
+                    style={styles.bleed}
+                    contentFit="cover"
+                    blurRadius={20}
+                    transition={120}
+                  />
+                  <LinearGradient
+                    colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0)']}
+                    locations={[0, 0.5, 1]}
+                    style={styles.shade}
+                  />
+                </>
+              )}
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/*
+        The two corners, fixed above everything.
+
+        They were the ends of a `PageHead` row, which this screen no longer
+        draws — the tab is what the top of the profile is now, and a wordmark
+        over it would be a second thing claiming the same space. The discs
+        stay, because what they open has not changed.
+      */}
+      <View style={styles.corner}>
+        <RoundButton t={t} onPress={() => setSettings(true)} accessibilityLabel="Settings">
+          <More color={t.fg} />
+        </RoundButton>
+      </View>
+      <View style={[styles.corner, styles.cornerRight]}>
+        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New album or group">
+          <Glyph name="plus" size={20} color={t.fg} />
+        </RoundButton>
+      </View>
+    </View>
   );
 }
 
@@ -620,31 +987,43 @@ function Settings({
 }) {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-          <ScrollView contentContainerStyle={styles.panelScroll}>
-            <Text style={[styles.panelTitle, { color: t.fg }]}>Settings</Text>
+      {/*
+        A sheet sits on the bottom edge, and on iOS a transparent modal does
+        not move for the keyboard — so the sign-in card's button was under it,
+        on a panel whose whole reason for being here is that button. iOS is
+        told to pad; Android resizes the window itself and padding on top of
+        that lifts the sheet into the middle of the screen.
+      */}
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+            <ScrollView contentContainerStyle={styles.panelScroll} keyboardShouldPersistTaps="handled">
+              <Text style={[styles.panelTitle, { color: t.fg }]}>Settings</Text>
 
-            <AccountCard
-              api={api}
-              t={t}
-              Button={Button}
-              onSignedIn={onSignedIn}
-              onSignedOut={() => {
-                onClose();
-                onSignedOut();
-              }}
-            />
+              <AccountCard
+                api={api}
+                t={t}
+                Button={Button}
+                onSignedIn={onSignedIn}
+                onSignedOut={() => {
+                  onClose();
+                  onSignedOut();
+                }}
+              />
 
-            <Button
-              label="Safety, reporting and contact"
-              t={t}
-              onPress={() => void Linking.openURL('https://parea.photos/safety')}
-            />
-            <Button label="Done" t={t} onPress={onClose} />
-          </ScrollView>
+              <Button
+                label="Safety, reporting and contact"
+                t={t}
+                onPress={() => void Linking.openURL('https://parea.photos/safety')}
+              />
+              <Button label="Done" t={t} onPress={onClose} />
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -678,16 +1057,36 @@ function EditProfile({
   const [name, setName] = useState(account.displayName ?? '');
   const [handle, setHandle] = useState(account.handle ?? '');
   const [bio, setBio] = useState(account.bio ?? '');
+  /*
+   * Shown without its scheme, and sent back as typed.
+   *
+   * The stored value carries `https://` so that opening it needs no guessing.
+   * Putting that in the field would mean somebody editing around it, and the
+   * server adds it again anyway — so the field holds what a person would say
+   * out loud, and `account/route.ts` is the only thing that decides what a
+   * link is.
+   */
+  const [link, setLink] = useState((account.link ?? '').replace(/^https?:\/\//, ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = useCallback(async () => {
     setBusy(true);
     setError(null);
-    const patch: { displayName?: string; handle?: string; bio?: string } = {};
+    const patch: {
+      displayName?: string;
+      handle?: string;
+      bio?: string;
+      link?: string;
+    } = {};
     if (name.trim() !== (account.displayName ?? '')) patch.displayName = name.trim();
     if (handle.trim() !== (account.handle ?? '')) patch.handle = handle.trim();
     if (bio.trim() !== (account.bio ?? '')) patch.bio = bio.trim();
+    // Compared scheme-stripped on both sides, so that opening the sheet and
+    // saving without touching this field is not an edit.
+    if (link.trim() !== (account.link ?? '').replace(/^https?:\/\//, '')) {
+      patch.link = link.trim();
+    }
     if (Object.keys(patch).length === 0) {
       setBusy(false);
       onDone();
@@ -705,7 +1104,7 @@ function EditProfile({
     } finally {
       setBusy(false);
     }
-  }, [account, api, bio, handle, name, onDone]);
+  }, [account, api, bio, handle, link, name, onDone]);
 
   /**
    * A new picture, straight off the camera roll.
@@ -723,6 +1122,21 @@ function EditProfile({
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
+      /*
+       * Square, and this is the first time that is true rather than asked for.
+       *
+       * It has been [1,1], then [6,5], then [9,16], each one reasoned from the
+       * shape of the frame it was going to land in. None of them ever reached
+       * anybody: `allowsEditing` on iOS presents a square crop box and ignores
+       * `aspect` completely, and the endpoint resizes to a square as well. So
+       * whatever was typed here, a square came back — and the header then cut
+       * the sides off it to fill a portrait box.
+       *
+       * [1,1] makes Android crop the same square iOS has always cropped, and
+       * the header draws that square whole. The value of a profile picture is
+       * that somebody chose the framing; the app's job is to not overrule it
+       * twice on the way to the screen.
+       */
       aspect: [1, 1],
       quality: 0.9,
     });
@@ -770,6 +1184,24 @@ function EditProfile({
         that has to be unlike everybody else's.
       </Text>
 
+      <Text style={[styles.fieldLabel, { color: t.dim }]}>LINK</Text>
+      <TextInput
+        value={link}
+        onChangeText={setLink}
+        placeholder="yoursite.com (optional)"
+        placeholderTextColor={t.dim}
+        maxLength={200}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        style={[styles.input, { color: t.fg, borderColor: t.line }]}
+        accessibilityLabel="A link shown on your profile"
+      />
+      <Text style={[styles.hint, { color: t.dim }]}>
+        One address, shown under your name. Leave off the https — it is added
+        for you.
+      </Text>
+
       <Text style={[styles.fieldLabel, { color: t.dim }]}>ABOUT YOU</Text>
       <TextInput
         value={bio}
@@ -815,22 +1247,133 @@ const styles = StyleSheet.create({
   /* `flexGrow` so that a short page — which, while it is loading, is the bar
      and a spinner — still fills the screen, and the spinner has a height to
      centre itself in. Inert once there is enough content to scroll. */
-  scroll: { paddingTop: 72, paddingHorizontal: 20, paddingBottom: 110, gap: 16, flexGrow: 1 },
+  /*
+   * The gutter is on the children now, not here.
+   *
+   * One row on this screen is allowed to reach the edge — the header, whose
+   * picture runs off it — and a container that insets everything cannot make an
+   * exception for one child. So `paddingHorizontal` moved down, and `gutter`
+   * below is the one value they all use.
+   */
+  /* `BELOW_TABS`, not a number chosen by eye. This screen ends in a wall of
+     album covers with nothing after it, so whatever it reserves is the only
+     thing standing between the last row and the floating bar. */
+  /* The screen, so the tab and the corners have something to be absolute
+     inside. */
+  screen: { flex: 1 },
+  /*
+   * 222 rather than 72: the tab's 200 and 22 of clearance under it.
+   *
+   * The content starts below the tab rather than behind it, because the tab
+   * is opaque and the first thing under it is somebody's name.
+   */
+  scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  /*
+   * The tab: flush to the physical top, centred, square above and round below.
+   *
+   * `left: '50%'` rather than `alignSelf`, because the width is animated and a
+   * centring that depends on it would re-measure on every frame of the
+   * retract. That puts the tab's left edge on the middle of the screen; what
+   * brings it back to centre is `tabInset`, which is animated beside the
+   * width rather than held here — see the note on it. A constant margin here
+   * is what made the tab drift left as it narrowed.
+   */
+  tab: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    zIndex: 2,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  tabFill: { width: '100%', height: '100%' },
+  /*
+   * The ribbon, laid over the top of the picture.
+   *
+   * Absolute rather than a first child, because the picture is the full
+   * height of the tab and this covers part of it. Fixed height, because the
+   * camera does not move.
+   */
+  /*
+   * The camera's strip, and the clip that keeps the bleed inside it.
+   *
+   * It does not retract with the tab: the island is the same height however
+   * far the page has been scrolled, so this is pinned to the top and the
+   * picture below it is what shrinks.
+   */
+  cap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: CAP_H,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  /*
+   * The picture's top edge, stretched up to fill the strip.
+   *
+   * Laid out as the picture is — the same width and the same square height —
+   * so `cover` frames it identically and row zero is the same row in both.
+   * The transform then flips it and scales it about its centre; `BLEED_LIFT`
+   * is what puts row zero back on the strip's bottom edge. Listed
+   * translate-then-scale, which React Native applies to a point in the other
+   * order, so the lift is in unscaled points.
+   */
+  bleed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: PHOTO_H,
+    transform: [{ translateY: BLEED_LIFT }, { scaleY: -BLEED_SCALE }],
+  },
+  /* The shadow the pill sits in, over the whole strip and nothing below it. */
+  shade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /*
+   * The picture: everything below the strip, and square at rest.
+   *
+   * `bottom: 0` rather than `height: PHOTO_H`, because the tab's height is
+   * animated and the retract has to come out of the picture rather than out
+   * of the camera's strip. At rest `TAB_H - CAP_H` is `PHOTO_H`, which is
+   * `TAB_W`, so the box is square and `cover` trims nothing.
+   */
+  photo: { position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 },
+  tabBlank: { alignItems: 'center', justifyContent: 'center' },
+  /* Above the tab, and fixed: these do not scroll and are not part of it. */
+  corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
+  cornerRight: { left: undefined, right: 20 },
+  /* What every row keeps, and the header's picture is the only thing exempt
+     from. Named rather than repeated, so "the gutter" stays one number. */
+  gutter: { paddingHorizontal: 20 },
   /* Settings and `+`, in the two corners, above everything else. */
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  /* The glyph's own box, so the two corners are the same height. */
-  /* The words and the picture on one line, the words first. */
-  head: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  /* Clear of the bar above it. With the scroll's own 16 that is 36 between the
-     corner glyphs and the name, which is what stops a 28pt name reading as a
-     title bar. */
-  headLower: { marginTop: 20 },
-  who: { flex: 1, minWidth: 0 },
-  name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
-  handle: { fontSize: 14.5, marginTop: 3 },
+  /*
+   * The words and the picture on one line, the words first.
+   *
+   * `paddingLeft` only, and no `justifyContent`: the picture is pushed right by
+   * `who` taking the space rather than by the row spreading its children, which
+   * is what lets it end flush against the screen's edge instead of 20 points
+   * short of it.
+   */
+  /*
+   * A centred column, not a row with a picture on the end.
+   *
+   * The picture hangs above it now, so everything under the tab reads down
+   * the middle of the screen — and the text is centred with it rather than
+   * ranged left against nothing.
+   */
+  head: { alignItems: 'center' },
+  who: { alignSelf: 'stretch', alignItems: 'center' },
+  name: { textAlign: 'center', fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
+  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { fontSize: 14.5, marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
   /* Underlined rather than accented: an accent word inside a grey line reads as
      a link in prose, and this is a line of facts. */
   countsLink: { textDecorationLine: 'underline' },
@@ -849,10 +1392,101 @@ const styles = StyleSheet.create({
   friendName: { fontSize: 15.5, fontWeight: '600' },
   friendHandle: { fontSize: 13 },
   friendGo: { fontSize: 20 },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
-  avatarBlank: { alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { fontSize: 25, fontWeight: '700' },
-  bio: { fontSize: 15, lineHeight: 21 },
+  /*
+   * A photograph, bled to the edge, at the height of the words beside it.
+   *
+   * 124 × 104, with the left cap rounded to half its height and the right side
+   * square where the screen cuts it off. At 64 a face is a thumbnail; 104 is
+   * about the smallest a photograph of a person is legible at on this screen,
+   * and taking the gutter back is what buys that height without pushing the bio
+   * and the grid down.
+   *
+   * The height is not arbitrary either — the three lines beside it come to
+   * roughly 104 (a 31pt name, a handle at 17 over 3, the counts at 17 over 8),
+   * so the two sides square off against each other rather than the picture
+   * floating beside the first line. `alignItems: 'center'` on the row is the
+   * other half of that.
+   */
+  avatar: {
+    width: 124,
+    height: 104,
+    /*
+     * A rounded corner, not a semicircle.
+     *
+     * It was 52 — half the height — which makes the left edge a perfect arc and
+     * the whole thing a capsule cut in half. That reads as a badge or a pill,
+     * which is a shape for a label rather than for a photograph; at this size
+     * it also eats a visible bite out of whatever is on the left of the
+     * picture, which on a portrait is usually a shoulder.
+     *
+     * 26 is half of that: enough to be obviously rounded and to agree with the
+     * other soft corners on this screen, and not so much that the frame becomes
+     * the subject.
+     */
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  /*
+   * The letter takes the photograph's shape, bleed and all.
+   *
+   * It kept a 64pt circle in the gutter, on the argument that a flat colour
+   * has nothing to continue past the cut and so reads as a field of colour
+   * rather than a face. That is true of the colour and false of the frame:
+   * what the bleed is actually doing here is telling you what kind of thing
+   * sits in this corner, and a disc in a margin beside a picture that runs off
+   * the edge reads as a different screen rather than as the same one waiting
+   * for a photograph. Somebody with no picture yet should see the shape their
+   * picture will take.
+   *
+   * Same 124 × 104 and the same two radii as `avatar`, so the two are one
+   * outline with different contents — and no `marginRight`, which is what lets
+   * it reach the edge.
+   */
+  avatarBlank: {
+    width: 124,
+    height: 104,
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* Up from 25 with the box it sits in: a letter sized for a 64pt disc is
+     lost in a frame twice the area. */
+  avatarLetter: { fontSize: 38, fontWeight: '700' },
+  /*
+   * Pulled up against the header above it.
+   *
+   * The scroll lays its children out with `gap: 16`, and the header row's
+   * height is set by the 104pt picture rather than by the text beside it — so
+   * the measured space between the last line of text and the bio is the gap
+   * *plus* whatever the text column falls short by, which looked like the bio
+   * had been left behind by the name it belongs to.
+   *
+   * Half the gap back, rather than all of it: the bio is still a separate
+   * thought from the line of counts above it, and the link now usually sits
+   * between them.
+   */
+  /*
+   * Centred, inset, and no negative margin.
+   *
+   * The -8 pulled it against a header whose height was set by a 104pt picture
+   * beside the text. There is no picture beside the text any more, so the
+   * pull is against nothing. The inset keeps a long bio to a readable measure
+   * once it is centred — full width and centred is a paragraph with ragged
+   * edges on both sides.
+   */
+  bio: { fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 },
+  /* The same size and rhythm as the counts line it follows, in the accent —
+     this is the one thing in the header that goes somewhere. */
+  link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },
+  /* Centred, and given room: this is the only thing on the lower half of the
+     page, so it is placed rather than left at the top of an empty run. */
+  noAlbums: { alignItems: 'center', gap: 14, paddingTop: 24 },
+  noAlbumsText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },
@@ -867,6 +1501,8 @@ const styles = StyleSheet.create({
      with the same six people apart. */
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
   tileMeta: { fontSize: 12.5 },
+  /* The keyboard avoider around a sheet: full height, no colour of its own. */
+  fill: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   panelScroll: { padding: 16, paddingBottom: 40, gap: 12 },

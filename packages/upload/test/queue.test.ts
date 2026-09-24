@@ -12,8 +12,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CONCURRENCY,
   MAX_ATTEMPTS,
+  MAX_FILES_PER_PRESIGN,
   MAX_REPRESIGN_ROUNDS,
   Offline,
+  RETRY_BACKOFF_MS,
+  SourceGone,
   UploadQueue,
   type Deps,
   type QueueItem,
@@ -65,6 +68,10 @@ function harness(overrides: Partial<Deps> = {}): Harness {
       // mutations rewrite history and hide resume bugs.
       saved.push(JSON.parse(JSON.stringify(state)));
     },
+    // A run now spends its whole retry budget before it returns, and the waits
+    // between attempts are real seconds on a phone. Nothing here is testing
+    // `setTimeout`, so they are taken instantly.
+    async sleep() {},
     ...overrides,
   };
 
@@ -131,12 +138,12 @@ describe('the happy path', () => {
 
 describe('surviving a kill', () => {
   it('resumes from persisted state without duplicating completed work', async () => {
-    // Die after the second upload, then reopen from what was on disk.
-    let uploads = 0;
+    // One file the server will not take, in a batch of three. It spends its
+    // attempts and goes to disk `failed`; reopening from that must not redo the
+    // two that worked, and must not lose them either.
     const first = harness({
       async upload(item) {
-        uploads++;
-        if (uploads === 2) throw new Error('process died');
+        if (item.source.includes('photo-2')) throw new Error('process died');
         first.uploaded.push(item.source);
       },
     });
@@ -156,8 +163,18 @@ describe('surviving a kill', () => {
   });
 
   it('loses nothing when the crash lands between upload and complete', async () => {
-    // The nastiest window: bytes are in storage but the server has not been
-    // told. Retrying must finish the job, not skip it.
+    /*
+     * The nastiest window, and the state on disk inside it says `uploaded`:
+     * the bytes are in storage and the server has not been told.
+     *
+     * That state used to be a dead end. `run` looked at `pending` items and at
+     * `presigned` ones, and `uploaded` is neither — so the photograph sat in
+     * the saved queue forever, counted as outstanding by every progress bar,
+     * and reached the album only when the deriver gave up waiting half an hour
+     * later and read the object anyway. This resumes from the snapshot a crash
+     * actually leaves rather than from the one after the failure was recorded,
+     * which is what let that go unnoticed.
+     */
     const first = harness({
       async complete() {
         throw new Error('killed before complete');
@@ -167,12 +184,18 @@ describe('surviving a kill', () => {
     queueA.add('event-1', [file(1)]);
     await queueA.run();
 
+    const crashed = first.saved.find((s) => s.items[0]!.status === 'uploaded');
+    expect(crashed, 'the window is persisted at all').toBeDefined();
+
     const second = harness();
-    const queueB = new UploadQueue(second.deps, first.saved.at(-1)!);
+    const queueB = new UploadQueue(second.deps, crashed!);
     await queueB.run();
 
     expect(queueB.doneCount).toBe(1);
     expect(second.completed).toHaveLength(1);
+    // The confirmation is what was outstanding, so that is all that was sent.
+    expect(second.uploaded, 'the bytes are not sent a second time').toHaveLength(0);
+    expect(second.presignCalls, 'nor is a second row reserved for them').toBe(0);
   });
 
   it('a resumed queue with nothing left to do is a no-op', async () => {
@@ -248,7 +271,7 @@ describe('failure', () => {
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1), file(2), file(3)]);
 
-    for (let i = 0; i < MAX_ATTEMPTS + 1; i++) await queue.run();
+    await queue.run();
 
     expect(queue.failedCount).toBe(1);
     expect(queue.doneCount, 'a partial upload is partial photos, not zero').toBe(2);
@@ -263,7 +286,7 @@ describe('failure', () => {
     });
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1)]);
-    for (let i = 0; i < MAX_ATTEMPTS; i++) await queue.run();
+    await queue.run();
     expect(queue.state.items[0]!.error).toMatch(/connection lost/);
   });
 
@@ -276,9 +299,364 @@ describe('failure', () => {
     const queue = new UploadQueue(h.deps);
     queue.add('event-1', [file(1), file(2)]);
     await queue.run();
-    // Still pending, not failed: offline is a retry-later, not a give-up.
-    expect(queue.pendingCount).toBe(2);
-    expect(queue.state.items.every((i) => i.attempts === 1)).toBe(true);
+    /*
+     * Spent its attempts and stopped, rather than stopping after one.
+     *
+     * A `presign` that throws a plain `Error` is an ordinary failure — the
+     * platform layer throws `Offline` when it means a missing network, and
+     * that path is tested below and still consumes nothing. So this ends
+     * `failed`, which is the state with a remedy attached: the clients caption
+     * it "2 didn't upload" and put a "Try again" under it. It used to end
+     * `pending` with three attempts unspent and nothing watching, which no
+     * screen has a way to report and no person has a way to resolve.
+     */
+    expect(queue.failedCount).toBe(2);
+    expect(queue.pendingCount).toBe(0);
+    expect(queue.state.items.every((i) => i.attempts === MAX_ATTEMPTS)).toBe(true);
+  });
+});
+
+/**
+ * Eight photographs chosen, four in the album, and nothing said about it.
+ *
+ * `MAX_ATTEMPTS` reads like four tries and used to buy exactly one. `run` went
+ * round again only for grants that had gone stale; an item that failed for any
+ * other reason went back to `pending` with its attempts unspent, and the loop
+ * stopped. Nothing picked it up, because nothing calls `run` a second time —
+ * both clients call it once per batch and neither watches for leftovers — so
+ * the photograph waited for somebody to reopen the album.
+ *
+ * And it waited silently, which is the worse half. `pending` with attempts to
+ * spare is not `failed`, so no count reported it; the run was not `paused`, so
+ * it was not waiting for a network either. The phone's status line computed
+ * "nothing to say", cleared itself, and emptied the bar. Half a batch was
+ * missing with no error, no count, and no button.
+ */
+describe('spending the attempts it says it has', () => {
+  it('retries inside one run, so a blip does not cost a photograph', async () => {
+    // One transient failure each, of the kind that is over by the next try.
+    const flaked = new Set<string>();
+    const h = harness({
+      async upload(item) {
+        if (!flaked.has(item.id)) {
+          flaked.add(item.id);
+          throw new Error('upload failed: 503');
+        }
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', Array.from({ length: 8 }, (_, i) => file(i)));
+
+    await queue.run();
+
+    expect(queue.doneCount, 'all eight, not the four that got lucky').toBe(8);
+    expect(queue.pendingCount).toBe(0);
+    expect(queue.failedCount).toBe(0);
+  });
+
+  it('waits between attempts rather than racing the same failure', async () => {
+    const waits: number[] = [];
+    const h = harness({
+      async upload() {
+        throw new Error('upload failed: 500');
+      },
+      async sleep(ms) {
+        waits.push(ms);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+
+    await queue.run();
+
+    // One wait before each attempt after the first, widening: a blip is waited
+    // out rather than raced, and four tries in a few hundred milliseconds
+    // against one bad second is how a whole batch used to be lost at once.
+    expect(waits).toEqual([
+      RETRY_BACKOFF_MS,
+      RETRY_BACKOFF_MS * 2,
+      RETRY_BACKOFF_MS * 3,
+    ]);
+    expect(queue.state.items[0]!.attempts).toBe(MAX_ATTEMPTS);
+  });
+
+  it('ends with something a screen can report, not silence', async () => {
+    /*
+     * The contract the clients read. `failed` has a sentence and a button
+     * behind it; `pending` after a finished run has neither, and that is the
+     * state this used to stop in.
+     */
+    const h = harness({
+      async upload() {
+        throw new Error('upload failed: 500');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1), file(2)]);
+
+    await queue.run();
+
+    expect(queue.failedIn('event-1')).toHaveLength(2);
+    expect(queue.pendingIn('event-1'), 'nothing left in a state nobody reads').toBe(0);
+    expect(queue.waitingFor('event-1'), 'and not blamed on the network').toBe(false);
+  });
+
+  it('still leaves an offline batch alone', async () => {
+    // The one failure that must not spend anything. Retrying inside the run
+    // would be a tight loop against a network that is not there, which is the
+    // thing the pause exists to prevent.
+    let tries = 0;
+    const h = harness({
+      async upload() {
+        tries += 1;
+        throw new Offline();
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1), file(2), file(3)]);
+
+    await queue.run();
+
+    expect(tries).toBeLessThanOrEqual(CONCURRENCY);
+    expect(queue.pendingCount).toBe(3);
+    expect(queue.state.items.every((i) => i.attempts === 0)).toBe(true);
+    expect(queue.waitingForNetwork).toBe(true);
+  });
+
+  it('does not re-send bytes that are already up', async () => {
+    // A `complete` that flakes is a confirmation to send again, not a
+    // photograph. Going back through `pending` would presign a second row and
+    // PUT the same object beside the first, against the event's own quota.
+    let completes = 0;
+    const h = harness({
+      async complete(photoId) {
+        completes += 1;
+        if (completes === 1) throw new Error('complete failed: 502');
+        h.completed.push(photoId);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+
+    await queue.run();
+
+    expect(queue.doneCount).toBe(1);
+    expect(h.uploaded, 'one PUT, not two').toHaveLength(1);
+    expect(h.presignCalls, 'one row reserved, not two').toBe(1);
+  });
+});
+
+/**
+ * A failure is terminal, and terminal is not the same as permanent.
+ *
+ * `failed` has to be an end state — a queue that retried forever would sit in
+ * a pocket burning a battery on a file the server keeps refusing. But nothing
+ * but `done` is ever pruned, so a failure outlives every later run, and until
+ * these two there was no way back from one at all: four attempts against a
+ * condition that has since changed were the end of the photograph.
+ *
+ * The counts also answered the wrong question. They are the whole queue's,
+ * which is right for a screen about the queue and wrong for a screen about an
+ * album — one album's screen was captioning a perfectly good upload with six
+ * failures belonging to another.
+ */
+describe('coming back from a failure', () => {
+  const exhaust = async (queue: UploadQueue) => {
+    for (let i = 0; i < MAX_ATTEMPTS + 1; i++) await queue.run();
+  };
+
+  it('spends a fresh set of attempts when somebody asks', async () => {
+    let working = false;
+    const h = harness({
+      async upload(item) {
+        if (!working) throw new Error('nope');
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await exhaust(queue);
+    expect(queue.failedCount).toBe(1);
+
+    // The condition that made it fail is gone — a fixed build, a network that
+    // came back, a source that can be copied out of the library again. The
+    // press is the new information.
+    working = true;
+    expect(queue.retryFailed()).toBe(1);
+    await queue.run();
+
+    expect(queue.doneCount).toBe(1);
+    expect(queue.failedCount).toBe(0);
+  });
+
+  it('puts the attempts back to zero, not up by one', async () => {
+    // The count exists to stop an unattended loop. This run is not unattended,
+    // and leaving it at the cap would buy a single attempt and then the same
+    // dead line on the screen.
+    const h = harness({
+      async upload() {
+        throw new Error('nope');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await exhaust(queue);
+
+    queue.retryFailed();
+    expect(queue.state.items[0]!.attempts).toBe(0);
+    expect(queue.state.items[0]!.status).toBe('pending');
+  });
+
+  it('leaves a stale item alone, because its bytes are gone', async () => {
+    // Another four attempts would find them just as gone. `forget` is the
+    // remedy there, and the screen says to pick the photograph again.
+    const h = harness({
+      async upload() {
+        throw new SourceGone('the copy is not there');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+    expect(queue.staleItems).toHaveLength(1);
+
+    expect(queue.retryFailed()).toBe(0);
+    expect(queue.staleItems).toHaveLength(1);
+  });
+
+  it('can be asked about one album at a time', async () => {
+    const h = harness({
+      async upload(item) {
+        if (item.eventId === 'event-1') throw new Error('nope');
+        h.uploaded.push(item.source);
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+    await exhaust(queue);
+
+    expect(queue.failedIn('event-1')).toHaveLength(1);
+    expect(queue.failedIn('event-2')).toHaveLength(0);
+    // And the global count is still the global count: the screen that is about
+    // the queue rather than about an album has not changed.
+    expect(queue.failedCount).toBe(1);
+
+    // Retrying one album does not wake another's failures.
+    queue.add('event-3', [file(3)]);
+    expect(queue.retryFailed('event-2')).toBe(0);
+    expect(queue.failedIn('event-1')).toHaveLength(1);
+  });
+});
+
+/**
+ * Working one album's photographs and leaving the rest alone.
+ *
+ * The queue holds work for every album a device has uploaded into, and working
+ * all of it is right for a client that can act for any album at any time. The
+ * phone is not that client: it presigns and completes with the link token of
+ * the album on screen, so a leftover item belonging to another album went up
+ * with the wrong credential and was refused — a failure invented by the queue
+ * being more capable than its caller.
+ */
+describe('running one album at a time', () => {
+  it('touches only the album it was given', async () => {
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(h.uploaded).toHaveLength(1);
+    expect(h.uploaded[0]).toContain('photo-1');
+    expect(queue.doneIn('event-1')).toBe(1);
+    // Untouched, not failed: it has not been tried, so it has nothing to
+    // recover from.
+    expect(queue.pendingIn('event-2')).toBe(1);
+    expect(queue.failedIn('event-2')).toHaveLength(0);
+  });
+
+  it('does not presign for an album it is not working', async () => {
+    // The presign carries the credential. Asking for a grant on somebody
+    // else's evening is the request that comes back refused.
+    const asked: string[] = [];
+    const h = harness({
+      async presign(eventId, files) {
+        asked.push(eventId);
+        return files.map((f, i) => ({
+          photoId: `photo-${f.name}-${i}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: {},
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(asked).toEqual(['event-1']);
+  });
+
+  it('keeps the other album’s work in the saved state', async () => {
+    /*
+     * The load-bearing half. Every run writes the whole state back, so a queue
+     * that had merely been *filtered* on the way in would erase the other
+     * album's items the first time this one saved. They are still there, and
+     * they go up when somebody opens the album they belong to.
+     */
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+    queue.prune();
+
+    const saved = h.saved[h.saved.length - 1]!;
+    expect(saved.items.map((i) => i.eventId)).toContain('event-2');
+
+    // And a later run in that album finishes the job.
+    await queue.run('event-2');
+    expect(h.uploaded).toHaveLength(2);
+  });
+
+  it('still works everything when nobody scopes it', async () => {
+    // The browser client acts for any album it has a session for, and this is
+    // the behaviour it has always had.
+    const h = harness();
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run();
+
+    expect(h.uploaded).toHaveLength(2);
+  });
+
+  it('is not waiting for a connection on behalf of another album', async () => {
+    /*
+     * `waitingForNetwork` is true whenever anything anywhere is pending after a
+     * pause. On a screen about one album that reads as "your photographs are
+     * waiting for a signal" when the thing waiting is a different evening.
+     */
+    const h = harness({
+      async upload() {
+        throw new Offline('no signal');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    queue.add('event-2', [file(2)]);
+
+    await queue.run('event-1');
+
+    expect(queue.waitingFor('event-1')).toBe(true);
+    expect(queue.waitingFor('event-2')).toBe(false);
   });
 });
 
@@ -332,6 +710,7 @@ describe('a venue with no signal', () => {
         },
         complete: async () => {},
         save: async () => {},
+        sleep: async () => {},
         ...overrides,
       },
     };
@@ -410,10 +789,11 @@ describe('a venue with no signal', () => {
       },
       complete: async () => {},
       save: async () => {},
+      sleep: async () => {},
     });
     queue.add('ev', [file(1)]);
 
-    for (let i = 0; i < MAX_ATTEMPTS; i++) await queue.run();
+    await queue.run();
 
     expect(queue.failedCount).toBe(1);
     expect(queue.waitingForNetwork).toBe(false);
@@ -490,5 +870,104 @@ describe('a grant that is stale the moment it arrives', () => {
 
     expect(presigns).toBe(2);
     expect(queue.doneCount).toBe(1);
+  });
+});
+
+/**
+ * The bound on one presign request, which the queue did not know about.
+ *
+ * The route refuses a batch over `MAX_FILES_PER_PRESIGN` and refuses it
+ * *whole* — `parseFiles` answers null rather than a short list, before any row
+ * is written. The queue sent "the whole pending batch" in one call. So
+ * choosing fifty-one photographs uploaded none of them, recorded none of them
+ * as pending, and left an album with a cover on it and nothing in it.
+ *
+ * What made it invisible is that everything downstream behaved correctly. The
+ * request was well formed, the refusal was the documented one, and the catch
+ * did what it was written to do — to every item in the album, including the
+ * ones the server never saw.
+ */
+describe('presigning more files than one request may carry', () => {
+  const overSized = (files: { name: string }[]) => {
+    if (files.length > MAX_FILES_PER_PRESIGN) {
+      // Exactly what the route does: null from `parseFiles`, 400, no rows.
+      throw new Error('400 invalid_files');
+    }
+  };
+
+  it('splits the batch instead of being refused whole', async () => {
+    const seen: number[] = [];
+    const h = harness({
+      async presign(_eventId, files) {
+        overSized(files);
+        seen.push(files.length);
+        return files.map((f) => ({
+          photoId: `photo-${f.name}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: { 'content-type': f.type },
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+
+    const queue = new UploadQueue(h.deps, { items: [] });
+    const many = Array.from({ length: MAX_FILES_PER_PRESIGN + 1 }, (_, n) => file(n));
+    queue.add('event-1', many);
+    await queue.run('event-1');
+
+    // Two calls, and no call over the bound.
+    expect(seen).toEqual([MAX_FILES_PER_PRESIGN, 1]);
+    // Every photograph, not fifty of them and not none.
+    expect(h.completed).toHaveLength(many.length);
+    expect(queue.state.items.every((i) => i.status === 'done')).toBe(true);
+  });
+
+  it('sends exactly one call at the bound', async () => {
+    // The off-by-one that would make the fix cost a round trip on every
+    // ordinary batch.
+    const h = harness();
+    const queue = new UploadQueue(h.deps, { items: [] });
+    queue.add('event-1', Array.from({ length: MAX_FILES_PER_PRESIGN }, (_, n) => file(n)));
+    await queue.run('event-1');
+    expect(h.presignCalls).toBe(1);
+  });
+
+  it('spends an attempt only on the chunk that was refused', async () => {
+    /*
+     * The other half of the old behaviour: one refused request failed every
+     * item queued for the album. With four chunks and one bad one, three
+     * batches of photographs should be untouched by it.
+     */
+    let call = 0;
+    const h = harness({
+      async presign(_eventId, files) {
+        overSized(files);
+        call += 1;
+        if (call === 1) throw new Error('500 server error');
+        return files.map((f) => ({
+          photoId: `photo-${f.name}`,
+          url: `https://storage.example/put/${f.name}`,
+          headers: { 'content-type': f.type },
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+
+    const queue = new UploadQueue(h.deps, { items: [] });
+    queue.add('event-1', Array.from({ length: MAX_FILES_PER_PRESIGN * 2 }, (_, n) => file(n)));
+    await queue.run('event-1');
+
+    const spent = queue.state.items.filter((i) => i.attempts > 0);
+    expect(spent).toHaveLength(MAX_FILES_PER_PRESIGN);
+
+    /*
+     * And everything still arrives. A refused chunk goes back to `pending`
+     * rather than to `failed` — one attempt of `MAX_ATTEMPTS` — so the same
+     * run picks it up again and the person loses nothing but a round trip.
+     * That is what makes the per-chunk accounting matter: had the failure
+     * been charged to all hundred, the budget for the real retry would have
+     * been spent by photographs that never left the phone.
+     */
+    expect(h.completed).toHaveLength(MAX_FILES_PER_PRESIGN * 2);
   });
 });

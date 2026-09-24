@@ -193,6 +193,14 @@ export async function restore(
   }
 
   for (const item of outstanding) {
+    /*
+     * An item whose bytes are already in storage needs no handle. What is left
+     * for it is the confirmation, and probing for a `File` it will never be
+     * asked to read again would mark a photograph that uploaded perfectly well
+     * as stale — asking somebody to pick it a second time to fix nothing.
+     */
+    if (item.status === 'uploaded') continue;
+
     const file = lent.get(item.id) ?? (await store.getFile(item.id));
     if (file && (await readable(file))) {
       files.set(item.id, file);

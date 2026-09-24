@@ -167,6 +167,6 @@ export async function GET(
     capEpoch: event.capEpoch,
     code: code?.words ?? null,
     joinsOpen: event.joinsOpen,
-    uploadsOpen: event.uploadsOpen,
+    contributePolicy: event.contributePolicy,
   });
 }

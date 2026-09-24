@@ -57,16 +57,24 @@ describe('the grid they are all on', () => {
   it('is 24 units at stroke 2, with round caps and joins', () => {
     // The convention `RailIcon` set, and the only thing that makes six
     // drawings by different hands read as one family.
+    //
+    // The weight is a prop now — the selected tab asks for a heavier cut of
+    // the same drawing rather than for a second set of paths — so what is
+    // pinned here is the default it falls back to when nobody asks.
     expect(GLYPH).toMatch(/viewBox="0 0 24 24"/);
-    expect(GLYPH).toMatch(/strokeWidth=\{2\}/);
+    expect(GLYPH).toMatch(/weight = 2,/);
+    expect(GLYPH).toMatch(/strokeWidth=\{weight\}/);
     expect(GLYPH).toMatch(/strokeLinecap="round"/);
     expect(GLYPH).toMatch(/strokeLinejoin="round"/);
   });
 
   it('makes the exception where a picture sits inside a frame', () => {
     // At the frame's weight the photo tile reads as a scribble at 20 points.
-    expect(GLYPH).toMatch(/<Circle cx=\{12\} cy=\{8\} r=\{1\.05\} strokeWidth=\{1\.6\} \/>/);
-    expect(GLYPH).toMatch(/M8\.2 15\.1l3\.4-3\.2 2\.3 2\.1 1\.9-1\.6 4\.7 4\.1" strokeWidth=\{1\.6\}/);
+    // Held as a fraction of the frame rather than as 1.6 so that the picture
+    // stays lighter than the frame in the bold cut too.
+    expect(GLYPH).toMatch(/const light = weight \* 0\.8;/);
+    expect(GLYPH).toMatch(/<Circle cx=\{12\} cy=\{8\} r=\{1\.05\} strokeWidth=\{light\} \/>/);
+    expect(GLYPH).toMatch(/M8\.2 15\.1l3\.4-3\.2 2\.3 2\.1 1\.9-1\.6 4\.7 4\.1" strokeWidth=\{light\}/);
   });
 
   it('says the padlock’s two states with one stroke', () => {
@@ -81,9 +89,157 @@ describe('the grid they are all on', () => {
     expect(rects).toHaveLength(2);
   });
 
+  it('says the selected tab in value and weight, not in colour', () => {
+    /*
+     * The capsule under the selected glyph is a wash of the page's own value
+     * through the glass — translucent, because over a blur an opaque fill
+     * reads as a patch stuck on it, and grey because a filled blue capsule is
+     * the loudest thing on a screen of other people's photographs. A tab bar
+     * is chrome.
+     *
+     * What makes the selected one legible is the glyph: `fg` against four in
+     * `dim`, plus half a unit of stroke, because at 22 points a change of
+     * value alone is easy to miss on a bar sitting over a bright cover.
+     */
+    const APP = read('App.tsx');
+    expect(APP).toMatch(
+      /tab === id && \{ backgroundColor: dark \? '#ffffff1f' : '#0000000f' \}/,
+    );
+    expect(APP).toMatch(/color=\{tab === id \? t\.fg : t\.dim\}/);
+    expect(APP).toMatch(/weight=\{tab === id \? 2\.5 : 2\}/);
+    /*
+     * No accent on the bubble, and no opaque colour standing in for one. The
+     * pattern wants exactly six hex digits before the quote, so the two
+     * eight-digit washes above — which are values at an alpha, not colours —
+     * do not match it.
+     */
+    const BAR = APP.slice(APP.indexOf('<View style={styles.tabShell}>'), APP.indexOf('</BlurView>'));
+    expect(BAR).not.toMatch(/t\.accent/);
+    expect(BAR).not.toMatch(/#[0-9a-f]{6}['"]/i);
+  });
+
   it('is drawn rather than imported from an icon set', () => {
     // An icon package is a font or a thousand paths for the six shapes this
     // product draws, and a borrowed set never quite matches the web's.
     expect(GLYPH).not.toMatch(/@expo\/vector-icons|react-native-vector-icons|lucide|feather/i);
+  });
+});
+
+/**
+ * One bubble and two, which are two different ideas.
+ *
+ * A single bubble is a remark *about a thing* — an album's comments, which
+ * mostly hang off individual photographs. A pair overlapping is people going
+ * back and forth, which is a chat. The distinction has to survive at 22
+ * points, because that is the size both are drawn at in a bar.
+ *
+ * Both replaced a paper aeroplane, which is gone from this file. An aeroplane
+ * is *send*: one message leaving for somebody not in front of you. Neither
+ * place it sat sends anything — the Chats tab and a group's own button both
+ * open a room where talking is already going on.
+ */
+describe('the bubbles', () => {
+  it('is the Chats tab and a group\'s own Chat pane', () => {
+    /*
+     * It was a disc in a group's header that opened the conversation as a
+     * screen; the conversation is a pane of the room now and the glyph moved
+     * with it, onto the tab that opens it. Same picture, same idea: a room
+     * where talking is already going on.
+     */
+    const APP = read('App.tsx');
+    const GROUPS = read('src/Groups.tsx');
+    expect(APP).toContain("['chats', 'bubbles', 'Chats']");
+    expect(GROUPS).toContain("['chat', 'bubbles', 'Chat']");
+  });
+
+  it('left no aeroplane behind', () => {
+    // A case in this switch that nothing draws is a drawing nobody maintains
+    // and everybody trusts. It is in the history if it is wanted back.
+    expect(GLYPH).not.toMatch(/'plane'/);
+    expect(read('App.tsx')).not.toMatch(/'plane'/);
+    expect(read('src/Groups.tsx')).not.toMatch(/"plane"/);
+  });
+
+  it('is two bubbles, and the single one is still one', () => {
+    /*
+     * The anchors are the two cases in the order the file has them, and they
+     * carry their colons on purpose: `case 'bubble':` would otherwise match
+     * inside `case 'bubbles':`, and the first version of this read both cases
+     * as one and counted three paths.
+     */
+    const many = GLYPH.slice(GLYPH.indexOf("case 'bubbles':"), GLYPH.indexOf("case 'bubble':"));
+    expect(many).not.toBe('');
+    expect((many.match(/<Path/g) ?? [])).toHaveLength(2);
+
+    const one = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    expect(one).not.toBe('');
+    expect((one.match(/<Path/g) ?? [])).toHaveLength(1);
+  });
+});
+
+/**
+ * The activity tray, where an envelope used to be.
+ *
+ * An envelope is one thing arriving addressed to you. Half of what lands in
+ * Lately is that — somebody asking you into an album, asking to be friends —
+ * and the other half is addressed to nobody: photographs added to an album you
+ * are in, an answer to something you asked. A tray is where all of it
+ * accumulates, which is what the screen is.
+ */
+describe('the tray', () => {
+  it('is the control and the empty state it opens', () => {
+    // The door and the room. A disc showing one picture that opens a screen
+    // illustrated with another is two screens as far as anybody can tell.
+    expect(read('src/PageHead.tsx')).toMatch(/<Glyph name="tray"/);
+    expect(read('src/Lately.tsx')).toMatch(/<Glyph name="tray"/);
+  });
+
+  it('left no envelope behind in the app', () => {
+    expect(GLYPH).not.toMatch(/case 'envelope':/);
+    expect(read('src/PageHead.tsx')).not.toMatch(/"envelope"/);
+    expect(read('src/Lately.tsx')).not.toMatch(/"envelope"/);
+  });
+
+  it('knowingly disagrees with the web rail', () => {
+    /*
+     * The web still draws an envelope for the same idea, and this file exists
+     * to catch exactly that kind of drift — so it is written down rather than
+     * left to be discovered in a screenshot a year from now. The two clients
+     * already disagree about where groups live; one picture is the smaller of
+     * the two arguments.
+     */
+    expect(RAIL).toMatch(/invites/);
+    expect(GLYPH).toMatch(/The web rail still draws an envelope/);
+  });
+});
+
+/**
+ * The bubble, which is the album's comment board.
+ *
+ * A comment is a remark about a photograph, written under one or on the board
+ * — one thread either way. It shared the aeroplane with the Chats tab until
+ * the two verbs came apart: that one is *send*, this one is *say about*.
+ */
+describe('the bubble', () => {
+  it('is one closed path, tail included', () => {
+    /*
+     * The tail is what makes it a bubble rather than a rounded rectangle, so
+     * it is part of the same outline — a separate tail would be a second
+     * stroke to align, and the two would come apart at the join the first time
+     * the weight changed.
+     */
+    const bubble = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    expect(bubble).not.toBe('');
+    expect((bubble.match(/<Path/g) ?? [])).toHaveLength(1);
+    expect(bubble).toMatch(/z" \/>/);
+  });
+
+  it('is drawn on the same 24-unit grid as the rest', () => {
+    // Every glyph here is authored at 24 and scaled by the viewBox, which is
+    // what lets a 22pt tab glyph and a 15pt one be the same drawing.
+    const bubble = GLYPH.slice(GLYPH.indexOf("case 'bubble':"), GLYPH.indexOf("case 'group':"));
+    const numbers = [...bubble.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    expect(numbers.length).toBeGreaterThan(8);
+    expect(Math.max(...numbers)).toBeLessThanOrEqual(24);
   });
 });

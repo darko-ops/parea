@@ -9,7 +9,16 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { findGroup, groupEvents, memberCount, membershipOf, participatedInGroup } from '@/groups';
+import {
+  attendedEvery,
+  findGroup,
+  groupArchive,
+  groupPeople,
+  memberCount,
+  membershipOf,
+  participatedInGroup,
+} from '@/groups';
+import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -45,6 +54,30 @@ export async function GET(
     });
   }
 
+  /*
+   * The room, drawn rather than listed.
+   *
+   * This used to answer with `groupEvents` — four bare columns per album, so
+   * the native group screen drew its archive as a column of blue words and a
+   * raw date, in a product whose subject is photographs. The web page has been
+   * building the richer thing for a while out of `groupArchive` and
+   * `groupPeople`; it simply called them directly, being a server component,
+   * and the route never caught up.
+   *
+   * So this now answers with what that page already draws: every album with
+   * its cover, how much is in it, who was there and when — and the group's own
+   * people, which is the other half of "what is in this room".
+   *
+   * Null `since` means never looked, which has to mean everything is new
+   * rather than nothing: the epoch, not `now`. Same rule the web page follows.
+   */
+  const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);
+  const [events, people, everyAlbum] = await Promise.all([
+    groupArchive(db, group.id, actorId, since),
+    groupPeople(db, group.id),
+    attendedEvery(db, group.id),
+  ]);
+
   return NextResponse.json({
     id: group.id,
     name: group.name,
@@ -52,6 +85,27 @@ export async function GET(
     member: true,
     role: membership.role,
     findable: group.findable,
-    events: await groupEvents(db, group.id),
+    events,
+    /*
+     * When the room started, which is the other half of the line under its
+     * name: "34 albums · since Mar 2024". A count says how much is in here and
+     * a date says how long it has been going, and a group's age is most of
+     * what makes it feel like a room rather than a list.
+     */
+    createdAt: group.createdAt.toISOString(),
+    /*
+     * How many of them have been at every album — see `attendedEvery`. Null
+     * for a group with no albums, where the answer is a technicality.
+     */
+    everyAlbum,
+    /*
+     * Everybody in it, with their faces.
+     *
+     * An actor id per person, which is what the people rows elsewhere in this
+     * product deliberately avoid — but a group's membership is not a fact
+     * about an event, and the id is what opens somebody's profile from here.
+     * It is the same list the web's group page is handed.
+     */
+    people,
   });
 }

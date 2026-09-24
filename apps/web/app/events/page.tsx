@@ -26,7 +26,6 @@
  * landing page, and a crawler has no actor, so it never sees this.
  */
 
-import { CreateCard } from '@/../app/components/CreateCard';
 import { EventCard } from '@/../app/components/EventCard';
 import { HomeView } from '@/../app/components/HomeView';
 import { Shell } from '@/../app/components/Shell';
@@ -89,7 +88,6 @@ export default async function EventsPage() {
               eventIds: person.eventIds,
             })),
           )}
-          footer={<CreateCard />}
         >
           {/*
             The id sits on a wrapper so `EventCard` stays a server component

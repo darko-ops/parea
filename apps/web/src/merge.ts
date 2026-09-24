@@ -71,6 +71,12 @@ const OWNED: {
   // exists to approve, and approving it admits nobody.
   { table: 'event_access_request', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'event_access_request', column: 'resolved_by' },
+  // The same story one room further in: somebody asks to be a host of an album
+  // from a laptop and then signs in on their phone. Without this the request
+  // the host is looking at names an actor nothing points at, and approving it
+  // writes the role onto a participant row that is no longer theirs.
+  { table: 'event_host_request', column: 'actor_id', uniqueWith: ['event_id'] },
+  { table: 'event_host_request', column: 'resolved_by' },
   { table: 'report', column: 'reporter_actor_id' },
   { table: 'report', column: 'resolved_by' },
   { table: 'moderation_flag', column: 'resolved_by' },
@@ -108,6 +114,15 @@ const OWNED: {
   // who talked in a group from a laptop and then signed in on their phone
   // would find their own messages no longer theirs to edit or take back.
   { table: 'group_message', column: 'author_actor_id' },
+  // And the same collision `message_reaction` has, in that room: both actors
+  // having left the same emoji on the same message is one reaction rather
+  // than two, so the loser's row goes rather than moving — which the primary
+  // key requires anyway.
+  {
+    table: 'group_message_reaction',
+    column: 'actor_id',
+    uniqueWith: ['message_id', 'emoji'],
+  },
   // How far each of them had read. The two rows are two answers to one
   // question, and the merge has to pick one — so the loser's row is dropped
   // and the winner's kept rather than the pair colliding on the primary key.
@@ -127,6 +142,31 @@ const OWNED: {
     column: 'actor_id',
     uniqueWith: ['photo_id', 'emoji'],
   },
+  /*
+   * And the same collision again for a photograph somebody kept.
+   *
+   * Both actors having starred the same picture is one shortlist entry, not
+   * two, which the primary key requires anyway. Moving them matters more here
+   * than it looks: a shortlist that does not survive signing in on a second
+   * phone is a shortlist that silently empties, and the whole reason keeping
+   * needs an account is that it has to outlive the device.
+   */
+  { table: 'photo_favourite', column: 'actor_id', uniqueWith: ['photo_id'] },
+  /*
+   * Being tagged in a photograph, and having tagged somebody in one.
+   *
+   * Two columns, two different collisions, and only the first can have one:
+   * both actors tagged in the same picture is one person tagged twice, so the
+   * loser's row goes rather than moving — which the primary key requires
+   * anyway.
+   *
+   * `tagged_by` has no such problem. It is not part of any key, so it is a
+   * plain rewrite: the claim survives and simply has the surviving name on it.
+   * Dropping it instead would leave a tag whose author is nobody, which is
+   * exactly the state the schema note says must not exist.
+   */
+  { table: 'photo_tag', column: 'actor_id', uniqueWith: ['photo_id'] },
+  { table: 'photo_tag', column: 'tagged_by' },
   // Lines somebody has dismissed on Activity. Moved rather than dropped: the
   // feed is derived from rows that survive the merge, so a notification hidden
   // on the laptop would otherwise come back the moment the phone signs in —

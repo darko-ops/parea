@@ -282,6 +282,15 @@ MAIL_API_KEY=
 MAIL_FROM=
 MAIL_API_URL=
 
+# Waking the deriver rather than having it ask every five seconds. That poll
+# kept a Neon compute awake around the clock until a month's quota was gone.
+# Leave the token empty in development, where `deriver watch` still polls a
+# database nobody is billed for; set both in production, where an upload is
+# refused without them rather than being quietly never derived.
+QSTASH_TOKEN=
+QSTASH_URL=
+DERIVER_JOB_URL=https://parea-deriver.fly.dev/jobs/photo
+
 # Only needed once the app exists. Until they are set, the two .well-known
 # files 404 and every tapped link opens a browser on a phone that has the app
 # installed — which looks exactly like not having it installed.

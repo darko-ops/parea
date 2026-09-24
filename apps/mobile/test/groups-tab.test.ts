@@ -1,5 +1,12 @@
 /**
- * The Groups tab, and the two rules about it that look like omissions.
+ * The groups, and the two rules about them that look like omissions.
+ *
+ * They had a tab of their own until recently, above the conversations going on
+ * inside them. They are a section of Find now — the page whose whole subject is
+ * locating a room, showing the ones you are in above a field for the ones you
+ * are not — and the tab they used to share is the conversations alone. So the
+ * slice these assertions run over is `SearchTab`, and everything they were
+ * protecting is unchanged by the move.
  *
  * **There is no Create group button.** `POST /api/groups` requires a
  * `fromEventId` and refuses without one, because a group is something you
@@ -33,7 +40,7 @@ const API = read('src/api.ts');
 describe('the tab', () => {
   it('sits between Events and Find', () => {
     /*
-     * Order is the argument, and the same one the web rail makes: Events is
+     * Order is the argument, and the same one the web rail makes: Albums is
      * what has already happened, Groups is the rooms you are already in, and
      * Find is the only tab that goes looking for something you are not part of
      * yet. After Find would file the places you belong under the heading for
@@ -41,20 +48,20 @@ describe('the tab', () => {
      */
     // The bar carries a glyph between the tab and its label now — the label
     // survives as the accessibility name, which is what these look for.
-    const events = APP.indexOf("['home', 'photos', 'Events']");
-    const groups = APP.indexOf("['groups', 'group', 'Groups']");
+    const events = APP.indexOf("['home', 'photos', 'Albums']");
+    const chats = APP.indexOf("['chats', 'bubbles', 'Chats']");
     const find = APP.indexOf("['search', 'search', 'Find']");
-    expect(groups).toBeGreaterThan(-1);
-    expect(events).toBeLessThan(groups);
-    expect(groups).toBeLessThan(find);
+    expect(chats).toBeGreaterThan(-1);
+    expect(events).toBeLessThan(chats);
+    expect(chats).toBeLessThan(find);
   });
 
   it('is one of the four the Tab type allows', () => {
     // A tab bar entry with no matching branch renders an empty screen, which
     // typechecking would catch — this catches the reverse, a branch nobody can
     // reach because the bar never offers it.
-    expect(APP).toMatch(/type Tab = 'home' \| 'groups' \| 'search' \| 'profile'/);
-    expect(APP).toMatch(/tab === 'groups'/);
+    expect(APP).toMatch(/type Tab = 'home' \| 'chats' \| 'search' \| 'profile'/);
+    expect(APP).toMatch(/tab === 'chats'/);
   });
 
   it('does not leave a second copy of the list inside You', () => {
@@ -66,17 +73,34 @@ describe('the tab', () => {
   });
 });
 
-describe('what the screen may do', () => {
-  const tab = EVENTS.slice(
-    EVENTS.indexOf('export function GroupsTab'),
-    EVENTS.indexOf('export function SearchTab'),
-  );
+/**
+ * A slice that refuses to be empty.
+ *
+ * `indexOf` answers -1 for a name that has been renamed, and `slice(-1, n)`
+ * then reads something other than the thing under test — quietly, and every
+ * assertion over it passes. That has happened twice in this suite.
+ */
+/**
+ * Source with its line wrapping taken out.
+ *
+ * Almost every sentence a person reads in this app is a JSX text node, and
+ * Prettier breaks those wherever the column runs out — so a regex for a phrase
+ * fails on the copy being *reflowed*, which changes nothing anybody sees. Two
+ * assertions in this suite have been fixed by hand for exactly that.
+ */
+const flat = (source: string) => source.replace(/\s+/g, ' ');
 
-  it('found the tab at all', () => {
-    // Every assertion below is over this slice, and a rename upstream would
-    // empty it and pass all of them silently.
-    expect(tab).not.toBe('');
-  });
+function between(source: string, from: string, to: string): string {
+  const start = source.indexOf(from);
+  const end = source.indexOf(to, start + 1);
+  if (start < 0) throw new Error(`no ${from}`);
+  if (end < 0) throw new Error(`no ${to} after ${from}`);
+  return source.slice(start, end);
+}
+
+describe('what the screen may do', () => {
+  // Find, which is where the groups live. See the note at the top.
+  const tab = between(EVENTS, 'export function SearchTab', 'function Result(');
 
   it('offers to create a group, beside the people it would be made with', () => {
     /*
@@ -89,7 +113,7 @@ describe('what the screen may do', () => {
      * the clusters beside it is the thing that was refused, so the guard is
      * that the screen reads them.
      */
-    expect(tab).toMatch(/New group/);
+    expect(tab).toMatch(/<StartSomething/);
     expect(tab).toMatch(/api\.clusters\(\)/);
     expect(tab).toMatch(/<ClusterCard/);
   });
@@ -101,9 +125,16 @@ describe('what the screen may do', () => {
     expect(tab).not.toMatch(/method: 'POST'/);
   });
 
-  it('says where groups come from when there is nothing to recognise', () => {
-    expect(EVENTS).toMatch(/You are not in any groups yet/);
-    expect(EVENTS).toMatch(/Groups are for the people who keep turning up/);
+  it('says there is nothing to recognise, and no more than that', () => {
+    /*
+     * The second half of this used to assert the explanation under the line —
+     * where groups come from, and what the box above would and would not
+     * find. Four sentences, read by somebody who has not asked a question
+     * yet, which is a paragraph in front of an empty screen. Removed by
+     * request; the line that says why the screen is empty stays.
+     */
+    expect(flat(EVENTS)).toMatch(/You are not in any groups yet/);
+    expect(flat(EVENTS)).not.toMatch(/Groups are for the people who keep turning up/);
   });
 
   it('draws the door as a letter, never as a photograph', () => {
@@ -112,11 +143,7 @@ describe('what the screen may do', () => {
      * group's name is a letter on the lens colour its id hashes to, and
      * nothing about a group is ever drawn from a picture.
      */
-    const block = EVENTS.slice(
-      EVENTS.indexOf('function GroupBlock'),
-      EVENTS.indexOf('const COVER_STRIP'),
-    );
-    expect(block).not.toBe('');
+    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
     expect(block).toMatch(/groupTile/);
     expect(block).toMatch(/lensFor\(group\.id\)/);
   });
@@ -143,10 +170,7 @@ describe('what the screen may do', () => {
      * album list, or a person's own avatar. A photograph reaching this screen
      * under any other name fails here.
      */
-    const block = EVENTS.slice(
-      EVENTS.indexOf('function GroupBlock'),
-      EVENTS.indexOf('const COVER_STRIP'),
-    );
+    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
     // `!` allowed in the path: the tiles are filtered on `album.cover` before
     // they are drawn, so the assertion inside the map is not a second check.
     const sources = [...block.matchAll(/uri:\s*([A-Za-z.?!]+)/g)].map((m) => m[1]);
@@ -169,7 +193,7 @@ describe('what the screen may do', () => {
     // group's photographs because it never asks anybody for any.
     expect(tab).toMatch(/events: EventListing\[\]/);
     expect(tab).not.toMatch(/mosaic|coverUrl/);
-    expect(APP).toMatch(/<GroupsTab[\s\S]{0,400}events=\{events\}/);
+    expect(APP).toMatch(/<SearchTab[\s\S]{0,400}events=\{events\}/);
   });
 });
 
@@ -189,3 +213,248 @@ describe('what it costs at launch', () => {
     expect(plain).not.toContain('detail=1');
   });
 });
+
+/**
+ * The room itself, which was a list of blue words.
+ *
+ * Opening a group showed its name, a member count, and a card containing each
+ * album's name as a link with a raw date beside it — a directory, in a product
+ * whose subject is photographs, describing the one place a group's photographs
+ * accumulate.
+ *
+ * The server could already answer this properly. The web's group page has been
+ * drawing covers, counts and month headings out of `groupArchive` for a while;
+ * it calls that function directly, being a server component, and the route the
+ * app asks was still returning four bare columns from `groupEvents`.
+ */
+describe('what a group shows when you open it', () => {
+  const GROUPS = read('src/Groups.tsx');
+  const ROUTE = readFileSync(
+    fileURLToPath(new URL('../../web/app/api/groups/[id]/route.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it('answers with the archive the web page already draws', () => {
+    expect(ROUTE).toMatch(/groupArchive\(db, group\.id, actorId, since\)/);
+    expect(ROUTE).toMatch(/groupPeople\(db, group\.id\)/);
+    expect(ROUTE).not.toMatch(/groupEvents\(/);
+    /*
+     * Null `since` means never looked, which has to mean everything is new
+     * rather than nothing: the epoch, not `now`. The same rule the web page
+     * follows, and getting it backwards would silently mark a whole group read.
+     */
+    expect(ROUTE).toMatch(/invitesSeenAtFor\(db, actorId\)\) \?\? new Date\(0\)/);
+  });
+
+  it('carries what opening an album needs, not only what drawing one does', () => {
+    /*
+     * The web navigates to a route by id. The native client cannot: opening an
+     * album means handing the screen a summary, and the album then presents a
+     * credential and asks the library for the photographs taken while the
+     * evening was on. Without the window it falls through to the system picker
+     * for every album reached through a group — which is most of them once a
+     * group exists, and the reason it would is invisible.
+     */
+    const SERVER = readFileSync(
+      fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SERVER).toMatch(/linkToken: schema\.events\.linkToken,\s*\n\s*startsAt: schema\.events\.startsAt,/);
+    expect(GROUPS).toMatch(/startsAt: album\.startsAt,/);
+  });
+
+  it('is shaped like an album: a head, three tabs, one pane', () => {
+    /*
+     * An evening and a room are the same kind of object to somebody holding
+     * the phone — a thing with pictures in it, a conversation about them, and
+     * the people it belongs to — and drawing them two ways makes a reader
+     * learn the product twice.
+     *
+     * The head is fixed for the reason an album's cover is: the tabs under it
+     * must not move when a name runs to two lines, and a row of tabs that
+     * shifts is a row somebody mis-taps.
+     */
+    expect(GROUPS).toMatch(/const HEAD = 176;/);
+    expect(GROUPS).toMatch(/head: \{ height: HEAD, borderBottomWidth: 1/);
+    expect(GROUPS).toMatch(/page: \{ position: 'absolute', top: HEAD, left: 0, right: 0, bottom: 0 \}/);
+    expect(GROUPS).toMatch(/export type GroupPane = 'albums' \| 'chat' \| 'people';/);
+    expect(GROUPS).toMatch(/\['albums', 'photos', 'Albums'\]/);
+    expect(GROUPS).toMatch(/\['chat', 'bubbles', 'Chat'\]/);
+    expect(GROUPS).toMatch(/\['people', 'group', 'People'\]/);
+
+    /*
+     * A door has no panes to switch between: no albums, no conversation and
+     * no list of people, so the screen does not draw three tabs that would
+     * all be empty.
+     */
+    expect(GROUPS).toMatch(/\{!group\.member \? \(/);
+  });
+
+  it('shelves albums the way the profile does, two across', () => {
+    /*
+     * It was an archive: the newest full-bleed at 4:5, the rest as rows under
+     * month and year rules. That reads well on its own and reads like a third
+     * kind of album list — these are the same objects the profile shelves, so
+     * they are drawn the way it shelves them. The date each rule carried is
+     * under every tile, which is where the profile has always put it.
+     */
+    expect(GROUPS).toMatch(/const COLUMNS = 2;/);
+    expect(GROUPS).toMatch(/const tile = Math\.floor\(\(width - 40 - GAP \* \(COLUMNS - 1\)\) \/ COLUMNS\);/);
+    expect(GROUPS).toMatch(/function AlbumTile\(/);
+    expect(GROUPS).toMatch(/grid: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP \}/);
+    // The same arithmetic and the same two constants as the shelf it borrows.
+    const PROFILE = read('src/Profile.tsx');
+    expect(PROFILE).toMatch(/const tile = Math\.floor\(\(width - 40 - GAP \* \(COLUMNS - 1\)\) \/ COLUMNS\);/);
+    expect(PROFILE).toMatch(/const COLUMNS = 2;/);
+    // And the tile itself, number for number.
+    for (const rule of [
+      /tile: \{ width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' \}/,
+      /tileName: \{ fontSize: 14, fontWeight: '600', marginTop: 6 \}/,
+      /tileMeta: \{ fontSize: 12\.5 \}/,
+    ]) {
+      expect(GROUPS, String(rule)).toMatch(rule);
+      expect(PROFILE, String(rule)).toMatch(rule);
+    }
+    // And what is in it, which the profile's tile also says.
+    expect(GROUPS).toMatch(/'Nothing in it yet'/);
+    /*
+     * What the tile adds to the profile's is the pip: a room knows which
+     * albums have moved since you last looked, and a person's shelf does not.
+     * A dot rather than a count — the number is precision nobody asked for on
+     * a tile this size.
+     */
+    expect(GROUPS).toMatch(/album\.fresh > 0 && \(/);
+    expect(GROUPS).toMatch(/tilePip: \{/);
+    // The shelf that was here is gone rather than hidden behind a flag.
+    expect(GROUPS).not.toMatch(/function Feature\(|function Rule\(|monthName/);
+  });
+
+  it('holds its own conversation rather than sending somebody to it', () => {
+    /*
+     * It was a disc in the header that opened a screen with a second header
+     * naming the group you had just left. `GroupChat` is that screen's body,
+     * lifted out of `GroupThread` so both places draw one conversation — the
+     * standalone screen still exists, because the Chats tab opens a
+     * conversation directly rather than the room around it.
+     */
+    const THREAD = read('src/GroupThread.tsx');
+    expect(THREAD).toMatch(/export function GroupChat\(/);
+    expect(THREAD).toMatch(/export function GroupThread\(/);
+    expect(THREAD).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{HEAD\} \/>/);
+    expect(GROUPS).toMatch(/import \{ GroupChat \} from '\.\/GroupThread';/);
+    expect(GROUPS).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{HEAD\} \/>/);
+    // The prop that used to send somebody away is gone from both ends.
+    expect(GROUPS).not.toMatch(/onOpenThread/);
+    expect(read('App.tsx')).not.toMatch(/onOpenThread=/);
+  });
+
+  it('puts everyone on a tab rather than under a lid', () => {
+    /*
+     * A modal over a stack of faces is a pane with a lid on it. The People
+     * tab is that list — and the join requests an admin used to meet above
+     * the archive sit at the top of it, with the count on the tab, which is
+     * the same pip an album's Comments tab carries about the same kind of
+     * fact: something is waiting here.
+     */
+    expect(GROUPS).not.toMatch(/function Everyone\(/);
+    expect(GROUPS).toMatch(/\{group\.people\.map\(\(person\) => \{/);
+    expect(GROUPS).toMatch(/waiting: number;/);
+    expect(GROUPS).toMatch(/id === 'people' && waiting > 0/);
+    /*
+     * The one fact about a room that a count of heads does not give: whether
+     * everybody turns up, or there is a core and a fringe. It falls back to
+     * the count where there is no archive to have attended — the server
+     * answers null rather than saying eleven of you have been to all nought
+     * of the albums.
+     */
+    expect(GROUPS).toMatch(/of you have been to every one/);
+    expect(GROUPS).toMatch(/group\.everyAlbum !== null && group\.everyAlbum > 1/);
+    const SERVER = readFileSync(
+      fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(SERVER).toMatch(/export async function attendedEvery/);
+  });
+
+  it('adds an album from the tab row, where an album adds photographs', () => {
+    /*
+     * It was a floating pill above the tab bubble, put there because the
+     * control for adding sat at the foot of the one list somebody scrolls to
+     * the bottom of. A tab row pinned over the pane solves that without a
+     * second floating object — and it is the slot the album screen already
+     * uses for the room's version of the same job.
+     */
+    expect(GROUPS).toMatch(/accessibilityLabel="New album in this group"/);
+    expect(GROUPS).toMatch(/addButton: \{/);
+    expect(GROUPS).not.toMatch(/styles\.make\b/);
+  });
+
+  it('puts leaving behind the same glyph an album’s settings sit behind', () => {
+    /*
+     * It was a red button at the foot of the archive, which put the screen's
+     * one irreversible action at the end of the one list somebody scrolls to
+     * the bottom of. The sentence explaining it stays at the foot, because
+     * that is where somebody arrives with "what happens to all this if I go"
+     * already in mind.
+     */
+    expect(GROUPS).toMatch(/function GroupMore\(/);
+    expect(GROUPS).toMatch(/accessibilityLabel="Group settings"/);
+    /* And the sentence is still at the foot of the albums, which is where
+       somebody arrives having scrolled them. */
+    expect(GROUPS).toMatch(/Photos live in the albums, not in the group/);
+  });
+
+  it('keeps the room’s own face a letter, never a borrowed photograph', () => {
+    /*
+     * Older than this screen and unchanged by it: a picture from one evening
+     * standing for the room says that evening is the room. The albums below
+     * carry the photographs; the crest is the group's letter on its lens.
+     */
+    const identity = GROUPS.slice(GROUPS.indexOf('styles.identity'), GROUPS.indexOf('!group.member'));
+    expect(identity).toMatch(/styles\.crest/);
+    expect(identity).not.toMatch(/cover|Image/);
+  });
+});
+
+/**
+ * How tall a group's strip of covers stands.
+ *
+ * The tiles share the block's width, so the fewer there are the wider each one
+ * gets. At one fixed height that made a group with a single evening draw it as
+ * a letterbox — a band of photograph with the top and bottom cut away — and
+ * the group with the least in it showed the least of what it had.
+ */
+describe('the strip of covers', () => {
+  const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
+
+  it('stands taller the fewer covers it has', () => {
+    const ramp = /\[0, (\d+), (\d+), (\d+)\]\[withCovers\.length\]/.exec(block);
+    expect(ramp).not.toBeNull();
+    const [one, two, three] = ramp!.slice(1).map(Number) as [number, number, number];
+    expect(one).toBeGreaterThan(two);
+    expect(two).toBeGreaterThan(three);
+    // And every one of them taller than the 84 this drew at before, which is
+    // the whole point: a group with covers is a group with something to show.
+    expect(three).toBeGreaterThan(84);
+  });
+
+  it('has a zeroth entry that is never read', () => {
+    /*
+     * Index 0 exists so the lookup is indexed by count rather than by count
+     * minus one — an off-by-one here would silently give a three-cover group
+     * the two-cover height. It is unreachable because the strip is not drawn
+     * at all without a cover, and the `?? 104` covers a count past the end.
+     */
+    expect(block).toMatch(/\{withCovers\.length > 0 && \(/);
+    expect(block).toMatch(/\[withCovers\.length\] \?\? \d+/);
+  });
+
+  it('sets the height on the tile and nowhere else', () => {
+    // The stylesheet cannot hold it: it is the one measurement here that
+    // depends on how many covers there are to share the width.
+    expect(block).toMatch(/styles\.stripTile, \{ height: stripHeight \}/);
+    expect(EVENTS).toMatch(/stripTile: \{ flex: 1 \}/);
+    expect(EVENTS).not.toMatch(/stripTile: \{ flex: 1, height/);
+  });
+});
+

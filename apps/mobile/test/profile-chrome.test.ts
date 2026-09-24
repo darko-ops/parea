@@ -34,19 +34,19 @@ const SCREEN = code(
 describe('the two corners', () => {
   it('puts settings behind the same glyph an album uses', () => {
     /*
-     * One shape in the product that means "everything else about this thing".
-     * The album's own settings are behind a `⋯` in its corner and have been
-     * since the slabs came off that screen.
+     * The two discs are the same controls in the same corners; what has gone
+     * is the row that used to hold them. `PageHead` draws the wordmark
+     * between them, and over a picture hanging from the top edge that is a
+     * second thing claiming the same space — so this screen places them
+     * itself and the other tabs keep the head.
      */
-    expect(SCREEN).toMatch(/styles\.bar\b/);
+    expect(SCREEN).not.toMatch(/<PageHead/);
     expect(SCREEN).toMatch(/accessibilityLabel="Settings"/);
-    // The `⋯` itself lives in `RoundButton` now, so that every corner drawing
-    // one agrees about its size — the profile's was 22pt and the album's 16.
     expect(SCREEN).toMatch(/<More color=\{t\.fg\} \/>/);
     expect(read('src/RoundButton.tsx')).toMatch(/⋯/);
-    // And it is the first thing in the bar, which is the left-hand corner.
-    const bar = SCREEN.slice(SCREEN.indexOf('styles.bar'), SCREEN.indexOf('styles.headLower'));
-    expect(bar.indexOf('Settings')).toBeLessThan(bar.indexOf('New album or group'));
+    // Fixed above the page rather than scrolling with it.
+    expect(PROFILE).toMatch(/corner: \{ position: 'absolute', top: 62, left: 20, zIndex: 3 \}/);
+    expect(PROFILE).toMatch(/cornerRight: \{ left: undefined, right: 20 \}/);
   });
 
   it('is the only place settings is reached from', () => {
@@ -107,11 +107,12 @@ describe('the friends', () => {
 });
 
 describe('the profile details', () => {
-  it('sit below the corners rather than under the clock', () => {
-    // A 28pt name starting a few pixels below the status bar reads as a title
-    // bar; the gap above it is what makes it somebody's name.
-    expect(SCREEN).toMatch(/style=\{\[styles\.head, styles\.headLower\]\}/);
-    expect(PROFILE).toMatch(/headLower: \{ marginTop: 20 \}/);
+  it('sit below the tab rather than under the clock', () => {
+    // Derived from the tab rather than typed: its height is two numbers that
+    // can each move, and a literal here would be the third place to change.
+    expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+    expect(PROFILE).not.toMatch(/headLower/);
+    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
   });
 });
 
@@ -129,13 +130,18 @@ describe('the page arrives in one piece', () => {
   });
 
   it('holds the body until there is a body to draw', () => {
-    // The corners are exempt: they are the same two glyphs before and after,
-    // so holding them back would invent a transition rather than remove one.
-    expect(SCREEN).toMatch(/\{account === undefined \? \(/);
-    const gate = SCREEN.indexOf('account === undefined ?');
-    expect(SCREEN.indexOf('styles.bar')).toBeLessThan(gate);
-    expect(SCREEN.indexOf('styles.headLower')).toBeGreaterThan(gate);
+    /*
+     * A page that builds itself downwards while somebody watches looks broken
+     * even when every piece is right. The corners are exempt because they are
+     * the same two glyphs before and after — and so is the tab, which does
+     * not draw at all until there is an account: an empty tab dropping in
+     * before there is anything to put in it is the page arriving twice.
+     */
+    const gate = SCREEN.indexOf('{account === undefined ? (');
+    expect(gate).toBeGreaterThan(-1);
+    expect(SCREEN.indexOf('styles.head,')).toBeGreaterThan(gate);
     expect(SCREEN.indexOf('styles.grid')).toBeGreaterThan(gate);
+    expect(SCREEN).toMatch(/\{account !== undefined && \(/);
   });
 });
 
@@ -186,16 +192,46 @@ describe('what the `+` makes', () => {
     expect(APP).not.toMatch(/setRoute\(\{ screen: 'create' \}\)/);
   });
 
-  it('hands the group off to the tab that holds the suggestions', () => {
+  it('draws something for somebody without an account', () => {
     /*
-     * The Groups tab's form comes with the people this actor keeps ending up
-     * in events with, which is the entire argument for making a group rather
-     * than an empty room to fill. A bare name-and-nobody form on the profile
-     * would be the problem that tab was written to avoid.
+     * The button did nothing, and this is why: the gate was written on
+     * `create`, which is the second step, and the first step drew only for
+     * `signedIn === true`. Nobody signed out could reach the gate, because
+     * reaching it meant passing the screen that refused them — so pressing
+     * "Create album" set the route to a screen no branch drew. No picker, no
+     * gate, no tabs. A blank page with nothing on it and no way back.
+     *
+     * The gate covers every step now, so the first one answers for the flow —
+     * through one predicate rather than a disjunction rewritten at each of its
+     * three call sites, which is how the steps came to disagree in the first
+     * place.
      */
-    expect(APP).toMatch(/setTab\('groups'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
+    expect(APP).toMatch(/making\(route\) && signedIn !== true/);
+    expect(APP).toMatch(/route\.screen === 'pick' \|\| route\.screen === 'create'/);
+  });
+
+  it('waits rather than accusing somebody who is signed in', () => {
+    // `null` is the moment before the account request lands. A gate that
+    // flashed there would tell somebody signed in that they are not — so it
+    // waits, which is the one thing it must not do silently on a blank page.
+    const at = APP.indexOf("signedIn !== true");
+    expect(APP.slice(at, at + 600)).toMatch(/signedIn === null \? \(/);
+    expect(APP.slice(at, at + 600)).toMatch(/<Waiting size=\{40\} \/>/);
+  });
+
+  it('hands the group off through the tab that holds the suggestions', () => {
+    /*
+     * It still goes by way of the Groups tab rather than opening the page from
+     * the profile, and the reason has outlived the form it was written for: the
+     * clusters live on that tab, and landing there means somebody who pressed
+     * `+` meaning "a group with these people" sees them.
+     *
+     * The tab no longer unfolds a form; it opens the page, which is the one
+     * place a group is made from any entry point.
+     */
+    expect(APP).toMatch(/setTab\('search'\);\s*setMakeGroup\(\(n\) => n \+ 1\);/);
     expect(APP).toMatch(/openCreate=\{makeGroup\}/);
-    expect(EVENTS).toMatch(/if \(openCreate > 0\) setMaking\('anyone'\);/);
+    expect(EVENTS).toMatch(/if \(openCreate > 0\) onCreateGroup\(\);/);
   });
 
   it('opens again on a second press', () => {
@@ -207,5 +243,152 @@ describe('what the `+` makes', () => {
   it('leaves the Groups tab the only place the form is written', () => {
     // One form, not two that drift.
     expect(PROFILE).not.toMatch(/CreateGroupForm/);
+  });
+});
+
+/**
+ * The hanging tab.
+ *
+ * The profile led with a row: a picture bleeding off the right edge, the name
+ * beside it, and the product's wordmark above both. The picture hangs from
+ * the top of the screen now, centred, and everything else reads down the
+ * middle underneath it.
+ */
+describe('the tab that hangs from the top', () => {
+  it('does not scroll — it retracts', () => {
+    /*
+     * Drawn outside the scroll view and above it, so the page passes
+     * underneath. A picture that scrolled away would be the first row of the
+     * content; one that shrinks in place is part of the screen.
+     */
+    expect(PROFILE).toMatch(/inputRange: \[0, 170\]/);
+    expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_MIN_W\]/);
+    expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
+  });
+
+  it('retracts to the island’s band plus a little picture', () => {
+    /*
+     * The island is the same height however far the page has been scrolled,
+     * so what is left at the end of the retract is its band and a sliver of
+     * photograph — and the scrim over that band is pinned to the top rather
+     * than laid out above the picture, so it does not retract with it.
+     */
+    expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
+    expect(PROFILE).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
+    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
+  });
+
+  it('starts the picture where the camera stops, and shows all of it', () => {
+    /*
+     * This number has been 100, then 72, then 0, and each move was right
+     * about the one before it and wrong about the phone. 100 and 72 were
+     * strips of flat colour that pushed somebody's face into the middle of
+     * the screen; 0 gave the face the top of the screen and gave it to the
+     * front camera as well.
+     *
+     * 56 is not a design decision at all — it is the distance to the bottom
+     * of the pill the camera lives in, plus a couple of points so the picture
+     * is not touching it. Below that, the square the picker actually returns,
+     * drawn whole: `PHOTO_H` is `TAB_W`, so `cover` trims nothing.
+     */
+    expect(PROFILE).toMatch(/const CAP_H = 56;/);
+    expect(PROFILE).toMatch(/const TAB_W = 172;/);
+    expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
+    expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
+    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
+    // And no corner on the image to announce a frame.
+    expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
+  });
+
+  it('fills the camera’s strip from the picture, and shades it', () => {
+    /*
+     * Two layers, and neither is a photograph anybody is meant to read. The
+     * picture's top edge is stretched up through the strip so that what sits
+     * above it is its own colour rather than a swatch — mirrored, so the row
+     * meeting the photograph is the photograph's own first row and the seam
+     * is not a seam. Then a scrim over that, gone by the foot of the strip,
+     * so the pill has something calm to sit on and there is no line where it
+     * ends.
+     *
+     * Dark rather than a blur for the scrim: a `BlurView` is uniform and
+     * stops dead at its own edge, which is a seam — the reason the cover's
+     * glass covers a whole header or nothing.
+     */
+    expect(PROFILE).toMatch(/const BLEED = 10;/);
+    expect(PROFILE).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
+    expect(PROFILE).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
+    expect(PROFILE).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
+    expect(PROFILE).toMatch(/blurRadius=\{20\}/);
+    expect(PROFILE).toMatch(
+      /colors=\{\['rgba\(0,0,0,0\.5\)', 'rgba\(0,0,0,0\.3\)', 'rgba\(0,0,0,0\)'\]\}/,
+    );
+    expect(PROFILE).toMatch(/locations=\{\[0, 0\.5, 1\]\}/);
+    // The comment by `shade` says why; this is that there is no import.
+    expect(code(PROFILE)).not.toMatch(/BlurView/);
+    // The strip clips the bleed, or the whole picture would be drawn twice.
+    expect(PROFILE).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
+    // And both only over a photograph: a letter on a flat colour is quiet
+    // already, and a shadow across the top of it would be weather.
+    expect(PROFILE).toMatch(/\{account\?\.avatarUrl && \(\s*<>/);
+  });
+
+  it('keeps its two animations on two nodes', () => {
+    /*
+     * The retract is width and height, which are layout and JS-driven; the
+     * entrance is a transform and runs natively. On one view React Native
+     * refuses the pair outright — so the outer view carries the size and the
+     * inner one carries the drop.
+     */
+    expect(PROFILE).toMatch(/useNativeDriver: false,/);
+    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
+    const outer = tab.slice(0, tab.indexOf('<Pressable'));
+    expect(outer).toMatch(/width: tabWidth, marginLeft: tabInset, height: tabHeight/);
+    expect(outer).toMatch(/translateY: drop\.interpolate/);
+  });
+
+  it('drops once, not on every return to the tab', () => {
+    // `active` flips whenever somebody comes back, and a screen that replays
+    // its entrance every time is one that never settles.
+    expect(PROFILE).toMatch(/const dropped = useRef\(false\);/);
+    expect(PROFILE).toMatch(/if \(account === undefined \|\| dropped\.current\) return;/);
+  });
+
+  it('stays centred while it narrows', () => {
+    /*
+     * `left: '50%'` puts the tab's *left edge* on the middle of the screen,
+     * and a negative margin of half its width brings it back. That half was a
+     * constant — half the resting width — so as the tab narrowed the left
+     * edge stayed put and only the right edge came in: it walked 28 points to
+     * the left on the way up, which is what you saw at the end of a scroll.
+     *
+     * The margin is interpolated from the same `k` as the width now, off the
+     * same `TAB_MIN_W`, so the two cannot disagree. Still not `alignSelf`,
+     * which would depend on the animated width and re-measure every frame.
+     */
+    expect(PROFILE).toMatch(/left: '50%',\s*zIndex: 2,/);
+    expect(PROFILE).not.toMatch(/marginLeft: -TAB_W \/ 2,/);
+    expect(PROFILE).toMatch(/const TAB_MIN_W = TAB_W - 56;/);
+    expect(PROFILE).toMatch(
+      /const tabInset = k\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[-TAB_W \/ 2, -TAB_MIN_W \/ 2\] \}\);/,
+    );
+  });
+
+  it('draws nothing until there is an account to draw', () => {
+    // An empty tab dropping in before there is anything to put in it is the
+    // page arriving twice.
+    expect(PROFILE).toMatch(/\{account !== undefined && \(/);
+  });
+});
+
+describe('the tab is one object', () => {
+  it('paints the ribbon and what is behind the picture from one value', () => {
+    /*
+     * One value behind the whole tab, for the two people there is no
+     * photograph to show: somebody whose picture has not decoded yet, and
+     * somebody who has not set one. A tab that is two colours is two objects.
+     */
+    expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
+    expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
+    expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
   });
 });

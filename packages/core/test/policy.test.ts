@@ -30,7 +30,7 @@ function event(overrides: Partial<PolicyEvent> = {}): PolicyEvent {
     capEpoch: 1,
     accessPolicy: 'public',
     joinsOpen: true,
-    uploadsOpen: true,
+    contributePolicy: 'everyone',
     createdBy: CREATOR,
     groupId: null,
     deletedAt: null,
@@ -120,16 +120,77 @@ const CASES: Case[] = [
   { name: 'joins closed never locks out the creator', actor: CREATOR, capability: 'view',
     event: { joinsOpen: false }, expect: true },
 
-  // --- switch: uploads -------------------------------------------------------
-  { name: 'uploads closed blocks contribution', actor: GUEST, signedIn: true,
-    capability: 'contribute', event: { uploadsOpen: false },
+  // --- switch: who may add ---------------------------------------------------
+  //
+  // Three settings where there was a boolean. `everyone` is what `uploads_open
+  // = true` meant and defers to the access policy; `nobody` is what false
+  // meant; `host` is the case the boolean could not say.
+  { name: 'nobody blocks contribution', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'nobody' },
     presented: { linkToken: LINK }, expect: 'uploads_closed' },
-  { name: 'uploads closed leaves viewing alone', actor: GUEST, capability: 'view',
-    event: { uploadsOpen: false }, presented: { linkToken: LINK }, expect: true },
-  { name: 'uploads closed leaves downloading alone', actor: GUEST, capability: 'download',
-    event: { uploadsOpen: false }, presented: { linkToken: LINK }, expect: true },
-  { name: 'uploads closed applies to the creator too', actor: CREATOR, signedIn: true,
-    capability: 'contribute', event: { uploadsOpen: false }, expect: 'uploads_closed' },
+  { name: 'nobody leaves viewing alone', actor: GUEST, capability: 'view',
+    event: { contributePolicy: 'nobody' }, presented: { linkToken: LINK }, expect: true },
+  /*
+   * And leaves the conversation alone, which it did not before.
+   *
+   * `contribute` and `upload` were one capability, so closing an album
+   * silenced it. At three settings that stops being arguable: "only the host
+   * adds photographs" must not mean "only the host may speak", and the honest
+   * reading of a setting called *who can add photos* is that the album is
+   * finished and the people in it can still talk about it.
+   */
+  { name: 'nobody leaves the conversation alone', actor: GUEST, signedIn: true,
+    capability: 'contribute', event: { contributePolicy: 'nobody' },
+    presented: { linkToken: LINK }, expect: true },
+  { name: 'host leaves the conversation alone', actor: GUEST, signedIn: true,
+    capability: 'contribute', event: { contributePolicy: 'host' },
+    presented: { linkToken: LINK }, expect: true },
+  { name: 'nobody leaves downloading alone', actor: GUEST, capability: 'download',
+    event: { contributePolicy: 'nobody' }, presented: { linkToken: LINK }, expect: true },
+  { name: 'nobody applies to the creator too', actor: CREATOR, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'nobody' }, expect: 'uploads_closed' },
+
+  { name: 'everyone lets a link holder add', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'everyone' },
+    presented: { linkToken: LINK }, expect: true },
+
+  { name: 'host keeps the creator adding', actor: CREATOR, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'host' }, expect: true },
+  /*
+   * The one setting that denies somebody who is otherwise fully in the album,
+   * which is why it has a reason of its own: "closed" and "not yours to add
+   * to" are different sentences and a client should be able to say which.
+   */
+  { name: 'host denies a participant', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'host' },
+    presented: { isParticipant: true, capEpoch: 1 }, expect: 'host_only' },
+  { name: 'host denies a link holder', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'host' },
+    presented: { linkToken: LINK }, expect: 'host_only' },
+  /*
+   * A group's admins are the host of anything in their group — `administer`
+   * already says so, and an album nobody in the group could add to except its
+   * original maker would strand the room's archive the day that person left.
+   */
+  { name: 'host admits a group admin', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'host', groupId: 'g1' },
+    presented: { isGroupAdmin: true }, expect: true },
+  { name: 'host denies a plain group member', actor: GUEST, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'host', groupId: 'g1' },
+    presented: { isGroupMember: true }, expect: 'host_only' },
+  { name: 'host leaves viewing alone', actor: GUEST, capability: 'view',
+    event: { contributePolicy: 'host' }, presented: { linkToken: LINK }, expect: true },
+  /*
+   * Fail closed on a value nobody has taught this function about — the rule
+   * the access policy already follows, and what makes the migration off
+   * `uploads_open` safe in either order.
+   */
+  { name: 'an unknown contribute policy closes the album', actor: CREATOR, signedIn: true,
+    capability: 'upload', event: { contributePolicy: 'paid_only' },
+    expect: 'uploads_closed' },
+  { name: 'an unknown contribute policy leaves viewing alone', actor: GUEST,
+    capability: 'view', event: { contributePolicy: 'paid_only' },
+    presented: { linkToken: LINK }, expect: true },
 
   // --- administration --------------------------------------------------------
   { name: 'the creator administers', actor: CREATOR, capability: 'administer', expect: true },

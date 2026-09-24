@@ -12,6 +12,10 @@ Most first-deploy failures are a secret that matches in two places out of three
 | `parea-img`, `parea-zip` | Cloudflare Workers | R2 reads are free from inside Cloudflare |
 | Deriver + jobs | Fly.io | needs libvips and libheif; will not run in a Worker |
 
+Running it on a laptop instead — where it kept dying with the terminal session
+that started it — is [Keeping the deriver up on a development
+machine](deriver-local.md).
+
 The native client is built and submitted separately — see
 [`apps/mobile/README.md`](../apps/mobile/README.md). The web app serves the two
 `.well-known` files its deep links depend on, but they 404 until
@@ -61,9 +65,24 @@ export DATABASE_URL='postgres://…'
 npm run db:migrate
 ```
 
-Idempotent, and it must be run on every deploy that includes a schema change.
-Nothing migrates on application boot on purpose: two app instances starting at
-once would race, and a half-applied schema is worse than a failed deploy.
+Idempotent, and this is the first-time version. After that a production deploy
+runs it for you: `vercel-build` in `apps/web/package.json` calls
+`scripts/migrate-on-deploy.mjs` before `next build`, which applies anything
+pending and fails the build if it cannot.
+
+It is worth knowing why that exists. This database was once two migrations
+behind the repository — one of them the table the "keep a photograph" shortlist
+writes to — because running the command was a step somebody had to remember,
+and the failure is silent until a person presses the star.
+
+Deploy-time, not boot-time, and still not: two app instances starting at once
+would race, and a half-applied schema is worse than a failed deploy. A build
+runs once.
+
+Production only. A preview builds a branch, and a branch may carry a migration
+nobody has merged — which would then land on whatever database the preview is
+pointed at. The script asks `VERCEL_ENV` and does nothing anywhere else, so a
+schema change still reaches a preview environment by being run there by hand.
 
 ## 2. R2
 
@@ -249,6 +268,9 @@ Generate with `openssl rand -base64 32`.
 | `MAIL_API_KEY` | ● | | sign-in codes; unset means accounts cannot be claimed |
 | `MAIL_FROM` | ● | | must be at a domain verified with the provider |
 | `MAIL_API_URL` | ● | | only to override the endpoint; required for `mailgun` |
+| `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
+| `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
+| `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
