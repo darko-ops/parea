@@ -29,18 +29,30 @@ const CSS = raw('../app/globals.css');
 const RULES = stripComments(CSS);
 const APP_THREAD = raw('../../mobile/src/Thread.tsx');
 
-describe('one shape for every comment', () => {
-  it('takes no side, whoever wrote it', () => {
+describe('one shape for every comment, and a side for your own', () => {
+  it('hangs your own from the right, and takes nothing else with it', () => {
     /*
-     * Sorting a list of things said about an evening by who said them puts
-     * the one fact nobody needs — the name is right there — in charge of the
-     * layout, and halves the measure of every line to do it.
+     * The mirror and the fill used to be one decision and they are two. A
+     * column with everybody in it is a wall of other people's comments with
+     * yours somewhere in it, and which edge a block hangs from is seen before
+     * a word is read; what made this a messenger was the pastel fill behind
+     * the words, not the edge.
      */
-    expect(THREAD).toMatch(/<div className="message">/);
-    expect(THREAD).not.toMatch(/message-mine/);
-    expect(RULES).not.toMatch(/\.message-mine/);
-    // What marks yours is the name and the menu on it, which is what marked
-    // it on paper anyway.
+    expect(THREAD).toMatch(/message\.author\.mine \? ' message-mine' : ''/);
+    expect(RULES).toMatch(/\.message-mine \{ flex-direction: row-reverse; \}/);
+    // The face goes with it: a block hanging off the right with its avatar
+    // still on the left is neither side.
+    expect(RULES).not.toMatch(/\.message-mine \.message-face/);
+    // And what turns round with it is furniture, never the paragraph. Right-
+    // aligned prose over three lines is read a word at a time.
+    /* Pushed rather than reversed: `row-reverse` reads the line backwards —
+       "just now You" — and the app's meta is one string that cannot reverse
+       at all. The name goes first in every row on the page. */
+    expect(RULES).toMatch(/\.message-mine \.message-meta \{ justify-content: flex-end; \}/);
+    expect(RULES).toMatch(/\.message-mine \.reactions \{ justify-content: flex-end; \}/);
+    expect(RULES).not.toMatch(/\.message-mine[^{]*\{[^}]*text-align: right/);
+    // The name and the menu still say whose it is, which is what said it on
+    // paper anyway.
     expect(THREAD).toMatch(/message\.author\.mine \? 'You' : message\.author\.name/);
     expect(THREAD).toMatch(/message\.author\.mine && !editing && \(\s*<MessageMenu/);
   });

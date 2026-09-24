@@ -48,16 +48,21 @@
  * the tombstones, the mention rules, marking it read — is the same in both
  * rooms, and a second copy of it is a second place for the rules to be wrong.
  *
- *   - `chat` sides with the speaker: your own messages mirror the row and
- *     fill a bubble, which is how a messenger says who said what. The strip
- *     it used to type into — a pill and a round arrow with a rule over them —
- *     is gone; both rooms share the site's composer now and differ only in
- *     the words on it, Send against Post. See the note beside it.
- *   - `board` has one column and no sides. Every comment is a face, a name, a
- *     time and the words, whoever wrote it — the shape the web's thread has
- *     always had, and the shape of every comment section anybody has read.
- *     A reaction is a row in that column too, with the photograph it is about
- *     where a comment has its author's face.
+ *   - `chat` fills a bubble behind your own words, which is how a messenger
+ *     says who said what. The strip it used to type into — a pill and a round
+ *     arrow with a rule over them — is gone; both rooms share the site's
+ *     composer now and differ only in the words on it, Send against Post.
+ *   - `board` is a face, a name, a time and the words, with no fill behind
+ *     any of them — the shape the web's thread has always had, and the shape
+ *     of every comment section anybody has read. A reaction is a row in that
+ *     column too, with the photograph it is about where a comment has its
+ *     author's face.
+ *
+ * Both hang your own from the right-hand edge. That was the board's one
+ * remaining difference and it was the wrong one: a column with everybody in
+ * it reads as a wall of other people's remarks with yours buried in it, and a
+ * side is seen before anything is read. What the board does not take with it
+ * is the fill — the side is an alignment, not a costume.
  *
  * What does *not* change with the shape is the order. Oldest at the top and
  * the newest against the box you type in is not a messenger's invention —
@@ -510,11 +515,23 @@ function Row({
 
   const mine = message.author.mine;
   /*
-   * Whether this row takes a side, which is not the same question as whose
-   * it is. A board knows perfectly well that a comment is yours — the name
-   * says "You" — and still draws it in the one column everybody else is in.
+   * Two questions, and they used to be one.
+   *
+   * `sided` is which edge the block hangs from, and yours hangs from the
+   * right in both rooms. A comment board that put everybody in one column
+   * read as a wall of other people's remarks with yours buried in it: the
+   * name says "You" and a name is a thing you read, where a side is a thing
+   * you see before reading anything. It is also how anybody scans back for
+   * the last thing they themselves said.
+   *
+   * `bubbled` is whether the words sit in a fill, and that stays the chat's
+   * alone. A bubble is a turn in a conversation; a comment is a remark about
+   * a set of photographs, and two pastel fills down a column are what made
+   * this read as a messenger in the first place. The side is an alignment,
+   * not a costume.
    */
-  const sided = shape === 'chat' && mine;
+  const sided = mine;
+  const bubbled = shape === 'chat' && mine;
   const lens = lensFor(message.author.key);
 
   /**
@@ -754,7 +771,7 @@ function Row({
               </Pressable>
             )}
 
-            {sided ? (
+            {bubbled ? (
               <View style={[styles.bubble, { backgroundColor: t.accent }]}>
                 <Text style={[styles.bodyText, { color: t.onAccent }]}>
                   {/* Inside your own bubble the accent is the background, so a
@@ -1014,8 +1031,10 @@ const styles = StyleSheet.create({
      the weight of the rest of the furniture and left to be read once. */
   emptyTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10 },
-  /* Your own, mirrored. The avatar stays — a thread where one person has no
-     face reads as a system message rather than as somebody talking. */
+  /* Your own, mirrored — the face goes with it. A thread where one person has
+     no face reads as a system message rather than as somebody talking, and a
+     block hanging off the right with its avatar still on the left is neither
+     side. */
   rowMine: { flexDirection: 'row-reverse' },
   /* A pill at the end of the row, in the shape the rest of the product uses
      for "one thing you can do about this". Bordered rather than filled: it is
@@ -1034,6 +1053,16 @@ const styles = StyleSheet.create({
   about: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
   aboutMine: { alignSelf: 'flex-end' },
   aboutShot: { width: 52, height: 52 },
+  /*
+   * The block hangs from the right; its lines do not turn round with it.
+   *
+   * `alignItems` and not `textAlign`. A short comment shrinks to its words
+   * and sits against the right edge, which is the whole of what a side is
+   * for; a comment that wraps keeps its lines starting at one left edge,
+   * because right-aligned prose over three lines is read a word at a time
+   * while the eye hunts for where each one begins. Three words in a bubble
+   * can take it and a paragraph cannot.
+   */
   saidMine: { alignItems: 'flex-end' },
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },

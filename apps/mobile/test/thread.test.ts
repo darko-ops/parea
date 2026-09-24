@@ -302,22 +302,31 @@ describe('a board is not a chat', () => {
     expect(GROUP).not.toMatch(/shape=/);
   });
 
-  it('takes no sides on a board, whoever wrote it', () => {
+  it('hangs your own from the right in both rooms, and fills only in a chat', () => {
     /*
-     * A chat sides with the speaker because the side of the screen is how a
-     * messenger says who said what. A board knows perfectly well that a
-     * comment is yours — the name says "You" — and still draws it in the one
-     * column everybody else is in.
+     * Two questions that used to be one. Which edge a block hangs from is
+     * seen before a word of it is read, and a board that put everybody in one
+     * column read as a wall of other people's remarks with yours buried in
+     * it. What made that column a messenger was the fill behind the words,
+     * which is the chat's alone: the side is an alignment, not a costume.
      */
-    expect(VIEWER).toMatch(/const sided = shape === 'chat' && mine;/);
+    expect(VIEWER).toMatch(/const sided = mine;/);
+    expect(VIEWER).toMatch(/const bubbled = shape === 'chat' && mine;/);
     const row = between(VIEWER, 'function Row({', 'function People({');
-    // Every side-taking style keys off `sided`, and the bubble with it.
     for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
       expect(row).toContain(`sided && ${style}`);
     }
-    expect(row).toMatch(/\{sided \? \(\s*<View style=\{\[styles\.bubble/);
-    // And the name is set like everybody else's, "You" included: with no
-    // sides it is the whole of the answer to whose comment this is.
+    expect(row).toMatch(/\{bubbled \? \(\s*<View style=\{\[styles\.bubble/);
+    /*
+     * And the block turns round without its lines turning with it:
+     * `alignItems`, never `textAlign`. Right-aligned prose over three lines
+     * is read a word at a time while the eye hunts for where each begins —
+     * three words in a bubble can take that and a paragraph cannot.
+     */
+    expect(VIEWER).toMatch(/saidMine: \{ alignItems: 'flex-end' \}/);
+    expect(between(VIEWER, 'const styles = StyleSheet.create', 'people: {'))
+      .not.toMatch(/textAlign: 'right'/);
+    // The name is still set like everybody else's, "You" included.
     expect(row).toMatch(/\{mine \? 'You' : message\.author\.name\}\s*<\/Text>/);
   });
 

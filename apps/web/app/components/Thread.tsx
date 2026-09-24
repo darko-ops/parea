@@ -491,16 +491,17 @@ function Row({
 
   return (
     /*
-     * One shape for every comment, whoever wrote it.
+     * One shape for every comment, and yours on the right.
      *
-     * Yours used to take `message-mine` and cross the column: mirrored row,
-     * the mark's blue instead of its mint, everything right-aligned. That is
-     * a messenger's arrangement, and it sorted a list of things said about an
-     * evening by the one fact nobody needs — the name says whose it is — at
-     * the cost of half the measure of every line. What marks yours now is the
-     * name and the menu on it, which is what marked it on paper anyway.
+     * `message-mine` used to carry both: the mirrored row *and* the mark's
+     * blue instead of its mint, everything in a bubble. The fill is what made
+     * this a messenger and it is gone. The side is not the same thing — a
+     * column with everybody in it reads as a wall of other people's remarks
+     * with yours buried in it, and which edge a block hangs from is seen
+     * before a word of it is read. The class is the alignment now, and
+     * nothing else.
      */
-    <div className="message">
+    <div className={`message${message.author.mine ? ' message-mine' : ''}`}>
       {/*
         Their actual picture. `Face` rather than a bare `<img>` for the reason
         it exists: an avatar URL is presigned for an hour, so a tab left open

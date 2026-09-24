@@ -2095,18 +2095,44 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .faces > * + * { margin-left: -6px; }
 .face-lens { display: block; border-radius: 50%; }
-/* No side and no mirror.
+/* Your own, on the right.
 
-   Yours used to sit on the right in the mark's blue, with everybody else's on
-   the left in its mint — the arrangement every messenger has, and the wrong
-   one for this column. A comment section is a list of things said about a set
-   of photographs, and they are all the same kind of thing: sorting them by
-   who wrote them puts the one fact nobody needs — whose it is, which the name
-   already says — in charge of the layout, and it halves the measure of every
-   line to do it.
+   The mirror and the fill used to be one decision and they are two. Yours sat
+   on the right *in the mark's blue*, with everybody else's on the left in its
+   mint, and the fills are what made a list of remarks about an evening read
+   as two people texting — those are gone, see `.message` below.
 
-   So one shape for every comment, and what says it is yours is the name and
-   the menu on it. See `.message` below. */
+   The side stays, because it is doing something the name cannot. A column
+   with everybody in it is a wall of other people's comments with yours
+   somewhere in it; which edge a block hangs from is seen before a word is
+   read, and it is how anybody finds the last thing they themselves said.
+
+   Mirrored rather than restyled: the same row, reversed, so there is one set
+   of rules for a comment and the side is the only difference. The avatar goes
+   with it — a block hanging off the right with its face still on the left is
+   neither side. */
+.message-mine { flex-direction: row-reverse; }
+/* The meta line, the thumbnail and the reactions go to that edge too, or the
+   name, the time and the menu stay pinned to one the comment is no longer on.
+
+   Pushed rather than reversed. `row-reverse` was the bubble's, and it reads
+   the line backwards — "just now You" — for the sake of keeping the name next
+   to the face. The name goes first in every other row on this page, and a
+   board is read rather than glanced at, so the line keeps its order and the
+   whole of it moves right. The app's meta is one string and cannot reverse
+   anyway; this is the pair of them agreeing. */
+.message-mine .message-meta { justify-content: flex-end; }
+.message-mine .message-about { margin-left: auto; }
+.message-mine .reactions { justify-content: flex-end; }
+/* And the lines do not turn round with the block.
+
+   No `text-align: right`, which is what the bubble had. A short comment
+   shrinks to its words and sits against the right edge, which is the whole of
+   what a side is for; a comment that wraps keeps its lines starting at one
+   left edge, because right-aligned prose over three lines is read a word at a
+   time while the eye hunts for where each one begins. Three words in a bubble
+   can take that and a paragraph cannot — so the edit box, which is a form and
+   never wanted it either, needs no exception any more. */
 /* The way to add a reaction is on hover and on focus, like the `···` beside
    it. A
    quiet thread was a column of `+` buttons, one under every bubble, each
