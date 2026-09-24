@@ -34,6 +34,7 @@ import { Face } from './Faces';
 import { Mark } from './Mark';
 import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
+import { useImageFailure } from './useImageFailure';
 
 type Person = { key: string; name: string; photoCount: number; mine: boolean };
 
@@ -46,6 +47,16 @@ export type ThreadProps = {
   people: Person[];
   /** Everybody in the event. Kept for the mention list's fallback names. */
   members: Member[];
+  /**
+   * The photograph a line is about, by id.
+   *
+   * Optional, and absent under a single photograph — the picture is already
+   * on the screen there, and a thumbnail of it beside every reaction to it
+   * is the page saying the same thing twice. The event's own board hands it
+   * over: that column is where every reaction in the album is read in order,
+   * and it is the one place that has to say *which* one.
+   */
+  photoOf?: (photoId: string) => { id: string; src: string } | null;
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
   /**
@@ -78,6 +89,7 @@ export function Thread({
   canPost,
   people,
   members,
+  photoOf,
   onChanged,
   onSeen,
 }: ThreadProps) {
@@ -97,6 +109,22 @@ export function Thread({
   const listRef = useRef<HTMLDivElement>(null);
 
   const live = messages.filter((m) => !m.deleted || m.body === '');
+
+  /*
+   * The photograph a line is about, and its page.
+   *
+   * The href is built here rather than in the row because this is where the
+   * event is known — and it is a link rather than a handler for the reason
+   * `PhotoTile` is: the middle-click, the Copy-link and the Back button all
+   * come from the element.
+   */
+  const aboutOf = useCallback(
+    (photoId: string | null) => {
+      const photo = photoId ? (photoOf?.(photoId) ?? null) : null;
+      return photo ? { src: photo.src, href: `/event/${eventId}/p/${photo.id}` } : null;
+    },
+    [eventId, photoOf],
+  );
 
   /*
    * Stay at the bottom, but only if that is where you already were.
@@ -217,6 +245,7 @@ export function Thread({
             onSave={(body) => save(message.id, body)}
             onDelete={() => remove(message.id)}
             onReact={(emoji) => react(message.id, emoji)}
+            about={aboutOf(message.photoId)}
           />
         ))}
       </div>
@@ -315,7 +344,7 @@ function Composer({
         className="thread-field"
         rows={1}
         value={draft}
-        placeholder="Message everyone in this album…"
+        placeholder="Add a comment…"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           // Enter posts, Shift+Enter is a new line. The opposite of a document
@@ -390,6 +419,7 @@ function Row({
   onSave,
   onDelete,
   onReact,
+  about,
 }: {
   message: Message;
   canPost: boolean;
@@ -399,16 +429,60 @@ function Row({
   onSave: (body: string) => void;
   onDelete: () => void;
   onReact: (emoji: string) => void;
+  /** The photograph this line is about, and its page. Null where there is none. */
+  about?: { src: string; href: string } | null;
 }) {
   const [body, setBody] = useState(message.body);
   const [picking, setPicking] = useState(false);
   const pickerRef = useDismiss(picking, useCallback(() => setPicking(false), []));
+  /*
+   * The thumbnail's failure path, which this page needs like every other.
+   *
+   * These URLs are signed against the event's `cap_epoch`, so they stop
+   * resolving for ordinary reasons — a rotated link, a page out of the
+   * back-forward cache. A failed one leaves the line reading "Ana reacted ❤️"
+   * with nothing beside it, which is the same thing the app draws when the
+   * feed no longer holds the photograph.
+   */
+  const shot = useImageFailure(about?.src ?? '');
 
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
     // middle of a conversation — the ones around it would appear to be
     // answering each other.
     return <p className="muted thread-gone">Message deleted</p>;
+  }
+
+  /*
+   * A reaction, which is a line rather than a message — and was a blank one.
+   *
+   * The feed merges every reaction in the album into the thread so that one
+   * column reads in one order. This file never learned the difference, so
+   * each of them drew as a message with a face, a name, a time and an empty
+   * paragraph: a board on an album people had reacted all over was a column
+   * of comments nobody had written.
+   *
+   * The photograph goes where a comment has its author's face — the thing
+   * the row is about, in the slot that says what a row is about — and it
+   * links to that picture, which is the question somebody reading a reaction
+   * actually has. Without one it is the quiet line the app draws in the same
+   * case: under a single photograph, where the picture is already on screen.
+   */
+  if (message.emoji) {
+    const who = message.author.mine ? 'You' : message.author.name;
+    return (
+      <p className="muted thread-reacted">
+        {about && !shot.failed && (
+          <a href={about.href} className="thread-reacted-shot" aria-label="The photograph it is on">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={shot.ref} src={about.src} alt="" onError={shot.onError} />
+          </a>
+        )}
+        <span>
+          <strong>{who}</strong> reacted {message.emoji}
+        </span>
+      </p>
+    );
   }
 
   return (

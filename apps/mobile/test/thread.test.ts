@@ -276,6 +276,92 @@ describe('what is native rather than borrowed', () => {
 });
 
 /**
+ * The album's Comments tab is a board, and a group's room is a chat.
+ *
+ * Same thread, same rules, one prop apart. It had been drawn as a messenger
+ * in both: your own words in an accent bubble against the right-hand edge, a
+ * round arrow to send them, and a box offering to "message everyone in this
+ * album" — which a reader arriving on a tab called Comments met as a group
+ * chat, and a reader in an actual group met as a sentence about an album.
+ */
+describe('a board is not a chat', () => {
+  const VIEWER = read('src/Thread.tsx');
+
+  it('is one prop, not a second component', () => {
+    /*
+     * Everything that is hard here — who may post, the tombstones, the
+     * mention rules, marking it read — is the same in both rooms, and a
+     * second copy of it is a second place for the rules to be wrong.
+     */
+    expect(VIEWER).toMatch(/export type ThreadShape = 'chat' \| 'board';/);
+    expect(VIEWER).toMatch(/shape\?: ThreadShape;/);
+    // A chat until somebody says otherwise, and the album is what says so.
+    expect(VIEWER).toMatch(/shape = 'chat',/);
+    expect(APP).toMatch(/shape="board"/);
+    const GROUP = read('src/GroupThread.tsx');
+    expect(GROUP).not.toMatch(/shape=/);
+  });
+
+  it('takes no sides on a board, whoever wrote it', () => {
+    /*
+     * A chat sides with the speaker because the side of the screen is how a
+     * messenger says who said what. A board knows perfectly well that a
+     * comment is yours — the name says "You" — and still draws it in the one
+     * column everybody else is in.
+     */
+    expect(VIEWER).toMatch(/const sided = shape === 'chat' && mine;/);
+    const row = between(VIEWER, 'function Row({', 'function People({');
+    // Every side-taking style keys off `sided`, and the bubble with it.
+    for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
+      expect(row).toContain(`sided && ${style}`);
+    }
+    expect(row).toMatch(/\{sided \? \(\s*<View style=\{\[styles\.bubble/);
+    // And the name is set like everybody else's, "You" included: with no
+    // sides it is the whole of the answer to whose comment this is.
+    expect(row).toMatch(/\{mine \? 'You' : message\.author\.name\}\s*<\/Text>/);
+  });
+
+  it('says what the box is for in the room it is in', () => {
+    /*
+     * The placeholder is the one line that tells somebody what they are about
+     * to do, and it was wrong in both rooms at once — a group chat that named
+     * an album, and a comment board that offered to message everybody.
+     */
+    expect(VIEWER).toMatch(/placeholder=\{board \? 'Add a comment…' : 'Message the group…'\}/);
+    // Gone as a string the box says. It survives in the note above it, which
+    // is where a decision that was reversed belongs.
+    expect(VIEWER).not.toMatch(/placeholder="Message everyone/);
+    expect(VIEWER).not.toMatch(/accessibilityLabel="Message everyone/);
+    /*
+     * And the round accent disc with an arrow in it is a messenger's control:
+     * it means send this to somebody. A comment is not sent anywhere, it is
+     * posted where it already is, and the verb is worth spelling.
+     */
+    expect(VIEWER).toMatch(/board \? styles\.post : styles\.send/);
+    expect(VIEWER).toMatch(/<Text style=\{\[styles\.postText, \{ color: t\.accent \}\]\}>Post<\/Text>/);
+    // The same height in both, so the composer does not jump between rooms.
+    expect(VIEWER).toMatch(/post: \{ height: 38,/);
+    expect(VIEWER).toMatch(/send: \{ width: 38, height: 38,/);
+  });
+
+  it('names the subject when a board is empty', () => {
+    // An empty chat is a room with nobody in it and the nudge is social; an
+    // empty comment section sits under a wall of photographs somebody has
+    // just scrolled, and the thing to say is about those.
+    expect(VIEWER).toMatch(/\? 'Say something about these photographs\.'/);
+    expect(VIEWER).toMatch(/: 'Say something before this gets awkward\.'/);
+  });
+
+  it('keeps the order, which is not what made it a chat', () => {
+    // Oldest at the top and the newest against the box you type in is what
+    // every comment section under a photograph does too — and it is what the
+    // unread count is counted from.
+    expect(VIEWER).toMatch(/inverted/);
+    expect(VIEWER).toMatch(/onStartReached=\{onSeen\}/);
+  });
+});
+
+/**
  * A reaction in the conversation it happened in.
  *
  * The thread showed what people wrote and nothing of what they left on the
@@ -325,6 +411,51 @@ describe('a reaction is a line, not a message', () => {
      */
     const REACTIONS = read('../../apps/web/src/photoReactions.ts');
     expect(REACTIONS).toMatch(/`reaction:\$\{row\.photoId\}:\$\{row\.actorId\}:\$\{row\.emoji\}`/);
+  });
+
+  it('carries the photograph it was left on, on a board', () => {
+    /*
+     * "Ana reacted ❤️ to a photo" is a line about a picture that is not in
+     * it. The board is the one place where every reaction in an album is read
+     * in order, and it was the one place that would not say which one — so a
+     * run of them read as noise, and the person who left one could not find
+     * their way back to what they had left it on.
+     *
+     * The photograph goes where a comment has its author's face: one left
+     * edge down the column, and the thing the row is about in the slot that
+     * says what a row is about. It opens that photograph, which is the same
+     * tap the thumbnail above a comment already takes.
+     */
+    expect(VIEWER).toMatch(/if \(shape === 'board' && about\) \{/);
+    expect(VIEWER).toMatch(/onPress=\{\(\) => onOpenPhoto\?\.\(about\.id\)\}/);
+    // The face's own 32 and the row's own 10, so the column has one left edge
+    // whatever kind of line is on it — and squared, because that slot holds a
+    // person in every other row and a picture in this one.
+    expect(VIEWER).toMatch(/reactedRow: \{ flexDirection: 'row', alignItems: 'center', gap: 10 \}/);
+    expect(VIEWER).toMatch(/reactedShot: \{ width: 32, height: 32, borderRadius: 8/);
+    /*
+     * And the centred line stays for the two cases with no picture to show: a
+     * chat, where a reaction is about the room, and a board whose feed no
+     * longer holds the photograph.
+     */
+    expect(VIEWER).toMatch(/reacted: \{ textAlign: 'center'/);
+  });
+
+  it('draws on the web’s board too, rather than as an empty bubble', () => {
+    /*
+     * The feed merges reactions into the thread both clients read, and the
+     * web's copy never learned the difference: each drew as a message with a
+     * face, a name, a time and an empty bubble. Same line, same slot for the
+     * photograph, and a link rather than a handler — the middle-click and the
+     * Back button come from the element.
+     */
+    const WEB = read('../../apps/web/app/components/Thread.tsx');
+    expect(WEB).toMatch(/if \(message\.emoji\) \{/);
+    expect(WEB).toMatch(/className="muted thread-reacted"/);
+    expect(WEB).toMatch(/<a href=\{about\.href\} className="thread-reacted-shot"/);
+    expect(WEB).toMatch(/`\/event\/\$\{eventId\}\/p\/\$\{photo\.id\}`/);
+    const WEB_API = read('../../apps/web/src/messages.ts');
+    expect(WEB_API).toMatch(/emoji\?: string;/);
   });
 
   it('hides the people this viewer has blocked, as the pills do', () => {

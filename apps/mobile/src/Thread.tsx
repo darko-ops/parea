@@ -32,6 +32,34 @@
  * no measuring pass, which is the difference between opening on the
  * conversation and watching it jump once. It also makes "reaching the bottom"
  * `onStartReached` — the vocabulary is upside down and the behaviour is not.
+ *
+ * ## Two rooms, one file: `shape`
+ *
+ * A group's chat and an album's comments are the same thread with the same
+ * rules, and they are not the same room. A chat is people talking to each
+ * other; a board is people talking about a set of photographs, and it had
+ * been drawn as the first — your own words in an accent bubble against the
+ * right-hand edge, a round arrow to send them, and a box that offered to
+ * "message everyone in this album". A reader arriving on a tab called
+ * Comments found a group chat.
+ *
+ * `shape` is the whole of the difference and it is deliberately one prop
+ * rather than two components: everything that is *hard* here — who may post,
+ * the tombstones, the mention rules, marking it read — is the same in both
+ * rooms, and a second copy of it is a second place for the rules to be wrong.
+ *
+ *   - `chat` sides with the speaker: your own messages mirror the row and
+ *     fill a bubble, which is how a messenger says who said what.
+ *   - `board` has one column and no sides. Every comment is a face, a name, a
+ *     time and the words, whoever wrote it — the shape the web's thread has
+ *     always had, and the shape of every comment section anybody has read.
+ *     A reaction is a row in that column too, with the photograph it is about
+ *     where a comment has its author's face.
+ *
+ * What does *not* change with the shape is the order. Oldest at the top and
+ * the newest against the box you type in is not a messenger's invention —
+ * every comment section under a photograph does the same — and it is what the
+ * unread count is counted from.
  */
 
 import { Image } from 'expo-image';
@@ -70,6 +98,9 @@ export type Mentionable = { key: string; name: string; mine: boolean };
  * wrong. `Reactions` is optional: a group message has none yet, and the row of
  * pills is simply not drawn when there is no way to add one.
  */
+/** A chat sides with the speaker; a board is one column. See the file's note. */
+export type ThreadShape = 'chat' | 'board';
+
 export type ThreadActions = {
   post: (body: string) => Promise<unknown>;
   edit: (messageId: string, body: string) => Promise<unknown>;
@@ -84,6 +115,7 @@ export function Thread({
   canPost,
   people,
   t,
+  shape = 'chat',
   keyboardOffset = 0,
   onChanged,
   onSeen,
@@ -92,6 +124,14 @@ export function Thread({
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
+  /**
+   * Which room this is. See the note at the top of the file.
+   *
+   * Defaulted to `chat` rather than required, because a chat is what a thread
+   * is until somebody says otherwise — and because the one caller that wants
+   * the other is the one that has to say so.
+   */
+  shape?: ThreadShape;
   /**
    * The photograph a comment is about, by id.
    *
@@ -137,6 +177,7 @@ export function Thread({
   /** Called when the thread has actually been read. */
   onSeen: () => void;
 }) {
+  const board = shape === 'board';
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -257,10 +298,17 @@ export function Thread({
           One line, where it was a heading and a paragraph explaining what a
           conversation is for. Nobody needs telling; what an empty room needs
           is a reason to say the first thing, and the joke is the reason.
+
+          A board's line names its subject instead. An empty chat is a room
+          with nobody in it and the nudge is social; an empty comment section
+          sits under a wall of photographs somebody has just scrolled, and the
+          thing to say is about those.
         */
         <View style={styles.empty}>
           <Text style={[styles.emptyTitle, { color: t.dim }]}>
-            Say something before this gets awkward.
+            {board
+              ? 'Say something about these photographs.'
+              : 'Say something before this gets awkward.'}
           </Text>
         </View>
       ) : (
@@ -268,7 +316,10 @@ export function Thread({
           data={live}
           inverted
           keyExtractor={(message) => message.id}
-          contentContainerStyle={styles.list}
+          /* More air on a board: a chat separates its turns with bubbles, and
+             a column of unbordered paragraphs needs the gap to do that work
+             instead. */
+          contentContainerStyle={[styles.list, board && styles.listBoard]}
           keyboardDismissMode="interactive"
           // Inverted, so the start of the list is the bottom of the screen.
           // Arriving there is the definition of having read it — the same rule
@@ -280,6 +331,7 @@ export function Thread({
               message={item}
               canPost={canPost}
               t={t}
+              shape={shape}
               canReact={actions.react != null}
               onReact={(emoji) => void react(item.id, emoji)}
               onDelete={() => void remove(item.id)}
@@ -316,30 +368,51 @@ export function Thread({
                 first day; who can read this is what the placeholder says. */}
             {error && <Text style={[styles.error, { color: t.dim }]}>{error}</Text>}
             <View style={styles.composerRow}>
+              {/*
+                What the box is for, in its own words.
+
+                It said "Message everyone in this album…" in both rooms, which
+                was wrong twice over: on the album's Comments tab it described
+                a group chat, and in a group's own chat it named an album that
+                is not what that room is about. The placeholder is the one
+                line that tells somebody what they are about to do, so it
+                follows the shape rather than the component.
+              */}
               <TextInput
                 ref={box}
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Message everyone in this album…"
+                placeholder={board ? 'Add a comment…' : 'Message the group…'}
                 placeholderTextColor={t.dim}
                 multiline
                 style={[styles.field, { color: t.fg, borderColor: t.line }]}
-                accessibilityLabel="Message everyone in this album"
+                accessibilityLabel={board ? 'Add a comment' : 'Message the group'}
               />
+              {/*
+                A word on a board, an arrow in a chat.
+
+                The round accent button with an arrow in it is a messenger's
+                control — it means *send this to somebody*. A comment is not
+                sent anywhere; it is posted where it already is, and the verb
+                is worth spelling. Same press, same disabled rule, same 38
+                points of height so the row does not move between the two.
+              */}
               <Pressable
                 onPress={() => void post()}
                 disabled={posting || draft.trim() === ''}
                 accessibilityRole="button"
-                accessibilityLabel="Send"
+                accessibilityLabel={board ? 'Post this comment' : 'Send'}
                 style={({ pressed }) => [
-                  styles.send,
-                  {
-                    backgroundColor: t.accent,
-                    opacity: draft.trim() === '' || posting ? 0.4 : pressed ? 0.7 : 1,
-                  },
+                  board ? styles.post : styles.send,
+                  !board && { backgroundColor: t.accent },
+                  { opacity: draft.trim() === '' || posting ? 0.4 : pressed ? 0.7 : 1 },
                 ]}
               >
-                <Text style={[styles.sendGlyph, { color: t.onAccent }]}>↑</Text>
+                {board ? (
+                  <Text style={[styles.postText, { color: t.accent }]}>Post</Text>
+                ) : (
+                  <Text style={[styles.sendGlyph, { color: t.onAccent }]}>↑</Text>
+                )}
               </Pressable>
             </View>
           </>
@@ -358,6 +431,7 @@ function Row({
   message,
   canPost,
   t,
+  shape,
   canReact,
   onReact,
   onDelete,
@@ -368,6 +442,7 @@ function Row({
   message: Message;
   canPost: boolean;
   t: GroupTheme;
+  shape: ThreadShape;
   /** Whether this room has reactions at all. */
   canReact: boolean;
   onReact: (emoji: string) => void;
@@ -381,6 +456,12 @@ function Row({
   const [editing, setEditing] = useState<string | null>(null);
 
   const mine = message.author.mine;
+  /*
+   * Whether this row takes a side, which is not the same question as whose
+   * it is. A board knows perfectly well that a comment is yours — the name
+   * says "You" — and still draws it in the one column everybody else is in.
+   */
+  const sided = shape === 'chat' && mine;
   const lens = lensFor(message.author.key);
 
   /**
@@ -429,6 +510,56 @@ function Row({
    * face, no menu — there is nothing here to edit, delete or reply to.
    */
   if (message.emoji) {
+    /*
+     * On a board, with the photograph it happened to.
+     *
+     * "Ana reacted ❤️ to a photo" is a line about a picture that is not in
+     * it: the board is the one place in the product where every reaction in
+     * an album is read in order, and it was the one place that would not say
+     * *which* one — so a row of them read as noise, and the person who left
+     * one could not find their way back to what they had left it on.
+     *
+     * The photograph goes where a comment has its author's face. One left
+     * edge down the column, and the thing the row is about in the slot that
+     * says what a row is about: a comment is a person talking, a reaction is
+     * a picture being answered. It opens that photograph, which is the same
+     * tap the thumbnail above a comment already takes.
+     *
+     * The centred line stays for the two cases that have no picture to show:
+     * a chat, where a reaction is about the room, and a board whose feed no
+     * longer holds the photograph — one that has just been deleted, which is
+     * a gap rather than a reason to draw nothing.
+     */
+    if (shape === 'board' && about) {
+      return (
+        <View style={styles.reactedRow}>
+          <Pressable
+            onPress={() => onOpenPhoto?.(about.id)}
+            disabled={!onOpenPhoto}
+            accessibilityRole={onOpenPhoto ? 'button' : 'image'}
+            accessibilityLabel={`${mine ? 'You' : message.author.name} reacted ${message.emoji}. The photograph it is on`}
+            style={({ pressed }) => [
+              styles.reactedShot,
+              { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Image
+              source={{ uri: about.src }}
+              style={styles.reactedShotImage}
+              contentFit="cover"
+              transition={120}
+            />
+          </Pressable>
+          <Text style={[styles.reactedText, { color: t.dim }]} numberOfLines={1}>
+            <Text style={[styles.metaName, { color: t.fg }]}>
+              {mine ? 'You' : message.author.name}
+            </Text>
+            {' reacted '}
+            {message.emoji}
+          </Text>
+        </View>
+      );
+    }
     return (
       <Text style={[styles.reacted, { color: t.dim }]} numberOfLines={1}>
         {mine ? 'You' : message.author.name} reacted {message.emoji}
@@ -438,7 +569,7 @@ function Row({
   }
 
   return (
-    <View style={[styles.row, mine && styles.rowMine]}>
+    <View style={[styles.row, sided && styles.rowMine]}>
       {message.author.avatarUrl ? (
         <Image
           source={{ uri: message.author.avatarUrl }}
@@ -459,10 +590,19 @@ function Row({
         </View>
       )}
 
-      <View style={[styles.said, mine && styles.saidMine]}>
+      <View style={[styles.said, sided && styles.saidMine]}>
+        {/* The name in `fg` whoever wrote it, "You" included.
+            A board has no sides, so the name is the whole of the answer to
+            whose comment this is and it has to be set like everybody else's.
+            One rule rather than one per shape: a chat had drawn its own as
+            unweighted "You" because the side of the screen was doing that
+            work, and giving it the same weight as the others costs it
+            nothing — the bubble and the mirrored row still say whose it is. */}
         <Text style={[styles.meta, { color: t.dim }]} numberOfLines={1}>
-          {!mine && <Text style={[styles.metaName, { color: t.fg }]}>{message.author.name} </Text>}
-          {mine && 'You '}
+          <Text style={[styles.metaName, { color: t.fg }]}>
+            {mine ? 'You' : message.author.name}
+          </Text>
+          {' '}
           {ago(new Date(message.createdAt), new Date())}
           {message.edited && ' · edited'}
         </Text>
@@ -548,7 +688,7 @@ function Row({
                 accessibilityLabel="The photograph this is about"
                 style={({ pressed }) => [
                   styles.about,
-                  mine && styles.aboutMine,
+                  sided && styles.aboutMine,
                   { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
                 ]}
               >
@@ -561,7 +701,7 @@ function Row({
               </Pressable>
             )}
 
-            {mine ? (
+            {sided ? (
               <View style={[styles.bubble, { backgroundColor: t.accent }]}>
                 <Text style={[styles.bodyText, { color: t.onAccent }]}>
                   {/* Inside your own bubble the accent is the background, so a
@@ -584,7 +724,7 @@ function Row({
             not offering it. Existing reactions still draw, so this survives
             group reactions arriving later. */}
         {(message.reactions.length > 0 || (canPost && canReact)) && (
-          <View style={[styles.chips, mine && styles.chipsMine]}>
+          <View style={[styles.chips, sided && styles.chipsMine]}>
             {message.reactions.map((reaction) => (
               <Pressable
                 key={reaction.emoji}
@@ -810,6 +950,9 @@ const styles = StyleSheet.create({
   /* Inverted, so `paddingTop` is the gap under the composer and the column
      grows upwards from it. */
   list: { padding: 14, paddingHorizontal: 16, gap: 16 },
+  /* A chat separates its turns with bubbles; a board is a column of
+     unbordered paragraphs, and the gap is what does that work instead. */
+  listBoard: { gap: 22 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 },
   /* Quieter than the heading it replaced, and centred as one line.
 
@@ -863,6 +1006,20 @@ const styles = StyleSheet.create({
    * the same place a date separator would sit, and for the same reason.
    */
   reacted: { textAlign: 'center', fontSize: 12.5, lineHeight: 18, paddingVertical: 2 },
+  /*
+   * A reaction on a board: the photograph where a comment has a face.
+   *
+   * 32 and the same 10-point gap as `row`, so the column has one left edge
+   * whatever kind of line is on it. Square at 8 rather than round at 16 —
+   * that slot holds a person in every other row and a picture in this one,
+   * and the corner is the difference the eye reads before the content.
+   */
+  reactedRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reactedShot: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
+  reactedShotImage: { width: '100%', height: '100%' },
+  /* `flex` so a long name truncates against the edge rather than pushing the
+     emoji off it: the emoji is the half of this line that carries the news. */
+  reactedText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19 },
   gone: { fontSize: 13, fontStyle: 'italic' },
   editing: { gap: 8 },
   editActions: { flexDirection: 'row', gap: 16 },
@@ -885,6 +1042,11 @@ const styles = StyleSheet.create({
   },
   send: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   sendGlyph: { fontSize: 17, fontWeight: '600' },
+  /* The same 38 points tall, so the composer does not change height between
+     the two rooms. Unfilled: a word in the accent is a link to the thing you
+     have just written, where a filled disc is a button to send it away. */
+  post: { height: 38, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  postText: { fontSize: 15.5, fontWeight: '700' },
   error: { fontSize: 13, lineHeight: 18 },
   people: { padding: 16, paddingBottom: 40 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1 },

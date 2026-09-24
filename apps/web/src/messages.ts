@@ -60,6 +60,17 @@ export type Message = {
   photoId: string | null;
   /** Emoji to the people who chose it, and whether the viewer is one of them. */
   reactions: { emoji: string; count: number; mine: boolean }[];
+  /**
+   * Set when this line is a reaction rather than something somebody wrote.
+   *
+   * The feed merges every reaction in the album into this thread so that one
+   * column reads in one order — a reaction is a thing somebody did in the
+   * album at a moment, and the thread is where the album's moments are read.
+   * Its presence is what tells the two apart: a reaction carries an emoji and
+   * no body. The app's `Message` has carried this since the merge landed; the
+   * web's did not, which is why the column drew them as empty bubbles.
+   */
+  emoji?: string;
 };
 
 /**

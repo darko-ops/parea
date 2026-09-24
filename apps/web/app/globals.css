@@ -2321,6 +2321,26 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .message-edit { display: grid; gap: 8px; margin-top: 4px; }
 .thread-gone { font-size: 13px; font-style: italic; margin: 0; }
+/* A reaction, which is a line rather than a message — and was a blank one.
+
+   The feed merges every reaction in the album into the thread so that one
+   column reads in one order, and this file never knew the difference: each
+   drew as a message with a face, a name, a time and an empty bubble.
+
+   The photograph goes where a message has its author's face, at the same 32
+   and the same 10-point gap so the column keeps one left edge. Square rather
+   than round: that slot holds a person in every other row and a picture in
+   this one, and the corner is the difference the eye reads first. */
+.thread-reacted {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-size: 13.5px; line-height: 1.4;
+}
+.thread-reacted strong { color: var(--fg); font-weight: 600; }
+.thread-reacted-shot {
+  width: 32px; height: 32px; flex: none; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line); display: block;
+}
+.thread-reacted-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mention { font-weight: 600; }
 /* Weight rather than colour inside a bubble: accent ink on the mark's blue is
    two blues arguing, and the bubble already carries the colour. */

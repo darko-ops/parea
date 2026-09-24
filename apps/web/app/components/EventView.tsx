@@ -900,6 +900,17 @@ export function EventView({
             canPost={feed.canPost}
             people={feed.people}
             members={feed.members}
+            /*
+             * The photograph a line is about, for the reactions merged into
+             * this column. The page already holds every photograph in the
+             * event, so this is a lookup rather than a second way to ask for
+             * one — and a reaction that cannot say which picture it is on is
+             * a line nobody can act on.
+             */
+            photoOf={(photoId) => {
+              const photo = feed.photos.find((one) => one.id === photoId);
+              return photo ? { id: photo.id, src: photo.src } : null;
+            }}
             onChanged={refresh}
             onSeen={markSeen}
           />
