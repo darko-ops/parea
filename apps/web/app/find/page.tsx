@@ -31,11 +31,12 @@ import { accountFor, avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { friendsOf, suggestionsFor } from '@/friends';
-import { greetingFor } from '@/greeting';
+import { greetingFor, partOfDay } from '@/greeting';
 import { groupsFor, suggestedGroupsFor } from '@/groups';
 import { leadImage } from '@/cards';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
+import { readerZone } from '@/zone';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,9 +128,13 @@ export default async function FindPage() {
     Promise.all(friends.map(face)),
     Promise.all(suggested.map(face)),
   ]);
+  const now = new Date();
+  // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
+  // which is UTC and said good afternoon over somebody's breakfast.
+  const zone = await readerZone();
 
   return (
-    <Shell current="find">
+    <Shell current="find" at={partOfDay(now, zone)}>
       {/*
         Its own surface rather than `.main`'s white. The page is a column of
         cards now — groups, people, your own groups — and cards on white are
@@ -139,7 +144,7 @@ export default async function FindPage() {
       <main className="main main-find">
         <div className="find-page">
           <FindView
-            greeting={greetingFor(account?.displayName ?? null, new Date())}
+            greeting={greetingFor(account?.displayName ?? null, now, zone)}
             events={events}
             friends={friendFaces}
             suggested={suggestedFaces}

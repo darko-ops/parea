@@ -22,10 +22,11 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { activityFor } from '@/activity';
 import { getDb } from '@/db';
-import { greetingFor } from '@/greeting';
+import { greetingFor, partOfDay } from '@/greeting';
 import { askedToJoin, invitesSeenAtFor, markInvitesSeen } from '@/invites';
 import { pendingRequestsFor } from '@/requests';
 import { currentActorId } from '@/session';
+import { readerZone } from '@/zone';
 import { ago, bucketFor } from '@/when';
 
 export const dynamic = 'force-dynamic';
@@ -70,10 +71,13 @@ export default async function ActivityPage() {
   // Never looked means everything is new, not nothing. Comparing against null
   // gives false in JavaScript, which is the wrong answer in the quiet way.
   const since = seenAt ? seenAt.toISOString() : null;
-  const greeting = greetingFor(account?.displayName ?? null, now);
+  // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
+  // which is UTC and said good afternoon over somebody's breakfast.
+  const zone = await readerZone();
+  const greeting = greetingFor(account?.displayName ?? null, now, zone);
 
   return (
-    <Shell current="invites">
+    <Shell current="invites" at={partOfDay(now, zone)}>
       <main className="lately">
         {/* The same two lines Home opens with, and the same classes: one
             greeting drawn one way, wherever it appears. */}

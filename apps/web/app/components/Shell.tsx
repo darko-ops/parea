@@ -23,9 +23,18 @@
  * out that isn't signing in, and a layout applies to everything underneath it
  * including that. `Shell` is opted into instead, and a test asserts every page
  * that is not the sign-in screen opts in.
+ *
+ * Which makes it the one place every page with a reader on it passes through,
+ * so it is also where the browser reports its time zone from — see
+ * `ReaderZone`. Mounting that here rather than in the layout costs nothing and
+ * means a page that arrives without ever showing a greeting still leaves the
+ * zone behind for the page that will.
  */
 
+import type { PartOfDay } from '@/greeting';
+
 import { Rail, type RailPage } from './Rail';
+import { ReaderZone } from './ReaderZone';
 
 export function Shell({
   /**
@@ -34,13 +43,24 @@ export function Shell({
    * reader that this link goes to the page you are on, and it does not.
    */
   current = null,
+  /**
+   * The time of day this page greeted somebody with, or null for the pages
+   * that do not — which is most of them, including every static one. The only
+   * thing it is used for is deciding whether the greeting the server wrote is
+   * the wrong one; a page that says nothing about the time of day cannot have
+   * got it wrong, and passing it from here keeps that judgement next to the
+   * render that made the claim.
+   */
+  at = null,
   children,
 }: {
   current?: RailPage;
+  at?: PartOfDay | null;
   children: React.ReactNode;
 }) {
   return (
     <div className="shell">
+      <ReaderZone served={at} />
       <Rail current={current} />
       {children}
     </div>

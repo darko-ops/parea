@@ -33,10 +33,11 @@ import { avatarUrl, accountFor } from '@/accounts';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
-import { greetingFor } from '@/greeting';
+import { greetingFor, partOfDay } from '@/greeting';
 import { peopleAround } from '@/people';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
+import { readerZone } from '@/zone';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,9 @@ export default async function EventsPage() {
     peopleAround(db, actorId),
   ]);
   const now = new Date();
+  // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
+  // which is UTC and said good afternoon over somebody's breakfast.
+  const zone = await readerZone();
   const cards = await toCards(listings, now);
 
   /*
@@ -72,11 +76,11 @@ export default async function EventsPage() {
   );
 
   return (
-    <Shell current="events">
+    <Shell current="events" at={partOfDay(now, zone)}>
       <main className="main">
         <HomeView
           haystacks={haystacks}
-          greeting={greetingFor(account?.displayName ?? null, now)}
+          greeting={greetingFor(account?.displayName ?? null, now, zone)}
           people={await Promise.all(
             nearby.map(async (person) => ({
               actorId: person.actorId,

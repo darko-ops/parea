@@ -31,7 +31,7 @@ import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
-import { greetingFor } from '@/greeting';
+import { greetingFor, partOfDay } from '@/greeting';
 import {
   GROUP_STRIP,
   lensFor,
@@ -41,6 +41,7 @@ import {
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
+import { readerZone } from '@/zone';
 import { Face } from '@/../app/components/Faces';
 import { GroupCover } from '@/../app/components/GroupCover';
 import { CreateGroupCard, NewGroupPanel } from '@/../app/components/CreateGroupCard';
@@ -106,10 +107,13 @@ export default async function GroupsPage() {
    */
   const also = await sharedOnceWith(db, actorId, clusters.flatMap((c) => c.personIds));
   const now = new Date();
-  const greeting = greetingFor(account?.displayName ?? null, now);
+  // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
+  // which is UTC and said good afternoon over somebody's breakfast.
+  const zone = await readerZone();
+  const greeting = greetingFor(account?.displayName ?? null, now, zone);
 
   return (
-    <Shell current="groups">
+    <Shell current="groups" at={partOfDay(now, zone)}>
       <main className="groups-page">
         {/*
           The header and the create form, together — see `NewGroupPanel`. The
