@@ -173,30 +173,28 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.you-ribbon \{[^}]*border-radius: 0 0 24px 24px/);
   });
 
-  it('stretches the picture from its own top edge, not from a fifth of it', () => {
+  it('puts nothing between the picture and the bar', () => {
     /*
-     * Arithmetic rather than a number somebody liked: the picture is 172 wide
-     * and square, so filling 72px of strip from its top 10px means scaling it
-     * to 172 × 7.2 = 1238, which against a 72px box is 1720%.
+     * The phone bleeds the photograph's top edge into a blurred strip above
+     * it, and the reason is hardware: there is a camera island up there, and a
+     * face drawn into it is a face with a lens through it — the bleed fills
+     * the space the island takes. A browser has no island and no such space,
+     * so the strip was a phone's answer to a question a page does not ask.
      *
-     * It said 560% first, which showed the top fifth of the photograph — a
-     * washed-out slice of sky that did not match the sky directly under it,
-     * which is what a seam is. Asserted because the number is unreadable
-     * without the derivation beside it, and therefore easy to "tidy".
+     * Asserted as an absence because that is what it is: any element between
+     * the ribbon's top edge and the photograph is the strip coming back.
      */
-    const bleed = CSS.slice(CSS.indexOf('.you-bleed {'), CSS.indexOf('}', CSS.indexOf('.you-bleed {')));
-    expect(bleed).toMatch(/background-size: 100% 1720%/);
-    expect(bleed).toMatch(/height: 72px; margin: -14px 0/);
-    // Mirrored, so the row meeting the photograph is its own first row.
-    expect(bleed).toMatch(/transform: scaleY\(-1\)/);
+    expect(CSS).not.toMatch(/\.you-bleed/);
+    expect(VIEW).not.toMatch(/you-bleed/);
+    expect(read('../app/components/PersonView.tsx')).not.toMatch(/you-bleed/);
   });
 
   it('puts the picture on the side and reads from the left on a laptop', () => {
     expect(WIDE).toMatch(/\.you-head \{[^}]*flex-direction: row/);
     expect(WIDE).toMatch(/\.you-head \{[^}]*text-align: left/);
     // And stops hanging: a 172px band off a 1100px page is a phone's furniture
-    // on a desk.
-    expect(WIDE).toMatch(/\.you-bleed \{ display: none; \}/);
+    // on a desk, so it keeps its own corners and its own margin.
+    expect(WIDE).toMatch(/\.you-ribbon \{[^}]*margin-top: 4px; border-radius: 20px/);
   });
 
   it('gives the albums the column the home page gives them', () => {
@@ -227,7 +225,6 @@ describe('the profile at two widths', () => {
      */
     const PERSON = read('../app/components/PersonView.tsx');
     expect(PERSON).toMatch(/className="you-ribbon"/);
-    expect(PERSON).toMatch(/className="you-bleed"/);
     const act = PERSON.slice(PERSON.indexOf('className="you-act"'));
     expect(act.indexOf('<ShareProfile')).toBeLessThan(act.indexOf("standing === 'friends'"));
   });

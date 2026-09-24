@@ -3693,12 +3693,14 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* ---------------------------------------------------------------------------
    The ribbon: the picture, hanging from the top of the page.
 
-   The app's shape. A strip the width of a face comes down from the top edge of
-   the screen with the square photograph at the foot of it, and above the
-   photograph its own top edge stretched and blurred — so the space between the
-   picture and the chrome is the picture's colour rather than a swatch or a
-   gap, and the profile arrives attached to the top of the page rather than
-   floating in the middle of a column.
+   The app's shape, minus the part a browser has no reason for. On a phone the
+   photograph's top edge is stretched and blurred into a strip above it,
+   because there is a camera island up there and a face drawn into it is a face
+   with a lens through it: the bleed is what fills the space the hardware
+   takes. A browser has no island and no such space, so the picture goes
+   straight onto the bar — nothing between them, and the profile arrives
+   attached to the top of the page rather than floating in the middle of a
+   column.
 
    It pulls up through the column's own padding to meet the bar, which is what
    makes it hang from something. Bottom corners only: the top of it is not an
@@ -3710,35 +3712,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border-radius: 0 0 24px 24px; overflow: hidden;
   background: var(--accent-soft);
 }
-/* The bleed. The top ten pixels of the picture, stretched to fill the strip,
-   mirrored so the row meeting the photograph is the photograph's own first row
-   — the seam is then not a seam — and blurred, because ten pixels of somebody's
-   hair at that magnification is colour and nothing else.
-
-   `1720%` is that stretch, and it is arithmetic rather than a number somebody
-   liked: the picture is 172 wide and square, so filling 72px of strip from its
-   top 10px means scaling it to 172 × 7.2 = 1238, which against a 72px box is
-   1720%. The first attempt said 560%, which showed the top *fifth* of the
-   photograph rather than the top ten pixels — a washed-out slice of sky that
-   did not match the sky directly under it, which is what a seam is.
-
-   72 tall with 14 taken off each end: 44 of it shows, 14 is clipped by the
-   ribbon and 14 is hidden under the photograph. A blur fades to transparent at
-   the element's own edges, and both of those edges would otherwise be a pale
-   rule across the strip — one at the top of the page and one exactly where the
-   seam is supposed to disappear.
-
-   The first attempt had a `scale(1.25)` here for the same problem, and it is
-   worth recording why it was the wrong tool: a uniform scale about the centre
-   moves the mirrored row away from the boundary it was calculated to land on,
-   so it fixed the fade and broke the seam. Growing the box and hiding its ends
-   leaves the arithmetic alone. */
-.you-bleed {
-  display: block; height: 72px; margin: -14px 0;
-  background-position: top center; background-size: 100% 1720%;
-  transform: scaleY(-1);
-  filter: blur(11px);
-}
 /* Square, because the crop is square.
 
    The app's note is the argument and it is not about taste: the picker crops
@@ -3746,10 +3719,8 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    square — so a circle pays the difference out of the sides of somebody's
    face. A box the shape of the crop is the only frame that shows the whole
    crop. No radius of its own here: the ribbon around it owns the corners. */
-/* Above the bleed, which runs 14px under it — see the margins there. */
 .you-ribbon .you-face {
   width: 172px; height: 172px; border-radius: 0;
-  position: relative; z-index: 1;
 }
 /* A letter, until there is a picture. Sized to the two lines beside it so the
    header has one height rather than three. */
@@ -4016,12 +3987,11 @@ button.link {
     gap: 26px; padding-bottom: 24px;
   }
   /* Not a ribbon any more. A 172px band hanging off a 1100px page is a phone's
-     furniture on a desk, so it stops hanging — no bleed, no pull into the
-     chrome, and the corners come back as a portrait's. */
+     furniture on a desk, so it stops hanging: no pull into the chrome, and the
+     corners come back as a portrait's. */
   .you-ribbon {
     width: 132px; margin-top: 4px; border-radius: 20px; background: none;
   }
-  .you-bleed { display: none; }
   .you-ribbon .you-face { width: 132px; height: 132px; border-radius: 20px; }
 
   .you-id { flex: 1; }

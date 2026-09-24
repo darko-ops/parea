@@ -188,13 +188,6 @@ export function PersonView({
           `AccountView` for what the shape is borrowed from.
         */}
         <div className="you-ribbon">
-          {person.avatar && (
-            <span
-              className="you-bleed"
-              aria-hidden="true"
-              style={{ backgroundImage: `url(${person.avatar})` }}
-            />
-          )}
           {/* A letter until there is a picture, and again if one will not load.
               Never a silhouette: a generic avatar is a photograph of nobody. */}
           <Avatar

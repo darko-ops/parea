@@ -287,14 +287,14 @@ export function AccountView() {
           The picture, hanging from the bar on a phone and standing beside the
           name on a laptop.
 
-          The app's shape, which is a strip the width of a face coming down
-          from the top edge of the screen with the square photograph at the
-          foot of it — and above the photograph, its own top edge stretched and
-          blurred, so the space between the picture and the chrome is the
-          picture's colour rather than a swatch or a gap. There is no camera
-          island in a browser, but the idea survives it: the profile arrives
-          from the top of the page attached to it, rather than floating in the
-          middle of a column.
+          The app's shape, minus the thing a browser has no reason for. On a
+          phone the photograph's top edge is stretched and blurred into the
+          strip above it, because there is a camera island up there and a face
+          drawn into it is a face with a lens through it — the bleed is what
+          fills the space the hardware takes. A browser has no island and no
+          such space, so the picture goes straight onto the bar: nothing
+          between them, and the profile arrives attached to the top of the page
+          rather than floating in the middle of a column.
 
           One element at both widths. On a laptop the ribbon stops being a
           ribbon — it loses the bleed and sits at the head of a row, because a
@@ -302,25 +302,6 @@ export function AccountView() {
           desk. See `.you-ribbon`.
         */}
         <div className="you-ribbon">
-          {/*
-            The bleed, and it is the photograph rather than a colour taken from
-            it. The top of the picture, stretched to fill the strip and
-            mirrored so the row that meets the photograph is the photograph's
-            own first row — the seam is then not a seam. Blurred, because ten
-            pixels of somebody's hair magnified six times is colour and
-            nothing else.
-
-            Drawn only when there is a picture: with none, `.you-face` is a
-            letter on a lens colour and the strip is that colour, which needs
-            no image and gets it from the stylesheet.
-          */}
-          {account?.avatarUrl && (
-            <span
-              className="you-bleed"
-              aria-hidden="true"
-              style={{ backgroundImage: `url(${account.avatarUrl})` }}
-            />
-          )}
           {/*
             A letter until there is a picture, and again if one will not load.
             Not a silhouette: a generic avatar is a photograph of nobody, and
