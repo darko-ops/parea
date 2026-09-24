@@ -268,6 +268,65 @@ describe('what a non-member is handed', () => {
 });
 
 describe('inside a group', () => {
+  it('measures the room in albums and age, not in members', () => {
+    /*
+     * The app's own line, and the two halves of it are a decision each. The
+     * member count was the first half: eleven faces with names under them is
+     * what "11 people" stood in for, and they are one tab away on the pane
+     * that is about exactly that. What a count cannot say is *since March
+     * 2024*, and a group's age is most of what makes it read as a room rather
+     * than as a list.
+     *
+     * `· you run this` went with it. An admin is told by the things only an
+     * admin is shown — the Invite slot beside the faces — not by a clause on
+     * a line about how big the room is.
+     */
+    const meta = GROUP.slice(GROUP.indexOf('group-head-meta'), GROUP.indexOf('group-actions'));
+    expect(meta).not.toBe('');
+    expect(meta).toMatch(/group\.events\.length/);
+    expect(meta).toMatch(/since \$\{group\.since\}/);
+    expect(meta).not.toMatch(/memberCount|you run this/);
+    // Worded on the server, like every date here: a browser's clock and the
+    // server's disagree, and React answers a text mismatch by discarding the
+    // tree. And withheld at the door, which is told a name and a size only.
+    expect(GROUP_PAGE).toMatch(/since: membership \? MONTH\.format\(group\.createdAt\) : null/);
+  });
+
+  it('puts the one thing the room does on the tab row', () => {
+    /*
+     * `New album here` was a filled accent pill in the head, beside the name.
+     * The head is the room's identity and a button in it competes with the
+     * name for the line — and the word was the only type on the screen
+     * claiming what pressing it does, where the `+` everywhere else says the
+     * same thing in a glyph. The app puts it at the end of the tab row, which
+     * is where the album screen puts its own.
+     */
+    const row = GROUP.slice(GROUP.indexOf('group-tabrow'), GROUP.indexOf('group-create'));
+    expect(row).not.toBe('');
+    expect(row).toMatch(/className="round group-new"/);
+    expect(row).toMatch(/aria-label="New album in this group"/);
+    // The word is gone from the button and nowhere else in the page picked it
+    // up — two create controls with different labels is the drift this stops.
+    expect(GROUP).not.toContain('New album here');
+    const head = GROUP.slice(GROUP.indexOf('<header className="group-head">'), GROUP.indexOf('group-tabrow'));
+    expect(head).not.toMatch(/group-new/);
+  });
+
+  it('answers an empty room with a sentence, not a second button', () => {
+    /*
+     * There was a button under "Nothing yet.", on the argument that with no
+     * shelf, making one *is* the page. That was right while the control was
+     * up in the head; the `+` is pinned in the tab row directly above this
+     * card now, so a second one is two buttons for one action eighteen pixels
+     * apart. What the sentence does instead is say what will happen here, and
+     * that everyone finds out when it does.
+     */
+    const empty = GROUP.slice(GROUP.indexOf('className="group-empty"'), GROUP.indexOf('group-shelf'));
+    expect(empty).not.toBe('');
+    expect(empty).toMatch(/The next album anybody makes in this group shows up/);
+    expect(empty).not.toMatch(/<button/);
+  });
+
   it('does not open with the create form', () => {
     // A room whose premise is that something already happened here began by
     // asking you to type. The form is behind a header button now.

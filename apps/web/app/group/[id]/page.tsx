@@ -115,6 +115,19 @@ export default async function GroupPage({
           dates: Object.fromEntries(
             events.map((event) => [event.id, DAY.format(new Date(event.at))]),
           ),
+          /*
+            When the room started, as a month and a year.
+ 
+            Worded here for the reason every date in this product is: a
+            browser's clock and the server's disagree, and React answers a
+            text mismatch by throwing the tree away.
+ 
+            Null for somebody standing at the door. `findable` promises a name
+            and a size; how long the room has been going is a fact about the
+            inside of it, and the branch above is what makes the door unable
+            to leak rather than merely choosing not to.
+          */
+          since: membership ? MONTH.format(group.createdAt) : null,
         }}
       />
     </Shell>

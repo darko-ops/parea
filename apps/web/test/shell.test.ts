@@ -529,16 +529,24 @@ describe('the rail and the app point at the same product', () => {
 
   it('uses the app words, except where the web is saying something else', () => {
     /*
-     * Three of the four match outright. Chats is the exception and is meant
-     * to be: on a phone the tab holds every conversation there is, and on the
-     * web the row goes to the groups themselves — so it says Groupchats,
-     * which is the app's word with the thing it is about in front of it.
+     * Find and You match outright. The other two are deliberately apart, and
+     * the exceptions are listed here rather than left to be discovered —
+     * "it is allowed to differ" is a weaker claim than "it differs in these
+     * two ways", and only the second fails when a third drifts in.
+     *
+     * Both differ for one reason. A phone's bar is four glyphs with a word
+     * under each and nothing else on the row, so Albums and Chats name
+     * themselves against their three neighbours. A rail is a column beside a
+     * page: its first row is where somebody goes to start again, which is
+     * Home, and its third goes to the groups rather than to every
+     * conversation there is, which is Groupchats.
      */
-    for (const [tab, page] of SHARED.filter(([t]) => t !== 'chats')) {
+    for (const [tab, page] of SHARED.filter(([t]) => t === 'search' || t === 'profile')) {
       expect(ROWS.find((r) => r.page === page)?.label).toBe(
         TABS.find((t) => t.tab === tab)?.label,
       );
     }
+    expect(ROWS.find((r) => r.page === 'events')?.label).toBe('Home');
     const chats = TABS.find((t) => t.tab === 'chats')?.label ?? '';
     expect(chats).not.toBe('');
     expect(ROWS.find((r) => r.page === 'groups')?.label).toBe(`Group${chats.toLowerCase()}`);

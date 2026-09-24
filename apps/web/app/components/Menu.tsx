@@ -31,9 +31,13 @@ export function Menu({
   label: string;
   /** What is drawn on the button. */
   glyph?: string;
-  /** `primary` fills it, for the one menu that is the page's main action. */
-  /** `quiet` is the event header's outlined square; `primary` the filled one. */
-  tone?: 'primary' | 'quiet';
+  /**
+   * `quiet` is the event header's outlined square and `primary` the filled
+   * one; `round` is the product's round chrome — the disc the app's corner
+   * controls are and that the web's `+` now is. A group's `⋯` wears it so the
+   * two controls on that screen are one kind of thing.
+   */
+  tone?: 'primary' | 'quiet' | 'round';
   /** A count on the button, for something waiting behind it. Zero draws none. */
   badge?: number;
   /** Which edge the panel hangs from. `left` for a control near the page edge. */
@@ -74,7 +78,7 @@ export function Menu({
       <button
         className={`dots-go${tone === 'primary' ? ' dots-primary' : ''}${
           tone === 'quiet' ? ' dots-quiet' : ''
-        }`}
+        }${tone === 'round' ? ' round dots-round' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}

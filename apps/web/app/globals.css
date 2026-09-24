@@ -2267,6 +2267,16 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   font-size: 13px; font-weight: 400; letter-spacing: .08em; color: var(--dim);
   line-height: 1;
 }
+/* `.round` is the disc, and it is declared 1800 lines above `.dots-go` — which
+   sets `background: none; border: 0` and, at equal specificity, wins by being
+   later. So the disc is restated here rather than left to lose silently, and
+   the glyph gets what it needs on top: the three dots are type rather than a
+   24-unit drawing, so they carry their own size and tracking. */
+.dots-round {
+  background: var(--card); border: 1px solid var(--line); color: var(--fg);
+  font-size: 15px; letter-spacing: .1em;
+}
+.dots-round:hover { background: var(--track); border-color: var(--dim-soft); }
 .dots-go:hover { color: var(--fg); }
 /* In the header, a menu is a 36px outlined square beside two word buttons —
    the download and the more menu, which are the two things that do not fit in
@@ -3195,10 +3205,16 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .group-head-text h1 { font-size: 27px; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
 .group-head-meta { margin: 4px 0 0; font-size: 13.5px; color: var(--dim-soft); }
 .group-actions { flex: none; display: flex; align-items: center; gap: 8px; }
-.group-new {
-  padding: 10px 16px; border-radius: 10px; border: 0;
-  background: var(--accent); color: #fff; font-size: 14.5px; font-weight: 600;
-}
+
+/* The tabs, and the one control the room has, on one line — the app's own
+   arrangement and the album screen's. The `+` used to be a filled accent pill
+   up in the head beside the name, which is the room's identity and not a place
+   for a button to compete for the line. */
+.group-tabrow { display: flex; align-items: flex-end; gap: 16px; }
+.group-tabrow .event-tabs { flex: 1; min-width: 0; }
+/* `.round` carries the disc. This only has to say where it sits: on the tabs'
+   own baseline, lifted clear of the rule they are drawn on. */
+.group-new { flex: none; margin-bottom: 6px; }
 /* The form the header button opens. One field, as it always was — it has been
    demoted, not redesigned. */
 .group-create {
@@ -3328,8 +3344,14 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .shelf-failed { display: block; width: 100%; height: 100%; background: var(--photo-bed); }
 
 /* With no archive, making one *is* the page. */
-.group-empty { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 26px; }
-.group-empty p { margin: 0; font-size: 15px; color: var(--dim); }
+/* A card rather than a row, now the button beside it has gone up into the tab
+   row: what is left is a sentence, and a sentence floating on the page under a
+   rule reads as the page having stopped rather than as an answer. */
+.group-empty {
+  margin-top: 22px; padding: 18px 20px; max-width: 560px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+}
+.group-empty p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--dim); }
 
 .group-note {
   margin: 30px 0 0; padding-top: 18px; border-top: 1px solid var(--hairline);

@@ -12,9 +12,10 @@
  * arrives at from a link they were sent — the one where "what came of that?"
  * is a question worth having a screen for.
  *
- * The four they share say the app's words over the app's drawings: Albums,
- * Groupchats, Find, You. See `ROWS` for what they used to say and why the app
- * wins every case where the two disagreed.
+ * The four they share carry the app's drawings, and two of them carry its
+ * words: Find and You. Home and Groupchats are the web's, and `ROWS` says why
+ * each of the two is — in both cases because a rail beside a page is not a bar
+ * under a thumb, and the word that fits one does not fit the other.
  *
  * ## The head is the name, centred
  *
@@ -99,10 +100,21 @@ const ROWS: {
    * it and has not moved, because the ids are what `aria-current` is matched
    * on and what every route underneath is still named.
    */
-  // Albums, not Home. The route is `/events` and the tables still say `event`:
-  // the id names the row for the code, the label names it for a reader, and
-  // the thing this product makes is an album.
-  { href: '/events', label: 'Albums', page: 'events', glyph: 'photos' },
+  /*
+   * Home, where the app's bar says Albums — the second place the two are
+   * deliberately apart, and for the same kind of reason as Groupchats.
+   *
+   * A phone's bar is four glyphs with a word under each and no other
+   * furniture, so Albums there names the row against Chats, Find and You. A
+   * rail is a column of destinations beside a page, and the first row in one
+   * is where somebody goes to start again — which is what Home means and what
+   * every other site on the reader's screen has taught them it means. The page
+   * it opens is still `Your Parea`, and everything on it is albums.
+   *
+   * The route is `/events` and the tables still say `event`: the id names the
+   * row for the code, the label names it for a reader.
+   */
+  { href: '/events', label: 'Home', page: 'events', glyph: 'photos' },
   /*
    * Notifications, on a tray. It was Activity, on an envelope.
    *

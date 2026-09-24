@@ -52,6 +52,14 @@ type GroupData = {
   lens: { fill: string; ink: string };
   /** "Fri 14 Mar" per event id, formatted on the server for the same reason. */
   dates: Record<string, string>;
+  /**
+   * "Mar 2026" — when the room started, worded on the server.
+   *
+   * A month and a year rather than a date: a group is not an event and does
+   * not have a day. Null for a non-member, who is told a name and a size and
+   * nothing else; the door does not draw this line.
+   */
+  since: string | null;
 };
 
 /**
@@ -230,21 +238,29 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
         </span>
         <div className="group-head-text">
           <h1>{group.name}</h1>
-          <p className="group-head-meta">
-            {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'} ·{' '}
-            {group.events.length} {group.events.length === 1 ? 'album' : 'albums'}
-            {group.role === 'admin' && ' · you run this'}
-          </p>
+          {/*
+            How much is in here, and how long it has been going — the app's
+            own line, and the two halves of it are a decision each.
+
+            The member count used to be the first half and is not, because the
+            People tab says it better: eleven faces with names under them is
+            what "11 people" was standing in for, one tab away. What a count
+            cannot say is *since March 2024*, and a group's age is most of
+            what makes it read as a room rather than as a list.
+
+            `· you run this` went with it. An admin is told they are one by
+            the things only an admin is shown — the Invite slot beside the
+            faces — rather than by a clause on a line about how big the room
+            is, which is what the app does and what this file had invented.
+          */}
+          {group.member && (
+            <p className="group-head-meta">
+              {group.events.length} {group.events.length === 1 ? 'album' : 'albums'}
+              {group.since && ` · since ${group.since}`}
+            </p>
+          )}
         </div>
         <div className="group-actions">
-          <button
-            type="button"
-            className="group-new"
-            aria-expanded={creating}
-            onClick={() => setCreating((was) => !was)}
-          >
-            New album here
-          </button>
           {/*
             One item, and no "Manage group" beside it.
 
@@ -255,7 +271,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             opt-in by design, so "manage" would have to answer who may remove
             somebody and whether that is the same power as approving a join.
           */}
-          <Menu label="More about this group" glyph="···" tone="quiet">
+          <Menu label="More about this group" glyph="···" tone="round">
             {(close) => (
               <>
                 {/*
@@ -289,19 +305,50 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
         people it belongs to — and drawing them two ways makes a reader learn
         the product twice. The app reached this first; this is the same screen.
       */}
-      <nav className="event-tabs" aria-label="This group">
-        {TABS.map(([id, label, glyph]) => (
-          <a
-            key={id}
-            href={hrefFor(id)}
-            className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
-            aria-current={tab === id ? 'page' : undefined}
+      <div className="group-tabrow">
+        <nav className="event-tabs" aria-label="This group">
+          {TABS.map(([id, label, glyph]) => (
+            <a
+              key={id}
+              href={hrefFor(id)}
+              className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
+              aria-current={tab === id ? 'page' : undefined}
+            >
+              <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
+              {label}
+            </a>
+          ))}
+        </nav>
+
+        {/*
+          The one thing this room does that is not looking at it, at the end
+          of the tab row — which is the app's own answer and the album
+          screen's.
+
+          It was `New album here`, a worded button up in the head beside the
+          name. Two problems with it there: the head is the room's identity
+          and a control in it competes with the name for the line, and the
+          word was the only piece of type on the screen making a claim about
+          what pressing it does when the `+` everywhere else in the product
+          says the same thing in a glyph. The label survives as the accessible
+          name, which is the trade the tab bar makes for all four of its tabs.
+
+          Pinned above the pane rather than at the foot of the albums: the
+          control for adding was at the bottom of the one list somebody
+          scrolls to the end of.
+        */}
+        {group.member && (
+          <button
+            type="button"
+            className="round group-new"
+            aria-expanded={creating}
+            aria-label="New album in this group"
+            onClick={() => setCreating((was) => !was)}
           >
-            <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
-            {label}
-          </a>
-        ))}
-      </nav>
+            <RailIcon glyph="plus" />
+          </button>
+        )}
+      </div>
 
       {/* Under any tab, because the button that opens it is in the header
           rather than in the albums. Making one from the People tab and being
@@ -425,13 +472,25 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
 
       {tab === 'albums' &&
         (group.events.length === 0 ? (
-          /* With no shelf, making one *is* the page — so the action comes to
-             the front rather than staying behind the header button. */
+          /*
+            The app's sentence, and no button under it.
+
+            There was one — on the argument that with no shelf, making one
+            *is* the page, so the action should come forward rather than stay
+            behind a header control. That was right while the control was up
+            in the head; the `+` is now pinned in the tab row directly above
+            this card, so a second one here is two buttons for one action
+            eighteen pixels apart.
+
+            What the sentence does instead is answer the question an empty
+            room actually raises — whether anything is meant to happen here —
+            by saying what will, and that everyone finds out when it does.
+          */
           <div className="group-empty">
-            <p>Nothing yet.</p>
-            <button type="button" className="group-new" onClick={() => setCreating(true)}>
-              New album here
-            </button>
+            <p>
+              Nothing yet. The next album anybody makes in this group shows up
+              here, and everyone gets told.
+            </p>
           </div>
         ) : (
           /*
