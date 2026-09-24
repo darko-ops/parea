@@ -25,11 +25,20 @@
  * A person who is not there — a handle nobody has, a device that never signed
  * in, either side of a block — is one message and the same one. Telling those
  * apart is how a screen becomes a way to ask whether somebody exists.
+ *
+ * And it is shaped like your own profile because it is the same kind of page.
+ * That claim has been made in this comment for a while and stopped being true
+ * when the profile took the hanging tab: this screen kept the header the tab
+ * replaced — words ranged left, a picture bleeding off the right edge — so
+ * the app was telling you whose page you were on by rearranging it. The tab
+ * is one component now and both pages hang it; what differs is what you can
+ * do from underneath, which is the only thing that should.
  */
 
 import { dateLabel } from '@parea/cards';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -41,6 +50,9 @@ import {
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import { Glyph } from './Glyph';
+import { HangingTab, TAB_H } from './HangingTab';
+import { Back, RoundButton } from './RoundButton';
+import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Waiting } from './Waiting';
@@ -204,21 +216,55 @@ export function PersonScreen({
     [api, person],
   );
 
+  /**
+   * How far the page has been scrolled.
+   *
+   * Held here rather than inside the tab, because the scroll view is this
+   * screen's and the tab only reads it — see `HangingTab`, which turns it
+   * into the retract.
+   */
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  /*
+    The one way back, in the corner rather than at the top of the page.
+
+    It was a `‹` on the first line of the scroll, which works under a header
+    that scrolls with it. The picture hangs from the top edge now, so that
+    chevron would slide up under the tab on the first flick and take the way
+    off this screen with it.
+
+    The same disc, in the same corner, at the same height as the `⋯` the
+    viewer's own profile keeps there — one way back, wherever you are.
+  */
+  const back = (
+    <View style={styles.corner}>
+      <RoundButton t={t} onPress={onBack} accessibilityLabel="Back">
+        <Back color={t.fg} />
+      </RoundButton>
+    </View>
+  );
+
   if (error && !person) {
     return (
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={onBack}>
-          <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
-        </Pressable>
-        <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
-      </ScrollView>
+      /*
+        No tab, and therefore no room kept for one: there is nobody to draw,
+        which is the whole message. The disc stays, because the way back is
+        the one thing this screen still owes somebody.
+      */
+      <View style={[styles.screen, { backgroundColor: t.bg }]}>
+        <ScrollView contentContainerStyle={[styles.absent, styles.gutter]}>
+          <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
+        </ScrollView>
+        {back}
+      </View>
     );
   }
 
   if (!person) {
     return (
-      <View style={[styles.center, { backgroundColor: t.bg }]}>
+      <View style={[styles.screen, styles.center, { backgroundColor: t.bg }]}>
         <Waiting size={40} />
+        {back}
       </View>
     );
   }
@@ -275,79 +321,62 @@ export function PersonScreen({
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-        <Text style={[styles.back, { color: t.accent }]}>‹</Text>
-      </Pressable>
-
+    <View style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      // Drives the tab's retract. 16ms is one frame; less is work nobody sees.
+      scrollEventThrottle={16}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        // Layout, not transform — see the note on the retract in `HangingTab`.
+        useNativeDriver: false,
+      })}
+    >
       {/*
-        The same head their own profile has: the name and the handle on the
-        left, the picture bleeding off the right edge.
+        The same head their own profile has: a centred column, under a picture
+        hanging from the top of the screen.
 
-        It was a bordered card with a 64pt circle in it — a row in a settings
-        list, for the one screen in the product that is a person. Somebody
-        arriving here from a byline should find the same shape they find on
-        their own page, because it is the same kind of page.
+        It was a row — the name and the handle ranged left, the picture
+        bleeding off the right edge — which is the shape the viewer's own
+        profile wore until the tab replaced it, and this page was left behind
+        holding it. Somebody arriving here from a byline should find the same
+        shape they find on their own page, because it is the same kind of
+        page; two answers to that is the product telling you whose page you
+        are on by rearranging it.
       */}
-      <View style={styles.head}>
-        <View style={styles.who}>
-          <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
-            {name}
-          </Text>
-          {/* Always, and not only under a display name: the handle is the
-              durable half and the thing this page is reached by. With its `@`,
-              which is what says it is a handle and not a second name. */}
-          <Text style={[styles.handle, { color: t.dim }]} numberOfLines={1}>
-            @{person.handle}
-          </Text>
-          {/*
-            The three their own profile prints, in the same order and at the
-            same size.
+      <View style={[styles.head, styles.gutter]}>
+        <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
+          {name}
+        </Text>
+        {/* Always, and not only under a display name: the handle is the
+            durable half and the thing this page is reached by. With its `@`,
+            which is what says it is a handle and not a second name. */}
+        <Text style={[styles.handle, { color: t.dim }]} numberOfLines={1}>
+          @{person.handle}
+        </Text>
+        {/*
+          The three their own profile prints, in the same order and at the
+          same size.
 
-            This page used to print one number — how many of *your* albums they
-            are in — on the argument that their own totals would make search a
-            way to measure strangers. The shelf below undid that argument on
-            its own: every album they made is already listed there by name,
-            locked ones included, so the count above it says nothing new and
-            saves somebody scrolling to find out how much there is.
+          This page used to print one number — how many of *your* albums they
+          are in — on the argument that their own totals would make search a
+          way to measure strangers. The shelf below undid that argument on
+          its own: every album they made is already listed there by name,
+          locked ones included, so the count above it says nothing new and
+          saves somebody scrolling to find out how much there is.
 
-            The line about the two of you did not survive the swap and should
-            not have: it is the shelf's own answer, said again in figures, and
-            two counts of albums on one screen is a screen you have to work
-            out. See `ProfileCounts` on the server for what each one counts.
-          */}
-          <Text style={[styles.counts, { color: t.dim }]}>
-            {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'} ·{' '}
-            {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
-            {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
-          </Text>
-        </View>
-
-        {person.avatar ? (
-          <Image
-            source={{ uri: person.avatar }}
-            style={[styles.avatar, { backgroundColor: t.line }]}
-          />
-        ) : (
-          /*
-            A letter on their own lens, never a silhouette — the rule every
-            face in this product follows.
-
-            In the picture's own shape, which is the half this was missing: a
-            64pt circle in the gutter where a photograph would be a 124×104
-            panel running off the right edge meant somebody with no picture had
-            a visibly different page from somebody with one, and a smaller one.
-            The shape belongs to the slot, not to what happens to be in it.
-          */
-          <View style={[styles.avatar, styles.avatarBlank, { backgroundColor: lens.fill }]}>
-            <Text style={[styles.avatarLetter, { color: lens.ink }]}>
-              {initialOf(name)}
-            </Text>
-          </View>
-        )}
+          The line about the two of you did not survive the swap and should
+          not have: it is the shelf's own answer, said again in figures, and
+          two counts of albums on one screen is a screen you have to work
+          out. See `ProfileCounts` on the server for what each one counts.
+        */}
+        <Text style={[styles.counts, { color: t.dim }]}>
+          {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'} ·{' '}
+          {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
+          {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+        </Text>
       </View>
 
-      {person.bio && <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{person.bio}</Text>}
+      {person.bio && <Text style={[styles.bio, { color: t.fg }]}>{person.bio}</Text>}
 
       {/*
         Where Edit profile and Share profile sit on your own, there is one
@@ -542,45 +571,77 @@ export function PersonScreen({
         </View>
       )}
     </ScrollView>
+
+      {/*
+        Their picture, hanging from the top edge.
+
+        The same component the viewer's own profile draws, with no `onPress`:
+        your own is a way into the editor, and somebody else's is a
+        photograph. A control that does nothing is one somebody presses to
+        find out it does nothing — the argument the standings below already
+        settled for this screen.
+
+        Outside the scroll view and above it, because it does not scroll — it
+        retracts, and the page passes underneath.
+      */}
+      <HangingTab
+        t={t}
+        avatar={person.avatar}
+        initial={initialOf(name)}
+        lens={lens}
+        scrollY={scrollY}
+      />
+
+      {back}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  /* The screen, so the tab and the corner have something to be absolute
+     inside. */
+  screen: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
   /*
-   * No horizontal padding on the scroll itself, because the picture runs off
-   * the right edge. Everything that is not the picture wears `gutter`, which
-   * is the same trade the viewer's own profile makes for the same reason.
+   * The whole of the tab, and 22 points of clearance under it — the same two
+   * numbers the viewer's own profile starts on, for the same reason: the tab
+   * is opaque, and the first thing under it is somebody's name.
+   *
+   * `BELOW_TABS` at the foot rather than a number chosen by eye. This page
+   * ends in a wall of covers with nothing after it, and the app's own bar is
+   * over it.
    */
-  scroll: { paddingTop: 72, paddingBottom: 132, gap: 14 },
+  scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 14 },
+  /* A page with nobody on it keeps no room for a picture of them. */
+  absent: { paddingTop: 110, paddingBottom: BELOW_TABS, gap: 14 },
   gutter: { paddingHorizontal: 20 },
-  back: { fontSize: 28, lineHeight: 30, paddingHorizontal: 20 },
+  /* Above the tab, and fixed: it does not scroll and is not part of it. The
+     same corner, at the same height, as the profile's `⋯`. */
+  corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13 },
-  /* The name block and the picture, the picture bleeding off the right. */
-  head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20 },
-  who: { flex: 1, minWidth: 0, gap: 3, paddingRight: 16 },
-  name: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
-  handle: { fontSize: 15 },
-  counts: { fontSize: 15 },
   /*
-   * The same picture the viewer's own profile draws, at the same size and with
-   * the same corner: rounded on the left, square on the right, because it runs
-   * off the edge of the screen rather than sitting on it.
+   * A centred column, not a row with a picture on the end.
+   *
+   * The picture hangs above it now, so everything under the tab reads down
+   * the middle of the screen — and the text is centred with it rather than
+   * ranged left against nothing.
    */
-  avatar: {
-    width: 124,
-    height: 104,
-    borderTopLeftRadius: 26,
-    borderBottomLeftRadius: 26,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
+  head: { alignItems: 'center' },
+  name: {
+    textAlign: 'center',
+    fontSize: 28,
+    lineHeight: 31,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-  /* Only what a letter needs on top of the panel it sits in: `avatar` above
-     carries the size and the corners, so the two states are the same slot. */
-  avatarBlank: { alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { fontSize: 34, fontWeight: '700' },
-  bio: { fontSize: 15, lineHeight: 21 },
+  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
+  /* One line at the handle's size and in the handle's colour: three figures
+     set larger than the name they belong to is a dashboard. */
+  counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
+  /* Centred and inset, like the profile's. Full width and centred is a
+     paragraph with ragged edges on both sides. */
+  bio: { fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 },
   /* One control where the profile has two, and it fills the row on its own. */
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },

@@ -31,15 +31,70 @@ describe('the shape of somebody else’s page', () => {
   const PROFILE = read('src/Profile.tsx');
 
   it('draws the same head the viewer’s own profile draws', () => {
-    // The name and the handle on the left, the picture bleeding off the right.
+    /*
+     * A centred column under a picture hanging from the top edge — not a row
+     * with the words ranged left and the picture bleeding off the right.
+     *
+     * That row is what both pages used to be, and it is the half of the
+     * redesign somebody else's page was left holding: the profile took the
+     * tab and this screen kept the shape it replaced, so the app told you
+     * whose page you were on by rearranging it.
+     *
+     * The same three styles, written the same way in both files. The head
+     * itself is not one component — the counts are a control on your own page
+     * and facts on theirs, and your own carries a link — but the shape is one
+     * shape, and two sets of numbers for it is how it comes apart again.
+     */
     for (const source of [PERSON, PROFILE]) {
-      expect(source).toMatch(/avatar: \{\s*\n\s*width: 124,\s*\n\s*height: 104,/);
-      expect(source).toMatch(/borderTopLeftRadius: 26,[\s\S]{0,120}borderTopRightRadius: 0,/);
+      expect(source).toMatch(/head: \{ alignItems: 'center' \}/);
+      expect(source).toMatch(/name: \{[\s\S]{0,120}?textAlign: 'center',[\s\S]{0,160}?fontSize: 28,/);
+      expect(source).toMatch(/handle: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 3 \}/);
+      expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 8 \}/);
+      expect(source).toMatch(/bio: \{ fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 \}/);
     }
-    expect(PERSON).toMatch(/name: \{ fontSize: 28, lineHeight: 31, fontWeight: '700'/);
+    // Nothing left of the row: no picture in the header, no gutter exemption.
+    expect(PERSON).not.toMatch(/flexDirection: 'row', alignItems: 'center', paddingLeft: 20/);
     // A letter on their own lens where there is no picture, never a
     // silhouette — the rule every face in this product follows.
     expect(PERSON).toMatch(/const lens = lensFor\(person\.handle\)/);
+  });
+
+  it('hangs their picture from the same tab yours hangs from', () => {
+    /*
+     * One file, because the numbers in it are a phone's measurements rather
+     * than anybody's taste: where the front camera stops, how much of the
+     * picture survives a scroll, how far the whole thing narrows. A second
+     * set of them is how the same face comes to hang differently depending on
+     * whose it is.
+     */
+    for (const source of [PERSON, PROFILE]) {
+      expect(source).toMatch(/import \{ HangingTab, TAB_H \} from '\.\/HangingTab'/);
+      expect(source).toMatch(/<HangingTab/);
+      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+    }
+    // Yours opens the editor. Theirs is a photograph and nothing to press —
+    // the same argument the standings below it settle for this screen.
+    expect(PROFILE).toMatch(/onPress=\{\(\) => setEditing\(true\)\}/);
+    const tab = PERSON.slice(PERSON.indexOf('<HangingTab'));
+    expect(tab.slice(0, tab.indexOf('/>'))).not.toMatch(/onPress/);
+  });
+
+  it('keeps the way back out of the tab’s way', () => {
+    /*
+     * It was a `‹` on the first line of the scroll, which works under a
+     * header that scrolls with it. The picture hangs from the top edge now,
+     * so that chevron would slide up under the tab on the first flick and
+     * take the way off this screen with it.
+     *
+     * The same disc, in the same corner, at the same height as the `⋯` the
+     * viewer's own profile keeps there.
+     */
+    expect(PERSON).toMatch(/<Back color=\{t\.fg\} \/>/);
+    expect(PERSON).toMatch(/corner: \{ position: 'absolute', top: 62, left: 20, zIndex: 3 \}/);
+    expect(PROFILE).toMatch(/corner: \{ position: 'absolute', top: 62, left: 20, zIndex: 3 \}/);
+    expect(PERSON).not.toMatch(/styles\.back/);
+    // Including on the two pages that have no person on them yet.
+    expect(PERSON.match(/\{back\}/g) ?? []).toHaveLength(3);
   });
 
   it('shows the line they wrote about themselves', () => {
@@ -133,14 +188,18 @@ describe('the shape of somebody else’s page', () => {
   it('gives the letter the picture’s shape, and the handle its sigil', () => {
     /*
      * The slot a picture goes in keeps its shape whether or not there is one
-     * in it: a 64pt circle where a 124×104 panel would be made a page without
-     * a photograph a visibly different, smaller page.
+     * in it: a 64pt circle where a photograph would be a whole tab makes a
+     * page without a photograph a visibly different, smaller page. The tab
+     * draws both states out of one box — see `HangingTab` — so this page gets
+     * that for nothing, and the letter it hands over is theirs.
      *
      * And the handle keeps its `@`. A name is bare and a handle is not — the
      * sigil is what marks the string as the thing you can type at a search
      * box, which is why the fallback in `nameOf` wears one too.
      */
-    expect(PERSON).toMatch(/styles\.avatar, styles\.avatarBlank/);
+    expect(PERSON).toMatch(/initial=\{initialOf\(name\)\}/);
+    expect(PERSON).toMatch(/lens=\{lens\}/);
+    expect(read('src/HangingTab.tsx')).toMatch(/styles\.tabFill, styles\.tabBlank\]/);
     expect(PERSON).toMatch(/@\{person\.handle\}/);
   });
 

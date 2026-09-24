@@ -41,7 +41,6 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -67,6 +66,7 @@ import { ApiError } from './api';
 import { AccountCard } from './Events';
 import { Glyph } from './Glyph';
 import { PageHead } from './PageHead';
+import { HangingTab, TAB_H } from './HangingTab';
 import { More, RoundButton } from './RoundButton';
 import { StartSomething } from './StartSomething';
 import { BELOW_TABS } from './chrome';
@@ -74,75 +74,6 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
-
-/**
- * The tab: a strip the camera owns, and a photograph beginning where it ends.
- *
- * `CAP_H` is the island. Not the allowance a scroll starts at, not a margin
- * chosen for the look of it — the distance from the physical top edge to the
- * bottom of the black pill the front camera lives in, plus a couple of points
- * so the picture is not touching it. Everything above 56 is a decision about
- * design; 56 itself is a fact about the phone, and a face drawn into it is a
- * face with a camera through it.
- *
- * This number has been 100, then 72, then 0, and each move was right about
- * the thing before it and wrong about the phone. 100 and 72 were strips of
- * flat colour that pushed somebody's face into the middle of the screen. 0
- * gave the face the top of the screen and gave it to the camera as well.
- *
- * What is in the strip is the photograph's own colour rather than a swatch —
- * its top edge carried up through it, and a scrim over that so the pill has
- * something calm to sit on. So nothing above the picture is dead space, and
- * nothing of the picture is behind the pill.
- */
-const TAB_W = 172;
-const CAP_H = 56;
-/**
- * The picture is square, because the crop is square.
- *
- * This frame has asked for 1:1, then 6:5, then 9:16, and not one of those was
- * ever granted: `allowsEditing` on iOS crops to a square and ignores `aspect`
- * outright, and the endpoint stores a square as well. So every one of those
- * shapes was a portrait box with a square source in it, and `cover` paid the
- * difference out of the sides of somebody's face — which is what you see
- * when you crop yourself carefully and arrive here missing your ears.
- *
- * A box the shape of the crop is the only frame that shows the whole crop.
- * The width is the tab's, so the height is the tab's width.
- */
-const PHOTO_H = TAB_W;
-const TAB_H = CAP_H + PHOTO_H;
-/**
- * What the tab narrows to as the page moves under it.
- *
- * Named rather than written as `TAB_W - 56` at the one place it was used,
- * because the centring is derived from it as well — and a width that came
- * from one expression and a centre that came from another is exactly how the
- * two came apart: the tab kept its left edge and lost 56 points off the
- * right, so it walked 28 points to the left on the way up.
- */
-const TAB_MIN_W = TAB_W - 56;
-/**
- * The picture's top edge, carried up through the strip.
- *
- * `BLEED` is how much of that edge is stretched to fill it. Ten points scaled
- * to the strip's height is the colours actually at the top of the picture
- * rather than an average of the whole of it; mirrored, so the row that meets
- * the photograph is the photograph's own first row and the seam is not a
- * seam; blurred, so ten points of somebody's hair is colour rather than an
- * upside-down piece of a photograph.
- *
- * The two numbers are that stretch written as a transform. React Native
- * scales about a view's centre, so the lift is what puts the edge back where
- * the arithmetic wants it: a point `y` down the picture lands at
- * `CAP_H - BLEED_SCALE * y`, which is `CAP_H` at the top of the strip and 0
- * at its bottom.
- */
-const BLEED = 10;
-const BLEED_SCALE = CAP_H / BLEED;
-const BLEED_LIFT = CAP_H - ((1 + BLEED_SCALE) * PHOTO_H) / 2;
-/** What is left of the picture once the page has been scrolled. */
-const PHOTO_MIN = 26;
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -274,6 +205,15 @@ export function ProfileScreen({
   const tile = Math.floor((width - 40 - GAP * (COLUMNS - 1)) / COLUMNS);
 
   /**
+   * How far the page has been scrolled.
+   *
+   * Held here rather than inside the tab, because the scroll view is this
+   * screen's and the tab only reads it — see `HangingTab`, which turns it
+   * into the retract.
+   */
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  /**
    * The profile's own link, handed out by `Share profile`.
    *
    * The handle rather than an id: it is the half of a profile somebody can
@@ -282,90 +222,6 @@ export function ProfileScreen({
    * drawn disabled rather than hidden — a row that changes shape depending on
    * whether you have picked a handle is a row nobody learns.
    */
-  /**
-   * How far the page has been scrolled, and the tab's arrival.
-   *
-   * Two values because they cannot share a driver. The retract is width and
-   * height, which are layout and therefore JS-driven; the drop is a
-   * transform, which is not. Put on one view they would fight — React Native
-   * refuses a JS animation on a node it has moved to the native side — so
-   * they sit on two, one nested in the other.
-   */
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const drop = useRef(new Animated.Value(0)).current;
-
-  /*
-   * Once, when the account first arrives.
-   *
-   * Not on every return to the tab: `active` flips whenever somebody comes
-   * back, and a screen that replays its entrance every time is one that never
-   * settles. `dropped` is the latch.
-   */
-  const dropped = useRef(false);
-  useEffect(() => {
-    if (account === undefined || dropped.current) return;
-    dropped.current = true;
-    Animated.spring(drop, {
-      toValue: 1,
-      damping: 14,
-      stiffness: 140,
-      useNativeDriver: true,
-    }).start();
-  }, [account, drop]);
-
-  /*
-   * The tab retracts as the page moves under it.
-   *
-   * 170 points of scroll takes it from 172 × 200 to 116 × 76 and then stops.
-   * It keeps the top edge and the bottom corners; what changes is how much of
-   * it there is, which is what makes it read as being pulled back up rather
-   * than scrolling away.
-   */
-  const k = scrollY.interpolate({
-    inputRange: [0, 170],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-  /**
-   * What the tab is made of, behind the picture.
-   *
-   * One value used twice, which is the point: the cap and the panel are two
-   * views, and a tab that is two colours is two objects. Whatever sits behind
-   * the photograph is what the strip above it is — the lens for somebody with
-   * no picture, and the line colour for somebody whose picture has not
-   * decoded yet.
-   */
-  const tabBack = account?.avatarUrl ? t.line : lens.fill;
-
-  const tabWidth = k.interpolate({ inputRange: [0, 1], outputRange: [TAB_W, TAB_MIN_W] });
-  /*
-   * Half the width it currently has, so the centre stays the centre.
-   *
-   * `left: '50%'` puts the tab's *left edge* on the middle of the screen and
-   * the margin pulls it back by half its width. That half was a constant —
-   * half the resting width — so while the tab narrowed the left edge did not
-   * move and the right edge came in alone. The comment on `tab` claimed it
-   * narrowed symmetrically; it drifted 28 points left instead, which is what
-   * you see at the end of a scroll.
-   *
-   * Interpolated from the same `k` as the width, so the two cannot disagree.
-   * It is a layout property like the width and shares its JS driver, so this
-   * adds a number to a frame that was already being laid out rather than a
-   * measurement pass — which was the reason `alignSelf` was turned down.
-   */
-  const tabInset = k.interpolate({ inputRange: [0, 1], outputRange: [-TAB_W / 2, -TAB_MIN_W / 2] });
-  /*
-   * The cap does not retract; only the picture under it does.
-   *
-   * It is the unsafe zone, and the unsafe zone is the same height however far
-   * the page has been scrolled. Shrinking the whole tab would walk the
-   * photograph back up under the camera on the way past.
-   */
-  const tabHeight = k.interpolate({
-    inputRange: [0, 1],
-    outputRange: [TAB_H, CAP_H + PHOTO_MIN],
-  });
-
   const shareProfile = useCallback(() => {
     if (!account?.handle) return;
     void Share.share({ message: `${webBase}/u/${account.handle}` });
@@ -535,10 +391,10 @@ export function ProfileScreen({
         says less than the third line would have.
       */}
       {account?.bio && (
-        <Text style={[styles.bio, styles.gutter, { color: t.fg }]}>{account.bio}</Text>
+        <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>
       )}
       {account === null && (
-        <Text style={[styles.bio, styles.gutter, { color: t.dim }]}>
+        <Text style={[styles.bio, { color: t.dim }]}>
           This device is not signed in. The albums below are the ones its links
           reach; signing in is what makes them a new phone away.
         </Text>
@@ -830,110 +686,23 @@ export function ProfileScreen({
         retracts. The page passes underneath, which is what makes it read as
         fixed to the screen rather than as the first row of the content.
 
-        Two views, one inside the other, and the nesting is not arrangement.
-        The outer one is width and height, which are layout and therefore
-        JS-driven by the scroll; the inner one is the entrance, which is a
-        transform and runs natively. On one view React Native refuses the pair
-        outright.
-
         Only once the account is there: an empty tab dropping in before there
-        is anything to put in it is the page arriving twice.
+        is anything to put in it is the page arriving twice — and it is what
+        makes the mount the tab's own latch for its entrance.
+
+        The same component somebody else's page draws. What is yours about it
+        is the press: this is the one profile whose picture you can change.
       */}
       {account !== undefined && (
-        <Animated.View
-          style={[
-            styles.tab,
-            { width: tabWidth, marginLeft: tabInset, height: tabHeight, shadowColor: t.fg },
-          ]}
-        >
-          <Animated.View
-            style={[
-              styles.tabFill,
-              {
-                transform: [
-                  {
-                    translateY: drop.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-TAB_H * 1.05, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {/*
-              The picture, beginning where the camera stops.
-
-              The box is square because the crop is square, so `cover` has
-              nothing to trim: every pixel somebody kept is drawn. It starts
-              at `CAP_H` because the alternative is a face with a camera
-              through it, and as high as it goes is only worth having as high
-              as the phone allows.
-
-              No top corners on the image: a rounded corner is a frame
-              announcing itself, and the only shape anybody should be able to
-              see is the bottom of the bookmark.
-            */}
-            <Pressable
-              onPress={() => setEditing(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Change your profile picture"
-              style={[styles.photo, { backgroundColor: tabBack }]}
-            >
-              {account?.avatarUrl ? (
-                <Image
-                  source={{ uri: account.avatarUrl }}
-                  style={styles.tabFill}
-                  contentFit="cover"
-                  transition={120}
-                />
-              ) : (
-                <View style={[styles.tabFill, styles.tabBlank]}>
-                  <Text style={[styles.avatarLetter, { color: lens.ink }]}>{initial}</Text>
-                </View>
-              )}
-            </Pressable>
-
-            {/*
-              The camera's strip: the picture's colour, and a shadow to sit in.
-
-              Two layers over `tabBack`, and neither of them is a photograph
-              anybody is meant to read. The first is the top edge of theirs,
-              stretched up through the strip and blurred, so what is above the
-              picture is the picture's own colour rather than a swatch chosen
-              by the app. The second is a scrim over that, strongest at the
-              very top and gone by the foot of it, so the black pill has
-              something calm to sit on and there is no line where it ends.
-
-              Dark rather than a blur for the scrim: a `BlurView` is uniform
-              and stops dead at its own edge, which is a seam — the same
-              reason the cover's glass covers a whole header or nothing. See
-              `CoverGlass`.
-
-              Both only over a photograph. Somebody who has not set one has a
-              flat colour and a letter up there, which is quiet already, and a
-              shadow across the top of it would be weather.
-            */}
-            <View style={[styles.cap, { backgroundColor: tabBack }]} pointerEvents="none">
-              {account?.avatarUrl && (
-                <>
-                  <Image
-                    source={{ uri: account.avatarUrl }}
-                    style={styles.bleed}
-                    contentFit="cover"
-                    blurRadius={20}
-                    transition={120}
-                  />
-                  <LinearGradient
-                    colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0)']}
-                    locations={[0, 0.5, 1]}
-                    style={styles.shade}
-                  />
-                </>
-              )}
-            </View>
-          </Animated.View>
-        </Animated.View>
+        <HangingTab
+          t={t}
+          avatar={account?.avatarUrl ?? null}
+          initial={initial}
+          lens={lens}
+          scrollY={scrollY}
+          onPress={() => setEditing(true)}
+          label="Change your profile picture"
+        />
       )}
 
       {/*
@@ -1262,104 +1031,20 @@ const styles = StyleSheet.create({
      inside. */
   screen: { flex: 1 },
   /*
-   * 222 rather than 72: the tab's 200 and 22 of clearance under it.
+   * The whole of the tab, and 22 points of clearance under it.
    *
    * The content starts below the tab rather than behind it, because the tab
-   * is opaque and the first thing under it is somebody's name.
+   * is opaque and the first thing under it is somebody's name. Derived rather
+   * than typed: the height is two numbers that can each move, and a literal
+   * here would be the third place to change them.
    */
   scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
-  /*
-   * The tab: flush to the physical top, centred, square above and round below.
-   *
-   * `left: '50%'` rather than `alignSelf`, because the width is animated and a
-   * centring that depends on it would re-measure on every frame of the
-   * retract. That puts the tab's left edge on the middle of the screen; what
-   * brings it back to centre is `tabInset`, which is animated beside the
-   * width rather than held here — see the note on it. A constant margin here
-   * is what made the tab drift left as it narrowed.
-   */
-  tab: {
-    position: 'absolute',
-    top: 0,
-    left: '50%',
-    zIndex: 2,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    overflow: 'hidden',
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  tabFill: { width: '100%', height: '100%' },
-  /*
-   * The ribbon, laid over the top of the picture.
-   *
-   * Absolute rather than a first child, because the picture is the full
-   * height of the tab and this covers part of it. Fixed height, because the
-   * camera does not move.
-   */
-  /*
-   * The camera's strip, and the clip that keeps the bleed inside it.
-   *
-   * It does not retract with the tab: the island is the same height however
-   * far the page has been scrolled, so this is pinned to the top and the
-   * picture below it is what shrinks.
-   */
-  cap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: CAP_H,
-    overflow: 'hidden',
-    zIndex: 1,
-  },
-  /*
-   * The picture's top edge, stretched up to fill the strip.
-   *
-   * Laid out as the picture is — the same width and the same square height —
-   * so `cover` frames it identically and row zero is the same row in both.
-   * The transform then flips it and scales it about its centre; `BLEED_LIFT`
-   * is what puts row zero back on the strip's bottom edge. Listed
-   * translate-then-scale, which React Native applies to a point in the other
-   * order, so the lift is in unscaled points.
-   */
-  bleed: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: PHOTO_H,
-    transform: [{ translateY: BLEED_LIFT }, { scaleY: -BLEED_SCALE }],
-  },
-  /* The shadow the pill sits in, over the whole strip and nothing below it. */
-  shade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  /*
-   * The picture: everything below the strip, and square at rest.
-   *
-   * `bottom: 0` rather than `height: PHOTO_H`, because the tab's height is
-   * animated and the retract has to come out of the picture rather than out
-   * of the camera's strip. At rest `TAB_H - CAP_H` is `PHOTO_H`, which is
-   * `TAB_W`, so the box is square and `cover` trims nothing.
-   */
-  photo: { position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 },
-  tabBlank: { alignItems: 'center', justifyContent: 'center' },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
   cornerRight: { left: undefined, right: 20 },
-  /* What every row keeps, and the header's picture is the only thing exempt
-     from. Named rather than repeated, so "the gutter" stays one number. */
+  /* What every row keeps. Named rather than repeated, so "the gutter" stays
+     one number. */
   gutter: { paddingHorizontal: 20 },
-  /* Settings and `+`, in the two corners, above everything else. */
-  /*
-   * The words and the picture on one line, the words first.
-   *
-   * `paddingLeft` only, and no `justifyContent`: the picture is pushed right by
-   * `who` taking the space rather than by the row spreading its children, which
-   * is what lets it end flush against the screen's edge instead of 20 points
-   * short of it.
-   */
   /*
    * A centred column, not a row with a picture on the end.
    *
@@ -1392,71 +1077,6 @@ const styles = StyleSheet.create({
   friendName: { fontSize: 15.5, fontWeight: '600' },
   friendHandle: { fontSize: 13 },
   friendGo: { fontSize: 20 },
-  /*
-   * A photograph, bled to the edge, at the height of the words beside it.
-   *
-   * 124 × 104, with the left cap rounded to half its height and the right side
-   * square where the screen cuts it off. At 64 a face is a thumbnail; 104 is
-   * about the smallest a photograph of a person is legible at on this screen,
-   * and taking the gutter back is what buys that height without pushing the bio
-   * and the grid down.
-   *
-   * The height is not arbitrary either — the three lines beside it come to
-   * roughly 104 (a 31pt name, a handle at 17 over 3, the counts at 17 over 8),
-   * so the two sides square off against each other rather than the picture
-   * floating beside the first line. `alignItems: 'center'` on the row is the
-   * other half of that.
-   */
-  avatar: {
-    width: 124,
-    height: 104,
-    /*
-     * A rounded corner, not a semicircle.
-     *
-     * It was 52 — half the height — which makes the left edge a perfect arc and
-     * the whole thing a capsule cut in half. That reads as a badge or a pill,
-     * which is a shape for a label rather than for a photograph; at this size
-     * it also eats a visible bite out of whatever is on the left of the
-     * picture, which on a portrait is usually a shoulder.
-     *
-     * 26 is half of that: enough to be obviously rounded and to agree with the
-     * other soft corners on this screen, and not so much that the frame becomes
-     * the subject.
-     */
-    borderTopLeftRadius: 26,
-    borderBottomLeftRadius: 26,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  /*
-   * The letter takes the photograph's shape, bleed and all.
-   *
-   * It kept a 64pt circle in the gutter, on the argument that a flat colour
-   * has nothing to continue past the cut and so reads as a field of colour
-   * rather than a face. That is true of the colour and false of the frame:
-   * what the bleed is actually doing here is telling you what kind of thing
-   * sits in this corner, and a disc in a margin beside a picture that runs off
-   * the edge reads as a different screen rather than as the same one waiting
-   * for a photograph. Somebody with no picture yet should see the shape their
-   * picture will take.
-   *
-   * Same 124 × 104 and the same two radii as `avatar`, so the two are one
-   * outline with different contents — and no `marginRight`, which is what lets
-   * it reach the edge.
-   */
-  avatarBlank: {
-    width: 124,
-    height: 104,
-    borderTopLeftRadius: 26,
-    borderBottomLeftRadius: 26,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Up from 25 with the box it sits in: a letter sized for a 64pt disc is
-     lost in a frame twice the area. */
-  avatarLetter: { fontSize: 38, fontWeight: '700' },
   /*
    * Pulled up against the header above it.
    *

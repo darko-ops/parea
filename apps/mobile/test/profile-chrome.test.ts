@@ -21,6 +21,9 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const PROFILE = read('src/Profile.tsx');
+/* The tab itself, which is its own file now — the same one somebody else's
+   page hangs over theirs. See `HangingTab`. */
+const TAB = read('src/HangingTab.tsx');
 const APP = read('App.tsx');
 const EVENTS = read('src/Events.tsx');
 
@@ -112,7 +115,7 @@ describe('the profile details', () => {
     // can each move, and a literal here would be the third place to change.
     expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
     expect(PROFILE).not.toMatch(/headLower/);
-    expect(PROFILE).toMatch(/const TAB_H = CAP_H \+ PHOTO_H;/);
+    expect(TAB).toMatch(/export const TAB_H = CAP_H \+ PHOTO_H;/);
   });
 });
 
@@ -261,9 +264,9 @@ describe('the tab that hangs from the top', () => {
      * underneath. A picture that scrolled away would be the first row of the
      * content; one that shrinks in place is part of the screen.
      */
-    expect(PROFILE).toMatch(/inputRange: \[0, 170\]/);
-    expect(PROFILE).toMatch(/outputRange: \[TAB_W, TAB_MIN_W\]/);
-    expect(PROFILE).toMatch(/extrapolate: 'clamp'/);
+    expect(TAB).toMatch(/inputRange: \[0, 170\]/);
+    expect(TAB).toMatch(/outputRange: \[TAB_W, TAB_MIN_W\]/);
+    expect(TAB).toMatch(/extrapolate: 'clamp'/);
   });
 
   it('retracts to the island’s band plus a little picture', () => {
@@ -273,9 +276,9 @@ describe('the tab that hangs from the top', () => {
      * photograph — and the scrim over that band is pinned to the top rather
      * than laid out above the picture, so it does not retract with it.
      */
-    expect(PROFILE).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
-    expect(PROFILE).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
-    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
+    expect(TAB).toMatch(/outputRange: \[TAB_H, CAP_H \+ PHOTO_MIN\]/);
+    expect(TAB).toMatch(/cap: \{\s*position: 'absolute',\s*top: 0,\s*left: 0,\s*right: 0,\s*height: CAP_H,/);
+    expect(TAB).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
   });
 
   it('starts the picture where the camera stops, and shows all of it', () => {
@@ -291,13 +294,13 @@ describe('the tab that hangs from the top', () => {
      * is not touching it. Below that, the square the picker actually returns,
      * drawn whole: `PHOTO_H` is `TAB_W`, so `cover` trims nothing.
      */
-    expect(PROFILE).toMatch(/const CAP_H = 56;/);
-    expect(PROFILE).toMatch(/const TAB_W = 172;/);
-    expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
+    expect(TAB).toMatch(/const CAP_H = 56;/);
+    expect(TAB).toMatch(/const TAB_W = 172;/);
+    expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
-    expect(PROFILE).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
+    expect(TAB).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);
     // And no corner on the image to announce a frame.
-    expect(PROFILE).not.toMatch(/borderTopLeftRadius: 14/);
+    expect(TAB).not.toMatch(/borderTopLeftRadius: 14/);
   });
 
   it('fills the camera’s strip from the picture, and shades it', () => {
@@ -314,22 +317,22 @@ describe('the tab that hangs from the top', () => {
      * stops dead at its own edge, which is a seam — the reason the cover's
      * glass covers a whole header or nothing.
      */
-    expect(PROFILE).toMatch(/const BLEED = 10;/);
-    expect(PROFILE).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
-    expect(PROFILE).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
-    expect(PROFILE).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
-    expect(PROFILE).toMatch(/blurRadius=\{20\}/);
-    expect(PROFILE).toMatch(
+    expect(TAB).toMatch(/const BLEED = 10;/);
+    expect(TAB).toMatch(/const BLEED_SCALE = CAP_H \/ BLEED;/);
+    expect(TAB).toMatch(/const BLEED_LIFT = CAP_H - \(\(1 \+ BLEED_SCALE\) \* PHOTO_H\) \/ 2;/);
+    expect(TAB).toMatch(/transform: \[\{ translateY: BLEED_LIFT \}, \{ scaleY: -BLEED_SCALE \}\]/);
+    expect(TAB).toMatch(/blurRadius=\{20\}/);
+    expect(TAB).toMatch(
       /colors=\{\['rgba\(0,0,0,0\.5\)', 'rgba\(0,0,0,0\.3\)', 'rgba\(0,0,0,0\)'\]\}/,
     );
-    expect(PROFILE).toMatch(/locations=\{\[0, 0\.5, 1\]\}/);
+    expect(TAB).toMatch(/locations=\{\[0, 0\.5, 1\]\}/);
     // The comment by `shade` says why; this is that there is no import.
-    expect(code(PROFILE)).not.toMatch(/BlurView/);
+    expect(code(TAB)).not.toMatch(/BlurView/);
     // The strip clips the bleed, or the whole picture would be drawn twice.
-    expect(PROFILE).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
+    expect(TAB).toMatch(/height: CAP_H,\s*overflow: 'hidden',/);
     // And both only over a photograph: a letter on a flat colour is quiet
     // already, and a shadow across the top of it would be weather.
-    expect(PROFILE).toMatch(/\{account\?\.avatarUrl && \(\s*<>/);
+    expect(TAB).toMatch(/\{avatar && \(\s*<>/);
   });
 
   it('keeps its two animations on two nodes', () => {
@@ -338,19 +341,31 @@ describe('the tab that hangs from the top', () => {
      * entrance is a transform and runs natively. On one view React Native
      * refuses the pair outright — so the outer view carries the size and the
      * inner one carries the drop.
+     *
+     * The JS-driven half is fed from the page below, because the scroll view
+     * belongs to the page. Both screens that hang a tab say so the same way.
      */
-    expect(PROFILE).toMatch(/useNativeDriver: false,/);
-    const tab = PROFILE.slice(PROFILE.indexOf('{account !== undefined && ('));
-    const outer = tab.slice(0, tab.indexOf('<Pressable'));
+    for (const screen of [PROFILE, read('src/Person.tsx')]) {
+      expect(screen).toMatch(/useNativeDriver: false,/);
+      expect(screen).toMatch(/scrollEventThrottle=\{16\}/);
+      expect(screen).toMatch(/scrollY=\{scrollY\}/);
+    }
+    const outer = TAB.slice(TAB.indexOf('<Animated.View'), TAB.indexOf('styles.photo'));
     expect(outer).toMatch(/width: tabWidth, marginLeft: tabInset, height: tabHeight/);
     expect(outer).toMatch(/translateY: drop\.interpolate/);
   });
 
-  it('drops once, not on every return to the tab', () => {
-    // `active` flips whenever somebody comes back, and a screen that replays
-    // its entrance every time is one that never settles.
-    expect(PROFILE).toMatch(/const dropped = useRef\(false\);/);
-    expect(PROFILE).toMatch(/if \(account === undefined \|\| dropped\.current\) return;/);
+  it('drops once, not on every return to the page', () => {
+    /*
+     * A screen that replays its entrance every time somebody comes back is
+     * one that never settles. The latch used to be a ref, because the tab
+     * lived inside a screen that outlives every visit; it is the mount now,
+     * because the tab is not drawn at all until there is a face to put in it
+     * and is not taken down again while the page is alive.
+     */
+    expect(TAB).toMatch(/Animated\.spring\(drop,/);
+    expect(TAB).toMatch(/\}, \[drop\]\);/);
+    expect(TAB).not.toMatch(/dropped/);
   });
 
   it('stays centred while it narrows', () => {
@@ -365,18 +380,22 @@ describe('the tab that hangs from the top', () => {
      * same `TAB_MIN_W`, so the two cannot disagree. Still not `alignSelf`,
      * which would depend on the animated width and re-measure every frame.
      */
-    expect(PROFILE).toMatch(/left: '50%',\s*zIndex: 2,/);
-    expect(PROFILE).not.toMatch(/marginLeft: -TAB_W \/ 2,/);
-    expect(PROFILE).toMatch(/const TAB_MIN_W = TAB_W - 56;/);
-    expect(PROFILE).toMatch(
+    expect(TAB).toMatch(/left: '50%',\s*zIndex: 2,/);
+    expect(TAB).not.toMatch(/marginLeft: -TAB_W \/ 2,/);
+    expect(TAB).toMatch(/const TAB_MIN_W = TAB_W - 56;/);
+    expect(TAB).toMatch(
       /const tabInset = k\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[-TAB_W \/ 2, -TAB_MIN_W \/ 2\] \}\);/,
     );
   });
 
-  it('draws nothing until there is an account to draw', () => {
-    // An empty tab dropping in before there is anything to put in it is the
-    // page arriving twice.
-    expect(PROFILE).toMatch(/\{account !== undefined && \(/);
+  it('draws nothing until there is somebody to draw', () => {
+    /*
+     * An empty tab dropping in before there is anything to put in it is the
+     * page arriving twice. The gate is the page's, not the tab's — which is
+     * also what makes the mount the tab's own latch for its entrance.
+     */
+    expect(PROFILE).toMatch(/\{account !== undefined && \(\s*<HangingTab/);
+    expect(read('src/Person.tsx')).toMatch(/if \(!person\) \{/);
   });
 });
 
@@ -387,8 +406,8 @@ describe('the tab is one object', () => {
      * photograph to show: somebody whose picture has not decoded yet, and
      * somebody who has not set one. A tab that is two colours is two objects.
      */
-    expect(PROFILE).toMatch(/const tabBack = account\?\.avatarUrl \? t\.line : lens\.fill;/);
-    expect(PROFILE).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
-    expect(PROFILE).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
+    expect(TAB).toMatch(/const tabBack = avatar \? t\.line : lens\.fill;/);
+    expect(TAB).toMatch(/styles\.cap, \{ backgroundColor: tabBack \}/);
+    expect(TAB).toMatch(/styles\.photo, \{ backgroundColor: tabBack \}/);
   });
 });

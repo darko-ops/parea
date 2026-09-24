@@ -154,26 +154,48 @@ describe('the header picture', () => {
     fileURLToPath(new URL('../src/Profile.tsx', import.meta.url).href),
     'utf8',
   );
+  const PERSON = readFileSync(
+    fileURLToPath(new URL('../src/Person.tsx', import.meta.url).href),
+    'utf8',
+  );
+  const TAB = readFileSync(
+    fileURLToPath(new URL('../src/HangingTab.tsx', import.meta.url).href),
+    'utf8',
+  );
 
-  it('is 124 by 104, rounded on the left and square on the right', () => {
+  it('leaves nothing of the frame that bled off the side', () => {
     /*
-     * The left radius was 52 — half the height, so a perfect arc and the whole
-     * thing a capsule cut in half. That reads as a badge rather than a
-     * photograph, and at this size it takes a visible bite out of whatever is
-     * on the left of the picture, which on a portrait is usually a shoulder.
+     * 124 × 104, rounded on the left and square where the screen cut it off:
+     * the shape this screen wore before the tab, and the shape somebody
+     * else's page was still wearing a release after it.
      *
-     * What the shape has to keep is the asymmetry: rounded where it starts,
-     * square where the screen cuts it off. That is what makes it a photograph
-     * continuing past the edge rather than a badge sitting near one — so the
-     * assertion is on the pattern, and the amount is free to be tuned.
+     * The style outlived its last caller on the profile, which is the failure
+     * mode worth a test — a dead block that compiles, keeps its comment, and
+     * is the thing somebody edits when they mean to change the picture.
      */
-    expect(PROFILE).toMatch(
-      /avatar: \{\s*width: 124,\s*height: 104,(?:\s*\/\*[\s\S]*?\*\/)?\s*borderTopLeftRadius: (\d+),\s*borderBottomLeftRadius: \1,\s*borderTopRightRadius: 0,\s*borderBottomRightRadius: 0,/,
-    );
-    const radius = Number(PROFILE.match(/borderTopLeftRadius: (\d+),\s*borderBottomLeftRadius:/)?.[1]);
-    // Rounded at all, and short of the semicircle it was.
-    expect(radius).toBeGreaterThan(0);
-    expect(radius).toBeLessThan(52);
+    for (const source of [PROFILE, PERSON]) {
+      expect(source).not.toMatch(/avatar: \{\s*width: 124,/);
+      expect(source).not.toMatch(/avatarBlank|avatarLetter/);
+    }
+  });
+
+  it('is one tab, drawn by both the pages that have a face on them', () => {
+    /*
+     * Your own profile and somebody else's are the same kind of page, and the
+     * numbers below the tab are a phone's measurements rather than anybody's
+     * taste — a second set of them is how the same face comes to hang
+     * differently depending on whose it is.
+     */
+    expect(PROFILE).toMatch(/import \{ HangingTab, TAB_H \} from '\.\/HangingTab'/);
+    expect(PERSON).toMatch(/import \{ HangingTab, TAB_H \} from '\.\/HangingTab'/);
+    for (const source of [PROFILE, PERSON]) {
+      expect(source).toMatch(/<HangingTab/);
+      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+    }
+    // Yours opens the editor; theirs is a photograph. A control that does
+    // nothing is one somebody presses to find out it does nothing.
+    expect(PROFILE).toMatch(/label="Change your profile picture"/);
+    expect(PERSON).not.toMatch(/onPress=\{[^}]*\}\s*label=/);
   });
 
   it('hangs from the top edge rather than bleeding off the side', () => {
@@ -184,12 +206,12 @@ describe('the header picture', () => {
      * top now, centred, and nothing is exempt. The gutter stays on the
      * children because the rows below still want it.
      */
-    expect(PROFILE).toMatch(/tab: \{\s*position: 'absolute',\s*top: 0,\s*left: '50%',/);
+    expect(TAB).toMatch(/tab: \{\s*position: 'absolute',\s*top: 0,\s*left: '50%',/);
     // And centred by an animated margin rather than a constant one, so it
     // stays centred while it narrows — see `tabInset`.
-    expect(PROFILE).toMatch(/marginLeft: tabInset/);
+    expect(TAB).toMatch(/marginLeft: tabInset/);
     // Square at the top, round at the bottom: a tab pulled down, not a card.
-    expect(PROFILE).toMatch(/borderBottomLeftRadius: 28,\s*borderBottomRightRadius: 28,/);
+    expect(TAB).toMatch(/borderBottomLeftRadius: 28,\s*borderBottomRightRadius: 28,/);
     expect(PROFILE).toMatch(/gutter: \{ paddingHorizontal: 20 \}/);
   });
 
@@ -212,12 +234,12 @@ describe('the header picture', () => {
      * somebody with no picture sees the shape their picture will take — only
      * the shape has.
      */
-    expect(PROFILE).toMatch(/tabBlank: \{ alignItems: 'center', justifyContent: 'center' \}/);
+    expect(TAB).toMatch(/tabBlank: \{ alignItems: 'center', justifyContent: 'center' \}/);
     // The lens is on the tab now rather than on the letter's box — see
     // `tabBack`, which is what keeps the cap and the panel one colour.
-    expect(PROFILE).toMatch(/styles\.tabFill, styles\.tabBlank\]/);
-    expect(PROFILE).toMatch(/: lens\.fill;/);
-    expect(PROFILE).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
+    expect(TAB).toMatch(/styles\.tabFill, styles\.tabBlank\]/);
+    expect(TAB).toMatch(/: lens\.fill;/);
+    expect(TAB).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
   });
 
   it('draws the crop in a box the shape of the crop', () => {
@@ -233,14 +255,14 @@ describe('the header picture', () => {
      * has always cropped.
      */
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
-    expect(PROFILE).toMatch(/const PHOTO_H = TAB_W;/);
-    expect(PROFILE).toMatch(/const TAB_W = 172;/);
+    expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
+    expect(TAB).toMatch(/const TAB_W = 172;/);
   });
 
   it('grows the letter with the box it is now in', () => {
-    // It is the 124 × 104 frame now, not a 64pt disc — and a letter sized for
-    // the disc is lost in a frame with twice the area.
-    expect(PROFILE).toMatch(/avatarLetter: \{ fontSize: 38, fontWeight: '700' \}/);
+    // It is the tab now, not a 64pt disc — and a letter sized for the disc is
+    // lost in a frame several times the area.
+    expect(TAB).toMatch(/letter: \{ fontSize: 38, fontWeight: '700' \}/);
   });
 });
 
@@ -313,7 +335,7 @@ describe('a link on a profile', () => {
      */
     const counts = PROFILE.indexOf('styles.counts');
     const link = PROFILE.indexOf('accessibilityRole="link"');
-    const bio = PROFILE.indexOf('styles.bio, styles.gutter');
+    const bio = PROFILE.indexOf('styles.bio,');
     expect(counts).toBeGreaterThan(-1);
     expect(link).toBeGreaterThan(counts);
     expect(bio).toBeGreaterThan(link);

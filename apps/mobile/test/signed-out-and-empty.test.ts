@@ -216,14 +216,18 @@ describe('Find says less', () => {
 });
 
 describe('the profile, with no picture on it', () => {
-  it('draws the frame the picture will take, bleed and all', () => {
-    // Not a disc in the gutter: the two are one outline with different
-    // contents. `profile.test.ts` holds the numbers.
-    const blank = PROFILE.slice(PROFILE.indexOf('avatarBlank: {'));
-    const box = blank.slice(0, blank.indexOf('}'));
-    expect(box).toMatch(/width: 124/);
-    expect(box).toMatch(/height: 104/);
-    expect(box).not.toMatch(/borderRadius: 32|marginRight/);
+  it('draws the frame the picture will take, whole', () => {
+    /*
+     * Not a disc in a gutter beside the words: the letter fills the tab the
+     * photograph would fill, so a page without a picture is the same page as
+     * a page with one. The shape belongs to the slot, not to what happens to
+     * be in it — and the tab is one file, so this is the same for somebody
+     * else's page as for your own. `profile.test.ts` holds the numbers.
+     */
+    const TAB = read('src/HangingTab.tsx');
+    expect(TAB).toMatch(/styles\.tabFill, styles\.tabBlank\]/);
+    expect(TAB).toMatch(/tabFill: \{ width: '100%', height: '100%' \}/);
+    expect(PROFILE).not.toMatch(/avatarBlank/);
   });
 
   it('gives both halves of the row the same outline', () => {
