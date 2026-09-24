@@ -1,54 +1,67 @@
 /**
  * The picture on a shared link's card.
  *
- * The mark and the wordmark, and deliberately nothing about the event — no
+ * The icon and the wordmark, and deliberately nothing about the event — no
  * name, no caption, no photograph. Whatever is in this image is handed to
  * anything that fetches the URL, and unlike the title it is a *picture*, which
  * is the thing this product exists to keep between the people who were there.
  * Same image for every link, so there is nothing in it to leak.
  *
+ * ## It is the app icon's surface now
+ *
+ * It was the pale mark on white: correct as a drawing, and the reason the card
+ * looked like nothing at all in a list of link previews, which is exactly where
+ * a card is seen. A preview sits among other people's previews and is the size
+ * of a thumbnail, so it competes the way an app icon on a home screen competes,
+ * and the product already had an answer for that — the field the phone's icon
+ * carries. So the background is that field, and the mark on it is the icon's
+ * own: three circles punched white out of the colour under `evenodd`, rather
+ * than the seven pale fills the page version paints.
+ *
  * ## It was a fourth drawing of the mark, and it disagreed with the other three
  *
- * The file said the geometry was "the same six numbers as `app/icon.svg`", and
- * the *geometry* was. Everything else was its own: three flat circles at 72%
- * alpha in colours appearing nowhere else in the product, letting the browser
- * composite the overlaps. That is exactly what `icon.svg` argues against —
- * alpha decides those four regions for us, and the one place the design wants
- * warmth comes out muddy. It also softened every edge, which is the thing that
- * made the mark look fragile.
- *
- * So it is the real drawing now: one SVG, built from `Mark.tsx`'s own numbers
- * and fills, with the seven regions painted explicitly and no transparency
- * anywhere. `brand.test.ts` checks this file against the others, which it
- * never did — which is how three copies drifted into four.
+ * Worth keeping the history, because it is why the gradient is mirrored into
+ * `appIcon.ts` and compared in a test rather than trusted. This file used to
+ * carry three flat circles at 72% alpha in colours that appeared nowhere else
+ * in the product, with a comment claiming it was "the same six numbers as
+ * `app/icon.svg`". The geometry was; everything else was its own, and nobody
+ * noticed for months, because a link card is the one surface a developer never
+ * looks at.
  *
  * Cached hard: it never changes, and every unfurl of every link asks for it.
  */
 
 import { ImageResponse } from 'next/og';
 
-import { markSvg } from '@/../app/components/Mark';
+import { fieldSvg, symbolSvg } from '@/appIcon';
 
 export const runtime = 'nodejs';
 
-/**
- * How big the mark is drawn, in a 640px square.
- *
- * The artwork carries its own margin inside the 1024 viewBox, so this is the
- * whole box rather than the circles — 400 leaves the wordmark room underneath
- * and the frame a margin around both.
- */
-const SIZE = 400;
+/** The card. Square, because iMessage crops a wide image to a square
+    thumbnail and the mark is the one thing in here that must not be cropped. */
+const BOX = 640;
 
 /**
- * The mark as a data URI, because Satori has no `clipPath`.
+ * How big the mark is drawn.
  *
- * `next/og` lays out a subset of CSS and rasterises SVG through resvg, which
- * does support clipping — so handing it the finished SVG gets the real mark,
- * where drawing it as positioned `<div>`s could only ever get three circles
- * and whatever alpha compositing made of them.
+ * Smaller than the icon's own proportion, because the icon has nothing under
+ * it and this has a word. 300 in 640 leaves the wordmark its line and the pair
+ * of them a margin, and keeps the mark and the word closer in size than the
+ * icon's margin would allow.
  */
-const MARK = `data:image/svg+xml;utf8,${encodeURIComponent(markSvg(SIZE))}`;
+const MARK = 300;
+
+/*
+ * Both handed over as data URIs rather than drawn as elements.
+ *
+ * `next/og` lays out a subset of CSS with Satori and rasterises SVG through
+ * resvg. Six stacked radial gradients and an even-odd fill are both things
+ * resvg draws exactly and Satori's CSS subset does not, so the way to get the
+ * real field and the real mark is to hand over finished SVG documents and let
+ * the rasteriser do what it is good at.
+ */
+const FIELD = `data:image/svg+xml;utf8,${encodeURIComponent(fieldSvg(BOX))}`;
+const SYMBOL = `data:image/svg+xml;utf8,${encodeURIComponent(symbolSvg(MARK))}`;
 
 export function GET() {
   return new ImageResponse(
@@ -58,28 +71,46 @@ export function GET() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 40,
-          background: '#ffffff',
+          // Under the field, so a renderer that fails to fetch the data URI
+          // gets the icon's own base colour rather than a white card with a
+          // word floating on it.
+          background: '#173EA8',
           fontFamily: 'sans-serif',
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={MARK} width={SIZE} height={SIZE} alt="" />
-        {/*
-          Lowercase, and tracked in rather than out. `PAREA` at +12 read as an
-          institution — an architecture practice, or something with a quarterly
-          report — and spacing the letters apart is the opposite of what the
-          mark beside it means. Negative tracking at this size, matching the
-          `.wordmark` rule the site uses.
-        */}
-        <div style={{ fontSize: 84, letterSpacing: -1.7, color: '#14171c' }}>parea</div>
+        <img
+          src={FIELD}
+          width={BOX}
+          height={BOX}
+          alt=""
+          style={{ position: 'absolute', top: 0, left: 0 }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 28,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={SYMBOL} width={MARK} height={MARK} alt="" />
+          {/*
+            Lowercase, and tracked in rather than out. `PAREA` at +12 read as
+            an institution — an architecture practice, or something with a
+            quarterly report — and spacing the letters apart is the opposite of
+            what the mark above it means. Negative tracking at this size,
+            matching the `.wordmark` rule the site uses.
+
+            White, like the mark, because on this field there is one ink.
+          */}
+          <div style={{ fontSize: 84, letterSpacing: -1.7, color: '#ffffff' }}>parea</div>
+        </div>
       </div>
     ),
-    // Square. iMessage crops a wide image to a square thumbnail and the mark
-    // is the one thing in here that must not be cropped.
-    { width: 640, height: 640 },
+    { width: BOX, height: BOX },
   );
 }

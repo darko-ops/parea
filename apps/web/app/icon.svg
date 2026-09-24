@@ -1,60 +1,35 @@
 <!--
-  The app icon: three photo sets from three people, overlapping into one.
+  The app icon, and the tab shows what the home screen shows.
 
-  Kept as vector because it is drawn from six numbers, and because every raster
-  the stores want is a different size. `npm run icons` re-renders them all from
-  this file; nothing under assets/ should be edited by hand.
+  It was the pale mark on white — the other drawing, the one `Mark.tsx`
+  renders inline on a page — so the icon on somebody's phone and the icon in
+  their tab strip were two different logos of one product.
 
-  The overlaps are painted explicitly rather than produced by transparency. A
-  blend mode would decide those four colours for us, and multiply in particular
-  turns the pink-over-mint lens into a muddy neutral — the one region where the
-  design wants warmth. Each region is its own fill, so each is a choice.
-
-  Geometry: three circles of radius 200, centres 132 from a point at 120°
-  apart, first one straight up. That is the whole design.
-
-  The ratio of those two numbers is the only thing here worth being careful
-  about. At 0.66 the three circles meet in a curved triangle big enough to be
-  a shape in its own right — which is the subject, everyone who was there.
-  Spread them and it collapses to a sliver; the icon still reads as three
-  circles and stops meaning anything.
-
-  It was 184 over 134, a ratio of 0.73, and both numbers moved for the same
-  complaint: at 16 and 24px the mark nearly disappeared. Bigger circles and a
-  tighter overlap put more colour on the screen and make the centre triangle —
-  the part that carries the meaning — a shape you can still see at the size a
-  sidebar draws it.
-
-  The palette moved with it: every one of the seven fills gained 18% chroma in
-  OKLCH, hue and lightness held, so this is the same drawing turned up rather
-  than a different set of colours. The pink was the exception and is worth
-  recording — it already sat on the sRGB boundary at its old lightness, so the
-  only way for it to become more colourful was to become slightly less pale.
+  Mirrored from `appIcon.ts`, which is mirrored from
+  `assets/branding/parea-icon-dark-refined.svg`, which is generated from three
+  numbers by `scripts/build-icon.mjs`. Nothing here is edited by hand:
+  `brand.test.ts` compares all three, so a hand edit fails rather than
+  quietly leaving the website one revision behind the phone.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    <clipPath id="pink"><circle cx="512" cy="400" r="200"/></clipPath>
-    <clipPath id="blue"><circle cx="398" cy="598" r="200"/></clipPath>
-    <clipPath id="mint"><circle cx="626" cy="598" r="200"/></clipPath>
-  </defs>
-
-  <!-- Full bleed and fully opaque: iOS rounds the corners itself, and App
-       Store Connect rejects an icon with an alpha channel. -->
-  <rect width="1024" height="1024" fill="#ffffff"/>
-
-  <circle cx="512" cy="400" r="200" fill="#ffa6ad"/>
-  <circle cx="398" cy="598" r="200" fill="#99b1fa"/>
-  <circle cx="626" cy="598" r="200" fill="#9cdec5"/>
-
-  <g clip-path="url(#blue)"><circle cx="512" cy="400" r="200" fill="#cb96e1"/></g>
-  <g clip-path="url(#mint)"><circle cx="512" cy="400" r="200" fill="#fbb277"/></g>
-  <g clip-path="url(#mint)"><circle cx="398" cy="598" r="200" fill="#61b8c9"/></g>
-
-  <!-- Everyone was there. Drawn last because the three lenses above each
-       cover this region on their way past. -->
-  <g clip-path="url(#blue)">
-    <g clip-path="url(#mint)">
-      <circle cx="512" cy="400" r="200" fill="#a16eb9"/>
-    </g>
-  </g>
+<defs>
+<radialGradient id="gradPink" gradientUnits="userSpaceOnUse" cx="700" cy="40" r="820"><stop offset="0%" stop-color="#F79AB6" stop-opacity="1"/><stop offset="34%" stop-color="#EB78A0" stop-opacity="0.92"/><stop offset="68%" stop-color="#D86196" stop-opacity="0.42"/><stop offset="100%" stop-color="#D86196" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradPurple" gradientUnits="userSpaceOnUse" cx="130" cy="170" r="620"><stop offset="0%" stop-color="#8F46DA" stop-opacity="0.78"/><stop offset="36%" stop-color="#7B39C8" stop-opacity="0.5"/><stop offset="72%" stop-color="#6E35BE" stop-opacity="0.12"/><stop offset="100%" stop-color="#6E35BE" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradBlue" gradientUnits="userSpaceOnUse" cx="80" cy="780" r="780"><stop offset="0%" stop-color="#1337B7" stop-opacity="1"/><stop offset="36%" stop-color="#1945C6" stop-opacity="0.96"/><stop offset="70%" stop-color="#1D49C9" stop-opacity="0.42"/><stop offset="100%" stop-color="#1D49C9" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradCyan" gradientUnits="userSpaceOnUse" cx="520" cy="1040" r="560"><stop offset="0%" stop-color="#25BCE6" stop-opacity="0.92"/><stop offset="38%" stop-color="#21AEDD" stop-opacity="0.68"/><stop offset="72%" stop-color="#1E9FD5" stop-opacity="0.18"/><stop offset="100%" stop-color="#1E9FD5" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradSeam" gradientUnits="userSpaceOnUse" cx="1010" cy="330" r="640"><stop offset="0%" stop-color="#7D37CC" stop-opacity="0.62"/><stop offset="45%" stop-color="#7D37CC" stop-opacity="0.5"/><stop offset="86%" stop-color="#7D37CC" stop-opacity="0"/></radialGradient>
+<radialGradient id="gradTeal" gradientUnits="userSpaceOnUse" cx="1030" cy="760" r="760"><stop offset="0%" stop-color="#66E7C6" stop-opacity="0.95"/><stop offset="34%" stop-color="#46D8C1" stop-opacity="0.84"/><stop offset="70%" stop-color="#39CDBD" stop-opacity="0.34"/><stop offset="100%" stop-color="#39CDBD" stop-opacity="0"/></radialGradient>
+</defs>
+<g id="field">
+<rect width="1024" height="1024" fill="#173EA8"/>
+<rect width="1024" height="1024" fill="url(#gradPink)"/>
+<rect width="1024" height="1024" fill="url(#gradPurple)"/>
+<rect width="1024" height="1024" fill="url(#gradBlue)"/>
+<rect width="1024" height="1024" fill="url(#gradCyan)"/>
+<rect width="1024" height="1024" fill="url(#gradSeam)"/>
+<rect width="1024" height="1024" fill="url(#gradTeal)"/>
+</g>
+<g id="mark">
+<path d="M330 396.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0ZM444.32 594.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0ZM215.68 594.5a182 182 0 1 0 364 0a182 182 0 1 0 -364 0Z" fill="#FFFFFF" fill-rule="evenodd"/>
+</g>
 </svg>

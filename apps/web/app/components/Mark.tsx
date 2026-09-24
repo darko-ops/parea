@@ -5,18 +5,24 @@
  * fewer, and because a mark that renders before the stylesheet does is a mark
  * that never flashes.
  *
- * The geometry is the same as `apps/mobile/assets/icon.svg` and `app/icon.svg`
- * and is *checked* against both — see `brand.test.ts`. Four drawings of the
- * same logo drifting apart is not a thing anyone notices until the app icon
- * and the website disagree in a screenshot; it had already happened once, in
- * the link-preview image, which had invented its own colours.
+ * This is the *pale* mark, which is one of the product's two drawings — the
+ * other being the app icon, a white even-odd cutout on a gradient field, which
+ * `appIcon.ts` holds and which the favicon and the link-preview card wear. The
+ * split is deliberate: this one is drawn at 22 to 48px on a white page, where
+ * the icon would have to arrive as a badge with its own corners in the middle
+ * of a sheet of white.
  *
- * Two deliberate differences from the app icon. There is no background rect:
- * iOS requires a fully opaque square and rejects alpha, while on a page the
- * mark should sit on whatever is behind it. And the overlaps are painted as
- * explicit regions rather than produced by a blend mode, which is the icon's
- * reasoning too — multiply turns the pink-over-mint lens muddy, and that lens
- * is the one place the design wants warmth.
+ * The geometry is the same as the native mark's and is *checked* against it —
+ * see `brand.test.ts`. Drawings of one logo drifting apart is not a thing
+ * anyone notices until two of them meet in a screenshot; it had already
+ * happened once, in the link-preview image, which had invented its own
+ * colours while claiming in a comment to share these numbers.
+ *
+ * There is no background rect, unlike the icon: iOS requires a fully opaque
+ * square and rejects alpha, while on a page the mark should sit on whatever is
+ * behind it. And the overlaps are painted as explicit regions rather than
+ * produced by a blend mode — multiply turns the pink-over-mint lens muddy, and
+ * that lens is the one place the design wants warmth.
  */
 
 /**
@@ -109,57 +115,4 @@ export function Mark({ size = 22 }: { size?: number }) {
       </g>
     </svg>
   );
-}
-
-/**
- * The same mark as a standalone SVG document.
- *
- * For the link-preview image, which is rasterised by Satori and cannot lay out
- * a `clipPath` — so the only way it gets the real mark rather than three flat
- * circles is to be handed a finished SVG that resvg draws. Built from the
- * constants above so there is one set of numbers and one set of fills; the
- * element order is the only thing that could drift, and `brand.test.ts`
- * compares the output against the component and both icon files.
- *
- * Ids are prefixed so this can never collide with the inline component's, in
- * case anything ever renders both into one document.
- */
-export function markSvg(size: number): string {
-  const [pink, blue, mint] = MARK_CENTRES;
-  const circle = (c: { cx: number; cy: number }, fill: string) =>
-    `<circle cx="${c.cx}" cy="${c.cy}" r="${MARK_R}" fill="${fill}"/>`;
-
-  /*
-   * Cropped to the artwork, unlike every other copy.
-   *
-   * The 1024 canvas carries a margin the store icons need — iOS rounds the
-   * corners itself — and that the page's inline mark inherits harmlessly,
-   * because it is laid out beside a word at the same scale. Here it is
-   * baked into an image with a fixed box, so the margin becomes a gap between
-   * the mark and the wordmark under it and the mark reads smaller than the
-   * word it belongs to.
-   *
-   * Square, taking the wider of the two dimensions, so the circles stay
-   * circles: the artwork is 628 across and 598 tall, and stretching it to fill
-   * a square box would be the one distortion nobody would forgive.
-   */
-  const left = blue.cx - MARK_R;
-  const span = mint.cx + MARK_R - left;
-  const top = (pink.cy - MARK_R + (blue.cy + MARK_R)) / 2 - span / 2;
-
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${left} ${top} ${span} ${span}">`,
-    '<defs>',
-    `<clipPath id="og-blue"><circle cx="${blue.cx}" cy="${blue.cy}" r="${MARK_R}"/></clipPath>`,
-    `<clipPath id="og-mint"><circle cx="${mint.cx}" cy="${mint.cy}" r="${MARK_R}"/></clipPath>`,
-    '</defs>',
-    circle(pink, MARK_FILLS.pink),
-    circle(blue, MARK_FILLS.blue),
-    circle(mint, MARK_FILLS.mint),
-    `<g clip-path="url(#og-blue)">${circle(pink, MARK_FILLS.pinkOnBlue)}</g>`,
-    `<g clip-path="url(#og-mint)">${circle(pink, MARK_FILLS.pinkOnMint)}</g>`,
-    `<g clip-path="url(#og-mint)">${circle(blue, MARK_FILLS.blueOnMint)}</g>`,
-    `<g clip-path="url(#og-blue)"><g clip-path="url(#og-mint)">${circle(pink, MARK_FILLS.centre)}</g></g>`,
-    '</svg>',
-  ].join('');
 }
