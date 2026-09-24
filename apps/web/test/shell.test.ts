@@ -420,6 +420,30 @@ describe('the name of the page', () => {
   });
 });
 
+describe('how wide a page is', () => {
+  const CSS = read(join(APP, 'globals.css'));
+
+  it('gives every page the width Home has', () => {
+    /*
+     * Three pages were capped at 820 — Notifications, Groupchats and Find —
+     * which on a 1400px screen is a column with a third of the screen empty
+     * beside it, while Home fills the same screen from one row up in the rail.
+     *
+     * Asserted on the containers rather than on a rendered width, because what
+     * went wrong is a declaration: `max-width` on the element that *is* the
+     * page. The measures that are genuinely measures keep theirs, and they are
+     * all prose — an empty day's sentence, an empty shelf's.
+     */
+    for (const page of ['.lately {', '.groups-page {']) {
+      const rule = CSS.slice(CSS.indexOf(page), CSS.indexOf('}', CSS.indexOf(page)));
+      expect(rule, `${page} is capped`).not.toMatch(/max-width/);
+    }
+    expect(CSS).toMatch(/\.find-page \{ width: 100%; \}/);
+    // And the list on the widest of the three, which had a measure of its own.
+    expect(CSS).toMatch(/\.chat-list \{ list-style: none; margin: 0; padding: 0; \}/);
+  });
+});
+
 describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const HOME = read(join(APP, 'components/HomeView.tsx'));

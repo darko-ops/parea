@@ -644,8 +644,15 @@ button.secondary {
    day underneath, so "is any of this new?" is answerable without reading the
    times down the right-hand side.
    --------------------------------------------------------------------------- */
+/* The width of the page, like Home's.
+
+   It was capped at 820, which on a 1400px screen is a column of notifications
+   with a third of the screen empty beside it — while Home, one row up in the
+   rail, fills the same screen. Three pages carried that cap and all three have
+   lost it. The measures that are actually measures keep theirs: a sentence
+   explaining an empty day is prose and stops at 460. */
 .lately {
-  flex: 1; min-width: 0; max-width: 820px;
+  flex: 1; min-width: 0;
   padding: 28px 30px 34px; background: var(--page);
 }
 /* Centred, like every other page's name. Nothing in this corner to work
@@ -1309,9 +1316,12 @@ button.secondary {
   background: var(--page);
   padding: 28px 30px 34px;
 }
-/* The measure. Wider than prose and narrower than the grid: two group cards
-   side by side, and a row of person cards that wraps rather than stretches. */
-.find-page { max-width: 820px; width: 100%; }
+/* Full width, like Home's — see `.lately`. It was 820, "wider than prose and
+   narrower than the grid", which is a reasonable measure for a column of cards
+   and the wrong one for the page a whole client is searched from. What is
+   inside it lays itself out: the doors and the faces are already grids that
+   fill whatever they are given. */
+.find-page { width: 100%; }
 .find-greeting { font-size: 13px; color: var(--dim-soft); text-align: center; }
 .find-title {
   font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px;
@@ -2852,8 +2862,9 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    is a way through rather than a thing to weigh up, and a stack of bordered
    boxes would make going into your own group look like an application.
    --------------------------------------------------------------------------- */
+/* Full width, like Home's — see `.lately` for the argument. */
 .groups-page {
-  flex: 1; min-width: 0; max-width: 820px;
+  flex: 1; min-width: 0;
   padding: 28px 30px 34px; background: var(--page);
 }
 /* A row once `New group` is in it: the greeting and title stack on the left,
@@ -2903,7 +2914,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    the page and the list under it is what it acts on. */
 .chat-search {
   display: flex; align-items: center; gap: 8px;
-  max-width: 420px; margin-bottom: 8px; padding: 0 12px; height: 40px;
+  margin-bottom: 8px; padding: 0 12px; height: 40px;
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
   color: var(--dim);
 }
@@ -2920,7 +2931,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .chat-search input:focus-visible { outline: none; border: 0; box-shadow: none; }
 .chat-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
-.chat-list { list-style: none; margin: 0; padding: 0; max-width: 660px; }
+/* No cap. A chat row is a tile, a name, a line of what was said and when, and
+   it has somewhere to put all four at any width — the middle is what grows, so
+   a wider row shows more of the last message rather than more empty space. */
+.chat-list { list-style: none; margin: 0; padding: 0; }
 /* A rule between rows and none under the last: a divider at the foot of a list
    is a line under nothing. */
 .chat-item { display: flex; align-items: center; gap: 4px; }
