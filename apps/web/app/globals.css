@@ -648,7 +648,9 @@ button.secondary {
   flex: 1; min-width: 0; max-width: 820px;
   padding: 28px 30px 34px; background: var(--page);
 }
-.lately-head { margin-bottom: 22px; }
+/* Centred, like every other page's name. Nothing in this corner to work
+   around, so it is the text rather than a grid. */
+.lately-head { margin-bottom: 22px; text-align: center; }
 
 /* One heading treatment for the two sections that have one. Baseline-aligned
    with its count, because the count is part of the phrase rather than a badge
@@ -837,10 +839,24 @@ button.secondary {
    nobody's: the first thing on a page you return to should be the people you
    are returning to, not a label for the page you are on.
    --------------------------------------------------------------------------- */
+/* The name of the page, in the middle of the page.
+
+   Three tracks rather than two, and the two outer ones are equal: with a flex
+   row the title is centred in *what the controls leave*, which puts it a
+   little left of the middle and by a different amount on each page, since each
+   one's corner holds something different. Equal side tracks centre it on the
+   screen, which is what the app's head does and what the rail's own bar does
+   below tablet — the note there makes the same argument.
+
+   The middle track is `auto`, so a long name takes the room it needs and the
+   two sides give it up evenly: it stays centred instead of pushing the
+   controls off the row. */
 .home-head {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; margin-bottom: 18px;
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 16px; margin-bottom: 18px;
 }
+.home-head > :first-child { grid-column: 2; text-align: center; }
+.home-head .home-actions { grid-column: 3; justify-self: end; }
 /* Create and search, together in the corner.
 
    The two things this page lets you do to your own albums, and they were in
@@ -1296,8 +1312,11 @@ button.secondary {
 /* The measure. Wider than prose and narrower than the grid: two group cards
    side by side, and a row of person cards that wraps rather than stretches. */
 .find-page { max-width: 820px; width: 100%; }
-.find-greeting { font-size: 13px; color: var(--dim-soft); }
-.find-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px; }
+.find-greeting { font-size: 13px; color: var(--dim-soft); text-align: center; }
+.find-title {
+  font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px;
+  text-align: center;
+}
 
 /* The box, given the weight of the thing the page is for.
 
@@ -2844,15 +2863,26 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    one thing this page makes in the corner on the right. `flex-start` rather
    than `baseline`, because the left is two lines of type and the right is a
    disc — aligning their baselines hangs the disc off the greeting. */
+/* The same three tracks Home's head has, for the same reason — see there. */
 .groups-head {
-  margin-bottom: 18px; display: flex; align-items: center;
-  justify-content: space-between; gap: 16px;
-  /* The same column the list and the cluster cards are in. Without it the
-     head measures the whole of `.main` and the `+` sits a third of a screen
-     to the right of the rows it makes — a control in the corner of the page
-     rather than in the corner of the thing it belongs to. */
-  max-width: 660px;
+  margin-bottom: 18px; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 16px;
+  /*
+     Full width, where it was capped to the list's 660.
+ 
+     The cap was there so the `+` sat in the corner of the rows it makes rather
+     than in the corner of the page. What it also did, once the title moved to
+     the middle, was centre the title on the *list* — which on an 820px page
+     reads as a heading nudged to the left, and read that way beside Home,
+     Find and Lately, whose names are on the page's own middle.
+ 
+     A title centred on its page is the thing being asked for here, and the
+     control follows it out to the edge. That is where Home's two sit as well,
+     over a grid that is not 820 either.
+  */
 }
+.groups-head > :first-child { grid-column: 2; text-align: center; }
+.groups-head .groups-new { grid-column: 3; justify-self: end; }
 
 .groups-list { list-style: none; margin: 0; padding: 0; }
 .groups-list li + li { border-top: 1px solid var(--row-line); }

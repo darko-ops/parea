@@ -377,6 +377,49 @@ describe('an empty shelf', () => {
   });
 });
 
+describe('the name of the page', () => {
+  const CSS = read(join(APP, 'globals.css'));
+
+  it('sits in the middle of the page, not of what the controls leave', () => {
+    /*
+     * Four pages and four names: Your Parea, Find, Lately, Groupchats.
+     *
+     * The two with a control in the corner use three tracks rather than a flex
+     * row, and the outer two are equal. A flex row centres the title in *what
+     * the controls leave*, which puts it a little off the middle and by a
+     * different amount on each page, because each corner holds something
+     * different — one `+`, or a `+` and a search. Equal side tracks centre it
+     * on the screen, which is what the app's head does and what the rail's own
+     * bar does below tablet.
+     *
+     * The middle track is `auto`, so a long name takes the room it needs and
+     * the two sides give it up evenly rather than the name pushing the
+     * controls off the row.
+     */
+    for (const head of ['.home-head', '.groups-head']) {
+      const rule = CSS.slice(CSS.indexOf(`${head} {`), CSS.indexOf('}', CSS.indexOf(`${head} {`)));
+      expect(rule, `${head} is not a grid`).toMatch(/grid-template-columns: 1fr auto 1fr/);
+    }
+    expect(CSS).toMatch(/\.home-head > :first-child \{ grid-column: 2; text-align: center; \}/);
+    expect(CSS).toMatch(/\.groups-head > :first-child \{ grid-column: 2; text-align: center; \}/);
+    // The two with nothing in the corner are the text, not a grid.
+    expect(CSS).toMatch(/\.lately-head \{[^}]*text-align: center/);
+    expect(CSS).toMatch(/\.find-title \{[^}]*text-align: center/);
+  });
+
+  it('is not centred on something narrower than its page', () => {
+    /*
+     * `.groups-head` was capped to the chat list's 660, so the `+` sat in the
+     * corner of the rows it makes rather than of the page. Once the title moved
+     * to the middle that cap centred it on the *list* — a heading nudged left
+     * on an 820px page, and read that way beside three names on their page's
+     * own middle.
+     */
+    const rule = CSS.slice(CSS.indexOf('.groups-head {'), CSS.indexOf('}', CSS.indexOf('.groups-head {')));
+    expect(rule).not.toMatch(/max-width/);
+  });
+});
+
 describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const HOME = read(join(APP, 'components/HomeView.tsx'));
