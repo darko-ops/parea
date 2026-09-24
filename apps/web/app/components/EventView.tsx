@@ -166,26 +166,21 @@ type Feed = {
  */
 const INGEST_POLLS = 30;
 
-/** The three panes, in the order the header draws them. */
+/**
+ * The four panes, in the order the header draws them.
+ *
+ * Photographs, then the ones you picked out of them, then what was said, then
+ * who was there. Two pairs: the first two are the pictures — all of them, and
+ * your own cut of them — and the second two are the people around them. That
+ * is the order somebody arrives in, and it puts the shortlist next to the
+ * thing it is a shortlist *of* rather than across the row from it.
+ *
+ * Favourites was third, after Thread, which is where a fourth tab lands when
+ * it is simply appended before People. It reads as an afterthought there, and
+ * it separates the two panes that are both grids of the same photographs.
+ */
 const TABS = [
   ['photos', 'Photos', 'photos'],
-  /*
-   * "Thread", and the route is still `?tab=conversation`.
-   *
-   * The same split the rail makes between what a row is called and where it
-   * goes: renaming the id would break every link anybody has already sent to
-   * an event's conversation, and the word on screen is free to change without
-   * that. Thread is what people call this — a run of messages about one thing
-   * — and it is a shorter word in a row of three.
-   */
-  /*
-   * One bubble, where a group's chat carries two.
-   *
-   * The distinction is the app's and it is worth having on both clients: one
-   * is a remark about a thing, which is what an album's comments are, and two
-   * is people going back and forth, which is a room. See `RailIcon`.
-   */
-  ['conversation', 'Thread', 'bubble'],
   /*
    * The shortlist, which is a pass over a list already in hand.
    *
@@ -206,6 +201,21 @@ const TABS = [
    * uses, which is `photo_favourite`.
    */
   ['favourites', 'Favourites', 'star'],
+  /*
+   * "Thread", and the route is still `?tab=conversation`.
+   *
+   * The same split the rail makes between what a row is called and where it
+   * goes: renaming the id would break every link anybody has already sent to
+   * an event's conversation, and the word on screen is free to change without
+   * that. Thread is what people call this — a run of messages about one thing
+   * — and it is a shorter word in a row of four.
+   *
+   * One bubble, where a group's chat carries two. The distinction is the
+   * app's and it is worth having on both clients: one is a remark about a
+   * thing, which is what an album's comments are, and two is people going
+   * back and forth, which is a room. See `RailIcon`.
+   */
+  ['conversation', 'Thread', 'bubble'],
   ['people', 'People', 'groups'],
 ] as const;
 

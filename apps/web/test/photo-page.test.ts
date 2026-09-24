@@ -336,6 +336,24 @@ describe('the Favourites tab', () => {
     expect(EVENT).toMatch(/\['favourites', 'Favourites', 'star'\]/);
   });
 
+  it('sits beside the photographs it is a shortlist of', () => {
+    /*
+     * Photos, Favourites, Thread, People — two pairs. The first two are the
+     * pictures, all of them and your own cut of them; the second two are the
+     * people around them.
+     *
+     * It was third, after Thread, which is where a fourth tab lands when it is
+     * appended before People: it read as an afterthought and it separated the
+     * two panes that are both grids of the same photographs.
+     *
+     * Asserted on the ids, which is what the URLs and `aria-current` are
+     * matched on — a relabelling should not be able to fail this, and a
+     * reordering is what it is for.
+     */
+    const order = [...EVENT.matchAll(/\['(\w+)', '[\w ]+', '\w+'\],/g)].map((m) => m[1]);
+    expect(order).toEqual(['photos', 'favourites', 'conversation', 'people']);
+  });
+
   it('is seeded on the first paint, so it does not open empty and fill', () => {
     // One read, per reader, for the photographs on the page. Without it the
     // tab opens with nothing in it and the shortlist arrives a moment later,
