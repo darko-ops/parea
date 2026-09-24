@@ -452,6 +452,28 @@ describe('the name of the page', () => {
     }
   });
 
+  it('sets it at the greeting\u2019s size, not the name\u2019s', () => {
+    /*
+     * It carried the name's 28 bold for one commit, and that was the wrong
+     * half of the change to keep: the point of dropping the page's name was a
+     * quieter top, and a 28px line reading "Afternoon, Nadia" is the same
+     * weight of furniture wearing better words.
+     *
+     * A greeting is an aside — the product noticing the time of day — and an
+     * aside set larger than the things it is an aside to reads as a headline.
+     *
+     * `font-weight` is in the assertion because these are `h1`s now, and an
+     * `h1` arrives bold whether anybody asked it to or not.
+     */
+    const CSS = read(join(APP, 'globals.css'));
+    for (const title of ['.home-title {', '.find-title {']) {
+      const rule = CSS.slice(CSS.indexOf(title), CSS.indexOf('}', CSS.indexOf(title)));
+      expect(rule, `${title} is not the greeting's size`).toMatch(/font-size: 13px/);
+      expect(rule, `${title} is bold`).toMatch(/font-weight: 400/);
+      expect(rule, `${title} is not the greeting's colour`).toMatch(/color: var\(--dim-soft\)/);
+    }
+  });
+
   it('draws the greeting once, not above itself', () => {
     // The separate small line is gone from all four, and its two classes with
     // it: a rule nothing uses is one somebody reinstates a line for later.

@@ -881,9 +881,22 @@ button.secondary {
    3px of space all the same. The gap is what is left over so the two discs
    are 6px apart the way they look 6px apart. */
 .home-actions { display: flex; align-items: center; gap: 3px; }
-/* No `.home-greeting` any more. The greeting is the heading, so there is no
-   second line above it to style — see `HomeView`. */
-.home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
+/* The greeting, and it is the heading — there is no second line above it any
+   more, so this is the whole of what a page says about itself.
+
+   At the greeting's own size rather than the name's. It carried the name's 28
+   bold for one commit and that was the wrong half of the change to keep: the
+   point of dropping the page's name was a quieter top, and a 28px line saying
+   `Afternoon, Nadia` is the same weight of furniture wearing better words. A
+   greeting is an aside — it is the product noticing the time of day — and an
+   aside set larger than the things it is an aside to reads as a headline.
+
+   `font-weight` explicitly, because this is an `h1` now and an `h1` arrives
+   bold. */
+.home-title {
+  font-size: 13px; font-weight: 400; letter-spacing: 0;
+  color: var(--dim-soft); margin: 2px 0 0;
+}
 
 /* The people you are in events with. Scrolls on a narrow screen rather than
    wrapping to a second row: it is one row of faces, and two rows of them is a
@@ -1323,8 +1336,11 @@ button.secondary {
    inside it lays itself out: the doors and the faces are already grids that
    fill whatever they are given. */
 .find-page { width: 100%; }
+/* The same aside, on Find — see `.home-title`. More room under it, because
+   what follows here is the field the page is for rather than a rule. */
 .find-title {
-  font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px;
+  font-size: 13px; font-weight: 400; letter-spacing: 0;
+  color: var(--dim-soft); margin: 2px 0 14px;
   text-align: center;
 }
 
