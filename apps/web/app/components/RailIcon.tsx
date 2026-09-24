@@ -8,26 +8,30 @@
  * now five rows of similar-length words, and a shape beside each one is what
  * makes it findable without reading.
  *
+ * Every one of them is now the app's. The rail had drawn its own house for
+ * Home and its own envelope for Activity while the app's bar showed a photo
+ * stack and a tray for the same two places — two clients with two pictures of
+ * one product, which is the thing having a shared set was supposed to prevent.
+ * The house and the envelope are gone rather than kept beside their
+ * replacements: an unused glyph is one somebody reaches for later, and then
+ * the two clients disagree again.
+ *
  * All drawn on the same 24-unit grid with the same 2-unit stroke and round
  * caps as `SearchIcon`, because the alternative — an icon set — arrives with
  * its own weight, its own corner radius and its own idea of optical size, and
  * then the one hand-drawn glyph in the product looks like the mistake.
  *
  * Deliberately plain outlines. A filled icon reads as a selected state, and
- * the rail already says which row you are on with a background and a colour.
+ * the rail already says which row you are on twice over — a grey wash behind
+ * it, and the same drawing at half a stroke more. A filled variant would be a
+ * second set of paths to keep in step for a state that is already said.
  */
 
 export type RailGlyph =
-  | 'home'
-  | 'invites'
-  | 'groups'
-  | 'search'
-  | 'profile'
-  | 'settings'
   /*
-   * The three a tab strip needs, ported from the app's `Glyph.tsx` — which
-   * took the rail's own drawings in the first place, so this is the set
-   * coming back rather than a second set arriving.
+   * The app's tab bar, in the same order: Albums, Chats, Find, You. Ported
+   * from its `Glyph.tsx` — which took the rail's own drawings in the first
+   * place, so this is the set coming back rather than a second set arriving.
    *
    * `bubble` against `bubbles` is the distinction that makes them worth
    * having: one is a remark about a thing, which is an album's comments, and
@@ -37,7 +41,15 @@ export type RailGlyph =
    */
   | 'photos'
   | 'bubble'
-  | 'bubbles';
+  | 'bubbles'
+  | 'search'
+  | 'profile'
+  /* Notifications, and the one the web has that the app's bar does not. */
+  | 'tray'
+  | 'groups'
+  | 'settings'
+  /* Create. The app's own `+`, in the app's own round chrome. */
+  | 'plus';
 
 export function RailIcon({
   glyph,
@@ -68,14 +80,6 @@ export function RailIcon({
       aria-hidden="true"
       focusable="false"
     >
-      {glyph === 'home' && (
-        // A roof and a wall. Not a house with a door and a chimney: at 18px
-        // the door is three pixels and reads as dirt on the screen.
-        <>
-          <path d="M3.5 10.5 12 4l8.5 6.5" />
-          <path d="M5.5 9.5V20h13V9.5" />
-        </>
-      )}
       {glyph === 'photos' && (
         /* A photograph behind a photograph, which is what an album is — the
            frame is the stack and the picture inside it is the one on top. The
@@ -105,12 +109,19 @@ export function RailIcon({
           <path d="M4 8h10a2.5 2.5 0 0 1 2.5 2.5v5A2.5 2.5 0 0 1 14 18H8l-4 3.5 1-3.5H4a2.5 2.5 0 0 1-2.5-2.5v-5A2.5 2.5 0 0 1 4 8z" />
         </>
       )}
-      {glyph === 'invites' && (
-        // An envelope, because what arrives here is somebody asking you to
-        // something — the same shape the world already uses for that.
+      {glyph === 'tray' && (
+        /*
+         * An in-tray: a box with a lip, and a notch in the lip where
+         * something drops through. The app's own drawing — and the reason it
+         * beats the envelope that was here is that the row stopped being
+         * about invitations. What lands on it now is a friend request, a
+         * reply, a photograph somebody added to your album; an envelope says
+         * one of those and a tray says "things arrived", which is what the
+         * row is.
+         */
         <>
-          <rect x="3" y="5.5" width="18" height="13" rx="2" />
-          <path d="m3.8 7 8.2 6 8.2-6" />
+          <path d="M3 13h5l1.5 2.5h5L16 13h5" />
+          <path d="M3 13 6 5h12l3 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
         </>
       )}
       {glyph === 'groups' && (
@@ -139,6 +150,16 @@ export function RailIcon({
         <>
           <circle cx="11" cy="11" r="7" />
           <line x1="16.5" y1="16.5" x2="21" y2="21" />
+        </>
+      )}
+      {glyph === 'plus' && (
+        // Two lines. It was a `+` typed as a character, whose weight and
+        // width came from whichever font answered for it — next to five
+        // drawn glyphs at stroke 2 that is the one shape in the rail with
+        // somebody else's hand in it.
+        <>
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
         </>
       )}
       {glyph === 'profile' && (

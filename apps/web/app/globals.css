@@ -50,6 +50,20 @@
   /* Accent text on white or on the soft fill, where the accent itself is a
      shade too light to be read comfortably at 15px. */
   --accent-ink: #3f5498;
+  /* The row you are on, in the rail — and the menu button while its panel is
+     open, which is the same claim about the same control.
+
+     Grey, and it used to be `--accent-soft` with `--accent` type on it. A
+     tinted nav row is a second blue on a page whose subject is somebody
+     else's photographs, and it was reading as a highlight rather than as a
+     seat: the eye went to the row you had already arrived at. The app's bar
+     settled this first and its note is the argument — the capsule only has to
+     say where the foreground one is seated, and what makes the selected glyph
+     legible is that it is `--fg` among four in `--dim`.
+
+     Black at 7% rather than a flat grey, so it sits on the card, on the page
+     and on the open panel without being three values kept in step by hand. */
+  --selected: rgba(20, 23, 28, .07);
   /* The greeting, dates, and the counts under a card — the softer of the two
      dims. Neutral, with the surface: brown-grey text on a grey page reads as
      two mistakes rather than one decision. */
@@ -369,11 +383,13 @@ button.secondary {
   font-size: 12px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+/* The seat. A wash of the page's own value and the foreground at full
+   strength — the row's glyph also steps up half a stroke, because value and
+   weight together are what carry the state at 18px. See `--selected`. */
 .rail a.rail-row[aria-current='page'] {
-  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  background: var(--selected); color: var(--fg); font-weight: 600;
 }
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
-.rail-foot button { padding: 11px 14px; font-size: 15px; border-radius: 10px; }
  /* Settings, under the create button rather than beside "Edit profile" on the
     profile itself. Styled as a rail row, because that is what it is now. */
 .rail-settings { justify-content: flex-start; }
@@ -395,11 +411,42 @@ button.secondary {
 }
 .main-head h1 { font-size: 28px; letter-spacing: -.02em; margin: 0; }
 
-/* The two that are not there on a wide screen: the menu button, and the
-   create pill that shares the bar with it. On a laptop the rows are the
-   page's left edge and the create button is already among them. */
+/* The menu button is not there on a wide screen: the rows are already the
+   page's left edge, and a control that hides visible navigation adds a step
+   to everything. */
 .rail-burger { display: none; }
-.rail-create { display: none; }
+
+/* Create — a `+` in a disc, and the product's one of them.
+
+   It was two different controls that went to the same place: a blue pill in
+   the bar on a phone and a full-width blue button under the rows on a laptop.
+   Both are this now. The shape is the app's `RoundButton` — the card colour,
+   a hairline round it, the glyph at `--fg` — which is what every corner
+   control on a phone already is, so the web's create button stops being the
+   one piece of chrome in the product with a fill on it.
+
+   No word. A rail is five labelled rows and this is the only thing in the
+   column that is not a destination; the `+` is the one glyph that needs no
+   caption, and the word survives where it is actually useful, as the
+   accessible name. */
+.rail-create {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 36px; height: 36px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); color: var(--fg);
+  text-decoration: none;
+}
+/* Centred on the column the row glyphs run down. The disc is 36px and a glyph
+   is 18, so lining up their left edges would push the `+` half a disc off the
+   line; what the eye follows down a rail is the middle of the pictures. One
+   pixel, because that is the whole of the difference between a 36px disc at
+   the row's edge and an 18px glyph 10px into it. */
+.rail-foot > .rail-create { margin-left: 1px; }
+.rail-create:hover { background: var(--track); border-color: var(--dim-soft); }
+.rail-create:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* On a laptop the one in the bar is the one that does not exist: the rows are
+   the page's edge and the disc sits at the foot of them. Swapped at phone
+   width, where the column is behind the menu and the disc rides the bar. */
+.rail > .rail-create { display: none; }
 
 /* A pair, and they are always opposites: a control is a button in the header
    on a wide screen or an item in a menu on a narrow one, never both. `display:
@@ -467,7 +514,9 @@ button.secondary {
     padding: 0;
   }
   .rail-burger:hover { border-color: var(--line); }
-  .rail-open .rail-burger { background: var(--accent-soft); color: var(--accent-ink); }
+  /* Open, on the same wash the seated row uses: the button is standing in for
+     the row you are on while the panel is shut, so it says so the same way. */
+  .rail-open .rail-burger { background: var(--selected); color: var(--fg); }
   /* Three rules, drawn rather than set as a glyph: ☰ is a character whose
      weight and width come from whichever font answers for it, and at 40px
      that is the difference between a control and a smudge. */
@@ -507,26 +556,21 @@ button.secondary {
      the one action the whole product is for. Here it sits beside the menu,
      always visible, one tap, in the half of the bar a thumb already covers.
 
-     A pill: it shares 375px with the wordmark and the burger, so it carries
-     the `+` that says what it does and the word that says what it makes,
-     and nothing else. `flex: none` so a narrow screen shortens the wordmark
-     rather than this. */
-  .rail-create {
-    display: flex; align-items: center; gap: 5px; flex: none;
-    /* The trailing track, at its trailing edge. */
+     34px rather than the 36 it is on a laptop, to sit on the 40px menu
+     button's line in a 375px bar without crowding the wordmark between
+     them. */
+  /* The disc, in the trailing track at its trailing edge — the same one the
+     foot carries on a laptop, moved rather than redrawn. */
+  .rail > .rail-create {
+    display: inline-flex;
     grid-column: 3; justify-self: end;
-    padding: 0 12px; height: 34px;
-    border-radius: 999px; background: var(--accent); color: #fff;
-    font-size: 14px; font-weight: 600; line-height: 1; text-decoration: none;
-    white-space: nowrap;
+    width: 34px; height: 34px;
   }
-  .rail-create > [aria-hidden] { font-size: 17px; font-weight: 500; }
-  .rail-create:hover { background: var(--accent-ink); }
 
   /* And gone from the panel, so there is one of it. Two links to the same
-     place is two tab stops and two announcements, and the one still in the
-     panel would be the one nobody reaches. */
-  .rail-foot > a:first-child { display: none; }
+     place is two tab stops and two announcements, and the one at the bottom
+     of a panel the height of the screen would be the one nobody reaches. */
+  .rail-foot > .rail-create { display: none; }
   .rail-settings { display: flex; }
   .main { padding: 20px; }
 }

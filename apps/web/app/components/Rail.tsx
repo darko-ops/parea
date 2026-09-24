@@ -7,12 +7,14 @@
  * client grew three tabs for this and the web never got the equivalent, which
  * made "two clients, one protocol" true of the API and false of the product.
  *
- * Five rows, where the app's tab bar still has three. Activity is one of the
- * differences, and it is near the top because this is the client somebody
+ * Five rows, where the app's tab bar has four. Notifications is the
+ * difference, and it is near the top because this is the client somebody
  * arrives at from a link they were sent — the one where "what came of that?"
- * is a question worth having a screen for. Groups is the other, and it is a
- * row because the product treats a group as persistent identity while the web
- * gave it no address of its own.
+ * is a question worth having a screen for.
+ *
+ * The four they share say the app's words over the app's drawings: Albums,
+ * Groupchats, Find, You. See `ROWS` for what they used to say and why the app
+ * wins every case where the two disagreed.
  *
  * ## The head is the name, centred
  *
@@ -38,6 +40,8 @@
  * a capsule is a row nobody reads, and the two that would have to go are the
  * two the web has and the app does not. A menu holds six without asking
  * anybody to recognise a picture of Settings.
+ *
+ * Create is the one control that does not go behind it — see the `+` below.
  *
  * Leading rather than trailing, which is where it was: it is the first thing
  * on the row and the first thing a reader meets, and a control that opens
@@ -79,39 +83,63 @@ const ROWS: {
   page: Exclude<RailPage, null>;
   glyph: RailGlyph;
 }[] = [
-  // The label is Home, the route is `/events`, and the id stays `events`: the
-  // id names the row for the code, and every table underneath still says
-  // `event`.
-  { href: '/events', label: 'Home', page: 'events', glyph: 'home' },
-  // Under Home because it is the same kind of thing — events you are in —
-  // separated only by whose they are. Search is the odd one out: the only row
-  // that goes looking for something you are not already part of.
-  // Still `invites` as an id and still the envelope: what lands here is
-  // mostly somebody asking you to something, and the rest is what came of it.
-  { href: '/activity', label: 'Activity', page: 'invites', glyph: 'invites' },
   /*
-   * Above Search, and below Activity, because that is the order these are
-   * true in. Home and Activity are what has already happened to you; Groups is
-   * the rooms you are already in; Search is the only row that goes looking for
-   * something you are not part of yet. Putting Groups under Search would file
-   * the places you belong under the heading for finding places you do not.
+   * The app's words and the app's pictures, for the places both clients have.
    *
-   * Groups had no page at all until now — you reached one from a chip on
-   * Search, from an event that belonged to it, or from a link somebody sent.
-   * That is fine for something you visit occasionally and wrong for the thing
-   * the product treats as persistent identity.
+   * They had drifted into two products. The bar on a phone said Albums,
+   * Chats, Find, You over a photo stack, two bubbles, a magnifier and a head;
+   * the rail said Home, Activity, Groups, Search, Profile over a house, an
+   * envelope and two people. Somebody who uses both was being asked to learn
+   * one product twice, and the second reading of it disagreed with the first
+   * about what the thing they make is even called.
+   *
+   * The app wins every case where they differed, for the simple reason that it
+   * is the client that had to fit the word under a glyph in 365 points and
+   * chose these. `label` is what the row says; `page` is what the code calls
+   * it and has not moved, because the ids are what `aria-current` is matched
+   * on and what every route underneath is still named.
    */
-  { href: '/groups', label: 'Groups', page: 'groups', glyph: 'groups' },
+  // Albums, not Home. The route is `/events` and the tables still say `event`:
+  // the id names the row for the code, the label names it for a reader, and
+  // the thing this product makes is an album.
+  { href: '/events', label: 'Albums', page: 'events', glyph: 'photos' },
+  /*
+   * Notifications, on a tray. It was Activity, on an envelope.
+   *
+   * The envelope was chosen when the page was invitations and nothing else,
+   * and it kept saying "somebody has asked you to something" long after the
+   * page had become a friend request, a reply, a photograph added to an album
+   * of yours. A tray is the general case — things arrived — which is what the
+   * row has actually been for a while, and it is the drawing the app already
+   * uses for the same idea.
+   *
+   * Near the top because this is the client somebody arrives at from a link
+   * they were sent: "what came of that?" is the question this screen exists
+   * for.
+   */
+  { href: '/activity', label: 'Notifications', page: 'invites', glyph: 'tray' },
+  /*
+   * Groupchats, on two bubbles. It was Groups, on two people.
+   *
+   * The two-people drawing is what the product uses for *members*, and it is
+   * still doing that job one screen in, on a group's own People tab. Using it
+   * for the room as well meant the same picture said "the room" and "who is
+   * in the room" on two consecutive screens. Two bubbles say the thing a
+   * group is for, which is people going back and forth — and it is the glyph
+   * the app's own Chats tab carries.
+   *
+   * Above Search and below Notifications, because that is the order these are
+   * true in: what has already happened to you, then the rooms you are already
+   * in, then the one row that goes looking for something you are not part of
+   * yet.
+   */
+  { href: '/groups', label: 'Groupchats', page: 'groups', glyph: 'bubbles' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
   // on Profile, which is where somebody looks for their friends anyway. A rail
   // is the places the product is, and friends is a thing about you.
-  //
-  // The labels say what the rows do; the ids still say where they go. `find`
-  // and `you` name the routes, which have not moved — renaming those would
-  // break every link anybody has already sent, and every bookmark.
-  { href: '/find', label: 'Search', page: 'find', glyph: 'search' },
-  { href: '/account', label: 'Profile', page: 'you', glyph: 'profile' },
+  { href: '/find', label: 'Find', page: 'find', glyph: 'search' },
+  { href: '/account', label: 'You', page: 'you', glyph: 'profile' },
 ];
 
 
@@ -205,18 +233,23 @@ export function Rail({ current }: { current: RailPage }) {
         destinations — but it was right for the create button too, which put
         the one thing this product makes two taps away and at the far end of a
         panel as tall as the screen. A menu is for the places you might go;
-        making an event is not a place, and it is the reason anybody opened
+        making an album is not a place, and it is the reason anybody opened
         the app.
 
-        Condensed to a pill because it shares a 375px bar with the wordmark
-        and the menu: the word alone, at rail weight, left no room for either.
+        A `+` and nothing else. It was a blue pill reading `+ Create`, which
+        made the loudest thing on every page a piece of chrome — on a screen
+        whose subject is somebody else's photographs, the accent belongs to
+        the photographs. The app has answered this already: a disc in the card
+        colour with a hairline round it and the glyph at full strength, used
+        for its own `+` and every corner control it has. The word survives as
+        the accessible name, which is the same trade the app's tab bar makes.
+
         The full-width one in the panel is hidden at this width — the same
         link twice is two tab stops and two things for a screen reader to
         announce, so only one of them exists at a time.
       */}
       <a href="/" className="rail-create" aria-label="Create an album">
-        <span aria-hidden="true">+</span>
-        <span>Create</span>
+        <RailIcon glyph="plus" />
       </a>
 
       <div className="rail-nav" id="rail-nav">
@@ -246,14 +279,23 @@ export function Rail({ current }: { current: RailPage }) {
       ))}
 
       <div className="rail-foot">
-        <a href="/">
-          {/*
-            Just "Create". The rail is a column of one-word destinations and
-            this was the only two-word label in it; the noun was carrying no
-            information a person standing on Home needed, because the thing
-            this product creates is the only thing it creates.
-          */}
-          <button type="button">Create</button>
+        {/*
+          The same `+`, at the foot of the column.
+
+          It was a full-width blue button saying Create, sitting under five
+          quiet rows — the one element on a laptop screen with a fill on it,
+          and therefore the first thing the eye went to on a page of
+          photographs. Now it is the disc the bar carries on a phone, so the
+          product has one create control rather than two that happen to go to
+          the same place.
+
+          Sitting on the line the row glyphs run down rather than stretched
+          across the column: a rail is read as a single file of pictures with
+          words beside them, and a shape off that line reads as something that
+          arrived from somewhere else.
+        */}
+        <a href="/" className="rail-create" aria-label="Create an album">
+          <RailIcon glyph="plus" />
         </a>
         {/*
           Settings, under the thing people actually come here to press.

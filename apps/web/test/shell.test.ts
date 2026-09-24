@@ -377,7 +377,7 @@ describe('an empty shelf', () => {
   });
 });
 
-describe('the create button on a narrow screen', () => {
+describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const CSS = read(join(APP, 'globals.css'));
   /** The rules that only apply below tablet. */
@@ -392,24 +392,141 @@ describe('the create button on a narrow screen', () => {
     expect(create).toBeLessThan(panel);
   });
 
-  it('says what it makes, for anyone who cannot see the pill', () => {
-    // The `+` is decorative and the word carries the meaning, so the label has
-    // to name the thing rather than leave a screen reader reading "plus".
+  it('says what it makes, for anyone who cannot see it', () => {
+    // It draws a `+` and nothing else now, so the whole of its meaning is in
+    // the label: without this a screen reader announces a link called "plus",
+    // or the URL.
     expect(RAIL).toMatch(/aria-label="Create an album"/);
-    expect(RAIL).toMatch(/aria-hidden="true">\+</);
+    // And the `+` is the drawn glyph rather than a typed character, which is
+    // what stops it being the one shape in the rail at somebody else's stroke
+    // weight. See `RailIcon`.
+    expect(RAIL).toMatch(/<RailIcon glyph="plus" \/>/);
+    expect(RAIL).not.toMatch(/aria-hidden="true">\+</);
   });
 
-  it('exists only below tablet, where the rows are hidden', () => {
-    // On a laptop the rows are the page's left edge and the create button is
-    // already among them; a second one in the corner would be two.
-    expect(CSS).toMatch(/\.rail-create \{ display: none; \}/);
-    expect(MOBILE).toMatch(/\.rail-create \{[^}]*display: flex/);
+  it('carries no fill, on either screen', () => {
+    /*
+     * The rule this is really about: the accent belongs to the photographs.
+     * A blue pill in the bar and a blue slab under the rows made chrome the
+     * loudest thing on a page whose subject is somebody else's evening, and
+     * both of them are the app's card-coloured disc now.
+     *
+     * Asserted on the declaration rather than on the colour it resolves to,
+     * because `--accent` moving is not what would break this — somebody
+     * reaching for it here again is.
+     */
+    const rule = CSS.slice(CSS.indexOf('.rail-create {'), CSS.indexOf('.rail-create:hover'));
+    expect(rule).not.toBe('');
+    expect(rule).toMatch(/background: var\(--card\)/);
+    expect(rule).not.toMatch(/var\(--accent/);
+    expect(MOBILE).not.toMatch(/\.rail-create[^}]*var\(--accent[^-]/);
   });
 
-  it('is the only one of itself at that width', () => {
-    // The full-width button in the panel goes when the pill arrives. Two links
-    // to the same place is two tab stops and two announcements, and the one in
-    // the panel is the one nobody reaches.
-    expect(MOBILE).toMatch(/\.rail-foot > a:first-child \{ display: none; \}/);
+  it('is the only one of itself at every width', () => {
+    /*
+     * Two of them exist in the markup — one in the bar, one at the foot of the
+     * column — and exactly one is ever drawn. Two links to the same place is
+     * two tab stops and two announcements.
+     *
+     * The bar's is the one that goes on a laptop, where the rows are the
+     * page's left edge; the foot's is the one that goes on a phone, where the
+     * column is behind the menu and the bottom of a full-height panel is where
+     * nobody reaches.
+     */
+    expect(CSS).toMatch(/\.rail > \.rail-create \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail > \.rail-create \{[^}]*display: inline-flex/);
+    expect(MOBILE).toMatch(/\.rail-foot > \.rail-create \{ display: none; \}/);
+  });
+});
+
+describe('the rail and the app point at the same product', () => {
+  /*
+   * The drift this is here to stop, stated as it actually happened.
+   *
+   * The phone's tab bar said Albums, Chats, Find, You over a photo stack, two
+   * bubbles, a magnifier and a head. The rail said Home, Activity, Groups,
+   * Search, Profile over a house, an envelope and two people. Nothing was
+   * wrong with either list on its own, which is why it survived four rewrites
+   * of the rail — and somebody who uses both clients was being asked to learn
+   * one product twice, with the two readings disagreeing about what the thing
+   * they make is called.
+   *
+   * Both lists are read off the source here rather than written down, because
+   * a copy of the answer in a test file is a fourth list to keep in step.
+   */
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const BAR = readFileSync(
+    fileURLToPath(new URL('../../mobile/App.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  /** `['home', 'photos', 'Albums'],` — the app's tab bar, as it is written. */
+  const TABS = [...BAR.matchAll(/\['(home|chats|search|profile)', '(\w+)', '(\w+)'\]/g)].map(
+    ([, tab, glyph, label]) => ({ tab, glyph, label }),
+  );
+
+  /** The rail's rows, likewise. */
+  const ROWS = [...RAIL.matchAll(/label: '([\w ]+)', page: '(\w+)', glyph: '(\w+)'/g)].map(
+    ([, label, page, glyph]) => ({ label, page, glyph }),
+  );
+
+  /** The four destinations both clients have. The app's id, then the rail's. */
+  const SHARED: [string, string][] = [
+    ['home', 'events'],
+    ['chats', 'groups'],
+    ['search', 'find'],
+    ['profile', 'you'],
+  ];
+
+  it('reads both lists, so a rename cannot pass by making one unreadable', () => {
+    // The assertions below are all `find`, and a regex that stopped matching
+    // would make every one of them vacuous rather than failing.
+    expect(TABS).toHaveLength(4);
+    expect(ROWS).toHaveLength(5);
+  });
+
+  it('draws the same picture for the same place', () => {
+    for (const [tab, page] of SHARED) {
+      expect(ROWS.find((r) => r.page === page)?.glyph).toBe(
+        TABS.find((t) => t.tab === tab)?.glyph,
+      );
+    }
+  });
+
+  it('uses the app words, except where the web is saying something else', () => {
+    /*
+     * Three of the four match outright. Chats is the exception and is meant
+     * to be: on a phone the tab holds every conversation there is, and on the
+     * web the row goes to the groups themselves — so it says Groupchats,
+     * which is the app's word with the thing it is about in front of it.
+     */
+    for (const [tab, page] of SHARED.filter(([t]) => t !== 'chats')) {
+      expect(ROWS.find((r) => r.page === page)?.label).toBe(
+        TABS.find((t) => t.tab === tab)?.label,
+      );
+    }
+    const chats = TABS.find((t) => t.tab === 'chats')?.label ?? '';
+    expect(chats).not.toBe('');
+    expect(ROWS.find((r) => r.page === 'groups')?.label).toBe(`Group${chats.toLowerCase()}`);
+  });
+
+  it('spells the two rows the app has no tab for', () => {
+    // Notifications on a tray, and it was Activity on an envelope: the page
+    // stopped being invitations a while ago, and an envelope kept saying
+    // somebody had asked you to something. The tray is the app's drawing for
+    // the general case, borrowed for a row the app's bar does not carry.
+    expect(ROWS.find((r) => r.page === 'invites')).toEqual({
+      label: 'Notifications',
+      page: 'invites',
+      glyph: 'tray',
+    });
+    expect(RAIL).toMatch(/glyph="settings"/);
+  });
+
+  it('keeps the ids, because the routes and the markup hang off them', () => {
+    // A label is what a reader sees; `page` is what `aria-current` is matched
+    // on and what every route underneath is named. Renaming the rows must not
+    // rename the product's own vocabulary.
+    expect(ROWS.map((r) => r.page)).toEqual(['events', 'invites', 'groups', 'find', 'you']);
   });
 });

@@ -350,20 +350,23 @@ describe('inside a group', () => {
 });
 
 describe('the rail', () => {
-  it('puts Groups above Search', () => {
+  it('puts Groupchats above Find', () => {
     /*
-     * Order is the argument. Home and Activity are what has already happened
-     * to you; Groups is the rooms you are already in; Search is the only row
-     * that goes looking for something you are not part of yet. Below Search
-     * would file the places you belong under the heading for finding places
-     * you do not.
+     * Order is the argument. Albums and Notifications are what has already
+     * happened to you; Groupchats is the rooms you are already in; Find is the
+     * only row that goes looking for something you are not part of yet. Below
+     * Find would file the places you belong under the heading for finding
+     * places you do not.
+     *
+     * The words are the app's now — see the rail's own note — so the rows are
+     * matched on `page`, which is what the code calls them and what has not
+     * moved. A relabelling should not be able to fail this; a reordering is
+     * what it is for.
      */
-    const groups = RAIL.indexOf("label: 'Groups'");
-    const search = RAIL.indexOf("label: 'Search'");
-    const activity = RAIL.indexOf("label: 'Activity'");
-    expect(groups).toBeGreaterThan(-1);
-    expect(activity).toBeLessThan(groups);
-    expect(groups).toBeLessThan(search);
+    const at = (page: string) => RAIL.indexOf(`page: '${page}'`);
+    expect(at('groups')).toBeGreaterThan(-1);
+    expect(at('invites')).toBeLessThan(at('groups'));
+    expect(at('groups')).toBeLessThan(at('find'));
   });
 
   it('does not wear the logo as a nav glyph', async () => {
