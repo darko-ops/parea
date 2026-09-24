@@ -77,9 +77,9 @@
 import { Image } from 'expo-image';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -93,6 +93,7 @@ import {
 import { ago } from '@parea/cards';
 
 import { ApiError, REACTIONS, type Message, type Roster } from './api';
+import { EmojiPicker } from './Emoji';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Waiting } from './Waiting';
@@ -119,6 +120,19 @@ export type ThreadActions = {
   remove: (messageId: string) => Promise<unknown>;
   /** Omitted where the room has no reactions. */
   react?: (messageId: string, emoji: string) => Promise<unknown>;
+  /**
+   * Taking back a reaction on a photograph, which is what a reaction *line*
+   * in this thread is.
+   *
+   * A different route from `react` and not a variant of it: that one toggles
+   * an emoji on a message, and these lines are rows of `photo_reaction`. The
+   * endpoint toggles too, so calling it on one somebody already has is how it
+   * comes off.
+   *
+   * Omitted in a room whose lines have no photographs behind them — a group's
+   * — where there is nothing for it to address.
+   */
+  unreact?: (photoId: string, emoji: string) => Promise<unknown>;
 };
 
 export function Thread({
@@ -226,6 +240,15 @@ export function Thread({
   const react = useCallback(
     async (id: string, emoji: string) => {
       await actions.react?.(id, emoji).catch(() => {});
+      await onChanged();
+    },
+    [actions, onChanged],
+  );
+
+  /** And off again, for the reaction lines. See `unreact` on `ThreadActions`. */
+  const unreact = useCallback(
+    async (photoId: string, emoji: string) => {
+      await actions.unreact?.(photoId, emoji).catch(() => {});
       await onChanged();
     },
     [actions, onChanged],
@@ -376,6 +399,13 @@ export function Thread({
               onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
               about={item.photoId ? (photoOf?.(item.photoId) ?? null) : null}
               onOpenPhoto={onOpenPhoto}
+              /* Only where there is something to take back: your own
+                 reaction, on a photograph, in a room that can reach it. */
+              onUnreact={
+                item.emoji && item.photoId && item.author.mine && actions.unreact
+                  ? () => void unreact(item.photoId!, item.emoji!)
+                  : undefined
+              }
             />
           )}
         />
@@ -504,6 +534,7 @@ export function ThreadRow({
   onReact,
   onDelete,
   onEdit,
+  onUnreact,
   about,
   onOpenPhoto,
 }: {
@@ -516,11 +547,21 @@ export function ThreadRow({
   onReact: (emoji: string) => void;
   onDelete: () => void;
   onEdit: (body: string) => void;
+  /**
+   * Taking back your own reaction, where this row is one.
+   *
+   * A reaction line is not a message and `onDelete` would be the wrong verb
+   * for it — there is no row to tombstone, only a reaction to stop having.
+   * Absent where there is nothing to undo: somebody else's, or a room whose
+   * caller has no way to reach it.
+   */
+  onUnreact?: () => void;
   /** The photograph this comment is about, where it is about one. */
   about?: { id: string; src: string } | null;
   onOpenPhoto?: (photoId: string) => void;
 }) {
-  const [picking, setPicking] = useState(false);
+  const [held, setHeld] = useState(false);
+  const [more, setMore] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
   const mine = message.author.mine;
@@ -536,25 +577,35 @@ export function ThreadRow({
    * words below.
    */
   const sided = mine;
+  /*
+   * Whether holding this row offers anything.
+   *
+   * Yours always does — edit and delete. Somebody else's does when there is a
+   * reaction to leave on it, which is what makes a long press the way to
+   * react to a comment rather than a menu for its author. A row with neither
+   * takes no long press at all, so nothing opens an empty sheet.
+   */
+  const holdable = mine || (canPost && canReact);
   const lens = lensFor(message.author.key);
 
   /**
-   * What you can do to your own message, and the consequence of the worse one.
+   * What a held row offers, which is a sheet of our own rather than an alert.
    *
-   * One alert rather than two. Delete used to raise a second "are you sure"
-   * from inside this one's dismissal, which iOS presents on a view controller
-   * that is already going away — so it never appeared, and holding a message
-   * and choosing Delete did nothing at all. The sentence that second panel
-   * existed to say is this one's message now, which is where somebody making
-   * the decision can actually read it.
+   * It was `Alert.alert('Your message', …)` with Edit and Delete in it, which
+   * meant two things: only your own rows answered a long press at all, and
+   * reacting to somebody else's had to live somewhere else — a `+` pill under
+   * every comment in the thread, a bordered control offering to react to a
+   * sentence nobody had reacted to, drawn once per row for ever.
+   *
+   * An alert cannot hold a row of emoji. So the press opens `HeldSheet`: the
+   * six reactions and a `+` for the rest of them, and under that the verbs
+   * that belong to whoever is holding — Edit and Delete on your own words,
+   * "Remove my reaction" on your own reaction.
+   *
+   * `held` rather than `menu`: what it describes is the row being held, and
+   * the sheet is what that does.
    */
-  const menu = useCallback(() => {
-    Alert.alert('Your message', 'Deleting it leaves a gap saying it was deleted.', [
-      { text: 'Edit', onPress: () => setEditing(message.body) },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [message.body, onDelete]);
+  const open = useCallback(() => setHeld(true), []);
 
   /*
    * Below the hooks, not above them.
@@ -580,8 +631,16 @@ export function ThreadRow({
    *
    * One centred line in the thread's own quiet colour: it belongs to the
    * conversation and is not a turn in it, and a reaction drawn as a bubble
-   * with an emoji in it reads as somebody having said an emoji. No bubble, no
-   * face, no menu — there is nothing here to edit, delete or reply to.
+   * with an emoji in it reads as somebody having said an emoji. No bubble and
+   * no face — and centred whichever form it takes, including the one with the
+   * photograph in it. That row was left-aligned in the column with the
+   * comments, which put a thing nobody said on the same edge as the things
+   * people did say; down the middle it reads as what it is, an aside in the
+   * conversation rather than a turn in it.
+   *
+   * One thing it does answer now: a long press on your own takes it back. See
+   * `HeldSheet` — there is nothing here to edit and no row to tombstone, so
+   * that is the only verb it offers.
    */
   if (message.emoji) {
     /*
@@ -606,41 +665,75 @@ export function ThreadRow({
      * question and the shape is not part of it: only a caller that hands over
      * a `photoOf` has pictures for these lines to be about.
      */
-    if (about) {
-      return (
-        <View style={styles.reactedRow}>
-          <Pressable
-            onPress={() => onOpenPhoto?.(about.id)}
-            disabled={!onOpenPhoto}
-            accessibilityRole={onOpenPhoto ? 'button' : 'image'}
-            accessibilityLabel={`${mine ? 'You' : message.author.name} reacted ${message.emoji}. The photograph it is on`}
-            style={({ pressed }) => [
-              styles.reactedShot,
-              { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-            ]}
-          >
-            <Image
-              source={{ uri: about.src }}
-              style={styles.reactedShotImage}
-              contentFit="cover"
-              transition={120}
-            />
-          </Pressable>
-          <Text style={[styles.reactedText, { color: t.dim }]} numberOfLines={1}>
-            <Text style={[styles.metaName, { color: t.fg }]}>
-              {mine ? 'You' : message.author.name}
-            </Text>
-            {' reacted '}
-            {message.emoji}
-          </Text>
-        </View>
-      );
-    }
+    const takeBack = mine && onUnreact ? onUnreact : undefined;
+    const said = `${mine ? 'You' : message.author.name} reacted ${message.emoji}`;
     return (
-      <Text style={[styles.reacted, { color: t.dim }]} numberOfLines={1}>
-        {mine ? 'You' : message.author.name} reacted {message.emoji}
-        {message.photoId ? ' to a photo' : ''}
-      </Text>
+      <>
+        <Pressable
+          onLongPress={takeBack ? open : undefined}
+          delayLongPress={320}
+          accessibilityRole={takeBack ? 'button' : 'text'}
+          accessibilityActions={takeBack ? [{ name: 'longpress', label: 'Remove' }] : undefined}
+          onAccessibilityAction={
+            takeBack
+              ? (e) => {
+                  if (e.nativeEvent.actionName === 'longpress') open();
+                }
+              : undefined
+          }
+        >
+          {about ? (
+            <View style={styles.reactedRow}>
+              <Pressable
+                onPress={() => onOpenPhoto?.(about.id)}
+                disabled={!onOpenPhoto}
+                accessibilityRole={onOpenPhoto ? 'button' : 'image'}
+                accessibilityLabel={`${said}. The photograph it is on`}
+                style={({ pressed }) => [
+                  styles.reactedShot,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Image
+                  source={{ uri: about.src }}
+                  style={styles.reactedShotImage}
+                  contentFit="cover"
+                  transition={120}
+                />
+              </Pressable>
+              <Text style={[styles.reactedText, { color: t.dim }]} numberOfLines={1}>
+                <Text style={[styles.metaName, { color: t.fg }]}>
+                  {mine ? 'You' : message.author.name}
+                </Text>
+                {' reacted '}
+                {message.emoji}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.reacted, { color: t.dim }]} numberOfLines={1}>
+              {said}
+              {message.photoId ? ' to a photo' : ''}
+            </Text>
+          )}
+        </Pressable>
+
+        {held && (
+          <HeldSheet
+            t={t}
+            /* Nothing to react to: a reaction is not a turn somebody can
+               answer, and a row of emoji over one would offer to react to a
+               reaction. */
+            reactions={false}
+            onReact={() => {}}
+            onMore={() => {}}
+            onEdit={null}
+            onDelete={takeBack ?? null}
+            deleteLabel="Remove my reaction"
+            deleteNote="The line goes with it."
+            onClose={() => setHeld(false)}
+          />
+        )}
+      </>
     );
   }
 
@@ -711,32 +804,33 @@ export function ThreadRow({
         ) : (
           <Pressable
             /*
-              Long press rather than a menu glyph on every message: three dots
-              beside each of your own is a permanent invitation to delete them,
-              and on this width it competes with the name and the time for one
-              line.
+              Long press rather than a glyph on every message: three dots
+              beside each one is a permanent invitation, and on this width it
+              competes with the name and the time for one line. It is how
+              every verb a row has is reached now — react, edit, delete — and
+              not only your own, which is what took the `+` off the pills.
 
-              `delayLongPress` is shortened from the 500ms default. This is the
-              only way to reach either verb, and half a second of holding still
-              on a scrolling list is long enough that people let go first and
-              conclude there is nothing there.
+              `delayLongPress` is shortened from the 500ms default. This is
+              the only way to reach any of them, and half a second of holding
+              still on a scrolling list is long enough that people let go
+              first and conclude there is nothing there.
             */
-            onLongPress={mine ? menu : undefined}
+            onLongPress={holdable ? open : undefined}
             delayLongPress={320}
-            accessibilityRole={mine ? 'button' : 'text'}
+            accessibilityRole={holdable ? 'button' : 'text'}
             /*
-              And a second way to the same menu, for somebody who cannot hold a
-              finger still. A long press is invisible to a screen reader and
+              And a second way to the same sheet, for somebody who cannot hold
+              a finger still. A long press is invisible to a screen reader and
               impossible for some people to perform; the actions rotor is where
               iOS puts the alternative.
             */
             accessibilityActions={
-              mine ? [{ name: 'longpress', label: 'Edit or delete' }] : undefined
+              holdable ? [{ name: 'longpress', label: mine ? 'React, edit or delete' : 'React' }] : undefined
             }
             onAccessibilityAction={
-              mine
+              holdable
                 ? (e) => {
-                    if (e.nativeEvent.actionName === 'longpress') menu();
+                    if (e.nativeEvent.actionName === 'longpress') open();
                   }
                 : undefined
             }
@@ -799,12 +893,22 @@ export function ThreadRow({
           </Pressable>
         )}
 
-        {/* No picker in a room that has no reactions — a group's messages
-            have none yet, and offering one that does nothing is worse than
-            not offering it. Existing reactions still draw, so this survives
-            group reactions arriving later. */}
-        {(message.reactions.length > 0 || (canPost && canReact)) && (
-          <View style={styles.chips}>
+        {/*
+          What the room has said back, and only that.
+
+          The `+` that used to sit on the end of this row is gone. It was a
+          bordered control under every comment in the thread offering to react
+          to a sentence nobody had reacted to — a permanent invitation, drawn
+          once per row, competing with the pills that are somebody's actual
+          answer. Reacting is what holding the comment is for now, which is
+          also how a reaction reaches a comment nobody has answered yet.
+
+          So a row of pills exists only where there are pills: existing
+          reactions, tappable to join or leave one. A room with no reactions
+          at all — a group's, for now — simply never has any.
+        */}
+        {message.reactions.length > 0 && (
+          <View style={[styles.chips, sided && styles.chipsMine]}>
             {message.reactions.map((reaction) => (
               <Pressable
                 key={reaction.emoji}
@@ -825,35 +929,183 @@ export function ThreadRow({
                 </Text>
               </Pressable>
             ))}
-            {canPost &&
-              canReact &&
-              (picking ? (
-                REACTIONS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => {
-                      setPicking(false);
-                      onReact(emoji);
-                    }}
-                    style={[styles.chip, { backgroundColor: t.card, borderColor: t.line }]}
-                  >
-                    <Text style={styles.chipText}>{emoji}</Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Pressable
-                  onPress={() => setPicking(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a reaction"
-                  style={[styles.chip, { backgroundColor: t.card, borderColor: t.line }]}
-                >
-                  <Text style={[styles.chipText, { color: t.dim }]}>+</Text>
-                </Pressable>
-              ))}
           </View>
         )}
       </View>
+
+      {held && (
+        <HeldSheet
+          t={t}
+          /* Only where reacting is a thing this room does and this reader
+             may: a group's messages have no reactions yet, and a row of
+             emoji that does nothing is worse than no row. */
+          reactions={canPost && canReact}
+          onReact={(emoji) => {
+            setHeld(false);
+            onReact(emoji);
+          }}
+          onMore={() => {
+            setHeld(false);
+            setMore(true);
+          }}
+          onEdit={mine ? () => setEditing(message.body) : null}
+          onDelete={mine ? onDelete : null}
+          deleteLabel="Delete this comment"
+          deleteNote="It leaves a gap saying it was deleted."
+          onClose={() => setHeld(false)}
+        />
+      )}
+
+      {/*
+        And the rest of them, which is the picker the photo viewer opens.
+
+        Ours rather than the system's, for the reason that file gives at
+        length: there is no way to ask a phone for its emoji panel
+        specifically, and a grid of our own can only produce emoji.
+      */}
+      {more && (
+        <EmojiPicker
+          t={t}
+          onClose={() => setMore(false)}
+          onPick={(emoji) => {
+            setMore(false);
+            onReact(emoji);
+          }}
+        />
+      )}
     </View>
+  );
+}
+
+/**
+ * What a held row offers.
+ *
+ * Two parts, and the order is the argument: the reactions first, because
+ * answering something is what somebody holding a comment usually means, and
+ * the verbs that change it underneath — where a destructive one is reached
+ * deliberately rather than landed on.
+ *
+ * It replaced an `Alert` with Edit and Delete in it. An alert is the right
+ * shape for a question and the wrong one for a row of emoji, and it could
+ * only ever be raised on your own rows, which left reacting to somebody
+ * else's comment to a `+` pill drawn under every comment in the thread.
+ *
+ * A sheet rather than a popover over the row: a popover has to be placed, and
+ * placing it means measuring a row inside an inverted list that may be two
+ * pixels from the bottom of the screen. The sheet is always in the same place,
+ * which is also the place the phone's own sheets are.
+ */
+function HeldSheet({
+  t,
+  reactions,
+  onReact,
+  onMore,
+  onEdit,
+  onDelete,
+  deleteLabel,
+  deleteNote,
+  onClose,
+}: {
+  t: GroupTheme;
+  /** Whether to offer the emoji at all. */
+  reactions: boolean;
+  onReact: (emoji: string) => void;
+  /** The full picker, for the ones the row of six does not have. */
+  onMore: () => void;
+  /** Null where there is nothing to edit — somebody else's, or a reaction. */
+  onEdit: (() => void) | null;
+  /** Null where it is not yours to remove. */
+  onDelete: (() => void) | null;
+  deleteLabel: string;
+  /** What removing it actually does, beside the button that does it. */
+  deleteNote: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal transparent visible animationType="slide" onRequestClose={onClose}>
+      {/*
+        The same shell the emoji picker and the photo viewer's sheet use: a
+        dim that is a *sibling* under the panel rather than its parent, so
+        nothing above can claim a touch before the panel's own controls get
+        it. Pressing it is the way out, which is how every sheet on this phone
+        closes — a Cancel row would be a third thing to read.
+      */}
+      <View style={styles.heldShell}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+
+        <View style={[styles.heldSheet, { backgroundColor: t.bg }]}>
+          <View style={styles.heldGrip} />
+          {reactions && (
+            <View style={styles.heldEmoji}>
+              {REACTIONS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => onReact(emoji)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`React ${emoji}`}
+                  style={({ pressed }) => [styles.heldEmojiOne, pressed && { opacity: 0.5 }]}
+                >
+                  <Text style={styles.heldEmojiText}>{emoji}</Text>
+                </Pressable>
+              ))}
+              {/* The `+` at the end of the six, where it was at the end of the
+                  pills: the same promise in the place it is now useful. */}
+              <Pressable
+                onPress={onMore}
+                accessibilityRole="button"
+                accessibilityLabel="More emoji"
+                style={({ pressed }) => [
+                  styles.heldMore,
+                  { borderColor: t.line },
+                  pressed && { opacity: 0.5 },
+                ]}
+              >
+                <Text style={[styles.heldMoreText, { color: t.dim }]}>+</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {reactions && (onEdit || onDelete) && (
+            <View style={[styles.heldRule, { backgroundColor: t.line }]} />
+          )}
+
+          {onEdit && (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onEdit();
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.heldDo, pressed && { opacity: 0.5 }]}
+            >
+              <Text style={[styles.heldDoText, { color: t.fg }]}>Edit</Text>
+            </Pressable>
+          )}
+
+          {onDelete && (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onDelete();
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.heldDo, pressed && { opacity: 0.5 }]}
+            >
+              <Text style={[styles.heldDoText, { color: t.warn }]}>{deleteLabel}</Text>
+              {/* The consequence beside the button rather than in a second
+                  panel after it. One sheet, and the thing worth knowing is in
+                  front of the decision. */}
+              <Text style={[styles.heldNote, { color: t.dim }]}>{deleteNote}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1078,41 +1330,52 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },
   bodyText: { fontSize: 15, lineHeight: 21 },
-  /*
-   * Centred across the column, under whoever's comment.
-   *
-   * They used to hang off whichever edge the comment does — left for other
-   * people's, right for your own. That reads as a property of the block, one
-   * more thing bolted to the end of a paragraph, and it put two rows of pills
-   * on opposite sides of a conversation where the two mean the same thing.
-   *
-   * What a reaction actually is here is the room answering a line: it belongs
-   * to everybody who tapped it, not to whoever wrote the words above it. The
-   * middle is the only place that says that, and it is where the card's own
-   * counts already sit.
-   *
-   * `alignSelf: 'stretch'` is what makes the centring possible at all on your
-   * own: `saidMine` shrinks its children to their content so the block can
-   * hang from the right, and a row shrunk to its pills has no width left to
-   * centre them in.
-   *
-   * Which means the centre here is the column's, where the site's is the
-   * paragraph's — CSS sizes a `<p>` box to the text in it and hands the row
-   * under it the same width, and nothing in this layout can measure a `Text`
-   * to match. The intent is the same in both and the pixel is not; centring
-   * on the column is the honest version of it on a 393-point screen, where
-   * the difference is a few points on a short line.
-   */
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 6,
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
+  /* Under the words, on the same edge the block hangs from — what somebody
+     said and what the room said back are one thing to read. */
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  chipsMine: { justifyContent: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },
   chipText: { fontSize: 13 },
+  /*
+   * What a held row opens: a sheet at the foot of the screen.
+   *
+   * The scrim takes the rest of it and closes on a press, which is how every
+   * sheet on this phone closes and why there is no Cancel row to read.
+   */
+  heldShell: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
+  heldSheet: { borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingBottom: 34 },
+  /* The handle every sheet in this product has, in the colour the emoji
+     picker's is: it reads as something that came up and can go back down. */
+  heldGrip: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(128,128,128,0.45)',
+  },
+  /* The six, spread across the width rather than bunched at one end: the row
+     is a set of equal choices and reads as one when it is spaced as one. */
+  heldEmoji: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingBottom: 4,
+  },
+  heldEmojiOne: { paddingVertical: 6, paddingHorizontal: 4 },
+  /* Large, because this is a target on a sheet rather than a label on a pill
+     — and an emoji at 26 is still the thing you are pressing. */
+  heldEmojiText: { fontSize: 26 },
+  /* The `+` as an outline beside them: it is the one item in the row that is
+     not itself an answer, so it is drawn as a control and not as an emoji. */
+  heldMore: { borderWidth: 1, borderRadius: 999, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  heldMoreText: { fontSize: 19, fontWeight: '600', lineHeight: 22 },
+  heldRule: { height: 1, marginTop: 10, marginBottom: 2 },
+  heldDo: { paddingVertical: 12, paddingHorizontal: 18, gap: 2 },
+  heldDoText: { fontSize: 16, fontWeight: '600' },
+  heldNote: { fontSize: 12.5, lineHeight: 17 },
   /*
    * A reaction's line: centred, quiet, and the width of the thread.
    *
@@ -1121,19 +1384,38 @@ const styles = StyleSheet.create({
    */
   reacted: { textAlign: 'center', fontSize: 12.5, lineHeight: 18, paddingVertical: 2 },
   /*
-   * A reaction on a board: the photograph where a comment has a face.
+   * A reaction on a board: the photograph, and the line beside it, centred.
    *
-   * 32 and the same 10-point gap as `row`, so the column has one left edge
-   * whatever kind of line is on it. Square at 8 rather than round at 16 —
-   * that slot holds a person in every other row and a picture in this one,
-   * and the corner is the difference the eye reads before the content.
+   * 32 and the same 10-point gap as `row`. Square at 8 rather than round at
+   * 16 — that slot holds a person in every other row and a picture in this
+   * one, and the corner is the difference the eye reads before the content.
+   *
+   * Centred rather than run along the left edge with the comments, which is
+   * where this started. It put a thing nobody said on the same edge as the
+   * things people did say, and a run of them read as a column of comments
+   * with no words in them. Down the middle it is what it is: an aside in the
+   * conversation, in the same place the plain line has always been and the
+   * same place a date separator would go.
    */
-  reactedRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reactedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
   reactedShot: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
   reactedShotImage: { width: '100%', height: '100%' },
-  /* `flex` so a long name truncates against the edge rather than pushing the
-     emoji off it: the emoji is the half of this line that carries the news. */
-  reactedText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19 },
+  /*
+   * `shrink` rather than `flex: 1`, now that the row is centred.
+   *
+   * Flexed to fill, the text took every point the photograph left and the
+   * pair sat hard against both edges — which is not centred, it is
+   * justified. Shrinking lets the two be as wide as they need and the row
+   * centre what is actually there, while a long name still truncates against
+   * the edge rather than pushing the emoji off it: the emoji is the half of
+   * this line that carries the news.
+   */
+  reactedText: { flexShrink: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19 },
   gone: { fontSize: 13, fontStyle: 'italic' },
   editing: { gap: 8 },
   editActions: { flexDirection: 'row', gap: 16 },

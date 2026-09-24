@@ -193,49 +193,104 @@ describe('the rules carried over from the web', () => {
     expect(GROUP).toMatch(/if \(messagesRef\.current === null\) \{/);
   });
 
-  it('offers edit and delete on a long press, in one alert', () => {
+  it('opens one sheet on a long press: react, then edit, then delete', () => {
     /*
-     * It was two native alerts in a row: the menu, and then a "Delete this
-     * message?" raised from inside that menu's own dismissal. iOS presents the
-     * second on a view controller that is already going away, so it never
-     * appeared — you held your message, chose Delete, and nothing happened at
-     * all.
+     * It was an `Alert` with Edit and Delete in it, and an alert is the right
+     * shape for a question and the wrong one for a row of emoji. It could
+     * also only ever be raised on your own rows, which left reacting to
+     * somebody else's comment to a `+` pill drawn under every comment in the
+     * thread — a bordered control offering to react to a sentence nobody had
+     * reacted to, competing with the pills that are somebody's real answer.
      *
-     * One alert is the better shape regardless. Long-pressing a message and
-     * choosing a red item is already a deliberate act, and the consequence —
-     * it leaves a gap rather than vanishing — belongs in front of the decision
-     * rather than in a second panel after it.
+     * So holding a row is how every verb it has is reached, and the order is
+     * the argument: the reactions first, because answering is what somebody
+     * holding a comment usually means, and the verbs that change it
+     * underneath, where a destructive one is reached deliberately.
      */
-    expect(THREAD).toMatch(
-      /Alert\.alert\('Your message', 'Deleting it leaves a gap saying it was deleted\.', \[/,
-    );
-    expect(THREAD).toMatch(/text: 'Delete', style: 'destructive', onPress: onDelete/);
-    // `remove` deletes rather than asking again, which is what made the chain.
+    // Gone as a call. It survives in the note that says why, which is where
+    // a reversed decision belongs.
+    expect(THREAD).not.toMatch(/^\s*Alert\.alert\(/m);
+    expect(THREAD).not.toMatch(/from 'react-native'[\s\S]{0,400}\bAlert,/);
+    expect(THREAD).toMatch(/function HeldSheet\(\{/);
+    /* The same shell the emoji picker and the photo viewer's sheet use: the
+       dim is a sibling under the panel rather than its parent, so nothing
+       above can claim a touch before the panel's own controls get it. */
+    expect(THREAD).toMatch(/heldShell: \{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' \}/);
+    const EMOJI = read('src/Emoji.tsx');
+    expect(EMOJI).toMatch(/shell: \{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' \}/);
+    expect(THREAD).toMatch(/const open = useCallback\(\(\) => setHeld\(true\), \[\]\);/);
+    // `remove` deletes rather than asking again, which is what made the old
+    // chain of two alerts.
     const removeFn = between(THREAD, 'const remove = useCallback', 'const mention = useMemo');
-    expect(removeFn).not.toMatch(/Alert\.alert/);
     expect(removeFn).toMatch(/await actions\.remove\(id\)/);
 
     /*
-     * Only on your own, and only by holding: three dots beside each of your
-     * own messages is a permanent invitation to delete them, and on this width
-     * it competes with the name and the time for one line.
+     * Held by anybody who has something to do to it: yours for edit and
+     * delete, somebody else's when there is a reaction to leave on it. A row
+     * with neither takes no long press, so nothing opens an empty sheet.
      */
-    expect(THREAD).toMatch(/onLongPress=\{mine \? menu : undefined\}/);
+    expect(THREAD).toMatch(/const holdable = mine \|\| \(canPost && canReact\);/);
+    expect(THREAD).toMatch(/onLongPress=\{holdable \? open : undefined\}/);
     /*
-     * Shortened from the 500ms default. This is the only way to reach either
-     * verb, and half a second of holding still on a scrolling list is long
+     * Shortened from the 500ms default. This is the only way to reach any of
+     * them, and half a second of holding still on a scrolling list is long
      * enough that people let go first and conclude there is nothing there.
      */
     expect(THREAD).toMatch(/delayLongPress=\{320\}/);
     /*
-     * And a second way to the same menu. A long press is invisible to a screen
-     * reader and impossible for some people to perform; the actions rotor is
-     * where iOS puts the alternative.
+     * And a second way to the same sheet. A long press is invisible to a
+     * screen reader and impossible for some people to perform; the actions
+     * rotor is where iOS puts the alternative.
      */
-    expect(THREAD).toMatch(/accessibilityActions=\{[\s\S]{0,80}label: 'Edit or delete'/);
-    expect(THREAD).toMatch(/actionName === 'longpress'\) menu\(\)/);
-    // One menu, reached two ways, rather than the alert written out twice.
-    expect(THREAD.match(/Alert\.alert\('Your message'/g) ?? []).toHaveLength(1);
+    expect(THREAD).toMatch(/label: mine \? 'React, edit or delete' : 'React'/);
+    expect(THREAD).toMatch(/actionName === 'longpress'\) open\(\)/);
+    /*
+     * The consequence sits beside the button rather than in a second panel
+     * after it — one sheet, and the thing worth knowing is in front of the
+     * decision.
+     */
+    expect(THREAD).toMatch(/deleteNote="It leaves a gap saying it was deleted\."/);
+  });
+
+  it('puts the six and a `+` in that sheet, and the `+` nowhere else', () => {
+    /*
+     * The six are the ones people react to photographs with, and the `+` is
+     * the full grid — ours rather than the system's, because there is no way
+     * to ask a phone for its emoji panel specifically. It sits at the end of
+     * the six where it used to sit at the end of the pills: the same promise,
+     * in the place it is now useful.
+     */
+    expect(THREAD).toMatch(/\{REACTIONS\.map\(\(emoji\) => \(/);
+    expect(THREAD).toMatch(/accessibilityLabel="More emoji"/);
+    expect(THREAD).toMatch(/import \{ EmojiPicker \} from '\.\/Emoji';/);
+    expect(THREAD).toMatch(/<EmojiPicker\b/);
+    /*
+     * And the pills are somebody's answer and nothing else: a row of them
+     * exists only where there are reactions, never as an empty invitation.
+     */
+    expect(THREAD).toMatch(/\{message\.reactions\.length > 0 && \(/);
+    expect(THREAD).not.toMatch(/accessibilityLabel="Add a reaction"/);
+  });
+
+  it('lets somebody take back their own reaction from the line', () => {
+    /*
+     * A reaction line is not a message: there is no row to tombstone, only a
+     * reaction to stop having, so `onDelete` would be the wrong verb. The
+     * route is the photo one — `photo_reaction`, which toggles — reached from
+     * the line rather than from the pill column.
+     */
+    expect(THREAD).toMatch(/unreact\?: \(photoId: string, emoji: string\) => Promise<unknown>;/);
+    expect(THREAD).toMatch(/onUnreact\?: \(\) => void;/);
+    expect(THREAD).toMatch(/deleteLabel="Remove my reaction"/);
+    // Only your own, only with a photograph behind it, only where the caller
+    // can reach it.
+    expect(THREAD).toMatch(
+      /item\.emoji && item\.photoId && item\.author\.mine && actions\.unreact/,
+    );
+    expect(APP).toMatch(/unreact: \(photoId: string, emoji: string\) => api\.reactToPhoto\(photoId, emoji\)/);
+    // And nothing to react to on one: a row of emoji over a reaction would
+    // offer to react to a reaction.
+    expect(THREAD).toMatch(/reactions=\{false\}/);
   });
 
   it('keeps the draft when a post fails', () => {
@@ -323,19 +378,9 @@ describe('two rooms, one drawing', () => {
      */
     expect(VIEWER).toMatch(/const sided = mine;/);
     const row = between(VIEWER, 'export function ThreadRow({', 'function People({');
-    for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine']) {
+    for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
       expect(row).toContain(`sided && ${style}`);
     }
-    /*
-     * The reactions are the exception, and deliberately: they are centred
-     * under every comment rather than following the side of one. A reaction
-     * belongs to everybody who tapped it, not to whoever wrote the words
-     * above it. `alignSelf: 'stretch'` is what gives the row the width to
-     * centre in at all, since `saidMine` shrinks its children to content.
-     */
-    expect(row).toMatch(/<View style=\{styles\.chips\}>/);
-    expect(VIEWER).toMatch(/alignSelf: 'stretch',\s*justifyContent: 'center',/);
-    expect(VIEWER).not.toMatch(/chipsMine/);
     expect(VIEWER).not.toMatch(/styles\.bubble|mentionOnAccent/);
     // One treatment for the words, so `@ana` is in the accent in every
     // message rather than marked by weight inside a fill it cannot colour
@@ -431,7 +476,11 @@ describe('two rooms, one drawing', () => {
      * edge, and a rule behind it is the strip the card is there instead of.
      */
     expect(VIEWER).toMatch(/composer: \{ paddingTop: 12,/);
-    expect(VIEWER).not.toMatch(/borderTopWidth/);
+    /* The card has its own edge; the only `borderTopWidth` left in the file
+       is the held sheet's, which is a sheet and wants one. */
+    expect(between(VIEWER, 'composer: { paddingTop: 12,', 'heldShell:')).not.toMatch(
+      /borderTopWidth/,
+    );
     // One field, one card, one button — the shape reaches the words on the
     // button and nothing else down here.
     expect(VIEWER).not.toMatch(/fieldPill|composerRow/);
@@ -474,7 +523,9 @@ describe('a reaction is a line, not a message', () => {
      * — and there is nothing here to edit, delete or reply to.
      */
     expect(VIEWER).toMatch(/if \(message\.emoji\) \{/);
-    expect(VIEWER).toMatch(/\{mine \? 'You' : message\.author\.name\} reacted \{message\.emoji\}/);
+    expect(VIEWER).toMatch(
+      /const said = `\$\{mine \? 'You' : message\.author\.name\} reacted \$\{message\.emoji\}`;/,
+    );
     expect(VIEWER).toMatch(/reacted: \{ textAlign: 'center'/);
   });
 
@@ -525,12 +576,25 @@ describe('a reaction is a line, not a message', () => {
     /* `about` is the whole of the question: only a caller that hands over a
        `photoOf` has pictures for these lines to be about, which is the album
        and not a group's room. */
-    expect(VIEWER).toMatch(/if \(about\) \{/);
+    expect(VIEWER).toMatch(/\{about \? \(/);
     expect(VIEWER).toMatch(/onPress=\{\(\) => onOpenPhoto\?\.\(about\.id\)\}/);
     // The face's own 32 and the row's own 10, so the column has one left edge
     // whatever kind of line is on it — and squared, because that slot holds a
     // person in every other row and a picture in this one.
-    expect(VIEWER).toMatch(/reactedRow: \{ flexDirection: 'row', alignItems: 'center', gap: 10 \}/);
+    expect(VIEWER).toMatch(
+      /reactedRow: \{\s*flexDirection: 'row',\s*alignItems: 'center',\s*justifyContent: 'center',\s*gap: 10,\s*\}/,
+    );
+    /*
+     * Centred rather than run along the left edge with the comments, which is
+     * where it started: that put a thing nobody said on the same edge as the
+     * things people did say, and a run of them read as comments with no words
+     * in them. Down the middle it is an aside in the conversation, in the
+     * same place the plain line has always been.
+     */
+    expect(VIEWER).toMatch(/reacted: \{ textAlign: 'center'/);
+    // And shrunk rather than flexed, or the pair would be justified to both
+    // edges instead of centred.
+    expect(VIEWER).toMatch(/reactedText: \{ flexShrink: 1, minWidth: 0/);
     expect(VIEWER).toMatch(/reactedShot: \{ width: 32, height: 32, borderRadius: 8/);
     /*
      * And the centred line stays for the two cases with no picture to show: a

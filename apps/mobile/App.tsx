@@ -2741,6 +2741,12 @@ function EventScreen({
       edit: (id: string, body: string) => api.editMessage(id, body),
       remove: (id: string) => api.deleteMessage(id),
       react: (id: string, emoji: string) => api.react(id, emoji),
+      /*
+       * And off a photograph, which is what a reaction *line* in the thread
+       * is: a `photo_reaction` row, not an emoji on a message. The endpoint
+       * toggles, so this is how somebody takes one back from the board.
+       */
+      unreact: (photoId: string, emoji: string) => api.reactToPhoto(photoId, emoji),
     }),
     [api, event.id],
   );

@@ -732,8 +732,15 @@ export function PhotoViewer({
       edit: (id: string, body: string) => api.editMessage(id, body).then(onChanged),
       remove: (id: string) => api.deleteMessage(id).then(onChanged),
       react: (id: string, emoji: string) => api.react(id, emoji).then(onChanged),
+      /*
+       * And taking back one of the reaction lines in the sheet, which are
+       * this photograph's own `photo_reaction` rows. The endpoint toggles, so
+       * calling it on one somebody already has is how it comes off — the same
+       * call the pill column makes, reached from the line instead.
+       */
+      unreact: (emoji: string) => api.reactToPhoto(photo.id, emoji).then(onChanged),
     }),
-    [api, onChanged],
+    [api, onChanged, photo.id],
   );
 
   const react = useCallback(
@@ -1099,6 +1106,11 @@ export function PhotoViewer({
                     onReact={(emoji) => void say.react(message.id, emoji)}
                     onDelete={() => void say.remove(message.id)}
                     onEdit={(body) => void say.edit(message.id, body)}
+                    onUnreact={
+                      message.emoji && message.author.mine
+                        ? () => void say.unreact(message.emoji!)
+                        : undefined
+                    }
                     about={null}
                   />
                 ))

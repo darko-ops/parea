@@ -49,11 +49,7 @@ describe('one shape for every comment, and a side for your own', () => {
        "just now You" — and the app's meta is one string that cannot reverse
        at all. The name goes first in every row on the page. */
     expect(RULES).toMatch(/\.message-mine \.message-meta \{ justify-content: flex-end; \}/);
-    /* The reactions are the exception: centred under every comment rather
-       than following the side of one, because a reaction belongs to everybody
-       who tapped it and not to whoever wrote the words above it. */
-    expect(RULES).not.toMatch(/\.message-mine \.reactions/);
-    expect(RULES).toMatch(/\.reactions \{[^}]*justify-content: center;/);
+    expect(RULES).toMatch(/\.message-mine \.reactions \{ justify-content: flex-end; \}/);
     expect(RULES).not.toMatch(/\.message-mine[^{]*\{[^}]*text-align: right/);
     // The name and the menu still say whose it is, which is what said it on
     // paper anyway.
@@ -124,6 +120,11 @@ describe('the photograph a line is about', () => {
     // round: that slot holds a person in every other row and a picture here.
     expect(RULES).toMatch(/\.thread-reacted-shot \{[^}]*border-radius: 8px/);
     expect(RULES).toMatch(/\.thread-reacted \{[^}]*gap: 10px/);
+    /* And centred, where a comment hangs from an edge: along the left with
+       the comments it put a thing nobody said on the same edge as the things
+       people did say. The app's row is centred too. */
+    expect(RULES).toMatch(/\.thread-reacted \{[^}]*justify-content: center/);
+    expect(APP_THREAD).toMatch(/reactedRow: \{[\s\S]{0,120}justifyContent: 'center'/);
   });
 
   it('is a link, not a handler', () => {

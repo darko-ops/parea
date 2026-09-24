@@ -144,6 +144,18 @@ describe('the sheet of comments over a photograph', () => {
     expect(GESTURE).toMatch(/about=\{null\}/);
   });
 
+  it('takes a reaction back from the line it is on', () => {
+    /*
+     * The lines in this sheet are this photograph's own `photo_reaction`
+     * rows, and the endpoint toggles — so calling it on one somebody already
+     * has is how it comes off. The same call the pill column makes, reached
+     * by holding the line instead.
+     */
+    expect(GESTURE).toMatch(/unreact: \(emoji: string\) => api\.reactToPhoto\(photo\.id, emoji\)/);
+    expect(GESTURE).toMatch(/message\.emoji && message\.author\.mine/);
+    expect(GESTURE).toMatch(/onUnreact=\{/);
+  });
+
   it('reaches the same three routes the board does', () => {
     // The same rows, so the same ids and the same endpoints; each refreshes
     // the feed, which is where both ends of the thread read from.
