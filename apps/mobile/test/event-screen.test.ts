@@ -376,46 +376,44 @@ describe('a photograph in an album', () => {
     expect(save).not.toMatch(/Alert\.alert\([\s\S]{0,80}Save \$\{/);
     /*
      * The corner button on a column row is gone with the row. The save is not:
-     * it is the `⋯` sheet inside the viewer, which is where somebody looking
-     * at one picture actually is — see the test below, which checks it sits
-     * above the three destructive rows.
+     * it is a disc in the viewer's own bottom corner, which is where somebody
+     * looking at one picture actually is — see the test below.
      */
     expect(APP).not.toMatch(/<Glyph name="download" size=\{18\} color="#fff" \/>/);
-    expect(APP).toMatch(/onDownload=\{\(\) => \{/);
+    expect(APP).toMatch(/onDownload=\{\(\) => void saveOne\(selected\)\}/);
   });
 
-  it('offers the same save from the photograph’s own menu', () => {
+  it('offers the same save from the viewer’s own corner', () => {
     /*
-     * The corner button lives on a row in a list, which somebody looking at
-     * one picture in the viewer has already scrolled past by the time they
-     * decide they want it — and the viewer's own chrome is a `⋯` and nothing
-     * else. One function behind both, so "saved" means the same thing either
-     * way: the camera's own file, not a rendition.
+     * It was the top row of the `⋯` sheet, on the argument that the one safe
+     * thing in a list of destructive ones should not sit under them. The
+     * better answer to that argument is that it does not belong in that sheet
+     * at all: saving is what you do *with* a photograph, and removing,
+     * reporting and blocking are what you do *about* one.
+     *
+     * So it is a disc in the bottom-right corner — one tap rather than two,
+     * opposite the reaction in the bottom-left, with the composer between
+     * them. Same `saveOne` behind it, so "saved" means the same file it always
+     * did: the camera's own, not a rendition.
      */
-    expect(APP).toMatch(/onDownload=\{\(\) => \{/);
-    expect(APP).toMatch(/downloading=\{savingOne === actionsFor\.id\}/);
+    const VIEWER = read('src/PhotoViewer.tsx');
+    expect(VIEWER).toMatch(/accessibilityLabel=\{downloading \? 'Saving this photo' : 'Save this photo'\}/);
+    expect(VIEWER).toMatch(/<Glyph name="download" size=\{22\} color="#fff" \/>/);
+    expect(APP).toMatch(/onDownload=\{\(\) => void saveOne\(selected\)\}/);
+    expect(APP).toMatch(/downloading=\{savingOne === selected\.id\}/);
+    /*
+     * And gone from the sheet rather than offered twice. Two doors to one
+     * verb is one of them somebody has to learn is the same door.
+     */
     const SHEET = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('function Pane'));
+    expect(SHEET).not.toMatch(/label=\{downloading/);
+    expect(SHEET).not.toMatch(/onDownload/);
     /*
-     * Above everything else in there. It is the only action in that sheet that
-     * is not about taking something away — remove, ask down, report, block —
-     * and the only one most people will ever press; under three destructive
-     * rows it would be the safe action buried beneath the dangerous ones.
+     * A spinner in place of the glyph while it works: saving is a download and
+     * a write, and a button that looks idle for four seconds is one somebody
+     * presses twice.
      */
-    expect(SHEET.indexOf('label={downloading')).toBeLessThan(SHEET.indexOf("label=\"Remove photo\""));
-    expect(SHEET.indexOf('label={downloading')).toBeLessThan(SHEET.indexOf("label=\"Report\""));
-    /*
-     * Offered whoever the photograph belongs to: saving somebody else's
-     * picture out of an album you are in is what the corner button has always
-     * done, and what "Download album" does in bulk. A rule that let you keep
-     * all of them and not one of them would be a rule about nothing.
-     */
-    expect(SHEET).toMatch(/\{!tagging && \(\s*\n\s*<Button\s*\n\s*label=\{downloading/);
-    /*
-     * And the sheet closes when it lands: a menu that stays open over the
-     * photograph after the one thing you asked it for is done is a menu you
-     * have to dismiss twice.
-     */
-    expect(APP).toMatch(/if \(saved\) setActionsFor\(null\);/);
+    expect(VIEWER).toMatch(/<ActivityIndicator size="small" color="#fff" \/>/);
     expect(APP).toMatch(/async \(photo: FeedPhoto\): Promise<boolean> => \{/);
   });
 

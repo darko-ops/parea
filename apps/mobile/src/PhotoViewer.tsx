@@ -30,6 +30,7 @@
 import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   KeyboardAvoidingView,
@@ -447,6 +448,8 @@ export function PhotoViewer({
   onClose,
   onChanged,
   onOptions,
+  onDownload,
+  downloading,
   uploader,
   onOpenPerson,
   onFavourite,
@@ -476,6 +479,21 @@ export function PhotoViewer({
   onChanged: () => Promise<void>;
   /** The `⋯`: remove, ask for it down, report, block. */
   onOptions: () => void;
+  /**
+   * Into the camera roll, from the corner.
+   *
+   * It was an item in the `⋯` sheet, which put the one thing somebody wants
+   * *done with* a photograph in the same list as reporting it and asking for
+   * it to come down — and one tap further away than any of them. The corner is
+   * what you do with the picture; the sheet is what you do about it.
+   *
+   * The album screen owns the call, because it owns the acknowledgement: see
+   * `saveOne`, which is also what the grid's own corner button uses, so
+   * "saved" means the same file either way.
+   */
+  onDownload: () => void;
+  /** Whether this one is on its way there. Draws the disc as working. */
+  downloading: boolean;
   /**
    * Whose photograph this is, for the square at the top.
    *
@@ -998,26 +1016,18 @@ export function PhotoViewer({
             list above it; the box itself is always there.
           */}
           {!talking && (
-            <View style={styles.bar} pointerEvents="box-none">
-              {canPost && (
-                <Pressable
-                  onPress={() => setTalking(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    comments.length > 0
-                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
-                      : 'Add a comment'
-                  }
-                  style={styles.composerHint}
-                >
-                  <Text style={styles.composerHintText} numberOfLines={1}>
-                    {comments.length > 0
-                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
-                      : 'Add a comment'}
-                  </Text>
-                </Pressable>
-              )}
+            /*
+              Three things on one line: what you can say, and the two things
+              you can do without saying anything.
 
+              Reacting sits on the left and saving on the right, which is the
+              arrangement asked for and a better one than the reaction disc
+              alone on the right. Both are one-tap verbs about the picture, so
+              they belong at the two ends where a thumb reaches without
+              crossing it — and the box between them grows into whatever is
+              left, which is what a composer should do anyway.
+            */
+            <View style={styles.bar} pointerEvents="box-none">
               {/*
                 One face, and the whole keyboard behind it.
 
@@ -1038,13 +1048,58 @@ export function PhotoViewer({
                   onPress={() => setPicking(true)}
                   accessibilityRole="button"
                   accessibilityLabel="React to this photo"
-                  style={({ pressed }) => [styles.smiley, { opacity: pressed ? 0.55 : 1 }]}
+                  style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.55 : 1 }]}
                 >
                   <Glyph name="face" size={22} color="#fff" />
                 </Pressable>
               ) : (
                 <Text style={styles.why}>Sign in{'\n'}to react</Text>
               )}
+
+              {canPost && (
+                <Pressable
+                  onPress={() => setTalking(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
+                      : 'Add a comment'
+                  }
+                  style={styles.composerHint}
+                >
+                  <Text style={styles.composerHintText} numberOfLines={1}>
+                    {comments.length > 0
+                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
+                      : 'Add a comment'}
+                  </Text>
+                </Pressable>
+              )}
+
+              {/*
+                And the camera's own file, in the opposite corner.
+
+                The glyph rather than a word, because it is one of three
+                controls on a row over somebody's photograph and the other two
+                are glyphs. A spinner in place of it while it is working:
+                saving takes a download and a write, and a button that looks
+                idle for four seconds is a button somebody presses twice.
+              */}
+              <Pressable
+                onPress={onDownload}
+                disabled={downloading}
+                accessibilityRole="button"
+                accessibilityLabel={downloading ? 'Saving this photo' : 'Save this photo'}
+                style={({ pressed }) => [
+                  styles.disc,
+                  { opacity: downloading ? 0.6 : pressed ? 0.55 : 1 },
+                ]}
+              >
+                {downloading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Glyph name="download" size={22} color="#fff" />
+                )}
+              </Pressable>
             </View>
           )}
         </>
@@ -1247,8 +1302,8 @@ const styles = StyleSheet.create({
    * panel to find is a box nobody uses. Left of the reaction column, clear of
    * the names in the other corner.
    */
-  /* The two of them on one line, so the list above has a single edge to sit
-     over rather than two controls at different heights. */
+  /* The three of them on one line, so the list above has a single edge to sit
+     over rather than controls at different heights. */
   bar: {
     position: 'absolute',
     left: 16,
@@ -1362,9 +1417,16 @@ const styles = StyleSheet.create({
   saidMine: { color: 'rgba(255,255,255,0.85)' },
   saidEmoji: { fontSize: 15 },
 
-  /* The picker, bottom right: one column, scrolled. */
-  /* The same disc as the two in the top corners, at the end of the bar. */
-  smiley: {
+  /*
+   * The two verbs at the ends of the bar: react on the left, save on the
+   * right.
+   *
+   * One style for both, and the same disc as the two in the top corners. It
+   * was `smiley`, named for the one control that used to be down here — a
+   * name that describes the picture inside a shape is a name the second thing
+   * in that shape cannot use.
+   */
+  disc: {
     width: 40,
     height: 40,
     borderRadius: 20,

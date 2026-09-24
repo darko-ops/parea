@@ -199,7 +199,30 @@ describe('reacting to a photograph', () => {
      */
     expect(GESTURE).toMatch(/styles\.said\b/);
     expect(GESTURE).toMatch(/ordered\.map\(\(r, i\) =>/);
-    expect(GESTURE).toMatch(/styles\.smiley\b/);
+    // One face, and the whole keyboard behind it. `disc` rather than `smiley`
+    // now that the same shape holds two verbs — see the test below.
+    expect(GESTURE).toMatch(/accessibilityLabel="React to this photo"/);
+    expect(GESTURE).toMatch(/styles\.disc\b/);
+  });
+
+  it('puts the two verbs at the two ends of the bar', () => {
+    /*
+     * Reacting on the left and saving on the right, with what you can say
+     * between them. Both are one-tap verbs about the picture, so they belong
+     * at the ends where a thumb reaches without crossing it — and the box
+     * between them grows into whatever is left, which is what a composer
+     * should do anyway.
+     *
+     * The reaction disc was alone on the right and `smiley` was its style: a
+     * name that describes the picture inside a shape is a name the second
+     * thing in that shape cannot use.
+     */
+    expect(GESTURE).not.toMatch(/styles\.smiley/);
+    const bar = GESTURE.slice(GESTURE.indexOf('styles.bar'), GESTURE.indexOf('{talking &&'));
+    expect(bar.indexOf('React to this photo')).toBeLessThan(bar.indexOf('styles.composerHint'));
+    expect(bar.indexOf('styles.composerHint')).toBeLessThan(bar.indexOf('Save this photo'));
+    // Still one row, so the list above it has a single edge to sit over.
+    expect(GESTURE).toMatch(/bar: \{[\s\S]{0,160}flexDirection: 'row'/);
   });
 
   it('prints the handle, without an `@`, and never an actor id', () => {

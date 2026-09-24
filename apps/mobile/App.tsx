@@ -4122,6 +4122,17 @@ function EventScreen({
             }}
             onChanged={refresh}
             onOptions={() => setActionsFor(selected)}
+            /*
+              Saving, from the corner rather than from the sheet.
+
+              `saveOne` is the album screen's and is also what the grid's own
+              corner button calls, so "saved" means the same file wherever it
+              is asked for — the camera's original, not a rendition. It
+              answers whether it landed and this has no use for the answer:
+              the acknowledgement is `savedNote`, which draws itself.
+            */
+            onDownload={() => void saveOne(selected)}
+            downloading={savingOne === selected.id}
           />
 
           {/*
@@ -4162,22 +4173,6 @@ function EventScreen({
               */
               members={feed?.members ?? []}
               t={t}
-              /*
-                The same save the column view puts in a photograph's corner.
-
-                Reached from the viewer, which is where somebody looking at one
-                picture actually is: the corner button lives on a row in a list
-                they have already scrolled past by the time they decide they
-                want it, and the viewer's own chrome is a `⋯` and nothing else.
-                One function behind both, so "saved" means the same thing
-                either way — the camera's own file, not a rendition.
-              */
-              onDownload={() => {
-                void saveOne(actionsFor).then((saved) => {
-                  if (saved) setActionsFor(null);
-                });
-              }}
-              downloading={savingOne === actionsFor.id}
               onClose={() => setActionsFor(null)}
               onChanged={async () => {
                 await refresh();
@@ -5044,17 +5039,11 @@ function PhotoActions({
   photo,
   members,
   t,
-  onDownload,
-  downloading,
   onClose,
   onChanged,
 }: {
   api: Api;
   photo: FeedPhoto;
-  /** Into the camera roll. The album screen owns it — see `saveOne`. */
-  onDownload: () => void;
-  /** Whether this one is on its way there. */
-  downloading: boolean;
   /** The album's own people — the only ones who may be tagged. */
   members: Member[];
   t: Theme;
@@ -5171,33 +5160,17 @@ function PhotoActions({
             photograph depends entirely on whether they put it there.
           */}
           {/*
-            Keeping a copy, above everything else in here.
+            No Download here any more.
 
-            The only thing in this sheet that is not about taking something
-            away — removing a photograph, asking for it to come down,
-            reporting it, blocking somebody — and the only one most people will
-            ever press. Under three destructive rows it would be the safe
-            action buried beneath the dangerous ones, which is backwards.
-
-            Offered whoever the photograph belongs to. Saving somebody else's
-            picture out of an album you are in is the same thing the column
-            view has always offered from its corner, and the same thing
-            "Download album" does in bulk; a rule that let you keep all of them
-            and not one of them would be a rule about nothing.
-
-            Not while tagging: that state replaces the menu with a field and a
-            list of names, and a save button under it belongs to a sheet that
-            is not on screen.
+            It was the top row, on the argument that the one safe thing in a
+            sheet of destructive ones should not sit under them. The better
+            answer to that argument is that it does not belong in this sheet
+            at all: saving is what you do *with* a photograph, and removing,
+            reporting and blocking are what you do *about* one. It is a disc in
+            the viewer's own corner now, one tap rather than two, which leaves
+            this list a single idea — and it is still the same `saveOne` behind
+            it, so "saved" means the same file it always did.
           */}
-          {!tagging && (
-            <Button
-              label={downloading ? 'Saving…' : 'Download'}
-              t={t}
-              disabled={busy || downloading}
-              onPress={onDownload}
-            />
-          )}
-
           {photo.mine ? (
             <>
               {!tagging ? (
