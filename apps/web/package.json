@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "node ../../scripts/migrate-on-deploy.mjs && next build",
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

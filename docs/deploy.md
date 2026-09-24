@@ -65,9 +65,24 @@ export DATABASE_URL='postgres://…'
 npm run db:migrate
 ```
 
-Idempotent, and it must be run on every deploy that includes a schema change.
-Nothing migrates on application boot on purpose: two app instances starting at
-once would race, and a half-applied schema is worse than a failed deploy.
+Idempotent, and this is the first-time version. After that a production deploy
+runs it for you: `vercel-build` in `apps/web/package.json` calls
+`scripts/migrate-on-deploy.mjs` before `next build`, which applies anything
+pending and fails the build if it cannot.
+
+It is worth knowing why that exists. This database was once two migrations
+behind the repository — one of them the table the "keep a photograph" shortlist
+writes to — because running the command was a step somebody had to remember,
+and the failure is silent until a person presses the star.
+
+Deploy-time, not boot-time, and still not: two app instances starting at once
+would race, and a half-applied schema is worse than a failed deploy. A build
+runs once.
+
+Production only. A preview builds a branch, and a branch may carry a migration
+nobody has merged — which would then land on whatever database the preview is
+pointed at. The script asks `VERCEL_ENV` and does nothing anywhere else, so a
+schema change still reaches a preview environment by being run there by hand.
 
 ## 2. R2
 

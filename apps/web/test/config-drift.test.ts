@@ -137,3 +137,56 @@ describe('the lockfile covers the platform that deploys', () => {
     expect(lock.packages['node_modules/@img/sharp-linux-x64']).toBeTruthy();
   });
 });
+
+/**
+ * The deploy applies migrations, and only in production.
+ *
+ * It did not, and the consequence was quiet in the way this file exists to
+ * catch: the database behind this project was two migrations behind the
+ * repository, one of which created the table the "keep a photograph"
+ * shortlist writes to. Nothing had failed. Nobody had run the command.
+ *
+ * Pinned in three parts, because each one is a different way for it to stop
+ * working — the hook Vercel actually calls, the guard that keeps a branch's
+ * schema off a production database, and the refusal to ship a production
+ * build that could not migrate.
+ */
+describe('the deploy runs the migrations', () => {
+  const deployScript = read('../../../scripts/migrate-on-deploy.mjs');
+  const web = JSON.parse(read('../package.json')) as {
+    scripts: Record<string, string>;
+  };
+
+  it('hangs off `vercel-build`, which Vercel runs instead of the build command', () => {
+    /*
+     * Not `build`: CI builds the app too, against `postgres://ci/unused`, and
+     * a build step that talks to a database is one that cannot run anywhere
+     * without one. The project has no Build Command override, so the presence
+     * of this script is what decides.
+     */
+    expect(web.scripts['vercel-build']).toBe(
+      'node ../../scripts/migrate-on-deploy.mjs && next build',
+    );
+    expect(web.scripts['build']).toBe('next build');
+  });
+
+  it('does nothing outside production', () => {
+    /*
+     * A preview builds a branch, and a branch may carry a migration nobody
+     * has merged — which would then be applied to whatever database the
+     * preview is pointed at. Previews share production's environment unless
+     * every variable has been scoped by hand, which is a thing to get right
+     * rather than to assume.
+     */
+    expect(deployScript).toMatch(/const where = process\.env\.VERCEL_ENV;/);
+    expect(deployScript).toMatch(/if \(where !== 'production'\) \{[\s\S]{0,300}process\.exit\(0\);/);
+  });
+
+  it('fails the build rather than shipping against a schema it could not apply', () => {
+    // A green deploy that quietly skipped the step is how the situation this
+    // was written for happened in the first place.
+    expect(deployScript).toMatch(/if \(!process\.env\.DATABASE_URL\) \{[\s\S]{0,200}process\.exit\(2\);/);
+    // `execFileSync` throws on a non-zero exit, which is what stops the build.
+    expect(deployScript).toMatch(/execFileSync\('npm', \['run', 'db:migrate'\]/);
+  });
+});
