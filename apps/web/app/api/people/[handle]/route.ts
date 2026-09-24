@@ -105,7 +105,7 @@ export async function GET(
           name: album.name,
           locked: album.locked,
           photoCount: album.photoCount,
-          eventDate: album.eventDate,
+          createdAt: album.createdAt,
           thumb: await coverSrc(album.coverKey),
         })),
     ),

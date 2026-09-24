@@ -621,19 +621,36 @@ describe('what a card dates an album by', () => {
     expect(EVENTS).not.toMatch(/dateLabel\(event\.eventDate \?\? event\.startsAt/);
   });
 
-  it('still dates the profile shelf by the evening itself', () => {
+  it('dates every shelf of albums the same way', () => {
     /*
-     * Not a global rename. "When was this evening" and "when did this arrive"
-     * are different questions, and a shelf of somebody's albums is answering
-     * the first one.
+     * The profile's shelf used to answer a different question — "when was
+     * this evening" rather than "when did this arrive" — on the argument that
+     * a shelf of somebody's albums is about the evenings.
+     *
+     * It is one question now, and asked for: a shelf is read as a list of
+     * things that were started, and `eventDate ?? firstPhotoAt` meant an
+     * album posted yesterday out of a roll from 2019 sat on a profile dated
+     * 2019 while the card for it on the home screen said yesterday. Two
+     * surfaces, one album, two dates.
+     *
+     * The evening's own date has not gone anywhere: it is what the album's
+     * own header says, where the subject *is* the evening.
      */
     const PROFILE = read('src/Profile.tsx');
-/** The icon's field is defined here, and the tile restates it. */
-const ICON_SCRIPT = readFileSync(
-  fileURLToPath(new URL('../../../scripts/build-icon.mjs', import.meta.url).href),
-  'utf8',
-);
-    expect(PROFILE).toMatch(/dateLabel\(event\.eventDate \?\? event\.firstPhotoAt\)/);
+    expect(PROFILE).toMatch(/const when = dateLabel\(event\.createdAt\);/);
+    expect(PROFILE).not.toMatch(/event\.firstPhotoAt/);
+    // The same rule on somebody else's, and on a group's archive.
+    const PERSON = read('src/Person.tsx');
+    expect(PERSON).toMatch(/at: mine\?\.createdAt \?\? event\.lastActiveAt,/);
+    expect(PERSON).toMatch(/at: album\.createdAt,/);
+    const GROUPS_SERVER = readFileSync(
+      fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(GROUPS_SERVER).toMatch(/at: row\.createdAt\.toISOString\(\),/);
+    /* The rule that said the opposite is gone as a rule. It survives in the
+       note that says why, which is where a reversed decision belongs. */
+    expect(GROUPS_SERVER).not.toMatch(/at: \(row\.eventDate/);
   });
 
   it('is carried the whole way, not derived on the phone', () => {

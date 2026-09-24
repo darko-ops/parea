@@ -101,7 +101,8 @@ export default async function PersonPage({
         locked: album.locked,
         cover: await coverSrc(album.coverKey),
         photoCount: album.photoCount,
-        date: dateLabel(album.eventDate ?? album.lastActiveAt),
+        // When it was made, like every other shelf of albums.
+        date: dateLabel(album.createdAt),
       })),
   );
 

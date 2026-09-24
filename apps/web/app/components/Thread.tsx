@@ -38,8 +38,19 @@ import { useImageFailure } from './useImageFailure';
 
 type Person = { key: string; name: string; photoCount: number; mine: boolean };
 
+/**
+ * Which room this thread is, which decides every route it talks to.
+ *
+ * Two ids where one room exists is a pair that eventually disagrees, so the
+ * kind travels with the id rather than beside it. A group's messages are a
+ * different table reached through different paths — `/api/group-messages/…`
+ * rather than `/api/messages/…` — because the ids could collide and a route
+ * asked to guess which table it was handed is one that can guess wrong.
+ */
+export type ThreadRoom = { kind: 'event'; id: string } | { kind: 'group'; id: string };
+
 export type ThreadProps = {
-  eventId: string;
+  room: ThreadRoom;
   messages: Message[];
   /** Whether this viewer may post — `contribute`, and signed in. */
   canPost: boolean;
@@ -84,7 +95,7 @@ export type ThreadProps = {
  * each person has put in.
  */
 export function Thread({
-  eventId,
+  room,
   messages,
   canPost,
   people,
@@ -120,11 +131,27 @@ export function Thread({
    */
   const aboutOf = useCallback(
     (photoId: string | null) => {
-      const photo = photoId ? (photoOf?.(photoId) ?? null) : null;
-      return photo ? { src: photo.src, href: `/event/${eventId}/p/${photo.id}` } : null;
+      // A group owns no photographs, so nothing in one is about a picture and
+      // there is no page to link to even if it were.
+      const photo = room.kind === 'event' && photoId ? (photoOf?.(photoId) ?? null) : null;
+      return photo ? { src: photo.src, href: `/event/${room.id}/p/${photo.id}` } : null;
     },
-    [eventId, photoOf],
+    [room, photoOf],
   );
+
+  /*
+   * Where the four verbs go, which is the whole of what a room changes here.
+   *
+   * Posting is scoped by the room; editing, deleting and reacting are scoped
+   * by the message, and a group's messages live in their own table behind
+   * their own paths. Computed once rather than branched at four call sites.
+   */
+  const postTo =
+    room.kind === 'group'
+      ? `/api/groups/${room.id}/messages`
+      : `/api/events/${room.id}/messages`;
+  const messageAt = (id: string) =>
+    room.kind === 'group' ? `/api/group-messages/${id}` : `/api/messages/${id}`;
 
   /*
    * Stay at the bottom, but only if that is where you already were.
@@ -148,7 +175,7 @@ export function Thread({
     setPosting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/messages`, {
+      const res = await fetch(postTo, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body }),
@@ -164,11 +191,11 @@ export function Thread({
     } finally {
       setPosting(false);
     }
-  }, [draft, posting, eventId, onChanged]);
+  }, [draft, posting, postTo, onChanged]);
 
   const react = useCallback(
     async (id: string, emoji: string) => {
-      await fetch(`/api/messages/${id}/reactions`, {
+      await fetch(`${messageAt(id)}/reactions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ emoji }),
@@ -181,7 +208,7 @@ export function Thread({
   const remove = useCallback(
     async (id: string) => {
       if (!confirm('Delete this message? It leaves a gap saying it was deleted.')) return;
-      await fetch(`/api/messages/${id}`, { method: 'DELETE' }).catch(() => {});
+      await fetch(messageAt(id), { method: 'DELETE' }).catch(() => {});
       await onChanged();
     },
     [onChanged],
@@ -191,7 +218,7 @@ export function Thread({
     async (id: string, body: string) => {
       const text = body.trim();
       if (!text) return;
-      await fetch(`/api/messages/${id}`, {
+      await fetch(messageAt(id), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body: text }),

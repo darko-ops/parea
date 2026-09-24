@@ -895,7 +895,7 @@ export function EventView({
       {tab === 'conversation' && (
         <div className="event-body event-column">
           <Thread
-            eventId={eventId}
+            room={{ kind: 'event', id: eventId }}
             messages={feed.messages}
             canPost={feed.canPost}
             people={feed.people}

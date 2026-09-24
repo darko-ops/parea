@@ -616,7 +616,10 @@ describe('a reaction is a line, not a message', () => {
     expect(WEB).toMatch(/if \(message\.emoji\) \{/);
     expect(WEB).toMatch(/className="muted thread-reacted"/);
     expect(WEB).toMatch(/<a href=\{about\.href\} className="thread-reacted-shot"/);
-    expect(WEB).toMatch(/`\/event\/\$\{eventId\}\/p\/\$\{photo\.id\}`/);
+    /* `room.id` rather than an event id: the site's thread takes a room now,
+       because a group's conversation is the same component pointed at a
+       different set of paths. */
+    expect(WEB).toMatch(/`\/event\/\$\{room\.id\}\/p\/\$\{photo\.id\}`/);
     const WEB_API = read('../../apps/web/src/messages.ts');
     expect(WEB_API).toMatch(/emoji\?: string;/);
   });

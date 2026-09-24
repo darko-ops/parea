@@ -675,12 +675,23 @@ export async function groupArchive(
       photoCount: row.photoCount,
       faces: await Promise.all((row.faceKeys ?? []).map((key) => avatarUrl(key))),
       people: row.people,
-      // The event's own date when the host gave it one, else when it was last
-      // added to — never `created_at`, which is when somebody made the page.
-      at: (row.eventDate
-        ? new Date(`${row.eventDate}T00:00:00Z`)
-        : row.lastActiveAt
-      ).toISOString(),
+      /*
+       * When the album was made.
+       *
+       * This was the host's own event date where they set one and the last
+       * time anything was added otherwise — explicitly "never `created_at`,
+       * which is when somebody made the page". That is reversed, and asked
+       * for: a shelf of albums is read as a list of things that were started,
+       * and dating one by the evening it is *about* means a group's archive
+       * and a person's shelf disagree with the card on the home screen, which
+       * has led with `created_at` since it stopped leading with a photograph's
+       * timestamp.
+       *
+       * The evening's own date has not gone anywhere — it is what an album's
+       * own header says, where the subject is the evening rather than the
+       * album — it is simply not what a shelf sorts and labels by.
+       */
+      at: row.createdAt.toISOString(),
       fresh: row.fresh,
     })),
   );

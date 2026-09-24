@@ -261,7 +261,7 @@ export function PhotoView({
           </a>
           <div className="photo-chat">
             <Thread
-              eventId={event.id}
+              room={{ kind: 'event', id: event.id }}
               messages={thread}
               canPost={canPost}
               people={people}

@@ -804,7 +804,8 @@ export type ProfileAlbum = {
   locked: boolean;
   /** Null when locked. */
   photoCount: number | null;
-  eventDate: string | null;
+  /** When it was made, ISO — what a shelf of albums is dated by. */
+  createdAt: string;
   thumb: string | null;
 };
 

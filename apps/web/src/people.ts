@@ -323,8 +323,15 @@ export type ProfileAlbum = {
   coverKey: string | null;
   /** Null when locked. */
   photoCount: number | null;
-  /** The album's own day, ISO, or null. Safe on a locked one: it is a date. */
-  eventDate: string | null;
+  /**
+   * When it was made, ISO. Safe on a locked one: it is a date.
+   *
+   * What a shelf of albums shows, here and on the group page and on your own
+   * profile — see the note in `groupArchive`. It was the album's own event
+   * date falling back to when it was last added to, which dated a list of
+   * albums by their subjects rather than by themselves.
+   */
+  createdAt: string;
   lastActiveAt: string;
 };
 
@@ -358,7 +365,7 @@ export async function albumsBy(
       name: schema.events.name,
       accessPolicy: schema.events.accessPolicy,
       coverKey: schema.events.coverKey,
-      eventDate: schema.events.eventDate,
+      createdAt: schema.events.createdAt,
       lastActiveAt: schema.events.lastActiveAt,
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
@@ -394,7 +401,7 @@ export async function albumsBy(
       locked,
       coverKey: locked ? null : row.coverKey,
       photoCount: locked ? null : row.photoCount,
-      eventDate: row.eventDate,
+      createdAt: row.createdAt.toISOString(),
       lastActiveAt: row.lastActiveAt.toISOString(),
     };
   });

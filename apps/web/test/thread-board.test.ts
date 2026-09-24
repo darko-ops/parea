@@ -130,7 +130,10 @@ describe('the photograph a line is about', () => {
   it('is a link, not a handler', () => {
     // The middle-click, the Copy-link and the Back button all come from the
     // element — the same reason `PhotoTile` is an `<a href>`.
-    expect(THREAD).toMatch(/`\/event\/\$\{eventId\}\/p\/\$\{photo\.id\}`/);
+    expect(THREAD).toMatch(/`\/event\/\$\{room\.id\}\/p\/\$\{photo\.id\}`/);
+    /* And only for an event: a group owns no photographs, so nothing in one
+       is about a picture and there is no page to link to even if it were. */
+    expect(THREAD).toMatch(/room\.kind === 'event' && photoId/);
     expect(THREAD).toMatch(/<a href=\{about\.href\}/);
   });
 

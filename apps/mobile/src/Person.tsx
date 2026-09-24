@@ -255,7 +255,8 @@ export function PersonScreen({
         name: event.name,
         cover: mine?.cover?.src ?? event.thumb,
         photoCount: mine?.photoCount ?? null,
-        at: mine?.eventDate ?? mine?.firstPhotoAt ?? event.lastActiveAt,
+        // When the album was made, which is what every shelf of them shows.
+        at: mine?.createdAt ?? event.lastActiveAt,
         locked: false,
         open: mine ? () => onOpenEvent(mine) : null,
         album: null as ProfileAlbum | null,
@@ -266,7 +267,7 @@ export function PersonScreen({
       name: album.name,
       cover: album.thumb,
       photoCount: album.photoCount,
-      at: album.eventDate,
+      at: album.createdAt,
       locked: album.locked,
       open: null,
       album,

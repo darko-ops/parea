@@ -57,7 +57,9 @@ type EventListing = {
   coverAspect?: number | null;
   /** ISO. Becomes the "added 2 days ago" line on the card. */
   lastActiveAt: string;
-  /** The event's own day, for the card's date. Any of the three may be absent. */
+  /** ISO. When the album was made, which is the date the shelf shows. */
+  createdAt: string;
+  /** The evening's own day, which an album's own header says. Not the shelf's. */
   eventDate: string | null;
   startsAt: string | null;
   firstPhotoAt: string | null;
@@ -419,7 +421,10 @@ export function AccountView() {
                  * formatted differently on two screens of one product is the
                  * failure a second copy produces.
                  */
-                date: dateLabel(event.eventDate ?? event.startsAt ?? event.firstPhotoAt ?? null),
+                // When the album was made — see the note in `groupArchive`.
+                // This read the evening's own date and fell all the way back
+                // to the earliest photograph in it.
+                date: dateLabel(event.createdAt),
                 live: isLive(event.lastActiveAt, new Date()),
                 faces: (event.faces ?? [])
                   .slice(0, CARD_FACES)

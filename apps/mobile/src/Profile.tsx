@@ -638,7 +638,12 @@ export function ProfileScreen({
       {events.length > 0 && (
         <View style={[styles.grid, styles.gutter]}>
           {events.map((event) => {
-            const when = dateLabel(event.eventDate ?? event.firstPhotoAt);
+            /* When the album was made, which is what the card on the home
+               screen already leads with. It read `eventDate ?? firstPhotoAt`
+               — the evening it was about, falling back to when the earliest
+               photograph in it was taken — so one shelf dated albums by their
+               subject while every other surface dated them by themselves. */
+            const when = dateLabel(event.createdAt);
             return (
               <Pressable
                 key={event.id}
