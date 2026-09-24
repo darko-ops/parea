@@ -162,13 +162,12 @@ describe('the profile at two widths', () => {
      * photograph's own top edge stretched and blurred — so the space between
      * the picture and the chrome is the picture's colour rather than a swatch.
      *
-     * The negative margin is what makes it *hang*: it pulls through `.wrap`'s
-     * own 40px of top padding to meet the bar. The two numbers have to agree,
-     * and nothing else in the file says so.
+     * The negative margin is what makes it *hang*: it pulls back through the
+     * page's own top padding to meet the bar. Which number that is depends on
+     * the container — see the test below.
      */
     expect(VIEW).toMatch(/className="you-ribbon"/);
-    expect(CSS).toMatch(/\.you-ribbon \{[^}]*margin-top: -40px/);
-    expect(CSS).toMatch(/\.wrap \{[^}]*padding: 40px/);
+    expect(CSS).toMatch(/\.you-ribbon \{[^}]*margin-top: calc\(var\(--page-top/);
     // Bottom corners only: the top of it is not an edge, it is where the page
     // begins.
     expect(CSS).toMatch(/\.you-ribbon \{[^}]*border-radius: 0 0 24px 24px/);
@@ -212,6 +211,51 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.main \{[^}]*padding: 28px 30px/);
   });
 
+  it('gives somebody else\u2019s profile the same page', () => {
+    /*
+     * It is the same page about a different person, so it is the same ribbon,
+     * the same row on a laptop and the same share control. What it is not is
+     * the same *action*: `Edit` has no meaning here, and the slot beside the
+     * name holds the friend decision instead.
+     *
+     * Share goes first and quiet, so the control that is a decision about a
+     * person is the last thing read on the row. The app deliberately has one
+     * control on this screen — "the only thing you can do about somebody" —
+     * and that argument is about not crowding the decision, which this does
+     * not: sharing is not a thing you do to a person, and a browser has the
+     * address in the bar already.
+     */
+    const PERSON = read('../app/components/PersonView.tsx');
+    expect(PERSON).toMatch(/className="you-ribbon"/);
+    expect(PERSON).toMatch(/className="you-bleed"/);
+    const act = PERSON.slice(PERSON.indexOf('className="you-act"'));
+    expect(act.indexOf('<ShareProfile')).toBeLessThan(act.indexOf("standing === 'friends'"));
+  });
+
+  it('pulls the ribbon back through whichever page it is on', () => {
+    /*
+     * Your own profile is in `.wrap` and somebody else's is in `.main`, and
+     * those two have never had the same top padding — 40, 28, and 20 on a
+     * phone. A single `-40px` hangs one of them off the bar and pulls the
+     * other twelve pixels past it.
+     *
+     * So the pull is the container's own number, declared where the padding
+     * is. Asserted on all three, because a fourth padding added without the
+     * variable beside it is the bug coming back.
+     */
+    expect(CSS).toMatch(/\.you-ribbon \{[^}]*margin-top: calc\(var\(--page-top, 40px\) \* -1\)/);
+    expect(CSS).toMatch(/\.wrap \{[^}]*--page-top: 40px;[^}]*padding: 40px/);
+    expect(CSS).toMatch(/\.main \{\s*--page-top: 28px;[^}]*padding: 28px 30px/);
+    expect(CSS).toMatch(/\.main \{ --page-top: 20px; padding: 20px; \}/);
+  });
+
+  it('lays their albums out in columns on a laptop', () => {
+    // `.album-list` is a single column of rows, which is right on a phone and
+    // is a 1400px page with a 60px card down the middle of it on a laptop. The
+    // row is unchanged — it carries a lock and a door a home card does not.
+    expect(WIDE).toMatch(/\.album-list \{ grid-template-columns: repeat\(auto-fill, minmax\(340px, 1fr\)\); \}/);
+  });
+
   it('offers the profile to somebody, and says which way before it does', () => {
     /*
      * A button reading `Share` that silently copies looks broken to whoever
@@ -228,5 +272,7 @@ describe('the profile at two widths', () => {
     // Nothing to hand out without a handle, and dimmed rather than absent —
     // a row with one half missing reads as a layout that failed.
     expect(SHARE).toMatch(/disabled=\{!handle\}/);
+    // Its own class, not `Edit`'s borrowed. See `person-page.test.ts`.
+    expect(SHARE).toMatch(/className="you-share"/);
   });
 });

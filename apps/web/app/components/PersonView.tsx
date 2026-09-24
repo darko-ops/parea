@@ -59,6 +59,7 @@ import type { Standing } from '@/people';
 import { Avatar } from './Avatar';
 import { EventCard } from './EventCard';
 import { Face } from './Faces';
+import { ShareProfile } from './ShareProfile';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -180,9 +181,27 @@ export function PersonView({
   return (
     <>
       <header className="you-head">
-        {/* A letter until there is a picture, and again if one will not load.
-            Never a silhouette: a generic avatar is a photograph of nobody. */}
-        <Avatar url={person.avatar} initial={name.replace('@', '').slice(0, 1).toUpperCase()} />
+        {/*
+          The picture, hanging from the bar on a phone and standing beside the
+          name on a laptop — the same ribbon your own profile has, because it
+          is the same page about a different person. See `.you-ribbon`, and
+          `AccountView` for what the shape is borrowed from.
+        */}
+        <div className="you-ribbon">
+          {person.avatar && (
+            <span
+              className="you-bleed"
+              aria-hidden="true"
+              style={{ backgroundImage: `url(${person.avatar})` }}
+            />
+          )}
+          {/* A letter until there is a picture, and again if one will not load.
+              Never a silhouette: a generic avatar is a photograph of nobody. */}
+          <Avatar
+            url={person.avatar}
+            initial={name.replace('@', '').slice(0, 1).toUpperCase()}
+          />
+        </div>
 
         <div className="you-id">
           <h1 className="you-name">{name}</h1>
@@ -214,9 +233,24 @@ export function PersonView({
           </p>
         </div>
 
-        {/* Where Edit sits on your own. The quiet states are worn as a label;
-            the ones that are somebody's to answer are buttons. */}
+        {/* Where Edit and Share sit on your own. The quiet states are worn as a
+            label; the ones that are somebody's to answer are buttons. */}
         <div className="you-act">
+          {/*
+            Handing somebody this person's page.
+
+            The app deliberately has one control here — "the only thing you can
+            do about somebody" — and that argument is about the friend decision
+            not being crowded, which it still is not: sharing is not a thing
+            you do *to* a person. A browser also makes the case the phone
+            cannot, because the address is already in the bar above: a button
+            that copies it is the page agreeing with what somebody was about to
+            do by hand.
+
+            First and quiet, so the control that is a decision is the last
+            thing read on the row and the one with a verb about a person on it.
+          */}
+          <ShareProfile handle={person.handle} />
           {standing === 'friends' && <span className="pip">Friends</span>}
           {/*
             "Requested", and pressing it withdraws.

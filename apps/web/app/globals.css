@@ -142,6 +142,11 @@ body {
     block flow would suddenly have 40. The rule underneath restores it rather
     than leaving the prose pages quietly looser. */
 .wrap {
+  /* What the ribbon on a profile pulls back through to meet the bar. Declared
+     as a variable rather than repeated as a number, because the profile lives
+     in `.wrap` on your own page and in `.main` on somebody else's, and those
+     two have never had the same top padding. See `.you-ribbon`. */
+  --page-top: 40px;
   max-width: 900px; margin: 0 auto; padding: 40px 20px 80px;
   display: flex; flex-direction: column;
   /* A screenful, the footer, and this element's own bottom padding — which
@@ -394,6 +399,7 @@ button.secondary {
     profile itself. Styled as a rail row, because that is what it is now. */
 .rail-settings { justify-content: flex-start; }
 .main {
+  --page-top: 28px;
   flex: 1; min-width: 0; padding: 28px 30px;
   display: flex; flex-direction: column;
   min-height: calc(100dvh + var(--footer-h) + 28px);
@@ -576,7 +582,7 @@ button.secondary {
      already, on 375px. */
   .home-create { display: none; }
   .rail-settings { display: flex; }
-  .main { padding: 20px; }
+  .main { --page-top: 20px; padding: 20px; }
 }
 
  /* The host screen's header: a way out, then the name.
@@ -3700,7 +3706,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    --------------------------------------------------------------------------- */
 .you-ribbon {
   position: relative; flex: none;
-  width: 172px; margin-top: -40px;
+  width: 172px; margin-top: calc(var(--page-top, 40px) * -1);
   border-radius: 0 0 24px 24px; overflow: hidden;
   background: var(--accent-soft);
 }
@@ -3818,16 +3824,25 @@ img.you-face { object-fit: cover; }
  /* Quiet, in the corner of the header, aligned with the name rather than the
     bottom of the picture. A word and a hairline — the loud version was a
     bordered button on its own row, which is the shape this product uses for
-    the thing a page is *for*, and this page is for the events below. */
-.you-edit {
+    the thing a page is *for*, and this page is for the events below.
+
+    Two names, one rule. `.you-share` could have borrowed `.you-edit` and did
+    at first, which put the string `you-edit` on somebody else's profile — a
+    page that has no Edit, and a test that says so. A class that has to lie
+    about what it is for the styling to reach it is a class waiting to be
+    grepped for and found in the wrong place. */
+.you-edit,
+.you-share {
   flex: none;
   padding: 5px 11px; border-radius: 999px;
   background: none; border: 1px solid var(--line); color: var(--dim);
   font-size: 13px; font-weight: 500;
   transition: border-color 120ms, color 120ms;
 }
-.you-edit:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.you-edit:disabled { opacity: .45; cursor: default; }
+.you-edit:hover:not(:disabled),
+.you-share:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.you-edit:disabled,
+.you-share:disabled { opacity: .45; cursor: default; }
 
 /* Sign out, with its sentence beside it rather than under it — on a wide
    panel a line of explanation on its own row reads as belonging to whatever
@@ -4013,8 +4028,20 @@ button.link {
   /* The facts read left to right with everything else, rather than centring
      themselves inside a column that is no longer centred. */
   .you-counts { justify-content: flex-start; }
-  /* The two controls stay with the name rather than dropping under the bio:
-     they are about the person in the header and the header now has a corner
-     to keep them in. */
-  .you-actions { align-self: flex-start; }
+  /* The controls stay with the name rather than dropping under the bio: they
+     are about the person in the header, and the header now has a corner to
+     keep them in. Both rows — `.you-actions` is your own profile's Edit and
+     Share, `.you-act` is the friend decision and Share on somebody else's. */
+  .you-actions, .you-act { align-self: flex-start; }
+
+  /*
+     Their albums, in columns rather than one long stack.
+ 
+     `.album-list` is a single column of rows, which is right on a phone and is
+     a 1400px page with a 60px-tall card down the middle of it on a laptop. The
+     row itself is unchanged — it carries a lock and a door that a home card
+     does not — so this only lays the same objects out the way the grid beside
+     them already does.
+  */
+  .album-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
 }

@@ -77,7 +77,7 @@ export function ShareProfile({ handle }: { handle: string | null }) {
   return (
     <>
       <button
-        className="you-edit"
+        className="you-share"
         disabled={!handle}
         title={handle ? undefined : 'Choose a handle first — Edit is where'}
         onClick={() => void share()}
