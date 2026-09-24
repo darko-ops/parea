@@ -114,6 +114,15 @@ const OWNED: {
   // who talked in a group from a laptop and then signed in on their phone
   // would find their own messages no longer theirs to edit or take back.
   { table: 'group_message', column: 'author_actor_id' },
+  // And the same collision `message_reaction` has, in that room: both actors
+  // having left the same emoji on the same message is one reaction rather
+  // than two, so the loser's row goes rather than moving — which the primary
+  // key requires anyway.
+  {
+    table: 'group_message_reaction',
+    column: 'actor_id',
+    uniqueWith: ['message_id', 'emoji'],
+  },
   // How far each of them had read. The two rows are two answers to one
   // question, and the merge has to pick one — so the loser's row is dropped
   // and the winner's kept rather than the pair colliding on the primary key.

@@ -904,8 +904,8 @@ export function ThreadRow({
           also how a reaction reaches a comment nobody has answered yet.
 
           So a row of pills exists only where there are pills: existing
-          reactions, tappable to join or leave one. A room with no reactions
-          at all — a group's, for now — simply never has any.
+          reactions, tappable to join or leave one. A room that cannot have
+          them simply never has any.
         */}
         {message.reactions.length > 0 && (
           <View style={[styles.chips, sided && styles.chipsMine]}>
@@ -937,8 +937,9 @@ export function ThreadRow({
         <HeldSheet
           t={t}
           /* Only where reacting is a thing this room does and this reader
-             may: a group's messages have no reactions yet, and a row of
-             emoji that does nothing is worse than no row. */
+             may — a row of emoji that does nothing is worse than no row.
+             Both rooms have message reactions now; what still answers no
+             here is a reader who cannot post. */
           reactions={canPost && canReact}
           onReact={(emoji) => {
             setHeld(false);

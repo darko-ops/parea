@@ -237,6 +237,9 @@ describe('the closed list of what is collected', () => {
       // nobody, and not counted anywhere either.
       photo_favourite: /keep a photograph, which is a shortlist of an album that is\s+yours alone/,
       group_message: /what you say in a group is kept with that\s+group/,
+      // The same disclosure the album's thread makes, in the other room: a
+      // reaction there is shown under your name to the people in it.
+      group_message_reaction: /reactions you leave on what other members say/,
       // One time per thread per person, and never shown to anybody else.
       event_thread_read: /the moment you last read it/,
       group_thread_read: /the moment you last read it/,

@@ -118,7 +118,23 @@ export async function messagesFor(
       schema.eventMessages,
       eq(schema.eventMessages.id, schema.messageReactions.messageId),
     )
-    .where(eq(schema.eventMessages.eventId, eventId));
+    .where(eq(schema.eventMessages.eventId, eventId))
+    /*
+     * Ordered, which it was not.
+     *
+     * The tally below is built by walking these rows, so their order is the
+     * order the pills come out in — and with no `order by` that is whatever
+     * the plan happens to return. Two polls could hand back the same
+     * reactions in two different orders, which on a phone is a row of pills
+     * rearranging itself while somebody is reaching for one.
+     *
+     * By when the reaction was left, so the row reads as the order the room
+     * answered in, with the emoji as the tiebreak: `created_at` is the
+     * transaction clock and two taps in the same millisecond are real. The
+     * same reasoning as the thread's own `createdAt, id` — found the same
+     * way, by a test that got a different answer than it wrote.
+     */
+    .orderBy(asc(schema.messageReactions.createdAt), asc(schema.messageReactions.emoji));
 
   const rows = await db
     .select({
@@ -304,6 +320,29 @@ export async function deleteMessage(
  * client has to know which one it is in, and it already gets that wrong
  * whenever two tabs are open.
  */
+/**
+ * How many different emoji this person has already left on this message.
+ *
+ * For the cap the route enforces — see `MAX_PER_MESSAGE`. A count rather than
+ * the rows: the question is only ever "is there room for one more".
+ */
+export async function reactionCountForMessage(
+  db: Db,
+  messageId: string,
+  actorId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.messageReactions)
+    .where(
+      and(
+        eq(schema.messageReactions.messageId, messageId),
+        eq(schema.messageReactions.actorId, actorId),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
 export async function toggleReaction(
   db: Db,
   messageId: string,

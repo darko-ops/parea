@@ -1117,6 +1117,26 @@ export class Api {
   }
 
   /**
+   * The same tap, on a group's message.
+   *
+   * Its own path for the reason the two above have theirs: the ids come out of
+   * different tables and could collide, and a route asked to guess which is a
+   * route that can guess wrong. `group_message_reaction` is a third table of
+   * the same shape, because what bounds a reaction is what bounds the thing it
+   * is on — membership here, where an event's comments have a capability to
+   * weigh and a photograph has `visiblePhotos`.
+   *
+   * Toggles, like the other two, so the caller never has to know which state
+   * it is in before it acts.
+   */
+  reactToGroupMessage(messageId: string, emoji: string): Promise<unknown> {
+    return this.call(`/api/group-messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
+  }
+
+  /**
    * The same tap, on a photograph rather than on a message.
    *
    * Its own path because the ids come out of two tables, and a route that had

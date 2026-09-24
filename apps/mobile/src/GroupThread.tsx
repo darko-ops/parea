@@ -151,8 +151,20 @@ export function GroupThread({
       post: (body: string) => api.postGroupMessage(group.id, body),
       edit: (id: string, body: string) => api.editGroupMessage(id, body),
       remove: (id: string) => api.deleteGroupMessage(id),
-      // No `react`: a group message has none yet, and the picker is not drawn
-      // where there is nothing behind it. See `groupMessages` in the schema.
+      /*
+       * And reactions, which a group message now has.
+       *
+       * They were missing and the schema called it a scope line rather than a
+       * decision: `message_reaction` hangs off `event_message`, so a group
+       * message meant a second table. There is one — `group_message_reaction`
+       * — and this is the tap that writes to it. `Thread` reads the presence
+       * of this function as "the room has reactions", which is why holding a
+       * message here offered Edit and Delete and no emoji until now.
+       *
+       * No `unreact`: that is for the reaction *lines* an album's board
+       * carries, which are reactions on photographs. A group has none.
+       */
+      react: (id: string, emoji: string) => api.reactToGroupMessage(id, emoji),
     }),
     [api, group.id],
   );

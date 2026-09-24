@@ -1159,10 +1159,11 @@ export const eventMessages = pgTable(
  * missing is `photo_id`: a group owns no photographs of its own — they belong
  * to the events under it — so there is nothing here to anchor a comment to.
  *
- * Reactions are missing too, and that is a scope line rather than a decision:
- * `message_reaction` has a foreign key to `event_message`, so giving a group
- * message a reaction means either a second reaction table or a nullable pair,
- * and neither is worth doing before anybody has asked to react to one.
+ * Reactions were missing too, and that was a scope line rather than a
+ * decision. Somebody asked, so `group_message_reaction` exists below — a
+ * second table rather than a nullable pair of anchors, for the reason
+ * `photo_reaction` is also its own: what bounds a reaction is what bounds the
+ * thing it is on, and those are three different questions.
  */
 export const groupMessages = pgTable(
   'group_message',
@@ -1401,6 +1402,50 @@ export const messageReactions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.messageId, t.actorId, t.emoji] })],
+);
+
+/**
+ * One person's reaction to one message in a group.
+ *
+ * The third table of this shape, and the third time the answer is a separate
+ * one rather than a nullable pair of anchors. It is not tidiness: what bounds
+ * a reaction is whatever bounds the thing it is on, and the three differ —
+ * a message reaction by who can read an event's thread, a photo reaction by
+ * `visiblePhotos`, and this one by membership of the group, which is the
+ * narrowest rule in the product and the only one of the three with no
+ * link-holder in it. One table would mean one query satisfying all three at
+ * once, and the day they disagree is the day a reaction outlives its room.
+ *
+ * Everything else is `message_reaction`'s: a row rather than a count, because
+ * the question a pill answers is "did *you* react" and a counter cannot be
+ * un-clicked by whoever clicked it; the whole tuple as the key, so reacting
+ * twice with one emoji is one reaction; and the emoji as text under a length
+ * check rather than an enum, because the set is a design decision and a
+ * migration per emoji is one nobody will write.
+ *
+ * No tombstone. A reaction is not a thing somebody said, so taking it back
+ * leaves nothing the messages either side could appear to be answering —
+ * which is the whole argument for the deleted-message gap and does not apply.
+ */
+export const groupMessageReactions = pgTable(
+  'group_message_reaction',
+  {
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => groupMessages.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.messageId, t.actorId, t.emoji] }),
+    /* Everything this person has reacted to, for the cap the route enforces
+       and for the cascade when an account goes. `message_reaction` predates
+       the index and wants one too; adding it there is a separate change. */
+    index('group_message_reaction_actor_idx').on(t.actorId),
+  ],
 );
 
 /**

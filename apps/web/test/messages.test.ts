@@ -22,9 +22,10 @@ import {
   eventOfMessage,
   messagesFor,
   postMessage,
+  reactionCountForMessage,
   toggleReaction,
 } from '@/messages';
-import { isReaction, REACTIONS } from '@/reactions';
+import { MAX_PER_MESSAGE, isEmoji, isReaction, REACTIONS } from '@/reactions';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -265,15 +266,80 @@ describe('reactions', () => {
     expect(theirs!.reactions.map((r) => r.mine)).toEqual([true, true]);
   });
 
-  it('only offers what the interface offers', () => {
-    // The column takes any short string, which is what keeps the set a design
-    // decision rather than a migration. That is only safe while the one door
-    // into the table is this narrow.
+  it('takes any emoji, not the six a picker opens with', async () => {
+    /*
+     * The route checked `isReaction` — the offered set, doing double duty as
+     * the validation — and that stopped being tenable the day the app put a
+     * `+` beside those six: everything reached through it came back 400, and
+     * the client swallows a failed reaction, so choosing from the grid looked
+     * like a tap that did nothing.
+     *
+     * The column takes any short string and always did; what changed is the
+     * door. `isEmoji` is the question now — one grapheme, no word characters,
+     * and a picture — and the set being offered went back to being a design
+     * decision about a picker.
+     */
+    const me = await person('Me');
+    const id = await event(me);
+    const key = (actorId: string) => actorId;
+    const messageId = await postMessage(db, id, me, 'a');
+
+    const chosen = ['🦑', '🫠', '🇬🇷', '1️⃣'];
+    for (const emoji of chosen) {
+      expect(isEmoji(emoji)).toBe(true);
+      expect(await toggleReaction(db, messageId, me, emoji)).toBe('added');
+    }
+    const [only] = await messagesFor(db, id, me, key);
+    expect(only!.reactions.map((r) => r.emoji).sort()).toEqual([...chosen].sort());
+    expect(only!.reactions.every((r) => r.mine && r.count === 1)).toBe(true);
+
+    /*
+     * And the row comes back in the same order twice, which is the property
+     * worth pinning rather than any particular order.
+     *
+     * The query had no `order by` at all, so two polls could hand back the
+     * same reactions arranged differently — on a phone that is a row of pills
+     * rearranging itself while somebody is reaching for one. It is ordered by
+     * when each was left, with the emoji as a tiebreak because `created_at`
+     * is the transaction clock and two taps can share it.
+     */
+    const again = await messagesFor(db, id, me, key);
+    expect(again[0]!.reactions.map((r) => r.emoji)).toEqual(
+      only!.reactions.map((r) => r.emoji),
+    );
+
+    // And what an open set still refuses, which is the rule doing the work: a
+    // reaction is one grapheme, so it cannot be a sentence.
+    expect(isEmoji('not an emoji at all, but a sentence')).toBe(false);
+    expect(isEmoji('❤️🔥')).toBe(false);
+    expect(isEmoji('')).toBe(false);
+
+    // `isReaction` did not go away — the six are still what a picker opens
+    // with — it simply stopped being what a route asks.
     for (const emoji of REACTIONS) expect(isReaction(emoji)).toBe(true);
-    expect(isReaction('not an emoji at all, but a sentence')).toBe(false);
-    expect(isReaction('')).toBe(false);
-    expect(isReaction(null)).toBe(false);
-    expect(isReaction(42)).toBe(false);
+    expect(isReaction('🦑')).toBe(false);
+  });
+
+  it('counts what one person has left, for the cap the route enforces', () => {
+    // Unreachable while six were offered and six enforced; a real limit now
+    // that the picker can produce anything the phone can.
+    expect(MAX_PER_MESSAGE).toBe(6);
+  });
+
+  it('counts only this person’s own, on only this message', async () => {
+    const me = await person('Me');
+    const them = await person('Them');
+    const id = await event(me);
+    const one = await postMessage(db, id, me, 'a');
+    const two = await postMessage(db, id, me, 'b');
+
+    await toggleReaction(db, one, me, '❤️');
+    await toggleReaction(db, one, me, '🔥');
+    await toggleReaction(db, one, them, '👏');
+    await toggleReaction(db, two, me, '😮');
+
+    expect(await reactionCountForMessage(db, one, me)).toBe(2);
+    expect(await reactionCountForMessage(db, one, them)).toBe(1);
   });
 });
 
@@ -332,6 +398,48 @@ describe('who is allowed to say anything at all', () => {
         /const actorId = await currentActorId\(\)/.test(source),
         `${path} gates a write on a guest-satisfiable check`,
       ).toBe(false);
+    }
+  });
+
+  it('every reaction route asks whether it is an emoji, not whether we like it', () => {
+    /*
+     * `isReaction` was the offered set doing double duty as the validation,
+     * and it stopped working the day a client grew a `+` beside the six:
+     * anything from the grid came back 400 `unknown_reaction`, which the
+     * client swallows, so a chosen emoji looked like a tap that did nothing.
+     *
+     * Every reaction route now asks `isEmoji` instead — one grapheme, no word
+     * characters, a picture — and the set being offered went back to being a
+     * decision about a picker. The three are checked together because the day
+     * they disagree is the day one client can do something another cannot.
+     */
+    for (const path of [
+      '../app/api/messages/[id]/reactions/route.ts',
+      '../app/api/group-messages/[id]/reactions/route.ts',
+      '../app/api/photos/[id]/reactions/route.ts',
+    ]) {
+      const source = read(path);
+      expect(source, `${path} does not accept an open set`).toMatch(/isEmoji\(body\.emoji\)/);
+      expect(source, `${path} still checks the offered six`).not.toMatch(/isReaction\(/);
+    }
+  });
+
+  it('caps how many one person can put on one message', () => {
+    /*
+     * Unreachable while six were offered and six enforced; a real limit now.
+     * Both message routes check before adding and never before removing —
+     * somebody at the limit must still be able to take one back, and a check
+     * that ran on both would leave them stuck with six they cannot undo.
+     */
+    for (const path of [
+      '../app/api/messages/[id]/reactions/route.ts',
+      '../app/api/group-messages/[id]/reactions/route.ts',
+    ]) {
+      const source = read(path);
+      expect(source, `${path} has no ceiling`).toMatch(/>= MAX_PER_MESSAGE/);
+      expect(source, `${path} refuses without saying so`).toMatch(
+        /error: 'too_many', max: MAX_PER_MESSAGE/,
+      );
     }
   });
 

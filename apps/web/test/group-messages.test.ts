@@ -28,13 +28,16 @@ import {
   eventThreadSummaries,
   groupMessagesFor,
   groupOfMessage,
+  groupReactionCountFor,
   groupThreadSummaries,
   markEventThreadRead,
   markGroupThreadRead,
   memberKey,
   postGroupMessage,
+  toggleGroupReaction,
 } from '@/groupMessages';
 import { postMessage } from '@/messages';
+import { MAX_PER_MESSAGE } from '@/reactions';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -51,7 +54,8 @@ beforeEach(async () => {
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
     truncate "actor", "event", "groups", "group_member", "group_message",
-             "event_message", "event_thread_read", "group_thread_read", "block"
+             "group_message_reaction", "event_message", "event_thread_read",
+             "group_thread_read", "block"
     restart identity cascade
   `);
 });
@@ -154,8 +158,9 @@ describe('reading a group thread', () => {
     expect(first!.author.key).toBe(memberKey(one, me));
   });
 
-  it('has no photo anchor and no reactions', async () => {
-    // A group owns no photographs — they belong to the events under it.
+  it('has no photo anchor, because a group owns no photographs', async () => {
+    // They belong to the events under it. Reactions are a different matter —
+    // see the block below.
     const me = await person('Me');
     const id = await group();
     await say(id, me, 'hello');
@@ -177,6 +182,126 @@ describe('reading a group thread', () => {
     expect((await groupMessagesFor(db, id, me)).map((m) => m.body)).toEqual(['mine']);
     // And the person who was blocked does not see the blocker either.
     expect((await groupMessagesFor(db, id, them)).map((m) => m.body)).toEqual(['theirs']);
+  });
+});
+
+/**
+ * Reacting to a group's message.
+ *
+ * The schema called these a scope line rather than a decision: `message_
+ * reaction` hangs off `event_message`, so a group message meant a second
+ * table. It has one, and this is that table read and written — the same shape
+ * as the event's, bounded by the narrowest rule in the product.
+ */
+describe('reacting in a group', () => {
+  it('counts one row per person per emoji, and says which are yours', async () => {
+    const me = await person('Me');
+    const them = await person('Them');
+    const id = await group();
+    const said = await say(id, me, 'look at this');
+
+    expect(await toggleGroupReaction(db, said, me, '❤️')).toBe('added');
+    expect(await toggleGroupReaction(db, said, them, '❤️')).toBe('added');
+    expect(await toggleGroupReaction(db, said, them, '🔥')).toBe('added');
+
+    const [message] = await groupMessagesFor(db, id, me);
+    expect(message!.reactions).toEqual([
+      { emoji: '❤️', count: 2, mine: true },
+      { emoji: '🔥', count: 1, mine: false },
+    ]);
+    // And from the other side, the same rows with `mine` the other way round.
+    const [theirs] = await groupMessagesFor(db, id, them);
+    expect(theirs!.reactions.map((r) => r.mine)).toEqual([true, true]);
+  });
+
+  it('is one row however many times the same person taps it', async () => {
+    // The primary key is the whole tuple, so reacting twice with one emoji is
+    // one reaction — and the second tap takes it back rather than adding.
+    const me = await person('Me');
+    const id = await group();
+    const said = await say(id, me, 'hello');
+
+    expect(await toggleGroupReaction(db, said, me, '👏')).toBe('added');
+    expect(await toggleGroupReaction(db, said, me, '👏')).toBe('removed');
+
+    const [message] = await groupMessagesFor(db, id, me);
+    expect(message!.reactions).toEqual([]);
+  });
+
+  it('takes any emoji, not one of six', async () => {
+    /*
+     * The offered set was also the validation, and the routes have all moved
+     * to `isEmoji` as each client grew a way to reach the rest of them. The
+     * column's bound is a length check, so the table has nothing to say about
+     * which emoji it likes.
+     */
+    const me = await person('Me');
+    const id = await group();
+    const said = await say(id, me, 'hello');
+
+    const chosen = ['🦑', '🫠', '🇬🇷', '1️⃣'];
+    for (const emoji of chosen) {
+      expect(await toggleGroupReaction(db, said, me, emoji)).toBe('added');
+    }
+    const [message] = await groupMessagesFor(db, id, me);
+    expect(message!.reactions.map((r) => r.emoji).sort()).toEqual([...chosen].sort());
+    // And in the same order twice — see the note on the event version. A row
+    // of pills that rearranges itself between two polls is a row you mis-tap.
+    const again = await groupMessagesFor(db, id, me);
+    expect(again[0]!.reactions.map((r) => r.emoji)).toEqual(
+      message!.reactions.map((r) => r.emoji),
+    );
+  });
+
+  it('counts what one person has left, for the cap the route enforces', async () => {
+    // The ceiling is the route's to apply; this is the question it asks. Only
+    // this person's own, on only this message.
+    const me = await person('Me');
+    const them = await person('Them');
+    const id = await group();
+    const said = await say(id, me, 'hello');
+    const other = await say(id, me, 'also');
+
+    await toggleGroupReaction(db, said, me, '❤️');
+    await toggleGroupReaction(db, said, me, '🔥');
+    await toggleGroupReaction(db, said, them, '👏');
+    await toggleGroupReaction(db, other, me, '😮');
+
+    expect(await groupReactionCountFor(db, said, me)).toBe(2);
+    expect(await groupReactionCountFor(db, said, them)).toBe(1);
+    expect(MAX_PER_MESSAGE).toBe(6);
+  });
+
+  it('is only this group’s, never another’s', async () => {
+    // The same mistake the thread itself could make, in the query beside it:
+    // reactions are scoped through their message's group.
+    const me = await person('Me');
+    const mine = await group('Mine');
+    const other = await group('Theirs');
+    const here = await say(mine, me, 'ours');
+    const there = await say(other, me, 'theirs');
+    await toggleGroupReaction(db, here, me, '❤️');
+    await toggleGroupReaction(db, there, me, '🔥');
+
+    const [message] = await groupMessagesFor(db, mine, me);
+    expect(message!.reactions.map((r) => r.emoji)).toEqual(['❤️']);
+  });
+
+  it('goes with the message it was on', async () => {
+    /*
+     * `on delete cascade`, which matters because a group message is
+     * tombstoned rather than deleted — so this is about the group going, or
+     * an account. Either way a reaction must not outlive its row.
+     */
+    const { eq } = await import('drizzle-orm');
+    const me = await person('Me');
+    const id = await group();
+    const said = await say(id, me, 'hello');
+    await toggleGroupReaction(db, said, me, '❤️');
+
+    await db.delete(schema.groupMessages).where(eq(schema.groupMessages.id, said));
+    const left = await db.select().from(schema.groupMessageReactions);
+    expect(left).toEqual([]);
   });
 });
 

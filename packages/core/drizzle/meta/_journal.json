@@ -253,6 +253,13 @@
       "when": 1790190352825,
       "tag": "0035_third_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790218182261,
+      "tag": "0036_group_message_reaction",
+      "breakpoints": true
     }
   ]
 }

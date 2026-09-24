@@ -268,11 +268,12 @@ export default function PrivacyPage() {
           <p className="muted">
             A group has a thread of its own, separate from the threads on the
             albums inside it, and what you say in a group is kept with that
-            group and shown under your name to its members. Membership is the
-            whole of the rule: there is no link that opens a group&rsquo;s
-            conversation, and somebody who can see the photographs in one of
-            its albums cannot read it. Editing, deleting and blocking work
-            exactly as they do in an album&rsquo;s thread.
+            group and shown under your name to its members. So are the
+            reactions you leave on what other members say there. Membership is
+            the whole of the rule: there is no link that opens a
+            group&rsquo;s conversation, and somebody who can see the
+            photographs in one of its albums cannot read it. Editing, deleting
+            and blocking work exactly as they do in an album&rsquo;s thread.
           </p>
 
           <h3>How far you have read</h3>

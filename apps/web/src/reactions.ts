@@ -1,5 +1,5 @@
 /**
- * What a message can be reacted with.
+ * What a picker opens with — no longer what a column accepts.
  *
  * Its own module, and the reason is a boundary rather than tidiness: the
  * thread is a client component and needs this list to draw the picker, while
@@ -8,15 +8,44 @@
  * from there pulled the whole server module into the browser bundle and the
  * build failed with "the chunking context does not support external modules".
  *
- * A closed set offered by the interface, not enforced by the column — see the
- * schema note. Six, because a row of reaction pills is a row and not a
- * keyboard: the point is to say something in one tap, and a picker with two
- * hundred faces in it is a second decision to make about a photograph of a
- * dinner.
+ * Six, because a row of reaction pills is a row and not a keyboard: the point
+ * is to say something in one tap, and a picker that opens on two hundred
+ * faces is a second decision to make about a photograph of a dinner.
+ *
+ * What changed is that this list is now the vocabulary and nothing else. It
+ * was also the validation — `isReaction` guarded every reaction route — and
+ * every route has moved to `isEmoji` as each client grew a way to reach the
+ * rest of them. The set being offered is a design decision; the set being
+ * *accepted* is "is this one emoji", which is the question `isEmoji` answers
+ * and the only one that stays true when a picker changes.
  */
 export const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🙏'] as const;
 export type Reaction = (typeof REACTIONS)[number];
 
+/**
+ * How many different emoji one person may put on one message.
+ *
+ * `MAX_PER_PHOTO`'s reasoning about a message, and it lives here rather than
+ * beside either table because two tables now need the same number — an
+ * event's comments and a group's messages — and a bound that exists twice is a
+ * bound that will disagree with itself.
+ *
+ * Not a rule about taste: it is what stops one account turning somebody's
+ * sentence into a wall of pills. It was unreachable while the offered set
+ * *was* the validation — six offered, six enforced — and opening the set is
+ * what makes it a real limit somebody can hit while meaning well. The seventh
+ * is refused with `too_many` rather than silently dropped.
+ */
+export const MAX_PER_MESSAGE = 6;
+
+/**
+ * Whether something is one of the six.
+ *
+ * No route asks this any more — see the note above. It stays because the six
+ * are still a real set with a real meaning, and a test that the list has not
+ * silently become something else is worth having; the day a screen wants to
+ * ask "is this one of the ones we open with", this is that question.
+ */
 export function isReaction(value: unknown): value is Reaction {
   return typeof value === 'string' && (REACTIONS as readonly string[]).includes(value);
 }
