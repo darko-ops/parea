@@ -256,12 +256,19 @@ describe('a group’s own thread', () => {
     expect(GROUP_THREAD).toMatch(
       /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
     );
-    // And the room itself opens it, which it could not before: the thread was
-    // reachable only from the envelope on the Groups tab, so a group opened
-    // from a search result or from one of its albums had the talking sealed off.
-    expect(APP).toMatch(/onOpenThread=\{\(group\) =>/);
+    /*
+     * And the room holds the conversation itself now rather than sending
+     * anybody to this screen: `GroupChat` is this file's body, lifted out so
+     * one conversation is drawn in both places. The screen survives because
+     * the Chats tab opens a conversation directly — a row there is a thread,
+     * not the room around it — which is also why its header still needs a
+     * name and two counts.
+     */
     const GROUPS = read('src/Groups.tsx');
-    expect(GROUPS).toMatch(/onPress=\{\(\) => onOpenThread\(group\)\}/);
+    expect(GROUP_THREAD).toMatch(/export function GroupChat\(/);
+    expect(GROUPS).toMatch(/<GroupChat /);
+    expect(GROUPS).not.toMatch(/onOpenThread/);
+    expect(APP).not.toMatch(/onOpenThread=/);
   });
 });
 

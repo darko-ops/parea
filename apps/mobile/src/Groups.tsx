@@ -14,6 +14,35 @@
  * the group chose to be findable — there is no state in which a stranger
  * learns what events exist, let alone what is in them. The server enforces
  * that; this file must not present anything that implies otherwise.
+ *
+ * ## The room is shaped like an album
+ *
+ * A head that stays put, a row of three tabs, and one pane at a time: Albums,
+ * Chat, People. An evening and a room are the same kind of object to somebody
+ * holding the phone — a thing with pictures in it, a conversation about them,
+ * and the people it belongs to — and drawing them two ways makes a reader
+ * learn the product twice.
+ *
+ * Three things went to make room for it, and each was a decision worth
+ * stating:
+ *
+ *   - **The archive.** The newest album was full-bleed at 4:5 with the rest
+ *     shelved under month and year rules, which reads well on its own and
+ *     reads like a third kind of album list. The Albums tab is the profile's
+ *     shelf — two across, cover, name, date and count — because these are the
+ *     same objects that shelf holds.
+ *   - **The chat disc.** A button in the header that opened a screen with a
+ *     second header naming the group you had just left. It is a tab, which is
+ *     where a room's conversation belongs: one of the things this screen is
+ *     about rather than somewhere else to go.
+ *   - **The Everyone sheet.** A modal over a stack of faces, which is a pane
+ *     with a lid on it. The People tab is that list, and the join requests an
+ *     admin used to meet above the archive sit at the top of it with the count
+ *     on the tab — the same pip an album's Comments tab carries.
+ *
+ * What did not change is the crest. A group's face is its letter on its own
+ * lens and never a photograph borrowed from inside, because a picture from one
+ * evening standing for the room says that evening is the room.
  */
 
 import { dateLabel } from '@parea/cards';
@@ -33,14 +62,30 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import type { Api, GroupAlbum, GroupPerson, GroupRoom, GroupView, JoinRequest } from './api';
-import { Glyph } from './Glyph';
+import type { Api, GroupAlbum, GroupView, JoinRequest } from './api';
+import { Glyph, type GlyphName } from './Glyph';
+import { GroupChat } from './GroupThread';
 import { initialOf, lensFor } from './lens';
 import { More, RoundButton } from './RoundButton';
 import { Waiting } from './Waiting';
 
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
+
+/**
+ * How tall the head is, and therefore where the panes begin.
+ *
+ * An album's cover is 196 and this is shorter, because what is in it is a
+ * crest and two lines rather than a photograph: a panel does not need a third
+ * of the screen. `PAGE_TOP` in `App.tsx` is the same idea and the same pair of
+ * constants.
+ */
+const HEAD = 176;
+
+/** Two across: at this width a cover is a photograph rather than a swatch. */
+const COLUMNS = 2;
+/** Gutters rather than hairlines — these tiles are cards, not one object. */
+const GAP = 10;
 
 /** Structural rather than imported, to keep this file out of App's import cycle. */
 export type GroupTheme = {
@@ -72,7 +117,6 @@ export function GroupScreen({
   onBack,
   onOpenEvent,
   onCreateEvent,
-  onOpenThread,
   onOpenPerson,
   Button,
 }: {
@@ -82,14 +126,6 @@ export function GroupScreen({
   onBack: () => void;
   onOpenEvent: (event: OpenableEvent) => void;
   onCreateEvent: (groupName: string) => void;
-  /**
-   * Into the group's own conversation.
-   *
-   * Handed the room rather than an id, so the bar on the other side can be
-   * drawn from what this screen already has: re-fetching a group to render its
-   * name is a spinner where a name should be.
-   */
-  onOpenThread: (group: GroupRoom) => void;
   /** Somebody in the room, by handle. Never called for a face without one. */
   onOpenPerson: (handle: string) => void;
   Button: (props: {
@@ -101,8 +137,16 @@ export function GroupScreen({
   }) => React.ReactElement;
 }) {
   const [group, setGroup] = useState<GroupView | null>(null);
-  /** The two sheets: everybody in the room, and everything else about it. */
-  const [everyone, setEveryone] = useState(false);
+  /**
+   * Which of the three panes is open.
+   *
+   * The same shape an album has, for the same reason: a room is a set of
+   * things about one subject, and stacking them makes the screen a scroll
+   * through everything on the way to the one you wanted. Albums first, because
+   * a room that keeps meeting is opened to see what it has been doing.
+   */
+  const [pane, setPane] = useState<GroupPane>('albums');
+  /** Everything else about the room, which is still one thing: leaving. */
   const [more, setMore] = useState(false);
 
   /**
@@ -207,52 +251,23 @@ export function GroupScreen({
   const { width } = useWindowDimensions();
 
   /**
-   * The archive, split the way somebody reads it rather than the way it is
-   * stored.
+   * How wide one album is, on a screen this wide.
    *
-   * The newest album is its own thing — a full-width cover with its name on it,
-   * because on a screen about a room that keeps meeting, *what happened last*
-   * is the question the room is opened with. Everything behind it is a shelf:
-   * a thumbnail and two lines, which is as much as an album from March needs
-   * to be found by.
-   *
-   * Months carry this year. Older years get a divider of their own and a flat
-   * list underneath, because twelve month headings for a year nobody is
-   * scrolling to is a year that takes twelve screens to pass.
+   * Two across, which is the profile's shelf and now this one — see the note
+   * at the top of the file about what it replaced. The arithmetic is that
+   * file's too: the gutter twice, and the gap between the columns.
    */
-  const shelf = useMemo(() => {
-    const events = group?.member ? group.events : [];
-    const [newest, ...rest] = events;
-    const thisYear = new Date().getUTCFullYear();
-
-    const months: { key: string; label: string; events: GroupAlbum[] }[] = [];
-    const years = new Map<number, GroupAlbum[]>();
-    for (const album of rest) {
-      const at = new Date(album.at);
-      const year = Number.isNaN(at.getTime()) ? thisYear : at.getUTCFullYear();
-      if (year !== thisYear) {
-        years.set(year, [...(years.get(year) ?? []), album]);
-        continue;
-      }
-      const label = monthName(at);
-      const last = months[months.length - 1];
-      // Contiguous runs, not a map: the list arrives newest-first so a month's
-      // albums are already together, and a map would quietly reorder them if
-      // that ever stopped being true. This draws a heading twice instead,
-      // which is visibly wrong rather than silently rearranged.
-      if (last && last.label === label) last.events.push(album);
-      else months.push({ key: `${year}-${label}`, label, events: [album] });
-    }
-    return { newest, months, years: [...years.entries()].sort((a, b) => b[0] - a[0]) };
-  }, [group]);
+  const tile = Math.floor((width - 40 - GAP * (COLUMNS - 1)) / COLUMNS);
 
   if (error) {
     return (
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={onBack}>
-          <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
-        </Pressable>
-        <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
+      <ScrollView contentContainerStyle={styles.doorScroll}>
+        <View style={styles.gutter}>
+          <Pressable onPress={onBack}>
+            <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
+          </Pressable>
+          <Text style={[styles.body, { color: t.dim }]}>{error}</Text>
+        </View>
       </ScrollView>
     );
   }
@@ -269,166 +284,218 @@ export function GroupScreen({
 
 
   return (
-    <>
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <View style={{ flex: 1 }}>
       {/*
-        Back on the left, and on the right the two things this room can do that
-        are not looking at it: say something, and everything else.
+        The room's head, which stays put while the panes change under it.
 
-        All three are the same 36pt bordered disc. The back arrow was a bare
-        `‹` in accent text, which made the one control every screen has the one
-        control that looked like nothing else in the product.
+        An album's does the same and the shape is borrowed from it deliberately
+        — a cover, then a row of tabs, then whichever of the three you are
+        looking at. What a group has instead of a cover is its crest: a letter
+        on its own lens, never a photograph borrowed from inside, because a
+        picture from one evening standing for the room says that evening *is*
+        the room.
+
+        Fixed height, like the album's cover, so the tabs never move. A long
+        name is clamped to two lines rather than pushing them down.
       */}
-      <View style={styles.headRow}>
-        <RoundButton t={t} onPress={onBack} accessibilityLabel="Back">
-          <Text style={[styles.back, { color: t.fg }]}>‹</Text>
-        </RoundButton>
+      <View style={[styles.head, { backgroundColor: t.card, borderBottomColor: t.line }]}>
+        <View style={styles.headRow}>
+          <RoundButton t={t} onPress={onBack} accessibilityLabel="Back">
+            <Text style={[styles.back, { color: t.fg }]}>‹</Text>
+          </RoundButton>
 
-        {group.member && (
-          <View style={styles.headActions}>
-            <RoundButton
-              t={t}
-              onPress={() => onOpenThread(group)}
-              // Chat, not talk. A group's thread is the one you have with
-              // people; an album's is the one you have about a night. Two
-              // threads in this product, and now one word each.
-              accessibilityLabel={`Chat in ${group.name}`}
-            >
-              <Glyph name="bubbles" size={17} color={t.fg} />
-            </RoundButton>
-            {/*
+          {group.member && (
+            /*
               Everything else about the room, behind the same `⋯` an album's
-              own settings sit behind. Leaving used to be a red button at the
-              foot of the archive, which put the one irreversible thing on this
-              screen at the end of the one list somebody scrolls to the bottom
-              of.
-            */}
+              own settings sit behind. The chat disc that was beside it is a
+              tab now, which is where a room's conversation belongs: it is one
+              of the things this screen is about rather than somewhere else to
+              go.
+            */
             <RoundButton t={t} onPress={() => setMore(true)} accessibilityLabel="Group settings">
               <More color={t.fg} />
             </RoundButton>
-          </View>
-        )}
-      </View>
-
-      {/*
-        The room's own face: its letter on its lens, never a photograph
-        borrowed from inside. A picture from one evening standing for the room
-        says that evening is the room.
-      */}
-      <View style={styles.identity}>
-        <View style={[styles.crest, { backgroundColor: lens.fill }]}>
-          <Text style={[styles.crestLetter, { color: lens.ink }]}>{initialOf(group.name)}</Text>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.h1, { color: t.fg }]} numberOfLines={2}>
-            {group.name}
-          </Text>
-          {/*
-            How much is in here, and how long it has been going.
-
-            Set in the monospaced line the rest of the product measures things
-            with — the rule over an album on the home list is the same face for
-            the same reason: these are facts about a box rather than something
-            somebody wrote.
-
-            A member count used to be half of this and is not, because the row
-            of faces directly below says it better. What a count cannot say is
-            *since March 2024*, and a group's age is most of what makes it read
-            as a room rather than as a list.
-          */}
-          {group.member && (
-            <Text style={[styles.measured, { color: t.dim }]} numberOfLines={1}>
-              {`${plural(group.events.length, 'album')} · since ${sinceOf(group.createdAt)}`}
-            </Text>
           )}
+        </View>
+
+        <View style={styles.identity}>
+          <View style={[styles.crest, { backgroundColor: lens.fill }]}>
+            <Text style={[styles.crestLetter, { color: lens.ink }]}>{initialOf(group.name)}</Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.h1, { color: t.fg }]} numberOfLines={2}>
+              {group.name}
+            </Text>
+            {/*
+              How much is in here, and how long it has been going.
+
+              Set in the monospaced line the rest of the product measures
+              things with — an album's own rule is the same face for the same
+              reason: these are facts about a box rather than something
+              somebody wrote.
+
+              A member count used to be half of this and is not, because the
+              People tab says it better. What a count cannot say is *since
+              March 2024*, and a group's age is most of what makes it read as
+              a room rather than as a list.
+            */}
+            {group.member && (
+              <Text style={[styles.measured, { color: t.dim }]} numberOfLines={1}>
+                {`${plural(group.events.length, 'album')} · since ${sinceOf(group.createdAt)}`}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
 
       {!group.member ? (
-        // The door. Deliberately spare: a name and a count is everything a
-        // non-member is told, and the button says which of the two things is
-        // about to happen rather than making them find out.
-        <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
-          <Text style={[styles.body, { color: t.fg }]}>
-            {group.canJoinDirectly
-              ? 'You were at one of this group\u2019s albums, so you can join without asking.'
-              : 'Ask to join, and an admin will decide. Nothing here is visible until then.'}
-          </Text>
-          <Button
-            label={busy ? 'Sending…' : group.canJoinDirectly ? 'Join' : 'Ask to join'}
-            onPress={join}
-            disabled={busy}
-            t={t}
-            primary
-          />
-        </View>
+        /*
+          The door, which has no panes to switch between.
+
+          Deliberately spare: a name and a count is everything a non-member is
+          told, and the button says which of the two things is about to happen
+          rather than making them find out. There is nothing to tab through —
+          no albums, no conversation and no list of people — so the screen does
+          not draw a row of tabs that would all be empty.
+        */
+        <ScrollView contentContainerStyle={styles.doorScroll}>
+          <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
+            <Text style={[styles.body, { color: t.fg }]}>
+              {group.canJoinDirectly
+                ? 'You were at one of this group’s albums, so you can join without asking.'
+                : 'Ask to join, and an admin will decide. Nothing here is visible until then.'}
+            </Text>
+            <Button
+              label={busy ? 'Sending…' : group.canJoinDirectly ? 'Join' : 'Ask to join'}
+              onPress={join}
+              disabled={busy}
+              t={t}
+              primary
+            />
+          </View>
+        </ScrollView>
       ) : (
-        <>
+        <View style={styles.page}>
           {/*
-            Who is in the room, as a stack rather than a row.
+            The three, and the one thing this room can do that is not looking
+            at it.
 
-            It was a horizontal scroll of faces with first names under them,
-            which is a directory: to read it you scroll it, and it takes the
-            full width to say what a stack says in a third of it. Overlapped,
-            the faces are one object — a group of people rather than a list of
-            them — and the width it gives back is what carries the sentence
-            beside it.
-
-            Rounded squares, like every other face in this product. The
-            overlapping circles over an album's cover are the exception and
-            stay one: that row reads as a crowd because circles overlap
-            cleanly, and it has no words next to it to line up with.
+            The `+` sits where an album's "add photos" sits and does the room's
+            version of the same job. It was a floating pill above the tab
+            bubble, put there because the control for adding was at the foot of
+            the one list somebody scrolls to the bottom of — a tab row pinned
+            over the pane solves that without a second floating object, and it
+            is what the album screen already does.
           */}
-          <Pressable
-            onPress={() => setEveryone(true)}
-            accessibilityRole="button"
-            accessibilityLabel={`Everyone in ${group.name}`}
-            style={({ pressed }) => [styles.peopleRow, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <View style={styles.stack}>
-              {group.people.slice(0, FACES).map((person, i) => {
-                const own = lensFor(person.actorId);
-                return person.avatarUrl ? (
-                  <Image
-                    key={person.actorId}
-                    source={{ uri: person.avatarUrl }}
-                    style={[styles.stackFace, i > 0 && styles.stacked, { borderColor: t.bg, backgroundColor: t.line }]}
-                    contentFit="cover"
-                    transition={120}
-                  />
-                ) : (
-                  <View
-                    key={person.actorId}
-                    style={[
-                      styles.stackFace,
-                      styles.centred,
-                      i > 0 && styles.stacked,
-                      { borderColor: t.bg, backgroundColor: own.fill },
-                    ]}
-                  >
-                    <Text style={[styles.stackLetter, { color: own.ink }]}>
-                      {initialOf(person.name)}
-                    </Text>
-                  </View>
-                );
-              })}
-              {group.memberCount > FACES && (
-                <View
-                  style={[
-                    styles.stackFace,
-                    styles.centred,
-                    styles.stacked,
-                    { borderColor: t.bg, backgroundColor: t.card },
-                  ]}
-                >
-                  <Text style={[styles.stackMore, { color: t.dim }]}>
-                    +{group.memberCount - FACES}
+          <View style={styles.tabRow}>
+            <Tabs pane={pane} onPane={setPane} t={t} waiting={requests.length} />
+            <Pressable
+              onPress={() => onCreateEvent(group.name)}
+              accessibilityRole="button"
+              accessibilityLabel="New album in this group"
+              style={({ pressed }) => [
+                styles.addButton,
+                { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Glyph name="plus" size={18} color={t.fg} />
+            </Pressable>
+          </View>
+
+          {pane === 'albums' ? (
+            <ScrollView contentContainerStyle={styles.paneScroll}>
+              {group.events.length === 0 ? (
+                <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
+                  <Text style={[styles.body, { color: t.dim }]}>
+                    Nothing yet. The next album anybody makes in this group shows
+                    up here, and everyone gets told.
                   </Text>
                 </View>
-              )}
-            </View>
+              ) : (
+                /*
+                  The shelf, two across, exactly as a profile draws one.
 
-            <View style={{ flex: 1, minWidth: 0 }}>
+                  It was an archive: the newest album full-bleed at 4:5, then
+                  the rest as rows under month and year rules. That reads well
+                  and it reads like *a third thing* — a group's albums are the
+                  same objects the profile shelves, and drawing them two ways
+                  makes somebody learn the product twice. The date each row's
+                  rule was carrying is under every tile, which is where the
+                  profile has always put it.
+                */
+                <View style={[styles.grid, styles.gutter]}>
+                  {group.events.map((album) => (
+                    <AlbumTile
+                      key={album.id}
+                      album={album}
+                      t={t}
+                      width={tile}
+                      onPress={() => openAlbum(album)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/*
+                What a group is, said once, at the bottom.
+
+                Leaving is behind the `⋯` and an alert asks before it happens,
+                but an alert is read by somebody who has already decided. This
+                is the sentence for somebody deciding — and it is at the foot
+                of the albums because that is where you arrive having scrolled
+                them, which is exactly when "what happens to all this if I go"
+                occurs to you.
+              */}
+              <Text style={[styles.footnote, styles.gutter, { color: t.dim, borderTopColor: t.line }]}>
+                Photos live in the albums, not in the group. Leaving stops the
+                next one reaching you — it takes nothing away from the albums
+                you were in.
+              </Text>
+            </ScrollView>
+          ) : pane === 'chat' ? (
+            /*
+              The room's conversation, in the room.
+
+              It was a disc in the header that opened a screen of its own, with
+              a second header naming the group you had just come from.
+              `GroupChat` is that screen's body, lifted out so both places draw
+              one conversation — the standalone screen still exists, because
+              the list of conversations opens it directly.
+            */
+            <GroupChat api={api} group={group} t={t} keyboardOffset={HEAD} />
+          ) : (
+            <ScrollView contentContainerStyle={styles.paneScroll}>
+              {/*
+                Who is waiting to be let in, above who is already here.
+
+                It used to sit above the archive, where an admin met it on the
+                way to the albums. This is the pane about people, so it is the
+                pane a request belongs on — and the tab carries the count, the
+                way an album's Comments tab carries its unread one, so nobody
+                has to open it to find out there is nothing waiting.
+              */}
+              {group.role === 'admin' && requests.length > 0 && (
+                <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
+                  <Text style={[styles.label, { color: t.fg }]}>
+                    {requests.length} waiting to join
+                  </Text>
+                  {requests.map((request) => (
+                    <View key={request.id} style={styles.requestRow}>
+                      {/* No profiles to link to; a name if they gave one. */}
+                      <Text style={[styles.body, { color: t.fg, flex: 1 }]}>
+                        {request.displayName ?? 'Someone'}
+                      </Text>
+                      <Pressable onPress={() => resolve(request.id, 'approve')} hitSlop={8}>
+                        <Text style={[styles.body, { color: t.accent }]}>Approve</Text>
+                      </Pressable>
+                      <Pressable onPress={() => resolve(request.id, 'decline')} hitSlop={8}>
+                        <Text style={[styles.body, { color: t.dim }]}>Decline</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {/*
                 The one fact about a room that a count of heads does not give.
 
@@ -440,170 +507,64 @@ export function GroupScreen({
                 answers null rather than telling somebody that eleven of them
                 have been to all nought of the albums.
               */}
-              <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+              <Text style={[styles.small, styles.gutter, { color: t.dim }]}>
                 {group.everyAlbum !== null && group.everyAlbum > 1
                   ? `${group.everyAlbum} of you have been to every one`
                   : plural(group.memberCount, 'person', 'people')}
               </Text>
-              <Text style={[styles.small, styles.everyone, { color: t.accent }]}>Everyone ›</Text>
-            </View>
-          </Pressable>
 
-          {group.role === 'admin' && requests.length > 0 && (
-            <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
-              <Text style={[styles.label, { color: t.fg }]}>
-                {requests.length} waiting to join
-              </Text>
-              {requests.map((request) => (
-                <View key={request.id} style={styles.requestRow}>
-                  {/* No profiles to link to; a name if they gave one. */}
-                  <Text style={[styles.body, { color: t.fg, flex: 1 }]}>
-                    {request.displayName ?? 'Someone'}
-                  </Text>
-                  <Pressable onPress={() => resolve(request.id, 'approve')} hitSlop={8}>
-                    <Text style={[styles.body, { color: t.accent }]}>Approve</Text>
-                  </Pressable>
-                  <Pressable onPress={() => resolve(request.id, 'decline')} hitSlop={8}>
-                    <Text style={[styles.body, { color: t.dim }]}>Decline</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
+              <View style={styles.gutter}>
+                {group.people.map((person) => {
+                  const own = lensFor(person.actorId);
+                  return (
+                    <Pressable
+                      key={person.actorId}
+                      /* Only where there is a profile to open. Somebody who has
+                         not chosen a handle has no page, and a control that
+                         does nothing is worse than a label that never
+                         offered. */
+                      onPress={person.handle ? () => onOpenPerson(person.handle!) : undefined}
+                      disabled={!person.handle}
+                      accessibilityRole={person.handle ? 'button' : 'text'}
+                      style={({ pressed }) => [styles.personRow, { opacity: pressed ? 0.6 : 1 }]}
+                    >
+                      {person.avatarUrl ? (
+                        <Image
+                          source={{ uri: person.avatarUrl }}
+                          style={[styles.personFace, { backgroundColor: t.line }]}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                      ) : (
+                        <View style={[styles.personFace, styles.centred, { backgroundColor: own.fill }]}>
+                          <Text style={[styles.personLetter, { color: own.ink }]}>
+                            {initialOf(person.name)}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[styles.body, { color: t.fg, flex: 1 }]} numberOfLines={1}>
+                        {person.name}
+                      </Text>
+                      {/* Who runs the room, which is the only thing this list
+                          has to say about anybody beyond their name. */}
+                      {person.role === 'admin' && (
+                        <Text style={[styles.small, { color: t.dim }]}>Runs it</Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
           )}
-
-          {group.events.length === 0 ? (
-            <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
-              <Text style={[styles.body, { color: t.dim }]}>
-                Nothing yet. The next album anybody makes in this group shows up
-                here, and everyone gets told.
-              </Text>
-            </View>
-          ) : (
-            <>
-              {/*
-                What happened last, at the size it deserves.
-
-                Every album used to be a full-width cover, which is a feed:
-                thirty-four of them is thirty-four screens, and an archive is a
-                thing you look *back* through. One card and then a shelf says
-                which of those two jobs each row is doing.
-              */}
-              {shelf.newest && (
-                <View style={styles.section}>
-                  <Rule t={t} label={`Newest · ${dateLabel(shelf.newest.at) ?? ''}`} />
-                  <Feature
-                    album={shelf.newest}
-                    t={t}
-                    width={width}
-                    onPress={() => openAlbum(shelf.newest!)}
-                  />
-                </View>
-              )}
-
-              {shelf.months.map((month) => (
-                <View key={month.key} style={styles.section}>
-                  <Rule t={t} label={month.label} count={String(month.events.length)} />
-                  {month.events.map((album) => (
-                    <Row
-                      key={album.id}
-                      album={album}
-                      t={t}
-                      onPress={() => openAlbum(album)}
-                    />
-                  ))}
-                </View>
-              ))}
-
-              {/*
-                A year, once, rather than its twelve months.
-
-                Twelve headings for a year nobody is scrolling to is a year
-                that takes twelve screens to pass. The rows under a year carry
-                the month in their own date line instead, which is the only
-                thing the headings were telling anybody.
-              */}
-              {shelf.years.map(([year, albums]) => (
-                <View key={year} style={styles.section}>
-                  <Rule
-                    t={t}
-                    label={String(year)}
-                    count={plural(albums.length, 'album')}
-                    loud
-                  />
-                  {albums.map((album) => (
-                    <Row
-                      key={album.id}
-                      album={album}
-                      t={t}
-                      withMonth
-                      onPress={() => openAlbum(album)}
-                    />
-                  ))}
-                </View>
-              ))}
-            </>
-          )}
-
-          {/*
-            What a group is, said once, at the bottom.
-
-            Leaving is behind the `⋯` now and an alert asks before it happens,
-            but an alert is read by somebody who has already decided. This is
-            the sentence for somebody deciding — and it is at the foot because
-            that is where you arrive having scrolled the archive, which is
-            exactly when "what happens to all this if I go" occurs to you.
-          */}
-          <Text style={[styles.footnote, styles.gutter, { color: t.dim, borderTopColor: t.line }]}>
-            Photos live in the albums, not in the group. Leaving stops the next
-            one reaching you — it takes nothing away from the albums you were in.
-          </Text>
-        </>
+        </View>
       )}
-    </ScrollView>
 
-    {/*
-      Making one, floating clear of the archive.
-
-      It was a button at the foot of the list, which is the one place somebody
-      who wants to make an album is not: they opened the room to add to it, and
-      scrolling thirty-four albums to reach the control for that is the list
-      charging admission. Above where the tab bubble sits, on the same side as
-      the thumb that would press it.
-    */}
-    {group.member && (
-      <Pressable
-        onPress={() => onCreateEvent(group.name)}
-        accessibilityRole="button"
-        accessibilityLabel="New album in this group"
-        style={({ pressed }) => [
-          styles.make,
-          { backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 },
-        ]}
-      >
-        <Glyph name="plus" size={18} color={t.onAccent} />
-        <Text style={[styles.makeLabel, { color: t.onAccent }]}>New album</Text>
-      </Pressable>
-    )}
-
-    {everyone && group.member && (
-      <Everyone
-        t={t}
-        people={group.people}
-        name={group.name}
-        onOpenPerson={onOpenPerson}
-        onClose={() => setEveryone(false)}
-      />
-    )}
-
-    {more && group.member && (
-      <GroupMore t={t} Button={Button} onLeave={leave} onClose={() => setMore(false)} />
-    )}
-    </>
+      {more && group.member && (
+        <GroupMore t={t} Button={Button} onLeave={leave} onClose={() => setMore(false)} />
+      )}
+    </View>
   );
 }
-
-/** How many faces the stack shows before it starts counting. */
-const FACES = 5;
 
 /** "Mar 2024", for the line under a group's name. */
 function sinceOf(iso: string): string {
@@ -617,49 +578,75 @@ function sinceOf(iso: string): string {
 }
 
 /** The month a group's run of albums is filed under. */
-function monthName(at: Date): string {
-  if (Number.isNaN(at.getTime())) return 'Undated';
-  return new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(at);
-}
-
 /**
- * A heading with a hairline running off to the edge.
+ * The three panes, and which of them is showing.
  *
- * The same line the home list rules a card with, and deliberately: both are a
- * label on the outside of a box, and a second treatment for one idea is how a
- * product comes to have two. `loud` is the year, which is a bigger division
- * than a month and says so with ink rather than with size.
+ * The album's `Segmented`, in the file that needs it here — a room and an
+ * evening are the same kind of object to a reader and a second treatment for
+ * "which part of this am I looking at" is how a product comes to have two.
+ * Not imported from `App.tsx`, which imports this file: the same reason
+ * `GroupTheme` is declared here rather than shared.
  */
-function Rule({
-  label,
-  count,
+export type GroupPane = 'albums' | 'chat' | 'people';
+
+function Tabs({
+  pane,
+  onPane,
   t,
-  loud = false,
+  waiting,
 }: {
-  label: string;
-  count?: string;
+  pane: GroupPane;
+  onPane: (pane: GroupPane) => void;
   t: GroupTheme;
-  loud?: boolean;
+  /** Join requests, which only an admin ever has. Zero draws nothing. */
+  waiting: number;
 }) {
+  const items: [GroupPane, GlyphName, string][] = [
+    ['albums', 'photos', 'Albums'],
+    ['chat', 'bubbles', 'Chat'],
+    ['people', 'group', 'People'],
+  ];
   return (
-    <View style={[styles.rule, styles.gutter]}>
-      <Text style={[styles.measured, { color: loud ? t.fg : t.dim }]}>{label}</Text>
-      <View style={[styles.hair, { backgroundColor: t.line }]} />
-      {count && <Text style={[styles.measured, styles.ruleCount, { color: t.dim }]}>{count}</Text>}
+    <View style={[styles.segmented, { backgroundColor: t.card }]}>
+      {items.map(([id, glyph, label]) => {
+        const on = pane === id;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => onPane(id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={
+              id === 'people' && waiting > 0 ? `${label}, ${waiting} waiting to join` : label
+            }
+            style={[styles.segment, on && [styles.segmentOn, { backgroundColor: t.bg }]]}
+          >
+            <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
+            {/* The same pip an album's Comments tab carries, about the same
+                kind of fact: something is waiting on this tab. */}
+            {id === 'people' && waiting > 0 && (
+              <Text style={[styles.segmentCount, { color: t.accent }]}>{waiting}</Text>
+            )}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 /**
- * The newest album, at the size of the thing it is.
+ * One album on the shelf, drawn the way the profile draws one.
  *
- * Full-bleed against the scroll's gutter and at the cover's own 4:5, with the
- * name over the foot of the picture. This is the one row on the screen where
- * the photograph is the point rather than a way of recognising a line of text
- * — a room that meets every Tuesday is opened to find out what happened last
- * Tuesday.
+ * Cover, name, and a line of date and count under the picture rather than over
+ * it — a scrim block across the bottom of every tile is a grid that reads as
+ * captioned stock photography. Two across, because at this width a cover is a
+ * photograph and at a third of it it is a swatch.
+ *
+ * What it adds to the profile's tile is the pip: a group tells you which
+ * albums have moved since you last looked, and that is the one thing a room
+ * knows that a person's shelf does not.
  */
-function Feature({
+function AlbumTile({
   album,
   t,
   width,
@@ -670,207 +657,50 @@ function Feature({
   width: number;
   onPress: () => void;
 }) {
+  const when = dateLabel(album.at);
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${album.name}, ${plural(album.photoCount, 'photo')}`}
-      style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+      accessibilityLabel={`${album.name}, ${plural(album.photoCount, 'photo')}${
+        album.fresh > 0 ? `, ${album.fresh} new` : ''
+      }`}
+      style={{ width }}
     >
-      <View style={[styles.feature, { width, backgroundColor: t.line }]}>
-        {album.cover && (
+      <View>
+        {album.cover ? (
           <Image
             source={{ uri: album.cover }}
-            style={StyleSheet.absoluteFill}
+            style={styles.tile}
             contentFit="cover"
             transition={120}
           />
+        ) : (
+          /* Dashed, which reads as "nothing here" rather than as a very dark
+             photograph — the call the profile's own shelf already makes. An
+             album with nothing in it yet still belongs here: it is one of the
+             things this room has, and leaving it out would make the shelf
+             disagree with the count in the head. */
+          <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]} />
         )}
-        {/*
-          A ramp at the foot and nothing across the middle. Darkening a
-          photograph to label it is the product having an opinion about
-          somebody's picture; this is the least that carries white type.
-        */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
-          locations={[0.45, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-
-        {/*
-          How many arrived since the last look, top right. A number rather than
-          a dot: "since you last looked" is worth being precise about on a
-          screen somebody visits weekly.
-        */}
         {album.fresh > 0 && (
-          <View style={[styles.fresh, { backgroundColor: t.accent }]}>
-            <Text style={[styles.freshText, { color: t.onAccent }]}>{album.fresh} new</Text>
-          </View>
+          <View style={[styles.tilePip, { backgroundColor: t.accent, borderColor: t.bg }]} />
         )}
-
-        <View style={styles.featureFoot}>
-          <Text style={styles.featureName} numberOfLines={1}>
-            {album.name}
-          </Text>
-          <Text style={styles.featureMeta} numberOfLines={1}>
-            {album.photoCount === 0
-              ? 'Nothing in it yet'
-              : `${plural(album.photoCount, 'photo')} · ${plural(album.people, 'person', 'people')}`}
-          </Text>
-        </View>
       </View>
+      <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
+        {album.name}
+      </Text>
+      <Text style={[styles.tileMeta, { color: t.dim }]} numberOfLines={1}>
+        {album.photoCount === 0
+          ? 'Nothing in it yet'
+          : when
+            ? `${when} · ${album.photoCount}`
+            : plural(album.photoCount, 'photo')}
+      </Text>
     </Pressable>
   );
 }
 
-/**
- * One album on the shelf: a thumbnail and two lines.
- *
- * Everything behind the newest is here, and it is as much as an album from
- * March needs to be found by. The thumbnail is 76 by 95 — the cover's own 4:5
- * at a size that leaves the name room to be the thing you read.
- */
-function Row({
-  album,
-  t,
-  withMonth = false,
-  onPress,
-}: {
-  album: GroupAlbum;
-  t: GroupTheme;
-  /** Under a year heading there is no month above the row to imply one. */
-  withMonth?: boolean;
-  onPress: () => void;
-}) {
-  const at = new Date(album.at);
-  const when = Number.isNaN(at.getTime())
-    ? null
-    : new Intl.DateTimeFormat('en-GB', {
-        weekday: 'short',
-        day: 'numeric',
-        ...(withMonth ? { month: 'short' } : {}),
-        timeZone: 'UTC',
-      }).format(at);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${album.name}, ${plural(album.photoCount, 'photo')}`}
-      style={({ pressed }) => [styles.row, styles.gutter, { opacity: pressed ? 0.6 : 1 }]}
-    >
-      {album.cover ? (
-        <Image
-          source={{ uri: album.cover }}
-          style={[styles.thumb, { backgroundColor: t.line }]}
-          contentFit="cover"
-          transition={120}
-        />
-      ) : (
-        /* Dashed, which reads as "nothing here" rather than as a very dark
-           photograph — the call the viewer's own shelf already makes. */
-        <View style={[styles.thumb, styles.thumbEmpty, { borderColor: t.line }]} />
-      )}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.rowName, { color: t.fg }]} numberOfLines={1}>
-          {album.name}
-        </Text>
-        <Text style={[styles.measured, styles.rowMeta, { color: t.dim }]} numberOfLines={1}>
-          {[when, plural(album.photoCount, 'photo'), plural(album.people, 'person', 'people')]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-      </View>
-      {album.fresh > 0 && (
-        <View style={[styles.rowPip, { backgroundColor: t.accent }]} />
-      )}
-    </Pressable>
-  );
-}
-
-/**
- * Everybody in the room, behind the line that counts them.
- *
- * A sheet rather than a screen: it is a list of names with nothing to do on it
- * but leave or open one, which is the shape a sheet is for. The stack of faces
- * on the screen behind says who at a glance; this is the version you read.
- */
-function Everyone({
-  people,
-  name,
-  t,
-  onOpenPerson,
-  onClose,
-}: {
-  people: GroupPerson[];
-  name: string;
-  t: GroupTheme;
-  onOpenPerson: (handle: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.sheetShell}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.sheet, { backgroundColor: t.card }]}>
-          <Text style={[styles.label, { color: t.fg }]}>
-            {plural(people.length, 'person', 'people')} in {name}
-          </Text>
-          <ScrollView style={styles.sheetList}>
-            {people.map((person) => {
-              const own = lensFor(person.actorId);
-              return (
-                <Pressable
-                  key={person.actorId}
-                  /* Only where there is a profile to open. Somebody who has not
-                     chosen a handle has no page, and a control that does
-                     nothing is worse than a label that never offered. */
-                  onPress={person.handle ? () => onOpenPerson(person.handle!) : undefined}
-                  disabled={!person.handle}
-                  accessibilityRole={person.handle ? 'button' : 'text'}
-                  style={({ pressed }) => [styles.personRow, { opacity: pressed ? 0.6 : 1 }]}
-                >
-                  {person.avatarUrl ? (
-                    <Image
-                      source={{ uri: person.avatarUrl }}
-                      style={[styles.personFace, { backgroundColor: t.line }]}
-                      contentFit="cover"
-                      transition={120}
-                    />
-                  ) : (
-                    <View style={[styles.personFace, styles.centred, { backgroundColor: own.fill }]}>
-                      <Text style={[styles.personLetter, { color: own.ink }]}>
-                        {initialOf(person.name)}
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={[styles.body, { color: t.fg, flex: 1 }]} numberOfLines={1}>
-                    {person.name}
-                  </Text>
-                  {/* Who runs the room, which is the only thing this list has
-                      to say about anybody beyond their name. */}
-                  {person.role === 'admin' && (
-                    <Text style={[styles.small, { color: t.dim }]}>Runs it</Text>
-                  )}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-/**
- * Everything else about the room, which is currently one thing.
- *
- * Its own sheet anyway, behind the same `⋯` an album's settings sit behind:
- * leaving was a red button at the foot of the archive, which put the screen's
- * one irreversible action at the end of the one list somebody scrolls to the
- * bottom of. A group that grows a second setting has somewhere to put it.
- */
 function GroupMore({
   t,
   Button,
@@ -978,17 +808,22 @@ export function GroupSearch({
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  /*
-   * No horizontal padding on the scroll itself, because the newest album runs
-   * to both edges. Everything that is not a photograph wears `gutter`, which
-   * is the same trade the profile makes for the same reason.
-   *
-   * `paddingBottom` clears two things now: the floating tab bubble and the
-   * "New album" pill above it.
-   */
-  scroll: { paddingTop: 72, paddingBottom: 168, gap: 18 },
   gutter: { paddingHorizontal: 20 },
   centred: { alignItems: 'center', justifyContent: 'center' },
+
+  /*
+   * The head, which stays put while the panes change under it.
+   *
+   * A fixed height for the reason an album's cover has one: the tabs under it
+   * must not move when a name runs to two lines, and a row of tabs that
+   * shifts is a row somebody mis-taps. `HEAD` is that height and `page` starts
+   * exactly there.
+   */
+  head: { height: HEAD, borderBottomWidth: 1, paddingTop: 60, gap: 14 },
+  /* Below the head and filling the rest, so a pane scrolls inside its own
+     frame rather than taking the head with it. The album's `page` is the same
+     three lines for the same reason. */
+  page: { position: 'absolute', top: HEAD, left: 0, right: 0, bottom: 0 },
 
   headRow: {
     flexDirection: 'row',
@@ -996,9 +831,68 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
   },
-  headActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* Inside a 36pt disc, so it needs no line height of its own to sit level. */
   back: { fontSize: 24, lineHeight: 26 },
+
+  /* The tabs, and the one thing this room does that is not looking at it. The
+     album's row, restated: there is no stylesheet between the two files. */
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  segmented: { flex: 1, flexDirection: 'row', gap: 4, borderRadius: 10, padding: 3 },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  segmentOn: {},
+  segmentCount: { fontSize: 12, fontWeight: '700' },
+  addButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* Room for the floating tab bubble at the foot of every pane. */
+  paneScroll: { paddingTop: 4, paddingBottom: 140, gap: 14 },
+  doorScroll: { paddingTop: 20, paddingBottom: 140, gap: 18 },
+
+  /* Two across, with gutters rather than hairlines: these tiles are cards,
+     not one object. The profile's shelf, in the file that needed the same. */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  /* The profile's tile, number for number: 120 tall at radius 12, the name at
+     14 six points under it and the line beneath that at 12.5. Restated rather
+     than shared, like every other pair of numbers these screens hold in
+     common — there is no stylesheet between two React Native files, and
+     `groups-tab.test.ts` is what keeps the two honest. */
+  tile: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' },
+  tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
+  tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
+  tileMeta: { fontSize: 12.5 },
+  /* What has moved since you last looked, which is the one thing a room knows
+     that a person's shelf does not. A dot rather than a count: the number is
+     precision nobody asked for on a tile this size. */
+  tilePip: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+  },
 
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
   /* The room's letter on its lens, at the size the Groups tab's tile draws it.
@@ -1025,91 +919,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  peopleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
-  /* Overlapped rather than spaced: the faces are one object — a group of
-     people — and the width that gives back is what carries the line beside it. */
-  stack: { flexDirection: 'row', flex: 0 },
-  stackFace: { width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, overflow: 'hidden' },
-  stacked: { marginLeft: -8 },
-  stackLetter: { fontSize: 12, fontWeight: '700' },
-  stackMore: { fontSize: 11, fontWeight: '700' },
-  everyone: { fontWeight: '600' },
-
-  section: { gap: 10 },
-  rule: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  hair: { flex: 1, height: 1 },
-  /* No upper-casing on the count: it is a number, and `textTransform` on a
-     numeral is a rule doing nothing while looking like it might. */
-  ruleCount: { textTransform: 'none' },
-
-  /* Full-bleed and at the cover's own 4:5. The photograph is the row here, and
-     an inset one with a rounded corner is an object on a page with the page
-     showing round it. */
-  feature: { aspectRatio: 4 / 5, marginHorizontal: -20, overflow: 'hidden', alignSelf: 'center' },
-  featureFoot: { position: 'absolute', left: 20, right: 20, bottom: 14, gap: 1 },
-  /* White with a shadow rather than on a bar: a block of chrome across the
-     bottom of somebody's photograph is a caption that has become furniture. */
-  featureName: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 8,
-  },
-  featureMeta: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.88)',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 8,
-  },
-  fresh: {
-    position: 'absolute',
-    top: 12,
-    right: 20,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-  },
-  freshText: { fontSize: 11.5, fontWeight: '700' },
-
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  /* The cover's own 4:5 at a size that leaves the name room to be the thing
-     you read. Square corners, like every other photograph in the product. */
-  thumb: { width: 76, height: 95, flex: 0 },
-  thumbEmpty: { borderWidth: 1, borderStyle: 'dashed' },
-  rowName: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
-  rowMeta: { marginTop: 4 },
-  /* A dot rather than a count on the shelf: down here the number is precision
-     nobody asked for, and the newest album above carries the real one. */
-  rowPip: { width: 8, height: 8, borderRadius: 4, flex: 0 },
-
-  /* The rule this screen ends on, and the only ruled-off block on it. */
+  /* The rule the Albums pane ends on, and the only ruled-off block on it. */
   footnote: { marginTop: 14, paddingTop: 16, borderTopWidth: 1, fontSize: 12.5, lineHeight: 19 },
-
-  /*
-   * Making one, floating clear of the archive and above where the tab bubble
-   * sits. Right-aligned, on the side the thumb that presses it comes from.
-   */
-  make: {
-    position: 'absolute',
-    right: 14,
-    bottom: 88,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  makeLabel: { fontSize: 15, fontWeight: '600' },
 
   sheetShell: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, gap: 12 },

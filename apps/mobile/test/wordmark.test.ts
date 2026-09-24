@@ -405,8 +405,9 @@ describe('what the product calls a conversation', () => {
     expect(read('App.tsx')).toMatch(/\['talk', 'bubble', 'Comments'\]/);
     // The album's own tab, which is where the word `Talk` had lived longest.
     expect(read('App.tsx')).toMatch(/\['talk', 'bubble', 'Comments'\]/);
-    // And a group's thread button says chat.
-    expect(read('src/Groups.tsx')).toMatch(/Chat in \$\{group\.name\}/);
+    // And a group's own tab says Chat, where the album's says Comments. The
+    // button that used to carry the word is that tab now.
+    expect(read('src/Groups.tsx')).toContain("['chat', 'bubbles', 'Chat']");
   });
 
   it('gives the album one bubble and the Chats tab two', () => {

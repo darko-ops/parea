@@ -36,31 +36,27 @@ import { Thread } from './Thread';
 /** Where the page begins, under the header. See `PAGE_TOP` in `App.tsx`. */
 const HEAD = 112;
 
-export function GroupThread({
+/**
+ * The conversation itself, without a screen around it.
+ *
+ * Lifted out of `GroupThread` when the group's own page grew a Chat tab: the
+ * room is read in two places now — its own screen, reached from the list of
+ * conversations, and a pane on the group page — and the fetching, the polling
+ * and the four verbs must not exist twice. What is *not* in here is the
+ * header, which is the only thing the two places disagree about.
+ */
+export function GroupChat({
   api,
   group,
   t,
-  dark,
-  onBack,
-  onOpenGroup,
+  keyboardOffset,
 }: {
   api: Api;
-  /**
-   * Enough to draw the bar, and no more.
-   *
-   * It took a whole `MyGroupDetail` — faces, a last message, an unread count,
-   * a last-active timestamp — and read four fields off it. That was fine while
-   * the Groups tab was the only way in, since that screen already held one;
-   * the group's own page now opens this too, and it has a `GroupRoom` rather
-   * than a summary. Asking for what is used lets both hand over what they have
-   * without either inventing the rest.
-   */
-  group: { id: string; name: string; memberCount: number; eventCount: number };
+  /** Its id to fetch by. The name belongs to whatever draws the header. */
+  group: { id: string };
   t: GroupTheme;
-  dark: boolean;
-  onBack: () => void;
-  /** The room itself — its people and its evenings — which is not this screen. */
-  onOpenGroup: () => void;
+  /** How far down the screen this pane starts. See `Thread`'s own note. */
+  keyboardOffset: number;
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +165,83 @@ export function GroupThread({
     [api, group.id],
   );
 
+  return error ? (
+    <View style={styles.centre}>
+      <Text style={[styles.error, { color: t.dim }]}>{error}</Text>
+    </View>
+  ) : (
+    <Thread
+      /*
+        Null while the first request is out, which `Thread` draws as a wait
+        rather than as an empty room. It used to be handled a level up — the
+        whole body replaced by a spinner — and moving it down is what makes
+        the album's board behave the same way, since that one had no
+        equivalent and showed the invitation instead.
+      */
+      actions={actions}
+      messages={messages}
+      /*
+       * Everybody who can read a group's thread may post in it: there is no
+       * link-holder here, so the split the album makes between `view` and
+       * `contribute` has nothing to separate. Reaching this room at all means
+       * the server said you are a member.
+       */
+      canPost
+      /*
+       * No mention list yet.
+       *
+       * The album offers its own contributors, which is safe because that
+       * list is already on its People tab. A group's membership is the same
+       * kind of fact and the page beside this one now has it — but this
+       * component is also the whole of the standalone screen, which is handed
+       * an id and nothing else. Passing it down from one caller and not the
+       * other would make `@` complete in one room and not in the other room
+       * that is the same room. `@name` still renders as written.
+       */
+      people={[]}
+      t={t}
+      keyboardOffset={keyboardOffset}
+      onChanged={load}
+      // Fetching the thread is what marks it read, and `load` is the fetch —
+      // so reaching the bottom re-reads and re-marks in one act.
+      onSeen={() => void load()}
+    />
+  );
+}
+
+/**
+ * The room as a screen of its own, which is the list of conversations' way in.
+ *
+ * A header and `GroupChat` under it. The group's own page draws the same
+ * conversation as a pane between its other two, and what it does not need is
+ * this bar: it has a name at the top already.
+ */
+export function GroupThread({
+  api,
+  group,
+  t,
+  dark,
+  onBack,
+  onOpenGroup,
+}: {
+  api: Api;
+  /**
+   * Enough to draw the bar, and no more.
+   *
+   * It took a whole `MyGroupDetail` — faces, a last message, an unread count,
+   * a last-active timestamp — and read four fields off it. That was fine while
+   * the Groups tab was the only way in, since that screen already held one;
+   * the group's own page now opens this too, and it has a `GroupRoom` rather
+   * than a summary. Asking for what is used lets both hand over what they have
+   * without either inventing the rest.
+   */
+  group: { id: string; name: string; memberCount: number; eventCount: number };
+  t: GroupTheme;
+  dark: boolean;
+  onBack: () => void;
+  /** The room itself — its people and its evenings — which is not this screen. */
+  onOpenGroup: () => void;
+}) {
   const lens = lensFor(group.id);
 
   return (
@@ -214,47 +287,7 @@ export function GroupThread({
         </View>
       </View>
 
-      {error ? (
-        <View style={styles.centre}>
-          <Text style={[styles.error, { color: t.dim }]}>{error}</Text>
-        </View>
-      ) : (
-        <Thread
-          /*
-            Null while the first request is out, which `Thread` draws as a
-            wait rather than as an empty room. It used to be handled here — the
-            whole body replaced by a spinner — and moving it down is what makes
-            the album's Talk pane behave the same way, since that one had no
-            equivalent and showed the invitation instead.
-          */
-          actions={actions}
-          messages={messages}
-          /*
-           * Everybody who can read a group's thread may post in it: there is
-           * no link-holder here, so the split the album makes between `view`
-           * and `contribute` has nothing to separate. Reaching this screen at
-           * all means the server said you are a member.
-           */
-          canPost
-          /*
-           * No mention list yet.
-           *
-           * The album offers its own contributors, which is safe because that
-           * list is already on the People tab. A group's membership is the
-           * same kind of fact, but the summary this screen is handed carries
-           * three faces and a count rather than names — so offering a picker
-           * here would mean a second request to build a list nobody has asked
-           * for. `@name` still renders as written; it simply does not complete.
-           */
-          people={[]}
-          t={t}
-          keyboardOffset={HEAD}
-          onChanged={load}
-          // Fetching the thread is what marks it read, and `load` is the
-          // fetch — so reaching the bottom re-reads and re-marks in one act.
-          onSeen={() => void load()}
-        />
-      )}
+      <GroupChat api={api} group={group} t={t} keyboardOffset={HEAD} />
     </View>
   );
 }

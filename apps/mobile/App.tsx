@@ -983,23 +983,11 @@ export default function App() {
             onOpenEvent={open}
             onCreateEvent={(name) => setRoute({ screen: 'pick', groupId: route.id, groupName: name })}
             /*
-              Into the room's own conversation, from the room.
-
-              It was reachable only from the envelope on the Groups tab, so a
-              group opened from a search result or from one of its albums was a
-              room with the talking sealed off.
+              No `onOpenThread` any more: the room holds its own conversation
+              as a pane, so there is nowhere to send somebody. The standalone
+              screen is still here and still reached from the Chats tab, which
+              opens a conversation directly rather than the room around it.
             */
-            onOpenThread={(group) =>
-              setRoute({
-                screen: 'groupThread',
-                group: {
-                  id: group.id,
-                  name: group.name,
-                  memberCount: group.memberCount,
-                  eventCount: group.events.length,
-                },
-              })
-            }
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             Button={Button}
           />

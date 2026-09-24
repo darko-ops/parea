@@ -139,11 +139,17 @@ describe('the grid they are all on', () => {
  * open a room where talking is already going on.
  */
 describe('the bubbles', () => {
-  it('is the Chats tab and a group\'s own button', () => {
+  it('is the Chats tab and a group\'s own Chat pane', () => {
+    /*
+     * It was a disc in a group's header that opened the conversation as a
+     * screen; the conversation is a pane of the room now and the glyph moved
+     * with it, onto the tab that opens it. Same picture, same idea: a room
+     * where talking is already going on.
+     */
     const APP = read('App.tsx');
     const GROUPS = read('src/Groups.tsx');
     expect(APP).toContain("['chats', 'bubbles', 'Chats']");
-    expect(GROUPS).toMatch(/<Glyph name="bubbles"/);
+    expect(GROUPS).toContain("['chat', 'bubbles', 'Chat']");
   });
 
   it('left no aeroplane behind', () => {
