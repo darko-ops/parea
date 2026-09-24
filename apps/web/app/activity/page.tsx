@@ -16,12 +16,11 @@
  */
 
 import { ActivityList } from '@/../app/components/ActivityList';
-import { Welcome } from '@/../app/components/Welcome';
 import { PendingRequests } from '@/../app/components/PendingRequests';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
-import { activityFor, welcomeFor } from '@/activity';
+import { activityFor } from '@/activity';
 import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
 import { askedToJoin, invitesSeenAtFor, markInvitesSeen } from '@/invites';
@@ -68,17 +67,6 @@ export default async function ActivityPage() {
    * halfway leaves the count intact rather than cleared without being shown.
    */
   await markInvitesSeen(db, actorId);
-  /*
-   * Parea's welcome, and it is asked for last because it is asked for rarely.
-   *
-   * Null when this reader has hidden it; a moment when they have not. The
-   * query costs a row lookup and a key lookup, and it happens on every load of
-   * this page rather than only on the empty ones — which is the trade for
-   * `items` being awaited above it in the same `Promise.all` as everything
-   * else. A second round trip conditioned on emptiness would be slower than
-   * the thing it saves on the pages that have something.
-   */
-  const welcome = await welcomeFor(db, actorId);
   const now = new Date();
   // Never looked means everything is new, not nothing. Comparing against null
   // gives false in JavaScript, which is the wrong answer in the quiet way.
@@ -167,18 +155,21 @@ export default async function ActivityPage() {
           />
 
           {/*
-            Nothing at all, anywhere on the page — so the page says hello
-            rather than reporting an absence.
-
-            All three, not just the list: somebody with a friend request
-            waiting has a page with something on it, and a welcome under it
-            would be the product introducing itself to a reader who is already
-            halfway through using it.
+            The two cases the welcome cannot cover, and they are both real.
+ 
+            It is an `ActivityItem` now, so it needs an actor to be dated by
+            and it is gone for good once somebody hides it — a browser that has
+            never signed in has no arrival to name, and a reader who dismissed
+            it is not owed it back. Either way the list is empty and the page
+            would otherwise be a heading over nothing.
           */}
-          {requests.length === 0 &&
-            asked.length === 0 &&
-            items.length === 0 &&
-            welcome !== null && <Welcome when={welcome.at && ago(welcome.at, now)} />}
+          {items.length === 0 && (
+            <p className="activity-empty">
+              Nothing yet. When somebody adds photos to an album you are in,
+              says something about yours, or opens one to you, it turns up
+              here.
+            </p>
+          )}
         </section>
 
         <SiteFooter />

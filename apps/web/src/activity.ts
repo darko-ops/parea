@@ -33,7 +33,12 @@ import { schema } from '@parea/core';
 import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
-import { WELCOME_KEY } from './parea';
+import {
+  PAREA_ACTOR_ID,
+  PAREA_HANDLE,
+  PAREA_NAME,
+  WELCOME_KEY,
+} from './parea';
 import type { Db } from './db';
 import { imageSrc } from './images';
 
@@ -52,6 +57,16 @@ import { imageSrc } from './images';
  * is that missing half.
  */
 export type ActivityKind =
+  /**
+   * Parea, saying hello, and the only row in this file nobody did.
+   *
+   * It exists so an empty page has something to be rather than a sentence
+   * about being empty — see where it is built, at the foot of `activityFor`.
+   * A kind rather than something a page draws on top, because the phone reads
+   * this list through `/api/activity` and a welcome that lives in one client's
+   * page component is a welcome half the product does not have.
+   */
+  | 'welcome'
   | 'reaction'
   | 'mention'
   /**
@@ -169,53 +184,6 @@ const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
 )`;
 
 /**
- * Whether Parea's welcome should be drawn, and what it is dated.
- *
- * The row itself is a row like any other — see `Welcome` — so the two things
- * that make it one have to come from the database rather than from the
- * component: a moment it happened, and whether this reader has hidden it.
- *
- * The moment is when *you* arrived. "Just now" would be a timestamp invented
- * for an event that never occurred; your actor's `created_at` is the moment
- * Parea had somebody to welcome, which is the thing the sentence is about.
- *
- * Null for a reader who has hidden it, and null for one this product has
- * never seen — a browser that has only ever looked has no actor, so there is
- * no moment to name and no row to hide. The page draws the welcome without a
- * time in that case rather than not at all: somebody reading an empty
- * Notifications page is exactly who the sentence is for.
- *
- * One query, and only asked when the page has nothing else on it.
- */
-export async function welcomeFor(
-  db: Db,
-  actorId: string | null,
-): Promise<{ at: string | null } | null> {
-  if (!actorId) return { at: null };
-
-  const [[me], [dismissed]] = await Promise.all([
-    db
-      .select({ createdAt: schema.actors.createdAt })
-      .from(schema.actors)
-      .where(eq(schema.actors.id, actorId))
-      .limit(1),
-    db
-      .select({ key: schema.hiddenActivity.itemKey })
-      .from(schema.hiddenActivity)
-      .where(
-        and(
-          eq(schema.hiddenActivity.actorId, actorId),
-          eq(schema.hiddenActivity.itemKey, WELCOME_KEY),
-        ),
-      )
-      .limit(1),
-  ]);
-
-  if (dismissed) return null;
-  return { at: me?.createdAt.toISOString() ?? null };
-}
-
-/**
  * Three of the photographs a `photos_added` line is counting.
  *
  * An aggregate over the rows already being grouped rather than a second query
@@ -255,9 +223,17 @@ export async function activityFor(
   if (!actorId) return [];
 
   const [me] = await db
-    .select({ handle: schema.actors.handle })
+    /*
+     * `createdAt` as well as the handle, for the welcome at the foot of this
+     * function: it is dated by when this reader arrived, and the row is only
+     * built when nothing else came back — so reading it here costs one more
+     * column on a query that was already running rather than a query of its
+     * own on every load.
+     */
+    .select({ handle: schema.actors.handle, createdAt: schema.actors.createdAt })
     .from(schema.actors)
     .where(eq(schema.actors.id, actorId));
+  const arrived = me?.createdAt ?? null;
 
   /*
    * What this person has dismissed, fetched alongside the rest.
@@ -890,8 +866,57 @@ export async function activityFor(
   // Newest first, and bounded again after the merge — four queries of fifty is
   // two hundred rows, and nobody scrolls that.
   const dismissed = new Set(hidden.map((row) => row.key));
-  return items
+  const real = items
     .filter((item) => !dismissed.has(item.id))
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, LIMIT);
+
+  /*
+   * Parea's welcome, when there is nothing else to say.
+   *
+   * Here rather than in a page, and that is the whole point of it being here:
+   * the web composes this list on the server and the phone asks for it through
+   * `/api/activity`, so a welcome drawn by the web's page component is a
+   * welcome the phone does not have — which is exactly what happened. Built as
+   * an `ActivityItem` like any other it reaches both, and it reaches an app
+   * already installed without a release.
+   *
+   * It is a row like the rest in every way that can be checked: `who` is an
+   * account with an address behind it, `href` is its profile — a `/u/…` the
+   * phone maps to a person screen like any other — `image` is its avatar
+   * presigned the way everybody's is, and `id` is the key hiding writes, so
+   * the filter above takes it away and keeps it away.
+   *
+   * `at` is when *you* arrived. "Now" would be a timestamp invented for
+   * something that never happened; your actor's `created_at` is the moment
+   * Parea had somebody to welcome.
+   *
+   * Only when the list is empty. The gate used to count the answerable cards
+   * above the feed as well, which the web page can see and this cannot — and
+   * asking the two clients to agree about that is how the phone ended up with
+   * no welcome at all. What it costs is a welcome under a friend request, for
+   * one reader, once.
+   */
+  if (real.length > 0 || dismissed.has(WELCOME_KEY)) return real;
+
+  const [face] = await db
+    .select({ avatarKey: schema.actors.avatarKey })
+    .from(schema.actors)
+    .where(eq(schema.actors.id, PAREA_ACTOR_ID))
+    .limit(1);
+
+  return [
+    {
+      id: WELCOME_KEY,
+      kind: 'welcome',
+      at: (arrived ?? new Date()).toISOString(),
+      who: PAREA_NAME,
+      what:
+        'welcomed you. When somebody adds photos to an album you are in, says ' +
+        'something about yours, or opens one to you, it turns up here.',
+      href: `/u/${PAREA_HANDLE}`,
+      image: await avatarUrl(face?.avatarKey ?? null),
+      images: [],
+    },
+  ];
 }

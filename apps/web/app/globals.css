@@ -742,19 +742,7 @@ button.secondary {
 
 /* The feed. */
 .feed { margin-top: 30px; }
-/* The welcome, which borrows `.activity-row` wholesale — the hover, the link,
-   the menu, all of it. That is the point of it: it is a row like the ones that
-   will replace it, and the three things that used to hold it apart are true
-   now instead of drawn. See `Welcome`.
-
-   All it needs of its own is the picture. The mark goes where a face goes, in
-   the same square, so the column down the left stays a column — centred in it
-   rather than filling it, because the drawing carries its own margin and a
-   34px lens stack would be the loudest thing on the page. */
-.welcome-mark {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--card); border: 1px solid var(--hairline);
-}
+.activity-empty { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); max-width: 460px; }
 .activity-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
 .activity-day + .activity-day { margin-top: 20px; }
 /* The day, and a rule filling whatever is left of the line. The rule is what

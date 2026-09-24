@@ -22,6 +22,23 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { activityFor } from '@/activity';
 import type { Db } from '@/db';
 
+
+/**
+ * The lines somebody actually did, which is what every test below is about.
+ *
+ * `activityFor` ends an empty list with Parea's welcome — a row nobody did,
+ * there so that a page with nothing on it has something to be. It is built
+ * there rather than in a page because the phone reads this list through
+ * `/api/activity` and a welcome drawn by the web's page component is one the
+ * phone does not have.
+ *
+ * Which means "this event produces no line" is now "this event produces no
+ * line but the welcome", and saying that forty times is how a test file stops
+ * being read. The welcome has its own assertions at the foot of this file.
+ */
+const did = async (db: Db, actorId: string) =>
+  (await activityFor(db, actorId)).filter((item) => item.kind !== 'welcome');
+
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
 );
@@ -76,11 +93,11 @@ describe('hiding a line', () => {
     const me = await actor('me');
     await twoLines(me);
 
-    const before = await activityFor(db, me);
+    const before = await did(db, me);
     expect(before).toHaveLength(2);
 
     await hide(me, before[0]!.id);
-    const after = await activityFor(db, me);
+    const after = await did(db, me);
     expect(after.map((i) => i.id)).toEqual([before[1]!.id]);
   });
 
@@ -94,10 +111,10 @@ describe('hiding a line', () => {
      */
     const me = await actor('me');
     await twoLines(me);
-    const [first] = await activityFor(db, me);
+    const [first] = await did(db, me);
 
     await hide(me, first!.id);
-    expect((await activityFor(db, me)).some((i) => i.id === first!.id)).toBe(false);
+    expect((await did(db, me)).some((i) => i.id === first!.id)).toBe(false);
   });
 
   it('is one person’s decision, not everybody’s', async () => {
@@ -114,11 +131,11 @@ describe('hiding a line', () => {
         { eventId: made.id, actorId: you },
       ]);
 
-    const mine = await activityFor(db, me);
+    const mine = await did(db, me);
     await hide(me, mine[0]!.id);
 
-    expect(await activityFor(db, me)).toHaveLength(0);
-    expect(await activityFor(db, you)).toHaveLength(1);
+    expect(await did(db, me)).toHaveLength(0);
+    expect(await did(db, you)).toHaveLength(1);
   });
 
   it('does nothing at all for a key that names no line', async () => {
@@ -127,14 +144,14 @@ describe('hiding a line', () => {
     const me = await actor('me');
     await twoLines(me);
     await hide(me, 'letin:00000000-0000-0000-0000-000000000000');
-    expect(await activityFor(db, me)).toHaveLength(2);
+    expect(await did(db, me)).toHaveLength(2);
   });
 
   it('survives being asked twice', async () => {
     // Two tabs, or one impatient tap on a slow connection.
     const me = await actor('me');
     await twoLines(me);
-    const [first] = await activityFor(db, me);
+    const [first] = await did(db, me);
 
     await hide(me, first!.id);
     await db
@@ -142,7 +159,7 @@ describe('hiding a line', () => {
       .values({ actorId: me, itemKey: first!.id })
       .onConflictDoNothing();
 
-    expect(await activityFor(db, me)).toHaveLength(1);
+    expect(await did(db, me)).toHaveLength(1);
   });
 });
 
@@ -166,7 +183,7 @@ describe('one act, one line', () => {
       resolvedAt: new Date(),
     } as never);
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       kind: 'request_answered',
@@ -181,7 +198,7 @@ describe('one act, one line', () => {
     const me = await actor('me');
     await twoLines(me);
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items.map((i) => i.what).sort()).toEqual(['joined One', 'joined Two']);
     expect(items.every((i) => i.who === 'You')).toBe(true);
   });
@@ -201,7 +218,7 @@ describe('one act, one line', () => {
       resolvedAt: new Date(),
     } as never);
 
-    expect(await activityFor(db, me)).toEqual([]);
+    expect(await did(db, me)).toEqual([]);
   });
 });
 
@@ -231,7 +248,7 @@ describe('photographs arriving', () => {
     const at = new Date();
     for (let i = 0; i < 15; i++) await photo(made.id, sarah, at, i);
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items.filter((i) => i.kind === 'photos_added')).toHaveLength(1);
     expect(items.find((i) => i.kind === 'photos_added')).toMatchObject({
       who: '@sarah',
@@ -246,7 +263,7 @@ describe('photographs arriving', () => {
     await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
     await photo(made.id, sarah, new Date(), 0);
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items.find((i) => i.kind === 'photos_added')?.what).toBe(
       'added 1 photo to Dinner',
     );
@@ -267,7 +284,7 @@ describe('photographs arriving', () => {
     const at = new Date();
     for (let i = 0; i < 9; i++) await photo(made.id, sarah, at, i);
 
-    const line = (await activityFor(db, me)).find((i) => i.kind === 'photos_added');
+    const line = (await did(db, me)).find((i) => i.kind === 'photos_added');
     expect(line?.what).toBe('added 9 photos to Dinner');
     expect(line?.images).toHaveLength(3);
     // Addresses, not keys. Every one of these crosses the boundary to a browser.
@@ -283,7 +300,7 @@ describe('photographs arriving', () => {
     await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
     await photo(made.id, sarah, new Date(), 0);
 
-    const line = (await activityFor(db, me)).find((i) => i.kind === 'photos_added');
+    const line = (await did(db, me)).find((i) => i.kind === 'photos_added');
     expect(line?.images).toHaveLength(1);
   });
 
@@ -297,7 +314,7 @@ describe('photographs arriving', () => {
     const me = await actor('me');
     await twoLines(me);
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items).toHaveLength(2);
     expect(items.every((i) => Array.isArray(i.images) && i.images.length === 0)).toBe(
       true,
@@ -320,7 +337,7 @@ describe('photographs arriving', () => {
     await photo(made.id, sarah, yesterday, 1);
     await photo(made.id, marcus, today, 2);
 
-    const lines = (await activityFor(db, me)).filter((i) => i.kind === 'photos_added');
+    const lines = (await did(db, me)).filter((i) => i.kind === 'photos_added');
     expect(lines).toHaveLength(3);
     expect(new Set(lines.map((l) => l.id)).size).toBe(3);
   });
@@ -335,7 +352,7 @@ describe('photographs arriving', () => {
     const theirs = await event(stranger, 'Theirs');
     await photo(theirs.id, stranger, new Date(), 1);
 
-    expect((await activityFor(db, me)).filter((i) => i.kind === 'photos_added')).toEqual(
+    expect((await did(db, me)).filter((i) => i.kind === 'photos_added')).toEqual(
       [],
     );
   });
@@ -359,7 +376,7 @@ describe('photographs arriving', () => {
       deletedAt: new Date(),
     });
 
-    expect((await activityFor(db, me)).filter((i) => i.kind === 'photos_added')).toEqual(
+    expect((await did(db, me)).filter((i) => i.kind === 'photos_added')).toEqual(
       [],
     );
   });
@@ -383,7 +400,7 @@ describe('being said yes to', () => {
     const them = await actor('wren');
     await asks(me, them, 'accepted', new Date());
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       kind: 'friend_accepted',
@@ -400,7 +417,7 @@ describe('being said yes to', () => {
     const them = await actor('wren');
     await asks(them, me, 'accepted', new Date());
 
-    expect(await activityFor(db, me)).toEqual([]);
+    expect(await did(db, me)).toEqual([]);
   });
 
   it('says nothing about one still waiting, or one refused', async () => {
@@ -412,7 +429,7 @@ describe('being said yes to', () => {
     await asks(me, open);
     await asks(me, no, 'declined', new Date());
 
-    expect(await activityFor(db, me)).toEqual([]);
+    expect(await did(db, me)).toEqual([]);
   });
 });
 
@@ -429,7 +446,7 @@ describe('somebody arriving in an event you made', () => {
     const mine = await event(me, 'Barcelona');
     await db.insert(schema.eventParticipants).values({ eventId: mine.id, actorId: them });
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       kind: 'joined_yours',
@@ -453,7 +470,7 @@ describe('somebody arriving in an event you made', () => {
       resolvedAt: new Date(),
     } as never);
 
-    expect(await activityFor(db, me)).toEqual([]);
+    expect(await did(db, me)).toEqual([]);
   });
 
   it('says nothing about your own arrival, or about somebody else’s event', async () => {
@@ -468,7 +485,7 @@ describe('somebody arriving in an event you made', () => {
       .insert(schema.eventParticipants)
       .values({ eventId: theirs.id, actorId: stranger });
 
-    expect(await activityFor(db, me)).toEqual([]);
+    expect(await did(db, me)).toEqual([]);
   });
 });
 
@@ -489,7 +506,7 @@ describe('how much of the past is shown', () => {
         .values({ eventId: made.id, actorId: me });
     }
 
-    const items = await activityFor(db, me);
+    const items = await did(db, me);
     expect(items).toHaveLength(50);
 
     // And they are the newest fifty, not the first fifty the query found.
@@ -533,7 +550,7 @@ describe('a photograph of yours, and one you are in', () => {
 
     await say(made.id, them, 'this one is great', shot.id);
 
-    const feed = await activityFor(db, me);
+    const feed = await did(db, me);
     expect(feed.map((i) => i.kind)).toContain('photo_comment');
     // The remark itself, not the fact that one exists: "commented on your
     // photo" is a line somebody has to open the album to act on, and most of
@@ -548,7 +565,7 @@ describe('a photograph of yours, and one you are in', () => {
 
     await say(made.id, me, 'mine', shot.id);
 
-    expect(await activityFor(db, me)).toHaveLength(0);
+    expect(await did(db, me)).toHaveLength(0);
   });
 
   it('says nothing about a comment on somebody else’s photograph', async () => {
@@ -562,7 +579,7 @@ describe('a photograph of yours, and one you are in', () => {
 
     await say(made.id, them, 'look at this', theirs.id);
 
-    expect((await activityFor(db, me)).map((i) => i.kind)).not.toContain('photo_comment');
+    expect((await did(db, me)).map((i) => i.kind)).not.toContain('photo_comment');
   });
 
   it('already told you about your handle in a comment, and still does', async () => {
@@ -580,7 +597,7 @@ describe('a photograph of yours, and one you are in', () => {
 
     await say(made.id, them, 'is that @me in the corner', theirs.id);
 
-    const feed = await activityFor(db, me);
+    const feed = await did(db, me);
     expect(feed.map((i) => i.kind)).toContain('mention');
     expect(feed.filter((i) => i.kind === 'mention')).toHaveLength(1);
   });
@@ -601,7 +618,7 @@ describe('a photograph of yours, and one you are in', () => {
       .insert(schema.photoTags)
       .values({ photoId: theirs.id, actorId: me, taggedBy: them });
 
-    const line = (await activityFor(db, me)).find((i) => i.kind === 'tagged');
+    const line = (await did(db, me)).find((i) => i.kind === 'tagged');
     expect(line).toBeDefined();
     expect(line!.what).toMatch(/tagged you in a photo in Dinner/);
     expect(line!.images).toHaveLength(1);
@@ -616,7 +633,7 @@ describe('a photograph of yours, and one you are in', () => {
       .insert(schema.photoTags)
       .values({ photoId: shot.id, actorId: me, taggedBy: me });
 
-    expect((await activityFor(db, me)).map((i) => i.kind)).not.toContain('tagged');
+    expect((await did(db, me)).map((i) => i.kind)).not.toContain('tagged');
   });
 
   it('drops both when the photograph is taken down', async () => {
@@ -638,7 +655,7 @@ describe('a photograph of yours, and one you are in', () => {
       .set({ deletedAt: new Date() })
       .where(eq(schema.photos.id, shot.id));
 
-    const kinds = (await activityFor(db, me)).map((i) => i.kind);
+    const kinds = (await did(db, me)).map((i) => i.kind);
     expect(kinds).not.toContain('photo_comment');
     expect(kinds).not.toContain('tagged');
   });
@@ -681,7 +698,7 @@ describe('somebody answering a comment of yours', () => {
     await say(made.id, me, theirs, 'lovely');
     await say(made.id, host, theirs, 'thank you');
 
-    const lines = await activityFor(db, me);
+    const lines = await did(db, me);
     const reply = lines.find((line) => line.kind === 'comment_reply');
     expect(reply).toBeDefined();
     expect(reply!.what).toContain('thank you');
@@ -699,7 +716,7 @@ describe('somebody answering a comment of yours', () => {
 
     await say(made.id, host, theirs, 'look at this');
 
-    const lines = await activityFor(db, me);
+    const lines = await did(db, me);
     expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
   });
 
@@ -712,7 +729,7 @@ describe('somebody answering a comment of yours', () => {
     await say(made.id, me, theirs, 'first');
     await say(made.id, me, theirs, 'second');
 
-    const lines = await activityFor(db, me);
+    const lines = await did(db, me);
     expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
   });
 
@@ -731,7 +748,7 @@ describe('somebody answering a comment of yours', () => {
     await say(made.id, me, mine, 'mine');
     await say(made.id, them, mine, 'nice one');
 
-    const lines = await activityFor(db, me);
+    const lines = await did(db, me);
     expect(lines.filter((line) => line.what.includes('nice one'))).toHaveLength(1);
     expect(lines.some((line) => line.kind === 'photo_comment')).toBe(true);
     expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
@@ -752,8 +769,79 @@ describe('somebody answering a comment of yours', () => {
       .set({ deletedAt: new Date() })
       .where(eq(schema.photos.id, theirs));
 
-    const lines = await activityFor(db, me);
+    const lines = await did(db, me);
     expect(lines.some((line) => line.kind === 'comment_reply')).toBe(false);
   });
 });
 
+/**
+ * Parea's welcome, which is the one row in the list nobody did.
+ *
+ * Tested against a database rather than by reading the source, because every
+ * property that makes it honest is a property of what comes back: an account
+ * behind the name, a real moment, and a hide that sticks.
+ *
+ * The Parea actor itself is reference data, seeded by `0037_parea_account.sql`
+ * — and `truncate` above clears it between tests, which is why these insert it
+ * back rather than assuming it. A missing one is not an error: the row is
+ * still built and simply has no picture, the way anybody without an avatar
+ * key has none.
+ */
+describe('the welcome', () => {
+  const PAREA = '00000000-0000-4000-8000-000000000002';
+
+  beforeEach(async () => {
+    await db
+      .insert(schema.actors)
+      .values({ id: PAREA, kind: 'user', displayName: 'Parea', handle: 'parea' });
+  });
+
+  it('is the whole list when there is nothing else', async () => {
+    const me = await actor('me');
+    const items = await activityFor(db, me);
+    expect(items).toHaveLength(1);
+    expect(items[0]!.kind).toBe('welcome');
+    expect(items[0]!.who).toBe('Parea');
+    // A profile the phone can open: `/u/<handle>` is a shape its Lately maps
+    // to a person screen, which is why the row reaches an app already
+    // installed without a release.
+    expect(items[0]!.href).toBe('/u/parea');
+  });
+
+  it('is dated by when you arrived, not by now', async () => {
+    /*
+     * "Now" would be a timestamp invented for something that never happened.
+     * The actor's own `created_at` is the moment Parea had somebody to
+     * welcome, and it is the only date this row could honestly carry.
+     */
+    const { eq } = await import('drizzle-orm');
+    const me = await actor('me');
+    const [row] = await db
+      .select({ createdAt: schema.actors.createdAt })
+      .from(schema.actors)
+      .where(eq(schema.actors.id, me));
+    const [welcome] = await activityFor(db, me);
+    expect(welcome!.at).toBe(row!.createdAt.toISOString());
+  });
+
+  it('goes when there is something real to say', async () => {
+    /*
+     * An empty state, not a pinned message. A welcome sitting above a feed is
+     * the product still introducing itself to somebody who is using it.
+     */
+    const me = await actor('me');
+    await twoLines(me);
+    expect((await activityFor(db, me)).map((i) => i.kind)).not.toContain('welcome');
+  });
+
+  it('stays hidden, through the same key every other row uses', async () => {
+    // `hidden_activity` takes a free-text key. Every other one names a row
+    // that exists; this names a thing that happens once per reader, so the key
+    // is a constant — and the filter that takes real rows away takes this one
+    // too, rather than a second mechanism beside it.
+    const me = await actor('me');
+    expect(await activityFor(db, me)).toHaveLength(1);
+    await hide(me, 'welcome');
+    expect(await activityFor(db, me)).toHaveLength(0);
+  });
+});

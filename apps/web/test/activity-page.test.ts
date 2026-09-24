@@ -35,7 +35,6 @@ const read = async (path: string) =>
 const PAGE = await read('../app/activity/page.tsx');
 const WAITING = await read('../app/components/PendingRequests.tsx');
 const LIST = await read('../app/components/ActivityList.tsx');
-const WELCOME = await read('../app/components/Welcome.tsx');
 const ACTIVITY = await read('../src/activity.ts');
 /* The wording moved out of the page when the phone started drawing the same
    feed: one implementation of "is this today?", for both clients. */
@@ -174,94 +173,21 @@ describe('the feed', () => {
     expect(LIST).toMatch(/aria-label=\{`\$\{row\.who\} \$\{row\.what\}`\}/);
   });
 
-  it('still says what the page is for when there is nothing in it', () => {
+  it('leaves the empty case to the list it is a list of', () => {
     /*
-     * Verbatim, and it has moved. It is the one sentence on this page that
-     * explains what the page is for, and it is read by people who have nothing
-     * to look at — so it survives the move from a grey paragraph into the
-     * welcome row, in the voice of the thing that will be saying the rest.
+     * The page drew its own welcome for one commit, which is why the phone had
+     * none: it reads this feed through `/api/activity`, and a row that exists
+     * in a page component exists for one client. It is an `ActivityItem` built
+     * by `activityFor` now — see `activity.test.ts`, where every property that
+     * makes it honest is asserted against a database.
      *
-     * The list itself now draws nothing when it is empty: "the page is empty"
-     * is a question only the page can answer, because it has two sections
-     * above this one.
+     * What is left here is the absence: no second welcome drawn on top, and no
+     * paragraph about having nothing, because the list is never empty for
+     * somebody who has not hidden one.
      */
-    // Whitespace flattened: the sentence is wrapped across three lines of JSX,
-    // and where the line breaks fall is not part of what it says.
-    expect(WELCOME.replace(/\s+/g, ' ')).toContain(
-      'When somebody adds photos to an album you are in, says something about yours, or opens one to you, it turns up here.',
-    );
-    expect(LIST).toMatch(/if \(rows\.length === 0\) return null;/);
-  });
-
-  it('greets nobody who is already halfway through using it', () => {
-    // A friend request waiting is a page with something on it, and a welcome
-    // under it would be the product introducing itself to somebody who has
-    // already been introduced. All three sections, not just this list.
-    expect(PAGE.replace(/\s+/g, ' ')).toContain(
-      'requests.length === 0 && asked.length === 0 && items.length === 0',
-    );
-  });
-
-  it('is a row rather than a drawing of one', () => {
-    /*
-     * A synthetic row in a list of things that happened is a lie the moment
-     * somebody cannot tell. It was drawn deliberately unlike one at first —
-     * no name to open, no time, no menu — and the answer to that objection is
-     * not a row that looks broken; it is making each of those three true.
-     *
-     * The name is an account: `parea` is a real actor with a real address
-     * behind it, seeded by a migration, and `@parea` opens a profile like
-     * anybody's. The time is a real moment, and the one this row is about —
-     * when you arrived. Hiding it works and sticks, through the endpoint every
-     * other row uses.
-     */
-    expect(WELCOME).toMatch(/href=\{`\/u\/\$\{PAREA_HANDLE\}`\}/);
-    expect(WELCOME).toMatch(/className="activity-when"/);
-    expect(WELCOME).toMatch(/'\/api\/activity\/hidden'/);
-    expect(WELCOME).toMatch(/key: WELCOME_KEY/);
-    // Its picture is the mark, which is not an exception: it is what an
-    // account with no avatar key falls back to, the way anybody without one
-    // falls back to their initial. Parea's initial is its logo.
-    expect(WELCOME).toMatch(/<Mark size=\{26\} \/>/);
-  });
-
-  it('dates the welcome by when you arrived, not by now', () => {
-    /*
-     * "Just now" would be a timestamp invented for an event that never
-     * occurred. Your actor's `created_at` is the moment Parea had somebody to
-     * welcome, which is what the sentence is about — and it is worded on the
-     * server like every other time on this page.
-     */
-    expect(ACTIVITY).toMatch(/schema\.actors\.createdAt/);
-    expect(ACTIVITY).toMatch(/export async function welcomeFor/);
-    expect(PAGE).toMatch(/welcome\.at && ago\(welcome\.at, now\)/);
-  });
-
-  it('gives Parea an account rather than a name in a component', () => {
-    /*
-     * Two files hold one uuid, which is exactly the pair that drifts — so the
-     * constants are compared against the migration that writes them. The
-     * alternative was a query by email on every render of a page that mostly
-     * has nothing to say.
-     */
-    const PAREA = readFileSync(
-      fileURLToPath(new URL('../src/parea.ts', import.meta.url)),
-      'utf8',
-    );
-    const SEED = readFileSync(
-      fileURLToPath(new URL('../../../packages/core/drizzle/0037_parea_account.sql', import.meta.url)),
-      'utf8',
-    );
-    for (const id of ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']) {
-      expect(PAREA, `${id} not named in parea.ts`).toContain(id);
-      expect(SEED, `${id} not written by the migration`).toContain(id);
-    }
-    expect(PAREA).toContain("PAREA_EMAIL = 'demetri@daed.io'");
-    expect(SEED).toContain("'demetri@daed.io'");
-    // And it has no powers: nothing anywhere asks whether an actor is this one
-    // before deciding something, which is what keeps the row it signs a row.
-    expect(readFileSync(fileURLToPath(new URL('../src/access.ts', import.meta.url)), 'utf8'))
-      .not.toContain('PAREA_');
+    expect(PAGE).not.toMatch(/<Welcome/);
+    expect(LIST).not.toMatch(/Nothing yet\./);
+    expect(ACTIVITY).toMatch(/kind: 'welcome'/);
   });
 
   it('puts a row back when hiding it did not send', () => {
