@@ -24,6 +24,7 @@ import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
+import { ShareProfile } from './ShareProfile';
 import { SignIn } from './SignIn';
 import { SiteFooter } from './SiteFooter';
 
@@ -283,11 +284,50 @@ export function AccountView() {
     <>
       <header className="you-head">
         {/*
-          A letter until there is a picture, and again if one will not load.
-          Not a silhouette: a generic avatar is a photograph of nobody, and
-          this at least belongs to the person looking at it.
+          The picture, hanging from the bar on a phone and standing beside the
+          name on a laptop.
+
+          The app's shape, which is a strip the width of a face coming down
+          from the top edge of the screen with the square photograph at the
+          foot of it — and above the photograph, its own top edge stretched and
+          blurred, so the space between the picture and the chrome is the
+          picture's colour rather than a swatch or a gap. There is no camera
+          island in a browser, but the idea survives it: the profile arrives
+          from the top of the page attached to it, rather than floating in the
+          middle of a column.
+
+          One element at both widths. On a laptop the ribbon stops being a
+          ribbon — it loses the bleed and sits at the head of a row, because a
+          172px band hanging off a 1100px page is a phone's furniture on a
+          desk. See `.you-ribbon`.
         */}
-        <Avatar url={account?.avatarUrl ?? null} initial={initial} />
+        <div className="you-ribbon">
+          {/*
+            The bleed, and it is the photograph rather than a colour taken from
+            it. The top of the picture, stretched to fill the strip and
+            mirrored so the row that meets the photograph is the photograph's
+            own first row — the seam is then not a seam. Blurred, because ten
+            pixels of somebody's hair magnified six times is colour and
+            nothing else.
+
+            Drawn only when there is a picture: with none, `.you-face` is a
+            letter on a lens colour and the strip is that colour, which needs
+            no image and gets it from the stylesheet.
+          */}
+          {account?.avatarUrl && (
+            <span
+              className="you-bleed"
+              aria-hidden="true"
+              style={{ backgroundImage: `url(${account.avatarUrl})` }}
+            />
+          )}
+          {/*
+            A letter until there is a picture, and again if one will not load.
+            Not a silhouette: a generic avatar is a photograph of nobody, and
+            this at least belongs to the person looking at it.
+          */}
+          <Avatar url={account?.avatarUrl ?? null} initial={initial} />
+        </div>
 
         {/*
           Read, not write. Both of these are edited one button away, and a
@@ -341,14 +381,24 @@ export function AccountView() {
         </div>
 
         {/*
-          Inside the header and above the rule, rather than a bordered button
-          on its own row below it — it belongs to the name and picture it
-          changes, and a slab under the divider read as the page's main action
-          when the page's main action is the events underneath.
+          Inside the header and above the rule, rather than bordered slabs on
+          their own row below it — they belong to the name and picture they are
+          about, and a full-width button under the divider read as the page's
+          main action when the page's main action is the albums underneath.
+
+          Two of them, and the same size, because neither is more important
+          than the other: one changes what other people see of you, the other
+          hands them the page. That is the app's pairing, arrived at when
+          `Settings` stopped being the second half of this row — settings is a
+          door *out* of a profile, and sharing is about the profile you are
+          looking at.
         */}
-        <button className="you-edit" onClick={() => setView('profile')}>
-          Edit
-        </button>
+        <div className="you-actions">
+          <button className="you-edit" onClick={() => setView('profile')}>
+            Edit
+          </button>
+          <ShareProfile handle={account?.handle ?? null} />
+        </div>
       </header>
 
       {note && <p className="muted">{note}</p>}

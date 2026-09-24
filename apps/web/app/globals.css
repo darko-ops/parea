@@ -1960,11 +1960,27 @@ button.secondary {
 }
 .tile-add strong { font-size: 15.5px; font-weight: 600; }
 .tile-add .muted { font-size: 12.5px; }
+/* Three circles over one another, and no colour in them.
+
+   They were the mark's own pink, blue and mint — the logo, at 24px, on a tile
+   in the middle of somebody's photographs. Two things wrong with that. It put
+   the brand inside the gallery, which is the one place in this product that
+   belongs entirely to the people in it; and it made the tile the most coloured
+   object on a page of other people's pictures, which is the opposite of the
+   order those two should be in.
+
+   What survives is the shape, because the shape is the idea: three sets
+   overlapping into one. Translucent grey, so the overlaps are darker than the
+   circles and the middle is darkest — the figure draws itself out of the
+   stacking rather than out of a palette, which is what the mark's own
+   painted-region rule is doing in colour. */
 .tile-add-lenses { display: inline-flex; }
-.tile-add-lenses > * { width: 24px; height: 24px; border-radius: 50%; display: block; }
-.tile-add-lenses > :first-child { background: #ffb3b8; }
-.tile-add-lenses > :nth-child(2) { background: #9db2f0; margin-left: -8px; }
-.tile-add-lenses > :nth-child(3) { background: #a5dcc6; margin-left: -8px; }
+.tile-add-lenses > * {
+  width: 24px; height: 24px; border-radius: 50%; display: block;
+  background: rgba(20, 23, 28, .13);
+}
+.tile-add-lenses > :nth-child(2),
+.tile-add-lenses > :nth-child(3) { margin-left: -8px; }
 
 /* The bar for a selection. In the flow at the foot of the body rather than
    floating over the gallery — a floating bar covers the bottom row of exactly
@@ -3636,7 +3652,22 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* ---------------------------------------------------------------------------
    You — the page you land on after signing in.
    --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   The profile, at two widths.
+
+   640 was the whole page at every size, and two things came out of that on a
+   laptop. The header was a centred column — picture, then name, then facts,
+   then buttons — which is a phone's header on a 1400px screen; and the album
+   grid, drawn with the same `.cards` rule the home page uses, had 640px to
+   fill and so was always two columns. Home lays the same objects out four
+   across. The profile is not a narrower product than the home page and the
+   albums on it are the same albums.
+
+   So the column stays 640 for the *text*, which is a measure and not a layout,
+   and the page itself opens up — see the wide block below.
+   --------------------------------------------------------------------------- */
 .you { max-width: 640px; }
+
 /* The head of a profile, which is the app's.
 
    It was a row: a 64px circle, two lines beside it, and Edit in the corner —
@@ -3651,6 +3682,68 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   display: flex; flex-direction: column; align-items: center; text-align: center;
   gap: 12px; padding-bottom: 26px; margin-bottom: 8px;
   border-bottom: 1px solid var(--line);
+}
+
+/* ---------------------------------------------------------------------------
+   The ribbon: the picture, hanging from the top of the page.
+
+   The app's shape. A strip the width of a face comes down from the top edge of
+   the screen with the square photograph at the foot of it, and above the
+   photograph its own top edge stretched and blurred — so the space between the
+   picture and the chrome is the picture's colour rather than a swatch or a
+   gap, and the profile arrives attached to the top of the page rather than
+   floating in the middle of a column.
+
+   It pulls up through the column's own padding to meet the bar, which is what
+   makes it hang from something. Bottom corners only: the top of it is not an
+   edge, it is where the page begins.
+   --------------------------------------------------------------------------- */
+.you-ribbon {
+  position: relative; flex: none;
+  width: 172px; margin-top: -40px;
+  border-radius: 0 0 24px 24px; overflow: hidden;
+  background: var(--accent-soft);
+}
+/* The bleed. The top ten pixels of the picture, stretched to fill the strip,
+   mirrored so the row meeting the photograph is the photograph's own first row
+   — the seam is then not a seam — and blurred, because ten pixels of somebody's
+   hair at that magnification is colour and nothing else.
+
+   `1720%` is that stretch, and it is arithmetic rather than a number somebody
+   liked: the picture is 172 wide and square, so filling 72px of strip from its
+   top 10px means scaling it to 172 × 7.2 = 1238, which against a 72px box is
+   1720%. The first attempt said 560%, which showed the top *fifth* of the
+   photograph rather than the top ten pixels — a washed-out slice of sky that
+   did not match the sky directly under it, which is what a seam is.
+
+   72 tall with 14 taken off each end: 44 of it shows, 14 is clipped by the
+   ribbon and 14 is hidden under the photograph. A blur fades to transparent at
+   the element's own edges, and both of those edges would otherwise be a pale
+   rule across the strip — one at the top of the page and one exactly where the
+   seam is supposed to disappear.
+
+   The first attempt had a `scale(1.25)` here for the same problem, and it is
+   worth recording why it was the wrong tool: a uniform scale about the centre
+   moves the mirrored row away from the boundary it was calculated to land on,
+   so it fixed the fade and broke the seam. Growing the box and hiding its ends
+   leaves the arithmetic alone. */
+.you-bleed {
+  display: block; height: 72px; margin: -14px 0;
+  background-position: top center; background-size: 100% 1720%;
+  transform: scaleY(-1);
+  filter: blur(11px);
+}
+/* Square, because the crop is square.
+
+   The app's note is the argument and it is not about taste: the picker crops
+   to a square on iOS whatever aspect is asked for, and the endpoint stores a
+   square — so a circle pays the difference out of the sides of somebody's
+   face. A box the shape of the crop is the only frame that shows the whole
+   crop. No radius of its own here: the ribbon around it owns the corners. */
+/* Above the bleed, which runs 14px under it — see the margins there. */
+.you-ribbon .you-face {
+  width: 172px; height: 172px; border-radius: 0;
+  position: relative; z-index: 1;
 }
 /* A letter, until there is a picture. Sized to the two lines beside it so the
    header has one height rather than three. */
@@ -3710,6 +3803,18 @@ img.you-face { object-fit: cover; }
   gap: 6px; font-size: 14.5px; color: var(--dim);
 }
 .you-counts > * + *::before { content: '·'; margin-right: 6px; }
+
+/* The pair. Two halves of a row and the same size, because neither is more
+   important than the other: one changes what other people see of you, the
+   other hands them the page. */
+.you-actions {
+  flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  justify-content: center;
+}
+/* What the share button says back. `--dim`, and it goes on its own: a note
+   that stays is a note that becomes furniture. */
+.you-said { font-size: 13px; color: var(--dim); }
+
  /* Quiet, in the corner of the header, aligned with the name rather than the
     bottom of the picture. A word and a hairline — the loud version was a
     bordered button on its own row, which is the shape this product uses for
@@ -3721,7 +3826,8 @@ img.you-face { object-fit: cover; }
   font-size: 13px; font-weight: 500;
   transition: border-color 120ms, color 120ms;
 }
-.you-edit:hover { border-color: var(--accent); color: var(--accent); }
+.you-edit:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.you-edit:disabled { opacity: .45; cursor: default; }
 
 /* Sign out, with its sentence beside it rather than under it — on a wide
    panel a line of explanation on its own row reads as belonging to whatever
@@ -3862,3 +3968,53 @@ button.link {
 .you-friends { color: var(--dim); text-decoration: none; }
 .you-friends:hover,
 .you-friends:focus-visible { color: var(--dim); font-weight: 600; }
+
+/*
+ * The wide profile, and it is at the *end* of this section rather than beside
+ * `.you` because every rule it overrides is declared above it. A media query
+ * adds no specificity, so a block written before the rules it means to beat
+ * loses to all of them silently — which is what happened on the first attempt:
+ * the buttons moved and nothing else did, because that was the one declaration
+ * with no later base rule to lose to.
+ */
+@media (min-width: 860px) {
+  /*
+     No cap at all, and the same padding `.main` has.
+ 
+     Not a wider column — the *same* column the home page gets. Both draw the
+     identical `.cards` grid, so anything less than this is the profile
+     answering "how many albums fit across" differently from the page listing
+     the same albums: at 1100 a 1500px screen gives Home four and the profile
+     three, which is a difference nobody can attribute to anything.
+ 
+     The measure the text needs is `.you-id`'s own 34em, which is a property of
+     a line of prose rather than of a page. */
+  .you { max-width: none; padding: 28px 30px 34px; }
+
+  /* Picture on the side, everything else beside it, and read from the left.
+
+     Centred text is what a phone's profile does because a phone has no side
+     to put anything on. Here there is one, and a name centred over 1100px of
+     nothing is a title card. */
+  .you-head {
+    flex-direction: row; align-items: flex-start; text-align: left;
+    gap: 26px; padding-bottom: 24px;
+  }
+  /* Not a ribbon any more. A 172px band hanging off a 1100px page is a phone's
+     furniture on a desk, so it stops hanging — no bleed, no pull into the
+     chrome, and the corners come back as a portrait's. */
+  .you-ribbon {
+    width: 132px; margin-top: 4px; border-radius: 20px; background: none;
+  }
+  .you-bleed { display: none; }
+  .you-ribbon .you-face { width: 132px; height: 132px; border-radius: 20px; }
+
+  .you-id { flex: 1; }
+  /* The facts read left to right with everything else, rather than centring
+     themselves inside a column that is no longer centred. */
+  .you-counts { justify-content: flex-start; }
+  /* The two controls stay with the name rather than dropping under the bio:
+     they are about the person in the header and the header now has a corner
+     to keep them in. */
+  .you-actions { align-self: flex-start; }
+}
