@@ -112,8 +112,28 @@ export function HomeView({
     <>
       <div className="home-head">
         <div>
-          {greeting && <div className="home-greeting">{greeting}</div>}
-          <h1 className="home-title">Your Parea</h1>
+          {/*
+            The greeting *is* the heading now.
+
+            It was two lines: "Afternoon, Nadia" in 13px grey over the page's
+            name in 28px bold. Both said something and only one of them said
+            anything the reader did not already know — somebody on this page
+            got here by pressing the row in the rail that names it, and the
+            rail is still on the screen with that row marked. A page that
+            opens by announcing which page it is, to somebody who just chose
+            it, is furniture.
+
+            So the name goes and the greeting takes the slot, at the name's
+            own size: it is the one line here addressed to the person reading
+            rather than describing what they are looking at.
+
+            The page's name is the fallback rather than the rule, for the two
+            cases the greeting has nothing to say in — no account, or an
+            account with no display name. A heading is what a reader and a
+            screen reader both navigate by, and a header that empties itself
+            is a page that starts with nothing.
+          */}
+          <h1 className="home-title">{greeting ?? 'Your Parea'}</h1>
         </div>
 
         <div className="home-actions">

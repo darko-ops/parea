@@ -313,13 +313,15 @@ export function FindView({
 
   return (
     <>
-      {greeting && <div className="find-greeting">{greeting}</div>}
       {/*
+        The greeting is the heading, and the page's name is the fallback for a
+        reader it cannot name — see `HomeView`.
+
         "Find" rather than "Search", which is what the rail still calls it: the
         rail is naming a place to go and this is naming what you get. It also
-        matches the route, and Home's "Your Parea" register.
+        matches the route.
       */}
-      <h1 className="find-title">Find</h1>
+      <h1 className="find-title">{greeting ?? 'Find'}</h1>
 
       {/*
         The box, given the weight of the thing the page is for. It used to be

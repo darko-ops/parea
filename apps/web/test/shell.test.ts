@@ -420,6 +420,51 @@ describe('the name of the page', () => {
   });
 });
 
+describe('the name of the page', () => {
+  /** The four pages that greet, and what each falls back to. */
+  const GREETS: [string, string][] = [
+    ['components/HomeView.tsx', 'Your Parea'],
+    ['components/CreateGroupCard.tsx', 'Groupchats'],
+    ['activity/page.tsx', 'Lately'],
+    ['components/FindView.tsx', 'Find'],
+  ];
+
+  it('is the greeting, with the page name behind it', () => {
+    /*
+     * It was two lines: "Afternoon, Nadia" in 13px grey over the page's name
+     * in 28px bold. Both said something and only one of them said anything
+     * the reader did not already know — somebody here got to this page by
+     * pressing the row in the rail that names it, and the rail is still on
+     * screen with that row marked. A page that announces which page it is, to
+     * somebody who just chose it, is furniture.
+     *
+     * The fallback is the load-bearing half of this assertion. The greeting is
+     * null for an account with no display name and for a browser that has
+     * never signed in, and a heading is what a reader and a screen reader both
+     * navigate by — a header that empties itself is a page starting with
+     * nothing.
+     */
+    for (const [file, name] of GREETS) {
+      const src = read(join(APP, file));
+      expect(src, `${file} does not greet`).toMatch(
+        new RegExp(`\\{greeting \\?\\? '${name}'\\}`),
+      );
+    }
+  });
+
+  it('draws the greeting once, not above itself', () => {
+    // The separate small line is gone from all four, and its two classes with
+    // it: a rule nothing uses is one somebody reinstates a line for later.
+    for (const [file] of GREETS) {
+      expect(read(join(APP, file)), `${file} still has a second greeting`).not.toMatch(
+        /className="(home|find)-greeting"/,
+      );
+    }
+    const CSS = read(join(APP, 'globals.css'));
+    expect(CSS).not.toMatch(/^\.(home|find)-greeting \{/m);
+  });
+});
+
 describe('how wide a page is', () => {
   const CSS = read(join(APP, 'globals.css'));
 

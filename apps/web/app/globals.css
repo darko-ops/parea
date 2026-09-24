@@ -881,7 +881,8 @@ button.secondary {
    3px of space all the same. The gap is what is left over so the two discs
    are 6px apart the way they look 6px apart. */
 .home-actions { display: flex; align-items: center; gap: 3px; }
-.home-greeting { font-size: 13px; color: var(--dim-soft); }
+/* No `.home-greeting` any more. The greeting is the heading, so there is no
+   second line above it to style — see `HomeView`. */
 .home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
 
 /* The people you are in events with. Scrolls on a narrow screen rather than
@@ -1322,7 +1323,6 @@ button.secondary {
    inside it lays itself out: the doors and the faces are already grids that
    fill whatever they are given. */
 .find-page { width: 100%; }
-.find-greeting { font-size: 13px; color: var(--dim-soft); text-align: center; }
 .find-title {
   font-size: 28px; letter-spacing: -.02em; margin: 2px 0 18px;
   text-align: center;

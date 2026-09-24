@@ -82,8 +82,9 @@ export default async function ActivityPage() {
         {/* The same two lines Home opens with, and the same classes: one
             greeting drawn one way, wherever it appears. */}
         <div className="lately-head">
-          {greeting && <div className="home-greeting">{greeting}</div>}
-          <h1 className="home-title">Lately</h1>
+          {/* The greeting is the heading, and the page's name is the
+              fallback for a reader it cannot name. See `HomeView`. */}
+          <h1 className="home-title">{greeting ?? 'Lately'}</h1>
         </div>
 
         {/*
