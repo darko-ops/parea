@@ -36,6 +36,7 @@ import { Children, isValidElement, useCallback, useEffect, useRef, useState } fr
 import { matches } from '@/search';
 
 import { Face } from './Faces';
+import { RailIcon } from './RailIcon';
 import { SearchIcon } from './SearchIcon';
 
 export type RowPerson = {
@@ -115,46 +116,69 @@ export function HomeView({
           <h1 className="home-title">Your Parea</h1>
         </div>
 
-        <div ref={wrapRef} className={`search${open ? ' search-open' : ''}`}>
+        <div className="home-actions">
           {/*
-            A button that reveals a field, not a label for one. While collapsed
-            the input has no width and is out of the tab order, so the button
-            owns the expanding and the field takes focus once there is
-            something there to take it.
+            Create, on a laptop.
+
+            It was at the foot of the rail, under five destinations — a column
+            of places to go with one thing to *do* at the bottom of it, which
+            is the last place the eye arrives. Here it is in the corner the
+            phone already puts it in, beside the other control this page has,
+            so the two things you can do to your own albums sit together and
+            the rail is only places.
+
+            Only on this page, and the rail's copy is gone rather than kept:
+            two links to the same place is two tab stops and two things for a
+            screen reader to announce. What it costs is creating an album from
+            Groupchats or Notifications, which is now a click through Albums
+            first — the trade taken knowingly, because a create button in six
+            different corners is the thing that made the rail's one invisible.
           */}
-          <button
-            type="button"
-            className="search-go"
-            aria-expanded={open}
-            aria-label="Search your albums"
-            onClick={() => {
-              if (open && query.trim() === '') setOpen(false);
-              else setOpen(true);
-            }}
-          >
-            <SearchIcon />
-          </button>
-          <input
-            ref={inputRef}
-            type="search"
-            className="search-field"
-            value={query}
-            placeholder="Search your albums"
-            aria-label="Search your albums"
-            tabIndex={open ? 0 : -1}
-            onChange={(e) => setQuery(e.target.value)}
-            onBlur={collapse}
-            onKeyDown={(e) => {
-              if (e.key !== 'Escape') return;
-              // Clear first, close second — so Escape never loses a query and
-              // a field in one press.
-              if (searching) setQuery('');
-              else {
-                setOpen(false);
-                inputRef.current?.blur();
-              }
-            }}
-          />
+          <a href="/" className="create-disc home-create" aria-label="Create an album">
+            <RailIcon glyph="plus" />
+          </a>
+
+          <div ref={wrapRef} className={`search${open ? ' search-open' : ''}`}>
+            {/*
+              A button that reveals a field, not a label for one. While collapsed
+              the input has no width and is out of the tab order, so the button
+              owns the expanding and the field takes focus once there is
+              something there to take it.
+            */}
+            <button
+              type="button"
+              className="search-go"
+              aria-expanded={open}
+              aria-label="Search your albums"
+              onClick={() => {
+                if (open && query.trim() === '') setOpen(false);
+                else setOpen(true);
+              }}
+            >
+              <SearchIcon />
+            </button>
+            <input
+              ref={inputRef}
+              type="search"
+              className="search-field"
+              value={query}
+              placeholder="Search your albums"
+              aria-label="Search your albums"
+              tabIndex={open ? 0 : -1}
+              onChange={(e) => setQuery(e.target.value)}
+              onBlur={collapse}
+              onKeyDown={(e) => {
+                if (e.key !== 'Escape') return;
+                // Clear first, close second — so Escape never loses a query and
+                // a field in one press.
+                if (searching) setQuery('');
+                else {
+                  setOpen(false);
+                  inputRef.current?.blur();
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
 

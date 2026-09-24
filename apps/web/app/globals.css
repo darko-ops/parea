@@ -425,28 +425,30 @@ button.secondary {
    control on a phone already is, so the web's create button stops being the
    one piece of chrome in the product with a fill on it.
 
-   No word. A rail is five labelled rows and this is the only thing in the
-   column that is not a destination; the `+` is the one glyph that needs no
-   caption, and the word survives where it is actually useful, as the
-   accessible name. */
-.rail-create {
+   No word. The `+` is the one glyph that needs no caption, and the word
+   survives where it is actually useful, as the accessible name — which is the
+   trade the app's tab bar makes for all four of its own.
+
+   The shape is here and the placement is not: `.home-create` puts it in the
+   page's head on a laptop and `.rail-create` puts it in the bar on a phone,
+   and exactly one of them is drawn at any width.
+
+   `-disc` because `.create` is taken, by the create-album page's own layout
+   further down this file. Two unrelated things called the same thing is the
+   sort of collision that is invisible until one of them sets `display`. */
+.create-disc {
   display: inline-flex; align-items: center; justify-content: center;
   flex: none; width: 36px; height: 36px; border-radius: 999px;
   background: var(--card); border: 1px solid var(--line); color: var(--fg);
   text-decoration: none;
 }
-/* Centred on the column the row glyphs run down. The disc is 36px and a glyph
-   is 18, so lining up their left edges would push the `+` half a disc off the
-   line; what the eye follows down a rail is the middle of the pictures. One
-   pixel, because that is the whole of the difference between a 36px disc at
-   the row's edge and an 18px glyph 10px into it. */
-.rail-foot > .rail-create { margin-left: 1px; }
-.rail-create:hover { background: var(--track); border-color: var(--dim-soft); }
-.rail-create:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* On a laptop the one in the bar is the one that does not exist: the rows are
-   the page's edge and the disc sits at the foot of them. Swapped at phone
-   width, where the column is behind the menu and the disc rides the bar. */
-.rail > .rail-create { display: none; }
+.create-disc:hover { background: var(--track); border-color: var(--dim-soft); }
+.create-disc:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* The bar's copy is the phone's, so on a laptop it does not exist. Its
+   opposite — hiding the head's copy — is in the phone block below, and the
+   pair of them is what keeps there being one create button and not two. */
+.rail-create { display: none; }
 
 /* A pair, and they are always opposites: a control is a button in the header
    on a wide screen or an item in a menu on a narrow one, never both. `display:
@@ -555,22 +557,22 @@ button.secondary {
      taps and a reach to the bottom of a panel the height of the screen — for
      the one action the whole product is for. Here it sits beside the menu,
      always visible, one tap, in the half of the bar a thumb already covers.
-
-     34px rather than the 36 it is on a laptop, to sit on the 40px menu
-     button's line in a 375px bar without crowding the wordmark between
-     them. */
+  */
   /* The disc, in the trailing track at its trailing edge — the same one the
-     foot carries on a laptop, moved rather than redrawn. */
-  .rail > .rail-create {
+     page head carries on a laptop, moved rather than redrawn. 34px rather
+     than 36 so it sits on the 40px menu button's line without crowding the
+     wordmark between them. */
+  .rail-create {
     display: inline-flex;
     grid-column: 3; justify-self: end;
     width: 34px; height: 34px;
   }
 
-  /* And gone from the panel, so there is one of it. Two links to the same
-     place is two tab stops and two announcements, and the one at the bottom
-     of a panel the height of the screen would be the one nobody reaches. */
-  .rail-foot > .rail-create { display: none; }
+  /* And gone from Home's head, so there is one of it. Two links to the same
+     place is two tab stops and two things for a screen reader to announce —
+     and at this width the head is a greeting, a title and a search control
+     already, on 375px. */
+  .home-create { display: none; }
   .rail-settings { display: flex; }
   .main { padding: 20px; }
 }
@@ -831,6 +833,18 @@ button.secondary {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; margin-bottom: 18px;
 }
+/* Create and search, together in the corner.
+
+   The two things this page lets you do to your own albums, and they were in
+   two different pieces of furniture — search in the head, create at the foot
+   of the rail. `align-items: center` on a head that is otherwise
+   `flex-start`, because the title block is two lines and these are two discs:
+   aligning their tops would hang them off the greeting.
+
+   Create first, reading order. Search grows a field to the right of its own
+   button when it opens, so putting create on that side would have the field
+   shove it about every time somebody typed. */
+.home-actions { display: flex; align-items: center; gap: 6px; }
 .home-greeting { font-size: 13px; color: var(--dim-soft); }
 .home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
 
@@ -1075,7 +1089,12 @@ button.secondary {
   width: 36px; height: 36px; padding: 0; border-radius: 999px;
   background: none; border: 0; color: var(--dim); cursor: pointer;
 }
-.search-go:hover { background: var(--accent-soft); color: var(--accent); }
+/* Grey, like everything else in the chrome. It was the accent, which was
+   defensible while this button was alone up here and is not now that it sits
+   against the create disc: two controls in one cluster, one of them turning
+   blue under the pointer and the other not, reads as two different kinds of
+   thing. `--selected` is the wash the rail's own rows use. */
+.search-go:hover { background: var(--selected); color: var(--fg); }
 .search-open .search-go { background: none; color: var(--dim); }
 /* Overriding the global input rules, which give every field a border, a
    background and 13px of padding — this one is inside a container already

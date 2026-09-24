@@ -272,7 +272,7 @@ describe('the head of the shell', () => {
       RAIL.indexOf('className="rail-mark"'),
     );
     expect(RAIL.indexOf('className="rail-mark"')).toBeLessThan(
-      RAIL.indexOf('className="rail-create"'),
+      RAIL.indexOf('rail-create"'),
     );
     expect(MOBILE).toMatch(/\.rail-burger \{[^}]*grid-column: 1; justify-self: start/);
   });
@@ -379,6 +379,7 @@ describe('an empty shelf', () => {
 
 describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const HOME = read(join(APP, 'components/HomeView.tsx'));
   const CSS = read(join(APP, 'globals.css'));
   /** The rules that only apply below tablet. */
   const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
@@ -386,10 +387,26 @@ describe('the create button', () => {
   it('is in the bar, not inside the panel the hamburger opens', () => {
     // Before `.rail-nav`, which is the block that becomes the dropdown — a
     // create button inside it is one the menu hides.
-    const create = RAIL.indexOf('className="rail-create"');
+    const create = RAIL.indexOf('rail-create"');
     const panel = RAIL.indexOf('className="rail-nav"');
     expect(create).toBeGreaterThan(-1);
     expect(create).toBeLessThan(panel);
+  });
+
+  it('is in the page head on a laptop, and not in the rail at all', () => {
+    /*
+     * It was at the foot of the rail: a column of five places to go with the
+     * one thing to *do* under them, which is the last corner the eye reaches.
+     * Home's head is where the other control on that page already is, and it
+     * is the corner the phone's bar has always put create in.
+     *
+     * The rail keeps only the bar's copy, which exists at phone width. A
+     * `.rail-foot` create is the regression this asserts against.
+     */
+    expect(HOME).toMatch(/className="create-disc home-create"/);
+    expect(HOME).toMatch(/aria-label="Create an album"/);
+    const foot = RAIL.slice(RAIL.indexOf('className="rail-foot"'));
+    expect(foot, 'the rail foot is destinations only now').not.toMatch(/rail-create|create-disc/);
   });
 
   it('says what it makes, for anyone who cannot see it', () => {
@@ -413,9 +430,10 @@ describe('the create button', () => {
      *
      * Asserted on the declaration rather than on the colour it resolves to,
      * because `--accent` moving is not what would break this — somebody
-     * reaching for it here again is.
+     * reaching for it here again is. The focus ring is the exception and is
+     * meant to be: a ring is the one thing on the page that has to be found.
      */
-    const rule = CSS.slice(CSS.indexOf('.rail-create {'), CSS.indexOf('.rail-create:hover'));
+    const rule = CSS.slice(CSS.indexOf('.create-disc {'), CSS.indexOf('.create-disc:focus'));
     expect(rule).not.toBe('');
     expect(rule).toMatch(/background: var\(--card\)/);
     expect(rule).not.toMatch(/var\(--accent/);
@@ -424,18 +442,26 @@ describe('the create button', () => {
 
   it('is the only one of itself at every width', () => {
     /*
-     * Two of them exist in the markup — one in the bar, one at the foot of the
-     * column — and exactly one is ever drawn. Two links to the same place is
-     * two tab stops and two announcements.
+     * Two of them exist in the markup — one in Home's head, one in the bar —
+     * and exactly one is ever drawn. Two links to the same place is two tab
+     * stops and two things for a screen reader to announce.
      *
-     * The bar's is the one that goes on a laptop, where the rows are the
-     * page's left edge; the foot's is the one that goes on a phone, where the
-     * column is behind the menu and the bottom of a full-height panel is where
-     * nobody reaches.
+     * The bar's is the phone's, because there the rows are behind a menu and
+     * the head is a greeting, a title and a search control on 375px. The
+     * head's is the laptop's, because there the corner is free and the rail
+     * is the far side of the screen from where the eye finishes reading.
      */
-    expect(CSS).toMatch(/\.rail > \.rail-create \{ display: none; \}/);
-    expect(MOBILE).toMatch(/\.rail > \.rail-create \{[^}]*display: inline-flex/);
-    expect(MOBILE).toMatch(/\.rail-foot > \.rail-create \{ display: none; \}/);
+    expect(CSS).toMatch(/\.rail-create \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-create \{[^}]*display: inline-flex/);
+    expect(MOBILE).toMatch(/\.home-create \{ display: none; \}/);
+  });
+
+  it('sits in the same cluster as search, and hovers the same way', () => {
+    // Two controls in one corner with one of them turning blue under the
+    // pointer reads as two different kinds of thing. The wash is the rail's
+    // own — see `--selected`.
+    expect(HOME).toMatch(/className="home-actions"/);
+    expect(CSS).toMatch(/\.search-go:hover \{ background: var\(--selected\)/);
   });
 });
 

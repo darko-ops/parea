@@ -248,7 +248,7 @@ export function Rail({ current }: { current: RailPage }) {
         link twice is two tab stops and two things for a screen reader to
         announce, so only one of them exists at a time.
       */}
-      <a href="/" className="rail-create" aria-label="Create an album">
+      <a href="/" className="create-disc rail-create" aria-label="Create an album">
         <RailIcon glyph="plus" />
       </a>
 
@@ -280,23 +280,18 @@ export function Rail({ current }: { current: RailPage }) {
 
       <div className="rail-foot">
         {/*
-          The same `+`, at the foot of the column.
+          No create button here any more, and that is the change.
 
-          It was a full-width blue button saying Create, sitting under five
-          quiet rows — the one element on a laptop screen with a fill on it,
-          and therefore the first thing the eye went to on a page of
-          photographs. Now it is the disc the bar carries on a phone, so the
-          product has one create control rather than two that happen to go to
-          the same place.
+          It was a full-width blue slab saying Create, then the `+` disc that
+          replaced it, and both had the same trouble: a column of five places
+          to *go*, with the one thing to *do* at the bottom of it — the last
+          corner on the screen the eye arrives at. On a laptop it is in Home's
+          own head now, beside the search, which is the corner a phone already
+          puts it in. This column is places and nothing else.
 
-          Sitting on the line the row glyphs run down rather than stretched
-          across the column: a rail is read as a single file of pictures with
-          words beside them, and a shape off that line reads as something that
-          arrived from somewhere else.
+          The bar's copy above is untouched: on a phone the rows are behind a
+          menu and the page heads are narrow, so the bar is where it fits.
         */}
-        <a href="/" className="rail-create" aria-label="Create an album">
-          <RailIcon glyph="plus" />
-        </a>
         {/*
           Settings, under the thing people actually come here to press.
 
