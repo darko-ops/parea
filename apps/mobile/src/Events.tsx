@@ -961,22 +961,58 @@ function EventCard({
           {counted !== '' && (
             /*
               The line that closes the card, and the one at its head are the
-              same line.
+              same line: numerals in the ledger's own monospace, then a
+              hairline to the edge of the column. `measured` at the top says
+              when the evening was and how many photographs; this says how
+              much was said about them. A stack of cards reads as entries in a
+              ledger because each one opens and closes on a rule.
 
-              Monospaced small caps, then a hairline to the edge of the
-              column: `measured` at the top says when the evening was and how
-              many photographs, this says how much was said about them. A
-              stack of cards reads as entries in a ledger because each one
-              opens and closes on a rule.
+              What the two do not share is the words. The head line is a
+              sentence about the album — a date and a count of what is in it —
+              and it has to be read. This one is a tally of two things that
+              never change and never take a third: comments, and reactions. A
+              label that is the same on every card is a label nobody reads
+              twice, and "4 COMMENTS · 12 REACTIONS" spent two thirds of the
+              line saying what the reader already knew, in the one place a
+              card has left to be quiet in.
+
+              So the nouns are glyphs and the numbers stay. Not a new pair of
+              drawings: the bubble is what this product already draws for an
+              album's comments, and the face is the button that opens the
+              emoji picker — the two pictures somebody has already met on the
+              screen this line opens. Sized to the type rather than to the
+              family — 13 against 10.5pt numerals, so the row reads as a line
+              of text with two marks in it rather than as a toolbar — and at
+              the family's own weight of 2 rather than the chevron's 2.2. The
+              chevron is a single stroke and needs the extra; the face has
+              four inside an 8.5-unit circle, and at 2.2 its eyes and mouth
+              close up into the ring at this size.
+
+              Hidden from a screen reader, like the head line and for the same
+              reason: `counted` is in the card's accessible name as words, and
+              a glyph beside a digit reads there as "4 12".
 
               The chevron is what keeps it from being a label. A rule running
               off the edge is a boundary; a rule that ends in an arrow is a
               way through, which is what this one is.
             */
-            <View style={styles.ledger}>
-              <Text style={[styles.measuredText, { color: t.dim }]} numberOfLines={1}>
-                {counted}
-              </Text>
+            <View
+              style={styles.ledger}
+              importantForAccessibility="no-hide-descendants"
+              accessibilityElementsHidden
+            >
+              {comments > 0 && (
+                <View style={styles.tally}>
+                  <Glyph name="bubble" size={13} weight={2} color={t.dim} />
+                  <Text style={[styles.tallyText, { color: t.dim }]}>{comments}</Text>
+                </View>
+              )}
+              {reactions > 0 && (
+                <View style={styles.tally}>
+                  <Glyph name="face" size={13} weight={2} color={t.dim} />
+                  <Text style={[styles.tallyText, { color: t.dim }]}>{reactions}</Text>
+                </View>
+              )}
               <View style={[styles.rule, { backgroundColor: t.line }]} />
               <Glyph name="chevron" size={14} weight={2.2} color={t.dim} />
             </View>
@@ -3355,7 +3391,30 @@ const styles = StyleSheet.create({
   replyWho: { fontWeight: '700' },
   /* The same row as `measured` at the head of the card, with a chevron on the
      end. No horizontal margin of its own — the block around it has it. */
-  ledger: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /*
+   * 10 between the pieces, where the head line has 8.
+   *
+   * The row holds two tallies rather than one run of words, and the gap
+   * inside a tally — glyph to digit — has to be clearly the smaller of the
+   * two or the four things read as four things. 3 and 10 is that; 4 and 8 was
+   * tried first and the pairs did not hold together.
+   */
+  ledger: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tally: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  /*
+   * The ledger's face, without the tracking.
+   *
+   * Monospaced and 10.5 like the line at the card's head, because this is
+   * still the same kind of line and a number set in the body face beside a
+   * glyph reads as a caption. What goes is the 1.5 of letter-spacing and the
+   * uppercase: both are for words, and a two-digit number carrying trailing
+   * space sits visibly off its own glyph.
+   */
+  tallyText: {
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+    fontSize: 10.5,
+    fontWeight: '600',
+  },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred

@@ -699,16 +699,59 @@ describe('the line under the strip', () => {
     /*
      * `measured` at the head says when the evening was and how many
      * photographs; this says how much was said about them — the same
-     * monospaced small caps and the same hairline to the edge of the column,
-     * so a stack of cards reads as entries in a ledger.
+     * monospaced numerals and the same hairline to the edge of the column, so
+     * a stack of cards reads as entries in a ledger.
      *
      * The chevron is what keeps it from being a label: a rule running off the
      * edge is a boundary, a rule that ends in an arrow is a way through.
      */
-    expect(EVENTS).toMatch(/styles\.measuredText, \{ color: t\.dim \}\]\} numberOfLines=\{1\}/);
     expect(EVENTS).toMatch(/<View style=\{\[styles\.rule, \{ backgroundColor: t\.line \}\]\} \/>/);
     expect(EVENTS).toMatch(/<Glyph name="chevron" size=\{14\} weight=\{2\.2\} color=\{t\.dim\} \/>/);
-    expect(EVENTS).toMatch(/ledger: \{ flexDirection: 'row', alignItems: 'center', gap: 8 \}/);
+    expect(EVENTS).toMatch(/ledger: \{ flexDirection: 'row', alignItems: 'center', gap: 10 \}/);
+    /* The ledger's face without the tracking: 10.5 monospace, because a
+       number in the body face beside a glyph reads as a caption, and the 1.5
+       of letter-spacing is for words — a two-digit number carrying trailing
+       space sits visibly off its own glyph. */
+    const tally = EVENTS.slice(EVENTS.indexOf('  tallyText: {'), EVENTS.indexOf('  rule: {'));
+    expect(EVENTS).toMatch(/tallyText: \{\s*fontFamily: Platform\.select/);
+    expect(EVENTS).toMatch(/fontSize: 10\.5,\s*fontWeight: '600',\s*\},/);
+    expect(tally).not.toMatch(/letterSpacing|textTransform/);
+  });
+
+  it('says the two nouns as glyphs, and keeps the numbers', () => {
+    /*
+     * The tally is two things that never change and never take a third:
+     * comments, and reactions. A label that is the same on every card is a
+     * label nobody reads twice, and "4 COMMENTS · 12 REACTIONS" spent two
+     * thirds of the line saying what the reader already knew.
+     *
+     * Not a new pair of drawings. The bubble is what this product already
+     * draws for an album's comments and the face is the button that opens the
+     * emoji picker — the two pictures somebody has already met on the screen
+     * this line opens — at 13 against 10.5pt numerals, so the row reads as a
+     * line of text with two marks in it rather than as a toolbar, and at the
+     * family's own weight rather than the chevron's. The chevron is a single
+     * stroke and needs the extra; the face has four inside an 8.5-unit circle
+     * and closes up into its own ring at 2.2.
+     */
+    const LEDGER = EVENTS.slice(EVENTS.indexOf('<View\n              style={styles.ledger}'), EVENTS.indexOf('function emptyLine'));
+    expect(LEDGER).toMatch(/<Glyph name="bubble" size=\{13\} weight=\{2\} color=\{t\.dim\} \/>/);
+    expect(LEDGER).toMatch(/<Glyph name="face" size=\{13\} weight=\{2\} color=\{t\.dim\} \/>/);
+    /* Each half draws only when it has something to say: one comment and no
+       reactions is one glyph and one number, not a zero. */
+    expect(LEDGER).toMatch(/\{comments > 0 && \(/);
+    expect(LEDGER).toMatch(/\{reactions > 0 && \(/);
+    expect(LEDGER).toMatch(/\{comments\}<\/Text>/);
+    expect(LEDGER).toMatch(/\{reactions\}<\/Text>/);
+    /*
+     * And hidden from a screen reader, like the head line and for the same
+     * reason: `counted` is in the card's accessible name as words, and a
+     * glyph beside a digit reads there as "4 12".
+     */
+    expect(LEDGER).toMatch(/importantForAccessibility="no-hide-descendants"/);
+    expect(LEDGER).toMatch(/accessibilityElementsHidden/);
+    /* The words still exist, for that name. */
+    expect(EVENTS).toMatch(/counted !== '' && `\$\{counted\}\.`/);
   });
 
   it('drops each half on its own, and the whole thing when there is nothing', () => {
