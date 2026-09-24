@@ -20,6 +20,11 @@ const read = (name: string) =>
 const EVENTS = read('src/Events.tsx');
 const APP = read('App.tsx');
 const PROFILE = read('src/Profile.tsx');
+/** The icon's field is defined here, and the tile restates it. */
+const ICON_SCRIPT = readFileSync(
+  fileURLToPath(new URL('../../../scripts/build-icon.mjs', import.meta.url).href),
+  'utf8',
+);
 
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -278,35 +283,71 @@ describe('the card the home list draws', () => {
     expect(code(CARD)).not.toMatch(/ScrollView/);
   });
 
-  it('pours the mark’s colours behind the count, rather than a grey square', () => {
+  it('pours the app icon’s own field behind the count, rather than a grey square', () => {
     /*
      * The "+N" tile was `card` over `line` — white on a white page, and in the
      * dark scheme a dark grey square, which is what a photograph looks like
-     * when it has failed to load. The one tile in the row that is not a
-     * photograph was reading as the one that had broken.
+     * when it has failed to load. The mark's three pastels replaced that and
+     * were the same failure one step along: mint under pink under pale blue
+     * reads as a washed-out photograph rather than as the product.
      *
-     * The mark's own three colours instead, poured rather than drawn: mint
-     * underneath, a pink bloom where the mark's top circle sits and a blue one
-     * where its lower-left circle sits, each fading out so the three meet in
-     * the middle the way the logo's lenses do. Stained glass rather than a
-     * logo — the shapes are gone and only the colour is left, which is the
-     * most the product may say in a slot that belongs to somebody else's
-     * photographs.
+     * So it is the icon's background instead — the field `build-icon.mjs`
+     * paints behind the mark, which is already on the reader's home screen.
+     * Every colour, offset and opacity is that script's stop for stop, which
+     * is what this pins: six blooms over the icon's own base, in the icon's
+     * order, and no colour in the tile that the icon does not have.
      */
     const GLASS = EVENTS.slice(
-      EVENTS.indexOf('function SheetGlass'),
+      EVENTS.indexOf('const GLASS_BASE'),
       EVENTS.indexOf('function coverHeight'),
     );
-    for (const fill of ['MARK_FILLS.pink', 'MARK_FILLS.blue', 'MARK_FILLS.mint']) {
-      expect(GLASS).toContain(fill);
-    }
-    expect(EVENTS).toMatch(/import \{ MARK_FILLS \} from '\.\/Mark';/);
+    expect(GLASS).toContain("const GLASS_BASE = '#173EA8';");
+    expect(ICON_SCRIPT).toContain("const FIELD_BASE = '#173EA8';");
+
+    /* The six, in the icon's order: pink above, violet upper left, blue down
+       the left, aqua at the foot, the seam to the right of the pink and the
+       teal below it. Named rather than numbered, because the order they are
+       painted in is what decides which one shows where two meet. */
+    const blooms = [...GLASS.matchAll(/id: '(\w+)'/g)].map((m) => m[1]);
+    expect(blooms).toEqual(['pink', 'violet', 'blue', 'aqua', 'seam', 'teal']);
+
     /*
-     * The mint is the ground rather than a third bloom: three fades over
-     * nothing leave the corners empty, and an empty corner on a tile in a row
-     * of photographs is the broken-image look this replaced.
+     * Stop for stop against the script. Not a substring check on the file:
+     * every colour in the tile has to be one the icon uses, and every stop in
+     * a bloom has to carry the icon's own opacity at the icon's own offset.
+     * Four copies of the mark's geometry already drifted apart once; a
+     * seventh copy of the palette is worth the same kind of test.
      */
-    expect(GLASS).toMatch(/<Rect width="100%" height="100%" fill=\{MARK_FILLS\.mint\} \/>/);
+    const stops = [...GLASS.matchAll(/\[([\d.]+), '(#[0-9A-F]{6})', ([\d.]+)\],/g)].map(
+      (m) => [Number(m[1]), m[2], Number(m[3])] as const,
+    );
+    // Twenty-three: the seam has three stops where the others have four, as the
+    // icon has it — a gradient holds its last stop out to the edge.
+    expect(stops).toHaveLength(23);
+    const ICON_STOPS = [...ICON_SCRIPT.matchAll(/\[(\d+), '(#[0-9A-F]{6})', ([\d.]+)\]/g)].map(
+      (m) => [Number(m[1]) / 100, m[2], Number(m[3])] as const,
+    );
+    for (const [offset, colour, opacity] of stops) {
+      expect(ICON_STOPS).toContainEqual([offset, colour, opacity]);
+    }
+
+    /*
+     * What is restated rather than copied is where the six sit. The icon has
+     * the white mark in the middle and this has a number there, and verbatim
+     * the teal reaches in from the lower right far enough to put white at
+     * 2.3:1 over part of the digits. Every centre is pushed toward its own
+     * edge instead — outside the square, or within a tenth of its border —
+     * so the middle stays the deep blue the base already is.
+     */
+    const centres = [...GLASS.matchAll(/cx: ([\d.]+),\n\s*cy: ([\d.]+),/g)].map(
+      (m) => [Number(m[1]), Number(m[2])] as const,
+    );
+    expect(centres).toHaveLength(6);
+    for (const [cx, cy] of centres) {
+      const edge = Math.min(cx, 1 - cx, cy, 1 - cy);
+      expect(edge).toBeLessThan(0.15);
+    }
+
     /*
      * Ids unique to the instance, for the reason `Mark` does the same:
      * `react-native-svg` resolves paint references against a registry that is
@@ -315,11 +356,12 @@ describe('the card the home list draws', () => {
      */
     expect(GLASS).toMatch(/useId\(\)\.replace\(/);
     /*
-     * And the ink is fixed rather than following the scheme. The mark's
-     * colours are the mark's colours at midnight, so what reads on them is the
-     * same at midnight too.
+     * And the ink is fixed rather than following the scheme. The icon's field
+     * is the icon's field at midnight, so what reads on it is the same at
+     * midnight too — white, which is what the icon itself puts on this
+     * surface, on a middle that is the darkest part of the square.
      */
-    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#2f2440' \}/);
+    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#ffffff' \}/);
   });
 
   it('sends a thumbnail to its own photograph and the count to the grid', () => {
@@ -586,6 +628,11 @@ describe('what a card dates an album by', () => {
      * the first one.
      */
     const PROFILE = read('src/Profile.tsx');
+/** The icon's field is defined here, and the tile restates it. */
+const ICON_SCRIPT = readFileSync(
+  fileURLToPath(new URL('../../../scripts/build-icon.mjs', import.meta.url).href),
+  'utf8',
+);
     expect(PROFILE).toMatch(/dateLabel\(event\.eventDate \?\? event\.firstPhotoAt\)/);
   });
 
