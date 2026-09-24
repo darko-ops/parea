@@ -1,0 +1,36 @@
+# What never belongs in an upload to Vercel.
+#
+# The deploys that matter come from the git integration, which builds from the
+# repository — so for a long time nothing here was needed: git's own ignores
+# had already kept the local build artefacts out. This file exists for the
+# other way in, `vercel deploy` from a laptop, which uploads the working tree
+# rather than the commit and had never been run until it had to be.
+#
+# It failed twice. First on a count — 18,860 files against a limit of 15,000 —
+# and then, with `--archive=tgz`, on
+#
+#   apps/mobile/ios/Pods/…/ZXingObjC.xcframework is not a valid symlink
+#
+# which is a CocoaPods artefact of an Xcode build, 1.2GB of it, ignored by
+# `apps/mobile/.gitignore` and invisible to every deploy before this one.
+#
+# Deliberately narrow. `apps/mobile` is an npm workspace and the root
+# `package-lock.json` describes it, so the directory has to stay — what goes
+# is the native build output inside it. The same reasoning keeps `services/*`
+# and `packages/*`: the web app depends on the second and the lockfile
+# describes both, and a workspace missing from the tree is an `npm ci` that
+# fails in a way nobody enjoys reading.
+
+# Xcode and Gradle output. Rebuilt by `expo prebuild`; never read by the site.
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/.expo
+
+# A throwaway measurement tool with its own dependency tree — see the CI note.
+tools/geotag-probe/app/node_modules
+
+# Design source, which is zip files of somebody's Figma exports.
+design
+
+# Next's own output, rebuilt on the other side.
+apps/web/.next
