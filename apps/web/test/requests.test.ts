@@ -18,6 +18,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -222,5 +223,87 @@ describe('the whole queue', () => {
     // The rail links to Activity for everyone, guests included.
     expect(await pendingRequestsFor(db, null)).toEqual([]);
     expect(await joinRequestsFor(db, null)).toEqual([]);
+  });
+});
+
+/**
+ * Where an album's two queues are answered.
+ *
+ * Source checks, because there is no DOM in this suite — they stand in for the
+ * browser run that confirmed the tab against a real album.
+ *
+ * The thing being pinned is not a layout. Both of these had a route and no
+ * screen next to the people they are about: being let into a private album was
+ * answered on `/manage`, which a host reaches by opening the `···` and
+ * choosing a menu item, and being allowed to add photographs was answered only
+ * in Notifications, on the list of everything else waiting. Neither is
+ * somewhere a host goes on the chance that somebody is on the other end.
+ */
+describe('an album answers its requests where the people are', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+  const EVENT = read('../app/components/EventView.tsx');
+  const QUEUE = read('../app/components/AlbumRequests.tsx');
+  const MANAGE = read('../app/components/ManageView.tsx');
+  const PAGE = read('../app/event/[id]/page.tsx');
+
+  it('draws both queues on the People tab, and only for somebody who can answer', () => {
+    const pane = EVENT.slice(EVENT.indexOf("tab === 'people'"), EVENT.indexOf('<People'));
+    expect(pane).toMatch(/feed\.event\.canAdminister && \(\s*<AlbumRequests/);
+    expect(QUEUE).toMatch(/access-requests/);
+    expect(QUEUE).toMatch(/host-requests/);
+    // Not rendered rather than rendered empty: a reader who cannot administer
+    // never calls the route, so there is nothing for it to refuse.
+    expect(pane).not.toMatch(/<AlbumRequests[^>]*\/>\s*\}?\s*$/);
+  });
+
+  it('keeps them two lists, because they are two questions', () => {
+    /*
+     * The route that serves them makes this argument and it holds where they
+     * are drawn together: the access queue is strangers at the door of a
+     * private album and the question is "do I know this person"; the host
+     * queue is people already inside, whom the host can see in the roster
+     * below, asking for a little more.
+     */
+    expect(QUEUE).toMatch(/waiting to be let in/);
+    expect(QUEUE).toMatch(/asking to add photographs/);
+    expect(QUEUE).toMatch(/Let them in/);
+    expect(QUEUE).toMatch(/Allow/);
+  });
+
+  it('counts both on the tab, and counts them for nobody else', () => {
+    // A pip that promised two and opened on three would be worse than none.
+    expect(PAGE).toMatch(/eventHostRequests/);
+    expect(PAGE).toMatch(/waiting: \(waitingRow\[0\]\?\.n \?\? 0\) \+ \(hostRow\[0\]\?\.n \?\? 0\)/);
+    expect(PAGE).toMatch(/canAdminister\s*\?/);
+    expect(EVENT).toMatch(/id === 'people' && feed\.event\.waiting > 0/);
+  });
+
+  it('takes the row away after the server answers, not before', () => {
+    // An optimistic removal takes somebody off the screen and leaves them
+    // waiting when the call failed — the one outcome a host would never find
+    // out about.
+    const answer = QUEUE.slice(QUEUE.indexOf('const answer = useCallback'));
+    expect(answer.indexOf('if (!res.ok)')).toBeLessThan(answer.indexOf('const drop'));
+    // And the roster is rebuilt only where approving changed it.
+    expect(answer).toMatch(/if \(action === 'approve'\) onApproved\(\)/);
+  });
+
+  it('leaves Manage the things that are actually administration', () => {
+    /*
+     * The queue is gone from there rather than mirrored: the same list
+     * answerable in two screens is two places to keep in step, and a host who
+     * approved in one would have to trust the other caught up.
+     *
+     * What stays is what the screen's own docstring says it is for — the
+     * removal reports, which run against a 48-hour clock, and the switches.
+     */
+    expect(MANAGE).not.toMatch(/access-requests/);
+    expect(MANAGE).not.toMatch(/<h2>Requests<\/h2>/);
+    expect(MANAGE).toMatch(/reports/);
+    expect(MANAGE).toMatch(/AccessChoice/);
+    // And the badge that pointed at it, which was a number two hops from the
+    // thing it was about.
+    expect(EVENT).not.toMatch(/badge=\{feed\.event\.waiting\}/);
   });
 });

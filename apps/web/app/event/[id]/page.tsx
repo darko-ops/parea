@@ -173,17 +173,39 @@ export default async function EventPage({
    * decisions you cannot make is a notification about somebody else's job.
    */
   const canAdminister = (await decide(db, event, 'administer', requester)).allow;
-  const [waitingRow] = canAdminister
-    ? await db
-        .select({ n: countDistinct(schema.eventAccessRequests.id) })
-        .from(schema.eventAccessRequests)
-        .where(
-          and(
-            eq(schema.eventAccessRequests.eventId, event.id),
-            eq(schema.eventAccessRequests.status, 'open'),
+  /*
+   * Both queues, because both are answered in the same place now.
+   *
+   * It counted the access requests alone, which was right while that was the
+   * only one with a screen: somebody asking to be allowed to *add*
+   * photographs was answerable in Notifications and nowhere else, so counting
+   * them here would have pointed a badge at a control that could not resolve
+   * them. Both are on the album's People tab now — see `AlbumRequests` — so
+   * the number on that tab has to be the whole of what is waiting, or a host
+   * opens it to find one more than the pip promised.
+   */
+  const [waitingRow, hostRow] = canAdminister
+    ? await Promise.all([
+        db
+          .select({ n: countDistinct(schema.eventAccessRequests.id) })
+          .from(schema.eventAccessRequests)
+          .where(
+            and(
+              eq(schema.eventAccessRequests.eventId, event.id),
+              eq(schema.eventAccessRequests.status, 'open'),
+            ),
           ),
-        )
-    : [{ n: 0 }];
+        db
+          .select({ n: countDistinct(schema.eventHostRequests.id) })
+          .from(schema.eventHostRequests)
+          .where(
+            and(
+              eq(schema.eventHostRequests.eventId, event.id),
+              eq(schema.eventHostRequests.status, 'open'),
+            ),
+          ),
+      ])
+    : [[{ n: 0 }], [{ n: 0 }]];
 
   return (
     <Shell>
@@ -199,7 +221,7 @@ export default async function EventPage({
             // after it draws.
             contributePolicy: event.contributePolicy,
             canAdminister,
-      waiting: waitingRow?.n ?? 0,
+            waiting: (waitingRow[0]?.n ?? 0) + (hostRow[0]?.n ?? 0),
             groupId: event.groupId,
             groupName: event.groupId
               ? ((await findGroup(db, event.groupId))?.name ?? null)

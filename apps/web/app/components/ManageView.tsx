@@ -37,12 +37,6 @@ type PendingReport = {
 
 type Friend = { actorId: string; handle: string | null; displayName: string | null };
 
-type AccessRequest = {
-  id: string;
-  createdAt: string;
-  displayName: string | null;
-  handle: string | null;
-};
 
 export function ManageView({
   eventId,
@@ -82,7 +76,6 @@ export function ManageView({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [findable, setFindable] = useState(false);
-  const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [already, setAlready] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -122,22 +115,6 @@ export function ManageView({
     if (res.ok) setReports((await res.json()).reports);
   }, [eventId]);
 
-  /**
-   * Only fetched for the policy that produces them.
-   *
-   * The route answers 404 to anyone who is not the host, so calling it on a
-   * public event would work and return an empty list — and then the section
-   * below would render "Nothing waiting" under a heading about a feature that
-   * event does not have.
-   */
-  const loadRequests = useCallback(async () => {
-    // The live value, not the one the page was rendered with: the policy is
-    // changeable on this screen now, and reading the prop would leave somebody
-    // who has just turned approval on looking at a section that never fills.
-    if (access !== PRIVATE) return;
-    const res = await fetch(`/api/events/${eventId}/access-requests`);
-    if (res.ok) setRequests((await res.json()).requests);
-  }, [access, eventId]);
 
   /**
    * Who you could add, and who is already here.
@@ -157,9 +134,8 @@ export function ManageView({
 
   useEffect(() => {
     void loadReports();
-    void loadRequests();
     void loadFriends();
-  }, [loadReports, loadRequests, loadFriends]);
+  }, [loadReports, loadFriends]);
 
   /*
    * Anybody, by handle — not only friends.
@@ -201,24 +177,6 @@ export function ManageView({
       setInvited(body.invited);
       setPicked(new Set());
       await loadFriends();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function answer(requestId: string, action: 'approve' | 'decline') {
-    setBusy(requestId);
-    setError(null);
-    try {
-      const res = await fetch(`/api/events/${eventId}/access-requests`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ requestId, action }),
-      });
-      if (!res.ok) throw new Error('Could not save that.');
-      await loadRequests();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -424,8 +382,9 @@ export function ManageView({
           href={`/event/${eventId}/manage?tab=members`}
           aria-current={tab === 'members' ? 'page' : undefined}
         >
+          {/* No count. It was the access queue, which is on the album's own
+              People tab now, with the pip on that tab. */}
           Members
-          {requests.length > 0 && <span className="badge">{requests.length}</span>}
         </a>
       </nav>
 
@@ -525,52 +484,18 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'members' && access === PRIVATE && (
-        <section className="panel">
-          <h2>Requests</h2>
-          <p className="panel-note">
-            People who found this album and are waiting to be let in.
-          </p>
-          {requests.length === 0 ? (
-            <p className="muted">Nobody waiting.</p>
-          ) : (
-            requests.map((request) => (
-              <div key={request.id} className="pending pending-person">
-                <div>
-                  <p>
-                    {request.displayName ?? 'Someone'}
-                    {request.handle && <span className="muted"> @{request.handle}</span>}
-                  </p>
-                  {/*
-                    Said plainly: approving is not "they can look", it is "they
-                    are in", and in this product being in an event means being
-                    able to add to it. Somebody clicking through a queue should
-                    not have to remember that.
-                  */}
-                  <p className="muted">
-                    Approving lets them see the photos and add their own.
-                  </p>
-                  <div className="row">
-                    <button
-                      onClick={() => answer(request.id, 'approve')}
-                      disabled={busy === request.id}
-                    >
-                      Let them in
-                    </button>
-                    <button
-                      className="secondary"
-                      onClick={() => answer(request.id, 'decline')}
-                      disabled={busy === request.id}
-                    >
-                      Not this time
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </section>
-      )}
+      {/*
+        No Requests section here any more.
+
+        People asking to be let into a private album are answered on the
+        album's own People tab, beside the roster they are asking to join —
+        see `AlbumRequests`. This screen is a host's settings, and a queue on
+        it was reachable only by opening the `···` and choosing Manage album,
+        which is not a thing a host does on the chance somebody is waiting.
+
+        What stays is what is genuinely administration: the removal reports
+        above, which run against a 48-hour clock, and the switches below.
+      */}
 
       {tab === 'manage' && (
         <section className="panel">

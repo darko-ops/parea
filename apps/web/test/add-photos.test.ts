@@ -53,15 +53,35 @@ describe('adding photos to an event', () => {
     expect(CSS).toMatch(/input\.visually-hidden:focus-visible\) \.button-like/);
   });
 
-  it('says what it does, in the header, as the one filled control', () => {
+  it('is the `+` at the end of the tab row, and says so to a reader', () => {
     /*
-     * It was behind a filled `+` menu, which made the page's main action a
-     * glyph somebody had to open to find out about. The header says the words
-     * now — and it is still the only filled thing on it, because a page whose
-     * subject is photographs has exactly one action worth colouring.
+     * Three shapes, and the last two are worth keeping straight. It was behind
+     * a filled `+` menu, which made the page's main action a glyph somebody
+     * had to open to find out about. Then it was a filled accent label reading
+     * `Add photos`, up in the header — which fixed that and put the one
+     * control this page is for among Invite, a download menu and the `···`,
+     * beside a title carrying a name, a date, a place, faces and a caption.
+     *
+     * Now it is the product's round `+`, at the end of the tab row: the app's
+     * placement, the group screen's, and the one corner of this page that
+     * holds nothing else. The word is the accessible name, which is the trade
+     * every `+` in this product makes.
      */
-    expect(EVENT).toMatch(/className="button-like primary event-add"/);
-    expect(EVENT).toMatch(/uploads\.running \? 'Adding…' : 'Add photos'/);
+    expect(EVENT).toMatch(/className="round event-add"/);
+    expect(EVENT).toMatch(/aria-label=\{uploads\.running \? 'Adding photos' : 'Add photos'\}/);
+    expect(EVENT).not.toMatch(/button-like primary event-add/);
+  });
+
+  it('keeps the header focus ring reachable too', () => {
+    /*
+     * The same problem the panel has, in a second place: the input is
+     * `visually-hidden`, so tab order stops on something with no pixels and
+     * the ring has to be drawn on the label instead. Scoped with `:has` rather
+     * than a sibling selector because the input sits after the whole tab row,
+     * and a sibling selector that silently matches nothing is how a focus ring
+     * goes missing without anybody noticing.
+     */
+    expect(CSS).toMatch(/\.event-head:has\(input\.visually-hidden:focus-visible\) \.event-add/);
   });
 
   it('is offered again in the gallery, on the same input', () => {

@@ -41,6 +41,7 @@ import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
 import { Mark } from './Mark';
+import { AlbumRequests } from './AlbumRequests';
 import { RailIcon } from './RailIcon';
 import { useUploads } from './useUploads';
 
@@ -536,24 +537,6 @@ export function EventView({
           </div>
 
           <div className="event-actions">
-            {feed.canAdd && session.account && (
-              /*
-                A label, not a button that calls `.click()`. A label *is* the
-                control for the input it names, so keyboard, pointer and screen
-                reader all work with nothing scripted. `aria-disabled` rather
-                than `disabled`, which a label does not have: the real
-                disabling is on the input, and this is so it does not look
-                pressable while a batch is running.
-              */
-              <label
-                htmlFor="add-photos"
-                className="button-like primary event-add"
-                aria-disabled={uploads.running || undefined}
-              >
-                {uploads.running ? 'Adding…' : 'Add photos'}
-              </label>
-            )}
-
             {/*
               Words on a wide screen, and folded into the `···` on a phone —
               see the pair of `wide-only` / `narrow-only` classes. Four controls
@@ -604,21 +587,16 @@ export function EventView({
             )}
 
             {/*
-              A count on the menu itself, because what is behind it is the only
-              place these can be answered — and somebody waiting to be let into
-              an evening is waiting on a host who has no other reason to open
-              Manage.
+              No count on it any more. It carried one because what was behind
+              it — `Manage album` — was the only place a request could be
+              answered, which made the badge a number two hops from the thing
+              it was about. The queues are on the People tab now and so is the
+              pip.
+
+              The product's round chrome, like the `+` beside it and like every
+              corner control on a phone.
             */}
-            <Menu
-              label={
-                feed.event.waiting > 0
-                  ? `This album — ${feed.event.waiting} waiting`
-                  : 'This album'
-              }
-              glyph="···"
-              tone="quiet"
-              badge={feed.event.waiting}
-            >
+            <Menu label="This album" glyph="···" tone="round">
               {(close) => (
                 <>
                   {/*
@@ -673,9 +651,6 @@ export function EventView({
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
                       Manage album
-                      {feed.event.waiting > 0 && (
-                        <span className="badge">{feed.event.waiting}</span>
-                      )}
                     </a>
                   ) : (
                     <a href="/safety" onClick={close}>
@@ -697,22 +672,61 @@ export function EventView({
           shape, and `?tab=` means a link to the roster is a link somebody can
           send and Back is the way out of it.
         */}
-        <nav className="event-tabs" aria-label="This album">
-          {TABS.map(([id, label, glyph]) => (
-            <a
-              key={id}
-              href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
-              className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
-              aria-current={tab === id ? 'page' : undefined}
+        <div className="event-tabrow">
+          <nav className="event-tabs" aria-label="This album">
+            {TABS.map(([id, label, glyph]) => (
+              <a
+                key={id}
+                href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
+                className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
+                aria-current={tab === id ? 'page' : undefined}
+              >
+                <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
+                {label}
+                {id === 'conversation' && unread > 0 && (
+                  <span className="event-tab-count">{unread}</span>
+                )}
+                {/*
+                  The same pip, about the same kind of fact: something on this
+                  tab is waiting on you. It was a badge on the `···`, pointing
+                  at a menu item pointing at `/manage` — two hops from a number
+                  to the thing it was about. The queues are on People now, so
+                  the count is on People.
+                */}
+                {id === 'people' && feed.event.waiting > 0 && (
+                  <span className="event-tab-count">{feed.event.waiting}</span>
+                )}
+              </a>
+            ))}
+          </nav>
+
+          {/*
+            Add photos, at the end of the tab row — the app's own placement,
+            and the group screen's.
+
+            It was a filled accent label up in the header among Invite, a
+            download menu and the `···`, which is four controls beside a title
+            that has a name, a date, a place, a row of faces and sometimes a
+            caption under it. The one this page is actually for was hard to
+            find among the other three.
+
+            Still a `<label>` rather than a button that calls `.click()`: a
+            label *is* the control for the input it names, so pointer, keyboard
+            and screen reader all work with nothing scripted. `aria-disabled`
+            rather than `disabled`, which a label does not have — the real
+            disabling is on the input.
+          */}
+          {feed.canAdd && session.account && (
+            <label
+              htmlFor="add-photos"
+              className="round event-add"
+              aria-label={uploads.running ? 'Adding photos' : 'Add photos'}
+              aria-disabled={uploads.running || undefined}
             >
-              <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
-              {label}
-              {id === 'conversation' && unread > 0 && (
-                <span className="event-tab-count">{unread}</span>
-              )}
-            </a>
-          ))}
-        </nav>
+              <RailIcon glyph="plus" />
+            </label>
+          )}
+        </div>
 
         {feed.canAdd && session.account && (
           <input
@@ -929,6 +943,19 @@ export function EventView({
 
       {tab === 'people' && (
         <div className="event-body event-column">
+          {/*
+            Who is waiting, above who is already in — the shape a group's
+            People tab has, for the same reason: this is the pane about people,
+            and a request to be let in is a request to join the list under it.
+
+            Only for somebody who can answer. A reader who cannot administer is
+            not shown the queue and never fetches it; the component is not
+            rendered at all rather than rendering empty, so there is no request
+            for the route to refuse.
+          */}
+          {feed.event.canAdminister && (
+            <AlbumRequests eventId={eventId} onApproved={refresh} />
+          )}
           <People
             roster={feed.roster}
             linkToken={feed.event.linkToken}

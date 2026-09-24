@@ -1782,6 +1782,27 @@ button.secondary {
 .event-invite:hover { border-color: var(--accent); color: var(--accent-ink); }
 .event-add[aria-disabled='true'] { opacity: .6; pointer-events: none; }
 
+/* The tabs, and the one thing this album does that is not looking at it, on
+   one line — the app's arrangement, and the group screen's.
+
+   `Add photos` was a filled accent label up in the header, among Invite, a
+   download menu and the `···`: four controls beside a title that already has a
+   name, a date, a place, a row of faces and sometimes a caption under it. The
+   control this page is actually for was the hardest of the four to find. */
+.event-tabrow { display: flex; align-items: flex-end; gap: 16px; }
+.event-tabrow .event-tabs { flex: 1; min-width: 0; }
+/* `.round` carries the disc; this only says where it sits — on the tabs' own
+   line, lifted clear of the rule they are drawn on. */
+.event-tabrow .event-add { flex: none; margin-bottom: 6px; }
+/* The input this label names is visually hidden, so tabbing to it puts focus
+   on something with no pixels — the ring has to be moved to the label. Scoped
+   to the header rather than written as a sibling selector, because the two are
+   not adjacent: the input sits after the whole tab row. The panel version of
+   this rule further down has the same note for the same reason. */
+.event-head:has(input.visually-hidden:focus-visible) .event-add {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+
 /* The tabs, and the rule under them is the header's only border. */
 .event-tabs {
   display: flex; gap: 26px; margin-top: 18px;
@@ -3375,6 +3396,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   flex: 1; min-width: 0; font-size: 15px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* The handle, where a display name is not the whole of who somebody is. It is
+   what makes two Toms two people, and it is quieter than the name because the
+   name is what a host who was there would recognise. */
+.join-handle { margin-left: 6px; color: var(--dim-soft); font-size: 13.5px; }
 /* Both are text rather than filled buttons, and the difference between them is
    weight and colour only. A filled Approve beside a plain Decline is the page
    recommending an answer to a question about a person, which is not its
@@ -3482,7 +3507,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
     flex: 1 1 100%; margin-top: 12px; gap: 8px;
   }
   /* The one thing the page is for takes the room the others do not need. */
-  .event-actions .event-add { flex: 1; text-align: center; }
   /* Invite and the download menu fold into the `···`, which is where the
      event's other settings already are. */
   .wide-only { display: none; }
