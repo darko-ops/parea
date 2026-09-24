@@ -322,7 +322,7 @@ describe('two rooms, one drawing', () => {
      * alignment, not a costume.
      */
     expect(VIEWER).toMatch(/const sided = mine;/);
-    const row = between(VIEWER, 'function Row({', 'function People({');
+    const row = between(VIEWER, 'export function ThreadRow({', 'function People({');
     for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
       expect(row).toContain(`sided && ${style}`);
     }
@@ -425,7 +425,7 @@ describe('two rooms, one drawing', () => {
     // One field, one card, one button — the shape reaches the words on the
     // button and nothing else down here.
     expect(VIEWER).not.toMatch(/fieldPill|composerRow/);
-    const composer = between(VIEWER, 'One box at the foot of both rooms', 'function Row({');
+    const composer = between(VIEWER, 'One box at the foot of both rooms', 'export function ThreadRow({');
     expect(composer.match(/\{field\}/g)).toHaveLength(1);
     expect(composer.match(/styles\.post,/g)).toHaveLength(1);
   });

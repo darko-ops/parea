@@ -50,6 +50,33 @@ import type { Api, FeedPhoto, Message } from './api';
 import { EmojiPicker } from './Emoji';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
+import { ThreadRow } from './Thread';
+
+/**
+ * The album's own colours, restated for glass.
+ *
+ * The sheet of comments over a photograph draws the same rows the album's
+ * board draws — same component, so the only thing that can differ is the
+ * palette it is handed. It cannot be the page's: this sits on a dark panel
+ * over somebody's picture, where `fg` is white and a hairline is a little
+ * light rather than a little dark.
+ *
+ * `accent` is the blue the rest of this screen already uses on glass, which
+ * is a lighter cut than the product's own — the accent that reads on a white
+ * page is a navy on this panel, and a mention set in it would be a word you
+ * cannot see. `onAccent` goes dark to answer it.
+ */
+const GLASS: GroupTheme = {
+  bg: 'rgba(12,14,18,0.94)',
+  fg: '#ffffff',
+  dim: 'rgba(255,255,255,0.55)',
+  card: 'rgba(255,255,255,0.08)',
+  line: 'rgba(255,255,255,0.18)',
+  accent: '#6ea8fe',
+  onAccent: '#0b1220',
+  warn: '#ff8080',
+  bgClear: 'rgba(12,14,18,0)',
+};
 
 /** As far in as a pinch will go. Beyond this a 2560px rendition is mush. */
 const MAX_SCALE = 4;
@@ -688,6 +715,27 @@ export function PhotoViewer({
     }
   }, [api, draft, eventId, onChanged, photo.id, sending]);
 
+  /**
+   * What a comment in this sheet can have done to it.
+   *
+   * The album's board is handed these as `actions` and builds them once at
+   * the top of the screen; this sheet reaches the same three routes with the
+   * same ids, because they are the same rows — `event_message` with a
+   * `photo_id` on it. Each refreshes the feed, which is where both ends of
+   * the thread read from.
+   *
+   * Not the whole `ThreadActions` shape: `post` here carries the photograph's
+   * id and already exists below, so this is the other three.
+   */
+  const say = useMemo(
+    () => ({
+      edit: (id: string, body: string) => api.editMessage(id, body).then(onChanged),
+      remove: (id: string) => api.deleteMessage(id).then(onChanged),
+      react: (id: string, emoji: string) => api.react(id, emoji).then(onChanged),
+    }),
+    [api, onChanged],
+  );
+
   const react = useCallback(
     async (emoji: string) => {
       const on = !mine.has(emoji);
@@ -1009,57 +1057,96 @@ export function PhotoViewer({
           <View style={styles.talkPanel}>
             <View style={styles.talkGrip} />
 
+            {/*
+              The album's board, about one photograph.
+
+              It was a list of its own — a name over a sentence, no face, no
+              time, nothing to press — which meant the same comment was drawn
+              two ways depending on which end of the thread you read it from,
+              and the one drawn here was the poorer of the two. `ThreadRow` is
+              the board's own row, handed this screen's palette: a face, a
+              name, a time, the words, your own hanging from the right, and
+              the reaction pills a comment has collected.
+
+              What it is not handed is `about`. That prop is the thumbnail of
+              the photograph a line is about, and the photograph is on the
+              screen behind this sheet — which is also why a reaction here
+              draws as its quiet line rather than as a row with a picture in
+              it. Nothing in this sheet is about any other photograph: what
+              the caller filters to `photo_id` is the whole of what it holds,
+              comments and reactions alike.
+            */}
             <ScrollView
               style={styles.talkScroll}
               contentContainerStyle={styles.talkInner}
               keyboardShouldPersistTaps="handled"
             >
               {comments.length === 0 ? (
-                <Text style={styles.talkEmpty}>
-                  {/* And it goes to the album's board when it is written —
-                      one thread, two ways in. */}
-                  No comments on this one yet.
-                </Text>
+                /* An invitation rather than a report of emptiness, which is
+                   the board's rule: "no comments yet" describes what somebody
+                   can already see. And it goes to the album's board when it is
+                   written — one thread, two ways in. */
+                <Text style={styles.talkEmpty}>Say something about this one.</Text>
               ) : (
                 comments.map((message) => (
-                  <View key={message.id} style={styles.talkRow}>
-                    <Text style={styles.talkWho} numberOfLines={1}>
-                      {message.author.mine ? 'You' : message.author.name}
-                    </Text>
-                    <Text style={styles.talkBody}>
-                      {message.deleted ? 'Message deleted' : message.body}
-                    </Text>
-                  </View>
+                  <ThreadRow
+                    key={message.id}
+                    message={message}
+                    canPost={canPost}
+                    t={GLASS}
+                    shape="board"
+                    canReact={canPost}
+                    onReact={(emoji) => void say.react(message.id, emoji)}
+                    onDelete={() => void say.remove(message.id)}
+                    onEdit={(body) => void say.edit(message.id, body)}
+                    about={null}
+                  />
                 ))
               )}
             </ScrollView>
 
             {canPost && (
+              /*
+                And the box the album types into, in this screen's colours:
+                one bordered card with the field bare inside it and a filled
+                Post under it. The same 14, 13 and 15 the site and the board
+                both use — see the composer's note in `Thread.tsx`.
+
+                The placeholder keeps saying which photograph, where the
+                board's says "Add a comment…". It is the one line that tells
+                somebody what they are about to do, and what they are about to
+                do here is put a line on *this* picture rather than on the
+                evening — a sheet that slid up over it is context, not a
+                promise.
+              */
               <View style={styles.talkBox}>
                 <TextInput
                   value={draft}
                   onChangeText={setDraft}
-                  placeholder="Say something about this photo"
-                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  placeholder="Say something about this photo…"
+                  placeholderTextColor={GLASS.dim}
                   style={styles.talkInput}
                   multiline
                   autoFocus
                   accessibilityLabel="Say something about this photo"
                 />
-                <Pressable
-                  onPress={() => void post()}
-                  disabled={!draft.trim() || sending}
-                  accessibilityRole="button"
-                  accessibilityLabel="Send"
-                  style={({ pressed }) => [
-                    styles.talkSend,
-                    {
-                      opacity: !draft.trim() || sending ? 0.4 : pressed ? 0.6 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={styles.talkSendText}>{sending ? '…' : 'Send'}</Text>
-                </Pressable>
+                <View style={styles.talkActions}>
+                  <View style={{ flex: 1 }} />
+                  <Pressable
+                    onPress={() => void post()}
+                    disabled={!draft.trim() || sending}
+                    accessibilityRole="button"
+                    accessibilityLabel="Post this comment"
+                    style={({ pressed }) => [
+                      styles.talkPost,
+                      { opacity: !draft.trim() || sending ? 0.6 : pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    <Text style={styles.talkPostText}>
+                      {sending ? 'Posting…' : 'Post'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           </View>
@@ -1189,30 +1276,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.28)',
   },
   talkScroll: { flexGrow: 0 },
-  talkInner: { paddingHorizontal: 18, paddingVertical: 8, gap: 12 },
+  /* 22 between rows, which is the board's own gap: nothing is drawn around a
+     comment in either place, so the gap is the only thing separating one from
+     the next. */
+  talkInner: { paddingHorizontal: 16, paddingVertical: 10, gap: 22 },
   talkEmpty: { color: 'rgba(255,255,255,0.5)', fontSize: 14, paddingVertical: 12 },
-  talkRow: { gap: 2 },
-  talkWho: { color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: '600' },
-  talkBody: { color: '#fff', fontSize: 15, lineHeight: 21 },
+  /* The composer, in the shape the album and the site both use: one bordered
+     card with the field bare inside it and the button under the field. The
+     numbers are theirs — 14, 13 and 15, and 8 between the two rows. */
   talkBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-    paddingHorizontal: 18,
-    paddingTop: 8,
+    marginHorizontal: 16,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: GLASS.line,
+    backgroundColor: GLASS.card,
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 15,
+    gap: 8,
   },
-  talkInput: {
-    flex: 1,
-    maxHeight: 120,
-    color: '#fff',
-    fontSize: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+  talkInput: { maxHeight: 120, color: '#fff', fontSize: 15, padding: 0 },
+  talkActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  talkPost: {
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: GLASS.accent,
   },
-  talkSend: { paddingVertical: 10 },
-  talkSendText: { color: '#6ea8fe', fontSize: 15, fontWeight: '700' },
+  talkPostText: { color: GLASS.onAccent, fontSize: 14, fontWeight: '600' },
   /* Dark discs rather than bare glyphs: white on white is invisible, and a
      photograph can be any colour at all under either corner. */
   round: {

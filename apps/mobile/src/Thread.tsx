@@ -365,7 +365,7 @@ export function Thread({
           onStartReached={onSeen}
           onStartReachedThreshold={0.05}
           renderItem={({ item }) => (
-            <Row
+            <ThreadRow
               message={item}
               canPost={canPost}
               t={t}
@@ -486,7 +486,16 @@ export function Thread({
   );
 }
 
-function Row({
+/**
+ * One line of a thread: a comment, a reaction, or the gap a delete left.
+ *
+ * Exported for the photo viewer, which draws the same rows in a sheet over a
+ * photograph — its own list, its own palette, and not a second drawing of a
+ * comment. Everything that decides how a row *looks* is in here and everything
+ * it needs comes in as props, so the only thing the viewer has to hand over is
+ * a `t` in its own colours.
+ */
+export function ThreadRow({
   message,
   canPost,
   t,

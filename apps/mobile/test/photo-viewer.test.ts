@@ -93,6 +93,87 @@ describe('the gesture', () => {
   });
 });
 
+describe('the sheet of comments over a photograph', () => {
+  const THREAD = read('src/Thread.tsx');
+
+  it('draws the album’s own row rather than a second kind of comment', () => {
+    /*
+     * It was a list of its own — a name over a sentence, no face, no time,
+     * nothing to press — so the same comment was drawn two ways depending on
+     * which end of the thread you read it from, and the one here was the
+     * poorer of the two. It also drew a reaction as a name over an empty
+     * sentence, because a reaction is a row in this thread carrying an emoji
+     * and no body and this file did not know it.
+     */
+    expect(THREAD).toMatch(/export function ThreadRow\(\{/);
+    expect(GESTURE).toMatch(/import \{ ThreadRow \} from '\.\/Thread';/);
+    expect(GESTURE).toMatch(/<ThreadRow\b/);
+    expect(GESTURE).toMatch(/shape="board"/);
+    // Gone with it: the parallel row and its three styles.
+    expect(VIEWER).not.toMatch(/talkWho|talkBody|styles\.talkRow/);
+  });
+
+  it('is handed this screen’s palette rather than the page’s', () => {
+    /*
+     * The same component on a dark panel over somebody's picture, where `fg`
+     * is white and a hairline is a little light rather than a little dark.
+     * The accent is the lighter blue this screen already uses on glass — the
+     * one that reads on a white page is a navy here, and a mention set in it
+     * would be a word you cannot see.
+     */
+    expect(GESTURE).toMatch(/const GLASS: GroupTheme = \{/);
+    expect(GESTURE).toMatch(/fg: '#ffffff'/);
+    expect(GESTURE).toMatch(/accent: '#6ea8fe'/);
+    expect(GESTURE).toMatch(/t=\{GLASS\}/);
+  });
+
+  it('holds this photograph’s lines and nothing else', () => {
+    /*
+     * Comments and reactions alike: what the caller filters to `photo_id` is
+     * the whole of what the sheet holds. There is no second table and no
+     * second request — `event_message` has carried a `photo_id` since the web
+     * let somebody reply to a picture, and a reaction line carries one too.
+     */
+    expect(APP).toMatch(/\.filter\(\(m\) => m\.photoId === selected\.id\)/);
+    /*
+     * And no thumbnail on any of them. `about` is the picture a line is
+     * about, and that picture is on the screen behind this sheet — which is
+     * also why a reaction draws as its quiet line here rather than as a row
+     * with a photograph in it.
+     */
+    expect(GESTURE).toMatch(/about=\{null\}/);
+  });
+
+  it('reaches the same three routes the board does', () => {
+    // The same rows, so the same ids and the same endpoints; each refreshes
+    // the feed, which is where both ends of the thread read from.
+    expect(GESTURE).toMatch(/api\.editMessage\(id, body\)\.then\(onChanged\)/);
+    expect(GESTURE).toMatch(/api\.deleteMessage\(id\)\.then\(onChanged\)/);
+    expect(GESTURE).toMatch(/api\.react\(id, emoji\)\.then\(onChanged\)/);
+    // `post` is the one that differs, because it carries the photograph.
+    expect(GESTURE).toMatch(/api\.postMessage\(eventId, body, photo\.id\)/);
+  });
+
+  it('types into the same card, in the same numbers', () => {
+    /*
+     * One bordered box with the field bare inside it and a filled Post under
+     * it — the site's card, which the album's board already restates. The
+     * placeholder is the one thing that stays this screen's: what somebody is
+     * about to do here is put a line on *this* picture rather than on the
+     * evening, and a sheet that slid up over it is context, not a promise.
+     */
+    expect(GESTURE).toMatch(/borderRadius: 14,\s*paddingVertical: 13,\s*paddingHorizontal: 15,\s*gap: 8,/);
+    expect(THREAD).toMatch(/card: \{ borderWidth: 1, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 15, gap: 8 \}/);
+    expect(GESTURE).toMatch(/talkInput: \{ maxHeight: 120, color: '#fff', fontSize: 15, padding: 0 \}/);
+    expect(GESTURE).toMatch(/paddingVertical: 9,\s*paddingHorizontal: 16,\s*borderRadius: 10,/);
+    expect(GESTURE).toMatch(/\{sending \? 'Posting…' : 'Post'\}/);
+    expect(GESTURE).toMatch(/placeholder="Say something about this photo…"/);
+    // An invitation rather than a report of emptiness, which is the board's
+    // rule: "no comments yet" describes what somebody can already see.
+    expect(GESTURE).toMatch(/Say something about this one\./);
+  });
+});
+
 describe('reacting to a photograph', () => {
   it('separates who said something from what you could say', () => {
     /*
@@ -119,9 +200,10 @@ describe('reacting to a photograph', () => {
     /*
      * `avatarUrl` used to be absent from this whole file and the assertion
      * said so. It is here now, once, for the uploader's square at the top —
-     * which is a different thing from a reaction row and is the only face the
-     * viewer draws. What the rule was protecting is that a *reaction* is a
-     * name and an emoji, so that is what is checked.
+     * which is a different thing from a reaction row. Faces do appear in the
+     * sheet of comments, drawn by `ThreadRow` in `Thread.tsx` rather than
+     * here. What the rule was protecting is that a *reaction* in this column
+     * is a name and an emoji, so that is what is checked.
      */
     const reactions = GESTURE.slice(GESTURE.indexOf('r.mine ?'));
     expect(reactions.slice(0, reactions.indexOf('</'))).not.toMatch(/avatarUrl/);
