@@ -260,6 +260,13 @@
       "when": 1790218182261,
       "tag": "0036_group_message_reaction",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790289317702,
+      "tag": "0037_parea_account",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ import { schema } from '@parea/core';
 import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
+import { WELCOME_KEY } from './parea';
 import type { Db } from './db';
 import { imageSrc } from './images';
 
@@ -166,6 +167,53 @@ const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
   order by p.uploaded_at desc
   limit 1
 )`;
+
+/**
+ * Whether Parea's welcome should be drawn, and what it is dated.
+ *
+ * The row itself is a row like any other — see `Welcome` — so the two things
+ * that make it one have to come from the database rather than from the
+ * component: a moment it happened, and whether this reader has hidden it.
+ *
+ * The moment is when *you* arrived. "Just now" would be a timestamp invented
+ * for an event that never occurred; your actor's `created_at` is the moment
+ * Parea had somebody to welcome, which is the thing the sentence is about.
+ *
+ * Null for a reader who has hidden it, and null for one this product has
+ * never seen — a browser that has only ever looked has no actor, so there is
+ * no moment to name and no row to hide. The page draws the welcome without a
+ * time in that case rather than not at all: somebody reading an empty
+ * Notifications page is exactly who the sentence is for.
+ *
+ * One query, and only asked when the page has nothing else on it.
+ */
+export async function welcomeFor(
+  db: Db,
+  actorId: string | null,
+): Promise<{ at: string | null } | null> {
+  if (!actorId) return { at: null };
+
+  const [[me], [dismissed]] = await Promise.all([
+    db
+      .select({ createdAt: schema.actors.createdAt })
+      .from(schema.actors)
+      .where(eq(schema.actors.id, actorId))
+      .limit(1),
+    db
+      .select({ key: schema.hiddenActivity.itemKey })
+      .from(schema.hiddenActivity)
+      .where(
+        and(
+          eq(schema.hiddenActivity.actorId, actorId),
+          eq(schema.hiddenActivity.itemKey, WELCOME_KEY),
+        ),
+      )
+      .limit(1),
+  ]);
+
+  if (dismissed) return null;
+  return { at: me?.createdAt.toISOString() ?? null };
+}
 
 /**
  * Three of the photographs a `photos_added` line is counting.

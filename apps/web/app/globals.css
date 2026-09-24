@@ -742,25 +742,19 @@ button.secondary {
 
 /* The feed. */
 .feed { margin-top: 30px; }
-/* The welcome, which is a row rather than a paragraph about having none.
+/* The welcome, which borrows `.activity-row` wholesale — the hover, the link,
+   the menu, all of it. That is the point of it: it is a row like the ones that
+   will replace it, and the three things that used to hold it apart are true
+   now instead of drawn. See `Welcome`.
 
-   It borrows `.activity-row` wholesale, so it is the shape the real rows will
-   be — that is the point of it. What it does not borrow is their hover and
-   their pointer: this one goes nowhere, and a row that lights up under the
-   cursor and then does nothing is a link that failed. */
-.activity-welcome .activity-row { cursor: default; }
-.activity-welcome .activity-row:hover { background: none; }
-/* The mark where a face goes, in the same square, so the column down the left
-   stays a column. Centred in it rather than filling it: the drawing has its
-   own margin and a 34px lens stack would be the loudest thing on the page. */
+   All it needs of its own is the picture. The mark goes where a face goes, in
+   the same square, so the column down the left stays a column — centred in it
+   rather than filling it, because the drawing carries its own margin and a
+   34px lens stack would be the loudest thing on the page. */
 .welcome-mark {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--card); border: 1px solid var(--hairline);
 }
-/* `Parea` reads as the name it is, not as a person's. Same weight as a row's
-   who, which is what it stands in the place of. */
-.activity-welcome .activity-said { color: var(--dim); }
-.activity-welcome .activity-who { color: var(--fg); }
 .activity-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
 .activity-day + .activity-day { margin-top: 20px; }
 /* The day, and a rule filling whatever is left of the line. The rule is what

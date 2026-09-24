@@ -21,7 +21,7 @@ import { PendingRequests } from '@/../app/components/PendingRequests';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
-import { activityFor } from '@/activity';
+import { activityFor, welcomeFor } from '@/activity';
 import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
 import { askedToJoin, invitesSeenAtFor, markInvitesSeen } from '@/invites';
@@ -68,6 +68,17 @@ export default async function ActivityPage() {
    * halfway leaves the count intact rather than cleared without being shown.
    */
   await markInvitesSeen(db, actorId);
+  /*
+   * Parea's welcome, and it is asked for last because it is asked for rarely.
+   *
+   * Null when this reader has hidden it; a moment when they have not. The
+   * query costs a row lookup and a key lookup, and it happens on every load of
+   * this page rather than only on the empty ones — which is the trade for
+   * `items` being awaited above it in the same `Promise.all` as everything
+   * else. A second round trip conditioned on emptiness would be slower than
+   * the thing it saves on the pages that have something.
+   */
+  const welcome = await welcomeFor(db, actorId);
   const now = new Date();
   // Never looked means everything is new, not nothing. Comparing against null
   // gives false in JavaScript, which is the wrong answer in the quiet way.
@@ -164,9 +175,10 @@ export default async function ActivityPage() {
             would be the product introducing itself to a reader who is already
             halfway through using it.
           */}
-          {requests.length === 0 && asked.length === 0 && items.length === 0 && (
-            <Welcome />
-          )}
+          {requests.length === 0 &&
+            asked.length === 0 &&
+            items.length === 0 &&
+            welcome !== null && <Welcome when={welcome.at && ago(welcome.at, now)} />}
         </section>
 
         <SiteFooter />
