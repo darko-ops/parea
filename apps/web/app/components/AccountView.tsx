@@ -196,6 +196,10 @@ export function AccountView() {
   const mine = events.filter((event) => event.mine);
   const joined = events.filter((event) => !event.mine);
   const shown = lens === 'mine' ? mine : lens === 'joined' ? joined : events;
+  /* What is in all of them, for the middle of the three counts. Every album
+     on the shelf, not the lens: the line is about this person rather than
+     about which half of their shelf is showing. */
+  const photos = events.reduce((n, event) => n + event.photoCount, 0);
 
   const initial = (account?.displayName?.trim() || account?.email || '?')
     .slice(0, 1)
@@ -311,9 +315,22 @@ export function AccountView() {
             events number is not a link — you are looking at the list of them,
             three inches below.
           */}
+          {/*
+            Three counts, which is what the app's line has and what somebody
+            else's profile here already printed: albums, photographs, friends.
+            This one said two — the photographs were missing, so your own
+            profile counted less about you than a stranger's page did.
+
+            Summed from the shelf rather than asked for: it is the same list
+            three inches below, and a second number from a second place is a
+            second number to disagree.
+          */}
           <p className="you-counts">
             <span>
               {events.length} {events.length === 1 ? 'album' : 'albums'}
+            </span>
+            <span>
+              {photos} {photos === 1 ? 'photo' : 'photos'}
             </span>
             {friends !== null && (
               <a className="you-friends" href="/friends">

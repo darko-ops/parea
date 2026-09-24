@@ -1134,7 +1134,7 @@ button.secondary {
 /* Where Edit sits on your own profile, on somebody else's. Top-aligned with
    the name for the same reason Edit is: the header's height is set by the
    picture, and a control centred against it floats beside nothing. */
-.you-act { align-self: flex-start; flex: none; display: flex; gap: 8px; }
+.you-act { flex: none; display: flex; gap: 8px; }
 
 /* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
@@ -3134,10 +3134,14 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .shelf-meta { display: block; margin-top: 2px; font-size: 12.5px; color: var(--dim); }
 
-/* The conversation, under its own tab. The composer sticks to the foot of the
-   viewport on an album's page; here the page is short enough that it simply
-   sits where it lands, which is what `static` in the component undoes. */
-.group-chat { margin-top: 22px; }
+/* The conversation, under its own tab, in a column.
+
+   It ran the full width of the page, which on a wide screen is a chat message
+   a metre across — and the app's is a phone-width column, which is the shape
+   a conversation is read in. 820 is the album's own `.event-column`, so the
+   two threads this product has are the same width as well as the same
+   drawing. */
+.group-chat { max-width: 820px; width: 100%; margin-top: 22px; }
 
 /* A signature that aged out. The tile's own bed, at the tile's own size, so
    the shelf does not develop a hole where a cover used to be. */
@@ -3333,27 +3337,47 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    You — the page you land on after signing in.
    --------------------------------------------------------------------------- */
 .you { max-width: 640px; }
+/* The head of a profile, which is the app's.
+
+   It was a row: a 64px circle, two lines beside it, and Edit in the corner —
+   a contact card. The app opens a profile with the person, centred, and the
+   facts under them, and that is what a profile is for: the picture is the
+   subject rather than an avatar identifying a row.
+
+   The web cannot have the app's full-width square — a 900px photograph of
+   somebody's face is a different page — so it is the same shape at a size a
+   column can hold. */
 .you-head {
-  display: flex; align-items: center; gap: 16px;
-  padding-bottom: 24px; margin-bottom: 8px;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 12px; padding-bottom: 26px; margin-bottom: 8px;
   border-bottom: 1px solid var(--line);
 }
 /* A letter, until there is a picture. Sized to the two lines beside it so the
    header has one height rather than three. */
+/* Square, because the crop is square.
+
+   The app's note is the argument and it is not about taste: the picker crops
+   to a square on iOS whatever aspect is asked for, and the endpoint stores a
+   square — so a circle pays the difference out of the sides of somebody's
+   face. A box the shape of the crop is the only frame that shows the whole
+   crop. Rounded, not sharp: it is a portrait rather than a photograph in a
+   grid of them. */
 .you-face {
-  flex: none; width: 64px; height: 64px; border-radius: 50%;
+  flex: none; width: 128px; height: 128px; border-radius: 24px;
   display: flex; align-items: center; justify-content: center;
   background: var(--accent-soft); color: var(--accent);
-  font-size: 26px; font-weight: 600; user-select: none;
+  font-size: 48px; font-weight: 600; user-select: none;
 }
-.you-id { min-width: 0; flex: 1; }
+.you-id { min-width: 0; max-width: 34em; }
 /* A heading, and only a heading. It used to be a text input styled to look
    like one — which needed `input.you-name` to outrank `input:not([type])`,
    and still read as a form asking a question that had already been answered.
    The name is edited in one place now, so this is plain text. */
+/* 28 and bold, which is the app's — a name is the biggest thing on a page
+   about a person, and 24 semibold was a card's heading. */
 .you-name {
-  font-size: 24px; font-weight: 600; letter-spacing: -.01em;
-  margin: 0 0 2px;
+  font-size: 28px; font-weight: 700; letter-spacing: -.02em;
+  margin: 0 0 3px;
   /* A long name or an email address used as one wraps rather than pushing
      the header sideways. */
   overflow-wrap: anywhere;
@@ -3365,7 +3389,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* A picture where the letter was. Same box either way, so the header does not
    change height when one arrives. */
 img.you-face { object-fit: cover; }
-.you-handle { margin: 0; font-size: 14px; }
+.you-handle { margin: 0; font-size: 14.5px; }
 /* What somebody wrote about themselves. Text colour, not `--dim`: it is the
    one thing in this header that is not a fact the page derived. */
 .you-bio {
@@ -3373,16 +3397,25 @@ img.you-face { object-fit: cover; }
   overflow-wrap: anywhere;
 }
 /* Two counts on one line — what you have made, and who you know. */
+/* One line, one colour, at the handle's size — the app's again. Three figures
+   set larger than the name they belong to is a dashboard, and none of the
+   three is a score: the albums are the ones this person can reach, the
+   photographs are how many are in those, and the friends are a number the
+   profile has always printed.
+
+   Separated by the product's own middle dot rather than by whitespace, so the
+   line reads as a sentence of facts rather than as three columns. */
 .you-counts {
-  margin: 6px 0 0; display: flex; gap: 14px;
-  font-size: 14px; color: var(--dim);
+  margin: 8px 0 0; display: flex; justify-content: center; flex-wrap: wrap;
+  gap: 6px; font-size: 14.5px; color: var(--dim);
 }
+.you-counts > * + *::before { content: '·'; margin-right: 6px; }
  /* Quiet, in the corner of the header, aligned with the name rather than the
     bottom of the picture. A word and a hairline — the loud version was a
     bordered button on its own row, which is the shape this product uses for
     the thing a page is *for*, and this page is for the events below. */
 .you-edit {
-  align-self: flex-start; flex: none;
+  flex: none;
   padding: 5px 11px; border-radius: 999px;
   background: none; border: 1px solid var(--line); color: var(--dim);
   font-size: 13px; font-weight: 500;
