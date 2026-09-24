@@ -7,11 +7,17 @@
  */
 
 import { schema } from '@parea/core';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { addMember, findGroup, membershipOf, participatedInGroup } from '@/groups';
+import {
+  addMember,
+  findGroup,
+  membershipOf,
+  openJoinRequests,
+  participatedInGroup,
+} from '@/groups';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -29,28 +35,20 @@ export async function GET(
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  const requests = await db
-    .select({
-      id: schema.groupJoinRequests.id,
-      createdAt: schema.groupJoinRequests.createdAt,
-      /*
-       * A display name if they gave one, and no handle — so this row cannot
-       * link to the asker's page even now that there is one. Deliberate: a
-       * request to join is answered on what the group knows about the person
-       * asking, and handing an admin a way to go and read about a stranger
-       * turns answering into looking somebody up.
-       */
-      displayName: schema.actors.displayName,
-    })
-    .from(schema.groupJoinRequests)
-    .innerJoin(schema.actors, eq(schema.groupJoinRequests.actorId, schema.actors.id))
-    .where(
-      and(
-        eq(schema.groupJoinRequests.groupId, id),
-        eq(schema.groupJoinRequests.status, 'open'),
-      ),
-    )
-    .orderBy(asc(schema.groupJoinRequests.createdAt));
+  /*
+   * The same query the group's own People tab renders from — see
+   * `openJoinRequests`. It was inline here, which was fine while this was the
+   * only reader; a second one is how the screen and the API come to disagree
+   * about what "waiting" means.
+   *
+   * `displayName` is kept as the field name on the wire because the native
+   * client reads it. The shared function answers `name`, which is that with
+   * "Someone" where an account has never been given one.
+   */
+  const requests = (await openJoinRequests(db, id)).map((request) => ({
+    id: request.id,
+    displayName: request.name,
+  }));
 
   return NextResponse.json({ requests });
 }

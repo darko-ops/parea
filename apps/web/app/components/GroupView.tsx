@@ -26,9 +26,10 @@
  * covers — because that is what `findable` means. The copy is verbatim.
  */
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-import type { GroupEvent, GroupPerson } from '@/groups';
+import type { GroupEvent, GroupPerson, JoinRequest } from '@/groups';
 
 import { Face } from './Faces';
 import { GroupChat } from './GroupChat';
@@ -60,6 +61,11 @@ type GroupData = {
    * nothing else; the door does not draw this line.
    */
   since: string | null;
+  /**
+   * Who is waiting to be let in. Empty for anybody who is not an admin — and
+   * empty because the page never fetched them, not because this hides them.
+   */
+  requests: JoinRequest[];
 };
 
 /**
@@ -87,6 +93,21 @@ const TABS: [GroupTab, string, RailGlyph][] = [
 
 export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   const [busy, setBusy] = useState(false);
+  /**
+   * The queue, as the screen currently has it.
+   *
+   * Local, because an answered request has to leave the list the moment it is
+   * answered — the alternative is a row somebody has already approved sitting
+   * there with its buttons live until a reload, which invites the second press
+   * that the server then refuses.
+   *
+   * Seeded from the server and never refetched here. `router.refresh` at the
+   * end of a decision is what brings the new member into the strip below, and
+   * it re-renders this component with a queue that no longer holds the row —
+   * so the two agree rather than one of them having to be reconciled.
+   */
+  const [queue, setQueue] = useState<JoinRequest[]>(group.requests);
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [requested, setRequested] = useState(false);
@@ -128,6 +149,43 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       setBusy(false);
     }
   }, [group.id, picked]);
+
+  /**
+   * Answering one of them.
+   *
+   * The row goes as soon as the server has said so, and not before: an
+   * optimistic removal would take somebody off the screen and leave them
+   * waiting if the call failed, which is the one outcome an admin would never
+   * find out about. So it is removed after, and the error stays on the page
+   * with the row still in it if anything goes wrong.
+   *
+   * `router.refresh()` rather than a reload, and only on approve: approving
+   * writes a membership, so the faces below and the count beside them are now
+   * wrong, and a full reload would throw away the tab, the scroll and the
+   * create form if it happened to be open. Declining changes nothing anybody
+   * can see except this row.
+   */
+  const answer = useCallback(
+    async (requestId: string, action: 'approve' | 'decline') => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/groups/${group.id}/requests`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ requestId, action }),
+        });
+        if (!res.ok) throw new Error('Could not answer that. Try again.');
+        setQueue((waiting) => waiting.filter((request) => request.id !== requestId));
+        if (action === 'approve') router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [group.id, router],
+  );
 
   const join = useCallback(async () => {
     setBusy(true);
@@ -316,6 +374,15 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             >
               <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
               {label}
+              {/*
+                The same pip an album's Comments tab carries, about the same
+                kind of fact: something on this tab is waiting on you. Without
+                it an admin has to open People to find out there is nothing
+                there, which is the state it is in almost every day.
+              */}
+              {id === 'people' && queue.length > 0 && (
+                <span className="event-tab-count">{queue.length}</span>
+              )}
             </a>
           ))}
         </nav>
@@ -391,6 +458,67 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       */}
       {tab === 'people' && (
       <>
+      {/*
+        Who is waiting to be let in, above who is already here.
+
+        On this pane rather than above the albums, which is where the app had
+        it first and moved it from: this is the pane about people, and an admin
+        meeting a queue on the way to the photographs is being asked a question
+        about somebody while looking at something else.
+
+        Admins only, and the page hands a member nothing to draw — that a
+        particular stranger is trying to get into this room is the admin's to
+        know. `queue` rather than `group.requests` so an answered row leaves at
+        the moment it is answered.
+      */}
+      {queue.length > 0 && (
+        <section className="join-queue" aria-label="Waiting to join">
+          <h2 className="join-queue-head">
+            {queue.length} waiting to join
+          </h2>
+          <ul>
+            {queue.map((request) => (
+              <li key={request.id}>
+                {/*
+                  A name if they gave one, and never a link. A request to join
+                  is answered on what the group already knows about the person
+                  asking; a link to a stranger's page turns answering into
+                  looking somebody up, which is a different decision made with
+                  different information.
+                */}
+                <span className="join-who">{request.name}</span>
+                <button
+                  type="button"
+                  className="join-yes"
+                  disabled={busy}
+                  onClick={() => answer(request.id, 'approve')}
+                >
+                  Approve
+                </button>
+                {/*
+                  Not styled as a danger. Declining is not destructive — the
+                  row says so itself: a declined request can be made again, and
+                  nobody is told it was refused.
+                */}
+                <button
+                  type="button"
+                  className="join-no"
+                  disabled={busy}
+                  onClick={() => answer(request.id, 'decline')}
+                >
+                  Decline
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="join-queue-note">
+            Approving puts them in the room: they see every album in it, and the
+            next one reaches them. Declining tells them nothing — they can ask
+            again.
+          </p>
+        </section>
+      )}
+
       <section className="people-strip">
         <span className="people-strip-label">The same people, every time</span>
         <div className="people-strip-row">

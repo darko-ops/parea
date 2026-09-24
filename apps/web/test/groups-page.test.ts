@@ -41,6 +41,7 @@ const API = await read('../app/api/groups/route.ts');
 const GROUP = await read('../app/components/GroupView.tsx');
 const CARD = await read('../app/components/CreateGroupCard.tsx');
 const CHATS = await read('../app/components/GroupChats.tsx');
+const GROUPS_SRC = await read('../src/groups.ts');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
 /*
  * Raw, not comment-stripped, because the thing being asserted *is* a comment:
@@ -325,6 +326,75 @@ describe('inside a group', () => {
     expect(empty).not.toBe('');
     expect(empty).toMatch(/The next album anybody makes in this group shows up/);
     expect(empty).not.toMatch(/<button/);
+  });
+
+  it('shows an admin who is waiting, on the pane about people', () => {
+    /*
+     * The API to approve and decline has existed since this page did, and only
+     * the phone ever drew it — so a request made from search was answerable on
+     * one client and invisible on the other.
+     *
+     * On the People pane rather than above the albums, which is where the app
+     * had it and moved it from: an admin meeting a queue on the way to the
+     * photographs is being asked about a person while looking at something
+     * else. The tab carries the count so nobody has to open it to find out
+     * there is nothing there, which is what it holds almost every day.
+     */
+    const pane = GROUP.slice(GROUP.indexOf("tab === 'people'"), GROUP.indexOf('people-strip'));
+    expect(pane).toMatch(/join-queue/);
+    expect(pane).toMatch(/waiting to join/);
+    expect(GROUP).toMatch(/id === 'people' && queue\.length > 0/);
+    expect(GROUP).toMatch(/event-tab-count/);
+  });
+
+  it('hands a member nothing to draw, rather than hiding it from them', () => {
+    /*
+     * That a particular stranger is trying to get into this room is the
+     * admin's to know. Not fetched-and-hidden, for the reason the door is not:
+     * a later change to the component cannot disclose what the page never put
+     * in its props — and `openJoinRequests` deliberately has no permission
+     * check of its own, because a function that quietly returns nothing for
+     * the wrong reader hides a missing check rather than failing it.
+     */
+    expect(GROUP_PAGE).toMatch(
+      /membership\?\.role === 'admin' \? await openJoinRequests\(db, group\.id\) : \[\]/,
+    );
+    const fn = GROUPS_SRC.slice(GROUPS_SRC.indexOf('export async function openJoinRequests'));
+    expect(fn.slice(0, fn.indexOf('\n}'))).not.toMatch(/membership|role/);
+  });
+
+  it('never links to the person asking', () => {
+    /*
+     * A request to join is answered on what the group already knows about
+     * whoever is asking. A link to a stranger's page turns answering into
+     * looking somebody up, which is a different decision made on different
+     * information — so the row carries a display name and no handle, and the
+     * query does not select one.
+     */
+    const queue = GROUP.slice(GROUP.indexOf('join-queue-head'), GROUP.indexOf('join-queue-note'));
+    expect(queue).not.toBe('');
+    expect(queue).not.toMatch(/<a |href=/);
+    const query = GROUPS_SRC.slice(
+      GROUPS_SRC.indexOf('export async function openJoinRequests'),
+      GROUPS_SRC.indexOf('export async function groupPeople'),
+    );
+    expect(query).not.toMatch(/handle/);
+  });
+
+  it('takes the row away after the server answers, not before', () => {
+    /*
+     * An optimistic removal takes somebody off the screen and leaves them
+     * waiting if the call failed — the one outcome an admin would never find
+     * out about. So the filter is after the `res.ok` guard, and a failure
+     * leaves the row where it is with the error above it.
+     */
+    const answer = GROUP.slice(GROUP.indexOf('const answer = useCallback'), GROUP.indexOf('const join'));
+    expect(answer).not.toBe('');
+    expect(answer.indexOf('if (!res.ok)')).toBeLessThan(answer.indexOf('setQueue('));
+    // And a refresh only where something else on the screen changed: approving
+    // writes a membership, so the faces below are now wrong. Declining is
+    // invisible everywhere but this row.
+    expect(answer).toMatch(/if \(action === 'approve'\) router\.refresh\(\)/);
   });
 
   it('does not open with the create form', () => {

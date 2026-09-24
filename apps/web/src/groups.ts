@@ -787,6 +787,54 @@ export async function attendedEvery(db: Db, groupId: string): Promise<number | n
 /** What the query above answers with, per row. */
 type Row = { albums: number | string; everyone: number | string };
 
+/** Somebody asking to be let into a group, waiting on an admin. */
+export type JoinRequest = {
+  id: string;
+  /**
+   * A display name if they gave one, and never a handle.
+   *
+   * Deliberate, and the API route has said so since before there was a screen
+   * to say it on: a request to join is answered on what the group already
+   * knows about the person asking, and handing an admin a link to a stranger's
+   * page turns answering into looking somebody up.
+   */
+  name: string;
+};
+
+/**
+ * The open join requests for a group, oldest first.
+ *
+ * Oldest first because it is a queue: the person who has been waiting longest
+ * is the one an answer is most overdue to. Extracted from the route that had
+ * this query inline, so the admin's screen and the admin's API cannot come to
+ * disagree about what "waiting" means — `status = 'open'` is the whole of it,
+ * and a declined request can be made again.
+ *
+ * No permission check in here. Every caller has already established that the
+ * reader is an admin, and a function that quietly returns nothing for the
+ * wrong reader is one that hides a missing check rather than failing it.
+ */
+export async function openJoinRequests(db: Db, groupId: string): Promise<JoinRequest[]> {
+  const rows = await db
+    .select({
+      id: schema.groupJoinRequests.id,
+      displayName: schema.actors.displayName,
+    })
+    .from(schema.groupJoinRequests)
+    .innerJoin(schema.actors, eq(schema.groupJoinRequests.actorId, schema.actors.id))
+    .where(
+      and(
+        eq(schema.groupJoinRequests.groupId, groupId),
+        eq(schema.groupJoinRequests.status, 'open'),
+      ),
+    )
+    .orderBy(asc(schema.groupJoinRequests.createdAt));
+
+  // "Someone" rather than a blank: an account with no display name is a real
+  // person waiting, and a row with nothing on the left reads as a bug.
+  return rows.map((row) => ({ id: row.id, name: row.displayName ?? 'Someone' }));
+}
+
 /**
  * Everybody in a group: admins first, then by how long they have been in it.
  *

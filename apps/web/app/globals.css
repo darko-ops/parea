@@ -3344,6 +3344,58 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .shelf-failed { display: block; width: 100%; height: 100%; background: var(--photo-bed); }
 
 /* With no archive, making one *is* the page. */
+/* ---------------------------------------------------------------------------
+   Who is waiting to be let in.
+
+   Above the faces on the People pane, and only for an admin. It was nowhere at
+   all on the web: the API to approve and decline has existed since the group
+   page did, and only the phone ever drew it — so a request made from search
+   was answerable on one client and invisible on the other.
+
+   A card, because it is the one block on the screen that is a question rather
+   than a record. Everything else on this pane describes the room as it is;
+   this asks what it should be.
+   --------------------------------------------------------------------------- */
+.join-queue {
+  margin-top: 22px; padding: 16px 18px; max-width: 560px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+}
+.join-queue-head {
+  margin: 0 0 4px; font-size: 14px; font-weight: 700; letter-spacing: -.01em;
+}
+.join-queue ul { list-style: none; margin: 0; padding: 0; }
+/* The name takes the width and the two answers sit at the end, so a long name
+   never pushes a button off the card. */
+.join-queue li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--hairline);
+}
+.join-queue li:last-child { border-bottom: 0; }
+.join-who {
+  flex: 1; min-width: 0; font-size: 15px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Both are text rather than filled buttons, and the difference between them is
+   weight and colour only. A filled Approve beside a plain Decline is the page
+   recommending an answer to a question about a person, which is not its
+   business — and the global `button` rule would otherwise make both of them
+   solid accent pills. */
+.join-yes, .join-no {
+  flex: none; padding: 6px 10px; border: 0; border-radius: 8px;
+  background: none; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.join-yes { color: var(--accent-ink); }
+.join-no { color: var(--dim); font-weight: 500; }
+.join-yes:hover { background: var(--accent-soft); }
+.join-no:hover { background: var(--selected); color: var(--fg); }
+.join-yes:disabled, .join-no:disabled { opacity: .5; cursor: default; }
+/* What approving actually does, under the queue rather than beside each row.
+   The consequence is the same for every name on the card, and repeating it per
+   row would be the screen saying one thing three times. */
+.join-queue-note {
+  margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--dim-soft);
+}
+
 /* A card rather than a row, now the button beside it has gone up into the tab
    row: what is left is a sentence, and a sentence floating on the page under a
    rule reads as the page having stopped rather than as an answer. */

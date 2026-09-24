@@ -9,6 +9,7 @@ import {
   lensFor,
   memberCount,
   membershipOf,
+  openJoinRequests,
   participatedInGroup,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
@@ -86,6 +87,18 @@ export default async function GroupPage({
         ])
       : [[], []];
 
+  /*
+   * Who is waiting to be let in — and only for the person who can answer.
+   *
+   * A member is not shown the queue at all rather than shown it without the
+   * buttons: the fact that a particular stranger is trying to get into this
+   * room is the admin's to know. Not fetched-and-hidden, for the reason the
+   * door above is not: a later change to the component cannot disclose what
+   * the page never handed it.
+   */
+  const requests =
+    membership?.role === 'admin' ? await openJoinRequests(db, group.id) : [];
+
   return (
     <Shell current="groups">
       <GroupView
@@ -128,6 +141,7 @@ export default async function GroupPage({
             to leak rather than merely choosing not to.
           */
           since: membership ? MONTH.format(group.createdAt) : null,
+          requests,
         }}
       />
     </Shell>
