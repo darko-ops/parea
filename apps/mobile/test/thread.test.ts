@@ -323,9 +323,19 @@ describe('two rooms, one drawing', () => {
      */
     expect(VIEWER).toMatch(/const sided = mine;/);
     const row = between(VIEWER, 'export function ThreadRow({', 'function People({');
-    for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine', 'styles.chipsMine']) {
+    for (const style of ['styles.rowMine', 'styles.saidMine', 'styles.aboutMine']) {
       expect(row).toContain(`sided && ${style}`);
     }
+    /*
+     * The reactions are the exception, and deliberately: they are centred
+     * under every comment rather than following the side of one. A reaction
+     * belongs to everybody who tapped it, not to whoever wrote the words
+     * above it. `alignSelf: 'stretch'` is what gives the row the width to
+     * centre in at all, since `saidMine` shrinks its children to content.
+     */
+    expect(row).toMatch(/<View style=\{styles\.chips\}>/);
+    expect(VIEWER).toMatch(/alignSelf: 'stretch',\s*justifyContent: 'center',/);
+    expect(VIEWER).not.toMatch(/chipsMine/);
     expect(VIEWER).not.toMatch(/styles\.bubble|mentionOnAccent/);
     // One treatment for the words, so `@ana` is in the accent in every
     // message rather than marked by weight inside a fill it cannot colour

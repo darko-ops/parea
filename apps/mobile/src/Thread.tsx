@@ -804,7 +804,7 @@ export function ThreadRow({
             not offering it. Existing reactions still draw, so this survives
             group reactions arriving later. */}
         {(message.reactions.length > 0 || (canPost && canReact)) && (
-          <View style={[styles.chips, sided && styles.chipsMine]}>
+          <View style={styles.chips}>
             {message.reactions.map((reaction) => (
               <Pressable
                 key={reaction.emoji}
@@ -1078,8 +1078,39 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5 },
   metaName: { fontWeight: '700' },
   bodyText: { fontSize: 15, lineHeight: 21 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  chipsMine: { justifyContent: 'flex-end' },
+  /*
+   * Centred across the column, under whoever's comment.
+   *
+   * They used to hang off whichever edge the comment does — left for other
+   * people's, right for your own. That reads as a property of the block, one
+   * more thing bolted to the end of a paragraph, and it put two rows of pills
+   * on opposite sides of a conversation where the two mean the same thing.
+   *
+   * What a reaction actually is here is the room answering a line: it belongs
+   * to everybody who tapped it, not to whoever wrote the words above it. The
+   * middle is the only place that says that, and it is where the card's own
+   * counts already sit.
+   *
+   * `alignSelf: 'stretch'` is what makes the centring possible at all on your
+   * own: `saidMine` shrinks its children to their content so the block can
+   * hang from the right, and a row shrunk to its pills has no width left to
+   * centre them in.
+   *
+   * Which means the centre here is the column's, where the site's is the
+   * paragraph's — CSS sizes a `<p>` box to the text in it and hands the row
+   * under it the same width, and nothing in this layout can measure a `Text`
+   * to match. The intent is the same in both and the pixel is not; centring
+   * on the column is the honest version of it on a 393-point screen, where
+   * the difference is a few points on a short line.
+   */
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },
   chipText: { fontSize: 13 },
   /*

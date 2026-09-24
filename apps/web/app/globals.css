@@ -2123,7 +2123,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    anyway; this is the pair of them agreeing. */
 .message-mine .message-meta { justify-content: flex-end; }
 .message-mine .message-about { margin-left: auto; }
-.message-mine .reactions { justify-content: flex-end; }
 /* And the lines do not turn round with the block.
 
    No `text-align: right`, which is what the bubble had. A short comment
@@ -2373,8 +2372,19 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    else in the product. */
 .mention { font-weight: 600; color: var(--accent); }
 /* Reactions live on messages and never on photographs: a photograph of
-   somebody's evening that can be scored is a post, and this is not a feed. */
-.reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+   somebody's evening that can be scored is a post, and this is not a feed.
+
+   Centred under the comment rather than hung off whichever edge it is on.
+   They used to follow the block — left for other people's, right for your own
+   — which reads as a property of the paragraph, and put two rows meaning the
+   same thing on opposite sides of one conversation. What a reaction is here is
+   the room answering a line: it belongs to everybody who tapped it, not to
+   whoever wrote the words above it, and the middle is the only place that says
+   so. */
+.reactions {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+  justify-content: center;
+}
 .reaction {
   padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--card); font-size: 13px; cursor: pointer;

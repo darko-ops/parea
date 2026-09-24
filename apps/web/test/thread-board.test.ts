@@ -49,7 +49,11 @@ describe('one shape for every comment, and a side for your own', () => {
        "just now You" — and the app's meta is one string that cannot reverse
        at all. The name goes first in every row on the page. */
     expect(RULES).toMatch(/\.message-mine \.message-meta \{ justify-content: flex-end; \}/);
-    expect(RULES).toMatch(/\.message-mine \.reactions \{ justify-content: flex-end; \}/);
+    /* The reactions are the exception: centred under every comment rather
+       than following the side of one, because a reaction belongs to everybody
+       who tapped it and not to whoever wrote the words above it. */
+    expect(RULES).not.toMatch(/\.message-mine \.reactions/);
+    expect(RULES).toMatch(/\.reactions \{[^}]*justify-content: center;/);
     expect(RULES).not.toMatch(/\.message-mine[^{]*\{[^}]*text-align: right/);
     // The name and the menu still say whose it is, which is what said it on
     // paper anyway.
