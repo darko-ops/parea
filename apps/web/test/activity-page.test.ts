@@ -34,6 +34,7 @@ const read = async (path: string) =>
 const PAGE = await read('../app/activity/page.tsx');
 const WAITING = await read('../app/components/PendingRequests.tsx');
 const LIST = await read('../app/components/ActivityList.tsx');
+const WELCOME = await read('../app/components/Welcome.tsx');
 /* The wording moved out of the page when the phone started drawing the same
    feed: one implementation of "is this today?", for both clients. */
 const WHEN = await read('../src/when.ts');
@@ -171,12 +172,44 @@ describe('the feed', () => {
     expect(LIST).toMatch(/aria-label=\{`\$\{row\.who\} \$\{row\.what\}`\}/);
   });
 
-  it('says the same thing as before when there is nothing in it', () => {
-    // Verbatim. It is the one sentence on this page that explains what the
-    // page is for, and it is read by people who have nothing to look at.
-    expect(LIST).toContain(
-      'Nothing yet. When somebody adds photos to an album you are in, says',
+  it('still says what the page is for when there is nothing in it', () => {
+    /*
+     * Verbatim, and it has moved. It is the one sentence on this page that
+     * explains what the page is for, and it is read by people who have nothing
+     * to look at — so it survives the move from a grey paragraph into the
+     * welcome row, in the voice of the thing that will be saying the rest.
+     *
+     * The list itself now draws nothing when it is empty: "the page is empty"
+     * is a question only the page can answer, because it has two sections
+     * above this one.
+     */
+    // Whitespace flattened: the sentence is wrapped across three lines of JSX,
+    // and where the line breaks fall is not part of what it says.
+    expect(WELCOME.replace(/\s+/g, ' ')).toContain(
+      'When somebody adds photos to an album you are in, says something about yours, or opens one to you, it turns up here.',
     );
+    expect(LIST).toMatch(/if \(rows\.length === 0\) return null;/);
+  });
+
+  it('greets nobody who is already halfway through using it', () => {
+    // A friend request waiting is a page with something on it, and a welcome
+    // under it would be the product introducing itself to somebody who has
+    // already been introduced. All three sections, not just this list.
+    expect(PAGE).toMatch(
+      /requests\.length === 0 && asked\.length === 0 && items\.length === 0/,
+    );
+  });
+
+  it('does not dress the welcome as something that happened', () => {
+    /*
+     * A synthetic row in a list of things that actually happened is a lie the
+     * moment somebody cannot tell. Three things keep it apart from its
+     * neighbours, and each is the absence of something every real row has:
+     * the mark instead of a face, no time, and no `⋯` to hide it by — it
+     * leaves on its own, the moment there is anything to replace it.
+     */
+    expect(WELCOME).toMatch(/<Mark size=\{26\} \/>/);
+    expect(WELCOME).not.toMatch(/<Face|activity-when|<Menu/);
   });
 
   it('puts a row back when hiding it did not send', () => {

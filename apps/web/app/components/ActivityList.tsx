@@ -84,14 +84,16 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
     [rows],
   );
 
-  if (rows.length === 0) {
-    return (
-      <p className="activity-empty">
-        Nothing yet. When somebody adds photos to an album you are in, says
-        something about yours, or opens one to you, it turns up here.
-      </p>
-    );
-  }
+  /*
+   * Nothing at all rather than a sentence about having nothing.
+   *
+   * The sentence is still said — it is the welcome row the page draws instead,
+   * in the voice of the thing that will be saying the rest. Said from here as
+   * well it would be said twice, and this component cannot decide whether to:
+   * the page has a pending-requests section and an asked-to-join section above
+   * it, and "the page is empty" is a question only the page can answer.
+   */
+  if (rows.length === 0) return null;
 
   return (
     <>

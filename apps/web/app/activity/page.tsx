@@ -16,6 +16,7 @@
  */
 
 import { ActivityList } from '@/../app/components/ActivityList';
+import { Welcome } from '@/../app/components/Welcome';
 import { PendingRequests } from '@/../app/components/PendingRequests';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
@@ -153,6 +154,19 @@ export default async function ActivityPage() {
               unread: since === null || item.at > since,
             }))}
           />
+
+          {/*
+            Nothing at all, anywhere on the page — so the page says hello
+            rather than reporting an absence.
+
+            All three, not just the list: somebody with a friend request
+            waiting has a page with something on it, and a welcome under it
+            would be the product introducing itself to a reader who is already
+            halfway through using it.
+          */}
+          {requests.length === 0 && asked.length === 0 && items.length === 0 && (
+            <Welcome />
+          )}
         </section>
 
         <SiteFooter />
