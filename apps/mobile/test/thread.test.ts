@@ -337,11 +337,48 @@ describe('a board is not a chat', () => {
      * it means send this to somebody. A comment is not sent anywhere, it is
      * posted where it already is, and the verb is worth spelling.
      */
-    expect(VIEWER).toMatch(/board \? styles\.post : styles\.send/);
-    expect(VIEWER).toMatch(/<Text style=\{\[styles\.postText, \{ color: t\.accent \}\]\}>Post<\/Text>/);
-    // The same height in both, so the composer does not jump between rooms.
-    expect(VIEWER).toMatch(/post: \{ height: 38,/);
+    expect(VIEWER).toMatch(/accessibilityLabel="Post this comment"/);
+    expect(VIEWER).toMatch(/\{posting \? 'Posting…' : 'Post'\}/);
+    expect(VIEWER).toMatch(/<Text style=\{\[styles\.sendGlyph, \{ color: t\.onAccent \}\]\}>↑<\/Text>/);
     expect(VIEWER).toMatch(/send: \{ width: 38, height: 38,/);
+  });
+
+  it('draws the site’s own composer on a board', () => {
+    /*
+     * A chat's composer is the strip every messenger has: a pill and a round
+     * arrow, edge to edge, with a hairline over it. A board's is the card the
+     * site draws — the field bare inside one bordered box with the button
+     * under it — and the two are the same numbers, restated because there is
+     * no stylesheet between the clients.
+     */
+    const CSS = read('../../apps/web/app/globals.css');
+    const web = (rule: string) => CSS.slice(CSS.indexOf(rule), CSS.indexOf('}', CSS.indexOf(rule)));
+    // The card: a 1-point border at 14, with 13 and 15 of padding and 8 under
+    // the field.
+    expect(VIEWER).toMatch(
+      /card: \{ borderWidth: 1, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 15, gap: 8 \}/,
+    );
+    expect(web('.thread-composer {')).toMatch(/border-radius: 14px; padding: 13px 15px/);
+    expect(web('.thread-composer {')).toMatch(/gap: 8px/);
+    // The field bare inside it, because the card is the edge.
+    expect(VIEWER).toMatch(/fieldBare: \{ padding: 0 \}/);
+    expect(web('.thread-field {')).toMatch(/border: 0; padding: 0/);
+    // The actions under it: the error to the left, the button at the edge.
+    expect(VIEWER).toMatch(/actions: \{ flexDirection: 'row', alignItems: 'center', gap: 12 \}/);
+    expect(web('.thread-actions {')).toMatch(/gap: 12px/);
+    expect(VIEWER).toMatch(/note: \{ flex: 1, fontSize: 12\.5/);
+    expect(web('.thread-note {')).toMatch(/flex: 1; font-size: 12\.5px/);
+    // And the button filled, at the site's own size.
+    expect(VIEWER).toMatch(/post: \{ paddingVertical: 9, paddingHorizontal: 16, borderRadius: 10 \}/);
+    expect(CSS).toMatch(/\.thread-actions button \{ padding: 9px 16px; font-size: 14px; border-radius: 10px; \}/);
+    expect(VIEWER).toMatch(/postText: \{ fontSize: 14, fontWeight: '600' \}/);
+    /*
+     * The hairline across the screen is the chat's. A board draws a card with
+     * its own edge, and a rule behind it would be the strip the card is there
+     * instead of.
+     */
+    expect(VIEWER).toMatch(/composer: \{ paddingTop: 12,/);
+    expect(VIEWER).toMatch(/borderTopWidth: 1, borderTopColor: t\.line \}/);
   });
 
   it('names the subject when a board is empty', () => {
