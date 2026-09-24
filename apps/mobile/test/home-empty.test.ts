@@ -609,46 +609,99 @@ describe('what a card dates an album by', () => {
  * opened.
  */
 describe('the line under the strip', () => {
-  it('leads with somebody’s words, not with a number', () => {
-    // One line of what was actually said does more to show an album is alive
-    // than any count of it.
-    expect(EVENTS).toMatch(/<Text style=\{styles\.talkWho\}>\{event\.lastMessage\.author\}<\/Text>/);
-    expect(EVENTS).toMatch(/\{event\.lastMessage\.body\}/);
-    // One line, truncated: the card is a summary and a paragraph in it is the
-    // thread.
-    // Two lines in the bubble, not one: a box that clips mid-sentence reads
-    // as broken where a bare line reads as trimmed.
-    expect(EVENTS).toMatch(/styles\.talkLine, \{ color: t\.fg \}\]\} numberOfLines=\{2\}/);
-  });
-
-  it('counts the rest, not the one already on screen', () => {
+  it('leads with somebody’s words, and with their face', () => {
     /*
-     * `+` means "besides the one you can read". "1 comment" printed under the
-     * only comment is the kind of thing that survives forever once it ships.
+     * One line of what was actually said does more to show an album is alive
+     * than any count of it — and a face says *whose* voice it is, which is
+     * the thing the bordered bubble before this never managed. A reply on a
+     * card is somebody else's words inside somebody else's evening, and the
+     * two are worth telling apart.
      */
     expect(EVENTS).toMatch(
-      /const others = Math\.max\(0, event\.messageCount - \(event\.lastMessage \? 1 : 0\)\)/,
+      /<Text style=\{\[styles\.replyWho, \{ color: t\.fg \}\]\}>\{event\.lastMessage\.author\}<\/Text>/,
     );
-    expect(EVENTS).toMatch(/`\+ \$\{parts\.join\(' and '\)\}`/);
+    expect(EVENTS).toMatch(/\{event\.lastMessage\.body\}/);
+    // The words in `dim`, which is the whole of how a reply is set apart from
+    // the album's own title and byline above it. Not italic.
+    expect(EVENTS).toMatch(/styles\.replyLine, \{ color: t\.dim \}\]\} numberOfLines=\{2\}/);
+    expect(EVENTS).not.toMatch(/fontStyle: 'italic'/);
+    // Their picture when they have one, their letter on their own colour when
+    // they do not — keyed on `authorKey`, never on a display name.
+    expect(EVENTS).toMatch(/\{event\.lastMessage\.avatarUrl \? \(/);
+    expect(EVENTS).toMatch(/const saidLens = lensFor\(event\.lastMessage\?\.authorKey \?\? event\.id\);/);
+    expect(EVENTS).toMatch(/styles\.sayerFace, styles\.replyFace/);
   });
 
-  it('says nothing at all about a quiet album', () => {
+  it('counts the whole album, not the rest of it', () => {
     /*
-     * A count of zero under every album is a column of nothing, and it makes
-     * the ones people have talked in harder to pick out. `null` is most
-     * cards.
+     * It used to subtract the comment on screen and read `+ 3 comments` — a
+     * footnote to the quote above it. The ledger is not about the quote: it
+     * is how much conversation this album has, the way the line at the card's
+     * head is how many photographs. A reader who counts the one they can see
+     * and gets four is reading it correctly.
      */
-    expect(EVENTS).toMatch(/return event\.lastMessage \? true : null;/);
-    expect(EVENTS).toMatch(/\{said && \(/);
-    // And `true` is "a comment and nothing more to add", which draws the
-    // words without a line under them.
-    expect(EVENTS).toMatch(/\{said !== true && \(/);
+    expect(EVENTS).toMatch(/const comments = event\.messageCount;/);
+    expect(EVENTS).toMatch(/comments === 0 \? null : plural\(comments, 'comment'\)/);
+    expect(EVENTS).toMatch(/reactions === 0 \? null : plural\(reactions, 'reaction'\)/);
+    expect(EVENTS).toMatch(/\.join\(' · '\)/);
+    expect(EVENTS).not.toMatch(/event\.messageCount - \(event\.lastMessage \? 1 : 0\)/);
+    expect(EVENTS).not.toMatch(/\+ \$\{parts\.join/);
+  });
+
+  it('closes the card on the same kind of line it opens with', () => {
+    /*
+     * `measured` at the head says when the evening was and how many
+     * photographs; this says how much was said about them — the same
+     * monospaced small caps and the same hairline to the edge of the column,
+     * so a stack of cards reads as entries in a ledger.
+     *
+     * The chevron is what keeps it from being a label: a rule running off the
+     * edge is a boundary, a rule that ends in an arrow is a way through.
+     */
+    expect(EVENTS).toMatch(/styles\.measuredText, \{ color: t\.dim \}\]\} numberOfLines=\{1\}/);
+    expect(EVENTS).toMatch(/<View style=\{\[styles\.rule, \{ backgroundColor: t\.line \}\]\} \/>/);
+    expect(EVENTS).toMatch(/<Glyph name="chevron" size=\{14\} weight=\{2\.2\} color=\{t\.dim\} \/>/);
+    expect(EVENTS).toMatch(/ledger: \{ flexDirection: 'row', alignItems: 'center', gap: 8 \}/);
+  });
+
+  it('drops each half on its own, and the whole thing when there is nothing', () => {
+    /*
+     * Three states from two independent pieces. A reply with nobody's
+     * reactions under it is the row alone; an album somebody has only reacted
+     * in is the ledger alone; an album nobody has touched draws neither and
+     * ends on the photographs — which is most cards and is the point, since a
+     * count of zero under every quiet album is a column of nothing.
+     */
+    expect(EVENTS).toMatch(/\{\(event\.lastMessage \|\| counted !== ''\) && \(/);
+    expect(EVENTS).toMatch(/\{event\.lastMessage && \(/);
+    expect(EVENTS).toMatch(/\{counted !== '' && \(/);
+  });
+
+  it('is one tap target, into the conversation', () => {
+    /*
+     * The reply and the counts are the same errand, so they are one
+     * `Pressable` with 8 points of padding around the column — a target only
+     * as big as its text is one people miss. Nested inside the card's own:
+     * the inner takes the touch when it lands here, the outer takes the rest.
+     */
+    expect(EVENTS).toMatch(/onPress=\{\(\) => onOpen\(undefined, 'talk'\)\}/);
+    expect(EVENTS).toMatch(/marginHorizontal: -12,\s*marginTop: 4,/);
+    expect(EVENTS).toMatch(/paddingTop: 10,\s*paddingHorizontal: 8,\s*paddingBottom: 8,/);
+    /*
+     * And a wash rather than a fade. `opacity` takes the whole block down,
+     * the face included, which reads as the card dimming rather than as
+     * something being pressed.
+     */
+    expect(EVENTS).toMatch(
+      /pressed && \{ backgroundColor: dark \? '#ffffff14' : 'rgba\(20,23,28,0\.06\)' \}/,
+    );
+    expect(EVENTS).toMatch(/const dark = useColorScheme\(\) === 'dark';/);
   });
 
   it('is not a hook, because the empty-album return is above it', () => {
     // A hook below an early return is one React refuses outright.
     const card = EVENTS.slice(EVENTS.indexOf('function EventCard'), EVENTS.indexOf('function emptyLine'));
-    expect(card).toMatch(/const said = \(\(\): string \| true \| null => \{/);
+    expect(card).toMatch(/const counted = \[/);
     // Comments stripped: the prose below the return mentions
     // `useWindowDimensions` by name, and the rule is about calls.
     const after = card
@@ -672,46 +725,19 @@ describe('the line under the strip', () => {
   });
 });
 
-describe('the bubble', () => {
-  it('is a shape, because it is somebody else’s voice', () => {
+describe('what the bubble became', () => {
+  it('is gone, container and all', () => {
     /*
-     * It read as a stray name and a stray sentence — the card's own voice
-     * saying something it had no business saying. A speech shape says who is
-     * talking before anybody reads a word of it.
+     * It was a hairline box at three quarters of the screen, centred, with a
+     * count under the words. The box was there to say "somebody is talking"
+     * by being a speech shape; a person's own face says it without a
+     * container, and says which person. What is left is a reply row and a
+     * ledger line, and nothing drawn around either.
      */
-    expect(EVENTS).toMatch(/borderWidth: 1,\s*borderRadius: 10,/);
-  });
-
-  it('is one width on every card, and not the width of what was said', () => {
-    /*
-     * It was `alignSelf: 'flex-start'` and as wide as whatever had been said,
-     * which made a column of cards into a column of ragged shapes: "ok" was a
-     * stub and a sentence was a slab, and the eye reads that difference as
-     * meaning something. It does not — it is how long somebody's message
-     * happened to be.
-     *
-     * Three quarters of the screen, centred. The card is edge to edge, so
-     * that is a share of the screen and of the card at once — and still short
-     * of full bleed, because a full-bleed box is a panel and a panel is the
-     * card talking rather than somebody in it.
-     */
-    const bubble = EVENTS.slice(EVENTS.indexOf('  bubble: {'), EVENTS.indexOf('  talkLine:'));
-    expect(bubble).toMatch(/alignSelf: 'center'/);
-    expect(bubble).not.toMatch(/alignSelf: 'flex-start'/);
-    // No `maxWidth` left over: the width is set, so a cap on it is a second
-    // opinion about the same number.
-    expect(bubble).not.toMatch(/maxWidth/);
-    expect(EVENTS).toMatch(/const TALK_W = 0\.75;/);
-    expect(EVENTS).toMatch(/const talkWidth = Math\.round\(width \* TALK_W\);/);
-    expect(EVENTS).toMatch(/width: talkWidth,/);
-    /*
-     * And the count under the words is centred in it. That line is not
-     * dialogue and not anybody's voice — it is what is behind the bubble — so
-     * it sits in the middle rather than ranged left the way a second speaker
-     * would be. One fixed width means that middle is the same place on every
-     * card, which is what makes it scannable down a column.
-     */
-    expect(EVENTS).toMatch(/talkMore: \{ fontSize: 12\.5, lineHeight: 17, textAlign: 'center' \}/);
+    expect(EVENTS).not.toMatch(/styles\.bubble/);
+    expect(EVENTS).not.toMatch(/TALK_W/);
+    expect(EVENTS).not.toMatch(/talkWidth/);
+    expect(EVENTS).not.toMatch(/talkLine|talkWho|talkMore/);
   });
 
   it('opens the conversation rather than the album, all the way down', () => {

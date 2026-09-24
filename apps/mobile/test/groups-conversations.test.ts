@@ -269,9 +269,19 @@ describe('what the server had to grow', () => {
   it('asks for both halves of a row in the list call, not per row', () => {
     expect(API).toMatch(/export type ThreadLine = \{/);
     expect(API).toMatch(/unreadCount: number;/);
-    // Events carry one too, so an event chat can be drawn from the same list
-    // the home screen already loads.
-    expect(API).toMatch(/\} & ThreadLine;/);
+    /*
+     * Events carry one too, so an event chat can be drawn from the same list
+     * the home screen already loads — but not by intersecting `ThreadLine`
+     * any more. A row in this tab draws a name, some words and a time; an
+     * album's card on Home draws the person as well, so the listing spells
+     * its own `lastMessage` with a face and a lens key on it. Both are built
+     * from `Said`, which is the half they share.
+     */
+    expect(API).toMatch(/export type Said = \{ author: string; body: string; at: string; mine: boolean \};/);
+    expect(API).toMatch(/lastMessage: Said \| null;/);
+    expect(API).toMatch(
+      /lastMessage: \(Said & \{ avatarUrl: string \| null; authorKey: string \}\) \| null;/,
+    );
   });
 
   it('marks an event read explicitly rather than as a side effect', () => {

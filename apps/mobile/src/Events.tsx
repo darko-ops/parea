@@ -40,6 +40,7 @@ import {
   Text,
   TextInput,
   View,
+  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 
@@ -296,6 +297,12 @@ function EventCard({
    * of those two renders is one React refuses outright.
    */
   const { width } = useWindowDimensions();
+  /*
+   * For the press wash at the foot of the card, which is the one colour here
+   * the theme does not carry: `t` has the six it paints with, and this is a
+   * translucent film over whatever it lands on rather than one of them.
+   */
+  const dark = useColorScheme() === 'dark';
 
   if (event.photoCount === 0) {
     return (
@@ -457,47 +464,42 @@ function EventCard({
   const rest = Math.max(0, event.photoCount - 1 - sheet.length);
 
   /**
-   * The line under the strip, or nothing.
+   * The counts at the foot of the card, or an empty string.
    *
-   * `true` means there is a comment to show and nothing else to add; a string
-   * is the "and the rest" line; `null` is a card that says nothing, which is
-   * most of them and is the point — a count of zero under every quiet album
-   * is a column of nothing, and it makes the albums people *have* talked in
-   * harder to pick out.
+   * A measurement of the album, in the same words and the same face as the
+   * date and the photograph count at its head — so a card opens and closes on
+   * a line of the same kind, and what is between them is the evening.
    *
-   * The comment on screen is not in the number. `+` means "besides the one
-   * you can read", and "1 comment" printed under the only comment is the kind
-   * of thing that survives forever once it ships.
+   * The total, the shown comment included. It used to be "and the rest": the
+   * one comment on screen was subtracted and the line read `+ 3 comments`,
+   * which is a remark about the quote above it rather than about the album.
+   * "4 COMMENTS" is not about the quote at all — it is how much conversation
+   * this album has, the way "48 PHOTOS" is how many photographs, and a reader
+   * who counts the one they can see and gets four is reading it correctly.
+   *
+   * Empty rather than null when there is nothing to count, because the reply
+   * row above it can still be there — see the block below for the three
+   * states this makes.
    *
    * Not a hook, deliberately. The empty-album return is above this, and a
    * hook below an early return is one React refuses outright — see the note
-   * on `useWindowDimensions`. Two comparisons and a join buy nothing from
-   * being memoized anyway.
+   * on `useWindowDimensions`.
    */
-  const said = ((): string | true | null => {
-    const others = Math.max(0, event.messageCount - (event.lastMessage ? 1 : 0));
-    const parts: string[] = [];
-    if (others > 0) parts.push(plural(others, 'comment'));
-    if (event.reactionCount > 0) parts.push(plural(event.reactionCount, 'reaction'));
-    if (parts.length > 0) return `+ ${parts.join(' and ')}`;
-    return event.lastMessage ? true : null;
-  })();
-  const tile = sheetTile(width);
+  const comments = event.messageCount;
+  const reactions = event.reactionCount;
+  const counted = [
+    comments === 0 ? null : plural(comments, 'comment'),
+    reactions === 0 ? null : plural(reactions, 'reaction'),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   /*
-   * The bubble's width, from the screen rather than from its contents.
-   *
-   * It was `alignSelf: 'flex-start'` and as wide as whatever had been said,
-   * which made a column of cards into a column of ragged shapes: "ok" was a
-   * stub, a sentence was a slab, and the eye read the difference between them
-   * as meaning something. It does not — it is just how long somebody's
-   * message happened to be.
-   *
-   * Three quarters of the screen, centred, on every card that has one. A
-   * fixed shape in a fixed place is a feature of the card rather than a
-   * measurement of its contents, which is what lets somebody's words be the
-   * only thing in it that varies.
+   * The colour of the person who said the last thing, for the days they have
+   * no picture. Keyed on what the server sends rather than on their name —
+   * see `authorKey` on the listing.
    */
-  const talkWidth = Math.round(width * TALK_W);
+  const saidLens = lensFor(event.lastMessage?.authorKey ?? event.id);
+  const tile = sheetTile(width);
 
   /*
    * Whose evening this is, above the photograph rather than under it.
@@ -762,63 +764,108 @@ function EventCard({
         nobody had opened. One line of somebody's words does more to say an
         album is alive than any count of them.
 
-        The newest first, in their words. The count underneath is the rest —
-        `+` means "and more besides the one you can read", which is why the
-        line already shown is not in the number. An album with one comment and
-        no reactions says nothing here beyond the comment itself.
+        Two things, and they come and go independently: the newest reply, and
+        a line of counts that closes the card. A reply with nobody's reactions
+        under it is the first alone; an album somebody has only reacted in is
+        the second alone; an album nobody has touched draws neither and ends
+        on the photographs, which is most of them and is the point — a count
+        of zero under every quiet album is a column of nothing, and it makes
+        the albums people *have* talked in harder to pick out.
+
+        One `Pressable` around both, because both are the same errand. It is
+        nested inside the card's own, which is what makes the pair work: the
+        inner one takes the touch when it lands here and the outer one takes
+        everything else. The card still opens the album; this opens the album
+        at its conversation.
       */}
-      {said && (
-        /*
-          A bubble, because it is somebody's words and not the card's.
+      {(event.lastMessage || counted !== '') && (
+        <Pressable
+          onPress={() => onOpen(undefined, 'talk')}
+          accessibilityRole="button"
+          accessibilityLabel={[
+            event.lastMessage && `${event.lastMessage.author} said ${event.lastMessage.body}.`,
+            counted !== '' && `${counted}.`,
+            'Open the conversation',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          /*
+            A wash rather than a fade.
 
-          It read as a stray name and a stray sentence — the card's own voice
-          saying something it had no business saying. A speech shape says who
-          is talking before anybody reads a word of it, and once it is a shape
-          it is obviously a thing to press.
+            `opacity` on press takes the whole block down, the face included,
+            which reads as the card dimming rather than as something being
+            pressed. A panel of colour behind it is what the tab bar does for
+            the tab you are on, and it is the one press feedback in this
+            product that does not touch what it is giving feedback about.
+          */
+          style={({ pressed }) => [
+            styles.reply,
+            pressed && { backgroundColor: dark ? '#ffffff14' : 'rgba(20,23,28,0.06)' },
+          ]}
+        >
+          {event.lastMessage && (
+            /*
+              A face, a name and the words — the shape of a reply everywhere.
 
-          Squared rather than the usual rounded pill: a message bubble with a
-          tail is a message, and this is a *pointer at* a conversation rather
-          than a line of it. A 10pt corner is enough to be a bubble and not so
-          much that it claims to be the thread.
+              It was a bordered box, which said "somebody is talking" by being
+              a speech shape. A person's own face says it without a container,
+              and it says *which* person, which the box never did: the reply
+              on a card is somebody else's voice inside somebody else's
+              evening, and the two are worth telling apart.
 
-          Nested inside the card's own `Pressable`, which is what makes both
-          work: the inner one takes the touch when it lands on the bubble and
-          the outer one takes everything else. The card still opens the album;
-          this opens the album at its conversation.
-        */
-        <View style={styles.talk}>
-          <Pressable
-            onPress={() => onOpen(undefined, 'talk')}
-            accessibilityRole="button"
-            accessibilityLabel={
-              event.lastMessage
-                ? `${event.lastMessage.author} said ${event.lastMessage.body}. Open the conversation`
-                : 'Open the conversation'
-            }
-            style={({ pressed }) => [
-              styles.bubble,
-              {
-                width: talkWidth,
-                backgroundColor: t.card,
-                borderColor: t.line,
-                opacity: pressed ? 0.6 : 1,
-              },
-            ]}
-          >
-            {event.lastMessage && (
-              <Text style={[styles.talkLine, { color: t.fg }]} numberOfLines={2}>
-                <Text style={styles.talkWho}>{event.lastMessage.author}</Text>
+              The words in `dim` and the name in `fg`, which is the whole of
+              how a reply is set apart from the album's own title and byline
+              above it. Not italic: a sentence somebody typed is not an aside.
+            */
+            <View style={styles.replyRow}>
+              {event.lastMessage.avatarUrl ? (
+                <Image
+                  source={{ uri: event.lastMessage.avatarUrl }}
+                  style={[styles.sayerFace, styles.replyFace, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View
+                  style={[styles.sayerFace, styles.replyFace, { backgroundColor: saidLens.fill }]}
+                >
+                  <Text style={[styles.sayerInitial, { color: saidLens.ink }]}>
+                    {initialOf(event.lastMessage.author)}
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.replyLine, { color: t.dim }]} numberOfLines={2}>
+                <Text style={[styles.replyWho, { color: t.fg }]}>{event.lastMessage.author}</Text>
                 {'  '}
                 {event.lastMessage.body}
               </Text>
-            )}
-            {said !== true && (
-              <Text style={[styles.talkMore, { color: t.dim }]} numberOfLines={1}>
-                {said}
+            </View>
+          )}
+
+          {counted !== '' && (
+            /*
+              The line that closes the card, and the one at its head are the
+              same line.
+
+              Monospaced small caps, then a hairline to the edge of the
+              column: `measured` at the top says when the evening was and how
+              many photographs, this says how much was said about them. A
+              stack of cards reads as entries in a ledger because each one
+              opens and closes on a rule.
+
+              The chevron is what keeps it from being a label. A rule running
+              off the edge is a boundary; a rule that ends in an arrow is a
+              way through, which is what this one is.
+            */
+            <View style={styles.ledger}>
+              <Text style={[styles.measuredText, { color: t.dim }]} numberOfLines={1}>
+                {counted}
               </Text>
-            )}
-          </Pressable>
-        </View>
+              <View style={[styles.rule, { backgroundColor: t.line }]} />
+              <Glyph name="chevron" size={14} weight={2.2} color={t.dim} />
+            </View>
+          )}
+        </Pressable>
       )}
     </Pressable>
   );
@@ -837,16 +884,6 @@ function emptyLine(memberCount: number): string {
   if (others === 1) return 'You and one other. Nothing in it yet.';
   return `You and ${others} others. Nothing in it yet.`;
 }
-
-/**
- * How much of the screen the bubble on a card takes.
- *
- * Three quarters: wide enough that two lines of somebody's words are two
- * lines rather than five, and narrow enough that it is plainly a thing on the
- * card rather than a panel across it. The card is edge to edge, so this is a
- * share of the screen and of the card at once.
- */
-const TALK_W = 0.75;
 
 /** Two of the mark's lenses, for the cluster on the card that has no photos. */
 const EMPTY_LENSES = ['#ffb3b8', '#9db2f0'] as const;
@@ -3157,47 +3194,50 @@ const styles = StyleSheet.create({
    */
   blank: { alignItems: 'center', gap: 14, paddingTop: 40 },
   blankNote: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
-  /* Under the strip, inside the card's own gutter: this is words about the
-     photographs rather than another row of them. */
-  talk: { paddingHorizontal: 14, paddingTop: 10 },
   /*
-   * The bubble: a hairline box with a corner, and no tail.
+   * The block at the foot of the card: the newest reply and the counts.
    *
-   * One width for every card, set from the window in `EventCard` rather than
-   * from what is in it — `TALK_W` of the screen, centred. It was
-   * `alignSelf: 'flex-start'` and as wide as whatever had been said, which
-   * turned a column of cards into a column of ragged shapes; a shape that
-   * changes with the length of a message invites somebody to read the length
-   * as meaning.
+   * `-12` is the card's own column shifted out by the 8 points of padding
+   * this adds — `-4` for the column and `-8` for the touch target — so the
+   * words inside it line up with the name and the byline above while the
+   * press wash reaches past them. A tap target that is only as big as its
+   * text is a tap target people miss.
    *
-   * Still not the full width of the card: a full-bleed box is a panel, and a
-   * panel is the card talking rather than somebody in it.
+   * `gap: 10` between the reply and the ledger, which is enough that they are
+   * two things and not so much that they stop being one errand.
    */
-  bubble: {
-    alignSelf: 'center',
-    borderWidth: 1,
+  reply: {
+    marginHorizontal: -12,
+    marginTop: 4,
+    paddingTop: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
     borderRadius: 10,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    gap: 2,
+    gap: 10,
   },
-  /* One line, and it truncates rather than wrapping — the card is a summary
-     and a paragraph in it is the thread. */
-  talkLine: { fontSize: 14.5, lineHeight: 20 },
-  /* The name carries the weight and the words carry the colour, which is how
-     a line of dialogue reads without a second size. */
-  talkWho: { fontWeight: '700' },
+  /* Face, then words. `flex-start` so a two-line reply keeps its face beside
+     the first line rather than centred against both. */
+  replyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  /* The 22pt circle `sayerFace` already draws, lifted a point: the cap height
+     of the line beside it sits just above the middle of the circle, and
+     without this the face reads as hanging below the name. */
+  replyFace: { marginTop: -1 },
   /*
-   * The "+ 2 comments and 3 reactions" line, centred.
+   * The words, in `dim`, with the name in `fg` inside them.
    *
-   * It is not a line of dialogue and it is not anybody's voice — it is a
-   * count of what is behind the bubble, so it is centred in the bubble rather
-   * than ranged left under the words the way a second speaker would be. Now
-   * that the bubble is one fixed width, that centre is the same place on
-   * every card, which is what makes the line scannable down a column instead
-   * of something to find at the end of each quote.
+   * `minWidth: 0` beside `flex: 1`, or a long unbroken word — a URL, usually
+   * — pushes the column wider than the card instead of wrapping.
+   *
+   * Two lines, and it truncates rather than wrapping on: the card is a
+   * summary and a paragraph in it is the thread.
    */
-  talkMore: { fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
+  replyLine: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 20 },
+  /* The name carries the weight and the colour; the words carry neither. That
+     is how a line of dialogue reads without a second size. */
+  replyWho: { fontWeight: '700' },
+  /* The same row as `measured` at the head of the card, with a chevron on the
+     end. No horizontal margin of its own — the block around it has it. */
+  ledger: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
   /* The same square an album's cover fills, holding a letter instead. Centred

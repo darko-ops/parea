@@ -225,7 +225,51 @@ export type ThreadSummary = {
   unreadCount: number;
 };
 
-export const EMPTY_SUMMARY: ThreadSummary = { lastMessage: null, unreadCount: 0 };
+/**
+ * Nothing said yet, in a shape both summaries accept.
+ *
+ * Typed by what it is rather than as a `ThreadSummary`: the event summary
+ * below carries two more fields on its message, and a `null` message has
+ * neither shape to satisfy — declaring the null narrowly is what lets one
+ * constant stand in for an empty thread of either kind.
+ */
+export const EMPTY_SUMMARY: { lastMessage: null; unreadCount: number } = {
+  lastMessage: null,
+  unreadCount: 0,
+};
+
+/**
+ * The same line, plus a face, for an album's card on Home.
+ *
+ * A row in the Groups tab draws a name and some words; the card on Home draws
+ * the person who said them — a 22pt circle beside the reply, which needs
+ * their picture and, when they have not set one, a stable key to colour the
+ * letter by. That is two more columns on a query that was already joining
+ * `actor`, and nothing extra for the tab that does not want them, which is
+ * why this is a second type rather than two optional fields on the first.
+ *
+ * `avatarKey` and not a URL: presigning is a round trip per row and this
+ * function answers for a whole page at once. The route signs it, and a
+ * storage key does not cross that boundary — see the note in the route.
+ *
+ * `authorKey` is what `lensFor` is given on the client. Their handle when
+ * they have one, and their actor id when they do not: the point of the lens
+ * is that somebody's colour is theirs and does not change the day they write
+ * a name in, so it cannot be keyed on a display name.
+ */
+export type EventThreadSummary = {
+  lastMessage:
+    | {
+        author: string;
+        body: string;
+        at: string;
+        mine: boolean;
+        avatarKey: string | null;
+        authorKey: string;
+      }
+    | null;
+  unreadCount: number;
+};
 
 /**
  * A name for a row, without presigning anything.
@@ -278,8 +322,8 @@ export async function eventThreadSummaries(
   db: Db,
   eventIds: string[],
   viewerId: string | null,
-): Promise<Map<string, ThreadSummary>> {
-  const summaries = new Map<string, ThreadSummary>();
+): Promise<Map<string, EventThreadSummary>> {
+  const summaries = new Map<string, EventThreadSummary>();
   if (eventIds.length === 0) return summaries;
 
   const latest = rowsOf<{
@@ -290,10 +334,11 @@ export async function eventThreadSummaries(
     author_actor_id: string;
     display_name: string | null;
     handle: string | null;
+    avatar_key: string | null;
   }>(await db.execute(sql`
     select distinct on (m.event_id)
       m.event_id, m.body, m.created_at, m.deleted_at, m.author_actor_id,
-      a.display_name, a.handle
+      a.display_name, a.handle, a.avatar_key
     from "event_message" m
     join "actor" a on a.id = m.author_actor_id
     where m.event_id in (${idList(eventIds)})
@@ -307,6 +352,16 @@ export async function eventThreadSummaries(
         body: row.deleted_at != null ? 'Message deleted' : row.body,
         at: new Date(row.created_at).toISOString(),
         mine: viewerId != null && row.author_actor_id === viewerId,
+        /*
+         * The face beside the reply on an album's card.
+         *
+         * A deleted message keeps it, the same way it keeps the name: the row
+         * exists to say somebody said something and took it back, and a
+         * tombstone with nobody attached to it is a gap rather than a
+         * retraction.
+         */
+        avatarKey: row.avatar_key,
+        authorKey: row.handle ?? row.author_actor_id,
       },
       unreadCount: 0,
     });

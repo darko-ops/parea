@@ -212,7 +212,25 @@ export async function GET() {
             handle: creator.handle,
             avatarUrl: await avatarUrl(creator.avatarKey),
           },
-          ...(threads.get(listing.id) ?? EMPTY_SUMMARY),
+          ...(await (async () => {
+            /*
+             * The conversation's last line, with its face signed.
+             *
+             * Spread wholesale until the card started drawing the person who
+             * said it. `eventThreadSummaries` answers for the whole page in
+             * two queries and hands back a storage key rather than a URL —
+             * presigning inside it would be a round trip per row — so the
+             * signing happens here, beside the cover's, and the key itself
+             * stops at this boundary the way every other one does.
+             */
+            const thread = threads.get(listing.id) ?? EMPTY_SUMMARY;
+            if (!thread.lastMessage) return thread;
+            const { avatarKey, ...said } = thread.lastMessage;
+            return {
+              ...thread,
+              lastMessage: { ...said, avatarUrl: await avatarUrl(avatarKey) },
+            };
+          })()),
         };
       }),
     ),

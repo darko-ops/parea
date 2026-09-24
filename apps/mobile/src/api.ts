@@ -428,8 +428,10 @@ export type Cluster = {
  * drift. `lastMessage` is null for a thread nobody has said anything in — a
  * door rather than an error, and the row says so in words.
  */
+export type Said = { author: string; body: string; at: string; mine: boolean };
+
 export type ThreadLine = {
-  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  lastMessage: Said | null;
   /** Posted since this viewer last read it. Zero when signed out. */
   unreadCount: number;
 };
@@ -558,7 +560,23 @@ export type EventListing = {
   messageCount: number;
   /** Reactions on its photographs, and only on the ones anybody can see. */
   reactionCount: number;
-} & ThreadLine;
+  /**
+   * The newest thing said in it, and who said it.
+   *
+   * Not `ThreadLine`, which is the shape a *row* in the Groups tab wants: a
+   * name, some words, a time. An album's card on Home draws the person as
+   * well — a 22pt face beside their reply — so it needs their picture and,
+   * for somebody who has not set one, a stable key to colour the letter by.
+   *
+   * `authorKey` rather than the name: `lensFor` exists so that somebody's
+   * colour is theirs and does not change the day they write a name in, which
+   * a display name cannot promise. The server sends their handle, or their
+   * actor id when they have no handle.
+   */
+  lastMessage: (Said & { avatarUrl: string | null; authorKey: string }) | null;
+  /** Posted since this viewer last read it. Zero when signed out. */
+  unreadCount: number;
+};
 
 /** A group as a stranger sees it: a door, never the room. */
 export type GroupDoor = {

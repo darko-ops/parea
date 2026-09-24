@@ -41,7 +41,8 @@ export type GlyphName =
   | 'door'
   | 'grid'
   | 'portrait'
-  | 'star';
+  | 'star'
+  | 'chevron';
 
 /**
  * One glyph, in one colour.
@@ -370,6 +371,20 @@ function paths(name: GlyphName, weight: number) {
      */
     case 'star':
       return <Path d={STAR} />;
+    /*
+     * A chevron, and the only glyph here that is not a picture of a thing.
+     *
+     * It closes the line at the foot of an album's card, where the counts run
+     * into a rule: it says the line is a way through rather than a label, and
+     * it is the one shape a reader already knows means that.
+     *
+     * Two strokes' worth of the grid on either side of the middle, so it
+     * reads at 14 points beside 10.5pt type — the size it is actually drawn
+     * at, which is smaller than anything else in this file. The caller asks
+     * for a heavier weight there for the same reason.
+     */
+    case 'chevron':
+      return <Path d="M9 6l6 6-6 6" />;
 
     /*
      * A door with a handle, for leaving. Not an arrow through a doorway, which
