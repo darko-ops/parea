@@ -35,6 +35,11 @@ const ROUTE = await read('../app/event/[id]/p/[photoId]/page.tsx');
 const VIEW = await read('../app/components/PhotoView.tsx');
 const TILE = await read('../app/components/PhotoTile.tsx');
 const EVENT = await read('../app/components/EventView.tsx');
+const REACT = await read('../app/components/PhotoReactions.tsx');
+const CSS = await readFile(
+  fileURLToPath(new URL('../app/globals.css', import.meta.url)),
+  'utf8',
+);
 
 describe('the photo is a page', () => {
   it('is reached by a link from the gallery, not by opening a dialog', () => {
@@ -111,6 +116,76 @@ describe('the column beside it', () => {
     // find out what somebody typed is two hundred signatures for one line of
     // text, on the page that is showing one photo.
     expect(VIEW).toMatch(/\/api\/events\/\$\{event\.id\}\/messages/);
+  });
+});
+
+/**
+ * What you can do with the photograph, as opposed to about it.
+ *
+ * Two verbs, at the two ends of the picture: react on the left, save on the
+ * right. The app's arrangement, brought across — both are one tap about the
+ * photograph, so they belong at the ends rather than in the middle of the line
+ * that says who took it.
+ */
+describe('the two verbs under the photograph', () => {
+  it('puts reacting at one end and saving at the other', () => {
+    expect(VIEW).toMatch(/className="photo-verbs"/);
+    const verbs = VIEW.slice(VIEW.indexOf('className="photo-verbs"'), VIEW.indexOf('className="photo-by"'));
+    expect(verbs.indexOf('<PhotoReactions')).toBeLessThan(verbs.indexOf('photo-icon'));
+    expect(CSS).toMatch(/\.photo-verbs \{[^}]*justify-content: space-between/);
+    // The byline under them is identity and nothing else now.
+    const by = VIEW.slice(VIEW.indexOf('className="photo-by"'), VIEW.indexOf('<Filmstrip'));
+    expect(by).not.toMatch(/photo-get|PhotoActions|download/);
+  });
+
+  it('downloads through one door rather than three', () => {
+    /*
+     * It was a bordered word in the byline *and* an item in the `⋯`, the
+     * second justified as the keyboard's way to the first. The icon is an
+     * `<a download>` with a label, which a keyboard reaches by tabbing to it
+     * like any other link — so the twin is gone and so is the word.
+     */
+    expect(VIEW).toMatch(/aria-label="Download this photo"/);
+    expect(VIEW).not.toMatch(/className="photo-get"/);
+    expect(CSS).not.toMatch(/\.photo-get/);
+    const menu = VIEW.slice(VIEW.indexOf('function PhotoActions'));
+    expect(menu).not.toMatch(/<a href=\{full\} download/);
+    // One `download` attribute left in the component, which is the icon's.
+    expect(VIEW.match(/download\b/g)?.filter((_, i) => i >= 0).length).toBeGreaterThan(0);
+  });
+
+  it('lets somebody react to a photograph at all, which it could not', () => {
+    /*
+     * `photo_reaction`, its route and the app's control have existed for a
+     * while and this page never grew one — so a reaction left on a phone was
+     * invisible in a browser, which is worse than not having the feature: it
+     * makes the two clients disagree about what happened in an album.
+     */
+    expect(ROUTE).toMatch(/reactionsForPhotos\(db, \[photo\.id\], viewerId\)/);
+    expect(VIEW).toMatch(/reactions=\{reactions\}/);
+    /*
+     * A row of people rather than a score. Each row the server sends is one
+     * person and one emoji, so a pill can say who as well as how many — which
+     * is the whole of what separates a reaction from a like, and the reason
+     * the CSS no longer claims reactions never go on photographs.
+     */
+    expect(REACT).toMatch(/aria-label=\{`\$\{emoji\} from \$\{row\.names\.join\(', '\)\}`\}/);
+    /* The rule that said otherwise is gone as a rule. It survives in the
+       note that says why, which is where a reversed decision belongs. */
+    expect(CSS).toMatch(/Reactions, on a message and now on a photograph\./);
+    // The picker is the thread's, down to the six it opens with.
+    expect(REACT).toMatch(/import \{ useDismiss \} from '\.\/Thread';/);
+    expect(REACT).toMatch(/REACTIONS\.map\(\(emoji\) => \(/);
+    /*
+     * Optimistic, and silent when it fails: the page is server-rendered and a
+     * reaction that only appeared after a round trip would feel like a tap
+     * that missed, while an alert over somebody's photograph for a tap that
+     * did not land is worse than the tap not landing.
+     */
+    expect(REACT).toMatch(/if \(!res\?\.ok\) setList\(was\);/);
+    // And nothing at all for a reader who cannot react and has nothing to
+    // read: an empty affordance that would refuse them is worse than no row.
+    expect(REACT).toMatch(/if \(!canReact && tally\.length === 0\) return null;/);
   });
 });
 

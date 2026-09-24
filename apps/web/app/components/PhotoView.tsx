@@ -28,8 +28,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Member } from '@/members';
 import type { Message } from '@/messages';
+import type { PhotoReaction } from '@/photoReactions';
 
 import { Face } from './Faces';
+import { PhotoReactions } from './PhotoReactions';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
 import { useImageFailure } from './useImageFailure';
@@ -58,6 +60,7 @@ export function PhotoView({
   next,
   strip,
   messages,
+  reactions,
   people,
   members,
   canPost,
@@ -70,6 +73,14 @@ export function PhotoView({
   /** A window of the event's order around this one, oldest first. */
   strip: { id: string; src: string }[];
   messages: Message[];
+  /**
+   * What has been left on this photograph, newest first.
+   *
+   * Not a score and not a count: each row is one person and one emoji, so the
+   * control below can say who as well as how many — which is the whole of
+   * what makes a reaction different from a like.
+   */
+  reactions: PhotoReaction[];
   people: { key: string; name: string; photoCount: number; mine: boolean }[];
   members: Member[];
   canPost: boolean;
@@ -213,6 +224,50 @@ export function PhotoView({
             <Subject photo={photo} />
           </div>
 
+          {/*
+            The two verbs, at the two ends of the picture.
+
+            Reacting on the left and saving on the right, which is the app's
+            own arrangement: both are one tap about the photograph, so they
+            belong at the ends rather than in the middle of the line that says
+            who took it. The byline under them is identity and nothing else.
+
+            Download was a bordered word in that byline *and* an item in the
+            `⋯` — two doors to one verb, one of which somebody has to learn is
+            the same door. It is the icon here, once, beside the menu that
+            holds what you can do *about* the picture rather than with it.
+          */}
+          <div className="photo-verbs">
+            <PhotoReactions
+              photoId={photo.id}
+              reactions={reactions}
+              canReact={canPost}
+            />
+
+            <span className="photo-verbs-do">
+              <a
+                className="photo-icon"
+                href={photo.full}
+                download
+                aria-label="Download this photo"
+                title="Download"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3.5v11" />
+                  <path d="M8.5 11 12 14.5 15.5 11" />
+                  <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+                </svg>
+              </a>
+
+              <PhotoActions
+                photoId={photo.id}
+                mine={photo.mine}
+                full={photo.full}
+                onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
+              />
+            </span>
+          </div>
+
           <div className="photo-by">
             <Face
               src={photo.byAvatar}
@@ -232,17 +287,6 @@ export function PhotoView({
                 {photo.when} · {photo.whenAgo}
               </span>
             </span>
-
-            <a className="photo-get" href={photo.full} download>
-              Download
-            </a>
-
-            <PhotoActions
-              photoId={photo.id}
-              mine={photo.mine}
-              full={photo.full}
-              onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
-            />
           </div>
 
           <Filmstrip strip={strip} current={photo.id} href={href} />
@@ -492,12 +536,11 @@ function PhotoActions({
             >
               {copied ? 'Copied' : 'Copy link'}
             </button>
-            {/* The header button's keyboard-reachable twin. Two controls for
-                one action, which is worth it: the one above is where a hand
-                goes and this one is where a keyboard already is. */}
-            <a href={full} download onClick={close}>
-              Download
-            </a>
+            {/* No Download here any more. It was justified as the keyboard's
+                way to the header button — and the icon beside this menu is an
+                `<a download>` with a label on it, which a keyboard reaches by
+                tabbing to it like any other link. Two doors to one verb is one
+                of them somebody has to learn is the same door. */}
 
             {mine ? (
               <>

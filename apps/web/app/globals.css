@@ -2378,8 +2378,15 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    rule beats two — `@ana` reads the same in a comment as it does anywhere
    else in the product. */
 .mention { font-weight: 600; color: var(--accent); }
-/* Reactions live on messages and never on photographs: a photograph of
-   somebody's evening that can be scored is a post, and this is not a feed. */
+/* Reactions, on a message and now on a photograph.
+
+   This said "never on photographs: a photograph of somebody's evening that
+   can be scored is a post, and this is not a feed", which stopped being true
+   the day the app shipped `photo_reaction` — and what was left was a site that
+   could not show a reaction somebody had left on a phone. The argument is
+   answered rather than waived: a pill here names the people in it, so what a
+   photograph carries is who said something about it rather than a number it
+   scored. See `PhotoReactions`. */
 .reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .reaction {
   padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
@@ -2490,12 +2497,43 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border: 1px dashed var(--line-dashed); border-radius: 12px; background: #f1f1f4;
 }
 
+/* The two verbs, at the two ends of the picture.
+
+   Reacting on the left and saving on the right, which is the app's own
+   arrangement: both are one tap about the photograph, so they belong at the
+   ends rather than in the middle of the line that says who took it. The
+   byline under this is identity and nothing else. */
+.photo-verbs {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 12px; min-height: 34px;
+}
+.photo-verbs-do { display: flex; align-items: center; gap: 6px; flex: none; }
+/* No top margin, unlike a message's: this row *is* the row rather than
+   something under one. */
+.photo-reactions { margin-top: 0; }
+/* A square disc for a glyph, at the size the pills beside it stand. Download
+   was a bordered word — `Download`, 14px, 9 by 14 — which read as the loudest
+   thing under the photograph. */
+.photo-icon {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--fg);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.photo-icon:hover { border-color: var(--accent); color: var(--accent-ink); }
+.photo-icon svg {
+  width: 19px; height: 19px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
 .photo-by { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* Upward. Every other menu in the product hangs off a header near the top of
    the page; this one hangs off a row that sits under 560px of photograph, so
    downward puts its items under the fold of a laptop screen — a menu you have
-   to scroll to read is one somebody thinks did not open. */
-.photo-by .dots-body { top: auto; bottom: calc(100% + 8px); }
+   to scroll to read is one somebody thinks did not open.
+
+   On `.photo-verbs` now rather than `.photo-by`: the menu moved up a row to
+   sit beside the download it used to duplicate. */
+.photo-verbs .dots-body { top: auto; bottom: calc(100% + 8px); }
 .photo-by-face {
   width: 36px; height: 36px; border-radius: 50%; flex: none; object-fit: cover;
   display: flex; align-items: center; justify-content: center;
@@ -2506,12 +2544,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-by-who { display: block; font-size: 15px; }
 .photo-by-who strong { font-weight: 600; }
 .photo-by-when { display: block; font-size: 12.5px; color: var(--dim-soft); }
-.photo-get {
-  flex: none; padding: 9px 14px; border-radius: 10px;
-  border: 1px solid var(--line); color: var(--fg); text-decoration: none;
-  font-size: 13.5px; font-weight: 600;
-}
-.photo-get:hover { border-color: var(--accent); color: var(--accent-ink); }
 /* What happened to a report, where the menu was. Not a toast: this is the only
    account somebody gets, and a message that fades is one they can miss. */
 /* Its own line under the row rather than a fourth item in it: it is a

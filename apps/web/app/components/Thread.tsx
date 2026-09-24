@@ -418,8 +418,12 @@ function Composer({
  * react to get rid of it. Not shared with `Menu` itself because the picker is
  * not a popover: its buttons sit in the row of reactions rather than in a
  * panel over them, so there is nothing to hand a `children` function.
+ *
+ * Exported for the photograph's own picker, which is this control in another
+ * place: a second copy of "dismiss this" is a second chance to forget the
+ * Escape half of it.
  */
-function useDismiss(open: boolean, close: () => void) {
+export function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
