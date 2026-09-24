@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Keeping a photograph, and letting it go.
+ * Making a photograph a favourite, and taking it back.
  *
  * A shortlist somebody makes of an album of two hundred: the pictures they
  * would actually come back for. The route has existed since the phone got
  * this and the web never drew it — `favourite` has been on every photograph
  * the feed returns the whole time, read by nobody.
  *
- * It is theirs and nobody else's. Nothing here says how many people kept a
+ * It is theirs and nobody else's. Nothing here says how many people starred a
  * photograph, and there is no such number to say: `photo_favourite` is a table
  * of its own precisely so that a read of the album cannot become a score. That
  * is the difference between this and a reaction — a reaction is addressed to
@@ -31,10 +31,10 @@ import { RailIcon } from './RailIcon';
 
 export function Star({
   photoId,
-  /** Whether this reader has kept it, as the feed answered. */
-  kept: initial,
+  /** Whether this reader has starred it, as the feed answered. */
+  favourite: initial,
   /**
-   * Whether keeping is offered at all.
+   * Whether starring is offered at all.
    *
    * False for somebody without an account — a guest actor is a credential in
    * one browser, and a shortlist that cannot survive a new one is a shortlist
@@ -45,17 +45,17 @@ export function Star({
   canKeep,
 }: {
   photoId: string;
-  kept: boolean;
+  favourite: boolean;
   canKeep: boolean;
 }) {
-  const [kept, setKept] = useState(initial);
+  const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
 
   if (!canKeep) return null;
 
   const toggle = async () => {
-    const want = !kept;
-    setKept(want);
+    const want = !on;
+    setOn(want);
     setBusy(true);
     try {
       const res = await fetch(`/api/photos/${photoId}/favourite`, {
@@ -64,9 +64,9 @@ export function Star({
       if (!res.ok) throw new Error('refused');
       // The server's own answer, not the guess: one row, and its existence is
       // the whole state.
-      setKept(((await res.json()) as { favourite: boolean }).favourite);
+      setOn(((await res.json()) as { favourite: boolean }).favourite);
     } catch {
-      setKept(!want);
+      setOn(!want);
     } finally {
       setBusy(false);
     }
@@ -75,17 +75,17 @@ export function Star({
   return (
     <button
       type="button"
-      className={`photo-icon photo-star${kept ? ' photo-star-on' : ''}`}
+      className={`photo-icon photo-star${on ? ' photo-star-on' : ''}`}
       // What it will do, not what it is: a control's name is the verb. The
       // state is on `aria-pressed`, which is where a screen reader looks for
       // it, so the two are not saying the same thing twice.
-      aria-label={kept ? 'Remove from your kept photos' : 'Keep this photo'}
-      aria-pressed={kept}
-      title={kept ? 'Kept — only you see this' : 'Keep this photo'}
+      aria-label={on ? 'Remove from your favourites' : 'Add to your favourites'}
+      aria-pressed={on}
+      title={on ? 'A favourite — only you see this' : 'Add to your favourites'}
       disabled={busy}
       onClick={() => void toggle()}
     >
-      <RailIcon glyph="star" weight={kept ? 2.4 : 1.8} filled={kept} />
+      <RailIcon glyph="star" weight={on ? 2.4 : 1.8} filled={on} />
     </button>
   );
 }

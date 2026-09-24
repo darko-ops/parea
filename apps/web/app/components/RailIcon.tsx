@@ -51,8 +51,8 @@ export type RailGlyph =
   /* Create. The app's own `+`, in the app's own round chrome. */
   | 'plus'
   /*
-   * Kept, or not — the one glyph here that is also a state, which is why it
-   * is the one that takes a fill. See `filled`.
+   * A favourite, or not — the one glyph here that is also a state, which is
+   * why it is the one that takes a fill. See `filled`.
    */
   | 'star';
 
@@ -102,8 +102,8 @@ export function RailIcon({
    *
    * The family is strokes on nothing, which is right for every glyph that
    * names a place or an action. The star is the one that also answers a
-   * question — kept, or not — and outline against solid is how that reads at a
-   * glance, without a second colour or a badge. The app's own note, because it
+   * question — a favourite, or not — and outline against solid is how that
+   * reads at a glance, without a second colour or a badge. The app's own note, because it
    * is the app's own decision.
    */
   filled = false,

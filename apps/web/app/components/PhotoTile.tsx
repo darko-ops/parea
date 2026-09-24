@@ -73,8 +73,8 @@ export function PhotoTile({
     srcSetAvif?: string | null;
     full: string;
     takenAt: string;
-    /** Whether this reader kept it. Theirs alone, so this marks and never
-        counts — see the `favourite` route. */
+    /** Whether this reader has starred it. Theirs alone, so this marks and
+        never counts — see the `favourite` route. */
     favourite?: boolean;
   };
   /** This photograph's own page. */
@@ -115,7 +115,7 @@ export function PhotoTile({
             : failed
               ? 'Photo could not be loaded — open for options'
               : photo.favourite
-                ? 'Open photo — kept'
+                ? 'Open photo — in your favourites'
                 : 'Open photo'
         }
         style={{ aspectRatio: `1 / ${failed ? 0.667 : ratio}` }}
@@ -167,7 +167,7 @@ export function PhotoTile({
       <span className="tile-scrim" aria-hidden="true" />
 
       {/*
-        Kept, as a mark rather than a control.
+        A favourite, as a mark rather than a control.
 
         Pressing happens on the photograph's own page, which is where the app
         puts it too: a star on every tile is a row of controls over somebody's

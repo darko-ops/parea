@@ -268,8 +268,10 @@ describe('the star', () => {
     // A control's name is the verb; the state is `aria-pressed`, which is
     // where a screen reader looks for it. Putting the state in the name makes
     // the button announce the same thing twice and neither of them an action.
-    expect(STAR).toMatch(/aria-label=\{kept \? 'Remove from your kept photos' : 'Keep this photo'\}/);
-    expect(STAR).toMatch(/aria-pressed=\{kept\}/);
+    expect(STAR).toMatch(
+      /aria-label=\{on \? 'Remove from your favourites' : 'Add to your favourites'\}/,
+    );
+    expect(STAR).toMatch(/aria-pressed=\{on\}/);
   });
 
   it('fills on the press and puts itself back if the server refuses', () => {
@@ -279,8 +281,8 @@ describe('the star', () => {
      * the server's own answer rather than to the guess, because one row's
      * existence is the whole state.
      */
-    expect(STAR).toMatch(/setKept\(want\);\s*\n\s*setBusy\(true\)/);
-    expect(STAR).toMatch(/catch \{\s*\n\s*setKept\(!want\);/);
+    expect(STAR).toMatch(/setOn\(want\);\s*\n\s*setBusy\(true\)/);
+    expect(STAR).toMatch(/catch \{\s*\n\s*setOn\(!want\);/);
     expect(STAR).toMatch(/method: want \? 'PUT' : 'DELETE'/);
   });
 
@@ -304,7 +306,7 @@ describe('the star', () => {
     const mark = TILE.slice(TILE.indexOf('photo.favourite && ('), TILE.indexOf('</span>', TILE.indexOf('photo.favourite && (')));
     expect(mark).toMatch(/aria-hidden="true"/);
     expect(mark).not.toMatch(/<button|onClick|count/);
-    expect(TILE).toMatch(/'Open photo — kept'/);
+    expect(TILE).toMatch(/'Open photo — in your favourites'/);
   });
 
   it('counts nobody', () => {
@@ -317,7 +319,7 @@ describe('the star', () => {
   });
 });
 
-describe('the Kept tab', () => {
+describe('the Favourites tab', () => {
   it('filters what is already in hand rather than asking again', () => {
     /*
      * `favourite` is on every photograph the feed returns, so the shortlist is
@@ -328,8 +330,10 @@ describe('the Kept tab', () => {
      * from this reader is hidden on both, and a filter applied to one page and
      * not the other is two answers to what the album contains.
      */
-    expect(EVENT).toMatch(/const kept = visible\.filter\(\(photo\) => photo\.favourite\)/);
-    expect(EVENT).toMatch(/\['kept', 'Kept', 'star'\]/);
+    expect(EVENT).toMatch(
+      /const favourites = visible\.filter\(\(photo\) => photo\.favourite\)/,
+    );
+    expect(EVENT).toMatch(/\['favourites', 'Favourites', 'star'\]/);
   });
 
   it('is seeded on the first paint, so it does not open empty and fill', () => {
@@ -337,15 +341,15 @@ describe('the Kept tab', () => {
     // tab opens with nothing in it and the shortlist arrives a moment later,
     // which reads as having lost something.
     expect(ROUTE_EVENT).toMatch(/photoFavourites/);
-    expect(ROUTE_EVENT).toMatch(/favourite: kept\.has\(photo\.id\)/);
+    expect(ROUTE_EVENT).toMatch(/favourite: favourites\.has\(photo\.id\)/);
     expect(ROUTE_EVENT).toMatch(/accountId == null \|\| rows\.length === 0/);
   });
 
   it('says where the star is when there is nothing in it', () => {
-    // Not a failure and not an empty album: somebody who has kept nothing has
-    // simply not kept anything yet, and the sentence says where the control is
-    // rather than that something is wrong. The phone's words.
-    expect(EVENT).toMatch(/Nothing kept yet\. Open a photograph and press the star/);
+    // Not a failure and not an empty album: somebody with no favourites has
+    // simply not starred anything yet, and the sentence says where the control
+    // is rather than that something is wrong.
+    expect(EVENT).toMatch(/No favourites yet\. Open a photograph and press the star/);
     expect(EVENT).toMatch(/Only you see this\./);
   });
 });

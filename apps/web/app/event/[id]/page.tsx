@@ -87,17 +87,17 @@ export default async function EventPage({
   /*
    * Which of these this reader kept, in one read.
    *
-   * On the first paint rather than left to the client, because the Kept tab is
-   * a filter over the photographs already in hand: seeded without it, that tab
-   * opens empty and fills a moment later, which reads as a shortlist that lost
-   * something. The same set the feed route computes, and for the same reason
+   * On the first paint rather than left to the client, because the Favourites
+   * tab is a filter over the photographs already in hand: seeded without it,
+   * that tab opens empty and fills a moment later, which reads as a shortlist
+   * that lost something. The same set the feed route computes, and for the same reason
    * it is per-reader and never counted — see `photo_favourite`.
    *
    * An account, not an actor. A guest actor is a credential in one browser,
    * and somebody without an account has kept nothing.
    */
   const accountId = await currentAccountActorId();
-  const kept = new Set(
+  const favourites = new Set(
     accountId == null || rows.length === 0
       ? []
       : (
@@ -131,7 +131,7 @@ export default async function EventPage({
       height: photo.height,
       mine: viewerId != null && photo.uploaderId === viewerId,
       by: photo.uploaderId ? contributorKey(event.id, photo.uploaderId) : null,
-      favourite: kept.has(photo.id),
+      favourite: favourites.has(photo.id),
       src: await imageSrc(photo, hasDerivatives(photo) ? 'thumb' : 'orig', event.capEpoch),
       /*
        * Two sizes, so the browser can pick one that matches the slot.
@@ -346,7 +346,7 @@ function photoCounts(rows: { uploaderId: string | null }[]): Map<string, number>
  * the event rather than on an error.
  */
 function tabOf(value: string | undefined): EventTab {
-  return value === 'conversation' || value === 'people' || value === 'kept'
+  return value === 'conversation' || value === 'people' || value === 'favourites'
     ? value
     : 'photos';
 }

@@ -68,12 +68,12 @@ type Photo = {
   /** Which contributor chip this belongs to. Opaque — see `contributors.ts`. */
   by: string | null;
   /**
-   * Whether this reader kept it, and nobody else's answer.
+   * Whether this reader has starred it, and nobody else's answer.
    *
    * The route has sent this on every photograph since the phone got the star,
    * and nothing here read it. It is a shortlist, never a score: there is no
-   * count of who else kept a picture, because `photo_favourite` is a table of
-   * its own so that a read of an album cannot become one.
+   * count of who else starred a picture, because `photo_favourite` is a table
+   * of its own so that a read of an album cannot become one.
    */
   favourite: boolean;
 };
@@ -193,11 +193,19 @@ const TABS = [
    * rather than fetches — and it stays right the instant a star is pressed on
    * a photograph's own page, because coming back here re-reads the feed.
    *
-   * Kept, which is the app's word for it. A tab is a place, and "Kept" names
-   * what is in this one; "Favourites" names a feeling about it. It is also the
-   * shorter of the two in a row that now has four.
+   * Favourites, where the phone says Kept. The two clients differ here on
+   * purpose and it is the third place they do: a phone's is a glyph on a
+   * two-segment switch with the word only in its accessible name, and this is
+   * a word in a row of four that a reader actually reads. Favourites is what
+   * a browser has taught them a starred shortlist is called.
+   *
+   * The id is `favourites` as well, unlike the rail's rows and the thread's
+   * tab. Those keep older ids because renaming one breaks links people have
+   * already sent; this shipped an hour ago and nobody has sent one — so the
+   * URL, the route and the label can all be the one word the schema already
+   * uses, which is `photo_favourite`.
    */
-  ['kept', 'Kept', 'star'],
+  ['favourites', 'Favourites', 'star'],
   ['people', 'People', 'groups'],
 ] as const;
 
@@ -469,14 +477,14 @@ export function EventView({
   const fresh = visible.filter((photo) => !atArrival.current.has(photo.id));
   const earlier = visible.filter((photo) => atArrival.current.has(photo.id));
   /*
-   * The part of the album this reader kept.
+   * The part of the album this reader has starred.
    *
    * A pass over a list in hand rather than a second request: `favourite` is
    * already on every photograph the feed returns, so the shortlist costs
    * nothing and is right the moment the feed is re-read — which is what
    * happens on coming back from a photograph's own page, where the star is.
    */
-  const kept = visible.filter((photo) => photo.favourite);
+  const favourites = visible.filter((photo) => photo.favourite);
 
   const togglePick = useCallback((id: string) => {
     setPicked((current) => {
@@ -971,7 +979,7 @@ export function EventView({
         </div>
       )}
 
-      {tab === 'kept' && (
+      {tab === 'favourites' && (
         <div className="event-body">
           {/*
             The shortlist, and what it says when there is none.
@@ -987,14 +995,14 @@ export function EventView({
             belongs on the album, and an invitation to add more belongs where
             the adding is.
           */}
-          {kept.length === 0 ? (
+          {favourites.length === 0 ? (
             <p className="muted empty">
-              Nothing kept yet. Open a photograph and press the star, and it
+              No favourites yet. Open a photograph and press the star, and it
               turns up here. Only you see this.
             </p>
           ) : (
             <Masonry
-              photos={kept}
+              photos={favourites}
               eventId={eventId}
               picked={picked}
               onPick={togglePick}
