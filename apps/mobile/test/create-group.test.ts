@@ -32,7 +32,7 @@ const APP = read('App.tsx');
 /** The Chats tab, which is what the old Groups tab became. */
 const CHATS = EVENTS.slice(
   EVENTS.indexOf('export function ChatsTab'),
-  EVENTS.indexOf('function GroupBlock'),
+  EVENTS.indexOf('function ConversationLine'),
 );
 const API = read('src/api.ts');
 

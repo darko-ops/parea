@@ -139,55 +139,37 @@ describe('what the screen may do', () => {
 
   it('draws the door as a letter, never as a photograph', () => {
     /*
-     * The rule is about *the door*, and it still holds: the tile beside a
-     * group's name is a letter on the lens colour its id hashes to, and
-     * nothing about a group is ever drawn from a picture.
+     * The rule is about *the door*, and it is the whole of the shelf now: a
+     * group is a letter on the lens colour its id hashes to, three across
+     * with the name underneath, and nothing about a group is ever drawn from
+     * a picture.
      */
-    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
-    expect(block).toMatch(/groupTile/);
-    expect(block).toMatch(/lensFor\(group\.id\)/);
+    const shelf = between(tab, 'YOUR GROUPS', 'All groups');
+    expect(shelf).toMatch(/styles\.door,/);
+    expect(shelf).toMatch(/lensFor\(group\.id\)/);
+    expect(shelf).toMatch(/initialOf\(group\.name\)/);
+    expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
+    expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
+    expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);
   });
 
-  it('takes the covers under a group off this viewer’s own albums', () => {
+  it('puts no photograph under a group at all', () => {
     /*
-     * The tab shows photographs now — three recent covers under each group's
-     * name — which is a real change to a rule this file used to state as "no
-     * image at all that is not a person's own picture".
+     * The shelf drew three of this viewer's own covers under each group's
+     * name for a while, and what made that safe was a bound on *where the
+     * picture came from*: the albums this actor can already open, never the
+     * group or its detail response — so somebody who was never in one of a
+     * group's events, or who has since been removed, contributed no tile.
      *
-     * What replaces it is a bound on *where the picture comes from*, which is
-     * what the old rule was protecting. The old worry was a group handing out
-     * a photograph from a room to somebody merely standing at the door,
-     * "including to somebody who has since been removed". These covers are
-     * read off `events` — the albums this actor can already open, the same
-     * list the home tab draws — and never off the group or its detail
-     * response. Somebody who was never in one of a group's events, or who has
-     * since been removed from it, has no listing for it and so contributes no
-     * tile at all — the strip is only as wide as the covers it has, and a group
-     * with none draws no strip. The server is not asked for a group's
-     * photographs and does not answer with any.
-     *
-     * So: every `uri:` in the block is either a cover from this viewer's own
-     * album list, or a person's own avatar. A photograph reaching this screen
-     * under any other name fails here.
+     * The doors settle it more simply, by having no picture in them. The
+     * original worry was a group handing a photograph out of a room to
+     * somebody merely standing at the door; there is now nothing on this
+     * screen for such a photograph to arrive through.
      */
-    const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
-    // `!` allowed in the path: the tiles are filtered on `album.cover` before
-    // they are drawn, so the assertion inside the map is not a second check.
-    const sources = [...block.matchAll(/uri:\s*([A-Za-z.?!]+)/g)].map((m) => m[1]);
-    expect(sources.length).toBeGreaterThan(0);
-    expect(new Set(sources)).toEqual(new Set(['album.cover!.src']));
-
-    /*
-     * And no room reserved for a cover that does not exist.
-     *
-     * Three slots were drawn whatever the group held, the gaps filled with
-     * dashed outlines — so one evening was a photograph and two empty boxes,
-     * and none was 84 points of nothing. A placeholder belongs where somebody
-     * is meant to put something, and nobody puts an album into a strip.
-     */
-    expect(block).toMatch(/albums\.filter\(\(album\) => album\.cover\)/);
-    expect(block).toMatch(/\{withCovers\.length > 0 && \(/);
-    expect(EVENTS).not.toMatch(/stripEmpty/);
+    const shelf = between(tab, 'YOUR GROUPS', 'All groups');
+    expect(shelf).not.toMatch(/uri:/);
+    expect(shelf).not.toMatch(/<Image/);
+    expect(EVENTS).not.toMatch(/stripEmpty|stripShot|withCovers/);
 
     // And the albums are handed in, not fetched: the tab cannot reach for a
     // group's photographs because it never asks anybody for any.
@@ -415,46 +397,3 @@ describe('what a group shows when you open it', () => {
     expect(identity).not.toMatch(/cover|Image/);
   });
 });
-
-/**
- * How tall a group's strip of covers stands.
- *
- * The tiles share the block's width, so the fewer there are the wider each one
- * gets. At one fixed height that made a group with a single evening draw it as
- * a letterbox — a band of photograph with the top and bottom cut away — and
- * the group with the least in it showed the least of what it had.
- */
-describe('the strip of covers', () => {
-  const block = between(EVENTS, 'function GroupBlock', 'const COVER_STRIP');
-
-  it('stands taller the fewer covers it has', () => {
-    const ramp = /\[0, (\d+), (\d+), (\d+)\]\[withCovers\.length\]/.exec(block);
-    expect(ramp).not.toBeNull();
-    const [one, two, three] = ramp!.slice(1).map(Number) as [number, number, number];
-    expect(one).toBeGreaterThan(two);
-    expect(two).toBeGreaterThan(three);
-    // And every one of them taller than the 84 this drew at before, which is
-    // the whole point: a group with covers is a group with something to show.
-    expect(three).toBeGreaterThan(84);
-  });
-
-  it('has a zeroth entry that is never read', () => {
-    /*
-     * Index 0 exists so the lookup is indexed by count rather than by count
-     * minus one — an off-by-one here would silently give a three-cover group
-     * the two-cover height. It is unreachable because the strip is not drawn
-     * at all without a cover, and the `?? 104` covers a count past the end.
-     */
-    expect(block).toMatch(/\{withCovers\.length > 0 && \(/);
-    expect(block).toMatch(/\[withCovers\.length\] \?\? \d+/);
-  });
-
-  it('sets the height on the tile and nowhere else', () => {
-    // The stylesheet cannot hold it: it is the one measurement here that
-    // depends on how many covers there are to share the width.
-    expect(block).toMatch(/styles\.stripTile, \{ height: stripHeight \}/);
-    expect(EVENTS).toMatch(/stripTile: \{ flex: 1 \}/);
-    expect(EVENTS).not.toMatch(/stripTile: \{ flex: 1, height/);
-  });
-});
-

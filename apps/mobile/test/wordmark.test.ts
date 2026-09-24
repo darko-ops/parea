@@ -56,7 +56,7 @@ describe('the name', () => {
      */
     for (const [name, source] of [
       ['Home', EVENTS.slice(EVENTS.indexOf('export function HomeTab'), EVENTS.indexOf('export function ChatsTab'))],
-      ['Chats', EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock'))],
+      ['Chats', EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function ConversationLine'))],
       ['Find', EVENTS.slice(EVENTS.indexOf('export function SearchTab'), EVENTS.indexOf('function Result('))],
     ] as const) {
       expect(source, `${name} should open with the wordmark`).toMatch(/<PageHead/);

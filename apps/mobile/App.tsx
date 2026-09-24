@@ -1265,7 +1265,6 @@ export default function App() {
                 waiting={waiting}
                 onOpen={openListing}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
-                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
                 onCreateAlbum={() => setRoute({ screen: 'pick' })}

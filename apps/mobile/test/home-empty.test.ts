@@ -496,7 +496,7 @@ describe('the home list', () => {
      * still be a room you can walk into.
      */
     const GROUPS = code(
-      EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock')),
+      EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function ConversationLine')),
     );
     expect(GROUPS).not.toMatch(/photoCount > 0/);
   });

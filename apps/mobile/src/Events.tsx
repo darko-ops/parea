@@ -1580,8 +1580,8 @@ export function ChatsTab({
 
             Never a photograph on the tile. A group has no picture of its own,
             and borrowing one out of an evening inside it would put something
-            from a room on the way in to it — the same rule the group blocks on
-            Find follow.
+            from a room on the way in to it — the same rule the doors on Find
+            follow.
           */}
           {groupChats.length > 0 && (
             <View style={{ gap: 2 }}>
@@ -1650,154 +1650,16 @@ export function ChatsTab({
     </ScrollView>
   );
 }
-function GroupBlock({
-  group,
-  albums,
-  t,
-  onPress,
-  onOpenThread,
-}: {
-  group: MyGroupDetail;
-  /** This actor's own albums in this group, newest first. Never the group's. */
-  albums: EventListing[];
-  t: TabTheme;
-  /** The block itself: the room, its people and its evenings. */
-  onPress: () => void;
-  /** The line at the foot: the conversation, which is a different place. */
-  onOpenThread: () => void;
-}) {
-  const lens = lensFor(group.id);
-  /*
-   * The covers this person can actually draw.
-   *
-   * An evening they are not in has no listing here and so no cover — and an
-   * album nobody has photographed yet has none either. Both used to leave a
-   * dashed box; neither leaves anything now.
-   */
-  const withCovers = albums.filter((album) => album.cover).slice(0, COVER_STRIP);
-  /*
-   * How tall the strip stands, which depends on how much is in it.
-   *
-   * The tiles share the block's width, so the fewer there are the wider each
-   * one gets — and at one fixed height that meant a group with a single
-   * evening drew that evening as a 4:1 letterbox, a band of photograph with
-   * the top and bottom of it cut away. The one group most in need of showing
-   * something showed the least of it.
-   *
-   * So the height goes up as the count comes down, and each tile lands near
-   * the same shape whatever the group holds: a banner across the block for
-   * one, a pair of landscapes for two, three squares for three. All three are
-   * taller than the 84 this drew before.
-   */
-  const stripHeight = [0, 150, 128, 104][withCovers.length] ?? 104;
-  /*
-   * How many evenings are not in the strip.
-   *
-   * Counted off the group's own `eventCount` rather than off `albums`, because
-   * that is the honest number: it is what the room holds, and it is already
-   * disclosed to every member — `groupEvents` lists all of them by name. The
-   * strip shows the ones this person can open.
-   */
-  const more = Math.max(0, group.eventCount - withCovers.length);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${group.name}, ${plural(group.memberCount, 'person', 'people')}`}
-      style={({ pressed }) => [styles.groupBlock, { opacity: pressed ? 0.7 : 1 }]}
-    >
-      <View style={styles.groupHeader}>
-        {/*
-          The door: a letter on the group's own colour, hashed from its id and
-          the same on every screen and every device. Never a photograph — see
-          the note at the top of the tab.
-        */}
-        <View style={[styles.groupTile, { backgroundColor: lens.fill }]}>
-          <Text style={[styles.groupInitial, { color: lens.ink }]}>
-            {initialOf(group.name)}
-          </Text>
-        </View>
-        <Text style={[styles.groupName, { color: t.fg }]} numberOfLines={1}>
-          {group.name}
-        </Text>
-        {/* Admin only. "Member" on every other row is a word that appears so
-            often it stops being read. */}
-        <Text style={[styles.groupMeta, { color: t.dim }]}>
-          {plural(group.memberCount, 'person', 'people')}
-          {group.role === 'admin' && ' · Admin'}
-        </Text>
-      </View>
-
-      {/*
-        Only the covers that exist, and no strip at all without one.
-
-        It used to draw three slots whatever the group held, filling the gaps
-        with dashed outlines — so a room with one evening in it was a
-        photograph and two empty boxes, and a room with none was three empty
-        boxes and 84 points of nothing. A placeholder is worth drawing where
-        somebody is meant to put something; nobody puts an album into a strip.
-        Here it was the product reserving room for absences.
-
-        The tiles keep `flex: 1`, so one cover fills the width and two split it
-        — the strip is as wide as the block either way and the pictures grow to
-        meet it, rather than a lone cover sitting in a third of the space with
-        the rest blank.
-      */}
-      {withCovers.length > 0 && (
-        <View style={styles.strip}>
-          {withCovers.map((album, i) => (
-            <View key={album.id} style={[styles.stripTile, { height: stripHeight }]}>
-              <Image
-                source={{ uri: album.cover!.src }}
-                style={[styles.stripShot, { backgroundColor: t.line }]}
-                contentFit="cover"
-                transition={120}
-              />
-              {i === withCovers.length - 1 && more > 0 && (
-                <View style={styles.stripMore}>
-                  <Text style={styles.stripMoreText}>+{more}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/*
-        The last thing said in it, which is what makes this a conversation
-        rather than a folder.
-
-        It replaced "Added to 2 days ago · Ana's birthday" — a line about the
-        newest *event*, which the strip of covers directly above it already
-        shows. Two statements of the same fact, and neither of them the one
-        thing that would make somebody open the room today.
-
-        Unread is carried by ink as well as by the pill: a waiting message is
-        set in `fg`, a read one in `dim`. The pill alone is a small blue circle
-        somebody has to find; the weight of the line is what they see first.
-      */}
-      <ConversationLine
-        line={group}
-        fallback={
-          group.eventCount === 0
-            ? 'Nothing in it yet — anyone in it can start the first album.'
-            : 'Nobody has said anything yet.'
-        }
-        t={t}
-        onPress={onOpenThread}
-      />
-    </Pressable>
-  );
-}
-
 /**
  * One conversation, as one line: who spoke, what they said, when, and how many
  * are waiting.
  *
- * Shared by the group blocks and the event-chat rows because they are the same
- * sentence about two kinds of room, and written twice they would drift the
- * first time somebody changed how a name is emphasised.
+ * Written once for the group rows and the event-chat rows because they are the
+ * same sentence about two kinds of room, and written twice they would drift
+ * the first time somebody changed how a name is emphasised. Both callers are
+ * on the Chats tab now — Find's groups were the third, and they are doors
+ * with no line under them, because a search page saying what was last said in
+ * a room is answering the other tab's question.
  *
  * The count is a pill on a group and a dot on an event chat, which is not
  * decoration: a group is busy and the number is the useful part, where an
@@ -1816,7 +1678,7 @@ function ConversationLine({
    * What a thread nobody has spoken in says.
    *
    * Optional, because the event chats no longer list a conversation that has
-   * not happened — only a group block can be empty and still be worth drawing,
+   * not happened — only a group row can be empty and still be worth drawing,
    * since the room exists whether or not anybody has spoken in it yet.
    */
   fallback?: string;
@@ -1889,17 +1751,30 @@ function ConversationLine({
   );
 }
 
-/** Three covers, and a count on the third. */
-const COVER_STRIP = 3;
+/**
+ * The shelf of doors: three across, with the gutters the album shelves use.
+ *
+ * Three rather than the two a shelf of albums gets, because these are not
+ * photographs. An album tile has to be big enough to recognise an evening in;
+ * a door is a letter on a colour, and at half the width of the screen it is a
+ * field of colour with a character floating in it.
+ */
+const GROUP_COLUMNS = 3;
+const GROUP_GAP = 10;
 
 /**
- * How many group blocks Find opens with.
+ * How many doors Find opens with.
  *
- * Each is a name, a strip of covers and a line of conversation — about a
- * hundred points — so this is the number that fits under the search field
- * before somebody is scrolling past their own rooms to reach the box.
+ * It was three, and the number was a measurement of the block it replaced: a
+ * name, a strip of covers and a line of conversation came to about a hundred
+ * points each, so three of them was what fitted under the search field. A
+ * door and its name is about a third of that and three of them sit on one
+ * row, so the old number now buys a single line of icons and an "All groups"
+ * row underneath it — which is more chrome than list.
+ *
+ * Two rows, which is most people's rooms, and the rest stays behind the word.
  */
-const GROUPS_SHOWN = 3;
+const GROUPS_SHOWN = 6;
 
 /**
  * Find — one field, scoped by chips.
@@ -1939,7 +1814,6 @@ export function SearchTab({
   waiting,
   onOpen,
   onOpenGroup,
-  onOpenGroupThread,
   onOpenPerson,
   onOpenLately,
   onCreateAlbum,
@@ -1958,7 +1832,6 @@ export function SearchTab({
   waiting: number;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
-  onOpenGroupThread: (group: MyGroupDetail) => void;
   onOpenPerson: (handle: string) => void;
   onOpenLately: () => void;
   /** The `+`'s two halves. Nothing is made until one of them is picked. */
@@ -1973,6 +1846,8 @@ export function SearchTab({
   openCreate?: number;
   Button: ButtonComponent;
 }) {
+  /** The shelf of doors below is laid out from this. See `door`. */
+  const { width } = useWindowDimensions();
   const [starting, setStarting] = useState(false);
   const [scope, setScope] = useState<Scope>('all');
   const [query, setQuery] = useState('');
@@ -2107,19 +1982,6 @@ export function SearchTab({
   const unplaced = events.filter((event) => !event.place).length;
   const asked = query.trim().length >= 2;
 
-  /** This actor's albums, filed under the group they belong to, newest first. */
-  const byGroup = useMemo(() => {
-    const map = new Map<string, EventListing[]>();
-    for (const event of events) {
-      if (!event.groupId) continue;
-      map.set(event.groupId, [...(map.get(event.groupId) ?? []), event]);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
-    }
-    return map;
-  }, [events]);
-
   /*
    * The three most recently added to, unless somebody asked for the rest.
    *
@@ -2133,6 +1995,30 @@ export function SearchTab({
     );
     return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
   }, [allGroups, mine]);
+
+  /**
+   * A door's edge, from the window rather than from a constant.
+   *
+   * 40 is the page's own padding; the gaps are the gutters between the three.
+   * The same arithmetic the album shelves do, with a column more.
+   */
+  const door = Math.floor(
+    (width - 40 - GROUP_GAP * (GROUP_COLUMNS - 1)) / GROUP_COLUMNS,
+  );
+  /*
+   * The corner and the letter, both proportions of the edge above.
+   *
+   * 0.225 is the corner an app icon wears, which is what this shape is
+   * borrowing — written as a fraction rather than as a number of points so
+   * that it is the same corner on a small phone as on a large one.
+   *
+   * And the letter is not a label on the icon, it *is* the icon: the 28pt
+   * tile this replaced set it at 13, which is nearly half its edge, and the
+   * same proportion at this size reads as somebody shouting. 0.4 is the
+   * largest it goes before a wide letter starts crowding the corners.
+   */
+  const doorRadius = Math.round(door * 0.225);
+  const doorLetter = Math.round(door * 0.4);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -2380,30 +2266,117 @@ export function SearchTab({
 
       {!asked && scope !== 'places' && scope !== 'people' && mine !== null && (
         <>
-          {mine.length > 0 && (
-            <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
-          )}
+          {/*
+            The rooms, as a shelf of doors.
 
-          {rooms.map((group) => (
-            <GroupBlock
-              key={group.id}
-              group={group}
-              albums={byGroup.get(group.id) ?? []}
-              t={t}
-              onPress={() => onOpenGroup(group.id)}
-              onOpenThread={() => onOpenGroupThread(group)}
-            />
-          ))}
+            Each was a block: the name on a row with a 28pt letter tile, a
+            strip of album covers under it, and the last thing said in it at
+            the foot — about a hundred points of screen for one group, three
+            of them under the search field, and the rest behind a word.
+
+            The three pieces were each answering a different question, and two
+            of them are answered better elsewhere. The covers are evenings,
+            and every evening this person can open is already on Home under
+            its own photograph; the conversation line is the Chats tab, which
+            is that and nothing else. What is left is the only thing this page
+            was ever for: which rooms are yours, and a way into one.
+
+            So a door is what it draws — the letter on the group's own colour,
+            hashed from its id and the same on every screen and every device,
+            which is the shape this product has meant by "a group" since the
+            Groups tab was written. Never a photograph: a group has no picture
+            of its own, and borrowing one out of an evening inside it would
+            put something from a room on the way in to it.
+
+            What the block did carry alone was whether anybody is waiting, so
+            that comes with it as a badge on the corner rather than as a line
+            of prose underneath.
+          */}
+          {mine.length > 0 && (
+            <View style={{ gap: 6 }}>
+              <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
+              <View style={styles.doors}>
+                {rooms.map((group) => {
+                  const lens = lensFor(group.id);
+                  return (
+                    <Pressable
+                      key={group.id}
+                      onPress={() => onOpenGroup(group.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${group.name}, ${plural(
+                        group.memberCount,
+                        'person',
+                        'people',
+                      )}${group.unreadCount > 0 ? `, ${plural(group.unreadCount, 'new message')}` : ''}`}
+                      style={({ pressed }) => [
+                        { width: door, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.door,
+                          { height: door, borderRadius: doorRadius, backgroundColor: lens.fill },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.doorInitial, { fontSize: doorLetter, color: lens.ink }]}
+                        >
+                          {initialOf(group.name)}
+                        </Text>
+                      </View>
+
+                      {/*
+                        Waiting messages, on the corner of the door.
+
+                        The same 19pt accent pill the rest of the app uses for
+                        this, with a ring in the page's own colour so it reads
+                        as sitting on top of the icon rather than painted into
+                        it. It is the one thing the block underneath said that
+                        nothing on this page would otherwise say.
+
+                        A sibling of the door rather than a child of it, and
+                        positioned against this cell — which is the door's own
+                        width, so the corner is the same corner. A child would
+                        be hanging outside a rounded box, and Android clips
+                        that where iOS does not.
+                      */}
+                      {group.unreadCount > 0 && (
+                        <View
+                          style={[
+                            styles.unreadPill,
+                            styles.doorUnread,
+                            { backgroundColor: t.accent, borderColor: t.bg },
+                          ]}
+                        >
+                          <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+                            {group.unreadCount > 99 ? '99+' : group.unreadCount}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/*
+                        Two lines rather than one. A door is a square with a
+                        letter in it, so the name under it is the only thing
+                        telling two of them apart — and "Sunday Roast Cl…" at
+                        a third of the screen's width is most group names.
+                      */}
+                      <Text style={[styles.doorName, { color: t.fg }]} numberOfLines={2}>
+                        {group.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/*
             The rest, behind a word.
 
-            A group block is a name, a strip of covers and a line of
-            conversation — a hundred points of screen each — so somebody in
-            eight groups would scroll past six of them to reach the bottom of
-            their own page. Three is about how many rooms anybody is in this
-            week, and expanding in place rather than on a screen of its own
-            keeps one place where a group block is drawn.
+            Six doors is two rows, which is most people's rooms. Somebody in
+            twelve groups would otherwise scroll past eight of them to reach
+            the clusters below, and expanding in place rather than on a screen
+            of its own keeps one place where a door is drawn.
           */}
           {mine.length > rooms.length && (
             <Pressable
@@ -3233,38 +3206,24 @@ const styles = StyleSheet.create({
      it, and there is no safe-area library here — 72 is the one allowance every
      screen in this project already starts at. */
   groupsScroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 18, flexGrow: 1 },
-  groupBlock: { gap: 10 },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  /* The door: small, because the evenings under it are what the block is for.
-     It was 44 points when it was the only picture on the row. */
-  groupTile: {
-    width: 28, height: 28, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  groupInitial: { fontSize: 13, fontWeight: '600' },
-  groupName: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: '600' },
-  groupMeta: { fontSize: 12.5 },
-  /* Three equal tiles with hairline gaps: one strip rather than three cards,
-     which is what makes it read as "what is in here" and not as three things
-     to choose between. */
-  strip: { flexDirection: 'row', gap: 3 },
-  /* The height is set per block — see `stripHeight`. It is the one measurement
-     here that depends on how many covers there are to share the width. */
-  stripTile: { flex: 1 },
-  stripShot: { width: '100%', height: '100%', borderRadius: 8 },
-  stripMore: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(20,23,28,0.55)',
-  },
-  stripMoreText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  /* One conversation, as one line. Shared by a group block and an event chat. */
+  /* --- the shelf of doors on Find ----------------------------------------
+
+     Three across, wrapping, with the gutters an album shelf uses. Gutters
+     rather than hairlines for the same reason: these are separate rooms, not
+     one object the way a wall of photographs would be. The edge, the corner
+     and the letter are all worked out from the window — see `door`. */
+  doors: { flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP },
+  door: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  /* Sized with the icon it fills, and weighted like the other letters on a
+     lens in this app. */
+  doorInitial: { fontWeight: '700' },
+  /* On the corner, half off it. The ring is the page's own colour, which is
+     what makes it read as sitting on the icon rather than inside it. */
+  doorUnread: { position: 'absolute', top: -5, right: -5, borderWidth: 2 },
+  /* Centred under the door, because the door is centred. Two lines at most —
+     `numberOfLines` on the element holds that; this holds the rhythm. */
+  doorName: { marginTop: 7, fontSize: 13.5, lineHeight: 17, fontWeight: '600', textAlign: 'center' },
+  /* One conversation, as one line. Shared by a group row and an event chat. */
   sayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sayerFace: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   sayerInitial: { fontSize: 11, fontWeight: '700' },
@@ -3417,9 +3376,9 @@ const styles = StyleSheet.create({
   },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
-  /* The same square an album's cover fills, holding a letter instead. Centred
-     and set larger than the 28pt tile on a group block: the glyph is sized to
-     its tile, not to the product. */
+  /* The same square an album's cover fills, holding a letter instead. Centred,
+     and sized to its own tile rather than to the product: every letter on a
+     lens in this app is set to the box it is in. */
   chatLetter: { alignItems: 'center', justifyContent: 'center' },
   chatInitial: { fontSize: 17, fontWeight: '600' },
   chatName: { fontSize: 15, fontWeight: '600' },

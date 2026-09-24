@@ -33,7 +33,7 @@ const PROFILE = read('src/Profile.tsx');
 /** The chats tab, which is where the empty-room prompt lives. */
 const CHATS = EVENTS.slice(
   EVENTS.indexOf('export function ChatsTab'),
-  EVENTS.indexOf('function GroupBlock'),
+  EVENTS.indexOf('function ConversationLine'),
 );
 /** Find, whose two paragraphs of policy are gone. */
 const FIND = EVENTS.slice(

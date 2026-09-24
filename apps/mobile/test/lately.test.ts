@@ -82,7 +82,7 @@ describe('the door', () => {
     expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
       .toHaveLength(2);
     // And the corner it vacated is not empty — it is the thing that tab makes.
-    const CHATS = EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function GroupBlock'));
+    const CHATS = EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function ConversationLine'));
     expect(CHATS).toMatch(/right=\{\s*<RoundButton t=\{t\} onPress=\{onCreateGroup\} accessibilityLabel="New group">/);
     expect(CHATS).not.toMatch(/Notifications/);
     /*

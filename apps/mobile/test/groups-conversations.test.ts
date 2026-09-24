@@ -44,7 +44,7 @@ function between(source: string, from: string, to: string): string {
 }
 
 /** The Chats tab: every conversation, and nothing else. */
-const TAB = code(between(EVENTS, 'export function ChatsTab', 'function GroupBlock'));
+const TAB = code(between(EVENTS, 'export function ChatsTab', 'function ConversationLine'));
 
 /**
  * Find, which is where the rooms themselves went.
@@ -148,18 +148,23 @@ describe('the tab arrives in one piece', () => {
 });
 
 describe('one conversation, as one line', () => {
-  it('is written once and drawn in both places', () => {
-    // A group block and an event-chat row are the same sentence about two
-    // kinds of room; written twice they drift.
-    expect(EVENTS).toMatch(/function ConversationLine\(/);
+  it('is written once and drawn where conversations are', () => {
     /*
-     * Two: the row on Chats, which is one row shape for both tabs, and the
-     * foot of a group block on Find. The two tabs used to be two lists with
-     * two copies of the row in them — a group's chat and an album's comments
-     * are two kinds of room and one kind of row, and writing it twice is how
-     * the two come to disagree about what a conversation looks like.
+     * A group's chat and an album's comments are two kinds of room and one
+     * kind of row; written twice they drift the first time somebody changes
+     * how a name is emphasised. So the row is one function.
+     *
+     * One caller now, and it is the Chats tab — which is the whole of that
+     * tab's subject. The second was the foot of a group block on Find, and
+     * that block is a door now: the page whose job is locating a room says
+     * which rooms are yours, and the tab whose job is the talking says what
+     * was said in them. A line of somebody's conversation under an icon on a
+     * search page was the two answering each other's question.
      */
-    expect(EVENTS.match(/<ConversationLine/g) ?? []).toHaveLength(2);
+    expect(EVENTS).toMatch(/function ConversationLine\(/);
+    expect(EVENTS.match(/<ConversationLine/g) ?? []).toHaveLength(1);
+    expect(TAB).toMatch(/<ConversationLine/);
+    expect(FIND).not.toMatch(/<ConversationLine/);
   });
 
   it('carries unread in the ink as well as in the badge', () => {
@@ -191,10 +196,17 @@ describe('one conversation, as one line', () => {
 
 describe('where a row goes', () => {
   it('separates the room from its conversation', () => {
-    // The block is the group — its people and its evenings. The line at the
-    // foot is the talk, which is a different screen.
+    /*
+     * A door on Find opens the room — its people and its evenings. The talk
+     * is a different screen and it is reached from the tab that is only talk,
+     * which is why Find no longer takes a way into one: a page with two
+     * destinations per group asks somebody to aim.
+     */
     expect(FIND).toMatch(/onPress=\{\(\) => onOpenGroup\(group\.id\)\}/);
-    expect(FIND).toMatch(/onOpenThread=\{\(\) => onOpenGroupThread\(group\)\}/);
+    expect(FIND).not.toMatch(/onOpenGroupThread/);
+    expect(read('App.tsx')).not.toMatch(
+      /<SearchTab[\s\S]*?onOpenGroupThread[\s\S]*?\/>/,
+    );
     // And on Chats a row is only ever the conversation — the room itself is a
     // page you reach from Find.
     expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroupThread\(group\)\}/);
@@ -308,16 +320,18 @@ describe('what the server had to grow', () => {
 });
 
 /**
- * How many rooms the tab opens with.
+ * How many rooms Find opens with.
  *
- * A group block is a name, a strip of covers and a line of conversation — about
- * a hundred points each — so somebody in eight groups scrolled past six of them
- * to reach the one-off conversations underneath, every single time they opened
- * the tab.
+ * It was three, and three was a measurement of the block: a name, a strip of
+ * covers and a line of conversation came to about a hundred points, so
+ * somebody in eight groups scrolled past six of them to reach what was
+ * underneath. A door and its name is about a third of that and three of them
+ * sit on one row, so three would now buy one line of icons with an "All
+ * groups" row under it — more chrome than list. Six is two rows.
  */
-describe('the first three', () => {
-  it('draws three, then a way to the rest', () => {
-    expect(EVENTS).toMatch(/const GROUPS_SHOWN = 3;/);
+describe('the first few', () => {
+  it('draws two rows, then a way to the rest', () => {
+    expect(EVENTS).toMatch(/const GROUPS_SHOWN = 6;/);
     expect(FIND).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
     expect(FIND).toMatch(/>\s*All groups\s*</);
     // And no button when there is nothing behind it.
