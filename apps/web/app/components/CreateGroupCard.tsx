@@ -353,11 +353,9 @@ export function CreateGroupCard({
  */
 export function NewGroupPanel({
   greeting,
-  also,
 }: {
   /** Worded on the server, like every greeting in this product. */
   greeting: string | null;
-  also: ClusterPerson[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -397,10 +395,19 @@ export function NewGroupPanel({
 
       {open && (
         <div className="groups-new-panel">
+          {/*
+            No `also` list here any more.
+ 
+            It was the "add somebody who was not at those events" row, and it
+            was the page's own suggestion list threaded down into a blank form
+            — which only ever made sense beside a cluster, where the phrase has
+            something to be *also* to. Building a group from nothing starts
+            with the picker, which is what the form is.
+          */}
           <CreateGroupCard
             cluster={null}
             people={[]}
-            also={also}
+            also={[]}
             startOpen
             onCancel={() => setOpen(false)}
           />

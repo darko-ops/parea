@@ -41,6 +41,8 @@ const API = await read('../app/api/groups/route.ts');
 const GROUP = await read('../app/components/GroupView.tsx');
 const CARD = await read('../app/components/CreateGroupCard.tsx');
 const CHATS = await read('../app/components/GroupChats.tsx');
+const FIND = await read('../app/components/FindView.tsx');
+const FIND_PAGE = await read('../app/find/page.tsx');
 const GROUPS_SRC = await read('../src/groups.ts');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
 /*
@@ -62,16 +64,41 @@ describe('where a group comes from', () => {
     expect(API).toMatch(/memberIds/);
   });
 
-  it('leads with who, before it offers to make anything', () => {
+  it('leads with who, before it offers to make anything — on Find', () => {
     /*
-     * The whole argument of this screen in one assertion. A create control
-     * that appears without the people it would be made from is the empty-room
-     * failure the old design refused outright — so the page must read the
-     * clusters, and the primary card must be one of them.
+     * The whole argument in one assertion, and it has moved pages. A create
+     * control that appears without the people it would be made from is the
+     * empty-room failure the original design refused outright, so the clusters
+     * have to be read and the primary card has to be one of them.
+     *
+     * They are on Find now. Groupchats is the conversations: the cards sat
+     * under the chat list as "these people keep turning up too", which made a
+     * page whose heading says Groupchats two thirds a groups directory. Making
+     * a group belongs where the groups are, which is also where the app makes
+     * one.
      */
-    expect(PAGE).toMatch(/recurringClusters\(db, actorId\)/);
-    expect(PAGE).toMatch(/The same people keep turning up\./);
-    expect(PAGE).toMatch(/<CreateGroupCard/);
+    expect(FIND_PAGE).toMatch(/recurringClusters\(db, actorId\)/);
+    expect(FIND).toMatch(/The same people keep turning up/);
+    expect(FIND).toMatch(/<CreateGroupCard/);
+    expect(FIND).toMatch(/primary=\{i === 0\}/);
+    // And nowhere else: two pages offering to make the same group out of the
+    // same people is the directory growing back. The element rather than the
+    // word — `NewGroupPanel` is exported from that file and the `+` still
+    // opens it.
+    expect(PAGE).not.toMatch(/<CreateGroupCard|recurringClusters/);
+  });
+
+  it('is the conversations and nothing else', () => {
+    /*
+     * What was under the chat list: the cluster cards, each a stack of faces
+     * and a `Make a group`, and under those a line about finding groups you
+     * are not in. Both are the groups directory, and the conversations were
+     * the part you scrolled past to reach it.
+     */
+    for (const furniture of ['clusters-also', 'groups-foot', '<CreateGroupCard']) {
+      expect(PAGE, `${furniture} belongs on Find`).not.toContain(furniture);
+    }
+    expect(PAGE).toMatch(/<GroupChats/);
   });
 
   it('never says the clusters are groups', () => {
@@ -126,11 +153,15 @@ describe('where a group comes from', () => {
      * and no way to make anything: reported from use.
      *
      * So the panel is unconditional, which is the assertion. A regression here
-     * looks like the button being moved back inside a branch.
+     * looks like the `+` being moved back inside a branch.
+     *
+     * No `also` on it now. That list was "add somebody who was not at those
+     * events", which only means anything beside a cluster — there is nothing
+     * for it to be *also* to in a blank form, and the clusters are on Find.
      */
-    expect(PAGE).toMatch(/<NewGroupPanel greeting=\{greeting\} also=\{also\} \/>/);
+    expect(PAGE).toMatch(/<NewGroupPanel greeting=\{greeting\} \/>/);
     expect(PAGE).not.toMatch(/groups\.length > 0 && <NewGroupPanel/);
-    expect(CARD).toMatch(/New group/);
+    expect(CARD).toMatch(/aria-label="New group"/);
   });
 
   it('still says where chats come from when there is nothing to recognise', () => {

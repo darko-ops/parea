@@ -64,8 +64,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { Cluster } from '@/groups';
 import { matches } from '@/search';
 
+import { CreateGroupCard, type ClusterPerson } from './CreateGroupCard';
 import { Face } from './Faces';
 import { SearchIcon } from './SearchIcon';
 
@@ -172,6 +174,8 @@ export function FindView({
   suggested,
   suggestedGroups,
   groups: mine,
+  clusters,
+  also,
 }: {
   /** "Evening, Nadia", or nothing for a browser that has not signed in. */
   greeting: string | null;
@@ -191,6 +195,19 @@ export function FindView({
   suggestedGroups: SuggestedGroup[];
   /** The groups this person is in. */
   groups: Membership[];
+  /**
+   * Sets of people this person keeps ending up in the same albums as, offered
+   * as groups they could make.
+   *
+   * These were on the Groupchats page, above the list when it was empty and
+   * demoted below it when it was not — so a page whose heading says
+   * Groupchats was two thirds a groups directory and the conversations were
+   * the part you scrolled past. Making a group belongs where groups are found,
+   * which is here and is where the app puts it.
+   */
+  clusters: Cluster[];
+  /** Who else could be added: people shared with once, not in any cluster. */
+  also: ClusterPerson[];
 }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<Scope>('all');
@@ -400,6 +417,43 @@ export function FindView({
         With nothing typed the headings hold something rather than sitting
         empty: this is the page saying what it can find by finding it.
       */}
+      {/*
+        Groups this person could make, above the ones they could ask into.
+
+        Above, because a cluster is people the product has already watched turn
+        up together and a door is a room full of strangers: one is a thing to
+        confirm and the other a thing to request. It is also the only section
+        here that *makes* something, and the app puts making a group on this
+        screen for the same reason — this is where the groups are.
+
+        An observation and never a claim: `recurringClusters` answers sets of
+        people who have shared several albums, and pressing the button still
+        writes nothing until the form is submitted. A cluster whose people are
+        already gathered in a group is dropped upstream, which is what lets
+        this sit here without needing a way to dismiss it.
+      */}
+      {!asking && wantsGroups && clusters.length > 0 && (
+        <section className="find-section">
+          <h2 className="find-head">The same people keep turning up</h2>
+          <p className="find-sub">
+            You have shared several albums with these people. Keep everyone
+            together for next time — the next album includes all of them
+            without a single invite.
+          </p>
+          <div className="cluster-list">
+            {clusters.map((cluster, i) => (
+              <CreateGroupCard
+                key={cluster.key}
+                cluster={cluster}
+                people={cluster.people}
+                also={also}
+                primary={i === 0}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {!asking && wantsGroups && suggestedGroups.length > 0 && (
         <section className="find-section">
           <h2 className="find-head">Groups you could join</h2>

@@ -29,12 +29,17 @@
  * confirming a set of people who already exist rather than inventing one, and
  * the empty room the old comment warned about cannot be the common case.
  *
- * The clusters are an observation and never a claim — see `recurringClusters`,
- * and `CreateGroupCard` for why pressing the button still writes nothing.
- * Above the list when there are no groups, demoted below it when there are.
- * They stay on this page rather than following the rooms to Find: a cluster is
- * not a group yet, and the reason to make one is that you would talk to these
- * people — which is the page they belong on.
+ * ## Nothing on it but the conversations
+ *
+ * The list arrived first and the furniture stayed: under it sat the cluster
+ * cards — "these people keep turning up too", each a stack of faces and a
+ * `Make a group` — and under those a line about finding groups you are not in.
+ * So a page whose heading says Groupchats went on being two thirds a groups
+ * directory, and the conversations were the part you scrolled past.
+ *
+ * Both have gone to Find, which is where groups are found and, in the app,
+ * where they are made. What is left is what the heading says: the rooms you
+ * can talk in, and the way into one.
  *
  * Not indexable: it lists what one person belongs to.
  */
@@ -44,16 +49,11 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
-import {
-  lensFor,
-  myGroupsDetailed,
-  recurringClusters,
-  sharedOnceWith,
-} from '@/groups';
+import { lensFor, myGroupsDetailed } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 import { readerZone } from '@/zone';
-import { CreateGroupCard, NewGroupPanel } from '@/../app/components/CreateGroupCard';
+import { NewGroupPanel } from '@/../app/components/CreateGroupCard';
 import { GroupChats, type ChatRow } from '@/../app/components/GroupChats';
 
 export const dynamic = 'force-dynamic';
@@ -94,19 +94,11 @@ export default async function GroupsPage() {
   // Read before anything uses it. Null means never looked, which has to mean
   // everything is new rather than nothing.
   const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);
-  const [groups, account, clusters] = await Promise.all([
+  const [groups, account] = await Promise.all([
     myGroupsDetailed(db, actorId, since),
     // For the greeting only, as on Home, Activity and Find.
     actorId ? accountFor(db, actorId) : Promise.resolve(null),
-    recurringClusters(db, actorId),
   ]);
-  /*
-   * The add row's suggestions, fetched once for the page rather than once per
-   * card. Anybody already in a cluster is excluded here, so the "add somebody
-   * who was not at those events" row never offers a person who is standing in
-   * the chips above it.
-   */
-  const also = await sharedOnceWith(db, actorId, clusters.flatMap((c) => c.personIds));
   const now = new Date();
   // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
   // which is UTC and said good afternoon over somebody's breakfast.
@@ -122,82 +114,41 @@ export default async function GroupsPage() {
           the filled `Make a group` on the first cluster card is still the
           page's single primary action.
         */}
-        <NewGroupPanel greeting={greeting} also={also} />
+        <NewGroupPanel greeting={greeting} />
 
         {groups.length === 0 ? (
-          clusters.length > 0 ? (
-            /*
-              What the product noticed, offered as something to confirm.
+          /*
+            Not a failure and not an empty product: somebody here has not been
+            in a group yet, which is a thing that happens after a couple of
+            evenings with the same people rather than a thing to go and do.
 
-              Two sentences and nothing else — no illustration, no badge, no
-              empty-state graphic. The heading is an observation about the
-              past; the body is the one thing a group does that nothing else
-              here does.
-            */
-            <div className="clusters">
-              <div className="clusters-lead">
-                <h2>The same people keep turning up.</h2>
-                <p>
-                  You have shared several albums with these people. Keep everyone
-                  together for next time — the next album includes all of them
-                  without a single invite.
-                </p>
-              </div>
+            It leads with what is missing — the page answering its own heading
+            — then answers the question this page invites and could not
+            otherwise: where the *other* kind of conversation went, which is
+            onto the photograph it is about.
 
-              <div className="cluster-list">
-                {clusters.map((cluster, i) => (
-                  <CreateGroupCard
-                    key={cluster.key}
-                    cluster={cluster}
-                    people={cluster.people}
-                    also={also}
-                    primary={i === 0}
-                  />
-                ))}
-              </div>
-
-            </div>
-          ) : (
-            /*
-              Nothing to recognise yet, which is still true and still not a
-              failure — somebody here has not had the second evening with the
-              same people, which is the moment a group is for.
-
-              It leads with what is missing rather than with what they have
-              not done: "No chats yet" is the page answering its own heading.
-              The second paragraph is the question this page invites and could
-              not otherwise answer — where the *other* kind of conversation
-              went, which is onto the photograph it is about.
-
-              Creation is not offered again here — `New group` is in the
-              header above, in every state — but the copy names it, because a
-              page whose only visible control sends you somewhere else reads
-              as a dead end to the person most likely to be new.
-            */
-            <div className="groups-none">
-              <p className="groups-none-lead">No chats yet.</p>
-              <p>
-                Every group you are in has one. Comments on a photograph live
-                on the album they belong to, and turn up in{' '}
-                <a href="/activity">Notifications</a> when somebody answers you.
-              </p>
-              <p>
-                {/*
-                  The control is a `+` with no word on it, so the sentence
-                  says where it is rather than quoting a label that is not
-                  drawn. A line of copy naming a button nobody can see is the
-                  page describing a different version of itself.
-                */}
-                Groups are for the people who keep turning up — once you have
-                shared a couple of albums with the same faces, they show up here
-                ready to keep together. Nothing to go on yet, so the{' '}
-                <strong>+</strong> above is the way to start one.
-              </p>
-              <a href="/events" className="button-like primary">
-                Your albums
-              </a>
-            </div>
-          )
+            Two doors, and they are different doors. The `+` above makes a room
+            outright; Find is where the product offers to make one out of
+            people it has noticed you keep ending up with, which is the version
+            that does not produce an empty room.
+          */
+          <div className="groups-none">
+            <p className="groups-none-lead">No chats yet.</p>
+            <p>
+              Every group you are in has one. Comments on a photograph live on
+              the album they belong to, and turn up in{' '}
+              <a href="/activity">Notifications</a> when somebody answers you.
+            </p>
+            <p>
+              The <strong>+</strong> above starts a group.{' '}
+              <a href="/find">Search</a> offers to make one out of the people
+              you keep sharing albums with, which is the version with somebody
+              already in it.
+            </p>
+            <a href="/events" className="button-like primary">
+              Your albums
+            </a>
+          </div>
         ) : (
           /*
             The conversations, newest first — see `GroupChats` for why the
@@ -232,45 +183,6 @@ export default async function GroupsPage() {
               }))}
           />
         )}
-
-        {/*
-          Demoted, once there are rooms to enter.
-
-          Same card one size down, under a label that keeps it an observation
-          rather than a prompt: "too" only makes sense as a remark about the
-          list above it. Never more than two, and a cluster whose people are
-          already gathered in one of these groups is dropped upstream — which
-          is what lets this section stay without needing a way to dismiss it.
-        */}
-        {groups.length > 0 && clusters.length > 0 && (
-          <div className="clusters clusters-also">
-            <h2 className="clusters-also-head">These people keep turning up too</h2>
-            <div className="cluster-list">
-              {clusters.map((cluster) => (
-                <CreateGroupCard
-                  key={cluster.key}
-                  cluster={cluster}
-                  people={cluster.people}
-                  also={also}
-                  small
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/*
-          Where the other kind of group is. Discovery belongs on Search and
-          stays there — this page is the rooms you are in, and a second list of
-          rooms you are not would make it two pages wearing one heading.
-        */}
-        <div className="groups-foot">
-          <p>
-            Looking for one you are not in? <a href="/find">Search</a> finds
-            groups that have chosen to be findable — you would still be asking
-            to be let in.
-          </p>
-        </div>
 
         <SiteFooter />
       </main>

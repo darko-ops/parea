@@ -32,7 +32,12 @@ import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { friendsOf, suggestionsFor } from '@/friends';
 import { greetingFor, partOfDay } from '@/greeting';
-import { groupsFor, suggestedGroupsFor } from '@/groups';
+import {
+  groupsFor,
+  recurringClusters,
+  sharedOnceWith,
+  suggestedGroupsFor,
+} from '@/groups';
 import { leadImage } from '@/cards';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
@@ -48,21 +53,30 @@ export const metadata = {
 export default async function FindPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [listings, friends, suggested, groups, offered, account] = await Promise.all([
-    eventsFor(db, actorId),
-    friendsOf(db, actorId),
-    suggestionsFor(db, actorId),
-    // The groups this person is already in. Not a search — the page names
-    // Groups as one of the three things it finds, and a heading that only ever
-    // fills up after you type is a heading that has to be discovered.
-    groupsFor(db, actorId),
-    // Findable groups a friend is already in. The only thing on this page that
-    // is *recommended* rather than listed back, and it is a door — see
-    // `suggestedGroupsFor` for why a group may be one and an event may not.
-    suggestedGroupsFor(db, actorId),
-    // For the greeting only, as on Home.
-    actorId ? accountFor(db, actorId) : Promise.resolve(null),
-  ]);
+  const [listings, friends, suggested, groups, offered, account, clusters] =
+    await Promise.all([
+      eventsFor(db, actorId),
+      friendsOf(db, actorId),
+      suggestionsFor(db, actorId),
+      // The groups this person is already in. Not a search — the page names
+      // Groups as one of the three things it finds, and a heading that only ever
+      // fills up after you type is a heading that has to be discovered.
+      groupsFor(db, actorId),
+      // Findable groups a friend is already in. The only thing on this page that
+      // is *recommended* rather than listed back, and it is a door — see
+      // `suggestedGroupsFor` for why a group may be one and an event may not.
+      suggestedGroupsFor(db, actorId),
+      // For the greeting only, as on Home.
+      actorId ? accountFor(db, actorId) : Promise.resolve(null),
+      /*
+       * Sets of people this actor keeps ending up in the same albums as.
+       *
+       * They were on the Groupchats page, which is now the conversations and
+       * nothing else. Making a group belongs where the groups are, which is
+       * this page — and it is where the app makes one.
+       */
+      recurringClusters(db, actorId),
+    ]);
 
   /*
    * The events, with the string they are matched against built here.
@@ -128,6 +142,13 @@ export default async function FindPage() {
     Promise.all(friends.map(face)),
     Promise.all(suggested.map(face)),
   ]);
+  /*
+   * The add row's suggestions, fetched once for the page rather than once per
+   * card. Anybody already in a cluster is excluded here, so the "add somebody
+   * who was not at those events" row never offers a person who is standing in
+   * the chips above it.
+   */
+  const also = await sharedOnceWith(db, actorId, clusters.flatMap((c) => c.personIds));
   const now = new Date();
   // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
   // which is UTC and said good afternoon over somebody's breakfast.
@@ -150,6 +171,8 @@ export default async function FindPage() {
             suggested={suggestedFaces}
             suggestedGroups={suggestedGroups}
             groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
+            clusters={clusters}
+            also={also}
           />
         </div>
       </main>
