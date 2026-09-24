@@ -254,7 +254,7 @@ describe('inside a group', () => {
     expect(GROUP).not.toMatch(/toLocaleDateString|new Intl\.DateTimeFormat/);
   });
 
-  it('is shaped like an album: three tabs, and the URL says which', () => {
+  it('is shaped like an album: three tabs, and the URL says which', async () => {
     /*
      * A room and an evening are the same kind of object to somebody reading —
      * a thing with pictures in it, a conversation about them, and the people
@@ -262,10 +262,23 @@ describe('inside a group', () => {
      * three use it: a link to the room's people is a link somebody can send,
      * and Back is the way out of it.
      */
-    expect(GROUP).toMatch(/const TABS: \[GroupTab, string\]\[\] = \[/);
-    expect(GROUP).toMatch(/\['albums', 'Albums'\]/);
-    expect(GROUP).toMatch(/\['chat', 'Chat'\]/);
-    expect(GROUP).toMatch(/\['people', 'People'\]/);
+    expect(GROUP).toMatch(/const TABS: \[GroupTab, string, RailGlyph\]\[\] = \[/);
+    expect(GROUP).toMatch(/\['albums', 'Albums', 'photos'\]/);
+    expect(GROUP).toMatch(/\['chat', 'Chat', 'bubbles'\]/);
+    expect(GROUP).toMatch(/\['people', 'People', 'groups'\]/);
+    /*
+     * The app's own drawings beside the words. Two bubbles for a room where
+     * people are talking to each other, against the single bubble an album's
+     * comments carry — the distinction the app checked survives at the size
+     * both clients draw them.
+     */
+    expect(GROUP).toMatch(/<RailIcon glyph=\{glyph\} weight=\{tab === id \? 2\.5 : 2\} \/>/);
+    const EVENT = await read('../app/components/EventView.tsx');
+    expect(EVENT).toMatch(/\['conversation', 'Thread', 'bubble'\]/);
+    const ICONS = await read('../app/components/RailIcon.tsx');
+    for (const glyph of ['photos', 'bubble', 'bubbles']) {
+      expect(ICONS, glyph).toMatch(new RegExp(`glyph === '${glyph}'`));
+    }
     expect(GROUP).toMatch(/className="event-tabs"/);
     expect(GROUP_PAGE).toMatch(
       /const tab: GroupTab = asked === 'chat' \|\| asked === 'people' \? asked : 'albums';/,

@@ -398,6 +398,7 @@ button.secondary {
 /* The two that are not there on a wide screen: the menu button, and the
    create pill that shares the bar with it. On a laptop the rows are the
    page's left edge and the create button is already among them. */
+.rail-burger { display: none; }
 .rail-create { display: none; }
 
 /* A pair, and they are always opposites: a control is a button in the header
@@ -407,18 +408,20 @@ button.secondary {
    Invites to a screen reader. */
 .narrow-only { display: none; }
 
-/* Below tablet the rail is a head and a bar along the bottom.
+/* Below tablet the rail is a head, and the rows go behind a button in it.
 
-   Three shapes in three versions of this rule. Sideways first, which worked at
+   Four shapes in four versions of this rule. Sideways first, which worked at
    four rows and stopped at six — the bar scrolled, so Profile hung half off
    the screen and Settings was past the edge with nothing to say it was there.
-   Then behind a hamburger, which made every destination two taps and hid the
-   one row that ever carries a number.
+   Then behind a hamburger in the trailing corner. Then a capsule floating at
+   the foot, the shape the app's tab bar has.
 
-   Now where the app puts them: a capsule floating clear of the bottom edge,
-   glyph-only, with the page you are on seated in it. Same markup — the labels
-   are hidden rather than deleted, and `.rail-foot` becomes `display: contents`
-   so Settings joins the row instead of hanging under it. */
+   The capsule is gone and the button is back, in the leading corner. Six
+   glyphs in a capsule is a row nobody reads, and the two that would have to go
+   to make four are the two the web has and the app does not; a menu holds six
+   without asking anybody to recognise a picture of Settings. Leading rather
+   than trailing because it opens everything else, and a control that does that
+   belongs before the everything else rather than after it. */
 @media (max-width: 720px) {
   .shell { display: block; }
   .rail {
@@ -445,79 +448,58 @@ button.secondary {
     position: relative; height: auto; overflow: visible;
   }
   /*
-     Placed rather than auto-placed, and the first track is deliberately
-     empty.
+     Placed rather than auto-placed: the middle track, whatever the sides hold.
 
-     The hamburger used to sit in it. With the rows along the bottom there is
-     nothing on that side any more, and the app's head has the same empty
-     slot: what keeps the word in the middle of the screen is that both sides
-     are a track wide whether or not anything is in them.
+     The button is 40 points and Create is a pill, and a row that centred on
+     their average would be close enough to centred to read as a mistake. Both
+     sides being a track wide is what the app's head achieves with equal flex,
+     and it is why the word sits in the middle of the *screen*.
   */
   .rail-mark { padding: 0; grid-column: 2; justify-self: center; }
 
-  /*
-     The bar: a capsule over the page rather than a band at the foot of it.
-
-     Fixed, inset from all three edges and clear of the bottom one, which is
-     what the app does and for its reason — a bar that reaches the edge has to
-     reserve a strip inside itself for the home indicator, and a constant
-     standing in for a safe area is a guess. Floating needs no allowance: a
-     phone without an indicator loses nothing and one with it has room.
-
-     `env(safe-area-inset-bottom)` on top of the 14, for the browsers that
-     report one. */
-  .rail-nav {
-    position: fixed; z-index: 30;
-    left: 12px; right: 12px;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    display: flex; flex-direction: row; gap: 2px; padding: 6px;
-    border-radius: 999px; border: 1px solid var(--line);
-    /* Glass, like the app's. The fallback is the card colour rather than a
-       transparent one: a bar you can read the page through is a bar you
-       cannot read. */
-    background: color-mix(in srgb, var(--card) 86%, transparent);
-    backdrop-filter: saturate(180%) blur(14px);
-    box-shadow: 0 10px 28px rgba(20, 23, 28, .14);
+  /* The button, in the leading track — where the bar's first track was left
+     empty when the rows floated at the foot. */
+  .rail-burger {
+    display: flex; align-items: center; justify-content: center; position: relative;
+    grid-column: 1; justify-self: start;
+    flex: none; width: 40px; height: 40px; border-radius: 10px;
+    background: none; border: 1px solid transparent; color: var(--fg);
+    padding: 0;
   }
-  @supports not (backdrop-filter: blur(1px)) {
-    .rail-nav { background: var(--card); }
+  .rail-burger:hover { border-color: var(--line); }
+  .rail-open .rail-burger { background: var(--accent-soft); color: var(--accent-ink); }
+  /* Three rules, drawn rather than set as a glyph: ☰ is a character whose
+     weight and width come from whichever font answers for it, and at 40px
+     that is the difference between a control and a smudge. */
+  .rail-burger-lines { display: flex; flex-direction: column; gap: 4px; width: 18px; }
+  .rail-burger-lines > * {
+    display: block; height: 2px; border-radius: 2px; background: currentColor;
   }
-
-  /* Settings joins the row rather than hanging under it: the foot is a box on
-     a laptop and nothing at all here, so its children become the bar's own. */
-  .rail-foot { display: contents; }
-  /* And the full-width Create in it goes — the pill in the head is the one.
-     Two links to the same place is two tab stops and two announcements. */
-  .rail-foot > a[href="/"] { display: none; }
-
-  /* Each tab a capsule inside the capsule, which is what seats the one you
-     are on. The glyph carries the state: `dim` for five, the page's own
-     foreground for the sixth — colour here would be the only colour in the
-     chrome, and the photographs underneath are the things entitled to one. */
-  .rail a.rail-row {
-    flex: 1; justify-content: center; padding: 10px 0; border-radius: 999px;
-    gap: 0;
-  }
-  .rail a.rail-row[aria-current='page'] {
-    background: color-mix(in srgb, var(--fg) 8%, transparent);
-    color: var(--fg);
-  }
-  /* Hidden, not deleted: a screen reader still announces the word, which is
-     the whole of what a glyph-only bar would otherwise lose. */
-  .rail-label {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-  }
-  .rail-icon { width: 22px; height: 22px; }
-  /* Over the glyph's own corner, because there is no label to sit after. */
-  .rail-row .badge {
-    position: absolute; transform: translate(11px, -10px);
+  /* The unread count, on the closed button. A menu that hides the one row
+     that carries a number is a menu somebody has to open to learn there was
+     nothing in it. */
+  .rail-burger .badge {
+    position: absolute; top: 2px; right: 2px;
     min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px;
   }
-  .rail a.rail-row { position: relative; }
 
-  /* Room under the page for the bar to float over. */
-  .shell { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  /* The rows, as the column they already are — one set of markup, not a phone
+     copy of it. Hung under the bar and the full width of it, because a panel
+     narrower than the screen invites a tap on the half of the row that is not
+     the panel. */
+  .rail-nav { display: none; }
+  .rail-open .rail-nav {
+    display: flex; flex-direction: column; gap: 4px;
+    /* Across all three tracks, though it is taken out of flow anyway: a panel
+       placed in one column would size the bar's tracks to its contents. */
+    grid-column: 1 / -1;
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
+    padding: 8px 12px 14px;
+    background: var(--card); border-bottom: 1px solid var(--line);
+    box-shadow: 0 12px 24px rgba(20, 23, 28, .08);
+  }
+  .rail-open .rail-nav .rail-row { padding: 11px 12px; }
+  .rail-foot { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hairline); }
   /* Create, in the bar rather than at the end of the panel.
 
      It was the full-width button below six rows of destinations, which is two
@@ -1740,6 +1722,10 @@ button.secondary {
   text-decoration: none; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 7px;
 }
+/* The glyph beside the word, at the size the app draws it in its own tab
+   strip. Glyph *and* word, where the app is glyph-only: three tabs across 393
+   points is a row with no room for labels and a browser's is not. */
+.event-tab .rail-icon { width: 19px; height: 19px; }
 .event-tab-on {
   color: var(--fg); font-weight: 600;
   border-bottom: 2px solid var(--accent); margin-bottom: -1px;

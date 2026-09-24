@@ -261,91 +261,71 @@ describe('the head of the shell', () => {
     expect(MOBILE).toMatch(/\.rail-create \{[^}]*grid-column: 3; justify-self: end/);
   });
 
-  it('reads the name, then the one thing it makes', () => {
-    // The order a screen reader gets. The menu that used to come first is
-    // gone: the rows are a bar along the bottom now.
-    expect(RAIL).not.toMatch(/rail-burger/);
+  it('reads leading control, name, trailing control', () => {
+    /*
+     * The order the app's head has and the order a screen reader gets: the
+     * button that opens everything else, then whose product this is, then the
+     * one thing it makes. Leading rather than trailing, which is where the
+     * button was — a control that opens the rest belongs ahead of the rest.
+     */
+    expect(RAIL.indexOf('className="rail-burger"')).toBeLessThan(
+      RAIL.indexOf('className="rail-mark"'),
+    );
     expect(RAIL.indexOf('className="rail-mark"')).toBeLessThan(
       RAIL.indexOf('className="rail-create"'),
     );
+    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*grid-column: 1; justify-self: start/);
   });
 });
 
 /**
- * Below tablet the rows are a bar along the bottom.
+ * Below tablet the rows go behind a button in the leading corner.
  *
- * Three shapes in three versions of this: sideways first, which fitted at four
- * rows and stopped at six; then behind a hamburger, which made every
- * destination two taps and hid the one row that ever carries a number. Now
- * where the app puts them.
+ * Four shapes in four versions of this: sideways, which stopped at six rows;
+ * behind a hamburger in the trailing corner; a capsule floating at the foot,
+ * the shape the app's tab bar has; and now the button again, on the other
+ * side. Six glyphs in a capsule is a row nobody reads, and the two that would
+ * have to go to make four are the two the web has and the app does not.
  */
-describe('the bar along the bottom', () => {
+describe('the menu on a narrow screen', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const CSS = read(join(APP, 'globals.css'));
   const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
 
-  it('is the same markup the rail is, reshaped', () => {
+  it('is the same markup the rail is, hung under the head', () => {
     /*
-     * One list, two shapes: a column on a laptop and a capsule on a phone.
-     * The labels are hidden rather than deleted, so what a screen reader
-     * announces is the same word in both — a glyph-only bar that dropped them
-     * would be six unlabelled links.
+     * One list, two shapes: a column on a laptop and that same column in a
+     * panel on a phone — not a phone copy of it. Full width, because a panel
+     * narrower than the screen invites a tap on the half of the row that is
+     * not the panel.
      */
-    expect(MOBILE).toMatch(/\.rail-nav \{[\s\S]{0,200}flex-direction: row/);
-    expect(MOBILE).toMatch(/\.rail-label \{[^}]*clip-path: inset\(50%\)/);
+    expect(MOBILE).toMatch(/\.rail-nav \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-open \.rail-nav \{[\s\S]{0,200}flex-direction: column/);
+    expect(MOBILE).toMatch(/\.rail-open \.rail-nav \{[\s\S]{0,260}left: 0; right: 0; top: 100%/);
     expect(RAIL).toMatch(/<span className="rail-label">\{row\.label\}<\/span>/);
-    /*
-     * And Settings joins the row rather than hanging under it. The foot is a
-     * box on a laptop and nothing at all here — which is what keeps the only
-     * route to signing out reachable on a phone.
-     */
-    expect(MOBILE).toMatch(/\.rail-foot \{ display: contents; \}/);
-    expect(RAIL).toMatch(/className="rail-row rail-settings"/);
   });
 
-  it('floats clear of the bottom edge rather than reaching it', () => {
-    /*
-     * The app's argument: a bar that reaches the edge has to reserve a strip
-     * inside itself for the home indicator, and a constant standing in for a
-     * safe area is a guess. Floating needs no allowance — and where a browser
-     * reports one, it is added rather than assumed.
-     */
-    expect(MOBILE).toMatch(/\.rail-nav \{[\s\S]{0,240}position: fixed/);
-    expect(MOBILE).toMatch(/bottom: calc\(14px \+ env\(safe-area-inset-bottom, 0px\)\)/);
-    expect(MOBILE).toMatch(/border-radius: 999px/);
-    // Glass, with a fallback that is not transparent: a bar you can read the
-    // page through is a bar you cannot read.
-    expect(MOBILE).toMatch(/backdrop-filter: saturate\(180%\) blur\(14px\)/);
-    expect(MOBILE).toMatch(/@supports not \(backdrop-filter: blur\(1px\)\)/);
-    // And the page leaves room for it to float over.
-    expect(MOBILE).toMatch(/\.shell \{ padding-bottom: calc\(76px/);
+  it('carries the one number the menu would otherwise hide', () => {
+    // A menu that conceals the row with the count is a menu somebody opens to
+    // learn there was nothing in it.
+    expect(RAIL).toMatch(/\{!open && current !== 'invites' && <InvitesBadge \/>\}/);
+    expect(MOBILE).toMatch(/\.rail-burger \.badge \{/);
   });
 
-  it('seats the page you are on rather than colouring it', () => {
-    /*
-     * A capsule inside the capsule, in a wash of the page's own value. Colour
-     * here would be the only colour in the chrome, and the photographs
-     * underneath are the things entitled to one — the app's note, and its
-     * rule.
-     */
-    expect(MOBILE).toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{/);
-    expect(MOBILE).toMatch(/background: color-mix\(in srgb, var\(--fg\) 8%, transparent\)/);
-    /* Where the rail's own selected row uses the accent, the bar does not:
-       on a laptop that row is in a column of chrome, and on a phone the bar
-       sits over the photographs. */
-    expect(MOBILE).not.toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{[^}]*var\(--accent\)/);
-    expect(CSS).toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{\s*background: var\(--accent-soft\)/);
+  it('closes on a tap away and on Escape', () => {
+    // The two rules `Menu` applies to its panel, for the same reason: a panel
+    // whose only exit is choosing something makes you navigate to be rid of
+    // it. `mousedown` rather than `click`, or the panel closes between a link
+    // being pressed and the navigation starting.
+    expect(RAIL).toMatch(/document\.addEventListener\('mousedown', away\)/);
+    expect(RAIL).toMatch(/e\.key === 'Escape'/);
   });
 
-  it('renders on the server again', () => {
-    // The hamburger was the only state in here and `'use client'` was the
-    // price of it. The count beside Activity owns its own boundary, which is
-    // why it could be paid back.
-    /* As a directive. It survives in the note that says why it went, which
-       is where a reversed decision belongs. */
-    expect(RAIL).not.toMatch(/^'use client';/m);
-    expect(RAIL).not.toMatch(/useState|useEffect|useRef/);
-    expect(read(join(APP, 'components/InvitesBadge.tsx'))).toMatch(/'use client'/);
+  it('exists only below tablet, where the rows are hidden', () => {
+    // On a wide screen the rows are the page's left edge, and a button that
+    // hides visible navigation adds a step to everything.
+    expect(CSS).toMatch(/\.rail-burger \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*display: flex/);
   });
 });
 

@@ -33,6 +33,7 @@ import type { GroupEvent, GroupPerson } from '@/groups';
 import { Face } from './Faces';
 import { GroupChat } from './GroupChat';
 import { MemberPicker, nameOf, type Person } from './MemberPicker';
+import { RailIcon, type RailGlyph } from './RailIcon';
 import { Menu } from './Menu';
 import { SiteFooter } from './SiteFooter';
 import { useImageFailure } from './useImageFailure';
@@ -61,10 +62,19 @@ type GroupData = {
  */
 export type GroupTab = 'albums' | 'chat' | 'people';
 
-const TABS: [GroupTab, string][] = [
-  ['albums', 'Albums'],
-  ['chat', 'Chat'],
-  ['people', 'People'],
+/*
+ * The three, with the app's own drawings beside them.
+ *
+ * Glyph *and* word, where the app's segmented control is glyph-only: a phone
+ * has three tabs across 393 points and a browser has a row with room in it,
+ * and a word that fits is a word worth keeping. What matters is that the
+ * picture is the same picture — `bubbles` for a room where people are talking
+ * to each other, against the single `bubble` an album's comments carry.
+ */
+const TABS: [GroupTab, string, RailGlyph][] = [
+  ['albums', 'Albums', 'photos'],
+  ['chat', 'Chat', 'bubbles'],
+  ['people', 'People', 'groups'],
 ];
 
 export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
@@ -278,13 +288,14 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
         the product twice. The app reached this first; this is the same screen.
       */}
       <nav className="event-tabs" aria-label="This group">
-        {TABS.map(([id, label]) => (
+        {TABS.map(([id, label, glyph]) => (
           <a
             key={id}
             href={hrefFor(id)}
             className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
             aria-current={tab === id ? 'page' : undefined}
           >
+            <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
             {label}
           </a>
         ))}

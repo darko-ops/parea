@@ -24,31 +24,41 @@
  * tracks, so the name sits in the middle of the screen rather than in the
  * middle of what the controls leave.
  *
- * ## Below tablet the rows are a bar along the bottom
+ * ## Below tablet the rows go behind a button in the leading corner
  *
- * Three shapes in three versions of this file. They were laid out sideways
- * first, which fitted at four rows and stopped at six — the bar scrolled, so
- * Profile hung half off the screen and Settings was past the edge with nothing
- * to say it was there. Then they went behind a hamburger, which made every
- * destination two taps and hid the one row that ever carries a number.
+ * Four shapes in four versions of this file, and the last two are worth
+ * keeping straight. They were laid out sideways first, which fitted at four
+ * rows and stopped at six — the bar scrolled, so Profile hung half off the
+ * screen and Settings was past the edge with nothing to say it was there.
+ * Then behind a hamburger in the trailing corner. Then as a capsule floating
+ * at the foot, the shape the app's tab bar has.
  *
- * Now they are where the app puts them: a capsule floating clear of the bottom
- * edge, glyph-only, with the page you are on seated in it. It is the shape a
- * thumb reaches without a menu in between, and it is the one piece of
- * navigation in this product that both clients can share.
+ * The capsule is gone and the button is back, in the *leading* corner this
+ * time. The rail is six destinations and the app's bar is four: six glyphs in
+ * a capsule is a row nobody reads, and the two that would have to go are the
+ * two the web has and the app does not. A menu holds six without asking
+ * anybody to recognise a picture of Settings.
  *
- * Still one set of markup. `.rail-nav` is a column on a laptop and that
- * capsule on a phone — the labels are hidden rather than deleted, so what a
- * screen reader announces is the same word in both, and `.rail-foot` becomes
- * `display: contents` so Settings joins the row rather than hanging under it.
+ * Leading rather than trailing, which is where it was: it is the first thing
+ * on the row and the first thing a reader meets, and a control that opens
+ * everything else belongs before the everything else rather than after it.
  *
- * And it renders on the server again. The hamburger was the only state in
- * here and `'use client'` was the price of it; the count beside Activity owns
- * its own boundary, which is why it could be paid back.
+ * Still one set of markup. `.rail-nav` is a column on a laptop and a panel
+ * under the bar on a phone — the same list in the same order, drawn as the
+ * column it already is, rather than a phone copy of it.
+ *
+ * `'use client'` for that one piece of state. A `<details>` would have avoided
+ * it and cannot, because the same element has to be a dropdown on a phone and
+ * an always-open column on a laptop, and CSS cannot force a closed disclosure
+ * back open.
  *
  * Reached through `Shell` rather than used directly — a rail without the flex
  * parent it expects renders as a full-width band above the content.
  */
+
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { InvitesBadge } from './InvitesBadge';
 import { RailIcon, type RailGlyph } from './RailIcon';
@@ -106,8 +116,69 @@ const ROWS: {
 
 
 export function Rail({ current }: { current: RailPage }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useRef<HTMLElement>(null);
+
+  /*
+   * Closes on a tap away and on Escape — the two rules `Menu` applies to its
+   * panel, for the same reason: a panel whose only exit is choosing something
+   * makes you navigate to be rid of it.
+   *
+   * `mousedown` rather than `click`, again as `Menu` does. Listening for the
+   * later event closes the panel between a link being pressed and the
+   * navigation starting, so the link never fires.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open, close]);
+
   return (
-    <nav className="rail" aria-label="Sections">
+    <nav
+      className={`rail${open ? ' rail-open' : ''}`}
+      aria-label="Sections"
+      ref={ref}
+    >
+      {/*
+        Only on a phone, and only there: on a wide screen the rows are already
+        the page's left-hand edge, and a button that hides visible navigation
+        adds a step to everything.
+
+        In the leading corner, before the name — it opens everything else, so
+        it belongs ahead of the everything else rather than after it. The
+        unread count rides on the closed button, because what it hides
+        includes the one row that ever carries a number, and a menu that
+        conceals it is a menu somebody opens to find out there was nothing to
+        find.
+      */}
+      <button
+        type="button"
+        className="rail-burger"
+        aria-expanded={open}
+        aria-controls="rail-nav"
+        aria-label={open ? 'Close the menu' : 'Menu'}
+        onClick={() => setOpen((was) => !was)}
+      >
+        <span className="rail-burger-lines" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+        {!open && current !== 'invites' && <InvitesBadge />}
+      </button>
+
       {/*
         The name, and only the name.
 

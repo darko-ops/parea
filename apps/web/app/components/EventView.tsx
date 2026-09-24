@@ -41,6 +41,7 @@ import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
 import { Mark } from './Mark';
+import { RailIcon } from './RailIcon';
 import { useUploads } from './useUploads';
 
 /** Faces in the head before the count takes over. Three, as on the cards. */
@@ -157,7 +158,7 @@ const INGEST_POLLS = 30;
 
 /** The three panes, in the order the header draws them. */
 const TABS = [
-  ['photos', 'Photos'],
+  ['photos', 'Photos', 'photos'],
   /*
    * "Thread", and the route is still `?tab=conversation`.
    *
@@ -167,8 +168,15 @@ const TABS = [
    * that. Thread is what people call this — a run of messages about one thing
    * — and it is a shorter word in a row of three.
    */
-  ['conversation', 'Thread'],
-  ['people', 'People'],
+  /*
+   * One bubble, where a group's chat carries two.
+   *
+   * The distinction is the app's and it is worth having on both clients: one
+   * is a remark about a thing, which is what an album's comments are, and two
+   * is people going back and forth, which is a room. See `RailIcon`.
+   */
+  ['conversation', 'Thread', 'bubble'],
+  ['people', 'People', 'groups'],
 ] as const;
 
 export type EventTab = (typeof TABS)[number][0];
@@ -690,13 +698,14 @@ export function EventView({
           send and Back is the way out of it.
         */}
         <nav className="event-tabs" aria-label="This album">
-          {TABS.map(([id, label]) => (
+          {TABS.map(([id, label, glyph]) => (
             <a
               key={id}
               href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
               className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
               aria-current={tab === id ? 'page' : undefined}
             >
+              <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
               {label}
               {id === 'conversation' && unread > 0 && (
                 <span className="event-tab-count">{unread}</span>
