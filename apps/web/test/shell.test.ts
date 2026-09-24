@@ -206,6 +206,69 @@ describe('an event looks like an event wherever it is listed', () => {
  * a panel as tall as the screen. It is a pill in the bar now, beside the menu
  * rather than inside it.
  */
+/**
+ * The head is the name, centred, and nothing else.
+ *
+ * It was the mark and the word as a lockup at the leading edge. The app's own
+ * head has never carried the mark: the top of a screen says whose product this
+ * is, and the mark says in a picture what the wordmark is already saying in
+ * letters — and the one of the two carrying colour onto a page whose subject
+ * is somebody else's photographs is the one to drop.
+ */
+describe('the head of the shell', () => {
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const CSS = read(join(APP, 'globals.css'));
+  const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
+
+  it('is the wordmark alone, with no mark beside it', () => {
+    const lockup = RAIL.slice(
+      RAIL.indexOf('className="rail-mark"'),
+      RAIL.indexOf('className="rail-create"'),
+    );
+    expect(lockup).toMatch(/className="wordmark">Parea</);
+    expect(lockup).not.toMatch(/<Mark/);
+    // Gone from the file, not merely from the row.
+    expect(RAIL).not.toMatch(/import \{ Mark \}/);
+    /*
+     * And still the mark everywhere it is the only thing saying what this is:
+     * the icon on a home screen, the face of the sign-in card, the figure
+     * over an empty thread.
+     */
+    expect(read(join(APP, 'components/LoginScreen.tsx'))).toMatch(/<Mark size=\{72\}/);
+    expect(read(join(APP, 'components/Thread.tsx'))).toMatch(/<Mark size=\{48\}/);
+  });
+
+  it('centres it, on the rail and in the bar', () => {
+    /*
+     * `1fr auto 1fr` below tablet rather than `margin-right: auto` on the
+     * lockup: the app's head flexes both sides equally so the word sits in
+     * the middle of the screen rather than in the middle of what the controls
+     * leave. The menu is 40 points and Create is a pill, and a row centred on
+     * their average is close enough to centred to read as a mistake.
+     */
+    expect(CSS).toMatch(/\.rail-mark \{[^}]*justify-content: center/);
+    expect(MOBILE).toMatch(/grid-template-columns: 1fr auto 1fr/);
+    expect(MOBILE).toMatch(/\.rail-mark \{ padding: 0; justify-self: center; \}/);
+    /* Gone as a rule. It survives in the note that says why, which is where
+       a reversed decision belongs. */
+    expect(MOBILE).not.toMatch(/^\s*margin-right: auto;/m);
+    // Each control at its own end, so neither pushes the name off centre.
+    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*justify-self: start/);
+    expect(MOBILE).toMatch(/\.rail-create \{[^}]*justify-self: end/);
+  });
+
+  it('reads leading control, name, trailing control', () => {
+    // The order the app's head has, and the order a screen reader gets: the
+    // menu, then whose app this is, then the one thing it makes.
+    expect(RAIL.indexOf('className="rail-burger"')).toBeLessThan(
+      RAIL.indexOf('className="rail-mark"'),
+    );
+    expect(RAIL.indexOf('className="rail-mark"')).toBeLessThan(
+      RAIL.indexOf('className="rail-create"'),
+    );
+  });
+});
+
 describe('the create button on a narrow screen', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const CSS = read(join(APP, 'globals.css'));

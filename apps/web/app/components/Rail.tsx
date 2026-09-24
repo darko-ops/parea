@@ -14,6 +14,16 @@
  * row because the product treats a group as persistent identity while the web
  * gave it no address of its own.
  *
+ * ## The head is the name, centred
+ *
+ * The app's is, and this had the mark and the word as a lockup at the leading
+ * edge. Two things went: the mark, because the top of a screen says whose
+ * product this is and the wordmark already says it in letters — and the
+ * colour, which on a page whose subject is somebody else's photographs is the
+ * one thing up there competing with them. Below tablet the bar is three
+ * tracks, so the name sits in the middle of the screen rather than in the
+ * middle of what the controls leave.
+ *
  * ## Below tablet it is a wordmark and a hamburger
  *
  * It was the same rows laid out sideways, which fitted while there were four
@@ -42,7 +52,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { InvitesBadge } from './InvitesBadge';
-import { Mark } from './Mark';
 import { RailIcon, type RailGlyph } from './RailIcon';
 
 export type RailPage =
@@ -132,35 +141,6 @@ export function Rail({ current }: { current: RailPage }) {
       aria-label="Sections"
       ref={ref}
     >
-      <div className="rail-mark">
-        {/* Sized at the call site rather than by the default: this is the
-            one lockup it appears in, and the number is a relationship to the
-            wordmark beside it rather than a property of the mark. */}
-        <Mark size={30} />
-        <span className="wordmark">Parea</span>
-      </div>
-
-      {/*
-        Create, in the bar, on a phone only.
-
-        The rows go behind the button beside this one and that is right for
-        destinations — but it was right for the create button too, which put
-        the one thing this product makes two taps away and at the far end of a
-        panel as tall as the screen. A menu is for the places you might go;
-        making an event is not a place, and it is the reason anybody opened
-        the app.
-
-        Condensed to a pill because it shares a 375px bar with the wordmark
-        and the menu: the word alone, at rail weight, left no room for either.
-        The full-width one in the panel is hidden at this width — the same
-        link twice is two tab stops and two things for a screen reader to
-        announce, so only one of them exists at a time.
-      */}
-      <a href="/" className="rail-create" aria-label="Create an album">
-        <span aria-hidden="true">+</span>
-        <span>Create</span>
-      </a>
-
       {/*
         Only on a phone, and only there: on a wide screen the rows are already
         the page's left-hand edge, and a button that hides visible navigation
@@ -185,6 +165,46 @@ export function Rail({ current }: { current: RailPage }) {
         </span>
         {!open && current !== 'invites' && <InvitesBadge />}
       </button>
+
+      {/*
+        The name, and only the name.
+
+        It was the mark and the word as a lockup — three coloured circles with
+        `parea` beside them. The app's own head has never had the mark in it:
+        the top of a screen says whose product this is, and the mark says that
+        in a picture the wordmark is already saying in letters. Two marks
+        stacked at the top of every page is the brand asserted twice, and the
+        one carrying colour into a page whose subject is somebody else's
+        photographs is the one to drop.
+
+        It is still the icon on a home screen, the face of the sign-in card
+        and the figure over an empty thread — places with nothing else in them
+        to say what this is.
+      */}
+      <div className="rail-mark">
+        <span className="wordmark">Parea</span>
+      </div>
+
+      {/*
+        Create, in the bar, on a phone only.
+
+        The rows go behind the button beside this one and that is right for
+        destinations — but it was right for the create button too, which put
+        the one thing this product makes two taps away and at the far end of a
+        panel as tall as the screen. A menu is for the places you might go;
+        making an event is not a place, and it is the reason anybody opened
+        the app.
+
+        Condensed to a pill because it shares a 375px bar with the wordmark
+        and the menu: the word alone, at rail weight, left no room for either.
+        The full-width one in the panel is hidden at this width — the same
+        link twice is two tab stops and two things for a screen reader to
+        announce, so only one of them exists at a time.
+      */}
+      <a href="/" className="rail-create" aria-label="Create an album">
+        <span aria-hidden="true">+</span>
+        <span>Create</span>
+      </a>
 
       <div className="rail-nav" id="rail-nav">
 

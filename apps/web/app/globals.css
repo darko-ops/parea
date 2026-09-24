@@ -294,8 +294,14 @@ button.secondary {
 /* Mark and word as one lockup. 4px rather than 8: the mark is a circle
    cluster with visual air already built into its bounding box, so a gap that
    measures correctly reads as a gap that is too wide. */
+/* The name, centred, and nothing beside it.
+
+   It was the mark and the word as a lockup, left-aligned over the rows. The
+   app's head centres the word and has never carried the mark — the top of a
+   screen says whose product this is, and the mark says in a picture what the
+   wordmark is already saying in letters. */
 .rail-mark {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; justify-content: center;
   padding: 0 10px 14px;
 }
 /* Garet on the name and nowhere else. A display face set at 15px through a
@@ -415,7 +421,19 @@ button.secondary {
 @media (max-width: 720px) {
   .shell { display: block; }
   .rail {
-    width: auto; flex-direction: row; align-items: center; gap: 2px;
+    /*
+     * Three tracks, and the middle one is the name.
+     *
+     * A row with `margin-right: auto` on the lockup put the word at the
+     * leading edge; the app's head flexes both sides equally so the word sits
+     * in the middle of the screen rather than in the middle of what the
+     * controls leave. `1fr auto 1fr` is that, without either side measuring
+     * the other: the menu is 40 points and Create is a pill, and a row that
+     * centred on their average would be close enough to centred to read as a
+     * mistake.
+     */
+    width: auto; display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 2px;
     border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 14px;
     /* Undo the desktop stickiness rather than inherit it sideways: a bar
        pinned to the top costs 50px of a phone screen on every page, and
@@ -425,10 +443,12 @@ button.secondary {
        off the page, which is what puts it under the button that opened it. */
     position: relative; height: auto; overflow: visible;
   }
-  .rail-mark { padding: 0; margin-right: auto; }
+  .rail-mark { padding: 0; justify-self: center; }
 
   .rail-burger {
     display: flex; align-items: center; justify-content: center; position: relative;
+    /* At the leading edge of its own track, so the word keeps the middle. */
+    justify-self: start;
     flex: none; width: 40px; height: 40px; border-radius: 10px;
     background: none; border: 1px solid transparent; color: var(--fg);
     padding: 0;
@@ -457,6 +477,9 @@ button.secondary {
   .rail-nav { display: none; }
   .rail-open .rail-nav {
     display: flex; flex-direction: column; gap: 4px;
+    /* Across all three tracks, though it is taken out of flow anyway: a panel
+       placed in one column would size the bar's tracks to its contents. */
+    grid-column: 1 / -1;
     position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
     padding: 8px 12px 14px;
     background: var(--card); border-bottom: 1px solid var(--line);
@@ -477,7 +500,9 @@ button.secondary {
      rather than this. */
   .rail-create {
     display: flex; align-items: center; gap: 5px; flex: none;
-    margin-right: 4px; padding: 0 12px; height: 34px;
+    /* At the trailing edge of its own track, opposite the menu. */
+    justify-self: end;
+    padding: 0 12px; height: 34px;
     border-radius: 999px; background: var(--accent); color: #fff;
     font-size: 14px; font-weight: 600; line-height: 1; text-decoration: none;
     white-space: nowrap;
