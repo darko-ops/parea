@@ -49,7 +49,10 @@
  * rooms, and a second copy of it is a second place for the rules to be wrong.
  *
  *   - `chat` sides with the speaker: your own messages mirror the row and
- *     fill a bubble, which is how a messenger says who said what.
+ *     fill a bubble, which is how a messenger says who said what. The strip
+ *     it used to type into — a pill and a round arrow with a rule over them —
+ *     is gone; both rooms share the site's composer now and differ only in
+ *     the words on it, Send against Post. See the note beside it.
  *   - `board` has one column and no sides. Every comment is a face, a name, a
  *     time and the words, whoever wrote it — the shape the web's thread has
  *     always had, and the shape of every comment section anybody has read.
@@ -268,12 +271,10 @@ export function Thread({
   );
 
   /*
-   * The box itself, built once and placed by the shape.
-   *
-   * A chat puts it in a row beside the arrow; a board stacks it over its own
-   * actions. One `TextInput` either way — two copies of a text field with a
-   * ref, a placeholder and a multiline cap is two places for the typing to
-   * behave differently.
+   * The box itself, lifted out of the card below only to keep that block
+   * readable — one `TextInput` for both rooms, which is what it has to be:
+   * two copies of a text field with a ref, a placeholder and a multiline cap
+   * is two places for typing to behave differently.
    */
   const field = (
     <TextInput
@@ -293,11 +294,7 @@ export function Thread({
       placeholder={board ? 'Add a comment…' : 'Message the group…'}
       placeholderTextColor={t.dim}
       multiline
-      style={[
-        styles.field,
-        board ? styles.fieldBare : [styles.fieldPill, { borderColor: t.line }],
-        { color: t.fg },
-      ]}
+      style={[styles.field, { color: t.fg }]}
       accessibilityLabel={board ? 'Add a comment' : 'Message the group'}
     />
   );
@@ -378,107 +375,100 @@ export function Thread({
         />
       )}
 
-      {mention && canPost && (
-        <View style={[styles.mentions, { backgroundColor: t.card, borderTopColor: t.line }]}>
-          {mention.map((person) => (
-            <Pressable
-              key={person.key}
-              onPress={() => complete(person.name)}
-              style={({ pressed }) => [
-                styles.mention,
-                { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Text style={[styles.mentionText, { color: t.fg }]}>{person.name}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
       {/*
-        The bar at the foot, which is two different objects.
+        One box at the foot of both rooms, and only the words in it differ.
 
-        A chat's is the strip every messenger has: a pill and a round arrow,
-        edge to edge, with a hairline over it. A board's is the site's own
-        composer — one bordered card with the field inside it and the button
-        under the field, sitting on the page rather than on a strip. Both are
-        pinned above the keyboard by the `KeyboardAvoidingView` around them;
-        what changes is what they look like, which is the whole of what a
-        reader is being told about the room they are in.
+        A chat had the strip every messenger has — a pill running edge to edge
+        with a round accent disc beside it and a hairline across the screen
+        above — and a board has the site's card. The card won for the group's
+        room as well, which is a smaller change than it sounds: the ↑ disc is
+        a messenger's control and it earns its place *beside a pill*, where it
+        is the one round thing in a row of round things. Dropped into a
+        bordered card under a bare field it is a mystery button in a tidy box,
+        and the alternative — the card with a word in it — is what both rooms
+        actually want. A chat's word is Send, because a message does go
+        somewhere.
+
+        So what tells a reader which room they are in is the conversation
+        above this: bubbles on sides in a chat, one column on a board. That is
+        the right place for it. A composer is furniture, and drawing two kinds
+        of furniture to say something the content already says is how an app
+        ends up with two of everything.
       */}
-      <View
-        style={[
-          styles.composer,
-          board
-            ? { backgroundColor: t.bg }
-            : { backgroundColor: t.card, borderTopWidth: 1, borderTopColor: t.line },
-        ]}
-      >
+      <View style={[styles.composer, { backgroundColor: t.bg }]}>
         {canPost ? (
-          board ? (
-            /*
-              The site's card, point for point: a 1-point border at 14, the
-              field bare inside it, and the actions under it with the error to
-              the left of the button. Its own ground rather than the page's —
-              a box you type into that shows the column scrolling behind it
-              reads as two things overlapping rather than one thing on top.
-            */
-            <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-              {field}
-              <View style={styles.actions}>
-                {/* The one line worth keeping in this slot. It held a standing
-                    sentence about who can read the thread, which nobody reads
-                    after the first day; an error is the thing somebody needs
-                    told at the moment they are told it. */}
-                <Text style={[styles.note, { color: t.dim }]} numberOfLines={2}>
-                  {error ?? ''}
+          /*
+            The site's card, point for point: a 1-point border at 14, the
+            field bare inside it, and the actions under it with the error to
+            the left of the button. Its own ground rather than the page's — a
+            box you type into that shows the column scrolling behind it reads
+            as two things overlapping rather than one thing on top.
+          */
+          <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+            {/*
+              The names, inside the box they complete rather than on a bar
+              above it.
+
+              It was its own strip with its own ground and a rule along the
+              top, which was of a piece with the composer when that was a
+              strip too. Against a card it reads as a second object arriving
+              over the conversation. The site has always put it here — a row
+              of pills at the head of the composer with a hairline under them
+              — and it is the better place regardless: what the list is doing
+              is finishing the word under the cursor, so it belongs in the
+              same box as the cursor.
+            */}
+            {mention && (
+              <View style={[styles.mentions, { borderBottomColor: t.line }]}>
+                {mention.map((person) => (
+                  <Pressable
+                    key={person.key}
+                    onPress={() => complete(person.name)}
+                    style={({ pressed }) => [
+                      styles.mention,
+                      { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <Text style={[styles.mentionText, { color: t.fg }]}>{person.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            {field}
+            <View style={styles.actions}>
+              {/* The one line worth keeping in this slot. It held a standing
+                  sentence about who can read the thread, which nobody reads
+                  after the first day; an error is the thing somebody needs
+                  told at the moment they are told it. */}
+              <Text style={[styles.note, { color: t.dim }]} numberOfLines={2}>
+                {error ?? ''}
+              </Text>
+              <Pressable
+                onPress={() => void post()}
+                disabled={posting || draft.trim() === ''}
+                accessibilityRole="button"
+                accessibilityLabel={board ? 'Post this comment' : 'Send this message'}
+                style={({ pressed }) => [
+                  styles.post,
+                  { backgroundColor: t.accent },
+                  { opacity: draft.trim() === '' || posting ? 0.6 : pressed ? 0.8 : 1 },
+                ]}
+              >
+                {/* The verb of the room, and the same verb in the present
+                    tense while it is happening — a button that says what it
+                    did is a button somebody presses twice. */}
+                <Text style={[styles.postText, { color: t.onAccent }]}>
+                  {board
+                    ? posting
+                      ? 'Posting…'
+                      : 'Post'
+                    : posting
+                      ? 'Sending…'
+                      : 'Send'}
                 </Text>
-                <Pressable
-                  onPress={() => void post()}
-                  disabled={posting || draft.trim() === ''}
-                  accessibilityRole="button"
-                  accessibilityLabel="Post this comment"
-                  style={({ pressed }) => [
-                    styles.post,
-                    { backgroundColor: t.accent },
-                    { opacity: draft.trim() === '' || posting ? 0.6 : pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.postText, { color: t.onAccent }]}>
-                    {posting ? 'Posting…' : 'Post'}
-                  </Text>
-                </Pressable>
-              </View>
+              </Pressable>
             </View>
-          ) : (
-            <>
-              {/* Only when something went wrong. A standing line under every
-                  message anybody ever writes is a line nobody reads after the
-                  first day; who can read this is what the placeholder says. */}
-              {error && <Text style={[styles.error, { color: t.dim }]}>{error}</Text>}
-              <View style={styles.composerRow}>
-                {field}
-                {/*
-                  An arrow in a chat, where a board spells the verb. The round
-                  accent disc means *send this to somebody*, which is what a
-                  message is and what a comment is not.
-                */}
-                <Pressable
-                  onPress={() => void post()}
-                  disabled={posting || draft.trim() === ''}
-                  accessibilityRole="button"
-                  accessibilityLabel="Send"
-                  style={({ pressed }) => [
-                    styles.send,
-                    { backgroundColor: t.accent },
-                    { opacity: draft.trim() === '' || posting ? 0.4 : pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.sendGlyph, { color: t.onAccent }]}>↑</Text>
-                </Pressable>
-              </View>
-            </>
-          )
+          </View>
         ) : (
           <Text style={[styles.error, { color: t.dim }]}>
             Only people who can add photos can post. Everyone in the album can
@@ -1087,15 +1077,17 @@ const styles = StyleSheet.create({
   editing: { gap: 8 },
   editActions: { flexDirection: 'row', gap: 16 },
   editAction: { fontSize: 14, fontWeight: '600' },
-  mentions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 10, borderTopWidth: 1 },
-  mention: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  mentionText: { fontSize: 13.5, fontWeight: '600' },
+  /* At the head of the composer with a hairline under it, which is where the
+     site puts it: `.mention-list` is a wrapped row of pills with 6 of gap and
+     8 of padding above its own bottom rule. */
+  mentions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 },
+  mention: { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },
+  mentionText: { fontSize: 13, fontWeight: '600' },
   /* Pinned, with the home indicator's strip inside the padding rather than
-     under the field. The border on top is the chat's: a board draws a card
-     with its own edge, and a hairline across the screen behind it would be
-     the strip the card is there instead of. */
+     under the field. No hairline across the screen any more, in either room:
+     the card has its own edge, and a rule behind it is the strip the card is
+     there instead of. */
   composer: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 30, gap: 8 },
-  composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   /*
    * The site's composer, point for point: `.thread-composer` is a 1-point
    * border at radius 14 with 13 and 15 of padding and 8 between the field and
@@ -1108,29 +1100,26 @@ const styles = StyleSheet.create({
   /* Flexed, so the button stays at the right-hand edge whether or not there is
      anything to say to the left of it. */
   note: { flex: 1, fontSize: 12.5, lineHeight: 17 },
-  field: { fontSize: 15, maxHeight: 120 },
-  /* A pill in a chat. */
-  fieldPill: { flex: 1, borderWidth: 1, borderRadius: 20, paddingVertical: 11, paddingHorizontal: 14 },
   /*
-   * And bare on a board, because the card around it is the edge. Padding to
-   * nothing and no border, exactly as `.thread-field` is on the site.
+   * Bare, because the card around it is the edge — no border and padding to
+   * nothing, exactly as `.thread-field` is on the site. It was a bordered
+   * pill in a chat, which is a second edge inside the first.
    *
-   * `maxHeight` is the one number that does not match: 160 there, 120 here,
-   * because a keyboard takes half of a phone and a box that grows to 160
-   * above one leaves two comments visible behind it.
+   * `maxHeight` is the one number that does not match the site: 160 there,
+   * 120 here, because a keyboard takes half of a phone and a box that grows
+   * to 160 above one leaves two messages visible behind it.
    */
-  fieldBare: { padding: 0 },
-  send: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  sendGlyph: { fontSize: 17, fontWeight: '600' },
+  field: { fontSize: 15, maxHeight: 120, padding: 0 },
   /*
    * Filled, and the site's own `.thread-actions button`: 9 and 16 of padding
    * at radius 10, the label at 14.
    *
-   * It was an unfilled word in the accent, on the argument that a comment is
-   * posted where it already is rather than sent away. The argument survives —
-   * the label still says Post — and the treatment does not: this is the only
-   * control in the pane and the thing the whole card is for, and the product
-   * fills that button everywhere else it appears.
+   * It was an unfilled word in the accent on a board and a round ↑ disc in a
+   * chat. The word's argument survives — a comment is posted where it already
+   * is rather than sent away, and the label still says so — and neither
+   * treatment does: this is the only control in the pane and the thing the
+   * whole card is for, and the product fills that button everywhere else it
+   * appears.
    */
   post: { paddingVertical: 9, paddingHorizontal: 16, borderRadius: 10 },
   postText: { fontSize: 14, fontWeight: '600' },

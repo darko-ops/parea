@@ -333,23 +333,33 @@ describe('a board is not a chat', () => {
     expect(VIEWER).not.toMatch(/placeholder="Message everyone/);
     expect(VIEWER).not.toMatch(/accessibilityLabel="Message everyone/);
     /*
-     * And the round accent disc with an arrow in it is a messenger's control:
-     * it means send this to somebody. A comment is not sent anywhere, it is
-     * posted where it already is, and the verb is worth spelling.
+     * And the button spells the verb of the room. The round accent disc that
+     * was here is a messenger's control — it means send this to somebody,
+     * which a message does and a comment does not — and it earned its place
+     * beside a pill rather than inside a card. See the composer's own note.
      */
-    expect(VIEWER).toMatch(/accessibilityLabel="Post this comment"/);
-    expect(VIEWER).toMatch(/\{posting \? 'Posting…' : 'Post'\}/);
-    expect(VIEWER).toMatch(/<Text style=\{\[styles\.sendGlyph, \{ color: t\.onAccent \}\]\}>↑<\/Text>/);
-    expect(VIEWER).toMatch(/send: \{ width: 38, height: 38,/);
+    expect(VIEWER).toMatch(
+      /accessibilityLabel=\{board \? 'Post this comment' : 'Send this message'\}/,
+    );
+    expect(VIEWER).toMatch(/\? 'Posting…'\s*: 'Post'/);
+    expect(VIEWER).toMatch(/\? 'Sending…'\s*: 'Send'/);
+    // Gone as a control, with the strip it sat on. It survives in the notes
+    // that say why, which is where a reversed decision belongs.
+    expect(VIEWER).not.toMatch(/styles\.sendGlyph|styles\.send\b/);
   });
 
-  it('draws the site’s own composer on a board', () => {
+  it('draws the site’s own composer in both rooms', () => {
     /*
-     * A chat's composer is the strip every messenger has: a pill and a round
-     * arrow, edge to edge, with a hairline over it. A board's is the card the
-     * site draws — the field bare inside one bordered box with the button
-     * under it — and the two are the same numbers, restated because there is
+     * The card the site draws — the field bare inside one bordered box with
+     * the button under it — and the same numbers, restated because there is
      * no stylesheet between the clients.
+     *
+     * In the group's room too. A chat had the strip every messenger has, a
+     * pill and a round arrow with a rule over them, and what tells a reader
+     * which room they are in is the conversation above the box rather than
+     * the box: bubbles on sides in a chat, one column on a board. Drawing two
+     * kinds of furniture to say what the content already says is how an app
+     * ends up with two of everything.
      */
     const CSS = read('../../apps/web/app/globals.css');
     const web = (rule: string) => CSS.slice(CSS.indexOf(rule), CSS.indexOf('}', CSS.indexOf(rule)));
@@ -361,24 +371,39 @@ describe('a board is not a chat', () => {
     expect(web('.thread-composer {')).toMatch(/border-radius: 14px; padding: 13px 15px/);
     expect(web('.thread-composer {')).toMatch(/gap: 8px/);
     // The field bare inside it, because the card is the edge.
-    expect(VIEWER).toMatch(/fieldBare: \{ padding: 0 \}/);
+    expect(VIEWER).toMatch(/field: \{ fontSize: 15, maxHeight: 120, padding: 0 \}/);
     expect(web('.thread-field {')).toMatch(/border: 0; padding: 0/);
     // The actions under it: the error to the left, the button at the edge.
     expect(VIEWER).toMatch(/actions: \{ flexDirection: 'row', alignItems: 'center', gap: 12 \}/);
     expect(web('.thread-actions {')).toMatch(/gap: 12px/);
     expect(VIEWER).toMatch(/note: \{ flex: 1, fontSize: 12\.5/);
     expect(web('.thread-note {')).toMatch(/flex: 1; font-size: 12\.5px/);
+    /*
+     * And the mention list at the head of the box rather than on a bar over
+     * it: what it is doing is finishing the word under the cursor, so it
+     * belongs in the same box as the cursor. The site's `.mention-list` is a
+     * wrapped row of pills with 6 of gap above its own bottom rule.
+     */
+    expect(VIEWER).toMatch(/mentions: \{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 \}/);
+    expect(web('.mention-list {')).toMatch(/gap: 6px; flex-wrap: wrap; padding-bottom: 8px/);
+    expect(VIEWER).toMatch(/mention: \{ borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 \}/);
+    expect(CSS).toMatch(/\.mention-list button \{\s*padding: 5px 10px; border-radius: 999px; font-size: 13px;/);
     // And the button filled, at the site's own size.
     expect(VIEWER).toMatch(/post: \{ paddingVertical: 9, paddingHorizontal: 16, borderRadius: 10 \}/);
     expect(CSS).toMatch(/\.thread-actions button \{ padding: 9px 16px; font-size: 14px; border-radius: 10px; \}/);
     expect(VIEWER).toMatch(/postText: \{ fontSize: 14, fontWeight: '600' \}/);
     /*
-     * The hairline across the screen is the chat's. A board draws a card with
-     * its own edge, and a rule behind it would be the strip the card is there
-     * instead of.
+     * And no hairline across the screen in either room: the card has its own
+     * edge, and a rule behind it is the strip the card is there instead of.
      */
     expect(VIEWER).toMatch(/composer: \{ paddingTop: 12,/);
-    expect(VIEWER).toMatch(/borderTopWidth: 1, borderTopColor: t\.line \}/);
+    expect(VIEWER).not.toMatch(/borderTopWidth/);
+    // One field, one card, one button — the shape reaches the words on the
+    // button and nothing else down here.
+    expect(VIEWER).not.toMatch(/fieldPill|composerRow/);
+    const composer = between(VIEWER, 'One box at the foot of both rooms', 'function Row({');
+    expect(composer.match(/\{field\}/g)).toHaveLength(1);
+    expect(composer.match(/styles\.post,/g)).toHaveLength(1);
   });
 
   it('names the subject when a board is empty', () => {
