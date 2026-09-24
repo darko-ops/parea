@@ -248,7 +248,7 @@ export function Rail({ current }: { current: RailPage }) {
         link twice is two tab stops and two things for a screen reader to
         announce, so only one of them exists at a time.
       */}
-      <a href="/" className="create-disc rail-create" aria-label="Create an album">
+      <a href="/" className="round rail-create" aria-label="Create an album">
         <RailIcon glyph="plus" />
       </a>
 

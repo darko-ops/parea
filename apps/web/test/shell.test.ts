@@ -403,10 +403,10 @@ describe('the create button', () => {
      * The rail keeps only the bar's copy, which exists at phone width. A
      * `.rail-foot` create is the regression this asserts against.
      */
-    expect(HOME).toMatch(/className="create-disc home-create"/);
+    expect(HOME).toMatch(/className="round home-create"/);
     expect(HOME).toMatch(/aria-label="Create an album"/);
     const foot = RAIL.slice(RAIL.indexOf('className="rail-foot"'));
-    expect(foot, 'the rail foot is destinations only now').not.toMatch(/rail-create|create-disc/);
+    expect(foot, 'the rail foot is destinations only now').not.toMatch(/rail-create|"round/);
   });
 
   it('says what it makes, for anyone who cannot see it', () => {
@@ -433,7 +433,7 @@ describe('the create button', () => {
      * reaching for it here again is. The focus ring is the exception and is
      * meant to be: a ring is the one thing on the page that has to be found.
      */
-    const rule = CSS.slice(CSS.indexOf('.create-disc {'), CSS.indexOf('.create-disc:focus'));
+    const rule = CSS.slice(CSS.indexOf('.round {'), CSS.indexOf('.round:focus'));
     expect(rule).not.toBe('');
     expect(rule).toMatch(/background: var\(--card\)/);
     expect(rule).not.toMatch(/var\(--accent/);
@@ -456,12 +456,20 @@ describe('the create button', () => {
     expect(MOBILE).toMatch(/\.home-create \{ display: none; \}/);
   });
 
-  it('sits in the same cluster as search, and hovers the same way', () => {
-    // Two controls in one corner with one of them turning blue under the
-    // pointer reads as two different kinds of thing. The wash is the rail's
-    // own — see `--selected`.
+  it('is the same control as search, not a louder one beside it', () => {
+    /*
+     * They share `.round` rather than each carrying their own shape. A
+     * bordered disc next to a bare glyph reads as one control and one
+     * decoration, and the bare one was search — the thing on this page people
+     * press more. One class, so the hover, the hairline and the glyph weight
+     * cannot drift apart into two kinds of button in one corner.
+     */
     expect(HOME).toMatch(/className="home-actions"/);
-    expect(CSS).toMatch(/\.search-go:hover \{ background: var\(--selected\)/);
+    expect(HOME).toMatch(/className="round home-create"/);
+    expect(HOME).toMatch(/className="round search-go"/);
+    // And the disc gives up its edge inside the open pill, or the field is a
+    // circle drawn inside a pill.
+    expect(CSS).toMatch(/\.search-open \.search-go \{[^}]*border-color: transparent/);
   });
 });
 

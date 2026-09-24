@@ -416,34 +416,36 @@ button.secondary {
    to everything. */
 .rail-burger { display: none; }
 
-/* Create — a `+` in a disc, and the product's one of them.
+/* The product's one piece of round chrome — the app's `RoundButton`, on the
+   web.
 
-   It was two different controls that went to the same place: a blue pill in
-   the bar on a phone and a full-width blue button under the rows on a laptop.
-   Both are this now. The shape is the app's `RoundButton` — the card colour,
-   a hairline round it, the glyph at `--fg` — which is what every corner
-   control on a phone already is, so the web's create button stops being the
-   one piece of chrome in the product with a fill on it.
+   A 36px disc in the card colour with a hairline round it and the glyph at
+   full strength. It arrived for create, which was two different controls
+   going to the same place: a blue pill in the bar on a phone and a
+   full-width blue button under the rows on a laptop. Neither had any business
+   being the loudest thing on a page whose subject is somebody else's evening.
 
-   No word. The `+` is the one glyph that needs no caption, and the word
-   survives where it is actually useful, as the accessible name — which is the
-   trade the app's tab bar makes for all four of its own.
+   Search wears it too, and that is the point of it being a class rather than
+   a create button's private styling. The two sit side by side in Home's head,
+   and a bordered disc next to a bare glyph reads as one control and one
+   decoration — which is exactly backwards, because the bare one is the
+   control somebody uses more. One shape, so the corner is a pair.
 
-   The shape is here and the placement is not: `.home-create` puts it in the
-   page's head on a laptop and `.rail-create` puts it in the bar on a phone,
-   and exactly one of them is drawn at any width.
+   `cursor` and `padding` are in here because it lands on an `<a>` and on a
+   `<button>`, and the global `button` rule would otherwise give one of them
+   13px of padding and a blue fill.
 
-   `-disc` because `.create` is taken, by the create-album page's own layout
-   further down this file. Two unrelated things called the same thing is the
-   sort of collision that is invisible until one of them sets `display`. */
-.create-disc {
+   The shape is here and the placement is not: `.home-create` puts create in
+   the page's head on a laptop and `.rail-create` puts it in the bar on a
+   phone, and exactly one of them is drawn at any width. */
+.round {
   display: inline-flex; align-items: center; justify-content: center;
-  flex: none; width: 36px; height: 36px; border-radius: 999px;
+  flex: none; width: 36px; height: 36px; padding: 0; border-radius: 999px;
   background: var(--card); border: 1px solid var(--line); color: var(--fg);
-  text-decoration: none;
+  text-decoration: none; cursor: pointer;
 }
-.create-disc:hover { background: var(--track); border-color: var(--dim-soft); }
-.create-disc:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.round:hover { background: var(--track); border-color: var(--dim-soft); }
+.round:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* The bar's copy is the phone's, so on a laptop it does not exist. Its
    opposite — hiding the head's copy — is in the phone block below, and the
@@ -843,8 +845,13 @@ button.secondary {
 
    Create first, reading order. Search grows a field to the right of its own
    button when it opens, so putting create on that side would have the field
-   shove it about every time somebody typed. */
-.home-actions { display: flex; align-items: center; gap: 6px; }
+   shove it about every time somebody typed.
+
+   3px, not 6. The search button sits inside a pill that carries 2px of
+   padding and a 1px transparent border — invisible until the field opens, and
+   3px of space all the same. The gap is what is left over so the two discs
+   are 6px apart the way they look 6px apart. */
+.home-actions { display: flex; align-items: center; gap: 3px; }
 .home-greeting { font-size: 13px; color: var(--dim-soft); }
 .home-title { font-size: 28px; letter-spacing: -.02em; margin: 2px 0 0; }
 
@@ -1084,18 +1091,20 @@ button.secondary {
   padding: 2px; transition: border-color 140ms, background 140ms;
 }
 .search-open { border-color: var(--line); background: var(--bg); }
-.search-go {
-  flex: none; display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; padding: 0; border-radius: 999px;
-  background: none; border: 0; color: var(--dim); cursor: pointer;
+/* Nothing of its own while it is closed: it is `.round`, like the `+` beside
+   it — the shape, the hairline, the hover and the glyph at full strength.
+
+   It used to be a bare glyph in `--dim` with an accent-blue hover, which was
+   defensible while it was the only control up there. Beside a bordered disc it
+   read as the lesser of the two, and it is the one people press more. */
+.search-open .search-go {
+  /* Open, the pill *is* the control and the button is a label on the front of
+     it. A bordered circle inside a bordered pill is the two-rectangles-one-
+     control problem the field below has its own note about — so the disc
+     gives up its edge and its fill, and dims, the moment there is a field. */
+  background: none; border-color: transparent; color: var(--dim);
 }
-/* Grey, like everything else in the chrome. It was the accent, which was
-   defensible while this button was alone up here and is not now that it sits
-   against the create disc: two controls in one cluster, one of them turning
-   blue under the pointer and the other not, reads as two different kinds of
-   thing. `--selected` is the wash the rail's own rows use. */
-.search-go:hover { background: var(--selected); color: var(--fg); }
-.search-open .search-go { background: none; color: var(--dim); }
+.search-open .search-go:hover { background: none; color: var(--fg); }
 /* Overriding the global input rules, which give every field a border, a
    background and 13px of padding — this one is inside a container already
    drawing all three. */

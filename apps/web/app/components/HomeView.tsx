@@ -134,7 +134,7 @@ export function HomeView({
             first — the trade taken knowingly, because a create button in six
             different corners is the thing that made the rail's one invisible.
           */}
-          <a href="/" className="create-disc home-create" aria-label="Create an album">
+          <a href="/" className="round home-create" aria-label="Create an album">
             <RailIcon glyph="plus" />
           </a>
 
@@ -147,7 +147,7 @@ export function HomeView({
             */}
             <button
               type="button"
-              className="search-go"
+              className="round search-go"
               aria-expanded={open}
               aria-label="Search your albums"
               onClick={() => {
