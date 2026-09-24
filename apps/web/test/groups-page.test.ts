@@ -42,6 +42,9 @@ const GROUP = await read('../app/components/GroupView.tsx');
 const CARD = await read('../app/components/CreateGroupCard.tsx');
 const CHATS = await read('../app/components/GroupChats.tsx');
 const FIND = await read('../app/components/FindView.tsx');
+const SCREEN = await read('../app/components/GroupChatScreen.tsx');
+const THREAD = await read('../app/components/Thread.tsx');
+const CHAT_PAGE = await read('../app/group/[id]/chat/page.tsx');
 const FIND_PAGE = await read('../app/find/page.tsx');
 const GROUPS_SRC = await read('../src/groups.ts');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
@@ -219,16 +222,58 @@ describe('what a row shows', () => {
      * laptop screen and the talking was under the furniture. The app reached
      * the same page and made the same cut; this asserts the cut stays made.
      *
-     * The room is not gone, it is one tab away: `?tab=chat` lands in the
-     * conversation and the albums and people are beside it.
+     * The room is not gone, it is one press away: a row opens the conversation
+     * on a screen of its own and the bar at the top of it goes to the room.
+     *
+     * It was `?tab=chat`, which is the room — crest, three tabs, its albums —
+     * showing the Chat pane, so a list of conversations opened a page about a
+     * group with the talking inside it. Asserted as an absence too, because
+     * that URL still works and is still what the room's own tab uses.
      */
-    expect(CHATS).toMatch(/\?tab=chat/);
+    expect(CHATS).toMatch(/\/chat`/);
+    expect(CHATS).not.toMatch(/\?tab=chat/);
     expect(CHATS).toMatch(/chat\.last\.body/);
     expect(CHATS).toMatch(/Nobody has said anything yet\./);
     for (const furniture of ['group-strip', 'GroupCover', 'View all', 'group-meta', '<Face']) {
       expect(PAGE, `${furniture} is the room, not the chat`).not.toContain(furniture);
       expect(CHATS, `${furniture} is the room, not the chat`).not.toContain(furniture);
     }
+  });
+
+  it('opens the conversation on a screen of its own', () => {
+    /*
+     * The screen is a bar and a thread and nothing else — no crest over three
+     * tabs, no shelf of albums under it. Both it and the room's Chat tab draw
+     * the same `GroupChat`, which is the point of that being a component
+     * rather than a page: one conversation, two places it can be reached from.
+     *
+     * The bar is the way into the room, and the whole block is the link. A
+     * separate button beside the name is the shape that asks somebody to
+     * notice a second control.
+     */
+    expect(SCREEN).toMatch(/<GroupChat groupId=\{group\.id\} \/>/);
+    expect(SCREEN).toMatch(/href=\{`\/group\/\$\{group\.id\}`\}/);
+    expect(SCREEN).not.toMatch(/event-tabs|group-shelf|GroupView/);
+    // Members only. A non-member gets the 404 a nonexistent group gets rather
+    // than the door — the door is `/group/<id>`, and a conversation has no
+    // such state to draw.
+    expect(CHAT_PAGE).toMatch(/if \(!membership\) notFound\(\);/);
+  });
+
+  it('asks a room\u2019s question in a room, not an album\u2019s', () => {
+    /*
+     * An empty board sits under a wall of photographs somebody has just
+     * scrolled, and the thing to say is about those. A group's chat has no
+     * photographs in front of it: it is a room with nobody talking in it, and
+     * the nudge is social.
+     *
+     * The branch is the app's and it was missing here — the album's sentence
+     * was drawn in both places, so an empty group chat invited somebody to say
+     * something about photographs that were not on the screen.
+     */
+    expect(THREAD).toMatch(/room\.kind === 'group'/);
+    expect(THREAD).toMatch(/Say something before this gets awkward\./);
+    expect(THREAD).toMatch(/Say something about these photographs\./);
   });
 
   it('orders by the last thing said, and lists the silent rooms anyway', () => {

@@ -2950,6 +2950,46 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* Where a search that matched nothing says so. A head, a field and an empty
    page reads as a page that failed to load. */
 .chat-none { max-width: 560px; color: var(--dim); font-size: 14px; }
+
+/* ---------------------------------------------------------------------------
+   One conversation, on a screen of its own.
+
+   Reached from the list above. It was `/group/<id>?tab=chat` — the room, with
+   its crest and its three tabs, showing the Chat pane — so a list of
+   conversations opened a page about a group with the talking inside it.
+
+   The bar is the album's folded-up header in the one place it still belongs: a
+   group has no cover to keep across tabs, being a room rather than an evening.
+   The whole of it is the way into the room, because the name *is* the link —
+   the shape a message thread has in every app anybody has used.
+   --------------------------------------------------------------------------- */
+.chat-screen {
+  flex: 1; min-width: 0; max-width: 760px;
+  padding: 20px 30px 34px; background: var(--page);
+  display: flex; flex-direction: column;
+}
+.chat-head {
+  display: flex; align-items: center; gap: 12px;
+  margin: 6px 0 14px; padding: 10px 12px; border-radius: 14px;
+  background: var(--card); border: 1px solid var(--line);
+  color: inherit; text-decoration: none;
+}
+.chat-head:hover { border-color: var(--dim-soft); }
+.chat-head:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.chat-head-tile { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+.chat-head-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-head-name {
+  font-size: 16px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-head-meta { font-size: 13px; color: var(--dim); }
+/* Says where the block goes. A whole header that happens to be a link is a
+   link nobody is told about. */
+.chat-head-go { flex: none; font-size: 18px; color: var(--dim-soft); }
+
+@media (max-width: 720px) {
+  .chat-screen { padding: 16px 16px 24px; }
+}
 /* The `···` follows the row it belongs to, on hover or keyboard focus — the
    rule the group rows already had. */
 @media (hover: hover) {

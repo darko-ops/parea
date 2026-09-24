@@ -252,16 +252,25 @@ export function Thread({
             <Mark size={48} />
             {/*
               One line, where it was a heading and a paragraph explaining what
-              a conversation is for. Nobody needs telling; what an empty board
+              a conversation is for. Nobody needs telling; what an empty room
               needs is a reason to say the first thing.
 
-              It named the awkwardness of an empty room, which is a chat's
-              nudge and was the same sentence the app's chat says. This sits
-              under a wall of photographs somebody has just scrolled, so it
-              names those instead — and it is still the same words the app's
-              board says, because it is the same empty board.
+              Two lines, and which one is the room's own question. A board sits
+              under a wall of photographs somebody has just scrolled, and the
+              thing to say is about those. A group's chat has no photographs in
+              front of it — it is a room with nobody talking in it, and the
+              nudge is social.
+
+              The branch is the app's, and it was missing here: the album's
+              sentence was drawn in both places, so a group chat with nothing
+              in it invited somebody to say something about photographs that
+              were not on the screen.
             */}
-            <p>Say something about these photographs.</p>
+            <p>
+              {room.kind === 'group'
+                ? 'Say something before this gets awkward.'
+                : 'Say something about these photographs.'}
+            </p>
           </div>
         )}
 

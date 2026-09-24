@@ -119,13 +119,15 @@ export function GroupChats({ chats }: { chats: ChatRow[] }) {
         {shown.map((chat) => (
           <li className="chat-item" key={chat.id}>
             {/*
-              Straight to the conversation, not to the room's front page.
+              Straight to the conversation, on a screen of its own.
 
-              `?tab=chat` because this is the chat list: a row that opened the
-              albums would make every visit two clicks, and the room is one
-              tab away from where this lands anybody.
+              It was `?tab=chat`, which is the room — crest, three tabs, its
+              albums — showing the Chat pane. So a list of conversations opened
+              a page about a group, with the talking inside it. The app's Chats
+              tab opens a thread directly and puts the room one press away from
+              the bar at the top of it, which is what `/chat` is.
             */}
-            <a className="chat-row" href={`/group/${chat.id}?tab=chat`}>
+            <a className="chat-row" href={`/group/${chat.id}/chat`}>
               {/*
                 A letter on the group's own colour, never a photograph. A group
                 has no picture of its own and the only ones available are
