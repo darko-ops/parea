@@ -225,12 +225,16 @@ export function Thread({
             <Mark size={48} />
             {/*
               One line, where it was a heading and a paragraph explaining what
-              a conversation is for. Nobody needs telling; what an empty room
-              needs is a reason to say the first thing, and the joke is the
-              reason. The same words the app says, because it is the same empty
-              room.
+              a conversation is for. Nobody needs telling; what an empty board
+              needs is a reason to say the first thing.
+
+              It named the awkwardness of an empty room, which is a chat's
+              nudge and was the same sentence the app's chat says. This sits
+              under a wall of photographs somebody has just scrolled, so it
+              names those instead — and it is still the same words the app's
+              board says, because it is the same empty board.
             */}
-            <p>Say something before this gets awkward.</p>
+            <p>Say something about these photographs.</p>
           </div>
         )}
 
@@ -363,9 +367,9 @@ function Composer({
           There was a standing line here — who can read it, and that Enter
           sends. It is gone, and the argument it lost to is that a sentence
           under every message anybody ever writes is a sentence nobody reads
-          after the first day. What it was buying is now bought elsewhere: who
-          can read it is what the placeholder says, and Enter-sends is a
-          convention the box behaves like anyway.
+          after the first day. Enter-sends is a convention the box behaves
+          like anyway, and who may read a comment is the album's own setting
+          — said where that is decided rather than under every draft.
 
           The slot stays for errors, which are the one thing worth a line here
           — and they are the reason this is not simply deleted.
@@ -486,7 +490,17 @@ function Row({
   }
 
   return (
-    <div className={`message${message.author.mine ? ' message-mine' : ''}`}>
+    /*
+     * One shape for every comment, whoever wrote it.
+     *
+     * Yours used to take `message-mine` and cross the column: mirrored row,
+     * the mark's blue instead of its mint, everything right-aligned. That is
+     * a messenger's arrangement, and it sorted a list of things said about an
+     * evening by the one fact nobody needs — the name says whose it is — at
+     * the cost of half the measure of every line. What marks yours now is the
+     * name and the menu on it, which is what marked it on paper anyway.
+     */
+    <div className="message">
       {/*
         Their actual picture. `Face` rather than a bare `<img>` for the reason
         it exists: an avatar URL is presigned for an hour, so a tab left open
@@ -516,6 +530,27 @@ function Row({
             <MessageMenu onEdit={onEdit} onDelete={onDelete} />
           )}
         </div>
+
+        {/*
+          The photograph this was said about, where it was said about one.
+
+          A comment written under a picture is a line in this same board
+          carrying its `photo_id` — one thread, two ways in. This column drew
+          the words and dropped the picture, so "look at her face in this one"
+          arrived with no *this one* in it: the same sentence meant two
+          different things depending on where you read it, and here it meant
+          nothing. The app's board has shown it since the merge landed.
+
+          Small, above the words rather than beside them: it is the subject of
+          the sentence under it, not an illustration of it, and a thumbnail
+          big enough to look at would make this a second copy of the album.
+        */}
+        {about && !shot.failed && !editing && (
+          <a href={about.href} className="message-about" aria-label="The photograph this is about">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={shot.ref} src={about.src} alt="" onError={shot.onError} />
+          </a>
+        )}
 
         {editing ? (
           <div className="message-edit">

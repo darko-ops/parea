@@ -64,17 +64,12 @@
      made on their behalf, and a portrait in a landscape frame should not
      arrive matted differently from a landscape one. */
   --photo-bed: #ebebef;
-  /* The two message bubbles, taken from the mark — its blue and its mint, the
-     only colours this product claims. Pastels, so each carries the darkened
-     same-hue ink the lens tiles use; white on either is unreadable and black
-     on either reads as a highlighter. */
-  /* A shade lighter than the mark's blue itself. On a bubble the colour is a
-     surface rather than a mark, and the mark's own weight reads as heavy
-     against the mint opposite it. */
-  --bubble-mine: #aec2fc;
-  --bubble-mine-ink: #21335f;
-  --bubble-them: #9cdec5;
-  --bubble-them-ink: #24503f;
+  /* No message-bubble colours here any more. The thread is a comment board
+     and a comment is prose on the page: `--fg` on `--bg`, like every other
+     paragraph on the site. The pair that used to live here were the mark's
+     blue and mint, and taking them out is the point rather than a side
+     effect — two pastel fills down a column are what made a list of
+     statements about an evening read as two people texting. */
   /* A line on Activity that arrived since the last look. White at 70% over the
      page: enough to read as a block of new things without becoming a highlight
      colour, which is what a tint would be — and there is no per-item read
@@ -2100,31 +2095,20 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .faces > * + * { margin-left: -6px; }
 .face-lens { display: block; border-radius: 50%; }
-/* Yours on the right, everybody else's on the left — the arrangement every
-   message list has, and the reason it is worth having is that you can tell
-   whose a message is before reading a word of it.
+/* No side and no mirror.
 
-   Mirrored rather than restyled: the same row, reversed, so there is one set of
-   rules for a message and the side is the only difference. The avatar goes with
-   it, which is what makes a short message on a wide column still obviously
-   yours — alignment alone is a weak signal when the text is three words. */
-.message-mine { flex-direction: row-reverse; }
-.message-mine .message-body { text-align: right; }
-/* Yours in the mark's blue, everybody else's in its mint. Which way round is
-   not arbitrary: blue is the colour this product already uses for the thing
-   you are doing — every filled button on every screen — so the bubble you
-   wrote matches the button you pressed to write it. */
-.message-mine .message-text {
-  background: var(--bubble-mine); color: var(--bubble-mine-ink);
-  border-bottom-left-radius: 16px; border-bottom-right-radius: 5px;
-  margin-left: auto;
-}
-/* The meta line and the reactions have to turn round too, or the name, the
-   time and the menu stay pinned to an edge the message is no longer on. */
-.message-mine .message-meta { flex-direction: row-reverse; }
+   Yours used to sit on the right in the mark's blue, with everybody else's on
+   the left in its mint — the arrangement every messenger has, and the wrong
+   one for this column. A comment section is a list of things said about a set
+   of photographs, and they are all the same kind of thing: sorting them by
+   who wrote them puts the one fact nobody needs — whose it is, which the name
+   already says — in charge of the layout, and it halves the measure of every
+   line to do it.
 
-.message-mine .reactions { justify-content: flex-end; }
-/* The way to add one is on hover and on focus, like the `···` beside it. A
+   So one shape for every comment, and what says it is yours is the name and
+   the menu on it. See `.message` below. */
+/* The way to add a reaction is on hover and on focus, like the `···` beside
+   it. A
    quiet thread was a column of `+` buttons, one under every bubble, each
    offering to react to a sentence nobody had reacted to. Reactions that exist
    stay visible always — they are what somebody said. */
@@ -2134,11 +2118,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* Beside the time rather than pushed to the far edge of the column. `auto`
    put it at the opposite end of an 820px row from the message it belongs to. */
 .message-meta .dots { margin-left: 6px; }
-.message-mine .message-meta .dots { margin-left: 0; margin-right: 6px; }
-/* The edit box is a form, not prose: right-aligned text in a textarea you are
-   typing into is somebody else's idea of helpful. */
-.message-mine .message-edit { text-align: left; }
-.message-mine .message-edit .row { justify-content: flex-end; }
 /* Three dots and the panel they open. Two of these — the options on your own
     message, and the event's settings in the head — so one set of rules. */
 .dots { position: relative; flex: none; }
@@ -2225,7 +2204,11 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    plus a portalled sheet on a phone: one thread, two shapes, two ways in and
    two ways out. A tab is one shape at every width. */
 .thread { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
-.thread-list { display: flex; flex-direction: column; gap: 10px; }
+/* 18, where the bubbles could live on 10.
+   Two fills stacked ten points apart are obviously two things; two
+   paragraphs that close together are one. With nothing drawn around a
+   comment, the gap is the only thing separating it from the next one. */
+.thread-list { display: flex; flex-direction: column; gap: 18px; }
 /* An invitation rather than a report of emptiness. */
 .thread-empty {
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
@@ -2275,16 +2258,17 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .thread-actions { display: flex; align-items: center; gap: 12px; }
 .thread-note { flex: 1; font-size: 12.5px; color: var(--dim-soft); }
 .thread-actions button { padding: 9px 16px; font-size: 14px; border-radius: 10px; }
-/* One message, as a bubble.
+/* One comment: a face, a name, a time and the words.
 
-   It was a row of plain text under a name, which reads as a comment section —
-   a list of statements about the event. A thread is people talking to each
-   other, and the shape everybody already knows for that is a bubble on a side.
+   This was bubbles on sides, on the argument that a thread is people talking
+   to each other and a bubble is the shape everybody knows for that. It is the
+   shape everybody knows for a *messenger*, and this column is not one: it is
+   what was said about somebody's evening, read under the photographs of it,
+   on a tab called Comments. The app's board and this are now the same drawing
+   — see the note at the top of `apps/mobile/src/Thread.tsx`.
 
-   The two fills are the mark's own blue and mint, which is the only place this
-   product takes colour from. They are pastels, so the ink on them is the same
-   darkened same-hue pair the lens tiles use — a pastel with white text on it
-   is unreadable, and a pastel with black text on it looks like a highlighter. */
+   A list of statements about the event is what it was called when the bubbles
+   went in, and that is exactly what a comment section is. */
 .message { display: flex; gap: 10px; align-items: flex-start; }
 .message-face {
   width: 32px; height: 32px; border-radius: 50%; flex: none;
@@ -2292,32 +2276,44 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   overflow: hidden; object-fit: cover;
   background: var(--accent-soft); color: var(--accent-ink);
   font-size: 13px; font-weight: 600;
-  /* Beside the bubble's first line, which is what this offset buys: the name
-     and time sit above the bubble, so a face aligned to the top of the *body*
-     would be level with the name and a face aligned to its bottom would be
-     under the reactions. Neither is beside the message. */
-  margin-top: 19px;
+  /* Level with the name, which is the line it belongs to. The bubble wanted
+     19px of offset here — the name and time sat above it, so a face at the
+     top of the body was beside the meta rather than beside the words. With
+     no bubble the name *is* the top of the comment, and a face level with it
+     is what every comment section does. */
+  margin-top: 0;
 }
-/* Bounded, so a long message does not run the width of an 820px column and
-   stop reading as a bubble at all. `fit-content` so a three-word one is three
-   words wide. */
-.message-body { min-width: 0; max-width: min(78%, 520px); }
+/* Bounded for the measure rather than for the bubble.
+
+   78% was there so a long message did not run the width of an 820px column
+   and stop reading as a bubble. Nothing has to read as a bubble now, and the
+   reason to cap a line of prose is the older one: past about 70 characters
+   the eye loses its place coming back to the left edge. 600px at this size is
+   roughly that. */
+.message-body { min-width: 0; max-width: min(100%, 600px); }
 .message-meta {
   display: flex; align-items: baseline; gap: 8px;
   font-size: 12.5px; color: var(--dim-soft);
-  /* Outside the bubble, above it: the name and the time are about the message
-     rather than part of what was said. */
-  padding: 0 4px 3px;
+  /* The 4px of horizontal inset went with the bubble it was lining up
+     against: with the words flush to the column, a name indented past them
+     is the one thing on the row that is out of column. */
+  padding: 0 0 2px;
 }
 .message-meta strong { color: var(--fg); font-weight: 600; }
+/* The photograph a comment is about: a thumbnail the size of two lines of the
+   text under it, so the row still reads as a sentence with a subject rather
+   than as a picture with a caption. The app's board uses the same 52. */
+.message-about {
+  display: block; width: 52px; height: 52px; margin: 2px 0 6px;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.message-about img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Prose on the page: no fill, no radius, no padding holding it off a surface
+   it no longer has. Line height a little looser than the bubble's, because a
+   paragraph with nothing around it is read rather than glanced at. */
 .message-text {
-  margin: 0; padding: 9px 13px; font-size: 14.5px; line-height: 1.45;
-  overflow-wrap: anywhere; border-radius: 16px;
-  background: var(--bubble-them); color: var(--bubble-them-ink);
-  /* The corner nearest the face, squared off. One corner is the whole of what
-     makes a bubble point at somebody. */
-  border-bottom-left-radius: 5px;
-  width: fit-content;
+  margin: 0; font-size: 14.5px; line-height: 1.55;
+  overflow-wrap: anywhere; color: var(--fg);
 }
 .message-edit { display: grid; gap: 8px; margin-top: 4px; }
 .thread-gone { font-size: 13px; font-style: italic; margin: 0; }
@@ -2341,11 +2337,15 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border: 1px solid var(--line); display: block;
 }
 .thread-reacted-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mention { font-weight: 600; }
-/* Weight rather than colour inside a bubble: accent ink on the mark's blue is
-   two blues arguing, and the bubble already carries the colour. */
-.message-text .mention { color: inherit; text-decoration: underline;
-  text-decoration-thickness: 1px; text-underline-offset: 2px; }
+/* A mention, marked and never resolved — see `withMentions`.
+
+   In the accent now as well as bold, which is what the app has always drawn
+   and what this could not: a mention inside a bubble of the mark's blue
+   cannot carry accent ink, two blues arguing, so there was a second rule
+   underlining it instead. With the fill gone the colour is available, and one
+   rule beats two — `@ana` reads the same in a comment as it does anywhere
+   else in the product. */
+.mention { font-weight: 600; color: var(--accent); }
 /* Reactions live on messages and never on photographs: a photograph of
    somebody's evening that can be scored is a post, and this is not a feed. */
 .reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
