@@ -604,23 +604,25 @@ describe('inside a group', () => {
 });
 
 describe('the rail', () => {
-  it('puts Groupchats above Find', () => {
+  it('puts Groupchats between Find and Notifications', () => {
     /*
-     * Order is the argument. Albums and Notifications are what has already
-     * happened to you; Groupchats is the rooms you are already in; Find is the
-     * only row that goes looking for something you are not part of yet. Below
-     * Find would file the places you belong under the heading for finding
-     * places you do not.
+     * Home, Find, Groupchats, Notifications, You: what you have, then the way
+     * to more of it, then the rooms, then what has happened to you, then you.
      *
-     * The words are the app's now — see the rail's own note — so the rows are
-     * matched on `page`, which is what the code calls them and what has not
-     * moved. A relabelling should not be able to fail this; a reordering is
-     * what it is for.
+     * It ran Home, Notifications, Groupchats, Find, on the argument that the
+     * rows descend from what has already happened to you toward what you are
+     * not part of yet. That is a true sentence about the rows and the wrong
+     * axis to sort them on — Find is how this product is used, not the far end
+     * of it, and it was fourth.
+     *
+     * Matched on `page`, which is what the code calls them and what has not
+     * moved: a relabelling should not be able to fail this, and a reordering
+     * is what it is for.
      */
     const at = (page: string) => RAIL.indexOf(`page: '${page}'`);
     expect(at('groups')).toBeGreaterThan(-1);
-    expect(at('invites')).toBeLessThan(at('groups'));
-    expect(at('groups')).toBeLessThan(at('find'));
+    expect(at('find')).toBeLessThan(at('groups'));
+    expect(at('groups')).toBeLessThan(at('invites'));
   });
 
   it('does not wear the logo as a nav glyph', async () => {

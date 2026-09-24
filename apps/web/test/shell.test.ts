@@ -568,7 +568,8 @@ describe('the rail and the app point at the same product', () => {
   it('keeps the ids, because the routes and the markup hang off them', () => {
     // A label is what a reader sees; `page` is what `aria-current` is matched
     // on and what every route underneath is named. Renaming the rows must not
-    // rename the product's own vocabulary.
-    expect(ROWS.map((r) => r.page)).toEqual(['events', 'invites', 'groups', 'find', 'you']);
+    // rename the product's own vocabulary — and the order is asserted here as
+    // well, because this is the one list that has all five in it.
+    expect(ROWS.map((r) => r.page)).toEqual(['events', 'find', 'groups', 'invites', 'you']);
   });
 });

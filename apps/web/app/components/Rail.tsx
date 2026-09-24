@@ -8,14 +8,14 @@
  * made "two clients, one protocol" true of the API and false of the product.
  *
  * Five rows, where the app's tab bar has four. Notifications is the
- * difference, and it is near the top because this is the client somebody
- * arrives at from a link they were sent — the one where "what came of that?"
- * is a question worth having a screen for.
+ * difference: this is the client somebody arrives at from a link they were
+ * sent, and "what came of that?" is a question worth having a screen for.
  *
  * The four they share carry the app's drawings, and two of them carry its
  * words: Find and You. Home and Groupchats are the web's, and `ROWS` says why
  * each of the two is — in both cases because a rail beside a page is not a bar
- * under a thumb, and the word that fits one does not fit the other.
+ * under a thumb, and the word that fits one does not fit the other. `ROWS`
+ * also says why they are in the order they are in.
  *
  * ## The head is the name, centred
  *
@@ -85,72 +85,72 @@ const ROWS: {
   glyph: RailGlyph;
 }[] = [
   /*
-   * The app's words and the app's pictures, for the places both clients have.
+   * The app's drawings, and two of its words.
    *
-   * They had drifted into two products. The bar on a phone said Albums,
+   * They had drifted into two products: the bar on a phone said Albums,
    * Chats, Find, You over a photo stack, two bubbles, a magnifier and a head;
    * the rail said Home, Activity, Groups, Search, Profile over a house, an
    * envelope and two people. Somebody who uses both was being asked to learn
-   * one product twice, and the second reading of it disagreed with the first
-   * about what the thing they make is even called.
+   * one product twice.
    *
-   * The app wins every case where they differed, for the simple reason that it
-   * is the client that had to fit the word under a glyph in 365 points and
-   * chose these. `label` is what the row says; `page` is what the code calls
-   * it and has not moved, because the ids are what `aria-current` is matched
-   * on and what every route underneath is still named.
+   * Every picture is the app's now. Find and You are its words too; Home and
+   * Groupchats are the web's, and each says below why. `label` is what the row
+   * says and `page` is what the code calls it — the ids are what
+   * `aria-current` is matched on and what every route underneath is named, so
+   * they do not move when a word does.
+   *
+   * ## The order
+   *
+   * Home, Find, Groupchats, Notifications, You. What you have, then the way to
+   * more of it, then the rooms, then what has happened to you, then you.
+   *
+   * It ran Home, Notifications, Groupchats, Find before this, on the argument
+   * that the rows descend from what has already happened to you toward what
+   * you are not part of yet — which is a true sentence about the rows and the
+   * wrong axis to sort them on. Find is how this product is used, not the far
+   * end of it: it is where albums, people and groups are all reached from, and
+   * it was fourth. Notifications is the row you visit when something is
+   * waiting, which the badge on it already says.
    */
-  /*
-   * Home, where the app's bar says Albums — the second place the two are
-   * deliberately apart, and for the same kind of reason as Groupchats.
-   *
-   * A phone's bar is four glyphs with a word under each and no other
-   * furniture, so Albums there names the row against Chats, Find and You. A
-   * rail is a column of destinations beside a page, and the first row in one
-   * is where somebody goes to start again — which is what Home means and what
-   * every other site on the reader's screen has taught them it means. The page
-   * it opens is still `Your Parea`, and everything on it is albums.
-   *
-   * The route is `/events` and the tables still say `event`: the id names the
-   * row for the code, the label names it for a reader.
-   */
+  // Home, where the app's bar says Albums. A phone's bar is four glyphs with
+  // a word under each, so Albums names the row against Chats, Find and You. A
+  // rail is a column of destinations beside a page, and the first row in one
+  // is where somebody goes to start again. The route is `/events` and the
+  // tables still say `event`: the id names the row for the code.
   { href: '/events', label: 'Home', page: 'events', glyph: 'photos' },
+  // Second, because it is how the product is used rather than the end of it:
+  // albums, people and groups are all reached from here.
+  { href: '/find', label: 'Find', page: 'find', glyph: 'search' },
+  /*
+   * Groupchats, on two bubbles, where the app's bar says Chats.
+   *
+   * The two-people drawing is what the product uses for *members*, and it is
+   * still doing that one screen in on a group's own People tab — using it for
+   * the room as well meant one picture said "the room" and "who is in the
+   * room" on consecutive screens. Two bubbles say what a group is for.
+   *
+   * Chats on a phone holds every conversation there is; this row goes to the
+   * groups, so it says which kind.
+   */
+  { href: '/groups', label: 'Groupchats', page: 'groups', glyph: 'bubbles' },
   /*
    * Notifications, on a tray. It was Activity, on an envelope.
    *
    * The envelope was chosen when the page was invitations and nothing else,
    * and it kept saying "somebody has asked you to something" long after the
    * page had become a friend request, a reply, a photograph added to an album
-   * of yours. A tray is the general case — things arrived — which is what the
-   * row has actually been for a while, and it is the drawing the app already
-   * uses for the same idea.
+   * of yours. A tray is the general case — things arrived — and it is the
+   * drawing the app already uses for it.
    *
-   * Near the top because this is the client somebody arrives at from a link
-   * they were sent: "what came of that?" is the question this screen exists
-   * for.
+   * Fourth rather than second: it is the row somebody opens when something is
+   * waiting, and the badge on it is what says so. A row that announces itself
+   * does not also need to be near the top.
    */
   { href: '/activity', label: 'Notifications', page: 'invites', glyph: 'tray' },
-  /*
-   * Groupchats, on two bubbles. It was Groups, on two people.
-   *
-   * The two-people drawing is what the product uses for *members*, and it is
-   * still doing that job one screen in, on a group's own People tab. Using it
-   * for the room as well meant the same picture said "the room" and "who is
-   * in the room" on two consecutive screens. Two bubbles say the thing a
-   * group is for, which is people going back and forth — and it is the glyph
-   * the app's own Chats tab carries.
-   *
-   * Above Search and below Notifications, because that is the order these are
-   * true in: what has already happened to you, then the rooms you are already
-   * in, then the one row that goes looking for something you are not part of
-   * yet.
-   */
-  { href: '/groups', label: 'Groupchats', page: 'groups', glyph: 'bubbles' },
   // No Friends row. The page is still there and still gets its `aria-current`
   // when you are on it — it is reached from the friend count under your name
   // on Profile, which is where somebody looks for their friends anyway. A rail
   // is the places the product is, and friends is a thing about you.
-  { href: '/find', label: 'Find', page: 'find', glyph: 'search' },
   { href: '/account', label: 'You', page: 'you', glyph: 'profile' },
 ];
 
