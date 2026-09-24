@@ -248,24 +248,152 @@ describe('the head of the shell', () => {
      */
     expect(CSS).toMatch(/\.rail-mark \{[^}]*justify-content: center/);
     expect(MOBILE).toMatch(/grid-template-columns: 1fr auto 1fr/);
-    expect(MOBILE).toMatch(/\.rail-mark \{ padding: 0; justify-self: center; \}/);
     /* Gone as a rule. It survives in the note that says why, which is where
        a reversed decision belongs. */
     expect(MOBILE).not.toMatch(/^\s*margin-right: auto;/m);
-    // Each control at its own end, so neither pushes the name off centre.
-    expect(MOBILE).toMatch(/\.rail-burger \{[^}]*justify-self: start/);
-    expect(MOBILE).toMatch(/\.rail-create \{[^}]*justify-self: end/);
+    /*
+     * Placed rather than auto-placed, and the first track is deliberately
+     * empty — the hamburger used to sit in it. The app's head has the same
+     * empty slot: what keeps the word in the middle of the screen is that
+     * both sides are a track wide whether or not anything is in them.
+     */
+    expect(MOBILE).toMatch(/\.rail-mark \{ padding: 0; grid-column: 2; justify-self: center; \}/);
+    expect(MOBILE).toMatch(/\.rail-create \{[^}]*grid-column: 3; justify-self: end/);
   });
 
-  it('reads leading control, name, trailing control', () => {
-    // The order the app's head has, and the order a screen reader gets: the
-    // menu, then whose app this is, then the one thing it makes.
-    expect(RAIL.indexOf('className="rail-burger"')).toBeLessThan(
-      RAIL.indexOf('className="rail-mark"'),
-    );
+  it('reads the name, then the one thing it makes', () => {
+    // The order a screen reader gets. The menu that used to come first is
+    // gone: the rows are a bar along the bottom now.
+    expect(RAIL).not.toMatch(/rail-burger/);
     expect(RAIL.indexOf('className="rail-mark"')).toBeLessThan(
       RAIL.indexOf('className="rail-create"'),
     );
+  });
+});
+
+/**
+ * Below tablet the rows are a bar along the bottom.
+ *
+ * Three shapes in three versions of this: sideways first, which fitted at four
+ * rows and stopped at six; then behind a hamburger, which made every
+ * destination two taps and hid the one row that ever carries a number. Now
+ * where the app puts them.
+ */
+describe('the bar along the bottom', () => {
+  const RAIL = read(join(APP, 'components/Rail.tsx'));
+  const CSS = read(join(APP, 'globals.css'));
+  const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
+
+  it('is the same markup the rail is, reshaped', () => {
+    /*
+     * One list, two shapes: a column on a laptop and a capsule on a phone.
+     * The labels are hidden rather than deleted, so what a screen reader
+     * announces is the same word in both — a glyph-only bar that dropped them
+     * would be six unlabelled links.
+     */
+    expect(MOBILE).toMatch(/\.rail-nav \{[\s\S]{0,200}flex-direction: row/);
+    expect(MOBILE).toMatch(/\.rail-label \{[^}]*clip-path: inset\(50%\)/);
+    expect(RAIL).toMatch(/<span className="rail-label">\{row\.label\}<\/span>/);
+    /*
+     * And Settings joins the row rather than hanging under it. The foot is a
+     * box on a laptop and nothing at all here — which is what keeps the only
+     * route to signing out reachable on a phone.
+     */
+    expect(MOBILE).toMatch(/\.rail-foot \{ display: contents; \}/);
+    expect(RAIL).toMatch(/className="rail-row rail-settings"/);
+  });
+
+  it('floats clear of the bottom edge rather than reaching it', () => {
+    /*
+     * The app's argument: a bar that reaches the edge has to reserve a strip
+     * inside itself for the home indicator, and a constant standing in for a
+     * safe area is a guess. Floating needs no allowance — and where a browser
+     * reports one, it is added rather than assumed.
+     */
+    expect(MOBILE).toMatch(/\.rail-nav \{[\s\S]{0,240}position: fixed/);
+    expect(MOBILE).toMatch(/bottom: calc\(14px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+    expect(MOBILE).toMatch(/border-radius: 999px/);
+    // Glass, with a fallback that is not transparent: a bar you can read the
+    // page through is a bar you cannot read.
+    expect(MOBILE).toMatch(/backdrop-filter: saturate\(180%\) blur\(14px\)/);
+    expect(MOBILE).toMatch(/@supports not \(backdrop-filter: blur\(1px\)\)/);
+    // And the page leaves room for it to float over.
+    expect(MOBILE).toMatch(/\.shell \{ padding-bottom: calc\(76px/);
+  });
+
+  it('seats the page you are on rather than colouring it', () => {
+    /*
+     * A capsule inside the capsule, in a wash of the page's own value. Colour
+     * here would be the only colour in the chrome, and the photographs
+     * underneath are the things entitled to one — the app's note, and its
+     * rule.
+     */
+    expect(MOBILE).toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{/);
+    expect(MOBILE).toMatch(/background: color-mix\(in srgb, var\(--fg\) 8%, transparent\)/);
+    /* Where the rail's own selected row uses the accent, the bar does not:
+       on a laptop that row is in a column of chrome, and on a phone the bar
+       sits over the photographs. */
+    expect(MOBILE).not.toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{[^}]*var\(--accent\)/);
+    expect(CSS).toMatch(/\.rail a\.rail-row\[aria-current='page'\] \{\s*background: var\(--accent-soft\)/);
+  });
+
+  it('renders on the server again', () => {
+    // The hamburger was the only state in here and `'use client'` was the
+    // price of it. The count beside Activity owns its own boundary, which is
+    // why it could be paid back.
+    /* As a directive. It survives in the note that says why it went, which
+       is where a reversed decision belongs. */
+    expect(RAIL).not.toMatch(/^'use client';/m);
+    expect(RAIL).not.toMatch(/useState|useEffect|useRef/);
+    expect(read(join(APP, 'components/InvitesBadge.tsx'))).toMatch(/'use client'/);
+  });
+});
+
+/**
+ * Nothing on the shelf yet.
+ *
+ * A line and the one stroke that answers it, in the app's words — replacing a
+ * `Create Album` panel that was rendered into every grid of albums whether or
+ * not there was anything beside it.
+ */
+describe('an empty shelf', () => {
+  const CSS = read(join(APP, 'globals.css'));
+  const HOME = read(join(APP, 'components/HomeView.tsx'));
+  const ACCOUNT = read(join(APP, 'components/AccountView.tsx'));
+
+  it('says the same seven words the app says', () => {
+    const APP_EVENTS = read(
+      fileURLToPath(new URL('../../mobile/src/Events.tsx', import.meta.url)),
+    );
+    for (const source of [HOME, ACCOUNT, APP_EVENTS]) {
+      expect(source).toMatch(/No Albums Yet\. Create One Now\./);
+    }
+  });
+
+  it('draws only when the shelf is empty, and not under a filter', () => {
+    /*
+     * The card was "the affordance, not a result" and so was always there;
+     * with nothing else in the grid it was the whole page. Making one is a
+     * control in the head on both clients, and a second button for it at the
+     * foot of a scrolling grid is furniture rather than affordance.
+     *
+     * Not under a search or a person filter either: "create an album" is not
+     * an answer to "which of these has Priya in it".
+     */
+    expect(HOME).toMatch(/\{!searching && !person && shown\.length === 0 && \(/);
+    expect(ACCOUNT).toMatch(/\{lens !== 'joined' && shown\.length === 0 && \(/);
+    // Gone, not hidden.
+    expect(HOME).not.toMatch(/CreateCard/);
+    expect(ACCOUNT).not.toMatch(/CreateCard/);
+    expect(CSS).not.toMatch(/^\.card-new \{/m);
+  });
+
+  it('is a line and a stroke rather than a panel', () => {
+    // A bordered box on a page whose every other row is a photograph draws
+    // more attention empty than the cards draw full.
+    expect(CSS).toMatch(/\.blank-note \{[^}]*color: var\(--dim\)/);
+    expect(CSS).toMatch(/\.blank-do \{[^}]*border-radius: 50%/);
+    expect(CSS).toMatch(/\.blank-do \{[^}]*border: 1px solid var\(--line\)/);
   });
 });
 

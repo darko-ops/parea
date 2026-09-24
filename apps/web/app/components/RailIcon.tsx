@@ -19,7 +19,21 @@
 
 export type RailGlyph = 'home' | 'invites' | 'groups' | 'search' | 'profile' | 'settings';
 
-export function RailIcon({ glyph }: { glyph: RailGlyph }) {
+export function RailIcon({
+  glyph,
+  /**
+   * A heavier stroke for the row you are on.
+   *
+   * The app's bar does the same and its note is the argument: the selected
+   * glyph steps up in value *and* in weight, because one without the other is
+   * half a state — and on a bar floating over a bright photograph a two-step
+   * change in value alone is easy to miss. 2 is the family's own.
+   */
+  weight = 2,
+}: {
+  glyph: RailGlyph;
+  weight?: number;
+}) {
   return (
     <svg
       className="rail-icon"
@@ -28,7 +42,7 @@ export function RailIcon({ glyph }: { glyph: RailGlyph }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={weight}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

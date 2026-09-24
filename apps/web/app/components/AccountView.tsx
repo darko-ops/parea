@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
 import { EditProfile } from './EditProfile';
-import { CreateCard } from './CreateCard';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
 import { Shell } from './Shell';
@@ -438,15 +437,26 @@ export function AccountView() {
           ))}
 
           {/*
-            The affordance is the empty state, exactly as on Events — and the
-            same component, because it was the same eight lines twice and the
-            copy here had already fallen a version behind once.
+            The same absence, said the same way as on Home and in the app: a
+            line and the one stroke that answers it.
+
+            It was a `Create Album` panel rendered into the grid whether or not
+            there was anything else in it — which on a shelf with nothing on it
+            was the whole page. See the note on `HomeView`; the argument and
+            the seven words are both shared.
 
             Only under All and Created. Under Joined it would be offering to
-            make an event on the screen that is deliberately showing the ones
-            somebody else made.
+            make an album on the shelf that is deliberately showing the ones
+            somebody else made, so that one keeps its own sentence.
           */}
-          {lens !== 'joined' && <CreateCard />}
+          {lens !== 'joined' && shown.length === 0 && (
+            <div className="blank">
+              <p className="blank-note">No Albums Yet. Create One Now.</p>
+              <a className="blank-do" href="/" aria-label="Create an album">
+                <span aria-hidden="true">+</span>
+              </a>
+            </div>
+          )}
           {lens === 'joined' && shown.length === 0 && (
             <p className="field-help">
               Nothing yet. Albums other people ask you into show up here.
