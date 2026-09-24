@@ -2765,14 +2765,123 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* A row once `New group` is in it: the greeting and title stack on the left,
    the button sits on the h1's baseline at the right. `wrap` so the button
    drops under the title on a narrow screen rather than squeezing it. */
+/* The same shape Home's head has: the greeting and the title on the left, the
+   one thing this page makes in the corner on the right. `flex-start` rather
+   than `baseline`, because the left is two lines of type and the right is a
+   disc — aligning their baselines hangs the disc off the greeting. */
 .groups-head {
-  margin-bottom: 22px; display: flex; align-items: baseline;
-  flex-wrap: wrap; gap: 12px;
+  margin-bottom: 18px; display: flex; align-items: center;
+  justify-content: space-between; gap: 16px;
+  /* The same column the list and the cluster cards are in. Without it the
+     head measures the whole of `.main` and the `+` sits a third of a screen
+     to the right of the rows it makes — a control in the corner of the page
+     rather than in the corner of the thing it belongs to. */
+  max-width: 660px;
 }
-.groups-head .home-greeting { flex-basis: 100%; }
 
 .groups-list { list-style: none; margin: 0; padding: 0; }
 .groups-list li + li { border-top: 1px solid var(--row-line); }
+
+/* ---------------------------------------------------------------------------
+   The chats.
+
+   This page drew a block per group — name, faces, counts, three covers, a
+   `View all` — with the last thing said as the final line of each. Two hundred
+   pixels a room, so three filled a laptop and the talking was underneath the
+   furniture. It is a chat list now: the shape a list of conversations has
+   everywhere, which is a tile, a name, a line of what was said, and when.
+
+   The rooms are on Find and on `/group/<id>`. See `GroupChats`.
+   --------------------------------------------------------------------------- */
+
+/* Always a field, unlike Home's button-that-opens: it is the only control on
+   the page and the list under it is what it acts on. */
+.chat-search {
+  display: flex; align-items: center; gap: 8px;
+  max-width: 420px; margin-bottom: 8px; padding: 0 12px; height: 40px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  color: var(--dim);
+}
+.chat-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* Overriding the global input rules, which give every field its own border,
+   background and 13px of padding — this one is inside a container drawing all
+   three. Doubled class to beat `input[type="search"]:focus-visible`, which is
+   the specificity trap the other search field has its own note about. */
+.chat-search input.chat-search input, .chat-search input {
+  flex: 1; min-width: 0; width: auto;
+  padding: 0; border: 0; background: none; border-radius: 0;
+  font-size: 15px; color: var(--fg);
+}
+.chat-search input:focus-visible { outline: none; border: 0; box-shadow: none; }
+.chat-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+.chat-list { list-style: none; margin: 0; padding: 0; max-width: 660px; }
+/* A rule between rows and none under the last: a divider at the foot of a list
+   is a line under nothing. */
+.chat-item { display: flex; align-items: center; gap: 4px; }
+.chat-item + .chat-item { border-top: 1px solid var(--row-line); }
+.chat-row {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 8px; border-radius: 12px;
+  color: inherit; text-decoration: none;
+}
+/* White, not `--track`. This page's own surface is `--page`, and `--track` is
+   a shade off it — a hover nobody can see is a hover that is not there. The
+   row list the group blocks used did the same with a white at 60%. */
+.chat-row:hover { background: var(--card); }
+.chat-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Smaller than the 44px a room's tile was: a chat row is one line of name over
+   one line of talk, and a tile taller than both makes the row about the tile. */
+.chat-tile { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+.chat-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-name {
+  font-size: 15px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* One line, always. A conversation that wrapped to two would make the rows
+   different heights depending on what somebody happened to type. */
+.chat-said {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 13px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Unread is the full foreground. The count at the end says how many; this says
+   there is something, before the eye gets that far. */
+.chat-said-new { color: var(--fg); }
+.chat-said-quiet { font-style: italic; }
+.chat-sayer { font-weight: 600; flex: none; }
+.chat-body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The author, as their own initial in their own colour — the same hash the
+   group tiles use, so one person is one colour wherever they appear. */
+.sayer-face {
+  flex: none; width: 18px; height: 18px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+}
+/* Pinned to the top of the row rather than centred in it.
+
+   Centred, a row carrying a count is taller than one without, so its time sits
+   higher — and down a list of four, the times stagger. The eye reads a column
+   of them as a column, so they have to be on one line whatever is underneath.
+   2px because the name beside it is 15px type and this is 12px: optical, not
+   the box. */
+.chat-when {
+  flex: none; align-self: flex-start; padding-top: 3px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  font-size: 12px; color: var(--dim-soft); white-space: nowrap;
+}
+.chat-when .badge { min-width: 18px; height: 18px; font-size: 11px; }
+/* Where a search that matched nothing says so. A head, a field and an empty
+   page reads as a page that failed to load. */
+.chat-none { max-width: 560px; color: var(--dim); font-size: 14px; }
+/* The `···` follows the row it belongs to, on hover or keyboard focus — the
+   rule the group rows already had. */
+@media (hover: hover) {
+  .chat-item .group-row-menu { opacity: 0; transition: opacity .12s ease; }
+  .chat-item:hover .group-row-menu,
+  .chat-item:focus-within .group-row-menu { opacity: 1; }
+}
 .group-row {
   display: flex; align-items: center; gap: 14px;
   padding: 14px 8px; border-radius: 12px;
@@ -2949,12 +3058,11 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 
 /* `New group` in the header, once there is a list. Outlined: on a page with
    rooms in it, entering a room is the primary action. */
-.groups-new {
-  margin-left: auto; align-self: baseline; padding: 9px 15px; border-radius: 10px;
-  border: 1px solid var(--accent); background: transparent; color: var(--accent-ink);
-  font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
-}
-.groups-new:hover { background: var(--accent-soft); }
+/* `.round` carries the whole of it — the disc, the hairline, the hover and the
+   glyph at full strength. What was here was an outlined accent pill reading
+   `New group`, which is a second piece of type on the title's own line and the
+   only blue on the page. */
+.groups-new { flex: none; }
 
 /* Every chip, input and button here is reachable by keyboard, and has to look
    it — the whole selection is otherwise a mouse-only control. */

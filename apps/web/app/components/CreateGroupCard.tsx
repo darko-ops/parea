@@ -39,6 +39,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import { Face } from './Faces';
+import { RailIcon } from './RailIcon';
 
 export type ClusterPerson = { actorId: string; name: string; avatarUrl: string | null };
 
@@ -363,16 +364,33 @@ export function NewGroupPanel({
   return (
     <>
       <div className="groups-head">
-        {greeting && <div className="home-greeting">{greeting}</div>}
-        <h1 className="home-title">Groups</h1>
+        <div>
+          {greeting && <div className="home-greeting">{greeting}</div>}
+          <h1 className="home-title">Groupchats</h1>
+        </div>
         {/*
+          A `+` in the corner, which is the app's own Chats tab and now Home's
+          too: the one thing this page makes, in the corner the eye finishes
+          reading in. It was a `New group` pill on the same row as the title,
+          which is a second piece of type competing with the heading for the
+          same line.
+
+          The word survives as the accessible name — a `+` is the one glyph
+          that needs no caption, and this is the same trade the tab bar makes
+          for all four of its tabs.
+
           Hidden while the form is open rather than left to toggle it: the form
           is directly beneath, so a button that closed it would be a second
           Cancel eighteen pixels above the real one.
         */}
         {!open && (
-          <button type="button" className="groups-new" onClick={() => setOpen(true)}>
-            New group
+          <button
+            type="button"
+            className="round groups-new"
+            aria-label="New group"
+            onClick={() => setOpen(true)}
+          >
+            <RailIcon glyph="plus" />
           </button>
         )}
       </div>

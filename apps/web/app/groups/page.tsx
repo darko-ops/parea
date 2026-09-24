@@ -1,12 +1,21 @@
 /**
- * Groups — the rooms you are in, and the ones you have not named yet.
+ * Groupchats — the conversations, and the rooms you have not named yet.
  *
- * Groups existed before this page did and had nowhere of their own: you
- * reached one from a chip on Search, from an event that belonged to it, or
- * from a link. That is fine for a thing you visit occasionally and wrong for
- * one the product treats as persistent identity — "the same people keep doing
- * things together" is the whole reason groups exist, and there was no screen
- * answering "which people, and what have they been doing".
+ * This was a list of *rooms*, and the rail called it Groups. Both have
+ * changed, and the second followed the first: what somebody opens this page
+ * for is the talking.
+ *
+ * It drew a block per group — a name, a stack of faces, a count of albums and
+ * people, three covers and a `View all` — with the last thing anybody said as
+ * the final line of each. Around two hundred pixels a group, so three of them
+ * filled a laptop screen and the conversations were underneath the furniture.
+ * The app had the identical page and the identical complaint; its note is the
+ * argument, and this is the same answer: one list of conversations, and the
+ * rooms are on Find, which is where groups are found.
+ *
+ * Nothing about a room is lost. Find lists the groups, `/group/<id>` is still
+ * albums, chat and people, and every row here lands in the chat one tab away
+ * from all of it.
  *
  * ## Groups are made here now, and what makes that safe
  *
@@ -23,6 +32,9 @@
  * The clusters are an observation and never a claim — see `recurringClusters`,
  * and `CreateGroupCard` for why pressing the button still writes nothing.
  * Above the list when there are no groups, demoted below it when there are.
+ * They stay on this page rather than following the rooms to Find: a cluster is
+ * not a group yet, and the reason to make one is that you would talk to these
+ * people — which is the page they belong on.
  *
  * Not indexable: it lists what one person belongs to.
  */
@@ -33,7 +45,6 @@ import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
 import {
-  GROUP_STRIP,
   lensFor,
   myGroupsDetailed,
   recurringClusters,
@@ -42,15 +53,13 @@ import {
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 import { readerZone } from '@/zone';
-import { Face } from '@/../app/components/Faces';
-import { GroupCover } from '@/../app/components/GroupCover';
 import { CreateGroupCard, NewGroupPanel } from '@/../app/components/CreateGroupCard';
-import { LeaveGroup } from '@/../app/components/LeaveGroup';
+import { GroupChats, type ChatRow } from '@/../app/components/GroupChats';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Groups',
+  title: 'Groupchats',
   robots: { index: false, follow: false },
 };
 
@@ -72,20 +81,12 @@ function ago(iso: string, now: Date): string {
   return AGO.format(Math.round(seconds / size), unit);
 }
 
-/** "4 events · 12 people · added to 2 days ago" — what the room is, in a line. */
-function metaFor(
-  group: { eventCount: number; memberCount: number; lastActiveAt: string | null },
-  now: Date,
-): string {
-  const parts = [
-    `${group.eventCount} ${group.eventCount === 1 ? 'album' : 'albums'}`,
-    `${group.memberCount} ${group.memberCount === 1 ? 'person' : 'people'}`,
-  ];
-  // Only when there is something to have been active about. "added to never"
-  // is a sentence about an absence the count above already states.
-  if (group.lastActiveAt) parts.push(`added to ${ago(group.lastActiveAt, now)}`);
-  return parts.join(' · ');
-}
+/*
+ * No `metaFor` any more — "4 albums · 12 people · added to 2 days ago" was
+ * what a *room* is, in a line, and it is one of the things that pushed the
+ * conversation to the bottom of each block. The room's own screen says all
+ * three, and Find's group cards say the size.
+ */
 
 export default async function GroupsPage() {
   const db = getDb();
@@ -162,18 +163,35 @@ export default async function GroupsPage() {
               failure — somebody here has not had the second evening with the
               same people, which is the moment a group is for.
 
+              It leads with what is missing rather than with what they have
+              not done: "No chats yet" is the page answering its own heading.
+              The second paragraph is the question this page invites and could
+              not otherwise answer — where the *other* kind of conversation
+              went, which is onto the photograph it is about.
+
               Creation is not offered again here — `New group` is in the
               header above, in every state — but the copy names it, because a
               page whose only visible control sends you somewhere else reads
               as a dead end to the person most likely to be new.
             */
             <div className="groups-none">
-              <p className="groups-none-lead">You are not in any groups yet.</p>
+              <p className="groups-none-lead">No chats yet.</p>
               <p>
+                Every group you are in has one. Comments on a photograph live
+                on the album they belong to, and turn up in{' '}
+                <a href="/activity">Notifications</a> when somebody answers you.
+              </p>
+              <p>
+                {/*
+                  The control is a `+` with no word on it, so the sentence
+                  says where it is rather than quoting a label that is not
+                  drawn. A line of copy naming a button nobody can see is the
+                  page describing a different version of itself.
+                */}
                 Groups are for the people who keep turning up — once you have
                 shared a couple of albums with the same faces, they show up here
-                ready to keep together. Nothing to go on yet, so{' '}
-                <strong>New group</strong> above is the way to start one.
+                ready to keep together. Nothing to go on yet, so the{' '}
+                <strong>+</strong> above is the way to start one.
               </p>
               <a href="/events" className="button-like primary">
                 Your albums
@@ -181,132 +199,38 @@ export default async function GroupsPage() {
             </div>
           )
         ) : (
-          <ul className="groups-list">
-            {groups.map((group) => {
-              const lens = lensFor(group.id);
-              return (
-                <li key={group.id}>
-                  {/*
-                    A row and a `View all` beside it, which is why this is a
-                    flex container holding two links rather than one link
-                    wrapping everything: an anchor inside an anchor is markup a
-                    browser refuses to nest.
-                  */}
-                  <div className="group-head-row">
-                    <a href={`/group/${group.id}`} className="group-row">
-                      <span
-                        className="group-tile"
-                        style={{ background: lens.fill, color: lens.ink }}
-                        aria-hidden="true"
-                      >
-                        {group.name.trim().slice(0, 1).toUpperCase()}
-                      </span>
-                      <span className="group-what">
-                        <span className="group-line">
-                          <span className="group-name">{group.name}</span>
-                          {/*
-                            Who is in it, beside the name. The count stays in
-                            the meta line underneath and is not made redundant
-                            by this: the stack shows *who*, the number says
-                            *how many*, and three faces cannot say eleven.
-                          */}
-                          <span className="group-faces">
-                            {group.faces.map((person, i) => (
-                              <Face
-                                key={i}
-                                src={person.avatarUrl}
-                                size={22}
-                                className="group-face"
-                                fallback={
-                                  <span aria-hidden="true">
-                                    {person.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
-                                  </span>
-                                }
-                              />
-                            ))}
-                            {group.moreFaces > 0 && (
-                              <span className="group-face group-face-more">
-                                +{group.moreFaces}
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                        <span className="group-meta">{metaFor(group, now)}</span>
-                      </span>
-                      {/*
-                        Admin only. "Member" on every other row is a word that
-                        appears so often it stops being read, and the rows it
-                        would appear on are the ones where it changes nothing.
-                      */}
-                      {group.role === 'admin' && <span className="group-role">Admin</span>}
-                    </a>
-                    {/*
-                      Only when the strip below is not already all of them. A
-                      group with three events or fewer has nothing further to
-                      show, and "View all 3" over three covers is a link to
-                      what you are looking at.
-                    */}
-                    {group.eventCount > GROUP_STRIP && (
-                      <a href={`/group/${group.id}`} className="group-all">
-                        View all {group.eventCount}
-                      </a>
-                    )}
-                    {/*
-                      Leaving, from the list rather than only from inside.
+          /*
+            The conversations, newest first — see `GroupChats` for why the
+            order is the last thing *said* rather than the last album added
+            to, and why a silent room is still in the list.
 
-                      It was in one place: the `···` on `/group/<id>`, which is
-                      the screen somebody is not on when the thought occurs.
-                      The thought arrives while looking at the rooms — so the
-                      answer stopped being "open the one you want out of".
-                    */}
-                    <LeaveGroup groupId={group.id} name={group.name} />
-                  </div>
-
-                  {/*
-                    The three most recent events, each linking straight to
-                    itself rather than to the group — the point of the strip is
-                    one click instead of two.
-
-                    There is no `+N` tile: it would be a fourth cover-shaped
-                    object that is not a cover, and `View all` says the same
-                    thing in words, in the place people look for a way onward.
-                  */}
-                  <div
-                    className={`group-strip${
-                      group.events.length < GROUP_STRIP ? ' group-strip-few' : ''
-                    }`}
-                  >
-                    {group.events.length === 0 ? (
-                      <span className="cover-none cover-empty">No albums yet</span>
-                    ) : (
-                      group.events.map((event) => (
-                        <a
-                          href={`/event/${event.id}`}
-                          className="strip-event"
-                          key={event.id}
-                        >
-                          <span className="strip-cover">
-                            {event.cover ? (
-                              <GroupCover src={event.cover} />
-                            ) : (
-                              <span className="cover-none" aria-hidden="true" />
-                            )}
-                            {event.fresh > 0 && (
-                              <span className="fresh">
-                                <span className="fresh-dot" aria-hidden="true" />
-                                {event.fresh} new
-                              </span>
-                            )}
-                          </span>
-                          <span className="strip-event-name">{event.name}</span>
-                        </a>
-                      ))
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+            Sorted here rather than in the browser, so the order is in the HTML
+            somebody's reader sees before any script runs.
+          */
+          <GroupChats
+            chats={[...groups]
+              .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''))
+              .map((group): ChatRow => ({
+                id: group.id,
+                name: group.name,
+                lens: lensFor(group.id),
+                last: group.lastMessage && {
+                  author: group.lastMessage.author,
+                  body: group.lastMessage.body,
+                  mine: group.lastMessage.mine,
+                  // Worded here, like every relative time in this product: the
+                  // two clocks disagree and React answers a text mismatch by
+                  // throwing the tree away.
+                  when: ago(group.lastMessage.at, now),
+                  // The author's colour, from the same hash the tiles use.
+                  // `lensFor` cannot cross into the browser — `groups.ts`
+                  // opens the database on the way past — so it is resolved
+                  // here and the row is handed two colours, not a palette.
+                  lens: lensFor(group.lastMessage.author),
+                },
+                unread: group.unreadCount,
+              }))}
+          />
         )}
 
         {/*

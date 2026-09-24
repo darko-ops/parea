@@ -40,6 +40,7 @@ const RAIL = await read('../app/components/Rail.tsx');
 const API = await read('../app/api/groups/route.ts');
 const GROUP = await read('../app/components/GroupView.tsx');
 const CARD = await read('../app/components/CreateGroupCard.tsx');
+const CHATS = await read('../app/components/GroupChats.tsx');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
 /*
  * Raw, not comment-stripped, because the thing being asserted *is* a comment:
@@ -131,9 +132,17 @@ describe('where a group comes from', () => {
     expect(CARD).toMatch(/New group/);
   });
 
-  it('still says where groups come from when there is nothing to recognise', () => {
-    // A new account sees no clusters, and the page must not read as broken.
-    expect(PAGE).toMatch(/You are not in any groups yet/);
+  it('still says where chats come from when there is nothing to recognise', () => {
+    /*
+     * A new account sees no clusters, and the page must not read as broken.
+     * It leads with what is missing — the page answering its own heading —
+     * and then with the question this page invites and cannot otherwise
+     * answer: where the *other* kind of conversation went, which is onto the
+     * photograph it is about, and into Notifications when somebody replies.
+     */
+    expect(PAGE).toMatch(/No chats yet\./);
+    expect(PAGE).toMatch(/Comments on a photograph live/);
+    expect(PAGE).toMatch(/href="\/activity"/);
     expect(PAGE).toMatch(/href="\/events"/);
   });
 });
@@ -151,10 +160,11 @@ describe('what a row shows', () => {
      * stands for the group rather than for anything inside it, so it is a
      * letter in a lens colour on every screen a group appears on.
      */
-    const tile = PAGE.match(/<span\s+className="group-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
+    const tile = CHATS.match(/<span\s+className="group-tile chat-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
     expect(tile).not.toBe('');
     expect(tile).not.toMatch(/<img|<Face|cover/);
-    expect(tile).toMatch(/slice\(0, 1\)\.toUpperCase\(\)/);
+    expect(tile).toMatch(/initialOf\(chat\.name\)/);
+    expect(CHATS).toMatch(/slice\(0, 1\)\.toUpperCase\(\)/);
     // And the same on the group's own screen.
     const headTile = GROUP.match(/className="group-tile group-head-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
     expect(headTile).not.toBe('');
@@ -169,10 +179,49 @@ describe('what a row shows', () => {
     expect(rule).toMatch(/door/i);
   });
 
-  it('says the role only when it is one', () => {
-    // "Member" on every other row is a word that appears so often it stops
-    // being read, on the rows where it changes nothing.
-    expect(PAGE).toMatch(/role === 'admin'/);
+  it('is a conversation, not a room', () => {
+    /*
+     * What a row was: a name, a stack of faces, "4 albums · 12 people · added
+     * to 2 days ago", three covers, a `View all`, and — last — one line of
+     * what anybody had said. Two hundred pixels a group, so three filled a
+     * laptop screen and the talking was under the furniture. The app reached
+     * the same page and made the same cut; this asserts the cut stays made.
+     *
+     * The room is not gone, it is one tab away: `?tab=chat` lands in the
+     * conversation and the albums and people are beside it.
+     */
+    expect(CHATS).toMatch(/\?tab=chat/);
+    expect(CHATS).toMatch(/chat\.last\.body/);
+    expect(CHATS).toMatch(/Nobody has said anything yet\./);
+    for (const furniture of ['group-strip', 'GroupCover', 'View all', 'group-meta', '<Face']) {
+      expect(PAGE, `${furniture} is the room, not the chat`).not.toContain(furniture);
+      expect(CHATS, `${furniture} is the room, not the chat`).not.toContain(furniture);
+    }
+  });
+
+  it('orders by the last thing said, and lists the silent rooms anyway', () => {
+    /*
+     * Not `lastActiveAt`, which is when an album in the room was last added
+     * to — the other page's subject. Sorting a chat list by it puts a room
+     * full of photographs and no conversation above the one two people are
+     * talking in.
+     *
+     * Sorted on the server so the order is in the HTML a reader gets before
+     * any script runs, and a group with nothing said in it sorts last rather
+     * than being dropped: a silent room is one somebody might be the first to
+     * speak in.
+     */
+    expect(PAGE).toMatch(/\.sort\(\(a, b\) => \(b\.lastMessage\?\.at \?\? ''\)/);
+    expect(PAGE).not.toMatch(/lastActiveAt/);
+    expect(PAGE).not.toMatch(/filter\([^)]*lastMessage/);
+  });
+
+  it('searches what was said, not only what the rooms are called', () => {
+    // On a page that is only conversations, somebody is as likely to remember
+    // a word out of one as the name of the room it happened in. Local, because
+    // everything is already in the props: the list narrows while you type.
+    expect(CHATS).toMatch(/chat\.name, chat\.last\?\.body, chat\.last\?\.author/);
+    expect(CHATS).toMatch(/'use client'/);
   });
 
   it('words its times on the server', () => {
