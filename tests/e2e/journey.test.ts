@@ -365,11 +365,20 @@ describe('download as JPEG, against real bytes', () => {
     expect(Number(derivative.crc32)).toBe(crc32(storedDerivative));
 
     // --- the two formats resolve to different objects ---------------------
+    // Nobody has blocked anybody in this journey, and nothing is hidden — but
+    // the viewer is named rather than defaulted, because `resolveArchive`
+    // requires it. A default there would be a default about who may see what.
+    const viewer = { blockedActorIds: [] as string[] };
     const asOriginal = await resolveArchive(db, event.id, {
       selection: 'all',
       format: 'original',
+      viewer,
     });
-    const asJpeg = await resolveArchive(db, event.id, { selection: 'all', format: 'jpeg' });
+    const asJpeg = await resolveArchive(db, event.id, {
+      selection: 'all',
+      format: 'jpeg',
+      viewer,
+    });
     expect(asOriginal.ok && asJpeg.ok).toBe(true);
     if (!asOriginal.ok || !asJpeg.ok) return;
 

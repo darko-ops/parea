@@ -22,6 +22,15 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { resolveArchive } from '../src/archive';
 
+/**
+ * A viewer who has blocked nobody, which is almost every viewer.
+ *
+ * Named rather than inlined as `{ blockedActorIds: [] }` at twenty call sites,
+ * so that the tests which do care about blocking read as the exception they
+ * are.
+ */
+const ANYONE = { blockedActorIds: [] as string[] };
+
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
 );
@@ -65,6 +74,8 @@ async function photo(
     derivative?: { bytes: number; crc32: number | null } | null;
     status?: string;
     deleted?: boolean;
+    /** An unanswered removal request hid it after 48 hours. Reversible. */
+    hidden?: boolean;
   } = {},
 ) {
   const key = `ev/${eventId}/${(clock += 1).toString(16).padStart(8, '0')}`;
@@ -81,6 +92,7 @@ async function photo(
       // Ordering is by capture time, so each photo needs a distinct one.
       capturedAt: new Date(Date.UTC(2026, 6, 18, 20, clock)),
       deletedAt: opts.deleted ? new Date() : null,
+      hiddenAt: opts.hidden ? new Date() : null,
     })
     .returning();
 
@@ -110,6 +122,7 @@ describe('originals', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'original',
+      viewer: ANYONE,
     });
 
     expect(result.ok).toBe(true);
@@ -130,6 +143,7 @@ describe('originals', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'original',
+      viewer: ANYONE,
     });
     expect(result.ok).toBe(true);
   });
@@ -147,6 +161,7 @@ describe('as JPEG', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
 
     expect(result.ok).toBe(true);
@@ -175,6 +190,7 @@ describe('as JPEG', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
 
     expect(result.ok).toBe(true);
@@ -192,6 +208,7 @@ describe('as JPEG', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
 
     // Not "archive the one that works". A download missing a photo is worse
@@ -206,6 +223,7 @@ describe('as JPEG', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
     expect(result).toEqual({ ok: false, error: 'jpeg_unavailable', count: 1 });
   });
@@ -220,6 +238,7 @@ describe('as JPEG', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
     expect(result).toEqual({ ok: false, error: 'not_ready', count: 1 });
   });
@@ -234,7 +253,7 @@ describe('what is in scope either way', () => {
     await photo(event, actor, { mime: 'image/jpeg' });
 
     for (const format of ['original', 'jpeg'] as const) {
-      const result = await resolveArchive(db, event, { selection: 'all', format });
+      const result = await resolveArchive(db, event, { selection: 'all', format, viewer: ANYONE });
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.entries).toHaveLength(1);
     }
@@ -247,6 +266,7 @@ describe('what is in scope either way', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'original',
+      viewer: ANYONE,
     });
     expect(result.ok && result.entries).toHaveLength(0);
   });
@@ -260,6 +280,7 @@ describe('what is in scope either way', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'jpeg',
+      viewer: ANYONE,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -280,8 +301,85 @@ describe('what is in scope either way', () => {
     const result = await resolveArchive(db, event, {
       selection: [first.id],
       format: 'original',
+      viewer: ANYONE,
     });
     expect(result.ok && result.entries.map((e) => e.key)).toEqual([first.key]);
+  });
+
+  /*
+   * The four reasons a photograph is invisible, and the two this query used to
+   * miss — design §13.
+   *
+   * `resolveArchive` stated its own filter for a long time: event, `ready`,
+   * not tombstoned. Three of the four. The missing one was `hidden`, which is
+   * precisely what `visibility.ts` warns will be forgotten, and the cost was
+   * the worst shape available: gone from the grid, present in the zip. The zip
+   * Worker makes no access decision, so this list is the last word.
+   */
+  it('leaves out a photo hidden by an unanswered removal request', async () => {
+    const { actor, event } = await scene();
+    await photo(event, actor, { mime: 'image/jpeg', hidden: true });
+    await photo(event, actor, { mime: 'image/jpeg' });
+
+    for (const format of ['original', 'jpeg'] as const) {
+      const result = await resolveArchive(db, event, {
+        selection: 'all',
+        format,
+        viewer: ANYONE,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.entries).toHaveLength(1);
+    }
+  });
+
+  it('leaves a hidden photo out even when it was explicitly selected', async () => {
+    /*
+     * Ticking it is not consent to have it. The selection narrows what a
+     * viewer may already see; it cannot widen it, and a client holding a grid
+     * from before the photo was hidden would otherwise download it by naming
+     * it.
+     */
+    const { actor, event } = await scene();
+    const hidden = await photo(event, actor, { mime: 'image/jpeg', hidden: true });
+    const visible = await photo(event, actor, { mime: 'image/jpeg' });
+
+    const result = await resolveArchive(db, event, {
+      selection: [hidden.id, visible.id],
+      format: 'original',
+      viewer: ANYONE,
+    });
+    expect(result.ok && result.entries.map((e) => e.key)).toEqual([visible.key]);
+  });
+
+  it("leaves out a blocked uploader's photos, for that viewer only", async () => {
+    /*
+     * The one exclusion that is personal rather than about the photograph. An
+     * archive is built for whoever asked for it, so this is the case that
+     * makes the viewer a parameter rather than something the function could
+     * have assumed.
+     */
+    const { actor, event } = await scene();
+    const [other] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    const mine = await photo(event, actor, { mime: 'image/jpeg' });
+    const theirs = await photo(event, other.id, { mime: 'image/jpeg' });
+
+    const blocking = await resolveArchive(db, event, {
+      selection: 'all',
+      format: 'original',
+      viewer: { blockedActorIds: [other.id] },
+    });
+    expect(blocking.ok && blocking.entries.map((e) => e.key)).toEqual([mine.key]);
+
+    // Nobody else's download changes because one person blocked somebody.
+    const everyone = await resolveArchive(db, event, {
+      selection: 'all',
+      format: 'original',
+      viewer: ANYONE,
+    });
+    expect(everyone.ok && everyone.entries.map((e) => e.key)).toEqual([
+      mine.key,
+      theirs.key,
+    ]);
   });
 
   it('does not reach into another event', async () => {
@@ -292,6 +390,7 @@ describe('what is in scope either way', () => {
     const result = await resolveArchive(db, event, {
       selection: 'all',
       format: 'original',
+      viewer: ANYONE,
     });
     expect(result.ok && result.entries).toHaveLength(0);
   });

@@ -10,9 +10,9 @@
  * The two formats (§7.7) differ only here.
  */
 
-import { schema } from '@parea/core';
+import { schema, visiblePhotos, type ViewerContext } from '@parea/core';
 import { archiveEntryName } from '@parea/zip';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 export type ArchiveFormat = 'original' | 'jpeg';
 
@@ -39,11 +39,19 @@ export type ArchiveResult =
  *        visible in this event are silently absent rather than an error — the
  *        grid the selection came from may be a few seconds stale, and failing
  *        a 400-photo download because one was removed mid-scroll helps nobody.
+ * @param viewer whose view this archive is of. Required rather than optional,
+ *        for the reason `PolicyActor.hasAccount` is: a default here is a
+ *        default about who may see what, and the call site is the only place
+ *        that knows. See the note on the query below.
  */
 export async function resolveArchive(
   db: any,
   eventId: string,
-  { selection, format }: { selection: 'all' | string[]; format: ArchiveFormat },
+  {
+    selection,
+    format,
+    viewer,
+  }: { selection: 'all' | string[]; format: ArchiveFormat; viewer: ViewerContext },
 ): Promise<ArchiveResult> {
   const wantsJpeg = format === 'jpeg';
 
@@ -77,11 +85,30 @@ export async function resolveArchive(
         eq(schema.derivatives.format, 'jpeg'),
       ),
     )
+    /*
+     * `visiblePhotos`, rather than the four clauses it expands to.
+     *
+     * This query used to state its own: event, `ready`, not tombstoned. Three
+     * of the four, and the missing one was `hidden_at` — exactly the case
+     * `visibility.ts` predicts when it says "a query that filters by hand will
+     * eventually forget one of the four cases, and the one it forgets will be
+     * `hidden`".
+     *
+     * What that cost is not cosmetic. A photograph is hidden when somebody
+     * asked for it to come down and the host did not answer within 48 hours;
+     * it leaves the grid, and it was still in "Download all". The zip Worker
+     * holds no database and makes no access decision, so this list is the last
+     * word on what leaves — a photo missing from here is a photo nobody gets,
+     * and one present here is one everybody does.
+     *
+     * The blocked-uploader filter arrives with it, which is why this takes a
+     * viewer at all. An archive is built for the person who asked for it, and
+     * somebody they have blocked should no more be in their zip than on their
+     * screen.
+     */
     .where(
       and(
-        eq(schema.photos.eventId, eventId),
-        eq(schema.photos.status, 'ready'),
-        isNull(schema.photos.deletedAt),
+        visiblePhotos(eventId, viewer),
         selection === 'all' ? undefined : inArray(schema.photos.id, selection),
       ),
     )
