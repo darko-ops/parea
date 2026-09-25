@@ -211,6 +211,8 @@ export const MERGED_TABLES = OWNED;
  * Runs in one transaction: a merge that stops halfway leaves a person owning
  * some of their own photos, which is worse than not having merged at all.
  */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function mergeActor(
   db: Db,
   from: string,
@@ -218,29 +220,59 @@ export async function mergeActor(
 ): Promise<MergeResult> {
   if (from === into) return { into, merged: [] };
 
+  /*
+   * Both ids are checked even though both are bound parameters below.
+   *
+   * The binding is what makes this safe; this is what makes it *obviously*
+   * safe, to the next person reading a function that splices table names into
+   * SQL a few lines down. It also fails loudly on a caller that has confused
+   * an actor id for something else, which is the likelier mistake by far —
+   * this function moves every row a person owns, and the version of it that
+   * runs against the wrong id is the version nobody notices.
+   */
+  if (!UUID.test(from) || !UUID.test(into)) {
+    throw new Error('mergeActor: both ids must be actor UUIDs');
+  }
+
   await db.transaction(async (tx) => {
+    /*
+     * Identifiers are spliced; the two ids are bound.
+     *
+     * Both halves of that matter and they are not the same problem. A table or
+     * column name cannot be a parameter in Postgres, so those must be text —
+     * and they are safe to be, because they come from `OWNED` above, which is
+     * a constant in this file and reachable from nowhere else.
+     *
+     * The actor ids were text too, quoted into the statement by hand. That was
+     * not exploitable: both are database-generated UUIDs, and the one that
+     * arrives from a client comes out of an HMAC-signed credential this server
+     * issued, so a value with a quote in it was never reachable. It was still
+     * the only place in the product where a value reached SQL as text, sitting
+     * in the function the README calls the one whose incomplete version is
+     * silent — and "not exploitable today" is a property of two call sites
+     * that could change without anyone thinking about this line.
+     */
     for (const { table, column, uniqueWith } of OWNED) {
+      const relation = sql.raw(`"${table}"`);
+      const owner = sql.raw(`"${column}"`);
+
       if (uniqueWith?.length) {
         // Drop what would collide first, then move the rest. Doing it the
         // other way round makes the UPDATE fail on the constraint.
-        const match = uniqueWith
-          .map((other) => `mine.${other} = theirs.${other}`)
-          .join(' and ');
-        await tx.execute(
-          sql.raw(`
-            delete from "${table}" theirs
-            where theirs."${column}" = '${from}'
-              and exists (
-                select 1 from "${table}" mine
-                where mine."${column}" = '${into}' and ${match}
-              )
-          `),
+        const match = sql.raw(
+          uniqueWith.map((other) => `mine.${other} = theirs.${other}`).join(' and '),
         );
+        await tx.execute(sql`
+          delete from ${relation} theirs
+          where theirs.${owner} = ${from}
+            and exists (
+              select 1 from ${relation} mine
+              where mine.${owner} = ${into} and ${match}
+            )
+        `);
       }
       await tx.execute(
-        sql.raw(
-          `update "${table}" set "${column}" = '${into}' where "${column}" = '${from}'`,
-        ),
+        sql`update ${relation} set ${owner} = ${into} where ${owner} = ${from}`,
       );
     }
 

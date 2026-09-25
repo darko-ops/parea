@@ -21,12 +21,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   let database = false;
-  let databaseError: string | null = null;
   try {
     await getDb().execute(sql`select 1`);
     database = true;
   } catch (err) {
-    databaseError = err instanceof Error ? err.message.slice(0, 120) : 'unknown';
+    /*
+     * Logged, not returned.
+     *
+     * This used to put 120 characters of driver output in the response, which
+     * for postgres.js is typically the host and port it failed to reach — so
+     * an endpoint whose own header promises "names and booleans only, never
+     * values" was publishing the database endpoint to anybody who asked. The
+     * boolean and the 503 are what a load balancer acts on; the sentence is
+     * for whoever reads the logs, and that is the difference between operating
+     * this and probing it.
+     */
+    console.error('health: database unreachable:', err instanceof Error ? err.message : err);
   }
 
   const missing = missingInProduction();
@@ -36,7 +46,6 @@ export async function GET() {
     {
       status: healthy ? 'ok' : 'degraded',
       database,
-      databaseError,
       missing: missing.map((c) => ({ name: c.name, consequence: c.consequence })),
       config: describeConfig().map((c) => ({ name: c.name, present: c.present })),
     },
