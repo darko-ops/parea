@@ -2688,14 +2688,30 @@ export function AccountCard({
   const [error, setError] = useState<string | null>(null);
 
   /*
-   * Whether to offer Face ID at all.
+   * Whether to offer Face ID at all, decided after the first paint.
    *
-   * False in Expo Go, on an OS without the APIs, and on a phone with no
-   * biometrics or passcode set. All three want the same thing from this card:
-   * show the code and say nothing about passkeys — which is why this gates the
-   * button rather than being reported as a problem.
+   * False in Expo Go, in a build older than the native module, on an OS without
+   * the APIs, and on a phone with no biometrics or passcode set. All four want
+   * the same thing from this card: show the code and say nothing about
+   * passkeys — which is why this gates the button rather than being reported as
+   * a problem.
+   *
+   * ## Why an effect and not a plain call
+   *
+   * `passkeysSupported` reaches for a native module the first time it is asked,
+   * and on a build without one that attempt fails. Failing is fine and handled;
+   * doing it *during render* is not. Render runs again on every state change —
+   * every keystroke in the address field, every button on this card — so a
+   * module load on that path is a load attempted over and over, and anything it
+   * logs on the way past is logged over and over with it.
+   *
+   * After the commit it happens once, the answer is state, and the render body
+   * goes back to being a function of its inputs.
    */
-  const canPasskey = passkeysSupported();
+  const [canPasskey, setCanPasskey] = useState(false);
+  useEffect(() => {
+    setCanPasskey(passkeysSupported());
+  }, []);
   /**
    * Standing between a finished sign-in and telling the caller about it.
    *
@@ -3023,11 +3039,6 @@ export function AccountCard({
 
   if (account) {
     if (gate) return null;
-    if (managing) {
-      return (
-        <DevicesCard api={api} t={t} Button={Button} onDone={() => setManaging(false)} />
-      );
-    }
     return (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
@@ -3045,6 +3056,16 @@ export function AccountCard({
         <Button label="Devices and passkeys" onPress={() => setManaging(true)} t={t} />
         {onSignedOut && <Button label="Sign out" onPress={signOut} t={t} />}
         <Button label="Delete account" onPress={remove} t={t} />
+        {/*
+          Beside the card rather than in place of it, because `DevicesCard` is
+          its own sheet now: a modal renders over everything wherever it sits in
+          the tree, and swapping this card out for one would leave the screen
+          underneath empty for as long as it was open — and empty again for a
+          frame when it closed.
+        */}
+        {managing && (
+          <DevicesCard api={api} t={t} Button={Button} onDone={() => setManaging(false)} />
+        )}
       </View>
     );
   }

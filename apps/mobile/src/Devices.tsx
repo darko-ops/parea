@@ -14,10 +14,11 @@
 
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Api, DeviceListing, PasskeyListing } from './api';
 import type { TabTheme } from './Events';
+import { passkeysSupported } from './passkeys';
 import { addPasskey } from './signin';
 
 type ButtonComponent = (props: {
@@ -66,6 +67,24 @@ export function DevicesCard({
    * six comparisons against one instant instead of six slightly different ones.
    */
   const [now, setNow] = useState(() => new Date());
+
+  /*
+   * Whether this build can make a passkey, which is not the same as whether the
+   * account can have one.
+   *
+   * The list below is plain HTTP and works everywhere — a passkey added in a
+   * browser shows here, and can be removed here, on a build that could never
+   * have created it. Only the making needs native code. So the section stays
+   * and the button goes, which is the honest split: the thing you cannot do is
+   * the thing that is missing.
+   *
+   * Decided after the first paint rather than during render: the check reaches
+   * for a native module, and render happens again on every press.
+   */
+  const [canAdd, setCanAdd] = useState(false);
+  useEffect(() => {
+    setCanAdd(passkeysSupported());
+  }, []);
 
   const load = useCallback(async () => {
     const [sessions, keys] = await Promise.all([
@@ -200,8 +219,30 @@ export function DevicesCard({
 
   const others = (devices ?? []).filter((device) => !device.current).length;
 
+  /*
+   * Its own sheet, rather than more content inside the Settings one.
+   *
+   * Settings is a bottom sheet capped at 90% of the screen with a `ScrollView`
+   * in it, and nothing had ever been tall enough to make that scroll — this is
+   * the first screen that is, and it did not. Rather than work out why somebody
+   * else's container misbehaves when it finally has to, this stops depending on
+   * it: a list of every device and every passkey has no length limit, so it gets
+   * a scroll view of its own with a height it actually owns.
+   *
+   * The structure mirrors the Settings sheet deliberately — same backdrop, same
+   * radius, same padding — so a second sheet over the first reads as going one
+   * level deeper rather than as a different kind of thing.
+   */
   return (
-    <View style={{ gap: 16 }}>
+    <Modal visible animationType="slide" transparent onRequestClose={onDone}>
+      {/* Tapping away closes, and the inner press stops that reaching the
+          backdrop. The same pattern the Settings sheet uses. */}
+      <Pressable style={styles.backdrop} onPress={onDone}>
+        <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+          <ScrollView
+            contentContainerStyle={styles.panelScroll}
+            keyboardShouldPersistTaps="handled"
+          >
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>Where you are signed in</Text>
         <Text style={[styles.small, { color: t.dim }]}>
@@ -280,22 +321,46 @@ export function DevicesCard({
           <Text style={[styles.small, { color: t.dim }]}>No passkeys yet.</Text>
         )}
 
-        <Button
-          label={busy ? 'Working…' : 'Add a passkey'}
-          onPress={add}
-          t={t}
-          disabled={busy}
-        />
+        {canAdd ? (
+          <Button
+            label={busy ? 'Working…' : 'Add a passkey'}
+            onPress={add}
+            t={t}
+            disabled={busy}
+          />
+        ) : (
+          /*
+           * A button that cannot work is worse than a sentence saying why.
+           *
+           * This build has no passkey module — it predates one, or it is Expo
+           * Go — so the ceremony would fail at the last step, after asking. The
+           * web can still make one, and it will appear in the list above on
+           * this phone, because the list is about the account rather than about
+           * this app.
+           */
+          <Text style={[styles.small, { color: t.dim }]}>
+            This version of the app cannot create passkeys yet. Adding one at
+            parea.photos in a browser works, and it will show here.
+          </Text>
+        )}
       </View>
 
       {note && <Text style={[styles.small, { color: t.dim }]}>{note}</Text>}
 
       <Button label="Done" onPress={onDone} t={t} primary />
-    </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  /* The same three the Settings sheet uses, so one sheet over another reads as
+     depth rather than as a different kind of surface. */
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
+  panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  panelScroll: { padding: 16, paddingBottom: 40, gap: 16 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   /*
    * A rule above each row rather than between them, and none above the first.
