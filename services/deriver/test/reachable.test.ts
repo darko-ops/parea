@@ -21,7 +21,7 @@
  * contract.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -69,8 +69,19 @@ describe('a store says whether it can be used', () => {
      * The contract the boot probe depends on. `probe()` prints a table and
      * returns an exit code; a store that threw would skip the table entirely
      * and lose the other nine answers with it.
+     *
+     * The unwritable root is a directory path *underneath a regular file*,
+     * which is `ENOTDIR` on every POSIX system and fails immediately. The
+     * first version of this used `/proc/cannot/write/here`, which is unwritable
+     * on Linux and simply absent on macOS — so it failed fast on a laptop,
+     * passed the suite, and then hung for the full 30-second timeout on CI.
+     * A test that depends on which kernel is underneath is a test that only
+     * works where it was written.
      */
-    const store = new LocalObjectStore('/proc/cannot/write/here');
+    const blocker = join(dir, 'a-file-not-a-directory');
+    await writeFile(blocker, 'x');
+
+    const store = new LocalObjectStore(join(blocker, 'root'));
     const answer = await store.reachable();
     expect(answer.ok).toBe(false);
     expect(answer.detail).toMatch(/^FAILED/);
