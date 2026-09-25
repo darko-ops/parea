@@ -122,14 +122,49 @@ export class R2ObjectStore implements ObjectStore {
       const status = (err as { $metadata?: { httpStatusCode?: number } })
         ?.$metadata?.httpStatusCode;
       if (status === 404) return { ok: true, detail: `${this.bucket} reachable` };
-      if (status === 401 || status === 403) {
+
+      /*
+       * The status is the only thing worth reading here.
+       *
+       * The SDK collapses every R2 rejection into `name: 'Unknown'` and
+       * `message: 'UnknownError'`, so the first version of this printed
+       * `FAILED — UnknownError` and left whoever was reading it no better off
+       * than a blank line. That is not hypothetical: it is what the log said
+       * when both credentials were set to a placeholder, in the very incident
+       * this check exists to catch.
+       *
+       * 400 is the one that was missed. A credential R2 cannot parse at all —
+       * a placeholder, a truncated paste, a value with a space in it — is a
+       * malformed `Authorization` header and comes back 400, not 401. Both
+       * mean the same thing to whoever has to fix it, so they say the same
+       * thing and differ only in the hint.
+       */
+      if (status === 400 || status === 401 || status === 403) {
+        const hint =
+          status === 400
+            ? 'the value looks malformed — a placeholder, or a truncated paste'
+            : 'the credentials were rejected';
         return {
           ok: false,
-          detail: `FAILED — R2 rejected the credentials (HTTP ${status}); check R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY`,
+          detail:
+            `FAILED — R2 refused the request (HTTP ${status}): ${hint}. ` +
+            'Check R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.',
         };
       }
+
+      /*
+       * Anything else, with the status kept even though it is unrecognised.
+       * `UnknownError` alone is what sent somebody to read this file rather
+       * than fix their deployment, and a number is the difference between "it
+       * broke" and "it broke the way a wrong region breaks".
+       */
+      const name = (err as { name?: string })?.name;
       const message = err instanceof Error ? err.message.split('\n')[0] : String(err);
-      return { ok: false, detail: `FAILED — ${message}` };
+      const said = message && message !== 'UnknownError' ? message : (name ?? 'no detail');
+      return {
+        ok: false,
+        detail: `FAILED — ${said}${status ? ` (HTTP ${status})` : ' (no response)'}`,
+      };
     }
   }
 }

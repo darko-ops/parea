@@ -143,3 +143,61 @@ describe('refusing to start', () => {
     expect(calls ?? []).toHaveLength(2);
   });
 });
+
+/**
+ * What the failure actually says.
+ *
+ * The first version of `reachable()` branched on 401 and 403 and printed
+ * `err.message` for anything else. The AWS SDK collapses every R2 rejection
+ * into `name: 'Unknown'`, `message: 'UnknownError'`, so the branch that fired
+ * in the real incident — a credential R2 could not parse, which is **400**, not
+ * 401 — produced `FAILED — UnknownError`. The check correctly refused to start
+ * the container and then told whoever was reading the log nothing at all.
+ *
+ * Measured against the live bucket: a placeholder credential answers 400 and a
+ * well-formed but wrong one answers 401, and both carry no usable message. So
+ * the status is the signal, and it is now always in the sentence.
+ */
+describe('what a storage failure says', () => {
+  const fail = async (status: number | undefined) => {
+    const { R2ObjectStore } = await import('../src/objects');
+    const store = new R2ObjectStore('parea', {
+      accountId: 'x',
+      accessKeyId: 'x',
+      secretAccessKey: 'x',
+    });
+    // Stand in for the SDK's shape: no useful name, no useful message, and the
+    // status the only thing that distinguishes one cause from another.
+    const err = Object.assign(new Error('UnknownError'), {
+      name: 'Unknown',
+      $metadata: status === undefined ? {} : { httpStatusCode: status },
+    });
+    (store as unknown as { client: { send: () => Promise<never> } }).client = {
+      send: () => Promise.reject(err),
+    };
+    return store.reachable();
+  };
+
+  it('names a malformed credential, which answers 400 rather than 401', async () => {
+    const answer = await fail(400);
+    expect(answer.ok).toBe(false);
+    expect(answer.detail).toContain('HTTP 400');
+    expect(answer.detail).toMatch(/malformed|placeholder/);
+    expect(answer.detail).toContain('R2_ACCESS_KEY_ID');
+  });
+
+  it('names a rejected credential', async () => {
+    const answer = await fail(401);
+    expect(answer.detail).toContain('HTTP 401');
+    expect(answer.detail).toContain('R2_SECRET_ACCESS_KEY');
+  });
+
+  it('never reports UnknownError on its own', async () => {
+    // The whole point. An unrecognised status still carries the number.
+    for (const status of [400, 401, 403, 500, undefined]) {
+      const answer = await fail(status);
+      expect(answer.detail).not.toBe('FAILED — UnknownError');
+      expect(answer.detail, `status ${status}`).toMatch(/HTTP \d{3}|no response/);
+    }
+  });
+});
