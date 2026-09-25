@@ -224,7 +224,7 @@ Jobs run on a schedule from the same image:
 
 ```
 fly deploy -c fly.jobs.toml
-fly machine run --schedule daily <image> -a parea-jobs -- npx tsx services/deriver/src/jobs.ts
+fly machine run --schedule daily <image> -a parea-jobs -- node_modules/.bin/tsx services/deriver/src/jobs.ts
 ```
 
 Running it with no argument also prints the §18 metrics — the concept's own
@@ -237,7 +237,7 @@ this runs. Run `seed-codes` once by hand
 after the first deploy, or the spoken-code door never opens:
 
 ```
-fly ssh console -a parea-deriver -C "npx tsx services/deriver/src/jobs.ts seed-codes"
+fly ssh console -a parea-deriver -C "node_modules/.bin/tsx services/deriver/src/jobs.ts seed-codes"
 ```
 
 ## Secrets

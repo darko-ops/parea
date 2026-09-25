@@ -36,7 +36,7 @@ primary_region = "lhr"
   # one is somebody else deciding what this machine spends its time on. The
   # probe still refuses a machine that cannot decode HEIC, strip metadata, or
   # reach a child-safety scanner.
-  worker = "npx tsx services/deriver/src/index.ts serve"
+  worker = "node_modules/.bin/tsx services/deriver/src/index.ts serve"
 
 # The surface QStash delivers to, and the thing that starts the machine.
 #

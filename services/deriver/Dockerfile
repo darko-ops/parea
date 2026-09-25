@@ -66,7 +66,8 @@ COPY services/deriver services/deriver
 # The posture is declared only to get past the runtime gate during a build. It
 # says nothing about how the deployment reviews content — that is read from the
 # environment at boot, where the answer actually lives.
-RUN PAREA_MODERATION=manual NODE_ENV=development npx tsx services/deriver/src/index.ts probe
+RUN PAREA_MODERATION=manual NODE_ENV=development \
+      node_modules/.bin/tsx services/deriver/src/index.ts probe
 
 # Not root, and this is the one line in the file that is about what happens
 # when something here goes wrong rather than about making it work.
@@ -95,4 +96,24 @@ EXPOSE 8080
 # signing keys. Production does not use this line — `fly.toml` sets the
 # process — and the poll is still the right answer against a local database
 # nobody is billed for.
-CMD ["npx", "tsx", "services/deriver/src/index.ts", "watch"]
+# `node_modules/.bin/tsx`, not `npx tsx`, and the difference is a network call.
+#
+# `tsx` was a devDependency while the install above is `--omit=dev`, so it was
+# not in the image — and `npx` answers that by fetching it from the registry and
+# running it, which is exactly what it is for and exactly what nobody wanted
+# here. It was doing so on every cold boot: the build-time probe downloaded it
+# as root, that cache lives in root's `~/.npm`, and `USER node` then had its own
+# empty one, so the running container fetched it again. The line read like a
+# local invocation and was a supply-chain path into the process holding the R2
+# credentials and DATABASE_URL.
+#
+# So `tsx` is a real dependency of `@parea/deriver` now, and these call the
+# binary rather than a package runner. A missing one is then an exec failure on
+# the spot instead of a silent install — which is the same preference the boot
+# probe expresses two lines up, and the reason ingest refuses to start rather
+# than start badly.
+#
+# Absolute, because Docker's exec form runs no shell to resolve a relative path
+# against WORKDIR. The two Fly process definitions are relative and correct,
+# because those *are* run through a shell, in `/app`.
+CMD ["/app/node_modules/.bin/tsx", "services/deriver/src/index.ts", "watch"]

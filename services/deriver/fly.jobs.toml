@@ -16,4 +16,4 @@ primary_region = "lhr"
   NODE_ENV = "production"
 
 [processes]
-  jobs = "npx tsx services/deriver/src/jobs.ts"
+  jobs = "node_modules/.bin/tsx services/deriver/src/jobs.ts"
