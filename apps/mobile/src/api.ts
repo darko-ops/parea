@@ -1536,7 +1536,13 @@ export class Api {
    * anything against that one request.
    */
   passkeyRegistrationOptions(): Promise<PasskeyCreationOptions> {
-    return this.call('/api/account/passkeys/options', { method: 'POST' });
+    return this.call('/api/account/passkeys/options', {
+      method: 'POST',
+      // Always the device's own. There is no QR-code fallback to preserve in an
+      // app: the whole feature here is the phone recognising its owner, and a
+      // phone that cannot do that has `isSupported()` false and never asks.
+      body: JSON.stringify({ platform: true }),
+    });
   }
 
   savePasskey(response: unknown): Promise<{ passkey: PasskeyListing }> {

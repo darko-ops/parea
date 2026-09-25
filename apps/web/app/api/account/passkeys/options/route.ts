@@ -18,7 +18,7 @@ import { currentActorId, requestHost } from '@/session';
 
 export const runtime = 'nodejs';
 
-export async function POST() {
+export async function POST(request: Request) {
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
@@ -43,12 +43,22 @@ export async function POST() {
 
   if (!row) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
+  /*
+   * Whether this client has a biometric of its own to offer.
+   *
+   * Taken from the caller rather than guessed, because it is a question only the
+   * caller can answer — and trusted, because getting it wrong costs the person
+   * asking a worse prompt and nobody else anything. See `preferPlatform`.
+   */
+  const body = (await request.json().catch(() => ({}))) as { platform?: unknown };
+
   const options = await registrationOptions(db, {
     actorId,
     accountId: row.accountId,
     email: row.email,
     displayName: row.displayName,
     host: await requestHost(),
+    preferPlatform: body.platform === true,
   });
 
   return NextResponse.json(options);

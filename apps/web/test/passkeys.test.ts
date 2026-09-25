@@ -24,6 +24,7 @@ import {
   authenticationOptions,
   expectedOrigins,
   hasPasskey,
+  registrationOptions,
   passkeyOwnerHasAccount,
   removePasskey,
   rpIdFor,
@@ -254,6 +255,64 @@ describe('the options a sign-in is offered', () => {
     // of the laptop is possession of the account.
     const options = await authenticationOptions(db, 'parea.photos');
     expect(options.userVerification).toBe('required');
+  });
+});
+
+/**
+ * Which authenticator the browser is sent to.
+ *
+ * This shipped wrong. `authenticatorSelection` set `residentKey` and
+ * `userVerification` and said nothing about attachment, so the browser showed
+ * its whole chooser — a QR code, a security key, and the local device somewhere
+ * among them — behind a button that said "Next time, sign in with Face ID". The
+ * promised option was not the obvious one, and on some machines was not visibly
+ * there at all.
+ *
+ * Asserted on the generated options rather than on the request shape, because
+ * the failure was not an exception: every value was valid and the ceremony
+ * worked. What was wrong was which sheet a person saw.
+ */
+describe('which authenticator the person is offered', () => {
+  async function optionsFor(preferPlatform: boolean) {
+    const me = await actor();
+    await signIn(db, 'sam@example.com', me);
+    const [account] = await db.select().from(schema.accounts);
+    return registrationOptions(db, {
+      actorId: me,
+      accountId: account!.id,
+      email: 'sam@example.com',
+      displayName: null,
+      host: 'parea.photos',
+      preferPlatform,
+    });
+  }
+
+  it('goes straight to Face ID when the device has it', async () => {
+    const options = await optionsFor(true);
+    // The pair that skips the menu. `hints` is what current browsers read and
+    // `authenticatorAttachment` is what older ones do, and the library sets both.
+    expect(options.hints).toEqual(['client-device']);
+    expect(options.authenticatorSelection?.authenticatorAttachment).toBe('platform');
+  });
+
+  it('leaves the QR code available when it does not', async () => {
+    /*
+     * `platform` excludes rather than prefers, so pinning it on a desktop with
+     * no reader turns a working QR-code flow into a hard failure. Signing into a
+     * borrowed laptop with the passkey on your phone is a real feature, and this
+     * is the request that keeps it.
+     */
+    const options = await optionsFor(false);
+    expect(options.hints ?? []).toEqual([]);
+    expect(options.authenticatorSelection?.authenticatorAttachment).toBeUndefined();
+  });
+
+  it('still requires a verified person and a discoverable key either way', async () => {
+    for (const preferPlatform of [true, false]) {
+      const options = await optionsFor(preferPlatform);
+      expect(options.authenticatorSelection?.userVerification).toBe('required');
+      expect(options.authenticatorSelection?.residentKey).toBe('required');
+    }
   });
 });
 

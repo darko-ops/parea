@@ -275,7 +275,38 @@ export async function hasPasskey(db: Db, actorId: string): Promise<boolean> {
  */
 export async function registrationOptions(
   db: Db,
-  input: { actorId: string; accountId: string; email: string; displayName: string | null; host: string | null },
+  input: {
+    actorId: string;
+    accountId: string;
+    email: string;
+    displayName: string | null;
+    host: string | null;
+    /**
+     * Ask for *this device's* authenticator — Face ID, Touch ID, Windows Hello.
+     *
+     * The client decides, because only the client can see whether there is one:
+     * `isUserVerifyingPlatformAuthenticatorAvailable()` is a browser question.
+     *
+     * ## Why this is not simply always on
+     *
+     * It maps to `authenticatorAttachment: 'platform'`, and that does not
+     * *prefer* the local device — it excludes everything else. On a machine with
+     * no platform authenticator (a desktop Mac, Windows without Hello) the
+     * ceremony then fails outright rather than falling back, and the fallback it
+     * would have offered is a real feature: scanning a QR code with a phone is
+     * how somebody signs into a borrowed laptop with the passkey they already
+     * have.
+     *
+     * ## Why it is not simply always off, which is what shipped
+     *
+     * Left unset, the browser shows its full chooser: a QR code, a security key,
+     * and the local device somewhere among them. That is the correct menu for
+     * "add a passkey" in the abstract and the wrong one for a button that says
+     * "Next time, sign in with Face ID" — the product promised one thing and the
+     * platform offered three, with the promised one not obviously present.
+     */
+    preferPlatform: boolean;
+  },
 ) {
   const existing = await db
     .select({
@@ -311,6 +342,13 @@ export async function registrationOptions(
       requireResidentKey: true,
       userVerification: 'required',
     },
+    /*
+     * Sets `hints: ['client-device']` and `authenticatorAttachment: 'platform'`
+     * together, which is what takes the browser straight to the biometric
+     * prompt instead of to a menu. Omitted entirely when there is no local
+     * authenticator to go to — see `preferPlatform`.
+     */
+    ...(input.preferPlatform ? { preferredAuthenticatorType: 'localDevice' as const } : {}),
   });
 
   await storeChallenge(db, options.challenge, 'register', input.actorId);

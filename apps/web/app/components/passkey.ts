@@ -86,7 +86,22 @@ function readFailure(err: unknown): string | typeof CANCELLED {
  */
 export async function addPasskey(): Promise<Result<{ id: string; label: string | null }>> {
   try {
-    const optionsResponse = await fetch('/api/account/passkeys/options', { method: 'POST' });
+    /*
+     * Ask this browser whether it has a biometric before asking the server for
+     * options, because the answer changes which options to ask for.
+     *
+     * With one, the request pins the ceremony to the local device and the person
+     * gets the Face ID sheet they were promised. Without one, it stays unpinned
+     * and the browser offers the QR code and a security key — which is the right
+     * menu on a desktop with no reader, and the only one that can succeed there.
+     */
+    const local = await platformAuthenticator();
+
+    const optionsResponse = await fetch('/api/account/passkeys/options', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: local }),
+    });
     if (!optionsResponse.ok) {
       return {
         ok: false,
