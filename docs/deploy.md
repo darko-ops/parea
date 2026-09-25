@@ -70,8 +70,9 @@ by hand or something goes wrong halfway.
 ## 1. Database
 
 ```
-# Create a Neon project, then:
-export DATABASE_URL='postgres://…'
+# Create a Neon project, then — the URL Neon gives you, ellipsis and all
+# replaced. Keep the `?sslmode=require` it comes with.
+export DATABASE_URL='postgres://PASTE_NEON_URL_HERE'
 npm run db:migrate
 ```
 
@@ -207,24 +208,84 @@ rate-shaped like marketing.
 
 ## 5. Deriver and jobs
 
+**Deploy from the repository root, not from `services/deriver`.** The Dockerfile
+copies the root `package-lock.json` and all of `packages/`, so the build context
+has to be the root — and `flyctl deploy [WORKING_DIRECTORY]` takes the context
+from the directory it is given. This page said `cd services/deriver && fly
+deploy` for a long time and that cannot work: there is no lockfile and no
+`packages/` beneath that path to copy. `.dockerignore` at the root is what keeps
+the context to 161MB instead of 4.6GB.
+
 ```
-cd services/deriver
-fly launch --no-deploy --copy-config
-fly secrets set DATABASE_URL=… R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… \
-  R2_SECRET_ACCESS_KEY=… R2_BUCKET=parea \
-  CSAM_SCANNER_URL=… CSAM_SCANNER_KEY=… SAFETY_ALERT_WEBHOOK=…
-fly deploy
+flyctl secrets set \
+  DATABASE_URL=PASTE_HERE \
+  R2_ACCOUNT_ID=PASTE_HERE \
+  R2_ACCESS_KEY_ID=PASTE_HERE \
+  R2_SECRET_ACCESS_KEY=PASTE_HERE \
+  R2_BUCKET=parea \
+  SAFETY_ALERT_EMAIL=PASTE_HERE \
+  -a parea-deriver
+
+flyctl deploy . --config services/deriver/fly.toml \
+  --dockerfile services/deriver/Dockerfile
 ```
 
-The image runs its boot probe and **refuses to start** if it cannot decode
-HEIC, cannot encode AVIF, cannot find exiftool, or has no scanner configured.
-A deriver that starts is one that can actually do the job.
+> The placeholders say `PASTE_HERE` rather than `…` on purpose. An earlier
+> version of this page used the ellipsis, somebody ran the line as written, and
+> Fly cheerfully set both R2 secrets to a three-byte `…`. Every layer reported
+> success — `flyctl` said the update succeeded and the health check went green,
+> because it is liveness-only — and ingest was down until a photograph failed to
+> appear. A placeholder that is valid shell is a placeholder that will one day be
+> deployed.
+
+For anything you want to check before it serves traffic, build and release as
+two steps. This is worth the extra command whenever credentials or the base
+image have changed:
+
+```
+flyctl deploy . --config services/deriver/fly.toml \
+  --dockerfile services/deriver/Dockerfile \
+  --build-only --push --image-label SOME_LABEL
+
+# try it on a throwaway machine first — it gets the app's real secrets
+flyctl machine run registry.fly.io/parea-deriver:SOME_LABEL -a parea-deriver \
+  --region lhr --memory 2048 --restart no --env NODE_ENV=production \
+  --entrypoint /bin/sh -- -c 'cd /app && node_modules/.bin/tsx services/deriver/src/index.ts probe'
+flyctl logs -a parea-deriver --machine MACHINE_ID --no-tail
+flyctl machine destroy MACHINE_ID -a parea-deriver --force
+
+flyctl deploy . --config services/deriver/fly.toml \
+  --image registry.fly.io/parea-deriver:SOME_LABEL
+```
+
+Note that a machine's `--env` does **not** override a Fly secret of the same
+name, so a throwaway cannot be used to test what happens with deliberately bad
+credentials.
+
+### What the boot probe refuses to start for
+
+`serve` runs the probe before it binds the port, so a container that cannot do
+the job never accepts a delivery. It is fatal when the container cannot decode
+HEIC, cannot encode AVIF, cannot find exiftool, has no declared moderation
+posture, or — in production — has nowhere to send a quarantine alert or
+**cannot reach R2**.
+
+An absent CSAM scanner is *not* fatal. That changed when `PAREA_MODERATION`
+arrived: running without hash matching is a posture a deployment may take, and
+what it may not do is fail to state one. See `docs/csam-runbook.md`.
+
+The storage check is a HEAD for a key that does not exist — 404 means the
+credentials work, 401 means they do not. It is the newest line and it exists
+because everything else in the probe verified that the container could process
+a photograph and nothing verified it could reach one.
 
 Jobs run on a schedule from the same image:
 
 ```
-fly deploy -c fly.jobs.toml
-fly machine run --schedule daily <image> -a parea-jobs -- node_modules/.bin/tsx services/deriver/src/jobs.ts
+flyctl deploy . --config services/deriver/fly.jobs.toml \
+  --dockerfile services/deriver/Dockerfile
+flyctl machine run --schedule daily IMAGE_REF -a parea-jobs \
+  -- node_modules/.bin/tsx services/deriver/src/jobs.ts
 ```
 
 Running it with no argument also prints the §18 metrics — the concept's own
