@@ -24,20 +24,38 @@ export class LocalStorage implements Storage {
     private readonly baseUrl: string,
   ) {}
 
-  private signedUrl(key: string, verb: 'put' | 'get', ttlSeconds: number): string {
+  private signedUrl(
+    key: string,
+    verb: 'put' | 'get',
+    ttlSeconds: number,
+    byteSize?: number,
+  ): string {
     const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
-    const sig = signBlob(this.secret, key, verb, expires);
+    const sig = signBlob(this.secret, key, verb, expires, byteSize);
     const q = new URLSearchParams({ key, verb, exp: String(expires), sig });
+    if (byteSize !== undefined) q.set('len', String(byteSize));
     return `${this.baseUrl}/api/dev/blob?${q}`;
   }
 
+  /**
+   * The declared size is signed here too, and the dev endpoint enforces it.
+   *
+   * Not for safety — nothing hostile is uploading to a laptop. For parity: R2
+   * refuses a body that disagrees with the size its URL was signed for, and a
+   * development store that accepted one would make the difference between
+   * "works on my machine" and "403 in production" a thing you discover after
+   * deploying. This file already exists so the upload path can be built
+   * without a Cloudflare account; it is only worth having if it behaves the
+   * same way.
+   */
   async presignPut(
     key: string,
     contentType: string,
+    byteSize: number,
     ttlSeconds = 900,
   ): Promise<PresignedUpload> {
     return {
-      url: this.signedUrl(key, 'put', ttlSeconds),
+      url: this.signedUrl(key, 'put', ttlSeconds, byteSize),
       method: 'PUT',
       headers: { 'content-type': contentType },
       expiresAt: new Date(Date.now() + ttlSeconds * 1000),
@@ -86,9 +104,15 @@ export class LocalStorage implements Storage {
     }
   }
 
-  verify(key: string, verb: string, expires: number, sig: string): boolean {
+  verify(
+    key: string,
+    verb: string,
+    expires: number,
+    sig: string,
+    byteSize?: number,
+  ): boolean {
     if (!Number.isFinite(expires) || expires * 1000 < Date.now()) return false;
-    const expected = signBlob(this.secret, key, verb, expires);
+    const expected = signBlob(this.secret, key, verb, expires, byteSize);
     const a = Buffer.from(sig);
     const b = Buffer.from(expected);
     return a.length === b.length && timingSafeEqual(a, b);
@@ -110,8 +134,14 @@ function signBlob(
   key: string,
   verb: string,
   expires: number,
+  byteSize?: number,
 ): string {
-  return createHmac('sha256', secret)
-    .update(`${verb}:${key}:${expires}`)
-    .digest('base64url');
+  // The size joins the signed value rather than sitting beside it, so a caller
+  // cannot edit `len` in the query string and have it still verify — which is
+  // the same property `ContentLength` has in an R2 signature.
+  const claim =
+    byteSize === undefined
+      ? `${verb}:${key}:${expires}`
+      : `${verb}:${key}:${expires}:${byteSize}`;
+  return createHmac('sha256', secret).update(claim).digest('base64url');
 }

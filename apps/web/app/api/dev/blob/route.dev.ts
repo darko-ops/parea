@@ -35,19 +35,31 @@ function parse(request: Request) {
   const verb = url.searchParams.get('verb');
   const exp = Number(url.searchParams.get('exp'));
   const sig = url.searchParams.get('sig');
-  return { key, verb, exp, sig };
+  const len = url.searchParams.get('len');
+  return { key, verb, exp, sig, len: len === null ? undefined : Number(len) };
 }
 
 export async function PUT(request: Request) {
   const store = localStore();
   if (!store) return NextResponse.json({ error: 'not_local' }, { status: 404 });
 
-  const { key, verb, exp, sig } = parse(request);
-  if (!key || verb !== 'put' || !sig || !store.verify(key, 'put', exp, sig)) {
+  const { key, verb, exp, sig, len } = parse(request);
+  if (!key || verb !== 'put' || !sig || !store.verify(key, 'put', exp, sig, len)) {
     return NextResponse.json({ error: 'bad_signature' }, { status: 403 });
   }
 
   const bytes = Buffer.from(await request.arrayBuffer());
+  /*
+   * The body has to be the size the URL was signed for — what R2 does with a
+   * signed `content-length`, so that an upload which would 403 in production
+   * also fails here rather than being discovered after a deploy.
+   *
+   * 403 rather than 413 to match: R2 reports this as a signature failure,
+   * because that is what it is.
+   */
+  if (len !== undefined && bytes.byteLength !== len) {
+    return NextResponse.json({ error: 'bad_signature' }, { status: 403 });
+  }
   await store.writeBytes(key, bytes);
   return new NextResponse(null, { status: 200 });
 }

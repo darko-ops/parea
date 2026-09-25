@@ -166,7 +166,9 @@ export async function POST(
         })
         .returning();
 
-      const presigned = await storage.presignPut(key, file.type);
+      // The declared size goes into the signature, so the body has to match
+      // the number this row's quota was charged against. See `presignPut`.
+      const presigned = await storage.presignPut(key, file.type, file.size);
       return {
         photoId: photo!.id,
         name: file.name,

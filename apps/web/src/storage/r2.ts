@@ -46,14 +46,35 @@ export class R2Storage implements Storage {
   async presignPut(
     key: string,
     contentType: string,
+    byteSize: number,
     ttlSeconds = 900,
   ): Promise<PresignedUpload> {
+    /*
+     * `ContentLength` is signed, and that is what makes the quota true.
+     *
+     * The signature covered bucket, key and content type — nothing about size.
+     * So the number a client declared at presign, which is what its quota was
+     * charged against, had no bearing on what it could then upload: fifty
+     * files claiming one byte each bought fifty slots that would each take
+     * gigabytes. The real size was written later by `/complete`, which an
+     * abusive client simply never calls.
+     *
+     * Setting it puts `content-length` in `X-Amz-SignedHeaders`, so a body of
+     * any other size fails the signature at R2 rather than at us. Verified
+     * against the live bucket: the declared size uploads, forty times it
+     * answers 403.
+     *
+     * Browsers and React Native both set `Content-Length` themselves from the
+     * body and forbid scripts overriding it, so no client has to do anything
+     * differently — which is why this is not in the returned `headers`.
+     */
     const url = await getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.config.bucket,
         Key: key,
         ContentType: contentType,
+        ContentLength: byteSize,
       }),
       { expiresIn: ttlSeconds },
     );

@@ -29,9 +29,19 @@ export type ObjectHead = {
 
 export interface Storage {
   /** A URL the client PUTs the file to. Bytes go client → storage, never via us. */
+  /**
+   * @param byteSize how large the body will be, signed into the URL.
+   *
+   * Required rather than optional, so that adding a second upload path is a
+   * compile error instead of a quota nobody enforces. The size a client
+   * declares is what its quota is charged against; without it in the
+   * signature, the declaration and the upload are two unrelated numbers and
+   * only the cheaper one is checked.
+   */
   presignPut(
     key: string,
     contentType: string,
+    byteSize: number,
     ttlSeconds?: number,
   ): Promise<PresignedUpload>;
 
