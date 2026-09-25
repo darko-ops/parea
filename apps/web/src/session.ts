@@ -98,6 +98,26 @@ export async function currentCredential(): Promise<CurrentCredential | null> {
   // actor id and has no idea a merge ever happened, which is the point:
   // resolving it per call site is how one gets missed.
   const actorId = await resolveActor(db, presented.actorId).catch(() => presented.actorId);
+
+  /*
+   * Said out loud, because the decision this blocks cannot be made without it.
+   *
+   * A credential with no session id is the one shape this product cannot
+   * revoke — `/api/account/devices` mints a row for a browser that visits it
+   * and the app does the same on launch, so the population shrinks on its own,
+   * but nothing anywhere records how fast. Closing the gap properly means
+   * refusing these outright, and that signs those people out; picking the day
+   * to do it without knowing whether it is five people or five hundred is
+   * guessing with somebody else's session.
+   *
+   * A log line rather than a row in `observation`: that table is a closed list
+   * tied to the §18 metrics and says so, and "how many old cookies are left"
+   * is an operational question about a migration rather than a fact about the
+   * product. This costs nothing, stores nothing, and stops the day the last
+   * one is adopted — which is exactly the signal being waited for.
+   */
+  console.info(`legacy-credential: resolved actor ${actorId} with no session row`);
+
   return { actorId, sessionId: null };
 }
 
