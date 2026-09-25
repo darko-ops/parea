@@ -14,10 +14,7 @@
  * better than the group chat.
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const run = promisify(execFile);
+import { runParser } from './subprocess';
 
 /**
  * Removed: anything that says where the photo was taken, or which specific
@@ -56,7 +53,10 @@ export type ExtractedMetadata = {
 };
 
 async function exiftool(args: string[]): Promise<string> {
-  const { stdout } = await run('exiftool', args, {
+  // Through `runParser`, which strips the environment and bounds the runtime.
+  // exiftool reads whatever a stranger uploaded; it has no business holding
+  // the R2 credentials while it does. See `subprocess.ts`.
+  const { stdout } = await runParser('exiftool', args, {
     maxBuffer: 32 * 1024 * 1024,
   });
   return stdout;

@@ -16,15 +16,15 @@
  * a 1280 to fill a 540-pixel slot.
  */
 
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import sharp, { type Sharp } from 'sharp';
 
 import { MIME, formatsFor, type ImageFormat } from '@parea/urls';
 import { MAX_INPUT_PIXELS, restrictDecoders } from '@parea/upload';
+
+import { runParser } from './subprocess';
 
 /*
  * Shut every decoder this product does not accept, before anything decodes.
@@ -37,8 +37,6 @@ import { MAX_INPUT_PIXELS, restrictDecoders } from '@parea/upload';
  * derived from.
  */
 restrictDecoders(sharp);
-
-const run = promisify(execFile);
 
 export const DERIVATIVES = [
   { kind: 'thumb', edge: 320, quality: 72 },
@@ -334,7 +332,16 @@ async function heifConvert(input: Buffer): Promise<Buffer> {
     const src = join(dir, 'in.heic');
     const dst = join(dir, 'out.png');
     await writeFile(src, input);
-    await run('heif-convert', [src, dst], { maxBuffer: 8 * 1024 * 1024 });
+    /*
+     * Through `runParser`, and this is the call it was written for.
+     *
+     * trixie's libheif has four CVEs open against it — see `subprocess.ts` —
+     * so this is the one parser in the product with a known, unfixed
+     * memory-corruption bug, reachable by uploading the format every iPhone
+     * shoots. It cannot be patched from here; what it is worth on success can
+     * be, and an empty environment is most of that.
+     */
+    await runParser('heif-convert', [src, dst], { maxBuffer: 8 * 1024 * 1024 });
     return await readFile(dst);
   } finally {
     await rm(dir, { recursive: true, force: true });
