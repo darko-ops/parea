@@ -100,37 +100,86 @@ export function rpIdFor(host: string | null | undefined): string {
  * iOS needs nothing here: an app holding the `webcredentials` entitlement
  * asserts as `https://parea.photos`, which is already in the list.
  *
- * ## Built from the host, and never from the `Origin` header
+ * ## Never from the `Origin` header, and no longer from any `Host` either
  *
  * The tempting shortcut is to add the request's own `Origin` to this list,
  * because it makes every deployment work with no configuration at all. It also
  * hands the allowlist to the caller: a request claiming `Origin:
  * https://evil.example` would have that origin accepted, and the check that
  * exists to establish *where the ceremony happened* would be answering with
- * whatever it was told.
+ * whatever it was told. That has never been done here.
  *
- * The browser would still refuse to sign for this RP ID on somebody else's
- * domain, so that is two locks rather than one — which is the argument for
- * keeping this lock working rather than for leaning on the other.
+ * `Host` was, and it is a better value — what the request was routed on rather
+ * than a claim it makes about itself, matched by the platform against the
+ * domains assigned to the project. It was still the caller's string arriving in
+ * an allowlist, and the reasoning for trusting it was a sentence about how the
+ * deployment happens to be configured. That sentence is true today and is not a
+ * thing this file can check.
  *
- * `Host` is not the same kind of value: it is what the request was routed on,
- * and on the intended deployment the platform matches it against the domains
- * assigned to the project. An unrecognised one yields an RP ID that no stored
- * passkey was registered against, so it fails closed.
+ * So the list is built from things that are *not* the request:
+ *
+ *   - the apex and `www`, which are constants;
+ *   - whatever Vercel says this deployment is. `VERCEL_URL` is the
+ *     per-deployment hostname, `VERCEL_BRANCH_URL` the branch alias somebody
+ *     actually opens a preview on, and `VERCEL_PROJECT_PRODUCTION_URL` the
+ *     project's own. All three are set by the platform into the runtime, which
+ *     is the whole distinction — a caller cannot reach them;
+ *   - `PASSKEY_RP_ID` when a deployment lives on a domain this file has never
+ *     heard of, which is the case that override already exists for;
+ *   - `localhost` and `127.0.0.1`, read from `Host` because there is nothing
+ *     else to read it from, and harmless because an attacker who can make a
+ *     browser treat their origin as localhost has already won.
+ *
+ * What this costs: a preview opened on a URL Vercel did not put in the
+ * environment cannot complete a passkey ceremony. That is a degradation on a
+ * surface nobody registers real credentials on, and it is visible — the
+ * ceremony fails rather than quietly accepting something.
+ *
+ * This is defence in depth and is worth being honest about. The browser already
+ * refuses to sign for this RP ID on somebody else's domain, so an attacker
+ * needs a subdomain of the apex or control of the `Host` on a real request
+ * before any of this matters. Two locks, and this is the cheaper one to keep
+ * shut.
  */
 export function expectedOrigins(host: string | null | undefined): string[] {
   const origins = new Set<string>([`https://${APEX}`, `https://www.${APEX}`]);
 
+  /*
+   * The hosts the platform declares for this deployment.
+   *
+   * Set by Vercel into the function's environment, so unlike `Host` they
+   * cannot be influenced by whoever is making the request. `VERCEL_BRANCH_URL`
+   * is the one that matters in practice: a preview is opened on the branch
+   * alias far more often than on the per-deployment hostname.
+   */
+  for (const declared of [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ]) {
+    const trimmed = declared?.trim().toLowerCase();
+    if (trimmed) origins.add(`https://${trimmed}`);
+  }
+
+  // A deployment on a domain this file does not know about. The same override
+  // that decides the RP ID decides the origin it is asserted from; having one
+  // without the other would be a deployment that can register and never verify.
+  const override = process.env.PASSKEY_RP_ID?.trim().toLowerCase();
+  if (override) origins.add(`https://${override}`);
+
+  /*
+   * Development, and the one place this product is served over http.
+   *
+   * WebAuthn requires a secure context and treats `localhost` as one, so this
+   * is the only host that gets a plaintext origin. Read from `Host` because a
+   * laptop has no platform to declare it — and safe to, because the value is
+   * pinned to two names that mean "this machine".
+   */
   const hostHeader = (host ?? '').toLowerCase();
   const hostname = hostHeader.split(':')[0]!;
-  if (hostHeader && hostname !== APEX && hostname !== `www.${APEX}`) {
-    // Local development is the one place this product is served over http, and
-    // it is the one place WebAuthn permits it — a secure context is required
-    // everywhere else, so there is no plaintext origin to add.
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
     origins.add(`https://${hostHeader}`);
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      origins.add(`http://${hostHeader}`);
-    }
+    origins.add(`http://${hostHeader}`);
   }
 
   for (const fingerprint of androidFingerprints()) {

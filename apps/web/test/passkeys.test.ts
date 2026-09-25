@@ -86,19 +86,78 @@ describe('the origins an assertion may come from', () => {
     expect(expectedOrigins('parea.photos')).toContain('https://www.parea.photos');
   });
 
-  it('adds the host it was served on, so a preview works unconfigured', () => {
-    expect(expectedOrigins('parea-git-branch.vercel.app')).toContain(
-      'https://parea-git-branch.vercel.app',
-    );
+  it('does not add the host it was served on', () => {
+    /*
+     * This asserted the opposite, and the change is the point of the finding.
+     * `Host` is a better value than `Origin` — what the request was routed on
+     * rather than a claim about itself — but it is still the caller's string
+     * arriving in an allowlist, defended by a sentence about how the platform
+     * happens to be configured rather than by anything this code can check.
+     */
+    const origins = expectedOrigins('parea-git-branch.vercel.app');
+    expect(origins).not.toContain('https://parea-git-branch.vercel.app');
+    expect(origins).toEqual(['https://parea.photos', 'https://www.parea.photos']);
+  });
+
+  describe('a preview, declared by the platform rather than by the request', () => {
+    const before = {
+      url: process.env.VERCEL_URL,
+      branch: process.env.VERCEL_BRANCH_URL,
+    };
+    afterEach(() => {
+      for (const [key, value] of [
+        ['VERCEL_URL', before.url],
+        ['VERCEL_BRANCH_URL', before.branch],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it('trusts what Vercel puts in the environment', () => {
+      // The branch alias is the one that matters: a preview is opened on it far
+      // more often than on the per-deployment hostname.
+      process.env.VERCEL_BRANCH_URL = 'parea-web-git-branch-team.vercel.app';
+      expect(expectedOrigins('parea-web-git-branch-team.vercel.app')).toContain(
+        'https://parea-web-git-branch-team.vercel.app',
+      );
+    });
+
+    it('still refuses a host the platform did not declare', () => {
+      // The same request, with the platform naming a different deployment.
+      process.env.VERCEL_URL = 'parea-abc123-team.vercel.app';
+      const origins = expectedOrigins('parea-somebody-else.vercel.app');
+      expect(origins).toContain('https://parea-abc123-team.vercel.app');
+      expect(origins).not.toContain('https://parea-somebody-else.vercel.app');
+    });
   });
 
   it('allows plaintext for localhost and nowhere else', () => {
     // WebAuthn requires a secure context, and treats localhost as one. Every
-    // other host is https or it is not doing this at all.
+    // other host is https or it is not doing this at all. Read from `Host`
+    // because a laptop has no platform to declare it, and safe to because the
+    // value is pinned to two names that mean "this machine".
     expect(expectedOrigins('localhost:3000')).toContain('http://localhost:3000');
+    expect(expectedOrigins('localhost:3000')).toContain('https://localhost:3000');
+    expect(expectedOrigins('127.0.0.1:3000')).toContain('http://127.0.0.1:3000');
     expect(expectedOrigins('parea-git-branch.vercel.app')).not.toContain(
       'http://parea-git-branch.vercel.app',
     );
+  });
+
+  describe('a deployment on a domain this file has never heard of', () => {
+    const before = process.env.PASSKEY_RP_ID;
+    afterEach(() => {
+      if (before === undefined) delete process.env.PASSKEY_RP_ID;
+      else process.env.PASSKEY_RP_ID = before;
+    });
+
+    it('asserts from the domain its RP ID names', () => {
+      // The override that decides the RP ID has to decide the origin too, or
+      // it describes a deployment that can register and never verify.
+      process.env.PASSKEY_RP_ID = 'photos.example';
+      expect(expectedOrigins('photos.example')).toContain('https://photos.example');
+    });
   });
 
   it('never contains a scheme and host the caller simply asserted', () => {
