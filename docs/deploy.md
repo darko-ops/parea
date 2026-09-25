@@ -22,6 +22,16 @@ The native client is built and submitted separately — see
 `APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` are set, and until then every
 tapped link opens a browser on a phone that has the app installed.
 
+Those same two files are what let the app use passkeys, which is worth knowing
+because the failure is silent in a different way: the AASA names this app under
+`webcredentials` and the app declares `webcredentials:parea.photos`, and iOS
+needs both before it will let the app assert for this domain. Android verifies
+the signing fingerprint from `assetlinks.json`, and the server derives the
+`android:apk-key-hash:` origin it will accept from the same
+`ANDROID_CERT_FINGERPRINTS` value. So an app whose links verify is an app whose
+passkeys work — and an app whose links do not is one where the Face ID prompt
+never appears, with nothing logged to say why.
+
 ## Two kinds of deployment
 
 **Private soak** — everything stood up, only you can reach it, no scanning.
@@ -272,7 +282,8 @@ Generate with `openssl rand -base64 32`.
 | `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
 | `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
-| `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key |
+| `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key. Also what Android passkeys are verified against |
+| `PASSKEY_RP_ID` | ● | | leave unset; derived from the request host. Only for a domain the code does not know — and a passkey is bound to its RP ID for life |
 | `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
 | `CSAM_SCANNER_KEY` | | ● | |
 | `CSAM_SCANNER` | | ● | `disabled`, private soak only |

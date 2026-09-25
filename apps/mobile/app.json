@@ -12,7 +12,8 @@
       "bundleIdentifier": "photos.parea",
       "associatedDomains": [
         "applinks:parea.photos",
-        "applinks:www.parea.photos"
+        "applinks:www.parea.photos",
+        "webcredentials:parea.photos"
       ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

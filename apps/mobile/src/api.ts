@@ -26,6 +26,55 @@ import { Offline, type PresignRequest, type PresignResponse } from '@parea/uploa
  */
 export type ContributePolicy = 'everyone' | 'creator' | 'host' | 'nobody';
 
+/**
+ * What a sign-in answers with, however it was proved.
+ *
+ * One type for the code path and the passkey path, because the server answers
+ * both with the same body — which is the point of them sharing a route.
+ */
+export type SignedIn = {
+  actorToken: string;
+  email: string;
+  /** This device's previous identity was folded into an existing one. */
+  merged: boolean;
+  /** This sign-in is the one that created the account. */
+  created: boolean;
+  /** The account already has a passkey, so there is nothing to offer. */
+  hasPasskey: boolean;
+};
+
+export type PasskeyListing = {
+  id: string;
+  label: string | null;
+  /** In a synced keychain, rather than on one device only. */
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+
+/**
+ * The two option blobs, passed through untouched.
+ *
+ * Deliberately not modelled field by field. They are WebAuthn's shapes, the
+ * server builds them and the platform consumes them, and this client's only
+ * job is not to interfere — a narrowed type here would be a third opinion
+ * about a structure neither end asked it about.
+ */
+export type PasskeyCreationOptions = Record<string, unknown>;
+export type PasskeyRequestOptions = Record<string, unknown>;
+
+export type DeviceListing = {
+  id: string;
+  /** "Safari on iPhone" — what the row says it is. */
+  label: string;
+  kind: 'browser' | 'ios' | 'android';
+  method: 'guest' | 'code' | 'passkey';
+  lastSeenAt: string;
+  createdAt: string;
+  /** This phone. Its button is a sign-out rather than a revoke. */
+  current: boolean;
+};
+
 export type EventSummary = {
   id: string;
   name: string;
@@ -1007,11 +1056,17 @@ export class Api {
     });
   }
 
-  /** Minted on first contribution, never on first launch. */
+  /**
+   * Minted on first contribution, never on first launch.
+   *
+   * `platform` is sent so the row behind the Devices screen can say what this
+   * is. Declared rather than sniffed: the server would otherwise have to guess
+   * from a user agent, and this client knows.
+   */
   async startSession(displayName?: string): Promise<string> {
     const { actorToken } = await this.call<{ actorToken: string }>('/api/session', {
       method: 'POST',
-      body: JSON.stringify({ displayName }),
+      body: JSON.stringify({ displayName, platform: this.client }),
     });
     this.token = actorToken;
     return actorToken;
@@ -1407,14 +1462,10 @@ export class Api {
   async completeSignIn(
     email: string,
     code: string,
-  ): Promise<{ actorToken: string; email: string; merged: boolean }> {
-    const result = await this.call<{
-      actorToken: string;
-      email: string;
-      merged: boolean;
-    }>('/api/account/session', {
+  ): Promise<SignedIn> {
+    const result = await this.call<SignedIn>('/api/account/session', {
       method: 'POST',
-      body: JSON.stringify({ email, code }),
+      body: JSON.stringify({ email, code, platform: this.client }),
     });
     this.token = result.actorToken;
     return result;
@@ -1473,6 +1524,84 @@ export class Api {
   /** Back to the letter. The file goes with it. */
   removeAvatar(): Promise<unknown> {
     return this.call('/api/account/avatar', { method: 'DELETE' });
+  }
+
+  // --- passkeys ---------------------------------------------------------
+
+  /**
+   * What the platform needs to make a passkey, and keeping the result.
+   *
+   * Two calls around one Face ID prompt. The options carry a challenge the
+   * server has written down and spends on use, so the response is only worth
+   * anything against that one request.
+   */
+  passkeyRegistrationOptions(): Promise<PasskeyCreationOptions> {
+    return this.call('/api/account/passkeys/options', { method: 'POST' });
+  }
+
+  savePasskey(response: unknown): Promise<{ passkey: PasskeyListing }> {
+    return this.call('/api/account/passkeys', {
+      method: 'POST',
+      // `platform` names the key on the list. Without it every Android passkey
+      // would be labelled as an iOS one, which is worse than unlabelled.
+      body: JSON.stringify({ response, platform: this.client }),
+    });
+  }
+
+  passkeys(): Promise<{ passkeys: PasskeyListing[] }> {
+    return this.call('/api/account/passkeys');
+  }
+
+  removePasskey(id: string): Promise<unknown> {
+    return this.call(`/api/account/passkeys/${id}`, { method: 'DELETE' });
+  }
+
+  /**
+   * What the platform needs to sign in with one.
+   *
+   * No account and no address: the credential is discoverable, so it names its
+   * own account and nobody has to say who they are first.
+   */
+  passkeyChallenge(): Promise<PasskeyRequestOptions> {
+    return this.call('/api/account/passkeys/challenge', { method: 'POST' });
+  }
+
+  /**
+   * Present the assertion. Same route and same answer as a code.
+   *
+   * The token that comes back may not be the one this device had — signing in
+   * folds this actor into the account's, exactly as the code path does — so the
+   * caller has the same obligation to write it to the keychain.
+   */
+  async signInWithPasskey(assertion: unknown): Promise<SignedIn> {
+    const result = await this.call<SignedIn>('/api/account/session', {
+      method: 'POST',
+      body: JSON.stringify({ passkey: assertion, platform: this.client }),
+    });
+    this.token = result.actorToken;
+    return result;
+  }
+
+  // --- devices ----------------------------------------------------------
+
+  /** Everywhere this account is signed in, most recently used first. */
+  devices(): Promise<{ devices: DeviceListing[]; manageable: boolean }> {
+    return this.call('/api/account/devices');
+  }
+
+  /**
+   * End one of them, which may be this one.
+   *
+   * Ending this phone's own session leaves the token in the keychain valid in
+   * shape and refused in fact, so the caller has to clear it — see
+   * `signOutDevice` in `platform.ts`, which is what the Sign out button does.
+   */
+  endDevice(id: string): Promise<unknown> {
+    return this.call(`/api/account/devices/${id}`, { method: 'DELETE' });
+  }
+
+  endOtherDevices(): Promise<{ ended: number }> {
+    return this.call('/api/account/devices', { method: 'DELETE' });
   }
 
   /** Guideline 5.1.1(v): an app that makes accounts has to unmake them. */

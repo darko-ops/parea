@@ -297,6 +297,12 @@ DERIVER_JOB_URL=https://parea-deriver.fly.dev/jobs/photo
 APPLE_TEAM_ID=
 ANDROID_CERT_FINGERPRINTS=
 
+# Which domain a passkey belongs to. Leave blank — it is derived from the
+# request host, which is right for the real domain, a preview and localhost.
+# Set it only on a domain the code does not know about, and only once: a passkey
+# is bound to its RP ID for life.
+PASSKEY_RP_ID=
+
 APP_URL=http://localhost:3000
 EOF
   chmod 600 "$ENV_FILE"

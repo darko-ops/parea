@@ -247,6 +247,17 @@ describe('the closed list of what is collected', () => {
       // part that makes a tag different in kind from a reaction.
       photo_tag: /tag the people in it/,
       hidden_activity: /identifier of that line and nothing/,
+      // Where somebody is signed in. What kind of device, and when it was last
+      // used — which is the whole point of the screen it feeds, and is also
+      // more than this product used to hold, so it is said plainly.
+      session: /what kind of thing it is/,
+      // The public half of a passkey. Disclosed even though it grants nobody
+      // anything, because "we store a key belonging to your device" is a
+      // sentence people should not have to take on trust.
+      passkey: /public<\/em> half of it/,
+      // The same shape as a sign-in code: a one-time secret with a short life,
+      // disclosed the same way rather than waved through as internal.
+      webauthn_challenge: /random one-time challenge is\s+stored for five minutes/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt

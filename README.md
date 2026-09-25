@@ -59,7 +59,8 @@ need to be installed; see `.github/workflows/ci.yml` for the exact list.
 ## Shape
 
 ```
-packages/core        schema, access policy, credentials, visibility
+packages/core        schema, access policy, credentials, visibility,
+                     session retention, naming a client from its user agent
 packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
 packages/autoselect  find the event on the phone, decide which of its photos
@@ -109,6 +110,14 @@ browser choose — the only party that knows what its decoder can do. Negotiatin
 at the edge would let one cached AVIF answer for a viewer who cannot decode it,
 which is an empty grid rather than a slow one.
 
+**The credential names a row now, and that reverses a decision.** It used to be
+a signed actor id and nothing else, which was cheaper and could not answer
+"where am I signed in?" — or end a sign-in from anywhere but the device holding
+it, for the four hundred days the cookie lasts. So there is a `session` row per
+credential, it is the authority on who a credential means, and revoking it is
+what a remote sign-out is. It costs no extra query: resolving a merge pointer
+was already a read per request, and a live session names the current actor.
+
 **The bounds that matter are the ones a client cannot reset.** An actor is
 minted on demand, so a per-actor upload cap is a cap on honesty — clearing a
 cookie buys a fresh allowance. The cap that actually bounds a leaked link is
@@ -124,6 +133,10 @@ would mean.
 
 **An account is an email address and nothing else.** It grants nothing an
 actor does not already have; its one job is that a new phone is still you.
+A passkey is a second way of proving one — Face ID instead of a trip to an
+inbox — offered once, on the sign-in that creates the account, and never the
+only way in: the case an account exists for is a new phone, where the device
+holding the passkey is by definition absent.
 Signing in on a second device merges two actors, and the rows *move* rather
 than reads following a pointer — resolving an alias per call site is how one
 gets missed, and a missed one is "you cannot delete your own photo". Both

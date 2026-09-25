@@ -80,6 +80,50 @@ export function unsign(signed: string | undefined): string | null {
   return timingSafeEqual(provided, expected) ? value : null;
 }
 
+/**
+ * What an actor credential says — design §3.
+ *
+ * `<actor id>:<session id>`, signed as one string so the pair cannot be taken
+ * apart and recombined. Both carriers use it: the browser's `pa_actor` cookie
+ * and the bearer token in the app's keychain are the same value.
+ *
+ * ## The session id is the authority, and the actor id is not
+ *
+ * Once a session row exists, it is what decides — it holds the current actor
+ * and it is what revoking ends. The actor id travels alongside for one reason:
+ * a credential issued before this table existed has only that, and those still
+ * have to work. Reading it on a credential that has both would be reading the
+ * stale half, because a merge moves the session row and cannot reach into a
+ * keychain to rewrite the token.
+ */
+export type ActorCredential = { actorId: string; sessionId: string | null };
+
+const CREDENTIAL_SEPARATOR = ':';
+
+export function encodeCredential(credential: ActorCredential): string {
+  const { actorId, sessionId } = credential;
+  return sign(sessionId ? `${actorId}${CREDENTIAL_SEPARATOR}${sessionId}` : actorId);
+}
+
+/**
+ * Reads one back, accepting both shapes.
+ *
+ * A value with no separator is a credential from before sessions existed. It
+ * is not rejected: every browser and every phone that was signed in on the
+ * day this shipped is carrying one, and refusing them would have signed out
+ * everybody to add a screen that lists who is signed in.
+ */
+export function decodeCredential(signed: string | undefined): ActorCredential | null {
+  const value = unsign(signed);
+  if (!value) return null;
+  const cut = value.indexOf(CREDENTIAL_SEPARATOR);
+  if (cut < 0) return { actorId: value, sessionId: null };
+  const actorId = value.slice(0, cut);
+  const sessionId = value.slice(cut + 1);
+  if (!actorId || !sessionId) return null;
+  return { actorId, sessionId };
+}
+
 export type CapabilityClaim = { eventId: string; capEpoch: number };
 
 export function encodeCapability(claim: CapabilityClaim): string {

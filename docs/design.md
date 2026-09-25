@@ -153,6 +153,9 @@ Three concepts, deliberately distinct:
 - **Credential** — *what this client is allowed to do right now*. Possession of
   a link or code, or an actor's own token.
 - **Account** — optional, asked for only after value has been delivered.
+- **Passkey** — optional, and not a fourth kind of credential: it is a second
+  way of *proving* an account, alongside a code to an inbox. It resolves to an
+  actor and nothing downstream can tell which was used.
 
 ### Accounts, and the merge underneath them
 
@@ -161,13 +164,14 @@ have. Its one job is that a new phone is still you, which a credential in a
 keychain cannot manage alone. It sits at the bottom of the profile tab and
 nothing prompts for it.
 
-**The web has the same three verbs**, at `/account`, against the same
-endpoints — ask for a code, present it, delete the account. Only the carrier
-differs, and that is settled a layer down: the browser gets the httpOnly
-cookie, native gets the same signed value as a bearer token, and nothing above
-`currentActorId` knows which arrived. The reason for the page is that signing
+**Both clients do the same things against the same endpoints** — ask for a code,
+present it, present a passkey instead, add or remove one, see where you are
+signed in and end one of those, delete the account. Only the carrier differs, and
+that is settled a layer down: the browser gets the httpOnly cookie, native gets
+the same signed value as a bearer token, and nothing above `currentCredential`
+knows which arrived. The reason the web has a page for it at all is that signing
 in has to be visibly worth something, and on a browser the "new phone is still
-you" argument lands weakly, so `/account` is also the one place the web lists
+you" argument lands weakly — so `/account` is also the one place the web lists
 what you are in.
 
 **The actor token is withheld from a browser.** Both routes that hand it out —
@@ -191,6 +195,35 @@ often opens on a different device from the one signing in, which is precisely
 the case accounts exist for. Codes are stored as an HMAC, are single-use, expire
 in ten minutes, and carry a per-code attempt ceiling — per code rather than per
 request, or asking for a new one resets the budget.
+
+**A passkey is the second proof, and never the only one.** A code to an inbox is
+the slowest good thing about signing in — it is a trip to a mail app, and on a
+phone a trip out of this app and back. So a passkey sits in front of it: Face ID,
+Touch ID or a screen lock, with the private half never leaving the device and the
+public half stored here, where a read of the table grants nobody anything. It is
+offered once, on the sign-in that creates the account, because that is the moment
+the cost of the alternative is fresh and the only moment where "next time, use
+Face ID" is new information.
+
+It is strictly an addition, for the same reason accounts are here at all. The
+case an account exists for is *a new phone*, and on a new phone the old device is
+by definition not present. A product that made the passkey the way in would lock
+people out of their own photographs at exactly the moment the account was
+supposed to help. So the code path is never hidden behind it, removing the last
+passkey is allowed, and deleting an account takes its keys with it.
+
+Discoverable credentials (`residentKey: 'required'`), so signing in is a button
+and a glance with no address typed first, and `userVerification: 'required'`,
+because a passkey that asserts without verifying the person is a bearer token in
+a keychain — the product already has a gentler version of that in the cookie.
+The sign-in options name no credentials, which is both what makes the button work
+and what stops the endpoint being an oracle: building an `allowCredentials` list
+would need an address, and the reply would say whether that address has passkeys.
+
+Both proofs share one route. `POST /api/account/session` takes a code *or* an
+assertion, branches four lines wide, and converges on an address — because
+everything after the proof is identical, and that tail is where a missed step
+means somebody's photographs stop being theirs.
 
 **Both account endpoints answer the same however it went.** Whether the address
 has an account, whether it exists, whether the mailer was reachable, whether
@@ -237,6 +270,13 @@ create one and the visibility predicate would honour it.
 foreign key because it is evidence under a preservation duty (§13), and
 rewriting it to match a later account change is editing evidence.
 
+`session` and `passkey` both move, and the first is the one that would hurt.
+`currentCredential` resolves a live credential *through* the session row, so a
+row left pointing at the tombstoned actor means signing in on a laptop silently
+signs you out on the phone in your hand — and the phone cannot explain it,
+because its credential still verifies. Neither can collide: two devices are two
+legitimate sessions, and one authenticator is one passkey by unique index.
+
 The list of tables a merge touches is asserted against the schema in
 `accounts.test.ts`, because the failure of an incomplete merge is silent.
 
@@ -267,7 +307,47 @@ device                       -- one row per install; native only
   platform      text         -- 'ios' | 'android'
   push_token    text null
   last_seen_at  timestamptz
+
+session                      -- one row per credential handed out
+  id            uuid pk
+  actor_id      uuid fk
+  kind          text         -- 'browser' | 'ios' | 'android'
+  client        text null    -- "Safari", "Chrome", "Parea"
+  platform      text null    -- "iPhone", "macOS", "Windows"
+  method        text         -- 'guest' | 'code' | 'passkey'
+  last_seen_at  timestamptz  -- throttled; see below
+  revoked_at    timestamptz null
+  created_at    timestamptz
+
+passkey
+  id            uuid pk
+  actor_id      uuid fk
+  credential_id text unique  -- base64url; one authenticator, one account
+  public_key    bytea
+  sign_count    integer
+  transports    text null
+  backed_up     boolean      -- in a synced keychain, or on one device only
+  label         text null
+  last_used_at  timestamptz null
+  created_at    timestamptz
+
+webauthn_challenge           -- one outstanding ceremony; five minutes, single-use
+  id            uuid pk
+  challenge     text unique
+  purpose       text         -- 'register' | 'authenticate'
+  actor_id      uuid null    -- set to register, null to sign in
+  expires_at    timestamptz
+  consumed_at   timestamptz null
 ```
+
+`session` is deliberately not `device`. That table is push registration — keyed
+on an Expo token, deleted when somebody turns notifications off — and turning
+off notifications must not sign anybody out. A browser has no push token at all.
+
+Neither table holds an IP address or a raw user agent. The list exists so a
+person can recognise their own laptop, and "Safari on iPhone, last used an hour
+ago" does that; a user-agent string is a fingerprint kept forever to render one
+line of text.
 
 A guest actor is minted lazily — on first *contribution*, not first launch — and
 is site-wide rather than per-event. The same guest at three parties is one
@@ -284,11 +364,43 @@ the one merge path in the system, and it runs only on explicit sign-in.
 | Client | Storage | Notes |
 |---|---|---|
 | Native | `expo-secure-store` (Keychain / Keystore), bearer token | survives app updates; **may or may not survive uninstall** on iOS depending on OS version — do not depend on it |
-| Web | signed httpOnly `SameSite=Lax` cookie, 400 days | site-wide, actor id only |
+| Web | signed httpOnly `SameSite=Lax` cookie, 400 days | site-wide |
 
 Different transport, one server-side notion. `authorize()` (§6) takes an
 already-resolved actor; credential extraction is the only place that branches on
 client type.
+
+**The credential names a session, and this reverses an earlier decision.** It
+used to be a signed actor id and nothing else, and this section said plainly that
+an actor is not a session, that the cookie is not a session id, and that nothing
+is revoked server-side because there was nothing to revoke. Every word of that
+was true and the design was cheaper for it: identity cost no query, and signing
+out was a cookie deletion.
+
+What it could not do is answer *where am I signed in?*, and it could not end a
+sign-in from anywhere but the device holding it. The cookie lasts four hundred
+days, so a laptop sold, lent or left behind stayed signed in for that long, and
+the only remedy the product could offer was rotating every event link — which
+punishes everybody else who was at the party.
+
+So the value is `<actor id>:<session id>`, signed as one string so the pair
+cannot be taken apart, and the row is the authority: it holds the current actor,
+a merge moves it, and revoking it is what a remote sign-out *is*. The runtime
+cost is nothing new — `currentActorId` already read a row per request to follow a
+merge pointer, and a live session names the current actor directly, so this
+replaces that read rather than adding to it. `last_seen_at` is throttled to
+fifteen minutes and folded into the same statement, because the column exists to
+render "2 hours ago" and writing it per request would put a write in front of
+every read in the product.
+
+Two things it does not do. A credential issued before the table existed has no
+session id, still works, and cannot be listed or revoked — refusing those would
+have signed out everybody to add a screen listing who is signed in, so
+`/api/account/devices` mints a row for one the first time somebody opens that
+screen, and the gap closes for anyone who goes looking. And revoking identity is
+not revoking possession of a link: a signed-out browser still holds its
+`pa_cap_<eventId>` cookies, and rotating the event's link is what ends that. The
+product has never claimed otherwise, and the Devices screen says so.
 
 ### The link is a credential, so it must not leak
 

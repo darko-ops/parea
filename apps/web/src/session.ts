@@ -6,7 +6,7 @@
  * durable record of you.
  */
 
-import { schema } from '@parea/core';
+import { schema, type ClientKind } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 
@@ -14,15 +14,23 @@ import type { Requester } from './access';
 import { getDb, type Db } from './db';
 import { resolveActor } from './merge';
 import {
+  adoptSession,
+  resolveSession,
+  revokeSession,
+  startSession,
+  type SignInMethod,
+} from './sessions';
+import {
   ACTOR_COOKIE,
   ACTOR_COOKIE_MAX_AGE,
   COOKIE_OPTIONS,
   capabilityCookieName,
   cookiesToClear,
   decodeCapability,
+  decodeCredential,
   encodeCapability,
-  sign,
-  unsign,
+  encodeCredential,
+  type ActorCredential,
 } from './auth/cookies';
 
 /**
@@ -31,29 +39,98 @@ import {
  * The web carries identity in a signed httpOnly cookie; native carries the
  * same signed value as a bearer token out of the keychain, because a native
  * client has no cookie jar worth relying on. Same string, same signature, same
- * actor id on the other side: everything downstream sees an actor and does not
- * know or care how it arrived.
+ * credential on the other side: everything downstream sees an actor and does
+ * not know or care how it arrived.
  */
-async function bearerActorId(): Promise<string | null> {
+async function bearerCredential(): Promise<ActorCredential | null> {
   const header = (await headers()).get('authorization');
   if (!header?.toLowerCase().startsWith('bearer ')) return null;
-  return unsign(header.slice(7).trim());
+  return decodeCredential(header.slice(7).trim());
 }
 
-export async function currentActorId(): Promise<string | null> {
+/** Who is asking, and which of their devices is asking. */
+export type CurrentCredential = { actorId: string; sessionId: string | null };
+
+/**
+ * Resolves the credential on this request to an actor and a device.
+ *
+ * Two shapes arrive here and they are resolved differently.
+ *
+ * **A credential naming a session** is decided by the session row, which is
+ * the authority: it holds the current actor, and a merge moves it, so no
+ * pointer has to be chased. If the row is revoked or gone, this answers null —
+ * that is what a remote sign-out *is*, and it is the reason the row exists.
+ *
+ * **A credential with no session id** was issued before the table existed and
+ * still has to work; there are cookies and keychains full of them. Those take
+ * the old path and follow `merged_into_id`, and they are the one kind of
+ * credential this product cannot list or revoke. `/api/account/devices` mints
+ * a session for one the first time somebody looks at that screen, so the gap
+ * closes itself for anybody who goes looking.
+ *
+ * ## Failing closed
+ *
+ * A database error here reads as signed out rather than as signed in, which
+ * is the opposite of how the rate limiter treats the same failure — and
+ * deliberately, because that one bounds abuse and this one is authorization.
+ * It costs nothing real: every page in this product needs the database, so a
+ * deployment that cannot answer this question cannot draw the page either.
+ */
+export async function currentCredential(): Promise<CurrentCredential | null> {
   const jar = await cookies();
-  const presented = unsign(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerActorId());
+  const presented = decodeCredential(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerCredential());
   if (!presented) return null;
 
-  // Follows a merge. When someone signs in on a second device their old actor
-  // is folded into the account's, but this phone's keychain still holds the
-  // old token — and it has to keep working, because the alternative is asking
-  // someone to sign in again on the device they just signed in on.
+  const db = getDb();
+
+  if (presented.sessionId) {
+    const live = await resolveSession(db, presented.sessionId).catch(() => null);
+    if (!live) return null;
+    return { actorId: live.actorId, sessionId: presented.sessionId };
+  }
+
+  // The old path, unchanged. When someone signs in on a second device their
+  // old actor is folded into the account's, but this phone's keychain still
+  // holds the old token — and it has to keep working, because the alternative
+  // is asking someone to sign in again on the device they just signed in on.
   //
   // The one place the pointer is read. Everything downstream sees a single
   // actor id and has no idea a merge ever happened, which is the point:
   // resolving it per call site is how one gets missed.
-  return resolveActor(getDb(), presented).catch(() => presented);
+  const actorId = await resolveActor(db, presented.actorId).catch(() => presented.actorId);
+  return { actorId, sessionId: null };
+}
+
+export async function currentActorId(): Promise<string | null> {
+  return (await currentCredential())?.actorId ?? null;
+}
+
+/** Which device is asking, for the screen that lists them. */
+export async function currentSessionId(): Promise<string | null> {
+  return (await currentCredential())?.sessionId ?? null;
+}
+
+/**
+ * What kind of client this is, for the label on its row.
+ *
+ * The app says so itself when it asks for a token; a browser is inferred from
+ * its user agent, which is the only thing it offers.
+ */
+export async function userAgent(): Promise<string | null> {
+  return (await headers()).get('user-agent');
+}
+
+/**
+ * The host this request was served on, for the WebAuthn ceremony.
+ *
+ * `Host` rather than `Origin`, and the distinction is the whole reason this is
+ * a function with a comment on it: `Origin` is a claim the caller makes about
+ * itself, and `Host` is what the request was routed on. A passkey's RP ID and
+ * expected origins are derived from this, so a value a caller could choose
+ * would be a caller choosing which origins count. See `expectedOrigins`.
+ */
+export async function requestHost(): Promise<string | null> {
+  return (await headers()).get('host');
 }
 
 /**
@@ -88,11 +165,11 @@ export async function currentAccountActorId(): Promise<string | null> {
 }
 
 /**
- * The signed form of an actor id, for a native client to keep in the keychain.
+ * The signed credential for a native client to keep in the keychain.
  * Identical to the cookie value — there is one credential format.
  */
-export function actorToken(actorId: string): string {
-  return sign(actorId);
+export function actorToken(actorId: string, sessionId: string | null): string {
+  return encodeCredential({ actorId, sessionId });
 }
 
 /**
@@ -140,10 +217,17 @@ export async function fromBrowser(): Promise<boolean> {
  * into the account's canonical one, and without this the cookie keeps naming
  * the old one forever, resolved on every request by following a merge pointer
  * that only has to be tidied once to take the session with it.
+ *
+ * `sessionId` is what makes the credential revocable. Null is permitted and
+ * means the old shape — kept so that a caller with nothing to record is not
+ * forced to invent a row, not because anything still issues one.
  */
-export async function issueActorCookie(actorId: string): Promise<void> {
+export async function issueActorCookie(
+  actorId: string,
+  sessionId: string | null = null,
+): Promise<void> {
   const jar = await cookies();
-  jar.set(ACTOR_COOKIE, sign(actorId), {
+  jar.set(ACTOR_COOKIE, encodeCredential({ actorId, sessionId }), {
     ...COOKIE_OPTIONS,
     maxAge: ACTOR_COOKIE_MAX_AGE,
   });
@@ -160,12 +244,26 @@ export async function issueActorCookie(actorId: string): Promise<void> {
  * looking at the events they had opened. On a shared machine that is the whole
  * point of the button.
  *
- * Nothing is revoked server-side, because there is nothing to revoke: an actor
- * is not a session and the cookie is not a session id. Which is also why this
- * is honest about its limits — a copy of the cookie taken elsewhere is not
- * affected, and only rotating an event's link ends that.
+ * ## The session is revoked, and that is new
+ *
+ * This used to delete cookies and nothing else, on the grounds that an actor
+ * is not a session and there was nothing on the server to end. There is now,
+ * and ending it is the difference between "this browser has forgotten you"
+ * and "this credential no longer works" — which matters for the copy of the
+ * cookie somebody took off a shared machine before the owner came back.
+ *
+ * Both halves still run if the first one fails. A session left live is a row
+ * on a list with no client holding its credential, which is untidy; cookies
+ * left behind on a shared computer are the thing this button exists for.
  */
 export async function signOutBrowser(): Promise<void> {
+  const credential = await currentCredential().catch(() => null);
+  if (credential?.sessionId) {
+    await revokeSession(getDb(), credential.actorId, credential.sessionId).catch((err) => {
+      console.error(`sign-out could not revoke session ${credential.sessionId}: ${err}`);
+    });
+  }
+
   const jar = await cookies();
   for (const name of cookiesToClear(jar.getAll().map((c) => c.name))) {
     jar.delete(name);
@@ -197,7 +295,28 @@ export async function signOutBrowser(): Promise<void> {
  * already writes, in exchange for a state that cannot be diagnosed from the
  * outside.
  */
-export async function ensureActor(db: Db, displayName?: string): Promise<string> {
+export async function ensureActor(
+  db: Db,
+  displayName?: string,
+  /**
+   * `recordSession: false` mints the actor and the cookie without a session row.
+   *
+   * One caller passes it, and it is the sign-in route. That route has to record
+   * a session of its own — with the actor the account resolved to, which a merge
+   * can change, and with how somebody proved who they were — so a row minted
+   * here would be a second row for the same browser. Only one of the two would
+   * ever be used again, and nothing on either would say which: a phantom "added
+   * photos before signing in" line on a screen whose entire job is letting
+   * somebody spot a device that is not theirs.
+   *
+   * Deliberately not solved by reading back the cookie this function just set.
+   * That works — Next reflects a write into subsequent reads in the same
+   * request — but it makes the absence of a duplicate row depend on a framework
+   * behaviour rather than on the code, and the symptom if it ever changed would
+   * be a spurious row on a security screen rather than an error.
+   */
+  { recordSession = true }: { recordSession?: boolean } = {},
+): Promise<string> {
   const existing = await currentActorId();
   if (existing) {
     const [row] = await db
@@ -245,9 +364,69 @@ export async function ensureActor(db: Db, displayName?: string): Promise<string>
    * rather than solving it. The app does not rely on it: `POST /api/session`
    * mints an actor and hands back a token, which is how the phone gets an
    * identity it can keep and can throw away.
+   *
+   * The session row is minted with the cookie rather than with the actor, for
+   * the same reason: it records a credential that was issued, and nothing was
+   * issued to a native caller here.
    */
-  if (await fromBrowser()) await issueActorCookie(actor!.id);
+  if (await fromBrowser()) {
+    const session = recordSession
+      ? await startSession(db, {
+          actorId: actor!.id,
+          kind: 'browser',
+          userAgent: await userAgent(),
+          // Contributing is not signing in. The row exists so this browser can
+          // be listed and ended once there *is* an account to list it under,
+          // and `adoptSession` relabels it at that point rather than leaving
+          // two.
+          method: 'guest',
+        })
+      : null;
+    await issueActorCookie(actor!.id, session?.id ?? null);
+  }
   return actor!.id;
+}
+
+/**
+ * Puts this client on the device list, and hands it the credential to prove it.
+ *
+ * The tail of every sign-in — by code or by passkey, on a browser or in the
+ * app — so that the two routes differ in how they establish *who* somebody is
+ * and in nothing else.
+ *
+ * ## Why the existing session is reused
+ *
+ * Somebody signing in on the laptop they have been browsing on already has a
+ * row for that laptop: it was minted when they first added a photograph, as a
+ * guest. Minting a second would put two rows on the Devices screen for one
+ * browser, and only one of them would ever be used again — with nothing on
+ * either to say which. So the row is re-pointed and re-labelled instead, which
+ * is what actually happened: the same browser, signed in differently now.
+ *
+ * Returns the session id, which the caller puts in the cookie or the token.
+ */
+export async function establishSession(
+  db: Db,
+  actorId: string,
+  method: SignInMethod,
+  kind: ClientKind = 'browser',
+): Promise<string> {
+  const presented = await currentCredential().catch(() => null);
+  if (presented?.sessionId) {
+    // False when the row is revoked or gone — a credential that was signed
+    // out from another device, being used to sign in again. That is a new
+    // session and not a resurrection of the one somebody ended.
+    const adopted = await adoptSession(db, presented.sessionId, actorId, method);
+    if (adopted) return presented.sessionId;
+  }
+
+  const session = await startSession(db, {
+    actorId,
+    kind,
+    userAgent: await userAgent(),
+    method,
+  });
+  return session.id;
 }
 
 /**

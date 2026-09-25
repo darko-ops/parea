@@ -15,7 +15,13 @@
  * people's photos should not exist until someone decides it should run.
  */
 
-import { codeWordTriples, recordModeration, REASON, schema } from '@parea/core';
+import {
+  codeWordTriples,
+  recordModeration,
+  REASON,
+  schema,
+  staleSessions,
+} from '@parea/core';
 import { sendAll, toMessage } from '@parea/push';
 import { allDerivativeKeysFor } from '@parea/urls';
 import {
@@ -219,6 +225,47 @@ export async function expireSignInCodes(
     .delete(schema.signInCodes)
     .where(lt(schema.signInCodes.expiresAt, new Date()))
     .returning({ id: schema.signInCodes.id });
+  return removed.length;
+}
+
+/**
+ * WebAuthn challenges that have expired or been spent.
+ *
+ * The same housekeeping argument as the sign-in codes above, and the same
+ * "matters anyway": a challenge grants nothing once it is past its five
+ * minutes, because the statement that spends one tests the expiry in its own
+ * `where`. What this stops is a table that grows by a row per Face ID prompt
+ * forever.
+ */
+export async function expireWebauthnChallenges(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const removed = await database
+    .delete(schema.webauthnChallenges)
+    .where(lt(schema.webauthnChallenges.expiresAt, new Date()))
+    .returning({ id: schema.webauthnChallenges.id });
+  return removed.length;
+}
+
+/**
+ * Sessions that were signed out a while ago, or have not been used in longer
+ * than a credential lasts.
+ *
+ * Two cutoffs, and both are later than they could be.
+ *
+ * The predicate is `@parea/core`'s rather than this file's, unlike every other
+ * cutoff here. Those are all "expired means expired" and the row carries its
+ * own deadline; this one is a judgement about two clocks, and the app states it
+ * on a screen people read. Two copies of it would drift, and the drift would
+ * show up as somebody signed out early with nothing to explain it.
+ */
+export async function expireSessions(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const removed = await database
+    .delete(schema.sessions)
+    .where(staleSessions(new Date()))
+    .returning({ id: schema.sessions.id });
   return removed.length;
 }
 
@@ -429,6 +476,8 @@ async function main(): Promise<void> {
   await run('expire-rate-limits', () => expireRateLimits(database));
   await run('expire-observations', () => expireObservations(database));
   await run('expire-sign-in-codes', () => expireSignInCodes(database));
+  await run('expire-webauthn-challenges', () => expireWebauthnChallenges(database));
+  await run('expire-sessions', () => expireSessions(database));
 
   // Read-only, and last: a report is not a job, but this is the only process
   // with a database connection and a schedule, and §18's numbers are worth

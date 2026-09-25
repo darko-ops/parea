@@ -267,6 +267,13 @@
       "when": 1790289317702,
       "tag": "0037_parea_account",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790304839214,
+      "tag": "0038_sessions_and_passkeys",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
+import { Devices } from './Devices';
 import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
@@ -84,8 +85,14 @@ export function AccountView() {
     avatarUrl: string | null;
     phoneLast2: string | null;
   } | null>(null);
-  /** Which of the three faces of this page is showing. */
-  const [view, setView] = useState<'you' | 'profile' | 'settings'>('you');
+  /**
+   * Which face of this page is showing.
+   *
+   * `devices` is reached from Settings rather than from the rail, because it is
+   * a thing somebody goes looking for once — after losing a laptop, or before
+   * lending one — and not a fourth destination worth a permanent row.
+   */
+  const [view, setView] = useState<'you' | 'profile' | 'settings' | 'devices'>('you');
 
   /*
    * Settings is reached from the rail now, so it arrives as `?view=settings`
@@ -217,7 +224,7 @@ export function AccountView() {
    * late.
    */
   const page = (children: React.ReactNode) => (
-    <Shell current={view === 'settings' ? 'settings' : 'you'}>
+    <Shell current={view === 'settings' || view === 'devices' ? 'settings' : 'you'}>
       <main className="wrap you">{children}</main>
     </Shell>
   );
@@ -226,6 +233,15 @@ export function AccountView() {
     return page(
       <EditProfile profile={account} onSaved={load} onDone={() => setView('you')} />,
     );
+  }
+
+  /*
+   * Back to Settings rather than to the profile, because that is where the
+   * button that opened this was. A Done that lands somewhere other than where
+   * you came from is a Done that loses your place.
+   */
+  if (view === 'devices') {
+    return page(<Devices onDone={() => setView('settings')} />);
   }
 
   if (view === 'settings') {
@@ -248,6 +264,25 @@ export function AccountView() {
               This browser forgets you and the albums you opened by link.
               Nothing is deleted, and the same address signs back in.
             </p>
+          </div>
+        </section>
+
+        {/*
+          Between signing out of here and deleting everything, which is where it
+          belongs: it is the same family of question — who can get in — at the
+          scale of every device rather than this one.
+        */}
+        <section className="panel">
+          <h2>Devices and passkeys</h2>
+          <p className="muted">
+            Everywhere your account is signed in, and the passkeys that can sign
+            it in. Sign out a device you have lent or lost, or add a passkey so
+            this browser lets you straight in.
+          </p>
+          <div className="row">
+            <button className="secondary" onClick={() => setView('devices')}>
+              Manage devices
+            </button>
           </div>
         </section>
 

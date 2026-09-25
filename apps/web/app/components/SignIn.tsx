@@ -12,11 +12,34 @@
  * The two-step form itself is lifted from AccountView, which now renders this
  * rather than keeping a second copy. That page owns everything *around* signing
  * in — what you are in, deleting the account — and none of it belongs here.
+ *
+ * ## Two ways in, and the order they are offered in
+ *
+ * A passkey is first on the screen and second in the code, and both are
+ * deliberate. It is first because for anybody who has one it is the whole
+ * interaction — a tap and a face, no inbox — and a form above it would be a
+ * form they have to look past every time. It is second in the file because the
+ * code path is the one that always works: it is what creates an account, what
+ * gets somebody in on a device they have never held, and what is left when a
+ * passkey is on a phone that is at home. Nothing here ever hides it.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
-type Stage = 'email' | 'code';
+import {
+  addPasskey,
+  CANCELLED,
+  passkeysAvailable,
+  platformAuthenticator,
+  signInWithPasskey,
+} from './passkey';
+
+/**
+ * `offer` is the step after being let in, not a step towards it — see the note
+ * where it is set. Everything before it is the two-field form this screen has
+ * always been.
+ */
+type Stage = 'email' | 'code' | 'offer';
 
 /**
  * Whether this browser is signed in.
@@ -71,6 +94,24 @@ export function SignIn({
   const [error, setError] = useState<string | null>(null);
   const [merged, setMerged] = useState(false);
 
+  /*
+   * Whether to draw the passkey button, decided after mount.
+   *
+   * Not during render: `window.PublicKeyCredential` does not exist on the
+   * server, so a component that reads it while rendering produces markup the
+   * client disagrees with. Null is "not yet", and draws nothing — a button that
+   * appears a frame late is better than a hydration mismatch on the sign-in
+   * screen.
+   */
+  const [canPasskey, setCanPasskey] = useState<boolean | null>(null);
+  /** Whether Face ID and Touch ID specifically, for the words in the offer. */
+  const [onThisDevice, setOnThisDevice] = useState(false);
+
+  useEffect(() => {
+    setCanPasskey(passkeysAvailable());
+    void platformAuthenticator().then(setOnThisDevice);
+  }, []);
+
   const request = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -113,9 +154,37 @@ export function SignIn({
       if (!res.ok) {
         throw new Error('That code did not work. Codes expire after ten minutes.');
       }
-      const result = (await res.json()) as { merged: boolean };
+      const result = (await res.json()) as {
+        merged: boolean;
+        created: boolean;
+        hasPasskey: boolean;
+      };
       setMerged(result.merged);
       setCode('');
+
+      /*
+       * The one moment worth interrupting for.
+       *
+       * Somebody who has just created an account has also just typed a code out
+       * of an inbox, so "next time, use Face ID" lands on the one screen where
+       * the cost of the alternative is fresh. Any later and it is an
+       * interruption; in Settings it is a thing nobody goes looking for.
+       *
+       * Three conditions, and each removes a case where the card would be a
+       * nuisance rather than an offer: only on the sign-in that made the
+       * account, only if there is no passkey already on it, and only where the
+       * browser could actually make one. Failing any of them hands off exactly
+       * as this screen always did.
+       *
+       * `onSignedIn` is *not* called yet, which is the whole mechanism: it
+       * navigates, and a card rendered after it would be a card on a page that
+       * is being replaced. Both buttons on the offer call it.
+       */
+      if (result.created && !result.hasPasskey && passkeysAvailable()) {
+        setStage('offer');
+        return;
+      }
+
       await onSignedIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -124,10 +193,117 @@ export function SignIn({
     }
   }, [code, email, onSignedIn]);
 
+  /**
+   * Signing in with a passkey, which is one press and no form.
+   *
+   * No offer afterwards: somebody who just used a passkey has one.
+   */
+  const withPasskey = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await signInWithPasskey();
+      if (!result.ok) {
+        // A cancellation says nothing. They pressed Escape, and a red line
+        // about it reads as a fault in the thing they decided against.
+        if (result.message !== CANCELLED) setError(result.message);
+        return;
+      }
+      setMerged(result.value.merged);
+      await onSignedIn();
+    } finally {
+      setBusy(false);
+    }
+  }, [onSignedIn]);
+
+  /** Taking the offer, or declining it. Either way the hand-off happens. */
+  const keepPasskey = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await addPasskey();
+      if (!result.ok && result.message !== CANCELLED) {
+        /*
+         * Said, and then carried on anyway.
+         *
+         * A passkey that could not be made is not a failed sign-in — they are
+         * signed in, and the account exists. Leaving them on this card with an
+         * error would turn a declined extra into a dead end, so the message is
+         * shown and the hand-off still runs.
+         */
+        setError(result.message as string);
+      }
+    } finally {
+      setBusy(false);
+      await onSignedIn();
+    }
+  }, [onSignedIn]);
+
+  /*
+   * Signed in already, being asked one question before carrying on.
+   *
+   * A separate return rather than a branch inside the form, because none of the
+   * form belongs on it: there is no address to type, no code, and nothing to go
+   * back to. Leaving the fields on screen would invite somebody to sign in
+   * again on top of the session they already have.
+   */
+  if (stage === 'offer') {
+    return (
+      <section className="panel">
+        <h2>Next time, {onThisDevice ? 'sign in with Face ID' : 'skip the code'}</h2>
+        <p className="muted">
+          {onThisDevice
+            ? 'Add a passkey and this device will let you straight in — Face ID, Touch ID or your screen lock, with no code to fetch.'
+            : 'Add a passkey and your device will let you straight in, with no code to fetch. Your phone or your password manager keeps it.'}
+        </p>
+        {/*
+          Said plainly, because it is the question somebody actually has. A
+          passkey that replaced the code would be a passkey that locks you out
+          of your own photographs from a borrowed laptop.
+        */}
+        <p className="muted">
+          You can still sign in with a code whenever you need to — this is an
+          extra, not a replacement.
+        </p>
+        <div className="row" style={{ marginTop: 16 }}>
+          <button onClick={keepPasskey} disabled={busy}>
+            {busy ? 'Working…' : 'Add a passkey'}
+          </button>
+          <button className="secondary" onClick={() => void onSignedIn()} disabled={busy}>
+            Not now
+          </button>
+        </div>
+        {error && <p className="muted">{error}</p>}
+      </section>
+    );
+  }
+
   return (
     <section className="panel">
       {title && <h1 className="auth-title">{title}</h1>}
       <p>{why}</p>
+
+      {/*
+        The passkey first, for anybody who has one — it is the whole
+        interaction, and a form above it is a form to look past every time.
+        Drawn only once the browser has been asked whether it can: see
+        `canPasskey`.
+      */}
+      {canPasskey && stage === 'email' && (
+        <>
+          <div className="row">
+            <button onClick={withPasskey} disabled={busy}>
+              {busy ? 'Working…' : 'Sign in with a passkey'}
+            </button>
+          </div>
+          <p className="muted">
+            Face ID, Touch ID, or whatever unlocks your device.
+          </p>
+          {/* A separator that says the two are alternatives, not steps. */}
+          <p className="signin-or">or</p>
+        </>
+      )}
+
       <p className="muted">
         No password — a code goes to your inbox. Your albums follow you to
         another browser or a new phone.

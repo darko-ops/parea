@@ -12,15 +12,23 @@
  * including the privacy policy. The list is here because this is the module
  * that owns it.
  *
- * The whole surface is three verbs — ask for a code, present one, delete the
+ * The surface started as three verbs — ask for a code, present one, delete the
  * account — and the third is not optional: App Store Guideline 5.1.1(v)
  * requires an app that creates accounts to delete them in-app.
+ *
+ * Two more have joined them and neither lives in this file. A passkey is a
+ * second way of *proving* an account rather than a second kind of account, so it
+ * is `passkeys.ts`; where somebody is signed in is a property of the credential
+ * rather than of the account, so it is `sessions.ts`. Both converge here: a
+ * passkey sign-in resolves to an address and comes through `signIn` exactly as a
+ * code does, because the merge underneath is the one thing in this system whose
+ * incomplete version is silent.
  */
 
 import { generateHandle, normaliseEmail, recordModeration, REASON, schema } from '@parea/core';
 
 import { getStorage } from './storage';
-import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
@@ -108,7 +116,21 @@ export async function consumeCode(
   return { ok: true, email };
 }
 
-export type SignInResult = { actorId: string; email: string; merged: boolean };
+export type SignInResult = {
+  actorId: string;
+  email: string;
+  merged: boolean;
+  /**
+   * Whether this sign-in is the one that brought the account into existence.
+   *
+   * The clients use it for one thing: offering a passkey. "Next time, sign in
+   * with Face ID" is a true and welcome sentence at the moment somebody first
+   * has an account to attach one to, and a returning interruption on every
+   * subsequent sign-in — so the moment has to be distinguishable, and only
+   * `bindAccount` knows which branch it took.
+   */
+  created: boolean;
+};
 
 /** How many names to try before admitting the lists are not the problem. */
 const HANDLE_TRIES = 8;
@@ -216,7 +238,7 @@ async function bindAccount(
   if (!existing) {
     const [account] = await db.insert(schema.accounts).values({ email }).returning();
     await link(db, account!.id, actorId);
-    return { actorId, email, merged: false };
+    return { actorId, email, merged: false, created: true };
   }
 
   const [canonical] = await db
@@ -227,16 +249,23 @@ async function bindAccount(
     )
     .limit(1);
 
-  // An account whose actor is gone: adopt this one rather than stranding it.
+  /*
+   * An account whose actor is gone: adopt this one rather than stranding it.
+   *
+   * Not `created`, even though it is the first sign-in this account has
+   * successfully completed. The row already existed, which means somebody has
+   * been here before — and if they had a passkey it went with the account, so
+   * this is not the moment to claim anything is new.
+   */
   if (!canonical) {
     await link(db, existing.id, actorId);
-    return { actorId, email, merged: false };
+    return { actorId, email, merged: false, created: false };
   }
 
-  if (canonical.id === actorId) return { actorId, email, merged: false };
+  if (canonical.id === actorId) return { actorId, email, merged: false, created: false };
 
   await mergeActor(db, actorId, canonical.id);
-  return { actorId: canonical.id, email, merged: true };
+  return { actorId: canonical.id, email, merged: true, created: false };
 }
 
 export type AccountProfile = {
@@ -326,6 +355,27 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
   if (!actor?.accountId) return false;
 
   await db.transaction(async (tx) => {
+    /*
+     * The passkeys go, and they go first.
+     *
+     * They are not profile data that a guest can keep having — they are keys to
+     * an account, and the account is about to stop existing. The actor row
+     * survives on purpose (it owns photographs), so nothing else would remove
+     * them: they would sit there pointing at a guest, and the next person to
+     * claim this address would find sign-in offering a Face ID prompt that
+     * belongs to somebody who closed their account.
+     *
+     * Every actor the account speaks for, not just this one. A person who
+     * signed in on three devices has one actor, but an account whose actor is
+     * gone is adopted rather than stranded, and the `update` below already
+     * works across the set for the same reason.
+     */
+    const theirs = tx
+      .select({ id: schema.actors.id })
+      .from(schema.actors)
+      .where(eq(schema.actors.accountId, actor.accountId!));
+    await tx.delete(schema.passkeys).where(inArray(schema.passkeys.actorId, theirs));
+
     await tx
       .update(schema.actors)
       .set({ accountId: null, kind: 'guest' })

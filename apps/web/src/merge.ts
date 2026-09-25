@@ -60,6 +60,34 @@ const OWNED: {
   uniqueWith?: string[];
 }[] = [
   { table: 'device', column: 'actor_id' },
+  /*
+   * Where this person is signed in.
+   *
+   * Moved rather than dropped, and this is the entry that makes a merge
+   * survivable on the phone in somebody's hand: the session row is what
+   * `currentCredential` resolves a credential through, so a row left pointing
+   * at the tombstoned actor is a device signed out by the act of signing in
+   * somewhere else. Two rows for two real devices is the correct outcome and
+   * there is nothing to collide — a person is legitimately signed in twice.
+   */
+  { table: 'session', column: 'actor_id' },
+  /*
+   * And the keys that open them.
+   *
+   * No collision is possible: `credential_id` is unique across everybody, so
+   * one authenticator is enrolled once and the registration ceremony refuses a
+   * second. Dropping these instead would take away the Face ID sign-in on a
+   * phone whose owner had just proved, by signing in, that it is theirs.
+   */
+  { table: 'passkey', column: 'actor_id' },
+  /*
+   * A ceremony in flight. Worth almost nothing — a challenge lives five
+   * minutes and somebody would have to be registering a passkey in one tab
+   * while signing in on another — and it is here because the rule is that
+   * every actor reference is enumerated. An exception costs more to remember
+   * than this line costs to run.
+   */
+  { table: 'webauthn_challenge', column: 'actor_id' },
   { table: 'photo', column: 'uploader_id' },
   { table: 'event', column: 'created_by' },
   { table: 'event_participant', column: 'actor_id', uniqueWith: ['event_id'] },

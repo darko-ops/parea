@@ -192,6 +192,166 @@ export const devices = pgTable('device', {
   createdAt: createdAt(),
 });
 
+/**
+ * One row per credential this product has handed out — design §3.
+ *
+ * This reverses a decision, so the old one is worth stating: the actor cookie
+ * used to be a signed actor id and nothing else, and §3 said plainly that an
+ * actor is not a session, that the cookie is not a session id, and that
+ * nothing is revoked server-side because there is nothing to revoke. That was
+ * coherent and it had one consequence nobody could live with — a person could
+ * not see where they were signed in, and could not end a sign-in from
+ * anywhere but the device holding it. A laptop left at an old job stayed
+ * signed in until its cookie expired four hundred days later.
+ *
+ * So the credential now names a row, and the row is the authority. The signed
+ * value carries `<actor id>:<session id>`, and this table decides whether it
+ * still means anything. That buys three things the old design could not have:
+ * a list of where somebody is signed in, a button that ends one of them, and
+ * a sign-out on a shared computer that is true for more than that browser.
+ *
+ * ## Why this is not the `device` table above
+ *
+ * `device` is push registration: it exists so a notification can be delivered,
+ * it is keyed on an Expo token, and it is deleted when somebody turns
+ * notifications off. Turning off notifications must not sign anybody out, and
+ * a browser has no push token at all — so a table meaning "somewhere you are
+ * signed in" is a different table with a different lifecycle.
+ *
+ * ## What is deliberately not stored
+ *
+ * No raw user agent, no IP address. The list has to answer "is one of these
+ * not me?", and `Safari on iPhone, last used an hour ago` answers it. A
+ * user-agent string is a fingerprint kept forever to render one line of text,
+ * and the honest version of this feature does not need one.
+ */
+export const sessions = pgTable(
+  'session',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /** Which client it is, for the icon and the sentence beside it. */
+    kind: text('kind', { enum: ['browser', 'ios', 'android'] }).notNull(),
+    /** "Safari", "Chrome", "Parea" — what is doing the asking. Null when unreadable. */
+    client: text('client'),
+    /** "iPhone", "macOS", "Windows" — what it is running on. */
+    platform: text('platform'),
+    /**
+     * How this one began.
+     *
+     * `guest` is a browser that has contributed but never signed in, and those
+     * are never listed: the list is a thing an account looks at, and a guest
+     * has exactly one session which is the one they are reading it with.
+     */
+    method: text('method', { enum: ['guest', 'code', 'passkey'] }).notNull(),
+    /**
+     * Throttled — see `touchSession`. Writing this on every request would put
+     * a write in front of every read in the product to move a timestamp that
+     * is rendered as "2 hours ago".
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Set rather than deleted, so a revoked credential is refused rather than
+     * unrecognised. The difference matters for the legacy case below: a
+     * credential naming no row at all is an old cookie from before this table
+     * existed and still works, and one naming a revoked row must not.
+     */
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('session_actor_idx').on(t.actorId, t.lastSeenAt)],
+);
+
+/**
+ * A passkey — design §3.
+ *
+ * The second way in, and the one that does not involve an inbox. A code is
+ * still the way an account is *created* and the way somebody gets in on a
+ * device they have never held; a passkey is what makes the second visit a
+ * glance at a camera instead of a trip to a mail client.
+ *
+ * It is strictly an addition. Nobody is required to have one, removing the
+ * last one is allowed, and the code path is untouched — a passkey that will
+ * not work, because the phone holding it is at home, must never be the reason
+ * somebody cannot get into their own account.
+ *
+ * The public key is exactly that: public. A read of this table lets nobody in,
+ * which is the property a password table can never have and the reason this
+ * one needs no pepper and no HMAC.
+ */
+export const passkeys = pgTable(
+  'passkey',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /**
+     * base64url, as the authenticator minted it. Unique across everybody:
+     * one physical key is one account here, and the registration ceremony
+     * refuses a key already enrolled rather than quietly making a second.
+     */
+    credentialId: text('credential_id').notNull().unique(),
+    /** The COSE public key, stored as it arrived. */
+    publicKey: bytea('public_key').notNull(),
+    /**
+     * The authenticator's own counter, when it keeps one.
+     *
+     * Most platform authenticators — the ones behind Face ID and Touch ID —
+     * report zero forever, because a key synced across a person's devices
+     * cannot maintain a meaningful count. So this is recorded and checked
+     * only when it is actually moving; see `passkeys.ts`.
+     */
+    signCount: integer('sign_count').notNull().default(0),
+    /** Comma-separated hints — `internal`, `hybrid`, `usb` — for the next ceremony. */
+    transports: text('transports'),
+    /**
+     * Whether the authenticator says this key is backed up to a keychain.
+     *
+     * Shown, because it is the difference between "this is on all your Apple
+     * devices" and "this is on this laptop and nowhere else", and the second
+     * one is the one worth having a code as well.
+     */
+    backedUp: boolean('backed_up').notNull().default(false),
+    /** What it was called when it was made — "iPhone", "Chrome on macOS". */
+    label: text('label'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('passkey_actor_idx').on(t.actorId)],
+);
+
+/**
+ * One outstanding WebAuthn ceremony.
+ *
+ * Shaped like `sign_in_code` above, and for the same reason: a challenge is a
+ * one-time secret with a short life, and the thing that makes it worth
+ * anything is that it is consumed. A signed cookie carrying the challenge
+ * would be cheaper and would not be single-use — the server would have no way
+ * to know it had already seen that assertion, which is the replay WebAuthn's
+ * challenge exists to prevent. So it is a row, and it is spent on use.
+ *
+ * `actorId` is set for a registration, which happens while somebody is signed
+ * in, and null for an authentication, where the whole point is that we do not
+ * yet know who is at the other end.
+ */
+export const webauthnChallenges = pgTable(
+  'webauthn_challenge',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** base64url. Unique, so one challenge cannot be outstanding twice. */
+    challenge: text('challenge').notNull().unique(),
+    purpose: text('purpose', { enum: ['register', 'authenticate'] }).notNull(),
+    actorId: uuid('actor_id').references(() => actors.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('webauthn_challenge_expiry_idx').on(t.expiresAt)],
+);
+
 // --- groups ----------------------------------------------------------------
 
 export const groups = pgTable('groups', {

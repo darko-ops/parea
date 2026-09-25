@@ -85,6 +85,38 @@ export default function PrivacyPage() {
             thing here, protecting the least.
           </p>
 
+          <h3>A record of where you are signed in</h3>
+          <p className="muted">
+            One row for each browser or app holding your account, so that you
+            can see them and sign one out from another. It records what kind of
+            thing it is &mdash; Safari on an iPhone, the app on Android &mdash;
+            and when it was last used. Not your IP address, and not the full
+            browser string: the list exists so you can recognise your own
+            devices, and two words do that.
+          </p>
+          <p className="muted">
+            Signing a device out from that screen takes effect on its next
+            request. It does not take back an album link that device already
+            opened; rotating the album&rsquo;s link is what ends that, and the
+            person who made the album can do it.
+          </p>
+
+          <h3>A passkey, if you add one</h3>
+          <p className="muted">
+            A passkey lets your device sign you in with Face ID, Touch ID or its
+            screen lock instead of a code. What is kept here is the{' '}
+            <em>public</em> half of it, which can verify that your device signed
+            something and cannot be used to sign anything &mdash; the private
+            half never leaves your device, and we never see it. Alongside it: a
+            label so you can tell one from another, and when it was last used.
+          </p>
+          <p className="muted">
+            While a passkey sign-in is happening, a random one-time challenge is
+            stored for five minutes so that the answer can be checked against
+            it, and is then spent. Adding a passkey is optional, removing them
+            all is allowed, and a code to your inbox always works.
+          </p>
+
           <h3>A display name, if you give one</h3>
           <p className="muted">
             Optional, and free text. Nothing verifies it. Where it is shown is
@@ -420,6 +452,20 @@ export default function PrivacyPage() {
             <li>
               <strong>Rate-limit counters</strong> &mdash; under an hour, and
               they contain no address.
+            </li>
+            <li>
+              <strong>Passkey sign-in challenges</strong> &mdash; five minutes,
+              and they work once.
+            </li>
+            <li>
+              <strong>Where you are signed in</strong> &mdash; until you sign
+              that device out, or it goes unused for longer than the sign-in
+              itself lasts. A device you sign out stays on the list, marked, for
+              a week, so you can see that it worked.
+            </li>
+            <li>
+              <strong>Passkeys</strong> &mdash; until you remove one, or delete
+              your account, which removes all of them.
             </li>
             <li>
               <strong>Albums and the records of who was in them</strong> &mdash;

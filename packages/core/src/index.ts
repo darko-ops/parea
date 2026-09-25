@@ -64,6 +64,17 @@ export {
   type Message,
   type ProviderId,
 } from './email';
+export {
+  clientLabel,
+  describeClient,
+  type ClientDescription,
+  type ClientKind,
+} from './clients';
+export {
+  REVOKED_RETENTION_DAYS,
+  SESSION_RETENTION_DAYS,
+  staleSessions,
+} from './sessions';
 export { alertResponder, type QuarantineAlert } from './alerts';
 export {
   recordModeration,

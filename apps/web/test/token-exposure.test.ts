@@ -93,10 +93,22 @@ describe('the phone is its token and nothing else', () => {
      * jar worth writing to". `ensureActor` did not follow it.
      */
     const session = await read('../src/session.ts');
-    expect(session).toMatch(/if \(await fromBrowser\(\)\) await issueActorCookie/);
+    /*
+     * Spread over a block since sessions arrived — minting the row and issuing
+     * the cookie are two statements now, and both belong inside the same test.
+     * The invariant is unchanged and is the only thing asserted: nothing
+     * issues an actor cookie except under `fromBrowser`.
+     */
+    expect(session).toMatch(/if \(await fromBrowser\(\)\) \{[\s\S]*?await issueActorCookie\(/);
+    // And nowhere else. The regex above would pass happily with a second,
+    // unguarded call further down the file.
+    expect(session.match(/await issueActorCookie\(/g) ?? []).toHaveLength(1);
     // And the preference is unchanged, because it is correct for the browser
-    // this file was written for.
-    expect(session).toMatch(/jar\.get\(ACTOR_COOKIE\)\?\.value\) \?\? \(await bearerActorId\(\)\)/);
+    // this file was written for. The value is a credential rather than a bare
+    // actor id now; which of the two carriers wins is the part that matters.
+    expect(session).toMatch(
+      /decodeCredential\(jar\.get\(ACTOR_COOKIE\)\?\.value\) \?\? \(await bearerCredential\(\)\)/,
+    );
   });
 
   it('sends no cookie from the app, whatever the server sets', async () => {

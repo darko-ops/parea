@@ -185,7 +185,27 @@ export function describeConfig(): ConfigItem[] {
     {
       name: 'ANDROID_CERT_FINGERPRINTS',
       present: has('ANDROID_CERT_FINGERPRINTS'),
-      consequence: 'Android App Links do not verify; tapped links open Chrome',
+      // Two features off one value now. The same fingerprint that verifies a
+      // tapped link is what the passkey verifier turns into the
+      // `android:apk-key-hash:` origin it will accept an assertion from, so an
+      // unset value is also every Android passkey sign-in failing.
+      consequence:
+        'Android App Links do not verify; tapped links open Chrome, and Android passkeys are refused',
+      requiredInProduction: false,
+    },
+    {
+      name: 'PASSKEY_RP_ID',
+      present: has('PASSKEY_RP_ID'),
+      /*
+       * Only for a deployment on a domain the code does not know about.
+       *
+       * `rpIdFor` derives the right answer for `parea.photos`, for a preview
+       * host and for localhost, so this is unset on every intended deployment.
+       * It exists because getting it wrong is unrecoverable in one direction: a
+       * passkey is bound to its RP ID for life, so a deployment that registers
+       * keys under the wrong one has to have every person re-enrol.
+       */
+      consequence: 'derived from the request host, which is right unless the domain changed',
       requiredInProduction: false,
     },
   ];

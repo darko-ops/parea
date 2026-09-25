@@ -4115,3 +4115,55 @@ button.link {
   */
   .album-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
 }
+
+/*
+ * The "or" between the two ways of signing in.
+ *
+ * A rule through the middle rather than a bare word, because the two things it
+ * sits between are both buttons and a lone "or" floating between them reads as
+ * a label for one of them. The line is what makes it a fork.
+ */
+.signin-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--dim);
+  font-size: 13px;
+}
+.signin-or::before,
+.signin-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/*
+ * One device, or one passkey: a row with a name, a line about it, and a way to
+ * end it.
+ *
+ * `align-items: flex-start` rather than centre because the button is one line
+ * and the text beside it is two on a phone — centred, the button drifts into
+ * the gap between them and stops looking attached to the row it acts on.
+ */
+.device-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.device-row:first-of-type { border-top: 0; }
+.device-name { margin: 0; font-weight: 600; }
+.device-detail { margin: 2px 0 0; font-size: 13px; color: var(--dim); }
+/* The device being read from. Marked rather than hidden — the list is a list
+   of everywhere, and leaving this one off would make it a list of elsewhere. */
+.device-here {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dim);
+  white-space: nowrap;
+  align-self: center;
+}

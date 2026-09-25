@@ -67,6 +67,9 @@ import type { GroupTheme } from './Groups';
 import { BELOW_TABS } from './chrome';
 import { initialOf, lensFor } from './lens';
 import { loadQueue, saveActorToken, signOutDevice } from './platform';
+import { DevicesCard } from './Devices';
+import { passkeysSupported } from './passkeys';
+import { addPasskey, signInWithPasskey } from './signin';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -2685,6 +2688,27 @@ export function AccountCard({
   const [error, setError] = useState<string | null>(null);
 
   /*
+   * Whether to offer Face ID at all.
+   *
+   * False in Expo Go, on an OS without the APIs, and on a phone with no
+   * biometrics or passcode set. All three want the same thing from this card:
+   * show the code and say nothing about passkeys — which is why this gates the
+   * button rather than being reported as a problem.
+   */
+  const canPasskey = passkeysSupported();
+  /**
+   * Standing between a finished sign-in and telling the caller about it.
+   *
+   * Set only on the sign-in that created the account, and only when there is no
+   * passkey on it yet. `onSignedIn` is deliberately not called while this is
+   * true: the caller replaces this card when it hears, and a card that has just
+   * been replaced cannot ask anybody anything.
+   */
+  const [offer, setOffer] = useState(false);
+  /** The devices and passkeys card, in place of the signed-in one. */
+  const [managing, setManaging] = useState(false);
+
+  /*
    * Who this device already is, and — for a gate — telling the caller so.
    *
    * A gate renders nothing once there is an account, which is right when the
@@ -2784,6 +2808,24 @@ export function AccountCard({
           'This phone has joined your account. Everything you added here is now part of it.',
         );
       }
+
+      /*
+       * The one moment worth interrupting for.
+       *
+       * Somebody who has just created an account also just fetched a code out of
+       * a mail app, so "next time, use Face ID" lands where the cost of the
+       * alternative is fresh. Later it is an interruption, and buried in the
+       * profile tab it is a thing nobody goes looking for.
+       *
+       * Three conditions, each removing a case where this would be a nuisance:
+       * only on the sign-in that made the account, only when there is no passkey
+       * on it already, and only where this phone could make one.
+       */
+      if (result.created && !result.hasPasskey && canPasskey) {
+        setOffer(true);
+        return;
+      }
+
       onSignedIn();
     } catch (err) {
       /*
@@ -2804,6 +2846,66 @@ export function AccountCard({
       setBusy(false);
     }
   }, [api, code, email, onSignedIn]);
+
+  /**
+   * Signing in with a passkey, which is one press and no inbox.
+   *
+   * No offer afterwards: somebody who just used one has one. The token is
+   * written to the keychain for the same reason the code path writes it — the
+   * actor it names may not be the one this phone presented, because signing in
+   * folds this device's identity into the account's.
+   */
+  const withPasskey = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await signInWithPasskey(api);
+      if (!outcome.ok) {
+        // A null note is a cancellation. They dismissed the sheet, and a red
+        // line about it reads as a fault in the thing they declined.
+        if (outcome.note) setError(outcome.note);
+        return;
+      }
+
+      await saveActorToken(outcome.value.actorToken);
+      setAccount({ email: outcome.value.email });
+      if (outcome.value.merged) {
+        Alert.alert(
+          'Signed in',
+          'This phone has joined your account. Everything you added here is now part of it.',
+        );
+      }
+      onSignedIn();
+    } finally {
+      setBusy(false);
+    }
+  }, [api, onSignedIn]);
+
+  /**
+   * Taking the offer, or declining it. Either way the caller is told.
+   *
+   * A passkey that could not be made is not a failed sign-in — they are signed
+   * in and the account exists — so a failure is said and the hand-off still
+   * runs. Leaving somebody on this card with an error would turn a declined
+   * extra into a dead end.
+   */
+  const keepPasskey = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await addPasskey(api);
+      if (!outcome.ok && outcome.note) Alert.alert('Not added', outcome.note);
+    } finally {
+      setBusy(false);
+      setOffer(false);
+      onSignedIn();
+    }
+  }, [api, onSignedIn]);
+
+  const declinePasskey = useCallback(() => {
+    setOffer(false);
+    onSignedIn();
+  }, [onSignedIn]);
 
   /**
    * Signing out, with the cost said out loud first.
@@ -2875,8 +2977,49 @@ export function AccountCard({
 
   if (account === undefined) return null;
 
+  /*
+   * Signed in already, being asked one question before carrying on.
+   *
+   * Its own return rather than a branch inside either card, because none of
+   * either belongs on it: there is no address to type and nothing to sign out
+   * of yet. Both buttons lead out, so there is no way to get stuck here.
+   */
+  if (offer) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>
+          Next time, sign in with Face ID
+        </Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          Add a passkey and this phone will let you straight in — Face ID, Touch
+          ID or your passcode, with no code to fetch from your email.
+        </Text>
+        {/* Said plainly, because it is the question somebody actually has. A
+            passkey that replaced the code would lock you out of your own
+            photographs from a borrowed laptop. */}
+        <Text style={[styles.small, { color: t.dim }]}>
+          A code to your email still works whenever you need it. This is an
+          extra, not a replacement.
+        </Text>
+        <Button
+          label={busy ? 'Working…' : 'Add a passkey'}
+          onPress={keepPasskey}
+          disabled={busy}
+          t={t}
+          primary
+        />
+        <Button label="Not now" onPress={declinePasskey} disabled={busy} t={t} />
+      </View>
+    );
+  }
+
   if (account) {
     if (gate) return null;
+    if (managing) {
+      return (
+        <DevicesCard api={api} t={t} Button={Button} onDone={() => setManaging(false)} />
+      );
+    }
     return (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
@@ -2888,6 +3031,10 @@ export function AccountCard({
         {/* Sign out above delete, and only one of them is permanent. Both are
             plain buttons — a filled one here would be the loudest thing on a
             tab whose point is the events. */}
+        {/* Above both, because it is the one of the three that is not about
+            ending something: it is where somebody checks what is signed in and
+            adds a passkey. */}
+        <Button label="Devices and passkeys" onPress={() => setManaging(true)} t={t} />
         {onSignedOut && <Button label="Sign out" onPress={signOut} t={t} />}
         <Button label="Delete account" onPress={remove} t={t} />
       </View>
@@ -2904,6 +3051,26 @@ export function AccountCard({
           ? 'No password — a code goes to your inbox, and your albums follow you to another device.'
           : 'Optional. Add an email and your albums and groups follow you to another device. No password — a code goes to your inbox.'}
       </Text>
+
+      {/*
+        The passkey first, for anybody who has one — it is the whole
+        interaction, and a form above it is a form to look past every time.
+        Drawn only where this phone could actually use one.
+      */}
+      {canPasskey && !sent && (
+        <>
+          <Button
+            label={busy ? 'Working…' : 'Sign in with Face ID'}
+            onPress={withPasskey}
+            disabled={busy}
+            t={t}
+            primary
+          />
+          <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>
+            or use a code
+          </Text>
+        </>
+      )}
 
       <TextInput
         value={email}

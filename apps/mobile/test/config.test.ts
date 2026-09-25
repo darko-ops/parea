@@ -81,6 +81,29 @@ describe('identifiers', () => {
     }
   });
 
+  /**
+   * Passkeys need both halves of the same claim, and neither half errors alone.
+   *
+   * iOS will not let the app assert for `parea.photos` unless the app declares
+   * `webcredentials:parea.photos` *and* the AASA file names this app under
+   * `webcredentials`. Ship one without the other and the Face ID sheet simply
+   * never appears — no exception, nothing logged, and the app falls back to a
+   * code as though the person had no passkey. That is indistinguishable from
+   * working software, which is why it is asserted here rather than noticed.
+   */
+  it('claim web credentials on both halves, or the passkey sheet never opens', () => {
+    expect(app.ios.associatedDomains).toContain('webcredentials:parea.photos');
+
+    const aasa = readFileSync(
+      fileURLToPath(new URL('../../web/app/.well-known/apple-app-site-association/route.ts', import.meta.url)),
+      'utf8',
+    );
+    // The same identifier the links use, because it is the same app. An empty
+    // `apps: []` is what this said before passkeys existed, and is the exact
+    // shape of the silent failure above.
+    expect(aasa).toMatch(/webcredentials: \{ apps: \[appID\] \}/);
+  });
+
   it('point the Android intent filter at the same hosts and path', () => {
     const [filter] = app.android.intentFilters;
     expect(filter.autoVerify, 'without this Android never verifies the link').toBe(true);

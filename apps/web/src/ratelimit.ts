@@ -142,6 +142,24 @@ export const SIGN_IN_VERIFY_LIMIT: Limit = {
 };
 
 /**
+ * Starting a WebAuthn ceremony, per source.
+ *
+ * Not a guessing bound — a passkey assertion is a signature over a challenge
+ * this server chose, and there is nothing to guess. What this bounds is the
+ * *rows*: every challenge asked for is a row with a five-minute life, and the
+ * endpoint that issues them answers to anybody, because the whole point of a
+ * discoverable credential is that nobody has to say who they are first.
+ *
+ * Sixty an hour is far past somebody fumbling Face ID on a laptop, and far
+ * short of what it would take to make that table worth watching.
+ */
+export const PASSKEY_CHALLENGE_LIMIT: Limit = {
+  name: 'passkey-challenge',
+  max: 60,
+  windowSeconds: 3600,
+};
+
+/**
  * An opaque, stable-per-window handle for the caller.
  *
  * Returns null when no address is available, which is the local-development

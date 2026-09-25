@@ -41,9 +41,19 @@ export async function GET() {
           },
         ],
       },
-      // Declared and empty: this app has no shared web credentials and no
-      // App Clip, and saying so is cheaper than someone wondering later.
-      webcredentials: { apps: [] },
+      /*
+       * The other half of the app's passkey entitlement — design §3.
+       *
+       * This was declared and empty, on the honest grounds that the app had no
+       * shared web credentials. It has one now: a passkey is bound to a domain,
+       * and iOS will not let an app assert for `parea.photos` unless this file
+       * names it here *and* the app declares `webcredentials:parea.photos` in
+       * `associatedDomains`. Both halves or neither — one without the other is a
+       * Face ID prompt that never appears, with nothing logged to say why.
+       *
+       * The same identifier as the links above, because it is the same app.
+       */
+      webcredentials: { apps: [appID] },
     },
     {
       headers: {

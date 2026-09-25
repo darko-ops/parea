@@ -596,7 +596,9 @@ describe('the session outlives the visit', () => {
   });
 
   it('is re-issued when someone signs in', () => {
-    expect(route).toMatch(/issueActorCookie\(result\.actorId\)/);
+    // Two arguments since sessions arrived: the actor, and the row that makes
+    // the credential revocable. The actor is still the assertion — see below.
+    expect(route).toMatch(/issueActorCookie\(result\.actorId, sessionId\)/);
   });
 
   it('re-issues the actor the account resolves to, not the one that arrived', () => {
