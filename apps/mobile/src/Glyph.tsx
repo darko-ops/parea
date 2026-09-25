@@ -276,9 +276,12 @@ function paths(name: GlyphName, weight: number) {
      * something you asked. A tray is where all of it accumulates, which is
      * what this screen actually is.
      *
-     * The web rail still draws an envelope for the same idea. That is drift,
-     * and it is deliberate for now — the two clients already disagree about
-     * where groups live, and one picture is the smaller of the two arguments.
+     * The web rail drew an envelope for the same idea, and this comment used
+     * to say so and call it deliberate drift. It is not drift any more: the
+     * rail took this drawing, and both clients now ship the same two path
+     * strings for the same row. Recording the disagreement is what closed it
+     * — `glyphs.test.ts` pins the two against each other character for
+     * character, which is what keeps it closed.
      */
     case 'tray':
       return (

@@ -200,16 +200,49 @@ describe('the tray', () => {
     expect(read('src/Lately.tsx')).not.toMatch(/"envelope"/);
   });
 
-  it('knowingly disagrees with the web rail', () => {
+  it('draws the same tray as the web rail', () => {
     /*
-     * The web still draws an envelope for the same idea, and this file exists
-     * to catch exactly that kind of drift — so it is written down rather than
-     * left to be discovered in a screenshot a year from now. The two clients
-     * already disagree about where groups live; one picture is the smaller of
-     * the two arguments.
+     * This assertion used to be its inverse.
+     *
+     * The web drew an envelope for the same row, and the disagreement was
+     * written down here on purpose — the point of this file being that drift
+     * should be found deliberately rather than in a screenshot a year later.
+     * Writing it down is what closed it: the rail took this drawing, and the
+     * two clients now ship the same two paths for the same idea.
+     *
+     * So it turns round, and becomes the ordinary kind of assertion this file
+     * is made of — the same character-for-character pinning as the group, the
+     * person and the magnifier above. The tray was the one exception to that
+     * convention and is not any more.
+     *
+     * It is also why the old version could not simply be deleted when it went
+     * red. It failed on `/invites/`, which had stopped being the rail row's
+     * name, and the honest reading of that failure is not "the anchor moved"
+     * — it is that the thing the test was guarding had been resolved, and the
+     * guard should now hold the resolution.
      */
-    expect(RAIL).toMatch(/invites/);
-    expect(GLYPH).toMatch(/The web rail still draws an envelope/);
+    for (const d of [
+      'M3 13h5l1.5 2.5h5L16 13h5',
+      'M3 13 6 5h12l3 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    ]) {
+      expect(RAIL).toContain(d);
+      expect(GLYPH).toContain(d);
+    }
+  });
+
+  it('left no envelope behind on the web either', () => {
+    /*
+     * `RailIcon`'s own reasoning, as an assertion, on the side that actually
+     * had a drawing to delete: "an unused glyph is one somebody reaches for
+     * later, and then the two clients disagree again."
+     *
+     * Matched against the case and the union entry rather than against the
+     * word, because both files still say "envelope" in prose explaining where
+     * it went — and a scan that could not tell those apart would forbid the
+     * explanation along with the drawing.
+     */
+    expect(RAIL).not.toMatch(/glyph === 'envelope'/);
+    expect(RAIL).not.toMatch(/\|\s*'envelope'/);
   });
 });
 
