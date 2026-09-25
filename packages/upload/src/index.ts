@@ -31,6 +31,12 @@ export {
   ACCEPTED_MIME,
   ACCEPT_ATTRIBUTE,
   acceptedMime,
+  sniffImageMime,
+  DECODER_ROOT,
+  DECODERS,
+  restrictDecoders,
+  type DecoderRegistry,
+  MAX_INPUT_PIXELS,
   MAX_FILES_PER_PRESIGN,
   type AcceptedMime,
 } from './accepted';

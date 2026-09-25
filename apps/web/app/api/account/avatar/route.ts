@@ -24,9 +24,10 @@
 import { schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import sharp from 'sharp';
 
 import { getDb } from '@/db';
+import { admit, decode } from '@/imaging';
+import { AVATAR_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -48,17 +49,30 @@ export async function POST(request: Request) {
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
-  const incoming = Buffer.from(await request.arrayBuffer());
-  if (incoming.byteLength === 0) {
-    return NextResponse.json({ error: 'empty' }, { status: 400 });
+  /*
+   * Bounded before a byte is decoded, and bounded per source rather than per
+   * actor.
+   *
+   * An actor is minted on demand — `POST /api/session` hands one to anybody —
+   * so a per-actor cap on this route is a cap on honesty, exactly as the
+   * uploads route says about its own. What is being protected is not storage
+   * but CPU and memory in the web tier: this is the cheapest way to make a
+   * request handler decode an image, and the only one here that does not
+   * require being let into an event first.
+   */
+  if (!(await withinLimit(getDb(), AVATAR_LIMIT, process.env.SESSION_SECRET))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
-  if (incoming.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'too_large' }, { status: 413 });
+
+  // Size and file type, before a decoder sees it. See `@/imaging`.
+  const admitted = admit(Buffer.from(await request.arrayBuffer()), MAX_BYTES);
+  if (!admitted.ok) {
+    return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
 
   let jpeg: Buffer;
   try {
-    jpeg = await sharp(incoming, { failOn: 'error' })
+    jpeg = await decode(admitted.bytes)
       // Bakes in orientation, so a picture taken sideways is not stored
       // sideways for everyone who lacks the tag to correct it.
       .rotate()

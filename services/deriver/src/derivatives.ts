@@ -21,9 +21,22 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 
-import { MIME, formatsFor } from '@parea/urls';
+import { MIME, formatsFor, type ImageFormat } from '@parea/urls';
+import { MAX_INPUT_PIXELS, restrictDecoders } from '@parea/upload';
+
+/*
+ * Shut every decoder this product does not accept, before anything decodes.
+ *
+ * At module load rather than from the entrypoint, because this file is the one
+ * that owns sharp: every command — `probe`, `once`, `watch`, `serve`,
+ * `backfill` — reaches a decode through here, and a call sited in `index.ts`
+ * would be a call that a fifth command could be written without. The list and
+ * the reasoning are in `@parea/upload`, next to the MIME types they are
+ * derived from.
+ */
+restrictDecoders(sharp);
 
 const run = promisify(execFile);
 
@@ -68,6 +81,71 @@ const AVIF_QUALITY_OFFSET = 12;
 const AVIF_EFFORT = 2;
 
 /**
+ * Which quality metric the AVIF encoder is tuned against. Named, because it
+ * used to be nobody's decision and is now somebody's.
+ *
+ * sharp 0.35 retuned lossy AVIF to SSIMULACRA2-based `iq` metrics and made
+ * that the default. The number in `AVIF_QUALITY_OFFSET` was picked against the
+ * old scale, so the upgrade would have kept the same code, the same constant
+ * and the same comment, and quietly changed what all three meant.
+ *
+ * Measured on the upgrade, encoding one 1600×1200 source at the three sizes
+ * this product actually emits, at the qualities it actually uses:
+ *
+ *   size        0.34.5     auto / iq      psnr       ssim
+ *   thumb 320     6537     6835  (+5%)    6591       6606
+ *   card  640    26197    29995 (+14%)   26228      26196
+ *   grid 1280   100128   120550 (+20%)  100131      99879
+ *
+ * `auto` is not a small change. A fifth more bytes on the size the gallery
+ * serves is a fifth more R2 storage and a fifth more of every grid, bought
+ * without anybody choosing it — and bought during a security patch, which is
+ * the worst moment to also change what the output looks like.
+ *
+ * So `psnr` holds the calibration the offset was chosen against, to within one
+ * percent at every size. That makes this upgrade a security upgrade and
+ * nothing else.
+ *
+ * Revisiting it is real work and worth doing separately: `iq` is a better
+ * metric, and the honest version of adopting it is re-deriving the three
+ * quality numbers against it rather than keeping numbers that were tuned for
+ * a different scale. Until then the offset below keeps meaning what it says.
+ */
+const AVIF_TUNE = 'psnr' as const;
+
+/**
+ * Apply this product's encoder settings to a resized pipeline.
+ *
+ * Exported, and that is the point of it existing rather than being three lines
+ * inline. `derivatives.test.ts` builds a reference encode to compare the shared
+ * decode against, and it was restating these settings as literals — `quality:
+ * spec.quality - 12, effort: 2` — which is the same numbers written down twice
+ * and the failure this repository keeps finding.
+ *
+ * It found it again here. Adding `tune` above changed production and not the
+ * copy, so the test compared a psnr-tuned encode against an iq-tuned one and
+ * reported the difference as the *shared decode* drifting — an assertion about
+ * one thing failing because of another, which is the worst kind of red test to
+ * be handed. The tolerance was not the problem and raising it would have hidden
+ * a real comparison.
+ *
+ * So there is one statement of what an encode is, and both callers make it.
+ */
+export function encodeAs(
+  pipeline: Sharp,
+  quality: number,
+  format: ImageFormat,
+): Sharp {
+  return format === 'avif'
+    ? pipeline.avif({
+        quality: quality - AVIF_QUALITY_OFFSET,
+        effort: AVIF_EFFORT,
+        tune: AVIF_TUNE,
+      })
+    : pipeline.jpeg({ quality, mozjpeg: true });
+}
+
+/**
  * How large an image may be before it is refused as a decompression bomb.
  *
  * sharp defaults to 268,402,689 pixels, and a real upload hit it: a 17000×17000
@@ -85,8 +163,13 @@ const AVIF_EFFORT = 2;
  *
  * Raising this without raising the machine turns a clean per-photo failure
  * into an OOM kill, which takes ingest down for every photo rather than one.
+ *
+ * The number moved to `@parea/upload` when the two web routes that decode an
+ * uploaded picture — the avatar and the event cover — turned out to set no
+ * limit at all. The reasoning above is still this file's; the value is now
+ * shared so there is one of it.
  */
-const MAX_INPUT_PIXELS = 400_000_000;
+export { MAX_INPUT_PIXELS };
 
 export type Derivative = {
   kind: DerivativeKind;
@@ -220,13 +303,7 @@ async function encodeAll(
         withoutEnlargement: true,
       });
 
-      const encoded =
-        format === 'avif'
-          ? resized.avif({
-              quality: spec.quality - AVIF_QUALITY_OFFSET,
-              effort: AVIF_EFFORT,
-            })
-          : resized.jpeg({ quality: spec.quality, mozjpeg: true });
+      const encoded = encodeAs(resized, spec.quality, format);
 
       const { data, info } = await encoded.toBuffer({ resolveWithObject: true });
       out.push({

@@ -16,7 +16,8 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { buildDerivatives, DERIVATIVES } from '../src/derivatives';
+import { buildDerivatives, DERIVATIVES, encodeAs } from '../src/derivatives';
+import type { ImageFormat } from '@parea/urls';
 
 const EDGE = { width: 480, height: 360 };
 
@@ -47,11 +48,11 @@ async function decodedEachTime(input: Buffer, kind: string, format: string) {
     fit: 'inside',
     withoutEnlargement: true,
   });
-  const encoded =
-    format === 'avif'
-      ? resized.avif({ quality: spec.quality - 12, effort: 2 })
-      : resized.jpeg({ quality: spec.quality, mozjpeg: true });
-  return encoded.toBuffer();
+  // `encodeAs` rather than a copy of its contents. This function restated the
+  // production settings as literals, so a change to one of them turned this
+  // comparison into a comparison of something else — see the note on
+  // `encodeAs`, which is where that is written down.
+  return encodeAs(resized, spec.quality, format as ImageFormat).toBuffer();
 }
 
 /** Compares what a viewer sees, not what the encoder happened to emit. */

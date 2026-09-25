@@ -68,6 +68,25 @@ COPY services/deriver services/deriver
 # environment at boot, where the answer actually lives.
 RUN PAREA_MODERATION=manual NODE_ENV=development npx tsx services/deriver/src/index.ts probe
 
+# Not root, and this is the one line in the file that is about what happens
+# when something here goes wrong rather than about making it work.
+#
+# This process exists to decode images from strangers. That is the largest
+# untrusted-input surface in the product — libvips, libheif and exiftool all
+# parse attacker-chosen bytes — and it is also the process holding the R2
+# credentials and DATABASE_URL. Running it as root means a decoder bug is root
+# in a container with the keys to the photo store; running it as `node` means
+# it is a decoder bug.
+#
+# `node:22-trixie-slim` ships the `node` user for exactly this. Nothing here
+# needs to write inside the image: the build ran as root and the app only reads
+# what it copied, while the pipeline's scratch files go to `mkdtemp` under
+# `/tmp`, which is world-writable. Nothing binds below port 1024 either — 8080
+# is above the privileged range, which is why that number and not 80.
+#
+# After every build step, so `npm ci` and the probe above still run as root.
+USER node
+
 # The port `serve` listens on, and what `fly.toml` points `internal_port` at.
 EXPOSE 8080
 

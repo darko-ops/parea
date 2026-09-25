@@ -22,7 +22,7 @@
  */
 
 import { ACCEPTED_MIME } from '@parea/upload';
-import sharp from 'sharp';
+import sharp, { type FormatEnum } from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import { canDecode, canDecodeViaHeifConvert } from '../src/derivatives';
@@ -44,7 +44,7 @@ async function sample(mime: string): Promise<Buffer> {
   return sharp({
     create: { width: 16, height: 16, channels: 3, background: { r: 40, g: 90, b: 160 } },
   })
-    .toFormat(format as keyof sharp.FormatEnum)
+    .toFormat(format as keyof FormatEnum)
     .toBuffer();
 }
 

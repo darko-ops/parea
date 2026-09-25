@@ -29,11 +29,11 @@
 import { schema } from '@parea/core';
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import sharp from 'sharp';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { coverAspect, coverSize, framingOf, orientedSize, regionFor } from '@/cover';
 import { getDb } from '@/db';
+import { admit, decode } from '@/imaging';
 import { requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -70,13 +70,15 @@ export async function POST(
   if ('error' in allowed) return allowed.error;
   const { db, event } = allowed;
 
-  const incoming = Buffer.from(await request.arrayBuffer());
-  if (incoming.byteLength === 0) {
-    return NextResponse.json({ error: 'empty' }, { status: 400 });
+  // Size and file type, before a decoder sees it. See `@/imaging`. No rate
+  // limit here and one on the avatar route, because `administer` already
+  // bounds this to people who made the event or admin its group — a caller
+  // who has to be let in first is not the unbounded case.
+  const admitted = admit(Buffer.from(await request.arrayBuffer()), MAX_BYTES);
+  if (!admitted.ok) {
+    return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
-  if (incoming.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'too_large' }, { status: 413 });
-  }
+  const incoming = admitted.bytes;
 
   const url = new URL(request.url);
   const framing = framingOf(url);
@@ -118,7 +120,7 @@ export async function POST(
    * `coverSize` gives back is bounded — see `COVER_TALLEST` — so this is still
    * one small wide-ish JPEG and never a client-chosen number of pixels.
    */
-  const size = orientedSize(await sharp(incoming).metadata().catch(() => ({})));
+  const size = orientedSize(await decode(incoming).metadata().catch(() => ({})));
   const target = size ? coverSize(size) : null;
 
   let jpeg: Buffer;
@@ -127,7 +129,7 @@ export async function POST(
 
     // Bakes in orientation, so a picture taken sideways is not stored sideways
     // for everyone whose renderer lacks the tag to correct it.
-    let pipeline = sharp(incoming, { failOn: 'error' }).rotate();
+    let pipeline = decode(incoming).rotate();
 
     const region = framing ? regionFor(size, framing) : null;
     if (region) pipeline = pipeline.extract(region);

@@ -24,7 +24,7 @@
     "@upstash/qstash": "^2.11.3",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

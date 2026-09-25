@@ -287,6 +287,27 @@ export function staleRateLimits(cutoff: Date) {
 }
 
 /**
+ * Setting a profile picture, per source.
+ *
+ * The only route in this product that decodes an uploaded image *in the web
+ * tier* without requiring the caller to have been let into anything first. The
+ * event cover decodes too, but `administer` means somebody made the event, so
+ * the set of callers is already small and already accountable. This one needs
+ * an actor, and an actor is minted on demand by `POST /api/session` — so the
+ * honest description of who can reach the decoder here is "anybody".
+ *
+ * What it bounds is CPU and memory rather than storage: one object per person,
+ * replaced each time, so there is nothing cumulative to cap. A decode is the
+ * expensive part, and thirty an hour is far past somebody trying three photos
+ * of themselves and far below what it takes to keep a function busy.
+ */
+export const AVATAR_LIMIT: Limit = {
+  name: 'avatar',
+  max: 30,
+  windowSeconds: 3600,
+};
+
+/**
  * Searching for a person, per source.
  *
  * The only read in this product that walks the account table, which makes it
