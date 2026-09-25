@@ -2990,9 +2990,17 @@ export function AccountCard({
         <Text style={[styles.label, { color: t.fg }]}>
           Next time, sign in with Face ID
         </Text>
+        {/*
+          Two sentences, because there are two moments and only one of them is
+          fast. See the note on the web's offer card: the phone asks where to
+          keep the key, and that prompt lands straight after a line promising no
+          further steps. Naming the cost first is what keeps the payoff from
+          reading as a promise that was not kept.
+        */}
         <Text style={[styles.small, { color: t.dim }]}>
-          Add a passkey and this phone will let you straight in — Face ID, Touch
-          ID or your passcode, with no code to fetch from your email.
+          Setting one up takes a moment — your phone will ask where to keep it.
+          After that, signing in is Face ID and nothing else, with no code to
+          fetch from your email.
         </Text>
         {/* Said plainly, because it is the question somebody actually has. A
             passkey that replaced the code would lock you out of your own

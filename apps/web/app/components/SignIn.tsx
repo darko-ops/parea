@@ -251,10 +251,26 @@ export function SignIn({
     return (
       <section className="panel">
         <h2>Next time, {onThisDevice ? 'sign in with Face ID' : 'skip the code'}</h2>
+        {/*
+          Two sentences, because there are two moments and only one of them is
+          fast.
+
+          This said "add a passkey and this device will let you straight in",
+          which is true of every sign-in after the first and not of the next
+          thirty seconds: the browser asks where to keep the key — a keychain, a
+          password manager — and that prompt arrives immediately after a button
+          promising no further steps. The site cannot remove it and should not
+          want to, since a site that could choose where a credential is filed
+          could steer somebody off their own password manager.
+
+          So the setup is described as setup and the payoff as the payoff. The
+          order matters too: the cost is named first, because a promise followed
+          by a caveat reads as a promise that was not kept.
+        */}
         <p className="muted">
           {onThisDevice
-            ? 'Add a passkey and this device will let you straight in — Face ID, Touch ID or your screen lock, with no code to fetch.'
-            : 'Add a passkey and your device will let you straight in, with no code to fetch. Your phone or your password manager keeps it.'}
+            ? 'Setting one up takes a moment — your browser will ask where to keep it. After that, signing in here is Face ID, Touch ID or your screen lock, with no code to fetch.'
+            : 'Setting one up takes a moment — your browser will ask where to keep it, and may ask for your phone. After that, signing in here is one prompt, with no code to fetch.'}
         </p>
         {/*
           Said plainly, because it is the question somebody actually has. A
