@@ -4,6 +4,62 @@ import type { NextConfig } from 'next';
 /** Written once so the two private-path rules cannot drift apart. */
 const NOINDEX = 'noindex, nofollow, noarchive, noimageindex';
 
+/**
+ * The content security policy, and why it ships report-only.
+ *
+ * The event link *is* the credential. Nothing in this app writes
+ * `dangerouslySetInnerHTML` or `innerHTML`, so there is no known injection to
+ * block — but "no known injection" is a statement about today, and what a CSP
+ * buys is that a future one cannot post the link somewhere. That is the whole
+ * threat model here: not defacement, exfiltration of a URL.
+ *
+ * Report-only to begin with, because enforcing a wrong policy is a blank page
+ * and this one cannot be fully verified from a build. Next inlines its
+ * bootstrap script, and the honest way to tighten `script-src` is nonces
+ * through middleware — which this app deliberately does not have. So the
+ * first version allows what Next needs, reports what it sees, and the console
+ * is the evidence for narrowing it later.
+ *
+ * ## The origins, and why each
+ *
+ * Photo bytes never come from this origin — that is the point of §2 — so the
+ * image Worker has to be named or every thumbnail is a violation. Uploads go
+ * straight from the browser to a presigned R2 URL, which makes R2 a
+ * `connect-src` rather than an `img-src`; a wildcard covers it because the
+ * account subdomain is not worth pinning in a public header and is already
+ * visible in every presigned URL. The zip Worker needs nothing: a download is
+ * a top-level navigation, which no directive here governs.
+ *
+ * Mapbox is absent on purpose. `/api/places` calls it from the server, so the
+ * browser never does, and adding it would widen the policy for a request the
+ * page cannot make.
+ */
+function contentSecurityPolicy(): string {
+  const image = process.env.IMAGE_BASE_URL?.replace(/\/$/, '') ?? '';
+  const r2 = 'https://*.r2.cloudflarestorage.com';
+
+  return [
+    // Everything not named below comes from here or nowhere.
+    "default-src 'self'",
+    /*
+     * `unsafe-inline` is Next's bootstrap and nothing else, and it is the
+     * directive this policy exists to eventually tighten. It is also why the
+     * header is report-only: enforcing this as written would protect less
+     * than it appears to, and pretending otherwise is worse than reporting.
+     */
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob: ${image} ${r2}`.replace(/\s+/g, ' ').trim(),
+    `connect-src 'self' ${image} ${r2}`.replace(/\s+/g, ' ').trim(),
+    "font-src 'self' data:",
+    // No plugins, no embedding, and no <base> rewriting where links point.
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+}
+
 const config: NextConfig = {
   // @parea/core ships TypeScript source rather than a build step.
   transpilePackages: [
@@ -102,6 +158,13 @@ const config: NextConfig = {
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
+          // Report-only, and `frame-ancestors` restates the line above it in
+          // the modern header — the two are kept together so that dropping
+          // `X-Frame-Options` later is one edit rather than an omission.
+          {
+            key: 'Content-Security-Policy-Report-Only',
+            value: contentSecurityPolicy(),
+          },
         ],
       },
       /*
