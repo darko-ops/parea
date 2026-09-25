@@ -50,6 +50,10 @@ function store(): ObjectStore & { deleted: string[] } {
     async delete(key: string) {
       deleted.push(key);
     },
+    // The fake is always reachable; what this file tests is what gets deleted.
+    async reachable() {
+      return { ok: true, detail: 'fake' };
+    },
   };
 }
 

@@ -90,6 +90,26 @@ function db() {
   return drizzle(postgres(url, { prepare: false }), { schema });
 }
 
+/**
+ * Whether the object store answers, without letting its absence throw.
+ *
+ * `objectStoreFromEnv` refuses to build a local store in production, which is
+ * the right behaviour everywhere except inside a check whose whole job is to
+ * report rather than crash — an unconfigured production deployment should read
+ * `FAIL storage` alongside everything else, not vanish in a stack trace before
+ * the table is printed.
+ */
+async function storeReachable(): Promise<{ ok: boolean; detail: string }> {
+  try {
+    return await objectStoreFromEnv().reachable();
+  } catch (err) {
+    return {
+      ok: false,
+      detail: `FAILED — ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 async function probe(
   scanner: CsamScanner | null,
   moderator: ContentModerator | null,
@@ -158,6 +178,37 @@ async function probe(
   const posture = postureFromEnv();
   results.push(['moderation', posture.ok, posture.detail]);
 
+  /*
+   * Storage, which this probe did not check for far too long.
+   *
+   * Every other line here verifies that the container can *process* a
+   * photograph. None of them verified it could reach the one place every
+   * photograph comes from and goes to — so a deployment whose R2 credentials
+   * were wrong passed this probe, printed "Ready to ingest", answered its Fly
+   * health check, and failed on the first upload with the row left `pending`
+   * and nobody told.
+   *
+   * That is not hypothetical: both secrets were once set to a three-byte
+   * ellipsis pasted out of an example, and nothing in the stack said a word.
+   * The health check in `fly.toml` is liveness-only on purpose — a readiness
+   * check that opened a connection would be the poll loop this service was
+   * rebuilt to avoid — so boot is the right place, and this is the file that
+   * already argues a deriver which starts is one that can do the job.
+   *
+   * Fatal in production only, for the same reason the safety alerts are: the
+   * image build runs this probe with no deployment environment, where the
+   * store is a local directory and the answer means nothing.
+   */
+  const storage = await storeReachable();
+  const storageRequired = process.env.NODE_ENV === 'production';
+  results.push([
+    'storage',
+    storage.ok || !storageRequired,
+    storageRequired || storage.ok
+      ? storage.detail
+      : `${storage.detail} (not required outside production)`,
+  ]);
+
   // Checked here rather than discovered at the incident. Something can always
   // quarantine — a child-safety report does it with no scanner configured at
   // all — and a quarantine nobody is told about is the runbook's own
@@ -196,7 +247,8 @@ async function probe(
     !avifOk ||
     !exiftoolVersion ||
     !posture.ok ||
-    (alertsRequired && !alertsGoSomewhere);
+    (alertsRequired && !alertsGoSomewhere) ||
+    (storageRequired && !storage.ok);
   console.log(
     fatal
       ? '\nThis container cannot ingest photos. See services/deriver/README.md.'
