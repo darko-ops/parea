@@ -1,0 +1,68 @@
+# What never belongs in the deriver's build context.
+#
+# The third of these files, after `.vercelignore` and `.easignore`, and it was
+# the missing one. `services/deriver/Dockerfile` copies the root
+# `package-lock.json`, all of `packages/`, and `services/deriver` — so the
+# build context has to be the repository root, which means `fly deploy` sends
+# the root unless something here says otherwise. Unfiltered that is 4.6GB: a
+# 1.3GB `node_modules` the image is about to replace with its own `npm ci`, a
+# 1.9GB `.next` from the last web build, and 1.2GB of CocoaPods output from an
+# Xcode build that has nothing to do with this container.
+#
+# Deliberately a deny-list rather than an allow-list. The workspace layout in
+# the root `package.json` names `apps/*` and `tests/*`, and `npm ci` reads it
+# whether or not those directories are here — an allow-list that let through
+# only what the Dockerfile copies would be one `npm` release away from failing
+# on a workspace it could not find, and the failure would be a build error a
+# long way from this file.
+
+# Every dependency tree. The image installs its own with `npm ci --omit=dev`,
+# and a host `node_modules` is the wrong platform anyway: `sharp` ships a
+# native libvips per architecture, so a darwin-arm64 build copied into a linux
+# image is a binary that cannot load.
+node_modules
+**/node_modules
+
+# Build output, all of it rebuilt on the other side or irrelevant here.
+.next
+**/.next
+dist
+**/dist
+dist-test
+**/dist-test
+**/*.tsbuildinfo
+
+# Xcode and Gradle output — see the same entry in `.vercelignore`, which is
+# where the 1.2GB `ZXingObjC.xcframework` symlink problem is written up.
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/.expo
+
+# iOS signing material. Already out of git; keeping it out of an image layer
+# too, because a distribution key in a container registry is the same key.
+apps/mobile/credentials
+apps/mobile/credentials.json
+
+# Secrets, in the one form they legitimately exist on a developer's machine.
+# Fly injects the real ones as secrets at runtime; a `.env.local` baked into a
+# layer is a copy nobody rotates.
+.env
+.env.local
+**/.env.local
+
+# History, editor and platform state. `.git` alone is most of a gigabyte here
+# and the build reads none of it.
+.git
+.github
+.vercel
+.wrangler
+.claude
+.agents
+**/.DS_Store
+*.log
+
+# Zips of somebody's Figma exports, and a standalone Expo measurement tool with
+# its own dependency tree and a Python cache.
+design
+tools
+docs
