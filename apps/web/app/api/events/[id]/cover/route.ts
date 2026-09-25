@@ -74,8 +74,25 @@ export async function POST(
   // limit here and one on the avatar route, because `administer` already
   // bounds this to people who made the event or admin its group — a caller
   // who has to be let in first is not the unbounded case.
-  const admitted = admit(Buffer.from(await request.arrayBuffer()), MAX_BYTES);
+  const body = Buffer.from(await request.arrayBuffer());
+  const admitted = admit(body, MAX_BYTES);
   if (!admitted.ok) {
+    /*
+     * Logged, because the caller that most often trips this cannot show it.
+     *
+     * A cover posted from the create screen is sent and forgotten — the album
+     * is made either way and the navigation happens regardless — so a refusal
+     * here reaches nobody, and "my cover did not save" arrives with nothing
+     * behind it. The status alone is not enough either: `empty` and
+     * `not_an_image` are both 400 and they are different bugs. `empty` is not a
+     * malformed request at all, it is a `File` whose bytes went away between
+     * being picked and being read — the fallback `coverBytes` takes when
+     * `createImageBitmap` throws, which on iOS is a picked asset whose temp
+     * copy has since been released.
+     */
+    console.warn(
+      `cover: refused ${body.byteLength} bytes for event ${event.id} — ${admitted.error}`,
+    );
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
   const incoming = admitted.bytes;
@@ -153,13 +170,22 @@ export async function POST(
       })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
-  } catch {
+  } catch (err) {
     /*
      * Anything sharp cannot decode: a file that is not an image, a
      * decompression bomb — and HEIC, on a build of libvips without libheif.
      * The caller treats this as "no cover" rather than as a failed event,
      * which is why it is worth answering precisely rather than 500ing.
+     *
+     * The sniffed type goes in the line because it is the one thing the status
+     * cannot carry: bytes that got this far passed the header check, so this is
+     * a file that really is the kind it claims and still would not open, and
+     * which kind decides whether the answer is a decoder or a client.
      */
+    console.warn(
+      `cover: ${admitted.mime} for event ${event.id} could not be rendered — ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
     return NextResponse.json({ error: 'not_an_image' }, { status: 400 });
   }
 
