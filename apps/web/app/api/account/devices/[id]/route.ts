@@ -6,14 +6,33 @@
  * moment, the laptop that was signed in is signed out, without its cooperation
  * and without touching anybody else's access to the same events.
  *
- * ## What it does not do
+ * ## What it does and does not reach
  *
- * It does not take back the capability cookies that browser holds. Those are
- * per-event and they are the thing that actually opens the photographs, so a
- * browser signed out this way can still open an album whose link it had already
- * visited — the same limit the local sign-out has always had, and the same
- * remedy: rotating the event's link. Revoking identity is not revoking
- * possession of a link, and the product has never claimed otherwise.
+ * This used to say that the capability cookies survive — that they are "the
+ * thing that actually opens the photographs", so a revoked browser could still
+ * open any album it had visited, and the remedy was to rotate the event's link.
+ * That was wrong, and wrong in the expensive direction: rotating a link
+ * punishes everybody else at the party, and it was being prescribed for a gap
+ * that is not there.
+ *
+ * A capability cookie is not a credential on its own. `authorize` counts it
+ * only as `isParticipant && capFresh`, and `isParticipant` is resolved from the
+ * *actor* on the request — which, once this row is revoked, is nobody. So on a
+ * private album the revoked browser is refused on every path it has: the cookie
+ * alone, the cookie beside a participant row that still exists, the cookie plus
+ * the link still sitting in its history, and download. All four answer
+ * `sign_in_required`, because the private branch asks `signedIn` first and a
+ * revoked credential resolves to no actor at all.
+ *
+ * What revocation genuinely cannot do is take back a *public* album, and that
+ * is not a property of this route. A public album needs no credential by
+ * design — "possession of the link is a convenience for finding the thing, not
+ * the lock on it" — so anyone holding the link can open it whether or not they
+ * were ever signed in. Rotating the link would not change that either; see the
+ * note on `isPublic` in `policy.ts`, which says so directly.
+ *
+ * `devices.test.ts` pins the four private refusals, so this comment cannot
+ * drift back into describing a hole that was closed before it was written.
  */
 
 import { NextResponse } from 'next/server';

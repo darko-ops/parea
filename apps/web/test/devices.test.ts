@@ -11,7 +11,17 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { clientLabel, describeClient, newLinkToken, schema } from '@parea/core';
+import {
+  authorize,
+  clientLabel,
+  CONTRIBUTE_EVERYONE,
+  describeClient,
+  newLinkToken,
+  PRIVATE,
+  PUBLIC,
+  schema,
+  type PolicyEvent,
+} from '@parea/core';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -485,5 +495,88 @@ describe('naming a device', () => {
   it('takes the app at its word rather than reading a string', () => {
     expect(clientLabel(describeClient(null, 'ios'))).toBe('Parea for iOS');
     expect(clientLabel(describeClient(SAFARI_IPHONE, 'android'))).toBe('Parea for Android');
+  });
+});
+
+/**
+ * And the question somebody asks the moment they press the button: is that
+ * browser actually out?
+ *
+ * Everything above tests the machinery — the row is written, revoked, listed,
+ * moved by a merge, purged on schedule. None of it asks what the revoked
+ * browser can still *reach*, and that is where the route's own documentation
+ * was wrong. It claimed the capability cookies survive, that they are "the
+ * thing that actually opens the photographs", and that the remedy was rotating
+ * the event's link — an expensive action, since rotating cuts off everybody at
+ * the party, prescribed for a gap that is not there.
+ *
+ * The reason it is not there is one clause in `authorize`: a capability counts
+ * only as `isParticipant && capFresh`, and `isParticipant` is resolved from the
+ * actor on the request. Revoke the row and there is no actor, so the cookie
+ * grants nothing by itself.
+ */
+
+const REVOKED_LINK = 'T'.repeat(22);
+
+const albumWith = (accessPolicy: string): PolicyEvent => ({
+  id: 'e1',
+  linkToken: REVOKED_LINK,
+  capEpoch: 1,
+  accessPolicy,
+  joinsOpen: true,
+  contributePolicy: CONTRIBUTE_EVERYONE,
+  createdBy: 'somebody-else',
+  groupId: null,
+  deletedAt: null,
+});
+
+/*
+ * What the browser still physically holds after the row is gone: a fresh
+ * capability cookie, a participant row nobody deleted, and the link in its
+ * history. The actor is null because that is what `currentCredential` answers
+ * once the session is revoked — which is the entire point of the table.
+ */
+const stillHolds = { capEpoch: 1, isParticipant: true, linkToken: REVOKED_LINK };
+
+describe('what a revoked credential can still reach', () => {
+  it('is refused a private album with only the capability cookie', () => {
+    expect(authorize(null, 'view', { event: albumWith(PRIVATE) }, { capEpoch: 1 }).allow).toBe(
+      false,
+    );
+  });
+
+  it('is refused even though the participant row still exists', () => {
+    expect(
+      authorize(null, 'view', { event: albumWith(PRIVATE) }, { capEpoch: 1, isParticipant: true }),
+    ).toEqual({ allow: false, reason: 'sign_in_required' });
+  });
+
+  it('is refused with the link still in its history', () => {
+    // The case the old comment described as open. It is not.
+    expect(authorize(null, 'view', { event: albumWith(PRIVATE) }, stillHolds)).toEqual({
+      allow: false,
+      reason: 'sign_in_required',
+    });
+  });
+
+  it('cannot download either', () => {
+    expect(authorize(null, 'download', { event: albumWith(PRIVATE) }, stillHolds)).toEqual({
+      allow: false,
+      reason: 'sign_in_required',
+    });
+  });
+
+  it('can still open a public album, which is the policy and not the cookie', () => {
+    /*
+     * Here rather than left unsaid, because anybody reading the four refusals
+     * above will ask about the public case. A public album needs no credential
+     * by design, so holding the link is enough whoever you are — and rotating
+     * the link would not change it either; see `isPublic` in `policy.ts`.
+     *
+     * The second assertion is the one that makes the point: nothing carried
+     * over from the old session is involved at all.
+     */
+    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, stillHolds).allow).toBe(true);
+    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, {}).allow).toBe(true);
   });
 });
