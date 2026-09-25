@@ -387,3 +387,163 @@ describe('every write that hides or removes a photo records why', () => {
     expect(record, 'the audit row must be written first').toBeLessThan(del);
   });
 });
+
+/**
+ * A host-actioned removal takes the renditions out of storage.
+ *
+ * The image Worker holds no database and decides nothing — it verifies a
+ * signature and streams — so its only revocation signal is the event's epoch
+ * marker. A photograph removed here would otherwise keep serving on any URL
+ * already minted for it until that URL's hour bucket expired: up to two hours.
+ *
+ * For an ordinary removal that is the accepted trade. This is the one path
+ * that is both terminal and asked for by a person: somebody wanted their
+ * photograph down and a host agreed. A missing object is an immediate 404 with
+ * no epoch involved, which is the cheapest possible way to make "removed" mean
+ * removed.
+ *
+ * What must *not* happen is the original going with them. It is what an abuse
+ * investigation reads and what the purge job removes on its own schedule.
+ */
+describe('removing a reported photo', () => {
+  const fakeStorage = () => {
+    const deleted: string[] = [];
+    return {
+      deleted,
+      store: {
+        deleted,
+        async presignPut() { throw new Error('not used'); },
+        async presignGet() { return 'x'; },
+        async putSmall() {},
+        async head() { return null; },
+        async delete(key: string) { deleted.push(key); },
+      },
+    };
+  };
+
+  const withDerivatives = async (eventId: string, uploaderId: string) => {
+    const [photo] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: 'ev/e/original-stays',
+        byteSize: 1,
+        mime: 'image/jpeg',
+        status: 'ready',
+      })
+      .returning();
+    await db.insert(schema.derivatives).values(
+      (['thumb', 'card', 'grid', 'full'] as const).map((kind) => ({
+        photoId: photo!.id,
+        kind,
+        format: 'jpeg' as const,
+        storageKey: `ev/e/hash.${kind}.jpg`,
+        width: 1,
+        height: 1,
+        mime: 'image/jpeg',
+      })),
+    );
+    return photo!;
+  };
+
+  it('deletes every rendition and keeps the original', async () => {
+    const { event, guest } = await scene();
+    const photo = await withDerivatives(event.id, guest);
+
+    const { store, deleted } = fakeStorage();
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests(store as never);
+    try {
+      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      await dropDerivatives(db, photo.id);
+    } finally {
+      __setStorageForTests(null);
+    }
+
+    expect([...deleted].sort()).toEqual([
+      'ev/e/hash.card.jpg',
+      'ev/e/hash.full.jpg',
+      'ev/e/hash.grid.jpg',
+      'ev/e/hash.thumb.jpg',
+    ]);
+    // The one key that must survive: an investigation reads it, and the purge
+    // job removes it on its own clock.
+    expect(deleted).not.toContain('ev/e/original-stays');
+  });
+
+  it('touches nothing for a photograph with no renditions', async () => {
+    // An ingest quarantine never builds them — the runbook is explicit — so
+    // this path has to be a no-op rather than an error.
+    const { event, guestPhoto } = await scene();
+    const { store, deleted } = fakeStorage();
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests(store as never);
+    try {
+      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      await dropDerivatives(db, guestPhoto.id);
+    } finally {
+      __setStorageForTests(null);
+    }
+    expect(deleted).toEqual([]);
+  });
+
+  it('is actually called from the remove branch', () => {
+    /*
+     * The three cases above exercise `dropDerivatives` directly, which is the
+     * only way to test it without staging an `administer` credential — and
+     * they all pass with the call deleted from the route. That gap is the
+     * whole reason this assertion exists: a helper nobody invokes is a helper
+     * that does nothing, and it would have looked thoroughly tested.
+     *
+     * Checked against the source in the same style as the audit-trail scan
+     * above, and narrowed to the branch: it must sit with the `removed` write
+     * rather than anywhere in the file, because calling it on `decline` would
+     * delete the renditions of a photograph that is coming back.
+     */
+    const text = readFileSync(
+      fileURLToPath(
+        new URL('../../../apps/web/app/api/reports/[id]/resolve/route.ts', import.meta.url),
+      ),
+      'utf8',
+    );
+    const removeBranch = text.slice(
+      text.indexOf("if (action === 'remove')"),
+      text.indexOf('} else {'),
+    );
+    expect(removeBranch, 'the remove branch must drop the renditions').toMatch(
+      /dropDerivatives\(/,
+    );
+
+    const declineBranch = text.slice(text.indexOf('} else {'), text.indexOf('recordModeration('));
+    expect(declineBranch, 'declining must not delete anything').not.toMatch(
+      /dropDerivatives\(/,
+    );
+  });
+
+  it('survives storage refusing, because the row is already removed', async () => {
+    /*
+     * The photograph is out of every listing before this runs. A storage blip
+     * must not turn a host's decision into a 500 and leave the report
+     * unresolved — the object outliving its row is untidy, and the purge job
+     * will reach it; an unresolved report is a person waiting for an answer.
+     */
+    const { event, guest } = await scene();
+    const photo = await withDerivatives(event.id, guest);
+
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests({
+      async presignPut() { throw new Error('not used'); },
+      async presignGet() { return 'x'; },
+      async putSmall() {},
+      async head() { return null; },
+      async delete() { throw new Error('r2 is having a moment'); },
+    } as never);
+    try {
+      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      await expect(dropDerivatives(db, photo.id)).resolves.toBeUndefined();
+    } finally {
+      __setStorageForTests(null);
+    }
+  });
+});
