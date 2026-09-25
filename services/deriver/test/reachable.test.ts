@@ -87,3 +87,59 @@ describe('a store says whether it can be used', () => {
     expect(answer.detail).toMatch(/^FAILED/);
   });
 });
+
+/**
+ * Which commands refuse to start, and the one that did not.
+ *
+ * `index.ts` carries the sentence "refuse to start rather than fail one photo
+ * at a time" next to a probe call, and that call guards `watch` — the command
+ * production stopped using when ingest moved to QStash. `serve` returns from
+ * its own block well before reaching it, so the guarantee the sentence
+ * describes had never applied to the deployed path.
+ *
+ * Nothing caught it because the `serve` block already refuses to start twice
+ * over — a missing signing key, a missing public URL — which reads like a
+ * block that knows how to do this. It checked everything about the request it
+ * would receive and nothing about the machine's ability to answer it.
+ *
+ * Asserted on the source rather than by booting, because what is being pinned
+ * is that the call is *in that branch*. A behavioural test would need a real
+ * QStash key and a real R2 bucket to distinguish the two arrangements, and it
+ * would still pass against a `serve` that probed after binding the port.
+ */
+describe('refusing to start', () => {
+  const read = async () =>
+    (await import('node:fs/promises')).readFile(
+      new URL('../src/index.ts', import.meta.url),
+      'utf8',
+    );
+
+  it('probes before serve creates its server', async () => {
+    const source = await read();
+    const block = source.slice(
+      source.indexOf("if (command === 'serve')"),
+      source.indexOf('createJobServer({'),
+    );
+    expect(block, "serve must probe before it listens").toMatch(
+      /await probe\(scanner, moderator\)/,
+    );
+  });
+
+  it('exits rather than continuing when the probe fails', async () => {
+    const source = await read();
+    const block = source.slice(
+      source.indexOf("if (command === 'serve')"),
+      source.indexOf('createJobServer({'),
+    );
+    // A probe whose result is read and discarded is a probe that reports.
+    expect(block).toMatch(/if \(\(await probe\(scanner, moderator\)\) !== 0\) process\.exit\(1\)/);
+  });
+
+  it('still probes on the polling path', async () => {
+    // `watch` is development's command and had this all along; the point is
+    // that both paths refuse, not that one was moved to the other.
+    const source = await read();
+    const calls = source.match(/if \(\(await probe\(scanner, moderator\)\) !== 0\) process\.exit\(1\)/g);
+    expect(calls ?? []).toHaveLength(2);
+  });
+});

@@ -358,6 +358,30 @@ async function main(): Promise<void> {
       process.exit(2);
     }
 
+    /*
+     * And the probe, which `serve` was not running.
+     *
+     * Line 422 below carries the comment "refuse to start rather than fail one
+     * photo at a time", and it guards `watch` — the command production stopped
+     * using when ingest moved to QStash. `serve` returns from this block and
+     * never reaches it, so the guarantee that sentence describes had quietly
+     * not applied to the deployed path for as long as `serve` has existed.
+     *
+     * It was invisible because the two checks above it look like the whole of
+     * the boot contract: a missing signing key and a missing public URL both
+     * refuse to start, loudly, which reads as a block that already knows how to
+     * do that. What it never checked was whether the machine could reach any of
+     * the things it was about to be asked to work on.
+     *
+     * The cost is real and worth stating: this machine boots on every delivery,
+     * and the probe decodes HEVC, encodes AVIF and now reaches R2 — about four
+     * seconds added to a cold start that was three. Fly's health check has a
+     * ten-second grace period, QStash allows fifteen minutes for a response,
+     * and the alternative is what happened today: a container that starts
+     * perfectly and cannot do the one thing it exists for.
+     */
+    if ((await probe(scanner, moderator)) !== 0) process.exit(1);
+
     const concurrency = Number(process.env.DERIVER_CONCURRENCY ?? DEFAULT_CONCURRENCY);
     const port = Number(process.env.PORT ?? 8080);
     const server = createJobServer({
