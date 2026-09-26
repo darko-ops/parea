@@ -1892,12 +1892,19 @@ function ConversationLine({
         </Text>
       ) : null}
 
+      {/*
+        `news` rather than `accent`, and that is the whole of the difference
+        between the two colours: accent is what a button is, and this is what
+        arriving is. Painted in the same blue as the dot on the tab bar that
+        brought somebody here, so the mark on the bar and the row it was about
+        are recognisably one thing. See `theme` in `App.tsx`.
+      */}
       {unread &&
         (dot ? (
-          <View style={[styles.unreadDot, { backgroundColor: t.accent }]} />
+          <View style={[styles.unreadDot, { backgroundColor: t.news }]} />
         ) : (
-          <View style={[styles.unreadPill, { backgroundColor: t.accent }]}>
-            <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+          <View style={[styles.unreadPill, { backgroundColor: t.news }]}>
+            <Text style={[styles.unreadCount, { color: t.onNews }]}>
               {line.unreadCount > 99 ? '99+' : line.unreadCount}
             </Text>
           </View>
@@ -2721,10 +2728,10 @@ export function SearchTab({
                             style={[
                               styles.unreadPill,
                               styles.doorUnread,
-                              { backgroundColor: t.accent, borderColor: t.bg },
+                              { backgroundColor: t.news, borderColor: t.bg },
                             ]}
                           >
-                            <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+                            <Text style={[styles.unreadCount, { color: t.onNews }]}>
                               {group.unreadCount > 99 ? '99+' : group.unreadCount}
                             </Text>
                           </View>
@@ -3948,8 +3955,9 @@ const styles = StyleSheet.create({
   allGroupsText: { fontSize: 15, fontWeight: '600' },
   allGroupsCount: { fontSize: 13.5 },
   /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
-     accent fill, same ink. The ring is the page behind it, so the badge reads
-     as sitting on top of the button rather than inside it. */
+     fill, same ink. The ring is the page behind it, so the badge reads as
+     sitting on top of the button rather than inside it. The fill is `news`,
+     the mark's aqua — see `theme` in `App.tsx` for why unread is not accent. */
   unreadPill: {
     minWidth: 19,
     height: 19,

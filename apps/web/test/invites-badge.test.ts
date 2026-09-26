@@ -44,7 +44,13 @@ vi.mock('next/headers', () => ({
 const { __setDbForTests } = await import('@/db');
 const { sign } = await import('@/auth/cookies');
 const { markInvitesSeen } = await import('@/invites');
+const { markEventThreadRead, markGroupThreadRead, postGroupMessage } = await import(
+  '@/groupMessages'
+);
+const { addMember } = await import('@/groups');
 const { GET } = await import('../app/api/invites/route');
+
+let rooms = 0;
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -61,7 +67,9 @@ beforeEach(async () => {
   await db.execute(sql`
     truncate "actor", "event", "event_participant", "event_invite",
       "event_access_request", "event_message", "photo", "photo_tag",
-      "friend_request", "hidden_activity"
+      "photo_reaction", "friend_request", "hidden_activity",
+      "groups", "group_member", "group_message",
+      "event_thread_read", "group_thread_read"
     restart identity cascade
   `);
   headerBag.clear();
@@ -88,7 +96,11 @@ async function badge(actorId: string) {
   headerBag.set('authorization', `Bearer ${sign(actorId)}`);
   const response = await GET();
   expect(response.status).toBe(200);
-  return (await response.json()) as { waiting: number; unread: boolean };
+  return (await response.json()) as {
+    waiting: number;
+    unread: boolean;
+    chats: boolean;
+  };
 }
 
 /**
@@ -157,7 +169,7 @@ async function looked(me: string, when: Date) {
 async function settled(me: string, them: string) {
   const joined = await joinWithMyPhoto(me, them);
   await markInvitesSeen(db, me);
-  expect(await badge(me)).toEqual({ waiting: 0, unread: false });
+  expect(await badge(me)).toEqual({ waiting: 0, unread: false, chats: false });
   return joined;
 }
 
@@ -167,12 +179,12 @@ describe('a browser that has never been anywhere', () => {
     // true answer for somebody with no actor at all.
     const response = await GET();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ waiting: 0, unread: false });
+    expect(await response.json()).toEqual({ waiting: 0, unread: false, chats: false });
   });
 
   it('draws nothing for an actor with an empty life', async () => {
     const me = await person('me');
-    expect(await badge(me)).toEqual({ waiting: 0, unread: false });
+    expect(await badge(me)).toEqual({ waiting: 0, unread: false, chats: false });
   });
 });
 
@@ -189,7 +201,7 @@ describe('news that cannot be answered', () => {
     const joined = await settled(me, them);
 
     await remarkOn(joined.photoId, joined.event.id, them);
-    expect(await badge(me)).toEqual({ waiting: 0, unread: true });
+    expect(await badge(me)).toMatchObject({ waiting: 0, unread: true });
   });
 
   it('says nothing about volume', async () => {
@@ -203,7 +215,7 @@ describe('news that cannot be answered', () => {
 
     await remarkOn(joined.photoId, joined.event.id, them);
     await remarkOn(joined.photoId, joined.event.id, them);
-    expect(await badge(me)).toEqual({ waiting: 0, unread: true });
+    expect(await badge(me)).toMatchObject({ waiting: 0, unread: true });
   });
 
   it('goes out once somebody has looked', async () => {
@@ -220,7 +232,7 @@ describe('news that cannot be answered', () => {
     expect((await badge(me)).unread).toBe(true);
 
     await markInvitesSeen(db, me);
-    expect(await badge(me)).toEqual({ waiting: 0, unread: false });
+    expect(await badge(me)).toMatchObject({ waiting: 0, unread: false });
   });
 
   it('comes back for something that happened after the look', async () => {
@@ -296,5 +308,117 @@ describe('things waiting on an answer', () => {
 
     await markInvitesSeen(db, me);
     expect((await badge(me)).waiting).toBe(1);
+  });
+});
+
+/**
+ * The dot on the Chats tab.
+ *
+ * Its own half of this answer because it is drawn somewhere else — the bottom
+ * bar, which is on screen before anybody has opened Chats and therefore before
+ * the call that knows the per-room counts has been made. That was the gap: the
+ * one place the app could have said *there is something to read in here* was
+ * the only place with no way to find out.
+ */
+describe('anything unread in any conversation', () => {
+  /** A room with somebody else in it, and something said. */
+  async function said(me: string, them: string, what = 'are we still on for Sunday') {
+    const [room] = await db
+      .insert(schema.groups)
+      .values({ name: 'The Flat', slug: `g${++rooms}` })
+      .returning();
+    await addMember(db, room!.id, me);
+    await addMember(db, room!.id, them);
+    await postGroupMessage(db, room!.id, them, what);
+    return room!.id;
+  }
+
+  it('is false for somebody in no rooms at all', async () => {
+    const me = await person('me');
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('is true for a group message nobody has read', async () => {
+    const me = await person('me');
+    const them = await person('them');
+    await said(me, them);
+    expect((await badge(me)).chats).toBe(true);
+  });
+
+  it('is true for an album’s thread as well as a group’s', async () => {
+    /*
+     * Both kinds, because the Chats tab draws both in one scroll — an album's
+     * conversation and a group's — and a dot that only knew about one of them
+     * would be a bar that goes quiet depending on where somebody was talking.
+     */
+    const me = await person('me');
+    const them = await person('them');
+    const joined = await joinWithMyPhoto(me, them);
+    await db.insert(schema.eventMessages).values({
+      eventId: joined.event.id,
+      authorActorId: them,
+      body: 'whose jacket is this',
+    } as never);
+
+    expect((await badge(me)).chats).toBe(true);
+    await markEventThreadRead(db, joined.event.id, me);
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('goes quiet once the thread is read', async () => {
+    const me = await person('me');
+    const them = await person('them');
+    const room = await said(me, them);
+    expect((await badge(me)).chats).toBe(true);
+
+    await markGroupThreadRead(db, room, me);
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('is never raised by your own message', async () => {
+    // Nothing you said is waiting for you. The per-room counts say the same,
+    // and a dot that disagreed with the rows under it would be the bar
+    // claiming something the list then failed to show.
+    const me = await person('me');
+    const them = await person('them');
+    const [room] = await db
+      .insert(schema.groups)
+      .values({ name: 'Quiet', slug: `g${++rooms}` })
+      .returning();
+    await addMember(db, room!.id, me);
+    await addMember(db, room!.id, them);
+    await postGroupMessage(db, room!.id, me, 'anyone about');
+
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('is not raised by a room you are not in', async () => {
+    const me = await person('me');
+    const them = await person('them');
+    const other = await person('other');
+    const [room] = await db
+      .insert(schema.groups)
+      .values({ name: 'Elsewhere', slug: `g${++rooms}` })
+      .returning();
+    await addMember(db, room!.id, them);
+    await addMember(db, room!.id, other);
+    await postGroupMessage(db, room!.id, them, 'without us');
+
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('is independent of the other two marks', async () => {
+    /*
+     * Three separate claims about three separate corners of the chrome. A
+     * message arriving is not a job and is not a line in Lately, and the tray
+     * must not light up for it — the two marks point at different screens, and
+     * one that sent somebody to the wrong one is worse than no mark.
+     */
+    const me = await person('me');
+    const them = await person('them');
+    await settled(me, them);
+    await said(me, them);
+
+    expect(await badge(me)).toEqual({ waiting: 0, unread: false, chats: true });
   });
 });

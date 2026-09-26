@@ -96,6 +96,13 @@ export function PageHead({
  *
  * The count wins when there is one. A job is the more urgent of the two, and
  * two marks on one disc is a disc nobody reads.
+ *
+ * Both are `news` — the mark's own aqua — rather than `accent`, which is what
+ * a button is. They were the accent, and the cost was that the one control in
+ * the corner saying *something arrived* wore the same blue as every control
+ * saying *press me*. The ink on the count goes dark to answer it: the aqua is
+ * a light value and white on it is 2.3:1, which at 11.5 points is a number
+ * nobody can read.
  */
 export function Notifications({
   t,
@@ -124,8 +131,8 @@ export function Notifications({
     >
       <Glyph name="tray" size={20} color={t.fg} />
       {count > 0 ? (
-        <View style={[styles.badge, { backgroundColor: t.accent, borderColor: t.bg }]}>
-          <Text style={[styles.badgeCount, { color: t.onAccent }]}>
+        <View style={[styles.badge, { backgroundColor: t.news, borderColor: t.bg }]}>
+          <Text style={[styles.badgeCount, { color: t.onNews }]}>
             {/* Past this the number stops being readable at 11.5pt and stops
                 being actionable anyway — "a lot" is the same instruction as
                 "99". */}
@@ -135,8 +142,15 @@ export function Notifications({
       ) : unread ? (
         /* The same pill with nothing in it. Same fill and same ring, because
            it is the same badge making a smaller claim — a second colour here
-           would read as a second kind of urgency. */
-        <View style={[styles.badge, styles.dot, { backgroundColor: t.accent, borderColor: t.bg }]} />
+           would read as a second kind of urgency.
+
+           The other corner, though. A count has to sit high because a pill
+           nineteen points across hanging off the bottom of a disc collides
+           with whatever the head row sits above; a dot is eleven and does not,
+           and low-right is where the tray's own drawing has room — the glyph
+           is a shallow box, so its bottom corner is empty and its top corner
+           is the lip somebody is looking at. */
+        <View style={[styles.badge, styles.dot, { backgroundColor: t.news, borderColor: t.bg }]} />
       ) : null}
     </RoundButton>
   );
@@ -164,6 +178,10 @@ const styles = StyleSheet.create({
   },
   badgeCount: { fontSize: 11.5, fontWeight: '700', lineHeight: 14 },
   /* Smaller than the pill and still ringed, so it reads as the same mark
-     rather than as a stray dot that happens to be near the disc. */
-  dot: { minWidth: 12, width: 12, height: 12, paddingHorizontal: 0, top: -1, right: -1 },
+     rather than as a stray dot that happens to be near the disc. Bottom-right,
+     which is where the tray glyph leaves room — see the note at the call. */
+  dot: {
+    minWidth: 12, width: 12, height: 12, paddingHorizontal: 0,
+    top: undefined, bottom: -1, right: -1,
+  },
 });

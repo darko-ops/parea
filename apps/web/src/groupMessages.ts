@@ -595,3 +595,67 @@ export async function markGroupThreadRead(
       where: sql`"group_thread_read"."read_at" < now()`,
     });
 }
+
+/**
+ * Is there anything unread, in any conversation at all.
+ *
+ * One boolean for the whole of Chats, because that is what a dot on a tab is:
+ * the bar cannot say *which* room and there is no room to say it in. The
+ * counts per conversation are `eventThreadSummaries` and `groupThreadSummaries`
+ * above, and this exists beside them rather than being derived from them for
+ * the reason a badge always needs its own answer — the tab bar is drawn before
+ * anybody has opened Chats, and `myGroupsDetailed` is the call that screen
+ * makes when they do. Fetching every room and its last message to decide
+ * whether to paint eight pixels is the shape of query this codebase keeps
+ * refusing.
+ *
+ * Both kinds of thread, in one round trip. `exists` stops at the first row it
+ * finds, so a person with four hundred unread messages costs the same as a
+ * person with one.
+ *
+ * ## What it deliberately does not filter
+ *
+ * Blocked authors. The two summary functions above do not filter them out of
+ * their unread counts either, and the dot has to agree with the numbers it is
+ * summarising: a dot over a list whose counts are all zero is worse than a dot
+ * that counts a message the reader will not enjoy finding. If that rule
+ * changes it changes in three places at once, and the test says so.
+ *
+ * Deleted messages still count, for the reason the thread itself gives: a
+ * tombstone is somebody having said something and taken it back, and it is
+ * still a line that appeared in the room since the last look.
+ */
+export async function unreadConversations(
+  db: Db,
+  actorId: string | null,
+): Promise<boolean> {
+  if (!actorId) return false;
+
+  const [row] = rowsOf<{ any_unread: boolean }>(await db.execute(sql`
+    select
+      exists (
+        select 1
+        from "event_message" m
+        join "event_participant" p
+          on p.event_id = m.event_id and p.actor_id = ${actorId}
+        join "event" e on e.id = m.event_id and e.deleted_at is null
+        left join "event_thread_read" r
+          on r.event_id = m.event_id and r.actor_id = ${actorId}
+        where m.author_actor_id <> ${actorId}
+          and (r.read_at is null or m.created_at > r.read_at)
+      )
+      or exists (
+        select 1
+        from "group_message" m
+        join "group_member" gm
+          on gm.group_id = m.group_id and gm.actor_id = ${actorId}
+        join "groups" g on g.id = m.group_id and g.deleted_at is null
+        left join "group_thread_read" r
+          on r.group_id = m.group_id and r.actor_id = ${actorId}
+        where m.author_actor_id <> ${actorId}
+          and (r.read_at is null or m.created_at > r.read_at)
+      ) as any_unread
+  `));
+
+  return row?.any_unread === true;
+}

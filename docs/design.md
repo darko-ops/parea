@@ -1204,14 +1204,23 @@ fail silently:
   message may wait for the next time a dozing phone wakes, which overnight is
   hours. Everything here is about something that just happened.
 - **A mark that outlives the banner.** Somebody whose phone was face down has
-  only the app icon and, once they are inside, the tray. Both come off
-  `/api/invites`, which answers two things — a count of what is waiting on an
-  *answer*, and a boolean for whether anything has merely happened since the
-  last look. The second is a dot rather than a number: almost everything here
-  is unanswerable, and counting it would make the badge a measure of volume.
-  The app re-asks when a notification lands and when it returns to the
+  only the app icon and, once they are inside, the chrome. All of it comes off
+  `/api/invites`, which answers three things — a count of what is waiting on an
+  *answer*, a boolean for whether anything has merely happened since the last
+  look, and a boolean for whether anything is unread in any conversation. The
+  last two are dots rather than numbers: almost everything here is
+  unanswerable, and counting it would make a badge a measure of volume. The
+  third is on this route rather than on `/api/groups` because of where it is
+  drawn — a dot on the Chats tab has to be on screen before anybody has opened
+  Chats, and the call that screen makes fetches every room with its last
+  message. The app re-asks when a notification lands and when it returns to the
   foreground, because a push delivered to a sleeping process reaches no
   listener at all.
+
+Every one of those marks is the logo's aqua — `MARK_FILLS.blueOnMint`, read off
+`Mark.tsx` so it cannot drift from the icon — and not the accent, which is what
+a button is. The ink on a count goes dark to answer it: the aqua is a light
+value, and white on it is 2.3:1.
 
 ## 13. Safety, moderation, and the App Store gate
 

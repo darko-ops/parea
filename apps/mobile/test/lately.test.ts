@@ -130,9 +130,72 @@ describe('the door', () => {
     expect(HEAD).toMatch(/styles\.badge, styles\.dot/);
     // The same fill and the same ring as the pill: one badge making a smaller
     // claim, not a second kind of urgency in a second colour.
-    expect(HEAD).toMatch(/styles\.dot[\s\S]{0,200}backgroundColor: t\.accent, borderColor: t\.bg/);
+    expect(HEAD).toMatch(/styles\.dot[\s\S]{0,200}backgroundColor: t\.news, borderColor: t\.bg/);
     // And a screen reader is told which of the two it is looking at.
     expect(HEAD).toMatch(/'Lately, something new'/);
+  });
+
+  it('wears the logo blue, and puts the dot in the low corner', () => {
+    /*
+     * `news`, not `accent`. Accent is what a button is, and the tray had been
+     * wearing it — so the one control in the corner that says *something
+     * arrived* was the same blue as every control that says *press me*.
+     *
+     * The ink goes dark with it, and that is not a taste: the aqua is a light
+     * value, and white on it is 2.3:1, which at 11.5 points is a number nobody
+     * can read.
+     *
+     * The dot sits bottom-right where the count sits top-right. A 19pt pill
+     * hanging off the bottom of a disc collides with the row below it; an 11pt
+     * dot does not, and the tray glyph is a shallow box whose lower corner is
+     * the empty one.
+     */
+    expect(HEAD).toMatch(/backgroundColor: t\.news, borderColor: t\.bg \}\]\}>/);
+    expect(HEAD).toMatch(/styles\.badgeCount, \{ color: t\.onNews \}/);
+    expect(HEAD).toMatch(/dot: \{[\s\S]{0,160}bottom: -1, right: -1/);
+    expect(HEAD).not.toMatch(/t\.accent/);
+  });
+
+  it('marks the Chats tab when something is waiting to be read', () => {
+    /*
+     * The tab bar was the one place that could have said "there is something
+     * to read in here" and the only place that did not know: the per-room
+     * counts come from `myGroupsDetailed`, which is the call that tab makes
+     * when somebody opens it.
+     *
+     * A dot, hung off a box the size of the glyph. The four tabs are evenly
+     * spaced, so a mark that took width would move the tab it is on — the bar
+     * would shift under a thumb the moment a message arrived.
+     */
+    expect(APP).toMatch(/\{id === 'chats' && chats && \(/);
+    expect(APP).toMatch(/styles\.tabDot,\s*\{ backgroundColor: t\.news/);
+    expect(APP).toMatch(/tabGlyph: \{ width: 22, height: 22/);
+    expect(APP).toMatch(/tabDot: \{\s*position: 'absolute'/);
+    // Said to a screen reader, which cannot see a dot.
+    expect(APP).toMatch(/`\$\{label\}, something new`/);
+    // And it comes off the same answer the tray does, rather than a second
+    // request for a second boolean.
+    expect(API).toMatch(/chats: answer\.chats \?\? false/);
+    expect(APP).toMatch(/setChats\(next\.chats\)/);
+  });
+
+  it('paints every unread mark in the mark’s own aqua', () => {
+    /*
+     * One colour for arriving, across the whole app, and it is the logo's —
+     * `MARK_FILLS.blueOnMint`, the lens where the blue circle crosses the mint
+     * one. Read off `Mark.tsx` rather than written out, so it cannot drift
+     * from the icon it is quoting; `brand.test.ts` pins those values across
+     * all four copies of the mark.
+     */
+    expect(APP).toMatch(/const NEWS: string = MARK_FILLS\.blueOnMint/);
+    expect(APP).toMatch(/import \{ MARK_FILLS \} from '\.\/src\/Mark'/);
+    // Both schemes, one value — and the ink dark in both, because the aqua is
+    // a light value whatever the page behind it is doing.
+    expect(APP.match(/news: NEWS, onNews: ON_NEWS,/g) ?? []).toHaveLength(2);
+    // The conversation rows, which are the counts somebody actually reads.
+    expect(EVENTS).toMatch(/styles\.unreadDot, \{ backgroundColor: t\.news \}/);
+    expect(EVENTS).toMatch(/styles\.unreadPill, \{ backgroundColor: t\.news \}/);
+    expect(EVENTS).toMatch(/styles\.unreadCount, \{ color: t\.onNews \}/);
   });
 
   it('moves the mark when a notification lands, and on the way back in', () => {
@@ -182,7 +245,8 @@ describe('the door', () => {
     expect(API).toMatch(/'\/api\/invites'/);
     // Two fields, and a malformed answer is zeroes rather than a throw: every
     // caller treats this as decoration.
-    expect(API).toMatch(/waiting: answer\.waiting \?\? 0, unread: answer\.unread \?\? false/);
+    expect(API).toMatch(/waiting: answer\.waiting \?\? 0,/);
+    expect(API).toMatch(/unread: answer\.unread \?\? false,/);
   });
 
   it('re-reads the count on the way out, because looking clears it', () => {

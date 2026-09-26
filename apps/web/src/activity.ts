@@ -68,6 +68,22 @@ export type ActivityKind =
    */
   | 'welcome'
   | 'reaction'
+  /**
+   * Somebody reacted to a photograph you added.
+   *
+   * The sibling of `reaction`, which is about something you *wrote*, and it is
+   * a separate kind for the same reason `photo_comment` is separate from
+   * `mention`: the thing being responded to is a picture, so the line has to
+   * carry the picture, and "reacted to something you wrote" is the wrong
+   * sentence about an evening on a balcony.
+   *
+   * It was the one response to a photograph that reached nobody. A remark
+   * under yours turns up here and a tag turns up here; the smallest and
+   * commonest of the three — somebody pressing an emoji — happened silently,
+   * so the only way to find out anybody had liked your photographs was to go
+   * back through the album and look.
+   */
+  | 'photo_reaction'
   | 'mention'
   /**
    * Somebody said something about a photograph you added.
@@ -247,6 +263,7 @@ export async function activityFor(
   const [
     hidden,
     reactions,
+    photoReactions,
     mentions,
     comments,
     replies,
@@ -291,6 +308,51 @@ export async function activityFor(
         ),
       )
       .orderBy(desc(schema.messageReactions.createdAt))
+      .limit(LIMIT),
+
+    /*
+     * Somebody reacted to a photograph you added.
+     *
+     * The same act as the one above against a different kind of thing, and a
+     * different query for the reason `photoReactions.ts` gives for not sharing
+     * a module with `reactions.ts`: a message reaction is bounded by who can
+     * read the thread, and this one by the photograph still being there.
+     *
+     * Joined through the photograph to its uploader, so a picture taken down
+     * takes its reactions off this list with it — the property a stored
+     * notification could not have, and the whole argument for deriving the
+     * feed.
+     *
+     * Your own reaction to your own photograph is not news. The event comes
+     * along because the line names it: "reacted 🔥 to your photo" says nothing
+     * about which evening, and every other kind here locates itself.
+     */
+    db
+      .select({
+        photoId: schema.photoReactions.photoId,
+        emoji: schema.photoReactions.emoji,
+        at: schema.photoReactions.createdAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        eventId: schema.photos.eventId,
+        eventName: schema.events.name,
+        storageKey: schema.photos.storageKey,
+        contentHash: schema.photos.contentHash,
+        capEpoch: schema.events.capEpoch,
+      })
+      .from(schema.photoReactions)
+      .innerJoin(schema.photos, eq(schema.photos.id, schema.photoReactions.photoId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.photoReactions.actorId))
+      .where(
+        and(
+          eq(schema.photos.uploaderId, actorId),
+          ne(schema.photoReactions.actorId, actorId),
+          isNull(schema.photos.deletedAt),
+          isNull(schema.events.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.photoReactions.createdAt))
       .limit(LIMIT),
 
     /*
@@ -705,6 +767,36 @@ export async function activityFor(
       href: `/event/${r.eventId}`,
       image: await avatarUrl(r.avatarKey),
       images: [],
+    })),
+    ...photoReactions.map(async (r) => ({
+      // The emoji is in the key: two people can leave two different ones on
+      // one photograph, and one person can leave two.
+      id: `photoreaction:${r.photoId}:${r.emoji}:${r.at.toISOString()}`,
+      kind: 'photo_reaction' as const,
+      at: r.at.toISOString(),
+      who: r.who,
+      // The no-break space for the same reason the message one has it: several
+      // of these are wide glyphs and "🔥to" reads as a typo.
+      what: `reacted ${r.emoji}\u00a0 to your photo in ${r.eventName}`,
+      href: `/event/${r.eventId}`,
+      image: await avatarUrl(r.avatarKey),
+      /*
+       * And the photograph, which is the exception `images` exists for — see
+       * `photos_added` and `tagged`. "Somebody liked your photo" is a line
+       * whose whole content is *which one*, and making somebody open the album
+       * to find out is making them do the work the line was supposed to save.
+       */
+      images: [
+        await imageSrc(
+          {
+            eventId: r.eventId,
+            storageKey: r.storageKey,
+            contentHash: r.contentHash,
+          },
+          'thumb',
+          r.capEpoch,
+        ),
+      ],
     })),
     ...mentions.map(async (m) => ({
       id: `mention:${m.id}`,

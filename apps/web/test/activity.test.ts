@@ -55,7 +55,8 @@ beforeEach(async () => {
   await db.execute(sql`
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
-      "friend_request", "photo", "photo_tag", "hidden_activity"
+      "friend_request", "photo", "photo_tag", "photo_reaction",
+      "hidden_activity"
     restart identity cascade
   `);
 });
@@ -556,6 +557,90 @@ describe('a photograph of yours, and one you are in', () => {
     // photo" is a line somebody has to open the album to act on, and most of
     // the time what they wanted was to read six words.
     expect(feed.find((i) => i.kind === 'photo_comment')?.what).toMatch(/this one is great/);
+  });
+
+  it('tells you when somebody reacts to one you added', async () => {
+    /*
+     * The smallest and commonest of the three responses to a photograph, and
+     * the one that reached nobody. A remark turned up here and a tag turned up
+     * here; pressing an emoji happened silently, so the only way to find out
+     * that anybody had liked your photographs was to go back through the album
+     * and look — which is precisely the going-and-asking this product exists
+     * to remove.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const shot = await picture(made.id, me);
+
+    await db
+      .insert(schema.photoReactions)
+      .values({ photoId: shot.id, actorId: them, emoji: '🔥' });
+
+    const line = (await did(db, me)).find((i) => i.kind === 'photo_reaction');
+    expect(line).toBeDefined();
+    // The emoji, because the line is about which one: "reacted to your photo"
+    // is a sentence whose content was left out of it.
+    expect(line!.what).toContain('🔥');
+    // And the evening, because every other kind here locates itself.
+    expect(line!.what).toContain('Dinner');
+    // And the picture. A claim about one of your photographs is one nobody can
+    // evaluate without seeing which — the same exception `tagged` makes.
+    expect(line!.images).toHaveLength(1);
+  });
+
+  it('does not tell you about your own reaction to your own photograph', async () => {
+    const me = await actor('me');
+    const made = await event(me, 'Dinner');
+    const shot = await picture(made.id, me);
+
+    await db
+      .insert(schema.photoReactions)
+      .values({ photoId: shot.id, actorId: me, emoji: '🔥' });
+
+    expect(await did(db, me)).toHaveLength(0);
+  });
+
+  it('says nothing about a reaction to somebody else’s photograph', async () => {
+    // Same rule as the comment below it: the line is about the picture being
+    // yours, and an emoji on a stranger's photograph in an album you are both
+    // in is not addressed to you.
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(them, 'Dinner');
+    await db.insert(schema.eventParticipants).values({ eventId: made.id, actorId: me });
+    const theirs = await picture(made.id, them);
+
+    await db
+      .insert(schema.photoReactions)
+      .values({ photoId: theirs.id, actorId: them, emoji: '🔥' });
+
+    expect((await did(db, me)).map((i) => i.kind)).not.toContain('photo_reaction');
+  });
+
+  it('takes a reaction away with the photograph it was about', async () => {
+    /*
+     * The property a stored notification could not have, and the argument for
+     * the whole file: "Ana reacted 🔥 to your photo" pointing at a picture that
+     * has since come down is a row nothing would ever correct.
+     */
+    const me = await actor('me');
+    const them = await actor('them');
+    const made = await event(me, 'Dinner');
+    const shot = await picture(made.id, me);
+    await db
+      .insert(schema.photoReactions)
+      .values({ photoId: shot.id, actorId: them, emoji: '🔥' });
+    expect((await did(db, me)).map((i) => i.kind)).toContain('photo_reaction');
+
+    const { eq } = await import('drizzle-orm');
+    await db
+      .update(schema.photos)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.photos.id, shot.id));
+
+    expect((await did(db, me)).map((i) => i.kind)).not.toContain('photo_reaction');
   });
 
   it('does not tell you about your own comment on your own photograph', async () => {

@@ -96,6 +96,15 @@ export type GroupTheme = {
   line: string;
   accent: string;
   onAccent: string;
+  /**
+   * The one unread colour, and it is the logo's aqua — see `theme` in
+   * `App.tsx`. Every mark that means "something arrived while you were away"
+   * is painted in it: the dot on the Chats tab, the count on a conversation,
+   * the badge on the tray. Separate from `accent`, which is what a button is.
+   */
+  news: string;
+  /** Ink for text sitting on `news`, which is a light value. */
+  onNews: string;
   /** The one red, for the two actions that take something away. */
   warn: string;
   /** `bg` at zero alpha, for fading to the page without passing through grey. */

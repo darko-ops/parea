@@ -64,6 +64,9 @@ import {
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
+/* For one colour: the aqua where the mark's blue circle crosses its mint one,
+   which is what every unread mark in the app is painted in. See `theme`. */
+import { MARK_FILLS } from './src/Mark';
 import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
 import { ContributeChoice } from './src/ContributeChoice';
@@ -412,6 +415,17 @@ export default function App() {
    * means.
    */
   const [unread, setUnread] = useState(false);
+  /**
+   * And whether anything is unread in any conversation, for the dot on Chats.
+   *
+   * A boolean for the whole tab, because that is what a dot on a bar can say —
+   * there is no room on it to name a room. The per-conversation counts are on
+   * the rows inside, from `myGroupsDetailed`, which is a call that only
+   * happens once somebody has opened the tab. Which was the gap: the one place
+   * the app could have said *there is something to read in here* was the only
+   * place that did not know.
+   */
+  const [chats, setChats] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -760,9 +774,12 @@ export default function App() {
   const refreshWaiting = useCallback(async () => {
     // Silent. A badge is the least important thing on the screen and a failed
     // count must not become an error somebody has to read.
-    const next = await api.waiting().catch(() => ({ waiting: 0, unread: false }));
+    const next = await api
+      .waiting()
+      .catch(() => ({ waiting: 0, unread: false, chats: false }));
     setWaiting(next.waiting);
     setUnread(next.unread);
+    setChats(next.chats);
     /*
      * And the app's own icon, from the same answer.
      *
@@ -1490,6 +1507,7 @@ export default function App() {
           tab={tab}
           t={t}
           dark={dark}
+          chats={chats}
           onTab={(id) => {
             setTab(id);
             leaveToTabs();
@@ -1742,7 +1760,7 @@ export default function App() {
             </Pane>
           )}
 
-          <TabBar tab={tab} t={t} dark={dark} onTab={setTab} />
+          <TabBar tab={tab} t={t} dark={dark} chats={chats} onTab={setTab} />
         </View>
       )}
 
@@ -4630,11 +4648,28 @@ function TabBar({
   tab,
   t,
   dark,
+  chats,
   onTab,
 }: {
   tab: Tab;
   t: Theme;
   dark: boolean;
+  /**
+   * Whether anything is unread in any conversation. Draws a dot on Chats.
+   *
+   * The one thing on this bar allowed to be a colour, and the note on the
+   * glyphs below says why nothing else is: the photographs running underneath
+   * the glass are what is entitled to have one. A mark that says *somebody
+   * said something to you* is the exception, because it is not chrome
+   * describing where you are — it is the only way the app can tell you at all
+   * without you opening the tab to find out.
+   *
+   * A dot and not a number. The bar has four glyphs across a 365pt bubble and
+   * no room to say which room, so a count would be a figure nobody can act on
+   * — and this product's rule about counts is that one you cannot act on turns
+   * a badge into a measure of volume.
+   */
+  chats: boolean;
   onTab: (tab: Tab) => void;
 }) {
   /*
@@ -4692,7 +4727,10 @@ function TabBar({
             onPress={() => onTab(id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === id }}
-            accessibilityLabel={label}
+            // The dot is a picture and says nothing on its own, so the label
+            // carries it. Only where there is one: "Chats" is the name of the
+            // tab and "Chats, something new" is the name of a tab with a mark.
+            accessibilityLabel={id === 'chats' && chats ? `${label}, something new` : label}
           >
             {/*
               The page's foreground, and a stroke heavier than the
@@ -4710,12 +4748,40 @@ function TabBar({
               the only colour in the chrome, and the photographs running
               underneath it are the things entitled to have one.
             */}
-            <Glyph
-              name={glyph}
-              size={22}
-              weight={tab === id ? 2.5 : 2}
-              color={tab === id ? t.fg : t.dim}
-            />
+            {/*
+              A box the size of the glyph, so the dot has a corner to sit on.
+
+              The tab itself is `flex: 1` and much wider than its drawing, so a
+              mark positioned against *that* would float somewhere out at the
+              edge of the column with nothing under it. Hung off the glyph
+              rather than laid out beside it for a second reason: the four tabs
+              are evenly spaced, and a mark that took width would move the tab
+              it is on — the bar would shift under somebody's thumb the moment
+              a message arrived.
+            */}
+            <View style={styles.tabGlyph}>
+              <Glyph
+                name={glyph}
+                size={22}
+                weight={tab === id ? 2.5 : 2}
+                color={tab === id ? t.fg : t.dim}
+              />
+              {/*
+                Ringed in the bar's own tint rather than in the page: this sits
+                on glass with other people's photographs going past underneath,
+                and an unringed dot over a busy picture is a speck. The two
+                values are the selected capsule's wash taken to full strength,
+                so the ring reads as the bar rather than as a second colour.
+              */}
+              {id === 'chats' && chats && (
+                <View
+                  style={[
+                    styles.tabDot,
+                    { backgroundColor: t.news, borderColor: dark ? '#23272e' : '#eceef0' },
+                  ]}
+                />
+              )}
+            </View>
           </Pressable>
         ))}
       </BlurView>
@@ -4760,8 +4826,24 @@ function Segmented({
             ]}
           >
             <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
+            {/*
+              A pill, where this was a bare number in the accent.
+
+              Two reasons, and the second is why the first could not simply be
+              a colour swap. Every other unread count in the app is a filled
+              pill — a conversation's row, a group's door — so one place
+              drawing the same fact as loose type read as a different kind of
+              thing. And the fill that makes them one thing is `news`, the
+              mark's aqua, which is a light value: as *text* on this control's
+              own grey it is 1.8:1 and nobody can read it. On a pill it is ink
+              on a fill, which is the arrangement that colour works in.
+            */}
             {id === 'talk' && unread > 0 && (
-              <Text style={[styles.segmentCount, { color: t.accent }]}>{unread}</Text>
+              <View style={[styles.segmentPill, { backgroundColor: t.news }]}>
+                <Text style={[styles.segmentCount, { color: t.onNews }]}>
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
             )}
           </Pressable>
         );
@@ -5964,6 +6046,25 @@ function Button({
   );
 }
 
+/**
+ * The unread colour, widened to `string`.
+ *
+ * `MARK_FILLS` is `as const`, so reading a field off it gives the literal
+ * `'#61b8c9'` rather than a colour — and a `Theme` whose `news` is one exact
+ * string is a type nothing else can satisfy, including `GroupTheme`, which is
+ * declared structurally so that file can stay out of App's import cycle.
+ */
+const NEWS: string = MARK_FILLS.blueOnMint;
+/**
+ * Ink for text sitting on `NEWS`.
+ *
+ * Dark, in both schemes, because the aqua is a light value: white on it is
+ * 2.3:1 and illegible at the 11.5 points an unread count is set in. This is
+ * 6.5:1 and it is the mark's own hue taken most of the way down, so the pill
+ * still reads as one object rather than as a colour with black on it.
+ */
+const ON_NEWS = '#07272e';
+
 type Theme = ReturnType<typeof theme>;
 
 function theme(dark: boolean) {
@@ -5972,6 +6073,27 @@ function theme(dark: boolean) {
    * deleting an album and leaving one. Both are picked to clear text contrast
    * on `card` rather than to be as red as possible — a warning nobody can read
    * is decoration, and a shout on every screen stops meaning anything.
+   */
+  /*
+   * `news` is the product's only unread colour, and it is the logo's.
+   *
+   * `MARK_FILLS.blueOnMint` — the aqua where the blue circle crosses the mint
+   * one, which is the one hue in the mark that is neither of the two things it
+   * is made of. Taken from `Mark.tsx` rather than written out, so it cannot
+   * drift from the icon it is quoting; `brand.test.ts` already pins those
+   * values across all four copies of the mark.
+   *
+   * Not `accent`. Accent is what a *button* is, and it is a different job:
+   * "press this" against "something arrived while you were away". Before this
+   * they were one colour, which meant an unread pill on a conversation and the
+   * Add button under it were the same blue, and a mark that says news looked
+   * like a control somebody had forgotten to attach an action to.
+   *
+   * One colour across both schemes rather than a light and a dark value. It
+   * carries at both — 8:1 against the dark page, and on the light one it is
+   * always ringed in the page's own colour, which is what separates it. What
+   * does change is the ink: the aqua is a light value, so white on it is 2.3:1
+   * and unreadable at 11.5 points. `onNews` is dark in both.
    */
   /*
    * `bgClear` is `bg` at zero alpha, and it exists because `'transparent'` is
@@ -5987,9 +6109,11 @@ function theme(dark: boolean) {
   return dark
     ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
         fg: '#f2f4f7', dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12',
+        news: NEWS, onNews: ON_NEWS,
         warn: '#ff7b70' }
     : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
         fg: '#14171c', dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff',
+        news: NEWS, onNews: ON_NEWS,
         warn: '#c23127' };
 }
 
@@ -6224,7 +6348,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  segmentCount: { fontSize: 13, fontWeight: '700' },
+  /* Smaller than the head row's 19pt pill: this one shares a 20pt glyph's line
+     inside a segment a third of the screen wide, and the larger one crowds it.
+     Same shape and same colours, which is what makes them one idiom. */
+  segmentPill: {
+    minWidth: 17, height: 17, borderRadius: 999, paddingHorizontal: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  segmentCount: { fontSize: 11, fontWeight: '700' },
   /* --- somebody said something -------------------------------------------
 
      One line that drops in over the cover and takes itself away again. The
@@ -6462,6 +6593,16 @@ const styles = StyleSheet.create({
      the four labels used to need and is kept: the bubble's height is the one
      measurement on this screen that people's thumbs have learned. */
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 999 },
+  /* Exactly the glyph, so the dot below has something its own size to hang
+     off. `overflow` stays visible — the dot deliberately sits outside it. */
+  tabGlyph: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  /* Small, because it is a dot and not a badge: there is no number on this bar
+     and nothing for one to count. Two points of ring, the same as the tray's,
+     which is the other place in the app a mark sits on top of a drawing. */
+  tabDot: {
+    position: 'absolute', top: -3, right: -4,
+    width: 11, height: 11, borderRadius: 999, borderWidth: 2,
+  },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   /* The two who-can-see-it pills, the same shape the create screen asks the
      same question with — one control, one look, wherever it is asked. */

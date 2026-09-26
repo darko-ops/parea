@@ -837,15 +837,24 @@ export type Lately = {
 };
 
 /**
- * What the tray in every head row is claiming, in the two shapes it has.
+ * Every mark the app's chrome draws, in one answer.
  *
  * `waiting` is a count of jobs and `unread` is a boolean about news, and the
  * difference is deliberate — see `Api.waiting` for why the second one is not a
  * number. The tray draws the count when there is one and the dot otherwise.
+ *
+ * `chats` is the third, and it belongs to a different corner of the screen:
+ * the dot on the Chats tab. It rides along here because the alternative is a
+ * second small request on launch for a second small boolean, and because this
+ * is already the call that is re-made when a notification lands and when the
+ * app comes back to the foreground — which are exactly the moments a tab bar
+ * has something new to say.
  */
 export type Waiting = {
   waiting: number;
   unread: boolean;
+  /** Anything unread in any conversation, album or group. */
+  chats: boolean;
 };
 
 /**
@@ -1484,19 +1493,25 @@ export class Api {
    * rows to render a number is fifty rows of somebody's data allowance for one
    * digit. The same route the web rail's badge asks.
    *
-   * Two things, because the tray has two things to say and only one of them is
-   * countable. `waiting` is jobs — an invitation, a friend request, somebody
-   * at the door — and `unread` is whether anything has merely *happened* since
-   * the last look. Most of what this product notifies about is the second
-   * kind, and before it was asked for the tray stayed blank through all of it:
-   * a push would arrive, be missed, and leave no mark anywhere in the app.
+   * Three things, because the chrome has three marks to draw and only one of
+   * them is countable. `waiting` is jobs — an invitation, a friend request,
+   * somebody at the door — and `unread` is whether anything has merely
+   * *happened* since the last look. Most of what this product notifies about
+   * is the second kind, and before it was asked for the tray stayed blank
+   * through all of it: a push would arrive, be missed, and leave no mark
+   * anywhere in the app. `chats` is the same question about conversations, for
+   * the dot on the tab bar.
    *
    * Zeroes on a malformed answer rather than throwing. Every caller treats
    * this as decoration, and a badge must not be able to become an error.
    */
   async waiting(): Promise<Waiting> {
     const answer = await this.call<Partial<Waiting>>('/api/invites');
-    return { waiting: answer.waiting ?? 0, unread: answer.unread ?? false };
+    return {
+      waiting: answer.waiting ?? 0,
+      unread: answer.unread ?? false,
+      chats: answer.chats ?? false,
+    };
   }
 
   /**
