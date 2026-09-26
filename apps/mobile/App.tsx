@@ -1525,6 +1525,16 @@ function JoinScreen({
 const COVER = 196;
 
 /**
+ * How long an album keeps looking for the derivative its cover is cut from.
+ *
+ * Long enough for a slow derive on a cold ingest machine — it starts on demand
+ * and a first photograph waits for the boot — and short enough that a
+ * derivative which is never coming stops being polled for. Past this the album
+ * simply has no cover, which is the state it was already in while waiting.
+ */
+const COVER_WAIT_MS = 3 * 60 * 1000;
+
+/**
  * Where the page begins — flush with the header, not sixteen points below it.
  *
  * There was background showing between the two, which on a screen whose header
@@ -2606,6 +2616,24 @@ function EventScreen({
    * `sent` latches, because the queue state changes on every save and this
    * must not send a cover per item.
    */
+  /*
+   * A cover we still owe is the third reason to keep looking.
+   *
+   * The album's first cover is cut from the derivative, not the file that was
+   * picked — see the effect below, and the HEIC it exists to avoid. The
+   * derivative lands a few seconds after the upload completes, and the two
+   * conditions in `stillComing` stop the moment nothing is arriving, which turned out to
+   * be just before the thing the cover was waiting for existed. The album kept
+   * the framing, the derivative appeared, and nobody ever asked again: no
+   * cover, no request, and nothing to report because nothing was attempted.
+   *
+   * Bounded, because a wait that cannot end is a poll in somebody's pocket for
+   * a derivative that is never coming.
+   */
+  const coverOwed = useRef(false);
+  const coverGiveUpAt = useRef(0);
+  const coverWaiting = () => coverOwed.current && Date.now() < coverGiveUpAt.current;
+
   const coverSent = useRef(false);
   useEffect(() => {
     const local = initialUpload?.[0];
@@ -2633,8 +2661,22 @@ function EventScreen({
     const derived = (feed?.photos ?? []).find(
       (photo) => photo.id === item.photoId && photo.card !== null,
     );
-    if (!derived) return;
+    if (!derived) {
+      /*
+       * Say so, and start the clock. `stillComing` is recomputed on render and
+       * the interval reads it on its own schedule, so it is also set here: the
+       * render that would have picked this up may not happen, precisely because
+       * nothing else is going on.
+       */
+      if (!coverOwed.current) {
+        coverOwed.current = true;
+        coverGiveUpAt.current = Date.now() + COVER_WAIT_MS;
+      }
+      stillComing.current = true;
+      return;
+    }
 
+    coverOwed.current = false;
     coverSent.current = true;
     void (async () => {
       let file: Awaited<ReturnType<typeof fetchForCover>> | null = null;
@@ -2719,7 +2761,7 @@ function EventScreen({
    * started, with a single post-upload refresh doing all the work.
    */
   const stillComing = useRef(false);
-  stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0;
+  stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0 || coverWaiting();
 
   /*
    * One timer, made once, for as long as the album is open.

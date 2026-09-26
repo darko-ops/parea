@@ -362,6 +362,29 @@ describe('the two paths that still handed iOS a library file', () => {
     expect(APP).not.toMatch(/const copy = await sandboxCopy\(local\);/);
   });
 
+  it('keeps looking until the derivative its cover needs exists', () => {
+    /*
+     * Waiting for the derivative introduced a way to wait forever. The album
+     * polls only while something is arriving, and it stops the moment nothing
+     * is — which is a second or two before the derivative the cover is cut
+     * from actually exists. So the framing was kept, the picture became ready,
+     * and nobody asked again: no cover, no request, and nothing to report,
+     * because nothing was attempted. It read as a cover that silently came out
+     * unframed, which is what an album with no cover looks like — the card
+     * leads with that same photograph either way.
+     *
+     * Bounded, because a derivative that is never coming must not be polled
+     * for in somebody's pocket.
+     */
+    expect(APP).toMatch(
+      /stillComing\.current =\s*uploading > 0 \|\| \(feed\?\.arriving \?\? 0\) > 0 \|\| coverWaiting\(\)/,
+    );
+    expect(APP).toMatch(
+      /const coverWaiting = \(\) =>\s*coverOwed\.current && Date\.now\(\) < coverGiveUpAt\.current/,
+    );
+    expect(APP).toMatch(/coverGiveUpAt\.current = Date\.now\(\) \+ COVER_WAIT_MS/);
+  });
+
   it('leaves the avatar upload alone, which never needed it', () => {
     // The system picker already hands back a copy in this app's own sandbox.
     const PROFILE = read('src/Profile.tsx');
