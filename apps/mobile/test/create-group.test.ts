@@ -189,15 +189,42 @@ describe('New group', () => {
     expect(EVENTS).not.toMatch(/groups\.length > 0 && [\s\S]{0,80}New group/);
   });
 
-  it('is the same `+` as Home and You', () => {
+  it('is the same `+` wherever there is one', () => {
     /*
-     * It made a group and only a group, because it is on the groups tab. That
+     * It made a group and only a group, because it was on the groups tab. That
      * is the reasoning that produces an app where one glyph means two things in
-     * one place and one thing in another, which nobody can learn.
+     * one place and one thing in another, which nobody can learn. Wherever the
+     * `+` asks, it asks the same question.
      */
     expect(EVENTS).toMatch(/onPress=\{\(\) => setStarting\(true\)\}[\s\S]{0,120}New album or group/);
-    const tab = EVENTS.slice(EVENTS.indexOf('export function SearchTab'));
-    expect(tab).toMatch(/<StartSomething/);
+    const home = EVENTS.slice(
+      EVENTS.indexOf('export function HomeTab'),
+      EVENTS.indexOf('export function ChatsTab'),
+    );
+    expect(home).toMatch(/<StartSomething/);
+  });
+
+  it('is not on Find, which is a screen for what already exists', () => {
+    /*
+     * Find had one, on the argument that a control missing from one screen in
+     * three is one somebody has to remember the whereabouts of. What that cost
+     * was the row: the tab's whole subject is a search, and the field now takes
+     * the head, so the `+` was sharing it with the only thing the screen does.
+     *
+     * A screen for looking things up is the wrong place to make a new one, and
+     * nothing is stranded by its going. Home's corner still asks
+     * album-or-group, Chats' `+` makes a chat, and a group started from
+     * anywhere else still lands here with the form open — through `openCreate`,
+     * which never went through the button.
+     */
+    const find = EVENTS.slice(
+      EVENTS.indexOf('export function SearchTab'),
+      EVENTS.indexOf('export function AccountCard'),
+    );
+    expect(find).not.toMatch(/<StartSomething/);
+    expect(find).not.toMatch(/New album or group/);
+    // The way in that never used the button, still there.
+    expect(find).toMatch(/if \(openCreate > 0\) onCreateGroup\(\)/);
   });
 
   it('is a page of its own, not a form inside the list', () => {

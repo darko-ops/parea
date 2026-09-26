@@ -2090,7 +2090,6 @@ export function SearchTab({
   onOpenGroup,
   onOpenPerson,
   onOpenLately,
-  onCreateAlbum,
   onCreateGroup,
   onCreateGroupFrom,
   active,
@@ -2115,7 +2114,6 @@ export function SearchTab({
   onOpenPerson: (handle: string) => void;
   onOpenLately: () => void;
   /** The `+`'s two halves. Nothing is made until one of them is picked. */
-  onCreateAlbum: () => void;
   onCreateGroup: () => void;
   onCreateGroupFrom: (cluster: Cluster) => void;
   /**
@@ -2128,7 +2126,6 @@ export function SearchTab({
 }) {
   /** The shelf of doors below is laid out from this. See `door`. */
   const { width } = useWindowDimensions();
-  const [starting, setStarting] = useState(false);
   const [scope, setScope] = useState<Scope>('all');
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<{ id: string; name: string; memberCount: number }[]>([]);
@@ -2386,51 +2383,53 @@ export function SearchTab({
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       {/*
-        The same two corners, on the tab that had neither.
+        The field *is* the head here, and it is the one tab where that is true.
 
-        It said "Find" at 30 points above a search field, on the tab whose own
-        glyph is a magnifier — a title saying what the field below it already
-        says. What replaces it is the head the other tabs have, controls
-        included: a `+` that is missing from one screen in three is a `+`
-        somebody has to remember the whereabouts of.
+        Three shapes, and each fixed the last one's complaint. It said "Find" at
+        30 points over a search box — a title repeating what the box below it
+        already said, on the tab whose own glyph is a magnifier. Then it got the
+        head the other tabs have, wordmark and controls, with the box under it:
+        honest about where you were, and it put the product's name and a `+`
+        between somebody and the only thing this screen does.
+
+        Now the box takes the row. Find is a search — not a screen that has one
+        — so the wordmark is worth less here than anywhere else in the app: it
+        says whose app this is to somebody who arrived to type. Chats spends it
+        only while a search is open; this tab never gets it back, and `PageHead`
+        does not care which of the two a tab wants.
+
+        The `+` goes with it. A screen whose whole subject is looking for things
+        that already exist is the wrong place to make a new one, and the two
+        controls were sharing the row with the only field on it. Making is where
+        making was: Home's corner still asks album-or-group, Chats' `+` makes a
+        chat, and a group made from anywhere else still lands on this tab with
+        the form open — see `openCreate`, which never went through the button.
       */}
       <PageHead
         color={t.fg}
-        left={
-          <RoundButton
-            t={t}
-            onPress={() => setStarting(true)}
-            accessibilityLabel="New album or group"
+        searching={
+          <View
+            style={[
+              styles.field,
+              styles.headField,
+              { backgroundColor: t.card, borderColor: t.line },
+            ]}
           >
-            <Glyph name="plus" size={20} color={t.fg} />
-          </RoundButton>
+            <Glyph name="search" size={17} color={t.dim} />
+            <TextInput
+              value={query}
+              onChangeText={(next) => void search(next, scope)}
+              placeholder={PLACEHOLDER[scope]}
+              placeholderTextColor={t.dim}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel={`Find ${scope}`}
+              style={[styles.fieldText, { color: t.fg }]}
+            />
+          </View>
         }
         right={<Notifications t={t} count={waiting} unread={unread} onPress={onOpenLately} />}
       />
-
-      {starting && (
-        <StartSomething
-          t={t}
-          Button={Button}
-          onClose={() => setStarting(false)}
-          onAlbum={onCreateAlbum}
-          onGroup={onCreateGroup}
-        />
-      )}
-
-      <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Glyph name="search" size={17} color={t.dim} />
-        <TextInput
-          value={query}
-          onChangeText={(next) => void search(next, scope)}
-          placeholder={PLACEHOLDER[scope]}
-          placeholderTextColor={t.dim}
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel={`Find ${scope}`}
-          style={[styles.fieldText, { color: t.fg }]}
-        />
-      </View>
 
       {/*
         What the box is asking, rather than which box to type in. The active

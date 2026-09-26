@@ -1707,7 +1707,6 @@ export default function App() {
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
-                onCreateAlbum={() => setRoute({ screen: 'pick' })}
                 onCreateGroup={() => {
                   /*
                    * Spent on the way in, and that is the whole of this fix.

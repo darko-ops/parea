@@ -90,18 +90,36 @@ describe('the door', () => {
     expect(CHATS).toMatch(/right=\{\s*<RoundButton t=\{t\} onPress=\{onCreateChat\} accessibilityLabel="New chat">/);
     expect(CHATS).not.toMatch(/Notifications/);
     /*
-     * Two tabs still ask which of the two things you meant, and on those the
-     * `+` keeps the leading corner opposite the tray. Chats asks nothing — it
-     * makes a group — so its `+` is the corner the tray left, and there is no
+     * One tab still asks which of the two things you meant, and on it the `+`
+     * keeps the leading corner opposite the tray. Chats asks nothing — it
+     * makes a chat — so its `+` is the corner the tray left, and there is no
      * left-hand control to order against.
+     *
+     * Find had one and does not any more: the search field took that row, and
+     * a screen whose whole subject is looking up what already exists is the
+     * wrong place to be offered a new one. The tray keeps its corner there —
+     * that is why this still counts two of them above and one of these.
      */
-    expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(2);
-    for (const tab of ['HomeTab', 'SearchTab']) {
-      const body = EVENTS.slice(EVENTS.indexOf(`export function ${tab}`));
-      const head = body.slice(body.indexOf('<PageHead'), body.indexOf('/>', body.indexOf('right={')));
-      expect(head.indexOf('left={'), tab).toBeLessThan(head.indexOf('right={'));
-      expect(head.indexOf('New album or group'), tab).toBeLessThan(head.indexOf('right={'));
-    }
+    expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(1);
+    const home = EVENTS.slice(EVENTS.indexOf('export function HomeTab'));
+    const head = home.slice(home.indexOf('<PageHead'), home.indexOf('/>', home.indexOf('right={')));
+    expect(head.indexOf('left={')).toBeLessThan(head.indexOf('right={'));
+    expect(head.indexOf('New album or group')).toBeLessThan(head.indexOf('right={'));
+
+    /*
+     * And on Find the field is what leads the row, from the corner the `+` had
+     * to the tray. `PageHead` takes it as `searching` — the same slot Chats
+     * opens on demand — so the two tabs cannot end up with two head rows that
+     * behave differently.
+     */
+    const find = EVENTS.slice(
+      EVENTS.indexOf('export function SearchTab'),
+      EVENTS.indexOf('export function AccountCard'),
+    );
+    const finding = find.slice(find.indexOf('<PageHead'));
+    expect(finding.indexOf('searching={')).toBeLessThan(finding.indexOf('right={'));
+    expect(finding).toMatch(/styles\.field,\s*styles\.headField,/);
+    expect(find).not.toMatch(/left=\{/);
   });
 
   it('carries the count, and nothing at zero', () => {

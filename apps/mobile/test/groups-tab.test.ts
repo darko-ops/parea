@@ -102,20 +102,25 @@ describe('what the screen may do', () => {
   // Find, which is where the groups live. See the note at the top.
   const tab = between(EVENTS, 'export function SearchTab', 'function Result(');
 
-  it('offers to create a group, beside the people it would be made with', () => {
+  it('offers to create a group only beside the people it would be made with', () => {
     /*
-     * This assertion used to be the opposite — no create action, because a
-     * group is made from an event. What reversed it is the clusters: creation
-     * is offered next to the people it would gather, so it cannot produce the
-     * empty room the old rule existed to prevent.
+     * This assertion has been three things, and the rule under it has not
+     * moved: no create action on this screen that could produce an empty room.
      *
-     * What survives is the *pairing*. A create control on this screen without
-     * the clusters beside it is the thing that was refused, so the guard is
-     * that the screen reads them.
+     * First there was none at all, because a group was made from an event.
+     * Then the clusters arrived and creation was offered next to the people it
+     * would gather, which is the thing the rule was protecting — so a `+` was
+     * allowed in the corner too, paired with them.
+     *
+     * Now the `+` is gone, because the field took the head, and what is left
+     * is the strongest form of the rule rather than a weaker one: the only way
+     * to make a group from this tab is from a cluster, which is a named set of
+     * people who were already at the same evenings.
      */
-    expect(tab).toMatch(/<StartSomething/);
+    expect(tab).not.toMatch(/<StartSomething/);
     expect(tab).toMatch(/api\.clusters\(\)/);
     expect(tab).toMatch(/<ClusterCard/);
+    expect(tab).toMatch(/onMake=\{\(\) => onCreateGroupFrom\(cluster\)\}/);
   });
 
   it('still makes no request of its own to create one', () => {
