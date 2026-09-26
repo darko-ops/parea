@@ -1400,6 +1400,20 @@ export function ChatsTab({
   const [refreshing, setRefreshing] = useState(false);
   /** What is being looked for on this tab, if anything. */
   const [query, setQuery] = useState('');
+  /**
+   * Whether the field is open at all.
+   *
+   * It was always there: a bordered box under the head, on every visit, mostly
+   * empty. A search field is a control for a thing somebody does occasionally
+   * and it was taking a permanent line above the conversations — which are
+   * what this tab is. So it is a disc in the corner until it is wanted, and
+   * then it is the whole row.
+   *
+   * Separate from `query` rather than derived from it, because an open field
+   * with nothing typed in it is a real state — it is what every search looks
+   * like for the first second.
+   */
+  const [seeking, setSeeking] = useState(false);
 
   const load = useCallback(async () => {
     setGroups(await api.myGroupsDetailed().catch(() => []));
@@ -1415,8 +1429,10 @@ export function ChatsTab({
       // A search is something somebody is in the middle of, not a setting.
       // Leaving the tab and coming back should be this tab, not the last thing
       // typed into it — a stale query hides most of the screen on arrival with
-      // the reason for it scrolled off the top.
+      // the reason for it scrolled off the top. The field closes with it: an
+      // empty one held open is the same staleness with nothing in it.
       setQuery('');
+      setSeeking(false);
     }
   }, [active]);
 
@@ -1530,50 +1546,93 @@ export function ChatsTab({
         On the right, because that is the hand that reaches it and because the
         corner a thumb finds should hold the thing this screen is for.
       */}
+      {/*
+        A disc until somebody wants it, then the whole row.
+
+        The field used to sit under this head on every visit, a bordered box
+        mostly empty, taking a line above the thing the tab is actually for.
+        Searching your conversations is something people do sometimes and
+        reading them is what they came for, and a permanent control for the
+        first was pushing the second down the screen.
+
+        Opening it takes the wordmark with it — see `PageHead`. What stays is
+        the `+`, in the same corner at the same size: the head grows a field
+        rather than rearranging itself, so the control somebody was not
+        reaching for never ends up under their thumb.
+
+        Hidden where there is nothing to search. On a tab with no rooms it is a
+        control that cannot succeed, and it would be sitting in the corner
+        above the paragraph explaining why there is nothing here.
+      */}
       <PageHead
         color={t.fg}
+        left={
+          !nothing && (
+            <RoundButton
+              t={t}
+              onPress={() => setSeeking(true)}
+              accessibilityLabel="Search chats"
+            >
+              <Glyph name="search" size={20} color={t.fg} />
+            </RoundButton>
+          )
+        }
+        searching={
+          seeking && (
+            <View
+              style={[
+                styles.field,
+                styles.headField,
+                { backgroundColor: t.card, borderColor: t.line },
+              ]}
+            >
+              <Glyph name="search" size={17} color={t.dim} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search chats"
+                placeholderTextColor={t.dim}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                accessibilityLabel="Search chats"
+                // It is on screen because somebody asked for it a moment ago.
+                // A field that opens and then waits to be tapped is two taps
+                // for one intention.
+                autoFocus
+                style={[styles.fieldText, { color: t.fg }]}
+              />
+              {/*
+                One control and one meaning: it closes the search, and the
+                query goes with it.
+
+                Not "clear, and press again to close". That is two meanings for
+                one glyph, and the second one is only reachable by pressing the
+                first and finding out. Backspace already empties a field;
+                nothing else puts this row back.
+              */}
+              <Pressable
+                onPress={() => {
+                  setQuery('');
+                  setSeeking(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Close search"
+                // A larger target than the glyph: this is the control somebody
+                // reaches for one-handed, at the far edge of the screen.
+                hitSlop={12}
+              >
+                <Text style={[styles.clear, { color: t.dim }]}>✕</Text>
+              </Pressable>
+            </View>
+          )
+        }
         right={
           <RoundButton t={t} onPress={onCreateChat} accessibilityLabel="New chat">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
       />
-
-      {/*
-        The same field Find has, because it is the same gesture.
-
-        Hidden where there is nothing to search: on a tab with no rooms and no
-        conversations it is a control that cannot succeed, sitting above the
-        paragraph explaining why there is nothing here.
-      */}
-      {!nothing && (
-        <View style={[styles.field, { backgroundColor: t.card, borderColor: t.line }]}>
-          <Glyph name="search" size={17} color={t.dim} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search chats"
-            placeholderTextColor={t.dim}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            accessibilityLabel="Search chats"
-            style={[styles.fieldText, { color: t.fg }]}
-          />
-          {query !== '' && (
-            <Pressable
-              onPress={() => setQuery('')}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              // A larger target than the glyph: this is the control somebody
-              // reaches for one-handed, at the far edge of the screen.
-              hitSlop={12}
-            >
-              <Text style={[styles.clear, { color: t.dim }]}>✕</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
 
       {nothing ? (
         /*
@@ -4100,6 +4159,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
+  /* The same field, in a head row: the disc's own height and half of it for a
+     radius, so what happens when somebody presses the magnifier reads as that
+     disc stretching across the row rather than as one control being swapped
+     for another. Vertical padding goes, or the box is taller than the `+`
+     beside it and the row jumps by nine points on the way in. */
+  headField: { height: ROUND, borderRadius: ROUND / 2, paddingVertical: 0 },
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },

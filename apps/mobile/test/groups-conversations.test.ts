@@ -46,6 +46,9 @@ function between(source: string, from: string, to: string): string {
 /** The Chats tab: every conversation, and nothing else. */
 const TAB = code(between(EVENTS, 'export function ChatsTab', 'function ConversationLine'));
 
+/** The head row every tab opens with, which is where the field now lives. */
+const HEAD = code(read('src/PageHead.tsx'));
+
 /**
  * Find, which is where the rooms themselves went.
  *
@@ -415,9 +418,39 @@ describe('finding one', () => {
 
   it('does not offer a search where there is nothing to search', () => {
     // On a tab with no rooms and no conversations, a search box is a control
-    // that cannot succeed, sitting over the paragraph saying why.
-    expect(TAB).toMatch(/\{!nothing && \(/);
+    // that cannot succeed — and it would now be a disc in the corner sitting
+    // over the paragraph saying why there is nothing here.
+    expect(TAB).toMatch(/left=\{\s*!nothing && \(/);
     expect(TAB).toMatch(/const nothing = groups\.length === 0 && looking === ''/);
+  });
+
+  it('is a disc until somebody wants it, and then the whole row', () => {
+    /*
+     * It was a bordered box under the head on every visit, mostly empty,
+     * taking a line above the conversations — which are what the tab is.
+     * Searching them is something people do sometimes; reading them is what
+     * they came for.
+     *
+     * Opening it spends the wordmark and nothing else. The `+` stays in its
+     * corner at its size, because a head that rearranges itself puts the
+     * control somebody was *not* reaching for under their thumb.
+     */
+    expect(TAB).toMatch(/const \[seeking, setSeeking\] = useState\(false\)/);
+    expect(TAB).toMatch(/onPress=\{\(\) => setSeeking\(true\)\}/);
+    expect(TAB).toMatch(/searching=\{\s*seeking && \(/);
+    // The field is no longer drawn under the head at all.
+    expect(TAB).not.toMatch(/\/>\s*\{!nothing && \(\s*<View\s+style=\{\[styles\.field/);
+    // And it opens ready to type: a field that waits to be tapped is two taps
+    // for one intention.
+    expect(TAB).toMatch(/autoFocus/);
+
+    // The head is what makes room, rather than each tab drawing its own row.
+    expect(HEAD).toMatch(/searching\?: React\.ReactNode;/);
+    expect(HEAD).toMatch(/if \(searching\) \{/);
+    // The trailing control survives the swap; the wordmark does not.
+    const open = HEAD.slice(HEAD.indexOf('if (searching) {'), HEAD.indexOf('return (', HEAD.indexOf('if (searching) {') + 40));
+    expect(open).not.toMatch(/<Wordmark/);
+    expect(open).toMatch(/\{right\}/);
   });
 
   it('forgets the query on the way out', () => {
@@ -432,15 +465,28 @@ describe('finding one', () => {
 
   it('is the field Find already has', () => {
     // Two search fields in one app that look like two different controls is
-    // the drift this shares a stylesheet to avoid.
-    expect(TAB).toMatch(/style=\{\[styles\.field, \{ backgroundColor: t\.card, borderColor: t\.line \}\]\}/);
+    // the drift this shares a stylesheet to avoid. One line on top of it: in a
+    // head row the box takes the disc's height and half of it for a radius, so
+    // pressing the magnifier reads as that disc stretching rather than as one
+    // control being swapped for another — and so the row does not jump nine
+    // points on the way in.
+    expect(TAB).toMatch(/styles\.field,\s*styles\.headField,/);
+    expect(TAB).toMatch(/\{ backgroundColor: t\.card, borderColor: t\.line \}/);
     expect(TAB).toMatch(/<Glyph name="search"/);
     expect(TAB).toMatch(/style=\{\[styles\.fieldText, \{ color: t\.fg \}\]\}/);
+    expect(EVENTS).toMatch(/headField: \{ height: ROUND, borderRadius: ROUND \/ 2, paddingVertical: 0 \}/);
   });
 
   it('has a way out that is not the backspace key', () => {
-    expect(TAB).toMatch(/accessibilityLabel="Clear search"/);
-    expect(TAB).toMatch(/onPress=\{\(\) => setQuery\(''\)\}/);
+    /*
+     * One control, one meaning: it closes the search and the query goes with
+     * it. Not "clear, and press again to close" — that is two meanings for one
+     * glyph, and the second is only reachable by pressing the first and
+     * finding out. Backspace already empties a field; nothing else puts the
+     * row back.
+     */
+    expect(TAB).toMatch(/accessibilityLabel="Close search"/);
+    expect(TAB).toMatch(/setQuery\(''\);\s*setSeeking\(false\);/);
   });
 });
 

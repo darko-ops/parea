@@ -42,13 +42,39 @@ export function PageHead({
   color,
   left,
   right,
+  searching,
 }: {
   color: string;
   /** Controls in the leading corner. Nothing on most tabs. */
   left?: React.ReactNode;
   /** Controls in the trailing corner — one disc, two, or none. */
   right?: React.ReactNode;
+  /**
+   * A field, taking the row.
+   *
+   * When this is given the wordmark goes and so does whatever was in the
+   * leading corner: the field runs from the left edge to whatever `right`
+   * holds, which stays exactly where it was. That last part is the point of
+   * putting this here rather than letting a tab draw its own row — the `+`
+   * must not move when somebody opens a search, or the control they were not
+   * reaching for is the one under their thumb.
+   *
+   * The wordmark is what is spent, and it is the right thing to spend. It says
+   * whose app this is, which is worth a row on a screen somebody is reading
+   * and worth nothing on one they are searching — they know where they are;
+   * they are looking for something in it.
+   */
+  searching?: React.ReactNode;
 }) {
+  if (searching) {
+    return (
+      <View style={styles.row}>
+        <View style={styles.seeking}>{searching}</View>
+        {right ? <View style={styles.beside}>{right}</View> : null}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.row}>
       <View style={styles.side}>{left}</View>
@@ -162,6 +188,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', minHeight: ROUND },
   side: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   trailing: { justifyContent: 'flex-end' },
+  /* The field, taking everything the trailing control does not. `minWidth: 0`
+     because a text input's natural width is its content's, and without it a
+     long query pushes the `+` off the screen instead of scrolling inside the
+     box. */
+  seeking: { flex: 1, minWidth: 0 },
+  /* The same 12 the sides put between two discs, so a control does not move
+     depending on whether a search is open beside it. */
+  beside: { flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
   /* Over the disc's own edge, ringed in the page colour so it reads as sitting
      on top of the button rather than as part of it. */
   badge: {
