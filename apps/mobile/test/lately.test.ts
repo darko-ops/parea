@@ -35,6 +35,8 @@ const HEAD = read('src/PageHead.tsx');
 const ANSWERS = read('src/answers.ts');
 /** Where the notification handler and the Android channel are set up. */
 const PLATFORM = read('src/platform.ts');
+/** The group screen, whose segmented control draws the other kind of mark. */
+const GROUPS = read('src/Groups.tsx');
 
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -213,6 +215,45 @@ describe('the door', () => {
     expect(APP).toMatch(
       /const leaveGroup = useCallback\(\(\) => \{[\s\S]{0,400}void refreshWaiting\(\);/,
     );
+  });
+
+  it('counts jobs and dots news, wherever a mark is drawn', () => {
+    /*
+     * The rule behind every badge in the app, and it is one line: a mark
+     * *counts* when each thing behind it is a job — an invitation, somebody
+     * standing at the door of a room — because four is a different afternoon
+     * from one; and it is a *dot* when the things merely happened, because a
+     * number nobody can act on turns a badge into a measure of volume.
+     *
+     * Which is why an album's Comments tab and a group's People tab, two
+     * segments drawn by the same control on two screens, deliberately do not
+     * match: remarks under photographs happened, and people waiting to be let
+     * in are waiting on somebody.
+     *
+     * The Comments tab was a number twice — once loose in the accent, once as
+     * a pill — and both were answering a question nobody asks of a tab.
+     */
+    const seg = APP.slice(APP.indexOf('function Segmented'), APP.indexOf('function Faces'));
+    expect(seg).toMatch(/\{id === 'talk' && unread > 0 && \(/);
+    expect(seg).toMatch(/styles\.segDot, \{ backgroundColor: t\.news \}/);
+    // No count left on it, in any form.
+    expect(seg).not.toMatch(/99\+/);
+    // Hung off a box the size of the glyph, as the tab bar's is: the three
+    // segments are equal thirds, and a mark laid out beside a glyph shoves
+    // that glyph off the middle of its own third.
+    expect(seg).toMatch(/<View style=\{styles\.segGlyph\}>/);
+    expect(APP).toMatch(/segGlyph: \{ width: 20, height: 20/);
+    // A screen reader still gets the number: the dot is a visual compression
+    // and there is nothing to compress in a spoken label.
+    expect(seg).toMatch(/`\$\{label\}, \$\{unread\} new`/);
+
+    // And the other side of the rule, on the group's own segments.
+    expect(GROUPS).toMatch(/\{id === 'people' && waiting > 0 && \(/);
+    expect(GROUPS).toMatch(/styles\.segmentPill, \{ backgroundColor: t\.news \}/);
+    expect(GROUPS).toMatch(/styles\.segmentCount, \{ color: t\.onNews \}/);
+    // A pill and not loose type, because the blue is a light value: as text on
+    // that control's own card it is under 2:1.
+    expect(GROUPS).not.toMatch(/segmentCount, \{ color: t\.accent \}/);
   });
 
   it('paints every unread mark in one colour', () => {

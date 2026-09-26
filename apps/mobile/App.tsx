@@ -4853,26 +4853,40 @@ function Segmented({
               on && [styles.segmentOn, { backgroundColor: t.card }],
             ]}
           >
-            <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
             {/*
-              A pill, where this was a bare number in the accent.
-
-              Two reasons, and the second is why the first could not simply be
-              a colour swap. Every other unread count in the app is a filled
-              pill — a conversation's row, a group's door — so one place
-              drawing the same fact as loose type read as a different kind of
-              thing. And the fill that makes them one thing is `news`, the
-              unread aqua, which is a light value: as *text* on this control's
-              own grey it is 1.8:1 and nobody can read it. On a pill it is ink
-              on a fill, which is the arrangement that colour works in.
+              A box the size of the glyph, so the dot has a corner to sit on —
+              the same arrangement the tab bar uses, and for the same reason:
+              the three segments are equal thirds, and a mark laid out *beside*
+              a glyph takes width and shoves that glyph off the middle of its
+              own third. Every other segment stays centred; this one would
+              drift the moment somebody said something.
             */}
-            {id === 'talk' && unread > 0 && (
-              <View style={[styles.segmentPill, { backgroundColor: t.news }]}>
-                <Text style={[styles.segmentCount, { color: t.onNews }]}>
-                  {unread > 99 ? '99+' : unread}
-                </Text>
-              </View>
-            )}
+            <View style={styles.segGlyph}>
+              <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
+              {/*
+                A dot, where this was a number.
+
+                It was a bare figure in the accent, then briefly a pill with the
+                count in it. Both were answering a question nobody asks of a
+                tab. The rule the rest of the app follows: a mark counts when
+                each thing in it is a *job* — an invitation, somebody at the
+                door — because four is a different afternoon from one; and it is
+                a dot when the things merely happened, because counting those
+                makes a badge a measure of volume. Remarks under photographs are
+                the second kind. "Three new" and "some new" send somebody to the
+                same tab to do the same thing.
+
+                Bare, like the tab bar's. A ring on a dot this small is most of
+                the dot, and this one sits on a flat control rather than on
+                glass, so there is nothing for it to separate from.
+
+                The number survives where it costs nothing and is not a
+                compression: the accessibility label below still says how many.
+              */}
+              {id === 'talk' && unread > 0 && (
+                <View style={[styles.segDot, { backgroundColor: t.news }]} />
+              )}
+            </View>
           </Pressable>
         );
       })}
@@ -6398,14 +6412,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  /* Smaller than the head row's 19pt pill: this one shares a 20pt glyph's line
-     inside a segment a third of the screen wide, and the larger one crowds it.
-     Same shape and same colours, which is what makes them one idiom. */
-  segmentPill: {
-    minWidth: 17, height: 17, borderRadius: 999, paddingHorizontal: 5,
-    alignItems: 'center', justifyContent: 'center',
+  /* Exactly the glyph, so the dot has something its own size to hang off —
+     the tab bar's `tabGlyph` with one point taken off, because the segments
+     draw at 20 and the bar draws at 22. */
+  segGlyph: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  /* The tab bar's dot, a point smaller for the smaller glyph. No ring: on a
+     mark this size the ring is most of the mark, and a flat control has
+     nothing to separate from. */
+  segDot: {
+    position: 'absolute', top: -2, right: -3,
+    width: 9, height: 9, borderRadius: 999,
   },
-  segmentCount: { fontSize: 11, fontWeight: '700' },
   /* --- somebody said something -------------------------------------------
 
      One line that drops in over the cover and takes itself away again. The

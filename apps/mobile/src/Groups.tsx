@@ -674,10 +674,28 @@ function Tabs({
             style={[styles.segment, on && [styles.segmentOn, { backgroundColor: t.bg }]]}
           >
             <Glyph name={glyph} size={20} color={on ? t.fg : t.dim} />
-            {/* The same pip an album's Comments tab carries, about the same
-                kind of fact: something is waiting on this tab. */}
+            {/*
+              A count, where an album's Comments tab draws a dot — and the
+              difference is the rule rather than an inconsistency.
+
+              A mark counts when each thing behind it is a *job*: these are
+              people standing outside the room waiting to be let in, and three
+              of them is a different afternoon from one. It is a dot when the
+              things merely happened, which is what a remark under a photograph
+              is — counting those makes a badge a measure of volume.
+
+              A pill rather than the loose figure it was, in the same blue as
+              every other mark in the app. It could not simply be recoloured:
+              that blue is a light value, and as text on this control's own card
+              it is under 2:1. On a pill it is ink on a fill, which is the
+              arrangement a colour that light works in.
+            */}
             {id === 'people' && waiting > 0 && (
-              <Text style={[styles.segmentCount, { color: t.accent }]}>{waiting}</Text>
+              <View style={[styles.segmentPill, { backgroundColor: t.news }]}>
+                <Text style={[styles.segmentCount, { color: t.onNews }]}>
+                  {waiting > 99 ? '99+' : waiting}
+                </Text>
+              </View>
             )}
           </Pressable>
         );
@@ -987,7 +1005,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   segmentOn: {},
-  segmentCount: { fontSize: 12, fontWeight: '700' },
+  /* Small enough to share a 20pt glyph's line inside a segment a third of a
+     screen wide. The head row's unread pill, taken down two points. */
+  segmentPill: {
+    minWidth: 17, height: 17, borderRadius: 999, paddingHorizontal: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  segmentCount: { fontSize: 11, fontWeight: '700' },
   addButton: {
     width: 38,
     height: 38,

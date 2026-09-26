@@ -1237,6 +1237,14 @@ the mark from shouting; a notification dot is eight points wide, often on
 frosted glass over somebody's photographs, and at that size the same colour is a
 grey-blue smudge. Chroma is what survives being small.
 
+**A mark counts jobs and dots news.** It carries a number when each thing
+behind it is something to *answer* — an invitation, somebody at the door of a
+room — because four is a different afternoon from one. It is a bare dot when
+the things merely happened, because a number nobody can act on turns a badge
+into a measure of volume, and one that only goes down when you look stops
+meaning anything. That is why an album's Comments tab and a group's People tab,
+two segments drawn by the same control, deliberately do not match.
+
 One colour, not one per kind. A second hue was tried on the Chats dot and said
 the wrong thing — that it was a different *kind* of alert, a distinction this
 product does not make. What tells the tray from the tab bar is which corner they
