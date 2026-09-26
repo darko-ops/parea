@@ -331,7 +331,7 @@ describe('the two paths that still handed iOS a library file', () => {
     expect(PLATFORM).toMatch(/cover source is not readable/);
   });
 
-  it('copies the cover too, which the first fix missed', () => {
+  it('makes the first cover out of the derivative, not the picked original', () => {
     /*
      * The cover goes up on a background session exactly as a photograph does,
      * and an asset's own `uri` is a path inside the Photos container that the
@@ -341,12 +341,25 @@ describe('the two paths that still handed iOS a library file', () => {
      * It is not sent from the form at all now. Sending it there meant sending
      * it before any photograph existed, with no id to record it against, and
      * the card then showed the cover and its own source picture side by side.
-     * The album sends it once that photograph has been presigned — and copies
-     * it into the sandbox there, for the original reason.
+     *
+     * The sandbox copy that fixed the first problem caused a quieter one: a
+     * copy of the camera's own file is HEIC on any iPhone, `uploadCover` sends
+     * bytes untouched, and the endpoint sniffs bytes rather than the declared
+     * type. libheif answered `bad seek`, the endpoint answered 400, and this
+     * effect threw it away — so a cover chosen while making an album silently
+     * never took, on the format every iPhone photograph is in.
+     *
+     * So it waits for the derivative, which is what the other two ways into a
+     * cover already use. `card` is null until the derivatives exist, which is
+     * what makes it the thing to wait on, and `fetchForCover` writes into the
+     * cache — this app's own sandbox, so the property the copy was here for is
+     * kept.
      */
     expect(CREATE).not.toMatch(/uploadCover/);
-    expect(APP).toMatch(/const copy = await sandboxCopy\(local\);/);
-    expect(APP).toMatch(/await sendCover\(copy\.uri, initialCover, item\.photoId\)/);
+    expect(APP).toMatch(/photo\.id === item\.photoId && photo\.card !== null/);
+    expect(APP).toMatch(/await fetchForCover\(derived\.full, derived\.id\)/);
+    expect(APP).toMatch(/await sendCover\(file\.uri, initialCover, derived\.id\)/);
+    expect(APP).not.toMatch(/const copy = await sandboxCopy\(local\);/);
   });
 
   it('leaves the avatar upload alone, which never needed it', () => {
@@ -513,7 +526,9 @@ describe('a cover that knows which photograph it came from', () => {
   });
 
   it('names it, which is the whole point', () => {
-    expect(APP).toMatch(/sendCover\(copy\.uri, initialCover, item\.photoId\)/);
+    // `derived` is found by `photo.id === item.photoId`, so naming it by
+    // `derived.id` is naming it by the id the wait above was for.
+    expect(APP).toMatch(/sendCover\(file\.uri, initialCover, derived\.id\)/);
     // `sendCover` hands it to the route as `?photo=`, which is what the
     // server records and later uses to drop it from the strip.
     expect(APP).toMatch(/api\.coverTarget\(event\.id, framing, photoId\)/);

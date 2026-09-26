@@ -89,7 +89,6 @@ import {
   libraryAccess,
   requestLibraryAccess,
   resolveForUpload,
-  sandboxCopy,
   type LibraryAccess,
   type LibraryPhoto,
 } from './src/library';
@@ -2613,17 +2612,51 @@ function EventScreen({
     if (!initialCover || !local || coverSent.current) return;
     const item = uploads.items.find((i) => i.id === local && i.eventId === event.id);
     if (!item?.photoId) return;
+    /*
+     * The derivative, and not the file that was picked.
+     *
+     * This used to send a sandbox copy of the original, which is the one thing
+     * the cover endpoint cannot read. An iPhone writes HEIC; the picker is
+     * asked for `quality: 1` precisely so the deriver gets the camera's own
+     * file; and `uploadCover` sends bytes untouched while declaring JPEG. The
+     * endpoint sniffs bytes rather than the header, so what it saw was HEIC,
+     * libheif answered `bad seek`, and it answered 400 — which the `catch`
+     * below then swallowed. A cover chosen while making an album silently
+     * never took, on the format every iPhone photograph is in.
+     *
+     * The deriver already makes something this tier can decode, and both other
+     * ways into a cover go through it. Waiting costs only the few seconds the
+     * album is uncovered anyway — with no cover the card leads with this same
+     * photograph — and `card` is null until the derivatives exist, which is
+     * what makes it the thing to wait on.
+     */
+    const derived = (feed?.photos ?? []).find(
+      (photo) => photo.id === item.photoId && photo.card !== null,
+    );
+    if (!derived) return;
+
     coverSent.current = true;
     void (async () => {
+      let file: Awaited<ReturnType<typeof fetchForCover>> | null = null;
       try {
-        const copy = await sandboxCopy(local);
-        await sendCover(copy.uri, initialCover, item.photoId);
+        // Into the cache, which is this app's own sandbox. That is the property
+        // the copy was here for — a background session cannot open a path
+        // inside the Photos container — and it is kept for the same reason.
+        file = await fetchForCover(derived.full, derived.id);
+        await sendCover(file.uri, initialCover, derived.id);
       } catch {
         // No cover is a card that leads with the same photograph anyway, so
         // there is nothing here worth interrupting somebody about.
+      } finally {
+        try {
+          file?.delete();
+        } catch {
+          // A cache file that will not delete is the operating system's to
+          // clear, and not worth a second failure on top of the first.
+        }
       }
     })();
-  }, [uploads, initialCover, initialUpload, event.id, sendCover]);
+  }, [uploads, initialCover, initialUpload, event.id, feed?.photos, sendCover]);
 
   const markRead = useCallback(() => {
     setSeen(messages.length);
