@@ -156,7 +156,7 @@ describe('what the screen may do', () => {
     const mark = between(EVENTS, 'function RoomMark', 'function ConversationLine');
     expect(mark).toMatch(/lensFor\(room\.id\)/);
     expect(mark).toMatch(/initialOf\(room\.title\)/);
-    expect(mark).toMatch(/room\.kind === 'named' \|\| room\.deck\.length === 0/);
+    expect(mark).toMatch(/room\.kind === 'named' \|\| deck\.length === 0/);
     expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
     expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
     expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);

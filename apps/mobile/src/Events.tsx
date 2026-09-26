@@ -1717,14 +1717,30 @@ function RoomMark({
   size,
   t,
 }: {
-  room: { id: string; title: string; kind: GroupKind; deck: { name: string; avatarUrl: string | null }[] };
+  room: {
+    id: string;
+    title: string;
+    kind: GroupKind;
+    /** Optional only so the render cannot die of an older server. See below. */
+    deck?: { name: string; avatarUrl: string | null }[];
+  };
   size: number;
   t: { bg: string; line: string; dim: string };
 }) {
   const lens = lensFor(room.id);
   const radius = Math.round(size * 0.25);
+  /*
+   * Belt and braces over the default `titled` already applies in `api.ts`.
+   *
+   * Not a second policy — it is the same empty list — but this is a render,
+   * and a render that reaches into a field the server might not have sent
+   * takes the whole tab down rather than drawing one row badly. It did once:
+   * "Cannot read property 'length' of undefined" on every chat, from a phone
+   * whose build was newer than the deploy it was talking to.
+   */
+  const deck = room.deck ?? [];
 
-  if (room.kind === 'named' || room.deck.length === 0) {
+  if (room.kind === 'named' || deck.length === 0) {
     return (
       <View
         style={[
@@ -1746,7 +1762,7 @@ function RoomMark({
    * four points of somebody's face, which is a texture rather than a person.
    * The title beside it already says how many there are.
    */
-  const cards = room.deck.slice(0, 3);
+  const cards = deck.slice(0, 3);
   const card = cards.length === 1 ? size : Math.round(size * 0.72);
   const step = cards.length === 1 ? 0 : Math.round((size - card) / (cards.length - 1));
 

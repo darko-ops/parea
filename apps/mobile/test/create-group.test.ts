@@ -343,7 +343,7 @@ describe('a room with no name', () => {
       EVENTS.indexOf('function RoomMark'),
       EVENTS.indexOf('function ConversationLine'),
     );
-    expect(mark).toMatch(/room\.kind === 'named' \|\| room\.deck\.length === 0/);
+    expect(mark).toMatch(/room\.kind === 'named' \|\| deck\.length === 0/);
     // Squares, because it stands exactly where the lens tile stood and a
     // circle there would make the unnamed rooms read as a different kind of
     // row rather than the same row drawn from what it has.
@@ -364,5 +364,49 @@ describe('a room with no name', () => {
     // being called after its people.
     expect(ROUTE).toMatch(/\{ name: null, slug: null, findable: false \}/);
     expect(read('src/Groups.tsx')).toMatch(/nameable=\{group\.memberCount > 2\}/);
+  });
+});
+
+/**
+ * An app is not deployed with the server it talks to.
+ *
+ * A build on somebody's phone outlives any number of deploys. `title`, `kind`
+ * and `deck` arrived with unnamed rooms, and during a rollout — or against an
+ * older server, or a response cached from before one — all three are simply
+ * absent. The first version read `room.deck.length` straight off the payload
+ * and took the whole Chats tab down with "Cannot read property 'length' of
+ * undefined".
+ */
+describe('a room from a server that has not caught up', () => {
+  it('fills the three new fields in at the boundary, once', () => {
+    /*
+     * The defaults together are exactly the behaviour from before the feature:
+     * a room is called by its name, it is `named`, and it has no deck — which
+     * `RoomMark` already draws as a letter. So an app talking to a server
+     * without the feature behaves as though the feature is not there.
+     *
+     * In one place rather than at each screen that draws a room: a default
+     * spelled four times is three chances to spell it differently, and the one
+     * that gets missed is the one that crashes.
+     */
+    expect(API).toMatch(/title: room\.title \?\? room\.name \?\? 'Untitled',/);
+    expect(API).toMatch(/kind: room\.kind \?\? 'named',/);
+    expect(API).toMatch(/deck: Array\.isArray\(room\.deck\)/);
+    // Both lists of rooms, and the one room the group page opens.
+    expect(API.match(/\.map\(titled\)/g) ?? []).toHaveLength(2);
+    expect(API).toMatch(/named: view\.named \?\? view\.name, kind: view\.kind \?\? 'named'/);
+  });
+
+  it('cannot lose the tab to it even so', () => {
+    // Belt and braces over the default above — the same empty list, not a
+    // second policy. This is a render, and a render that reaches into a field
+    // the server might not have sent takes the whole tab down rather than
+    // drawing one row badly.
+    const mark = EVENTS.slice(
+      EVENTS.indexOf('function RoomMark'),
+      EVENTS.indexOf('function ConversationLine'),
+    );
+    expect(mark).toMatch(/const deck = room\.deck \?\? \[\];/);
+    expect(mark).not.toMatch(/room\.deck\./);
   });
 });

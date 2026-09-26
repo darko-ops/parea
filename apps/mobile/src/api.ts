@@ -952,6 +952,40 @@ export type Account = {
   avatarUrl: string | null;
 };
 
+/**
+ * A room off the wire, made safe to draw.
+ *
+ * `title`, `kind` and `deck` arrived with unnamed rooms and an app is not
+ * deployed with the server it talks to. A build on somebody's phone outlives
+ * any number of deploys, and during one — or against an older server, or a
+ * cached response from before it — these three are simply absent. The first
+ * version of this read `room.deck.length` and took the Chats tab down with
+ * "Cannot read property 'length' of undefined", which is the whole screen
+ * lost to a field that had not shipped yet.
+ *
+ * So the client asserts nothing about them. A room with no `title` is called
+ * by its name, which is what every room had before this existed; a room with
+ * no `kind` is `named`, which is what every room was; and a room with no
+ * `deck` has an empty one, which `RoomMark` already draws as a letter. The
+ * three defaults together are exactly the old behaviour, so an app talking to
+ * a server without the feature behaves as though the feature is not there —
+ * which is the only honest thing it can do.
+ *
+ * Here rather than at each of the four places that draw a room: a default
+ * spelled four times is three chances to spell it differently, and the one
+ * that gets missed is the one that crashes.
+ */
+function titled<T extends { name: string | null; title?: string; kind?: GroupKind; deck?: unknown }>(
+  room: T,
+): T & { title: string; kind: GroupKind; deck: { name: string; avatarUrl: string | null }[] } {
+  return {
+    ...room,
+    title: room.title ?? room.name ?? 'Untitled',
+    kind: room.kind ?? 'named',
+    deck: Array.isArray(room.deck) ? (room.deck as { name: string; avatarUrl: string | null }[]) : [],
+  };
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -1968,12 +2002,14 @@ export class Api {
       groups: {
         id: string;
         name: string | null;
-        title: string;
-        kind: GroupKind;
+        title?: string;
+        kind?: GroupKind;
         role: 'member' | 'admin';
       }[];
     }>('/api/groups');
-    return groups;
+    // Same reason as the detailed list below: this app is not deployed with
+    // the server it is talking to. See `titled`.
+    return groups.map(titled);
   }
 
   /**
@@ -1989,7 +2025,7 @@ export class Api {
     const { groups } = await this.call<{ groups: MyGroupDetail[] }>(
       '/api/groups?detail=1',
     );
-    return groups;
+    return groups.map(titled);
   }
 
   /**
@@ -1999,8 +2035,14 @@ export class Api {
    * group, and a group you cannot see — because distinguishing them would
    * make the endpoint a way to confirm a private group exists.
    */
-  group(id: string): Promise<GroupView> {
-    return this.call<GroupView>(`/api/groups/${id}`);
+  async group(id: string): Promise<GroupView> {
+    const view = await this.call<GroupView>(`/api/groups/${id}`);
+    // `named` and `kind` are as new as the fields on the lists, and arrive
+    // from the same server this app may be older than. Absent means nobody
+    // has the feature, which is a room that was named — see `titled`.
+    return view.member
+      ? { ...view, named: view.named ?? view.name, kind: view.kind ?? 'named' }
+      : view;
   }
 
   /** Name search over findable groups. The backstop for a lost link. */
