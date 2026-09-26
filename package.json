@@ -11,7 +11,8 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:migrate": "npm run db:migrate --workspace @parea/core",
-    "mail:test": "tsx scripts/send-test-email.ts"
+    "mail:test": "tsx scripts/send-test-email.ts",
+    "sms:test": "tsx scripts/send-test-sms.ts"
   },
   "devDependencies": {
     "react": "19.2.3",

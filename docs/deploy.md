@@ -229,7 +229,24 @@ pretending a code went out, and `/api/health` names what is missing.
    falls back to `SESSION_SECRET`, and rotating either invalidates every stored
    number — everybody has to enter and confirm theirs again. A dedicated pepper
    buys the ability to rotate the session secret without that; it costs one more
-   secret to lose.
+   secret to lose. If you are going to set it, set it *before* anybody confirms a
+   number: while none are stored there is nothing to invalidate.
+4. **Send one:**
+
+   ```
+   npm run sms:test -- +447700900123
+   ```
+
+   It goes through the same `texterFromEnv` the app uses, so a carrier typo, a
+   bad credential or the missing `SMS_API_URL` fails here rather than in
+   production. The message says plainly that it is a test and carries no
+   six-digit run, so it cannot be mistaken for a real code on a lock screen.
+
+   "Accepted" is not "delivered", and that gap is wider here than for mail: an
+   unregistered A2P sender to a US number is **filtered rather than rejected**,
+   so the API answers 201 and the text never arrives. If the script succeeds and
+   nothing turns up, the campaign is the place to look — nothing in this
+   repository can see that from the outside.
 
 The number itself is never stored, here or anywhere: it is hashed on arrival
 with that key and the digits are discarded. A carrier's error message quotes the
