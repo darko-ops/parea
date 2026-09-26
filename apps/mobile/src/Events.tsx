@@ -2413,10 +2413,11 @@ export function SearchTab({
             style={[
               styles.field,
               styles.headField,
+              styles.findField,
               { backgroundColor: t.card, borderColor: t.line },
             ]}
           >
-            <Glyph name="search" size={17} color={t.dim} />
+            <Glyph name="search" size={19} color={t.dim} />
             <TextInput
               value={query}
               onChangeText={(next) => void search(next, scope)}
@@ -2425,7 +2426,7 @@ export function SearchTab({
               autoCapitalize="none"
               autoCorrect={false}
               accessibilityLabel={`Find ${scope}`}
-              style={[styles.fieldText, { color: t.fg }]}
+              style={[styles.fieldText, styles.findText, { color: t.fg }]}
             />
           </View>
         }
@@ -4177,6 +4178,27 @@ const styles = StyleSheet.create({
      borrowed from a gesture that never happened — a search box the size of the
      screen, rounded like a button. */
   headPill: { borderRadius: ROUND / 2 },
+  /* Taller than the disc it shares the row with, which is the only place in
+     the app a field is allowed to be.
+
+     Everywhere else a head row is chrome and the controls in it are the same
+     size as each other. Here the field is not a control on the page, it is
+     what the page is *for* — Find is a search — and a box drawn to the height
+     of the tray beside it says the two are equally what you came for. Ten more
+     points is what makes it read as the subject rather than as a third disc
+     stretched out.
+
+     The row grows with it and the tray centres against it, which `PageHead`
+     already does: its height is a floor rather than a fixed measure, so
+     nothing else has to know this number.
+
+     The radius stays 12. At 46 that is squarer than it looked at 36, which is
+     the direction this was already going. */
+  findField: { height: 46, paddingHorizontal: 16 },
+  /* A point up with it. 16 in a 46-point box is a caret with a lot of air
+     round it, and this is the one field somebody is looking at rather than
+     filling in. */
+  findText: { fontSize: 17 },
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },
