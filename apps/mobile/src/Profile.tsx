@@ -383,22 +383,31 @@ export function ProfileScreen({
           )}
         </View>
 
-      </View>
+        {/*
+          Inside the header column, not under it.
 
-      {/*
-        The bio wraps rather than truncating. It is two hundred characters at
-        most and somebody wrote it on purpose; an ellipsis in the middle of it
-        says less than the third line would have.
-      */}
-      {account?.bio && (
-        <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>
-      )}
-      {account === null && (
-        <Text style={[styles.bio, { color: t.dim }]}>
-          This device is not signed in. The albums below are the ones its links
-          reach; signing in is what makes them a new phone away.
-        </Text>
-      )}
+          It used to be a child of the scroller, which meant the space above it
+          was the 16 the scroller puts between its rows and not a number anybody
+          had chosen — under a link that sits 6 under the counts, that read as
+          the header having finished and the bio starting a new section. In the
+          column it carries its own margin, in the same three-to-eight rhythm as
+          every other line up there.
+
+          The bio wraps rather than truncating. It is two hundred characters at
+          most and somebody wrote it on purpose; an ellipsis in the middle of it
+          says less than the third line would have.
+        */}
+        {account?.bio && (
+          <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>
+        )}
+        {account === null && (
+          <Text style={[styles.bio, { color: t.dim }]}>
+            This device is not signed in. The albums below are the ones its
+            links reach; signing in is what makes them a new phone away.
+          </Text>
+        )}
+
+      </View>
 
       {/*
         Two halves of one row, and neither is the screen's primary action —
@@ -1091,28 +1100,32 @@ const styles = StyleSheet.create({
    * between them.
    */
   /*
-   * Centred, inset, and pulled up by part of the scroll's gap.
+   * Six under the line above it, and inset to a readable measure.
    *
-   * The old -8 pulled it against a header whose height was set by a 104pt
-   * picture beside the text, and it went when the picture did. What is left is
-   * a real gap: the bio is a child of the scroller, so the space above it is
-   * the 16 the scroller puts between its rows plus the bio's own leading —
-   * about twenty points under a link that sits six under the counts. The
-   * header read as finished and the bio as the next section.
+   * The margin is the whole of the gap now. The bio used to be a child of the
+   * scroller and inherited its `gap: 16`, which — with the bio's own leading on
+   * top — put twenty points of white under a link that sits six under the
+   * counts; a negative margin against that was one number cancelling another.
+   * It is in the header column instead, so this reads as the same kind of step
+   * as the 3 under the name and the 6 under the counts.
    *
-   * Six of it back, not all sixteen: the bio is still the person's sentence
-   * rather than another line of facts, so it follows the header at the
-   * header's own rhythm and not at a section's.
+   * Six, not sixteen: the bio is the person's own sentence rather than a fourth
+   * line of facts, so it wants to be told apart from the counts — but by a line
+   * break, not by a section break.
    *
-   * The inset keeps a long bio to a readable measure once it is centred —
-   * full width and centred is a paragraph with ragged edges on both sides.
+   * `stretch` and 16 rather than a centred box and 36. The column is already
+   * inset by the gutter's 20, and 20 + 16 is the same measure the 36 gave when
+   * this was full width — a long bio kept off both edges, which is what centred
+   * text needs. Stretched because a centred child would be sized by its longest
+   * line, and a one-line bio would then wrap wherever the line happened to end.
    */
   bio: {
+    alignSelf: 'stretch',
+    marginTop: 6,
     fontSize: 15,
     lineHeight: 21,
     textAlign: 'center',
-    paddingHorizontal: 36,
-    marginTop: -6,
+    paddingHorizontal: 16,
   },
   /* The same size and rhythm as the counts line it follows, in the accent —
      this is the one thing in the header that goes somewhere. */

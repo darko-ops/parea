@@ -81,6 +81,9 @@ export function AccountView() {
     email: string;
     displayName: string | null;
     bio: string | null;
+    /** The one link on your profile, with its scheme — `/api/account/session`
+        has always answered with it; this page had simply never drawn it. */
+    link: string | null;
     handle: string | null;
     avatarUrl: string | null;
     phoneLast2: string | null;
@@ -394,6 +397,27 @@ export function AccountView() {
               </a>
             )}
           </p>
+          {/*
+            Your own link, under the counts — the same place, and the same
+            reasoning, as on somebody else's page: an address is a fact about
+            you, and the line above it is the other three.
+
+            It is a real link here too, not plain text. Checking that what you
+            typed actually opens is most of what somebody wants from seeing it
+            on their own profile, and the one way to check is to follow it. New
+            tab and `noopener`, so the profile is still behind you.
+
+            `nofollow ugc` for the same reason it is there on a stranger's page:
+            the rel is about what kind of link this is, not about whose it is,
+            and two spellings of it would be a difference nobody meant.
+          */}
+          {account?.link && (
+            <p className="you-link">
+              <a href={account.link} target="_blank" rel="nofollow ugc noopener noreferrer">
+                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            </p>
+          )}
         </div>
 
         {/*

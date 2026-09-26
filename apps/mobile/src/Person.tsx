@@ -40,6 +40,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -374,9 +375,38 @@ export function PersonScreen({
           {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
           {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
         </Text>
-      </View>
 
-      {person.bio && <Text style={[styles.bio, { color: t.fg }]}>{person.bio}</Text>}
+        {/*
+          The one link they put on their profile, under the counts and above
+          the bio — the same place your own page puts yours, for the reason
+          written there: the line above is what this person has, and an address
+          is the same kind of thing.
+
+          This is the screen the field was always for. A link only its owner
+          could see was a bookmark; the value is stored with its scheme and the
+          server refuses anything that is not http or https, which is what
+          makes it safe to hand straight to the browser. Shown without the
+          scheme, because `https://` in front of a domain is four characters of
+          protocol on a screen about a person.
+        */}
+        {person.link && (
+          <Text
+            onPress={() => void Linking.openURL(person.link!)}
+            suppressHighlighting
+            accessibilityRole="link"
+            accessibilityLabel={`${person.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+            numberOfLines={1}
+            style={[styles.link, { color: t.accent }]}
+          >
+            {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </Text>
+        )}
+
+        {/* In the column rather than under it, so the space above it is a
+            number somebody chose rather than the scroller's gap — see the note
+            on `bio`, and the same move on your own profile. */}
+        {person.bio && <Text style={[styles.bio, { color: t.fg }]}>{person.bio}</Text>}
+      </View>
 
       {/*
         Where Edit profile and Share profile sit on your own, there is one
@@ -639,9 +669,28 @@ const styles = StyleSheet.create({
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
   counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
-  /* Centred and inset, like the profile's. Full width and centred is a
-     paragraph with ragged edges on both sides. */
-  bio: { fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 },
+  /* The same size and rhythm as the counts line above it, in the accent — the
+     one thing in this header that goes somewhere. Your own profile's to the
+     point: one link, one line, one set of numbers for it. */
+  link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },
+  /*
+   * Centred and inset, like the profile's, and six under the line above it.
+   *
+   * The 6 is the whole gap: this used to be a child of the scroller and
+   * inherited its `gap: 16`, which with the bio's own leading put a section's
+   * worth of white between the header and the sentence belonging to it. The
+   * inset is 16 against the gutter's 20 — the same 36 from when this was full
+   * width — and `stretch` because a centred child would be sized by its longest
+   * line and a short bio would wrap wherever that line ended.
+   */
+  bio: {
+    alignSelf: 'stretch',
+    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
   /* One control where the profile has two, and it fills the row on its own. */
   actions: { flexDirection: 'row', gap: 8 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },

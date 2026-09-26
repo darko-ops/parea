@@ -3947,6 +3947,21 @@ img.you-face { object-fit: cover; }
 }
 .you-counts > * + *::before { content: '·'; margin-right: 6px; }
 
+/* The one link on a profile, in the accent and at the counts' size — this is
+   the only thing in the header that goes somewhere, and the app's version of
+   this line is the same size, the same colour and in the same place.
+
+   Six under the counts, the same step the app uses, and truncated rather than
+   wrapped: a long address broken over two lines is the widest thing in the
+   header and it is not what the page is about. `direction` is left alone —
+   an ellipsis belongs at the end of a domain, not in front of one. */
+.you-link {
+  margin: 6px 0 0; font-size: 14.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.you-link a { color: var(--accent); text-decoration: none; }
+.you-link a:hover { text-decoration: underline; }
+
 /* The pair. Two halves of a row and the same size, because neither is more
    important than the other: one changes what other people see of you, the
    other hands them the page. */

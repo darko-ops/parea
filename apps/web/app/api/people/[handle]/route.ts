@@ -64,6 +64,16 @@ export async function GET(
        * name and a button where the site has a person.
        */
       bio: person.bio,
+      /*
+       * The one link on their profile, with its scheme.
+       *
+       * Sent for the same reason the bio is: somebody typed it for other people
+       * to follow, and the app's version of this screen is the screen it was
+       * typed for. `profileFor` already selects it and the route that stored it
+       * has already refused everything that is not http or https, so there is
+       * nothing to decide or re-check here.
+       */
+      link: person.link,
       standing: person.standing,
       requestId: person.requestId,
       /*

@@ -78,6 +78,8 @@ type Person = {
   displayName: string | null;
   avatar: string | null;
   bio: string | null;
+  /** The one link on their profile, with its scheme — see `Profile.link`. */
+  link: string | null;
   standing: Standing;
   requestId: string | null;
   /** Their own three totals — see `ProfileCounts`. */
@@ -224,6 +226,32 @@ export function PersonView({
               {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
             </span>
           </p>
+          {/*
+            The one link they put on their profile, under the counts.
+
+            With the facts rather than under the bio, which is where the app
+            puts it and for the same reason: the line above is what this person
+            has, and an address is the same kind of thing. Under the bio it
+            would read as a footnote to their sentence.
+
+            Shown without its scheme — `https://` in front of a domain is four
+            characters of protocol on a page about a person — while the `href`
+            keeps it, because a scheme-less href is a path on this site.
+
+            `nofollow ugc` because somebody else wrote it and this page is not
+            an endorsement; `noopener noreferrer` and a new tab because their
+            profile should still be behind you when you come back. The value is
+            safe to put here without a second check: `PATCH /api/account`
+            refuses anything that is not http or https, and stores what it
+            parsed.
+          */}
+          {person.link && (
+            <p className="you-link">
+              <a href={person.link} target="_blank" rel="nofollow ugc noopener noreferrer">
+                {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            </p>
+          )}
         </div>
 
         {/* Where Edit and Share sit on your own. The quiet states are worn as a

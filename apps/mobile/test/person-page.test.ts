@@ -40,17 +40,33 @@ describe('the shape of somebody else’s page', () => {
      * tab and this screen kept the shape it replaced, so the app told you
      * whose page you were on by rearranging it.
      *
-     * The same three styles, written the same way in both files. The head
-     * itself is not one component — the counts are a control on your own page
-     * and facts on theirs, and your own carries a link — but the shape is one
-     * shape, and two sets of numbers for it is how it comes apart again.
+     * The same styles, written the same way in both files. The head itself is
+     * not one component — the counts are a control on your own page and facts
+     * on theirs — but the shape is one shape, and two sets of numbers for it is
+     * how it comes apart again. The link is on both now: it is a fact about
+     * somebody, and a field whose whole purpose is other people's screens was
+     * being drawn only on its owner's.
      */
     for (const source of [PERSON, PROFILE]) {
       expect(source).toMatch(/head: \{ alignItems: 'center' \}/);
       expect(source).toMatch(/name: \{[\s\S]{0,120}?textAlign: 'center',[\s\S]{0,160}?fontSize: 28,/);
       expect(source).toMatch(/handle: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 3 \}/);
       expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 8 \}/);
-      expect(source).toMatch(/bio: \{ fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 \}/);
+      expect(source).toMatch(/link: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 6 \}/);
+      /*
+       * And the bio in the column with them rather than under it.
+       *
+       * It used to be a child of the scroller in both files, which made the
+       * space above it the scroller's `gap: 16` plus its own leading — about
+       * twenty points under a link that sits six under the counts, so the
+       * header read as finished and the sentence belonging to it as a new
+       * section. `marginTop: 6` is the same step as the rest of the column, and
+       * the inset is 16 against the gutter's 20: the 36 this had when it was
+       * full width, kept to the point.
+       */
+      expect(source).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 6,/);
+      expect(source).toMatch(/bio: \{[\s\S]{0,200}?textAlign: 'center',[\s\S]{0,40}?paddingHorizontal: 16,/);
+      expect(source).not.toMatch(/bio: \{ fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 \}/);
     }
     // Nothing left of the row: no picture in the header, no gutter exemption.
     expect(PERSON).not.toMatch(/flexDirection: 'row', alignItems: 'center', paddingLeft: 20/);

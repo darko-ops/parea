@@ -96,6 +96,20 @@ export type Profile = {
    * could see would be a diary.
    */
   bio: string | null;
+  /**
+   * The one link they put on their profile, with its scheme.
+   *
+   * Here for the same reason the bio is: somebody typed it for other people to
+   * follow. A link only its owner can see is a bookmark — the whole point of
+   * the field is the other side of it, and until now it was drawn on the one
+   * screen that needed it least.
+   *
+   * Always `http:` or `https:`; `PATCH /api/account` refuses everything else
+   * and stores what it parsed, which is what makes it safe to put straight in
+   * an `href`. A page that had to re-check would be the second place that
+   * decision lives.
+   */
+  link: string | null;
   standing: Standing;
   /** Only when they have asked you: the id the answering endpoint wants. */
   requestId: string | null;
@@ -166,6 +180,7 @@ export async function profileFor(
       displayName: schema.actors.displayName,
       avatarKey: schema.actors.avatarKey,
       bio: schema.actors.bio,
+      link: schema.actors.link,
     })
     .from(schema.actors)
     .where(

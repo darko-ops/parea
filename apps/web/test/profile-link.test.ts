@@ -246,6 +246,42 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.main \{ --page-top: 20px; padding: 20px; \}/);
   });
 
+  it('draws the link, on both profiles, under the counts', () => {
+    /*
+     * The field is validated at length above and was rendered nowhere on the
+     * web: your own profile printed a name, a bio and three numbers, and
+     * somebody else's page did not even receive the value. A link whose whole
+     * purpose is other people's screens, kept off every screen.
+     *
+     * Under the counts and above nothing, which is where the app puts it: the
+     * line above is what this person has, and an address is the same kind of
+     * thing. A real anchor on both — checking that what you typed opens is most
+     * of what somebody wants from seeing their own link — with `nofollow ugc`
+     * because somebody else wrote it and the page is not an endorsement, and
+     * `noopener` with the new tab so the profile is still behind you.
+     *
+     * Shown without its scheme and truncated rather than wrapped; the `href`
+     * keeps the scheme, because a scheme-less href is a path on this site.
+     */
+    const PERSON = read('../app/components/PersonView.tsx');
+    for (const source of [VIEW, PERSON]) {
+      expect(source).toMatch(/className="you-link"/);
+      expect(source).toMatch(/rel="nofollow ugc noopener noreferrer"/);
+      expect(source).toMatch(/target="_blank"/);
+      expect(source).toMatch(/replace\(\/\^https\?:\\\/\\\/\/, ''\)/);
+      // After the counts, not above them and not under the bio.
+      expect(source.indexOf('className="you-link"')).toBeGreaterThan(
+        source.indexOf('className="you-counts"'),
+      );
+    }
+    // And sent to the app's version of the page from the same payload, so one
+    // screen cannot have a link the other does not.
+    expect(read('../app/api/people/[handle]/route.ts')).toMatch(/link: person\.link,/);
+    expect(CSS).toMatch(/\.you-link \{[^}]*margin: 6px 0 0; font-size: 14\.5px/);
+    expect(CSS).toMatch(/\.you-link \{[^}]*text-overflow: ellipsis/);
+    expect(CSS).toMatch(/\.you-link a \{ color: var\(--accent\)/);
+  });
+
   it('lays their albums out in columns on a laptop', () => {
     // `.album-list` is a single column of rows, which is right on a phone and
     // is a 1400px page with a 60px card down the middle of it on a laptop. The

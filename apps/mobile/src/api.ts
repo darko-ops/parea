@@ -854,6 +854,15 @@ export type Person = {
   avatar: string | null;
   /** The line they wrote about themselves, which the site has always shown. */
   bio: string | null;
+  /**
+   * The one link on their profile, with its scheme.
+   *
+   * Always `http:` or `https:` — the server refuses anything else when it is
+   * stored, which is what makes it safe to hand to `Linking.openURL` without a
+   * second check on this side. Shown without the scheme; see `Person.tsx`, and
+   * `Account.link` for your own.
+   */
+  link: string | null;
   standing: Standing;
   /** Only when they are the one waiting: the id the answer goes to. */
   requestId: string | null;

@@ -373,23 +373,26 @@ describe('a link on a profile', () => {
     );
   });
 
-  it('centres the bio and closes the gap under the link', () => {
+  it('keeps the bio in the header column, six under the line above it', () => {
     /*
-     * Centred and inset, because full width and centred is a paragraph ragged
-     * on both sides.
+     * The gap used to be inherited. The bio was a child of the scroller, so the
+     * space above it was the scroller's `gap: 16` plus the bio's own leading —
+     * about twenty points under a link that sits six under the counts, which
+     * read as the header having finished and the bio starting a section. A
+     * negative margin against that was one number cancelling another; the bio
+     * is in the column now and the 6 is the whole of it.
      *
-     * And pulled up six: the bio is a child of the scroller, so the space
-     * above it is the scroller's 16 plus the bio's own leading — a section's
-     * worth of white under a link that sits six under the counts. Six back,
-     * not sixteen, so the bio follows the header rather than joining it.
+     * The inset is 16 rather than 36 because the column is already inset by the
+     * gutter's 20, and stretched because a centred child would be sized by its
+     * longest line — a one-line bio would wrap wherever that line ended.
      *
-     * Not the old -8, which was pulling against a 104pt picture beside the
-     * text that no longer exists.
+     * Neither of the old numbers: not the -8 that pulled against a 104pt
+     * picture beside the text, and not the -6 that pulled against the gap.
      */
-    expect(PROFILE).toMatch(/bio: \{[^}]*textAlign: 'center'/);
-    expect(PROFILE).toMatch(/bio: \{[^}]*paddingHorizontal: 36/);
-    expect(PROFILE).toMatch(/bio: \{[^}]*marginTop: -6/);
+    expect(PROFILE).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 6,/);
+    expect(PROFILE).toMatch(/bio: \{[\s\S]{0,200}?textAlign: 'center',[\s\S]{0,40}?paddingHorizontal: 16,/);
     expect(PROFILE).not.toMatch(/marginTop: -8/);
+    expect(PROFILE).not.toMatch(/marginTop: -6/);
   });
 });
 

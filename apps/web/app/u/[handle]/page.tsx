@@ -115,6 +115,9 @@ export default async function PersonPage({
             handle: person.handle,
             displayName: person.displayName,
             bio: person.bio,
+            // Already http(s) and already parsed by the route that stored it,
+            // so it goes into an `href` as it is — see `Profile.link`.
+            link: person.link,
             avatar: await avatarUrl(person.avatarKey),
             standing: person.standing,
             requestId: person.requestId,
