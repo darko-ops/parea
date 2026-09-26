@@ -295,6 +295,17 @@ export function Rail({ current }: { current: RailPage }) {
             describing a moment that has passed.
           */}
           {row.page === 'invites' && current !== 'invites' && <InvitesBadge />}
+          {/*
+            And the same rule on Chat: a dot while there is something unread in
+            a room, and never on the page it points at — the list is right there
+            with its own counts on it, and a mark in the rail beside them would
+            be the same fact said twice.
+
+            A dot and not a number. Each room carries its own count on that
+            page; a total across them is a figure nobody can act on, and what
+            the rail has to say is only that there is something in there.
+          */}
+          {row.page === 'groups' && current !== 'groups' && <InvitesBadge mark="chats" />}
         </a>
       ))}
 

@@ -1213,9 +1213,20 @@ fail silently:
   third is on this route rather than on `/api/groups` because of where it is
   drawn — a dot on the Chats tab has to be on screen before anybody has opened
   Chats, and the call that screen makes fetches every room with its last
-  message. The app re-asks when a notification lands and when it returns to the
-  foreground, because a push delivered to a sleeping process reaches no
-  listener at all.
+  message. The app re-asks when a notification lands, when it returns to the
+  foreground, and on the way out of a conversation: a push delivered to a
+  sleeping process reaches no listener at all, and reading a thread is what
+  marks it read, so the answer in hand is stale by the time somebody backs out.
+
+**A mark may only claim what the screen it points at can show.** `chats` counts
+group threads and nothing else, because the Chats tab lists group chats and
+nothing else — album conversations came off it when comments moved to the
+photographs they are about. Counting an unread `event_message` lit a dot over a
+list with nothing in it to read, and no amount of opening chats put it out. A
+comment is an `event_message` too, so the commonest thing in the product was
+lighting the tab furthest from where it happened; those belong to `unread`, on
+the tray, which points at Lately and the album one tap beyond it. A badge
+somebody cannot clear is how a person learns to stop believing all of them.
 
 All of them are one colour, `news`, and it is not the accent — which is what a
 button is. It is the logo's aqua at full chroma: the same hue as the mark's

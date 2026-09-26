@@ -190,6 +190,31 @@ describe('the door', () => {
     expect(APP).toMatch(/setChats\(next\.chats\)/);
   });
 
+  it('goes back and asks again on the way out of a conversation', () => {
+    /*
+     * The bug this exists for, because the code reads correct without it:
+     * fetching a group's messages is what marks the thread read — the route
+     * does it as a side effect of answering — so the boolean the bar is drawn
+     * from is stale the moment somebody backs out. Reading the only unread
+     * chat left the dot lit until the app was backgrounded, which is the worst
+     * thing a badge can do: point at a screen with nothing on it.
+     *
+     * Its own callback rather than `leaveToTabs`, which is named for the
+     * screens that change nothing on their way out. A conversation is not one
+     * of those any more, and the name is what keeps the next screen that
+     * changes something from quietly reusing the wrong exit.
+     */
+    expect(APP).toMatch(
+      /const leaveThread = useCallback\(\(\) => \{\s*void refreshWaiting\(\);/,
+    );
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveThread\}>/);
+    expect(APP).toMatch(/onBack=\{leaveThread\}/);
+    // And the room's own page, which holds a conversation as a pane.
+    expect(APP).toMatch(
+      /const leaveGroup = useCallback\(\(\) => \{[\s\S]{0,400}void refreshWaiting\(\);/,
+    );
+  });
+
   it('paints every unread mark in one colour', () => {
     /*
      * One colour for arriving, across the whole app: the tray's badge and its

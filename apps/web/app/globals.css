@@ -47,6 +47,22 @@
   --accent: #4e63a8;
   /* Selected pill fill, and the active nav row in the rail. */
   --accent-soft: #eceffb;
+  /* Arriving, and only arriving: the badge in the rail, the dot beside Chat,
+     the unread count on a conversation. Not the accent, which is what a
+     button is — they were one colour, and the one mark that says *something
+     happened while you were away* read as a control somebody had forgotten to
+     attach an action to.
+
+     The app wears the same value, and the note beside it there is the long
+     one: it is the mark's `blueOnMint` hue at full chroma, 189° in both with
+     the saturation taken from 49% up to 81%. Not the mark's own value, because
+     of size — on the logo that aqua is a region two hundred points across and
+     being muted is what keeps it quiet; a badge is nine pixels, and at that
+     size the same colour is a grey-blue smudge. */
+  --news: #17c0de;
+  /* Ink on `--news`, which is a light value: white on it is 2.7:1, and at 12px
+     that is a number nobody can read. 7.2:1. */
+  --news-ink: #07272e;
   /* Accent text on white or on the soft fill, where the accent itself is a
      shade too light to be read comfortably at 15px. */
   --accent-ink: #3f5498;
@@ -384,7 +400,7 @@ button.secondary {
   flex: none; min-width: 20px; padding: 0 6px;
   height: 20px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #fff;
+  background: var(--news); color: var(--news-ink);
   font-size: 12px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
 }

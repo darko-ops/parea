@@ -320,7 +320,7 @@ describe('things waiting on an answer', () => {
  * one place the app could have said *there is something to read in here* was
  * the only place with no way to find out.
  */
-describe('anything unread in any conversation', () => {
+describe('anything unread on the Chats tab', () => {
   /** A room with somebody else in it, and something said. */
   async function said(me: string, them: string, what = 'are we still on for Sunday') {
     const [room] = await db
@@ -345,11 +345,21 @@ describe('anything unread in any conversation', () => {
     expect((await badge(me)).chats).toBe(true);
   });
 
-  it('is true for an album’s thread as well as a group’s', async () => {
+  it('is never raised by an album’s thread, which that tab does not list', async () => {
     /*
-     * Both kinds, because the Chats tab draws both in one scroll — an album's
-     * conversation and a group's — and a dot that only knew about one of them
-     * would be a bar that goes quiet depending on where somebody was talking.
+     * The bug this half was shipped with, written down so it cannot come back.
+     *
+     * It counted event threads too, on the reasonable-sounding grounds that a
+     * conversation is a conversation. The Chats tab lists group chats only —
+     * album conversations came off it when comments moved to the photographs
+     * they are about, and its own empty state says where they went. So an
+     * unread `event_message` lit a dot over a list with nothing in it to read,
+     * and no amount of opening chats put it out: somebody read their one
+     * unread chat and the bar went on claiming there was another.
+     *
+     * A comment is an `event_message` as well, which made it worse than a near
+     * miss — the commonest thing in the product was lighting the tab furthest
+     * from where it happened.
      */
     const me = await person('me');
     const them = await person('them');
@@ -360,8 +370,39 @@ describe('anything unread in any conversation', () => {
       body: 'whose jacket is this',
     } as never);
 
-    expect((await badge(me)).chats).toBe(true);
+    expect((await badge(me)).chats).toBe(false);
+    // Nor does reading it change anything, because it was never counted.
     await markEventThreadRead(db, joined.event.id, me);
+    expect((await badge(me)).chats).toBe(false);
+  });
+
+  it('is never raised by a comment on a photograph', async () => {
+    // Those reach people through Lately and the tray — `unread` on this same
+    // answer — which is where the album they belong to is one tap away.
+    const me = await person('me');
+    const them = await person('them');
+    const joined = await settled(me, them);
+    await remarkOn(joined.photoId, joined.event.id, them);
+
+    const { unread, chats } = await badge(me);
+    expect(unread, 'it is news, and the tray says so').toBe(true);
+    expect(chats, 'but it is not a chat').toBe(false);
+  });
+
+  it('clears the moment the last unread chat is read', async () => {
+    /*
+     * The other half of the same complaint: reading the only unread chat has
+     * to put the dot out. Marking the thread read is what the app does by
+     * fetching it — the route does it as a side effect of answering — so this
+     * is the server half, and `leaveThread` in `App.tsx` is the client half
+     * that goes back and asks again.
+     */
+    const me = await person('me');
+    const them = await person('them');
+    const only = await said(me, them);
+    expect((await badge(me)).chats).toBe(true);
+
+    await markGroupThreadRead(db, only, me);
     expect((await badge(me)).chats).toBe(false);
   });
 

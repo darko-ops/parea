@@ -29,13 +29,18 @@
  * mark at all — so anybody who missed the banner had no way back to the thing
  * except to open Lately on the off-chance.
  *
- * `chats` is the same question about conversations, and it is here rather than
- * on `/api/groups` because of where it is drawn: a dot on the Chats tab has to
- * be on screen before anybody has opened Chats, and the call that screen makes
- * fetches every room with its last message and its deck of faces. This route
- * is already the one the chrome asks on launch, on waking, and when a
+ * `chats` is the same question about the Chats tab, and it is here rather than
+ * on `/api/groups` because of where it is drawn: a dot on that tab has to be on
+ * screen before anybody has opened it, and the call that screen makes fetches
+ * every room with its last message and its deck of faces. This route is
+ * already the one the chrome asks on launch, on waking, and when a
  * notification lands; carrying a third boolean costs one `exists` and no
  * second round trip.
+ *
+ * It is group threads only, and the two fields do not overlap: a comment on a
+ * photograph is `unread`, on the tray, because the album it belongs to is what
+ * it points at. `chats` counting it lit a dot over a list with nothing in it
+ * to read — see `unreadChats`.
  *
  * ## Why `unread` is read off the feed itself
  *
@@ -57,7 +62,7 @@ import { NextResponse } from 'next/server';
 
 import { activityFor } from '@/activity';
 import { getDb } from '@/db';
-import { unreadConversations } from '@/groupMessages';
+import { unreadChats } from '@/groupMessages';
 import { invitesSeenAtFor, invitesWaiting } from '@/invites';
 import { otherRequestsWaiting } from '@/requests';
 import { currentActorId } from '@/session';
@@ -74,7 +79,7 @@ export async function GET() {
     otherRequestsWaiting(db, actorId),
     activityFor(db, actorId),
     invitesSeenAtFor(db, actorId),
-    unreadConversations(db, actorId),
+    unreadChats(db, actorId),
   ]);
 
   // Never looked means everything is new, not nothing. Comparing against null

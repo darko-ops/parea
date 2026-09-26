@@ -312,6 +312,40 @@ describe('the menu on a narrow screen', () => {
     expect(MOBILE).toMatch(/\.rail-burger \.badge \{/);
   });
 
+  it('marks Chat when a room has something waiting to be read', () => {
+    /*
+     * The rail's second mark, and the same rule as the first: never on the
+     * page it points at. Arriving on the list is what clears it, so a dot
+     * still sitting there while somebody reads the rooms is a dot describing a
+     * moment that has passed.
+     *
+     * A dot and not a number. Each room on that page carries its own count; a
+     * total across them is a figure nobody can act on, and what a rail has to
+     * say is only that there is something in there.
+     */
+    expect(RAIL).toMatch(
+      /\{row\.page === 'groups' && current !== 'groups' && <InvitesBadge mark="chats" \/>\}/,
+    );
+  });
+
+  it('asks once for however many marks are on the page', () => {
+    /*
+     * Three of these draw on a rail — the burger's, Notifications' and Chat's
+     * — and the endpoint behind them reads the whole activity feed to decide
+     * whether anything in it is new. Three fetches of that on every
+     * navigation is the cost of a component that asks for itself, and the
+     * shared promise is what pays it back.
+     *
+     * Only while a request is in flight, and dropped when it settles: a cache
+     * with a lifetime needs a rule about going stale, and this needs none,
+     * because all it collapses is components mounting in the same render.
+     */
+    const badge = read(join(APP, 'components/InvitesBadge.tsx'));
+    expect(badge).toMatch(/let inFlight: Promise<Marks> \| null = null/);
+    expect(badge).toMatch(/if \(inFlight\) return inFlight/);
+    expect(badge).toMatch(/inFlight = null/);
+  });
+
   it('closes on a tap away and on Escape', () => {
     // The two rules `Menu` applies to its panel, for the same reason: a panel
     // whose only exit is choosing something makes you navigate to be rid of

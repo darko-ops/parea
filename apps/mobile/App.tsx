@@ -1009,8 +1009,29 @@ export default function App() {
   const leaveGroup = useCallback(() => {
     void refreshGroups();
     void refreshEvents();
+    // A room holds its conversation as a pane, so this is a way out of a
+    // thread as much as `leaveThread` is. See there.
+    void refreshWaiting();
     setRoute({ screen: 'tabs' });
-  }, [refreshEvents, refreshGroups]);
+  }, [refreshEvents, refreshGroups, refreshWaiting]);
+
+  /**
+   * Leaving a conversation, which always changes the dot on the tab bar.
+   *
+   * Fetching a group's messages is what marks the thread read — the route does
+   * it as a side effect of answering, the same arrangement Lately has — so by
+   * the time somebody backs out, the boolean the bar is drawn from is stale in
+   * the one direction that matters. Without this the dot survived reading the
+   * only unread chat and stayed lit until the app was backgrounded, which is
+   * the worst thing a badge can do: point at a screen that has nothing on it.
+   *
+   * Its own callback rather than `leaveToTabs`, which is named for the screens
+   * that change nothing on their way out. This one is not that any more.
+   */
+  const leaveThread = useCallback(() => {
+    void refreshWaiting();
+    setRoute({ screen: 'tabs' });
+  }, [refreshWaiting]);
 
   /** The screens that change nothing on their way out. */
   const leaveToTabs = useCallback(() => setRoute({ screen: 'tabs' }), []);
@@ -1371,13 +1392,13 @@ export default function App() {
       )}
 
       {route.screen === 'groupThread' && (
-        <SwipeBack onBack={leaveToTabs}>
+        <SwipeBack onBack={leaveThread}>
           <GroupThread
             api={api}
             group={route.group}
             t={t}
             dark={dark}
-            onBack={leaveToTabs}
+            onBack={leaveThread}
             onOpenGroup={() => setRoute({ screen: 'group', id: route.group.id })}
           />
         </SwipeBack>
