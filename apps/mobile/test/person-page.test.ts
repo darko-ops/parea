@@ -128,19 +128,27 @@ describe('the shape of somebody else’s page', () => {
     expect(PERSON).toMatch(/\{person\.bio && </);
   });
 
-  it('offers one control where the profile offers two', () => {
+  it('offers the friend decision, in the ink of the row it is on', () => {
     /*
      * Edit profile and Share profile are things you do to your own page;
-     * neither means anything on somebody else's. What is left is the one thing
-     * you can do about a person.
+     * neither means anything on somebody else's. What is here instead is what
+     * you can do about a person: talk to them, and decide what the two of you
+     * are.
      *
      * "Friends" is still worn as a label — there is nothing to press, and a
      * control reporting a state is one somebody presses to find out it does
      * nothing. An open request is the exception and always was: it is the
      * viewer's own to withdraw, so it is a button.
+     *
+     * But it wears `fg`, not `dim`. The quiet grey was written when this was
+     * the only thing on the row; beside Chat, in a panel of exactly the same
+     * shape and fill, it stopped reading as quieter and started reading as two
+     * labels in two greys. What says this one does not press is that it does
+     * not press.
      */
     expect(PERSON).toMatch(/>Add friend</);
     expect(PERSON).toMatch(/>Friends</);
+    expect(PERSON).toMatch(/\{ color: t\.fg \}\]}>Friends</);
     expect(PERSON).toMatch(/standing === 'none' && \(/);
     /*
      * No Edit, no Share, no Settings — none of the three is about them.

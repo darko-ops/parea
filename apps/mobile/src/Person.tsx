@@ -500,11 +500,22 @@ export function PersonScreen({
           </Pressable>
         )}
         {standing === 'friends' && (
+          /*
+            The same ink as Chat beside it.
+
+            It was `dim`, on the rule that a state worn as a label should be
+            quieter than a control — and that rule was written when this was
+            the only thing on the row. Next to Chat it stopped reading as
+            "quieter" and started reading as two labels in two greys, in a
+            panel of exactly the same shape and colour. What tells somebody
+            this one is not pressable is that it does not press; the grey was
+            saying it a second time and getting the row wrong to do it.
+          */
           <View
             style={[styles.action, { borderColor: t.line, backgroundColor: t.card }]}
             accessibilityRole="text"
           >
-            <Text style={[styles.actionText, { color: t.dim }]}>Friends</Text>
+            <Text style={[styles.actionText, { color: t.fg }]}>Friends</Text>
           </View>
         )}
         {/*
