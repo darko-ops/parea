@@ -41,7 +41,19 @@ import { useImageFailure } from './useImageFailure';
 
 type GroupData = {
   id: string;
+  /**
+   * What to call it: the name somebody gave it, or what it is titled from its
+   * members when nobody has. Always a string — see `titleFor` on the server.
+   */
   name: string;
+  /**
+   * The name as stored, and null for a room nobody has named.
+   *
+   * `name` above is what to draw and this is whether anything was drawn from a
+   * decision. The page needs both: it offers to name an unnamed room, and
+   * "name this" and "rename this" are different offers.
+   */
+  named: string | null;
   memberCount: number;
   member: boolean;
   role: 'member' | 'admin' | null;

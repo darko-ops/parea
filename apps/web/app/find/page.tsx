@@ -170,7 +170,13 @@ export default async function FindPage() {
             friends={friendFaces}
             suggested={suggestedFaces}
             suggestedGroups={suggestedGroups}
-            groups={groups.map((g) => ({ id: g.id, name: g.name, role: g.role }))}
+            groups={groups.map((g) => ({
+              // `title` and not `name`: most rooms have no name, and this list
+              // is how somebody recognises the one they are already in.
+              id: g.id,
+              name: g.title,
+              role: g.role,
+            }))}
             clusters={clusters}
             also={also}
           />

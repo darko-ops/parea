@@ -16,6 +16,7 @@ import { sendAll, toMessage, type Notification } from '@parea/push';
 import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { othersInGroups, titleFor } from './groups';
 
 async function deliver(
   db: Db,
@@ -47,6 +48,51 @@ async function deliver(
 }
 
 /**
+ * The three group notifications, each addressed to a room whose name may
+ * depend on who is reading it.
+ *
+ * Most rooms have no name — a chat is made out of people, and naming one is
+ * something you do later if you do it at all — so `groups.name` is null and
+ * the title is derived from the other members. Which means it is not one
+ * string: the same chat is "Ana" to Jack and "Jack" to Ana, and a single
+ * `groupName` on the payload would tell one of them their room is called by
+ * their own name.
+ *
+ * So the recipients are bucketed by what the room is called to each of them,
+ * and `deliver` runs once per bucket. A named group is one bucket and one
+ * call, exactly as before; a two-person chat is one bucket per person, which
+ * is two. Nothing here loops per recipient — the send is still batched across
+ * everybody who sees the same title.
+ */
+async function byTitle(
+  db: Db,
+  actorIds: string[],
+  groupId: string,
+  name: string | null,
+): Promise<Map<string, string[]>> {
+  const buckets = new Map<string, string[]>();
+  if (actorIds.length === 0) return buckets;
+
+  // A named room is the same room to everybody, and asking who is in it would
+  // be a query whose answer is thrown away.
+  const given = name?.trim();
+  if (given) return buckets.set(given, actorIds);
+
+  const members = await othersInGroups(db, [groupId], null);
+  const all = members.get(groupId) ?? [];
+  for (const actorId of actorIds) {
+    const title = titleFor(
+      null,
+      all.filter((person) => person.actorId !== actorId),
+    ).title;
+    const seen = buckets.get(title);
+    if (seen) seen.push(actorId);
+    else buckets.set(title, [actorId]);
+  }
+  return buckets;
+}
+
+/**
  * A new event in a group — the reason a group is worth joining.
  *
  * Everyone except whoever made it: telling someone about the thing they just
@@ -56,7 +102,8 @@ export async function notifyGroupEvent(
   db: Db,
   input: {
     groupId: string;
-    groupName: string;
+    /** As stored: null for a room nobody has named. See `byTitle`. */
+    groupName: string | null;
     eventId: string;
     eventName: string;
     createdBy: string;
@@ -73,13 +120,21 @@ export async function notifyGroupEvent(
         ),
       );
 
-    await deliver(db, members.map((m) => m.actorId), {
-      kind: 'group_event',
-      groupId: input.groupId,
-      groupName: input.groupName,
-      eventId: input.eventId,
-      eventName: input.eventName,
-    });
+    const buckets = await byTitle(
+      db,
+      members.map((m) => m.actorId),
+      input.groupId,
+      input.groupName,
+    );
+    for (const [groupName, actorIds] of buckets) {
+      await deliver(db, actorIds, {
+        kind: 'group_event',
+        groupId: input.groupId,
+        groupName,
+        eventId: input.eventId,
+        eventName: input.eventName,
+      });
+    }
   } catch {
     // Deliberately silent. See the module header.
   }
@@ -281,15 +336,24 @@ export async function notifyEventInvite(
  */
 export async function notifyGroupInvite(
   db: Db,
-  input: { actorIds: string[]; groupId: string; groupName: string; who: string },
+  input: {
+    actorIds: string[];
+    groupId: string;
+    /** As stored: null for a room nobody has named. See `byTitle`. */
+    groupName: string | null;
+    who: string;
+  },
 ): Promise<void> {
   try {
-    await deliver(db, input.actorIds, {
-      kind: 'group_invited',
-      groupId: input.groupId,
-      groupName: input.groupName,
-      who: input.who,
-    });
+    const buckets = await byTitle(db, input.actorIds, input.groupId, input.groupName);
+    for (const [groupName, actorIds] of buckets) {
+      await deliver(db, actorIds, {
+        kind: 'group_invited',
+        groupId: input.groupId,
+        groupName,
+        who: input.who,
+      });
+    }
   } catch {
     /* see the module header */
   }
@@ -309,15 +373,24 @@ export async function notifyGroupInvite(
  */
 export async function notifyGroupAdded(
   db: Db,
-  input: { actorIds: string[]; groupId: string; groupName: string; who: string },
+  input: {
+    actorIds: string[];
+    groupId: string;
+    /** As stored: null for a room nobody has named. See `byTitle`. */
+    groupName: string | null;
+    who: string;
+  },
 ): Promise<void> {
   try {
-    await deliver(db, input.actorIds, {
-      kind: 'group_added',
-      groupId: input.groupId,
-      groupName: input.groupName,
-      who: input.who,
-    });
+    const buckets = await byTitle(db, input.actorIds, input.groupId, input.groupName);
+    for (const [groupName, actorIds] of buckets) {
+      await deliver(db, actorIds, {
+        kind: 'group_added',
+        groupId: input.groupId,
+        groupName,
+        who: input.who,
+      });
+    }
   } catch {
     /* see the module header */
   }

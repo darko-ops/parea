@@ -163,7 +163,9 @@ export default async function GroupsPage() {
               .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''))
               .map((group): ChatRow => ({
                 id: group.id,
-                name: group.name,
+                // What the room is called to whoever is reading, which for
+                // most of them is who else is in it. See `titleFor`.
+                name: group.title,
                 lens: lensFor(group.id),
                 last: group.lastMessage && {
                   author: group.lastMessage.author,

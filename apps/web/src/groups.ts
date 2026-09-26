@@ -13,7 +13,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, asc, count, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
@@ -141,7 +141,7 @@ export async function groupEvents(db: Db, groupId: string) {
  */
 export async function groupsFor(db: Db, actorId: string | null) {
   if (!actorId) return [];
-  return db
+  const rows = await db
     .select({
       id: schema.groups.id,
       name: schema.groups.name,
@@ -154,6 +154,25 @@ export async function groupsFor(db: Db, actorId: string | null) {
       and(eq(schema.groupMembers.actorId, actorId), isNull(schema.groups.deletedAt)),
     )
     .orderBy(desc(schema.groupMembers.joinedAt));
+
+  /*
+   * Titled here as well as in the heavier list, and that costs this call one
+   * query where it used to cost none.
+   *
+   * It is not optional. `name` is null for most rows now, and a caller that
+   * got the column and not the title would draw a blank where a room's name
+   * goes — this is the list the app asks for at launch, so the blank would be
+   * the first thing anybody saw. One query for the whole list rather than one
+   * per row; see `othersInGroups`.
+   *
+   * No pictures, though. The title needs names and the launch call draws no
+   * deck, so nothing here touches the URL signer.
+   */
+  const others = await othersInGroups(db, rows.map((row) => row.id), actorId);
+  return rows.map((row) => ({
+    ...row,
+    ...titleFor(row.name, others.get(row.id) ?? []),
+  }));
 }
 
 /**
@@ -357,7 +376,17 @@ function sqlIlike(term: string) {
  */
 export type MyGroup = {
   id: string;
-  name: string;
+  /**
+   * What somebody named it, and null for the rooms nobody has — which is most
+   * of them. Carried beside `title` rather than folded into it because a
+   * screen that offers to name a room has to know whether it is renaming or
+   * naming, and because only an unnamed one may be titled from its members.
+   */
+  name: string | null;
+  /** What to draw. Always a string. See `titleFor`. */
+  title: string;
+  /** Which of the three ways the title above was arrived at. */
+  kind: GroupKind;
   role: 'member' | 'admin';
   memberCount: number;
   eventCount: number;
@@ -391,6 +420,16 @@ export type MyGroupDetailed = MyGroup & {
   /** Everybody the three faces do not show. Zero draws no chip. */
   moreFaces: number;
   /**
+   * The same pictures with the viewer taken out, which is what an unnamed
+   * room is drawn as instead of a letter on a colour. See `deckFor`.
+   *
+   * On every group, named or not, because the two differ in what a screen
+   * chooses to draw rather than in what it is given — and a named room that
+   * is later unnamed would otherwise need a different payload.
+   */
+  deck: { name: string; avatarUrl: string | null }[];
+  deckMore: number;
+  /**
    * The group's own conversation, as one line.
    *
    * Null for a group nobody has spoken in — a door rather than an error, and
@@ -400,6 +439,187 @@ export type MyGroupDetailed = MyGroup & {
   /** Posted since this viewer last read the group thread. */
   unreadCount: number;
 };
+
+/**
+ * What a room is called when nobody has called it anything.
+ *
+ * ## Why most rooms have no name
+ *
+ * A chat is made out of people. The `+` on the Chats tab asks who and nothing
+ * else — no title field, no step between choosing somebody and talking to
+ * them — because a name is a thing you want for a room that has become a
+ * standing arrangement, and almost no conversation is that on the day it
+ * starts. Asking for one up front made every chat a small act of
+ * administration before it was a chat.
+ *
+ * So `groups.name` is null for most rows, and this is what a screen draws
+ * instead. One function, on the server, sent down as `title` — the derivation
+ * is a product decision with three cases in it and two clients drawing from
+ * it, and written twice it would be two products within a release.
+ *
+ * ## The three kinds
+ *
+ * **named** — somebody named it, on the group's own page. The name wins
+ * outright: naming a room is exactly the act of replacing what follows.
+ *
+ * **direct** — no name and one other person. It is called by their name,
+ * which is what somebody would call it out loud, and it is *not* a group
+ * anywhere a group is listed as a thing to find. A conversation with Jack is
+ * not a room with a door on it.
+ *
+ * **unnamed** — no name and more than one other person. "Ana, Jack + 2 more".
+ * Two names because that is how somebody says this out loud, and the third
+ * name is where a sentence becomes a membership list — the same number and
+ * the same reason as `MUTUALS_NAMED` above.
+ *
+ * ## Always without the viewer
+ *
+ * `others` is everybody but the person reading. Their own name in the title
+ * of their own chat is the screen describing them to themselves, and on a
+ * direct chat it would make every row say two names where one is the point.
+ */
+export const CHAT_NAMES_SHOWN = 2;
+
+export type GroupKind = 'named' | 'direct' | 'unnamed';
+
+export function titleFor(
+  name: string | null,
+  others: { name: string }[],
+): { title: string; kind: GroupKind } {
+  const given = name?.trim();
+  if (given) return { title: given, kind: 'named' };
+
+  /*
+   * Nobody but you. Reachable — a room empties as people leave, and it is
+   * still there with its conversation in it — and it has to say something,
+   * because a row with an empty title reads as a row that failed to load.
+   */
+  if (others.length === 0) return { title: 'Just you', kind: 'direct' };
+  if (others.length === 1) return { title: others[0]!.name, kind: 'direct' };
+
+  const named = others.slice(0, CHAT_NAMES_SHOWN).map((person) => person.name);
+  const rest = others.length - named.length;
+  return {
+    title: rest > 0 ? `${named.join(', ')} + ${rest} more` : named.join(', '),
+    kind: 'unnamed',
+  };
+}
+
+/**
+ * Everybody in each of these groups except the person asking, in one query.
+ *
+ * The title above needs the members, and so does the deck of pictures beside
+ * it — which makes "who is in it" a thing every list of groups now needs for
+ * every row. Asked per group that is a round trip per row on the screen with
+ * the most rows, which is the shape `myGroups` already goes out of its way to
+ * avoid in its counts.
+ *
+ * Admins first and then by when they joined, which is `groupPeople`'s order
+ * and has to stay it: the two names on a row must be the same two names on
+ * the group's own page, or the room is called something different depending
+ * on which screen you reached it from.
+ *
+ * No avatar signing here. A URL is a round trip to storage's signer and the
+ * title needs none of it — `deckFor` does that, for the one list that draws
+ * pictures.
+ */
+export type GroupOther = {
+  actorId: string;
+  name: string;
+  avatarKey: string | null;
+};
+
+export async function othersInGroups(
+  db: Db,
+  groupIds: string[],
+  viewerId: string | null,
+): Promise<Map<string, GroupOther[]>> {
+  const found = new Map<string, GroupOther[]>();
+  for (const id of groupIds) found.set(id, []);
+  if (groupIds.length === 0) return found;
+
+  const rows = await db
+    .select({
+      groupId: schema.groupMembers.groupId,
+      actorId: schema.actors.id,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+      role: schema.groupMembers.role,
+      joinedAt: schema.groupMembers.joinedAt,
+    })
+    .from(schema.groupMembers)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.groupMembers.actorId))
+    .where(inArray(schema.groupMembers.groupId, groupIds))
+    .orderBy(
+      desc(sql`${schema.groupMembers.role} = 'admin'`),
+      asc(schema.groupMembers.joinedAt),
+    );
+
+  for (const row of rows) {
+    if (row.actorId === viewerId) continue;
+    found.get(row.groupId)?.push({
+      actorId: row.actorId,
+      name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+      avatarKey: row.avatarKey,
+    });
+  }
+  return found;
+}
+
+/**
+ * The deck: the members' own pictures, stacked, as the icon of an unnamed room.
+ *
+ * A named group wears a letter on a colour and always has. This is what a room
+ * with no letter to wear wears instead — the people in it, which is the only
+ * thing it is made of.
+ *
+ * It does not break the rule that a group tile is never a photograph. That
+ * rule is about the *pictures inside the room*: borrowing a cover out of an
+ * evening would put something from a room onto the way in to it, and it would
+ * be visible to somebody who has not been let in. A member's own portrait is
+ * theirs, it is already on their profile, and this list is only ever built for
+ * a room the viewer is in — a door to a group they are not in carries a name
+ * and a count and nothing about who is behind it, exactly as before.
+ */
+export async function deckFor(
+  others: GroupOther[],
+): Promise<{ deck: { name: string; avatarUrl: string | null }[]; deckMore: number }> {
+  return {
+    deck: await Promise.all(
+      others.slice(0, GROUP_FACES).map(async (person) => ({
+        name: person.name,
+        avatarUrl: await avatarUrl(person.avatarKey),
+      })),
+    ),
+    deckMore: Math.max(0, others.length - GROUP_FACES),
+  };
+}
+
+/**
+ * The same derivation for one group, for the screens that hold exactly one.
+ *
+ * A page about a room, a breadcrumb, an invitation, a notification: each has
+ * a group and a reader, and each needs the room's title from that reader's
+ * side. The list version is what a list should use — this is one query, and
+ * twelve of them in a loop is the round trip per row `othersInGroups` exists
+ * to avoid.
+ *
+ * `viewerId` is allowed to be somebody other than whoever is signed in, and
+ * that is the point at the two places it matters. An invitation and a
+ * notification are addressed *to* a person, and an unnamed room is called
+ * something different depending on who is reading: "Ana, Jack + 1 more" to
+ * Dee, and "Ana, Dee + 1 more" to Jack. Titling those from the sender's side
+ * would tell somebody their room is called by their own name.
+ */
+export async function titleOf(
+  db: Db,
+  group: { id: string; name: string | null },
+  viewerId: string | null,
+): Promise<string> {
+  const others = await othersInGroups(db, [group.id], viewerId);
+  return titleFor(group.name, others.get(group.id) ?? []).title;
+}
 
 /** How many events a group's row previews before "View all N" takes over. */
 export const GROUP_STRIP = 3;
@@ -458,14 +678,23 @@ export async function myGroupsDetailed(
     actorId,
   );
 
+  /*
+   * And who is in each, for the deck an unnamed room wears instead of a
+   * letter. `myGroups` above already used this list to title the rows; this
+   * asks again because the pictures are wanted here and were deliberately not
+   * signed there.
+   */
+  const others = await othersInGroups(db, groups.map((group) => group.id), actorId);
+
   return Promise.all(
     groups.map(async (group) => {
-      const [events, people] = await Promise.all([
+      const [events, people, deck] = await Promise.all([
         groupArchive(db, group.id, actorId, since, GROUP_STRIP),
         facesFor(db, group.id),
+        deckFor(others.get(group.id) ?? []),
       ]);
       const thread = threads.get(group.id) ?? EMPTY_SUMMARY;
-      return { ...group, events, ...people, ...thread };
+      return { ...group, events, ...people, ...deck, ...thread };
     }),
   );
 }
@@ -505,9 +734,14 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
       and(eq(schema.groupMembers.actorId, actorId), isNull(schema.groups.deletedAt)),
     );
 
+  // One query for the whole list, so a room can be titled from who is in it
+  // without costing a round trip per row. See `othersInGroups`.
+  const others = await othersInGroups(db, rows.map((row) => row.id), actorId);
+
   return rows
     .map((row) => ({
       ...row,
+      ...titleFor(row.name, others.get(row.id) ?? []),
       lastActiveAt: row.lastActiveAt ? new Date(row.lastActiveAt).toISOString() : null,
     }))
     /*
@@ -1032,10 +1266,18 @@ export async function pendingGroupInvites(
     )
     .orderBy(desc(schema.groupInvites.createdAt));
 
+  /*
+   * Titled from the invited person's side, which is the only side that makes
+   * sense here: they are the one reading it, and an unnamed room is called by
+   * whoever else is in it. One query for however many invitations are open,
+   * the same as every other list of rooms on this page.
+   */
+  const others = await othersInGroups(db, rows.map((row) => row.groupId), actorId);
+
   return rows.map((row) => ({
     id: row.id,
     groupId: row.groupId,
-    groupName: row.groupName,
+    groupName: titleFor(row.groupName, others.get(row.groupId) ?? []).title,
     from: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
     createdAt: row.createdAt.toISOString(),
   }));

@@ -17,7 +17,15 @@ import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
 import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
-import { addMember, facesFor, groupsFor, myGroups } from '@/groups';
+import {
+  addMember,
+  deckFor,
+  facesFor,
+  groupsFor,
+  myGroups,
+  othersInGroups,
+  titleOf,
+} from '@/groups';
 import { notifyGroupAdded } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -90,11 +98,26 @@ export async function GET(request: Request) {
     actorId,
   );
 
+  /*
+   * And the deck: the other members' pictures, which is what a room nobody
+   * has named is drawn as instead of a letter on a colour.
+   *
+   * Beside `facesFor` rather than instead of it, because the two are not the
+   * same list. Faces are everybody, admins first, and they are the stack
+   * beside a group's name; the deck has the viewer taken out, because a chat
+   * with Jack is drawn as Jack and not as the two of you.
+   *
+   * One query for the whole list — see `othersInGroups` — where the faces
+   * above are still one per group.
+   */
+  const others = await othersInGroups(db, groups.map((group) => group.id), actorId);
+
   return NextResponse.json({
     groups: await Promise.all(
       groups.map(async (group) => ({
         ...group,
         ...(await facesFor(db, group.id)),
+        ...(await deckFor(others.get(group.id) ?? [])),
         ...(threads.get(group.id) ?? EMPTY_SUMMARY),
       })),
     ),
@@ -103,7 +126,7 @@ export async function GET(request: Request) {
 
 /** A group made from people rather than from an event. See `POST`. */
 async function fromPeople(
-  name: string,
+  name: string | null,
   findable: boolean,
   memberIds: string[],
 ): Promise<Response> {
@@ -132,9 +155,24 @@ async function fromPeople(
     targets.push(id);
   }
 
+  /*
+   * A room with no name has no slug either, and cannot be findable.
+   *
+   * The slug is made out of the name, so there is nothing to make one from —
+   * and null is the right absence rather than a slug of `group-a1b2c3`, which
+   * would be a URL nobody could have meant. `findable` follows from the same
+   * fact and is not a policy decision here: search matches on name, so a
+   * nameless room is unmatchable whatever the flag says. Writing `false`
+   * makes that explicit rather than leaving a true flag on a row where it
+   * quietly means nothing.
+   */
   const [group] = await db
     .insert(schema.groups)
-    .values({ name, slug: groupSlug(name), findable })
+    .values(
+      name
+        ? { name, slug: groupSlug(name), findable }
+        : { name: null, slug: null, findable: false },
+    )
     .returning();
 
   await addMember(db, group!.id, actorId, 'admin');
@@ -153,13 +191,23 @@ async function fromPeople(
     await notifyGroupAdded(db, {
       actorIds: targets,
       groupId: group!.id,
+      // Null passes straight through: `notifyGroupAdded` titles an unnamed
+      // room from the other members, per recipient. See `byTitle` in
+      // `notify.ts` for why one string would not do.
       groupName: group!.name,
       who: me?.displayName?.trim() || 'Somebody',
     });
   }
 
   return NextResponse.json(
-    { id: group!.id, name: group!.name, findable: group!.findable },
+    {
+      id: group!.id,
+      name: group!.name,
+      // What the maker's own screens should call it, which for a room they
+      // just made out of people is the people.
+      title: await titleOf(db, group!, actorId),
+      findable: group!.findable,
+    },
     { status: 201 },
   );
 }
@@ -196,7 +244,7 @@ export async function POST(request: Request) {
   };
 
   const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name || name.length > 80) {
+  if (name.length > 80) {
     return NextResponse.json({ error: 'name_required' }, { status: 400 });
   }
 
@@ -204,13 +252,29 @@ export async function POST(request: Request) {
     const memberIds = Array.isArray(body.memberIds)
       ? body.memberIds.filter((id): id is string => typeof id === 'string')
       : null;
-    // A group with nobody in it but you is still a group — the quiet "make a
-    // group from anyone" link makes exactly that. An absent `memberIds` is
-    // the old call with no event, though, and that is still a mistake.
+    /*
+     * A name is optional here and required everywhere else, and the asymmetry
+     * is the feature.
+     *
+     * This is the path the Chats tab's `+` takes: it asks who and nothing
+     * else, so the body arrives with people and no name, and the room is
+     * titled from its members until somebody names it. Rolling an event up
+     * into a group still demands one — that flow is somebody deciding this
+     * evening is the start of a standing thing, and naming it is the decision.
+     *
+     * A group with nobody in it but you is still a group — the quiet "make a
+     * group from anyone" link makes exactly that. An absent `memberIds` is the
+     * old call with no event, though, and that is still a mistake.
+     */
     if (memberIds) {
-      return fromPeople(name, body.findable === true, memberIds);
+      return fromPeople(name || null, body.findable === true, memberIds);
     }
     return NextResponse.json({ error: 'event_required' }, { status: 400 });
+  }
+
+  // Past here it is the roll-up, which is named by whoever rolls it up.
+  if (!name) {
+    return NextResponse.json({ error: 'name_required' }, { status: 400 });
   }
 
   const db = getDb();

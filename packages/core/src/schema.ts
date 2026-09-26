@@ -356,8 +356,36 @@ export const webauthnChallenges = pgTable(
 
 export const groups = pgTable('groups', {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
+  /**
+   * Null for a room nobody has named, which is most of them now.
+   *
+   * A chat is made from people and nothing else — no title field, no step
+   * between choosing who and talking to them — so the common group arrives
+   * here with no name at all and is titled from who is in it: the other person
+   * when there are two, "Ana, Jack + 2 more" when there are more. Naming one
+   * is something you do later, on its own page, and what it does is *replace*
+   * that derived title.
+   *
+   * Null rather than an empty string, because the two mean different things
+   * and the difference decides what a screen draws. An empty string is a name
+   * somebody gave and then cleared; null is a room that was never named, and
+   * only the second may be titled from its members. A column that could not
+   * tell them apart would make "clear the name" and "never named it" the same
+   * act, and the first is how you would get back to the derived title.
+   *
+   * See `titleFor` in `apps/web/src/groups.ts`, which is where the derivation
+   * lives — one rule, on the server, so the two clients cannot come to
+   * disagree about what a room is called.
+   */
+  name: text('name'),
+  /**
+   * Null for the same rooms, because a slug is made out of a name.
+   *
+   * Unique still holds: Postgres lets a unique index carry any number of
+   * nulls, so every unnamed room is distinct from every other rather than
+   * colliding on one empty value.
+   */
+  slug: text('slug').unique(),
   /** Asked once at creation. Groups can be findable; photos never are. */
   findable: boolean('findable').notNull().default(false),
   createdAt: createdAt(),

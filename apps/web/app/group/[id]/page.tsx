@@ -11,6 +11,7 @@ import {
   membershipOf,
   openJoinRequests,
   participatedInGroup,
+  titleOf,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
@@ -105,7 +106,11 @@ export default async function GroupPage({
         tab={tab}
         group={{
           id: group.id,
-          name: group.name,
+          name: await titleOf(db, group, actorId),
+          /* Null for a room nobody has named, which is what the page offers
+             to change. `name` above is what to draw; this is whether there is
+             anything there to replace. */
+          named: group.name,
           memberCount: await memberCount(db, group.id),
           member: membership !== null,
           role: membership?.role ?? null,
