@@ -1583,6 +1583,7 @@ export function ChatsTab({
               style={[
                 styles.field,
                 styles.headField,
+                styles.headPill,
                 { backgroundColor: t.card, borderColor: t.line },
               ]}
             >
@@ -4158,12 +4159,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  /* The same field, in a head row: the disc's own height and half of it for a
-     radius, so what happens when somebody presses the magnifier reads as that
-     disc stretching across the row rather than as one control being swapped
-     for another. Vertical padding goes, or the box is taller than the `+`
-     beside it and the row jumps by nine points on the way in. */
-  headField: { height: ROUND, borderRadius: ROUND / 2, paddingVertical: 0 },
+  /* The same field, sitting in a head row: the disc's height, and no vertical
+     padding of its own — with it the box is taller than the control beside it
+     and the row is nine points deeper than every other tab's.
+
+     The radius is the field's own 12 and is left alone here, which makes the
+     squarer of the two shapes the default. See `headPill` for the tab that
+     wants the other one and why only that tab does. */
+  headField: { height: ROUND, paddingVertical: 0 },
+  /* Half the height, which is a pill — for a field that was a disc a moment
+     ago. On Chats the box is what the magnifier becomes when it is pressed,
+     and matching the disc's radius is what makes that read as one control
+     stretching rather than as two controls swapped.
+
+     Find's does not get it. Its field is not opened, it is simply the row, so
+     there is no disc for it to have grown out of and a pill would be a shape
+     borrowed from a gesture that never happened — a search box the size of the
+     screen, rounded like a button. */
+  headPill: { borderRadius: ROUND / 2 },
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },
