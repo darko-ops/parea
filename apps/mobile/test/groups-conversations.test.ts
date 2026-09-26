@@ -262,9 +262,15 @@ describe('a group’s own thread', () => {
      * satisfies this shape without inventing the other's fields, and the
      * screen was reading four properties off the larger one anyway.
      */
-    expect(APP).toMatch(
-      /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
-    );
+    /*
+     * The App side spells it over several lines now, because `name` needed a
+     * note: both ways in already hold the *derived* title — a `MyGroupDetail`
+     * calls it `title` and a `GroupRoom` calls it `name` — so the bar is
+     * handed what the room is called and never has to know whether anybody
+     * named it.
+     */
+    expect(APP).toMatch(/screen: 'groupThread';[\s\S]{0,600}?eventCount: number;/);
+    expect(APP).toMatch(/name: group\.title/);
     expect(GROUP_THREAD).toMatch(
       /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
     );
@@ -340,7 +346,7 @@ describe('the first few', () => {
     expect(FIND).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
     expect(FIND).toMatch(/>\s*All groups\s*</);
     // And no button when there is nothing behind it.
-    expect(FIND).toMatch(/mine\.length > rooms\.length && \(/);
+    expect(FIND).toMatch(/myRooms\.length > rooms\.length && \(/);
   });
 
   it('picks the three most recently added to, not the first three it was sent', () => {
@@ -374,7 +380,9 @@ describe('finding one', () => {
      * refuses the more useful half of the question on a tab that is only
      * conversations.
      */
-    expect(TAB).toMatch(/matches\(group\.name, group\.lastMessage\?\.body, group\.lastMessage\?\.author\)/);
+    expect(TAB).toMatch(
+      /matches\(group\.title, group\.lastMessage\?\.body, group\.lastMessage\?\.author\)/,
+    );
   });
 
   it('matches without regard to case, and ignores stray spaces', () => {
@@ -485,9 +493,18 @@ describe('one list, of rooms', () => {
     // The rule the group blocks on Find follow: a group has no picture of its
     // own, and borrowing one out of an evening inside it would put something
     // from a room on the way in to it.
-    expect(TAB).toMatch(/styles\.chatLetter/);
-    expect(TAB).toMatch(/lensFor\(group\.id\)/);
+    /*
+     * The rule the doors on Find follow: a group has no picture of its own,
+     * and borrowing one out of an evening inside it would put something from
+     * a room on the way in to it.
+     *
+     * A room nobody has named wears the people in it instead of a letter —
+     * their own portraits, which is a different thing entirely and is argued
+     * on `RoomMark`. What must never appear here is a cover.
+     */
+    expect(TAB).toMatch(/<RoomMark room=\{group\} size=\{40\} t=\{t\} \/>/);
     expect(TAB).not.toMatch(/album\?\.cover/);
+    expect(TAB).not.toMatch(/coverUrl|\.cover\b/);
   });
 });
 

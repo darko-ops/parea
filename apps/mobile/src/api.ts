@@ -485,9 +485,40 @@ export type ThreadLine = {
   unreadCount: number;
 };
 
+/**
+ * How a room came by the name on its row.
+ *
+ * `named` is one somebody typed. The other two are rooms nobody has named —
+ * which is most of them, because a chat is made out of people and nothing
+ * else — and the difference between them is whether it is a conversation or a
+ * room: `direct` is you and one other person, called by their name and never
+ * listed anywhere a group is listed; `unnamed` is three or more, called "Ana,
+ * Jack + 2 more" until somebody names it.
+ *
+ * Decided on the server so the two clients cannot disagree about what a room
+ * is called. See `titleFor` in `apps/web/src/groups.ts`.
+ */
+export type GroupKind = 'named' | 'direct' | 'unnamed';
+
 export type MyGroupDetail = ThreadLine & {
   id: string;
-  name: string;
+  /** What somebody named it, and null for the rooms nobody has. */
+  name: string | null;
+  /** What to draw: the name, or who is in it. Always a string. */
+  title: string;
+  kind: GroupKind;
+  /**
+   * The members' own pictures with the viewer taken out, which is what a room
+   * with no name wears instead of a letter on a colour — one face for a chat
+   * with one person, a deck of them for a room with more.
+   *
+   * People, never photographs, and the distinction is the same one `faces`
+   * makes: a picture out of an evening inside the room would put something
+   * from a room onto the way in to it. A member's own portrait is theirs.
+   */
+  deck: { name: string; avatarUrl: string | null }[];
+  /** Everybody the deck does not show. */
+  deckMore: number;
   role: 'member' | 'admin';
   memberCount: number;
   eventCount: number;
@@ -686,7 +717,18 @@ export type GroupPerson = {
 
 export type GroupRoom = {
   id: string;
+  /** What to draw. A name if there is one, else who is in it. */
   name: string;
+  /**
+   * The name as stored, null for a room nobody has named.
+   *
+   * Both are needed on this screen and they are not the same question. `name`
+   * is what the heading says; this is whether there is a name there to
+   * replace — "Name this chat" and "Rename" are different offers, and only
+   * one of them is honest about what pressing it does.
+   */
+  named: string | null;
+  kind: GroupKind;
   memberCount: number;
   member: true;
   role: 'member' | 'admin';
@@ -1919,9 +1961,17 @@ export class Api {
    * Empty for someone who has never contributed, which is the common case on
    * first launch and not an error.
    */
-  async myGroups(): Promise<{ id: string; name: string; role: 'member' | 'admin' }[]> {
+  async myGroups(): Promise<
+    { id: string; name: string | null; title: string; kind: GroupKind; role: 'member' | 'admin' }[]
+  > {
     const { groups } = await this.call<{
-      groups: { id: string; name: string; role: 'member' | 'admin' }[];
+      groups: {
+        id: string;
+        name: string | null;
+        title: string;
+        kind: GroupKind;
+        role: 'member' | 'admin';
+      }[];
     }>('/api/groups');
     return groups;
   }
@@ -2023,11 +2073,40 @@ export class Api {
    * both would make the more consequential of the two the easier to reach by
    * accident.
    */
-  createGroupFrom(name: string, memberIds: string[]) {
-    return this.call<{ id: string; name: string }>('/api/groups', {
+  /**
+   * A chat, made out of people and nothing else.
+   *
+   * No name goes up, because the screen that calls this does not ask for one:
+   * a chat is who you are talking to, and the server titles it from them
+   * until somebody decides it is a standing thing and names it. `name` is
+   * still accepted here for the one caller that has one to offer — a cluster
+   * on Find arrives with a suggestion, and that flow is somebody deliberately
+   * making a *group* rather than starting a conversation.
+   */
+  createChat(memberIds: string[], name?: string) {
+    return this.call<{ id: string; name: string | null; title: string }>('/api/groups', {
       method: 'POST',
-      body: JSON.stringify({ name, memberIds }),
+      body: JSON.stringify(name ? { name, memberIds } : { memberIds }),
     });
+  }
+
+  /**
+   * Naming a room, or clearing the name off one.
+   *
+   * The other half of making a chat out of people. An empty string clears it
+   * and the room goes back to being called after whoever is in it, which is
+   * the way out of a name somebody regrets.
+   *
+   * Refused on a two-person chat — see the route. A conversation with one
+   * person is called by their name and is not a room with a door on it, and
+   * naming it would put it on the Find shelf where the other person never
+   * asked for it to be.
+   */
+  nameGroup(groupId: string, name: string) {
+    return this.call<{ id: string; name: string; named: string | null }>(
+      `/api/groups/${encodeURIComponent(groupId)}`,
+      { method: 'PATCH', body: JSON.stringify({ name }) },
+    );
   }
 
   // --- instrumentation ---------------------------------------------------

@@ -139,15 +139,24 @@ describe('what the screen may do', () => {
 
   it('draws the door as a letter, never as a photograph', () => {
     /*
-     * The rule is about *the door*, and it is the whole of the shelf now: a
-     * group is a letter on the lens colour its id hashes to, three across
-     * with the name underneath, and nothing about a group is ever drawn from
-     * a picture.
+     * The rule is about *the door*, and it is the whole of the shelf now:
+     * three across with the name underneath, and nothing about a group ever
+     * drawn from a picture inside it.
+     *
+     * A named room is a letter on the lens colour its id hashes to, which is
+     * what it has always been. A room nobody has named has no letter worth
+     * drawing — its title is a sentence about who is in it — and wears those
+     * people instead, as their own portraits. That is not this rule being
+     * broken: the rule is about the photographs in the room, which would be
+     * something from inside it shown on the way in. See `RoomMark`, which
+     * holds both and the argument.
      */
     const shelf = between(tab, 'YOUR GROUPS', 'All groups');
-    expect(shelf).toMatch(/styles\.door,/);
-    expect(shelf).toMatch(/lensFor\(group\.id\)/);
-    expect(shelf).toMatch(/initialOf\(group\.name\)/);
+    expect(shelf).toMatch(/<RoomMark room=\{group\} size=\{tile\} t=\{t\} \/>/);
+    const mark = between(EVENTS, 'function RoomMark', 'function ConversationLine');
+    expect(mark).toMatch(/lensFor\(room\.id\)/);
+    expect(mark).toMatch(/initialOf\(room\.title\)/);
+    expect(mark).toMatch(/room\.kind === 'named' \|\| room\.deck\.length === 0/);
     expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
     expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
     expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);
@@ -184,8 +193,15 @@ describe('what the screen may do', () => {
     expect(EVENTS).toMatch(/const doorRadius = Math\.round\(tile \* 0\.225\);/);
     expect(EVENTS).toMatch(/const doorLetter = Math\.round\(tile \* 0\.4\);/);
     const shelf = between(tab, 'YOUR GROUPS', 'All groups');
-    expect(shelf).toMatch(/height: tile, borderRadius: doorRadius,/);
-    expect(shelf).toMatch(/fontSize: doorLetter,/);
+    /*
+     * The square reaches the mark as `size`, and the mark works the corner
+     * and the letter out of it with the same fractions this screen used to
+     * apply itself — which is why the two drawings are the same shape.
+     */
+    expect(shelf).toMatch(/size=\{tile\}/);
+    const mark = between(EVENTS, 'function RoomMark', 'function ConversationLine');
+    expect(mark).toMatch(/Math\.round\(size \* 0\.25\)/);
+    expect(mark).toMatch(/Math\.round\(size \* 0\.42\)/);
     /*
      * The badge is positioned against a box of the square's own width, and is
      * still a sibling of the rounded box rather than a child — Android clips

@@ -59,6 +59,7 @@ import {
   type Feed,
   type FeedPhoto,
   type Member,
+  type GroupKind,
   type MyGroupDetail,
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
@@ -119,7 +120,21 @@ import { Offline, UploadQueue, type QueueState } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-type MyGroup = { id: string; name: string; role: 'member' | 'admin' };
+/**
+ * A room on the launch list: what it is called, and how it came to be called
+ * that.
+ *
+ * `title` and not `name`, because most rooms have no name. A chat is made out
+ * of people and is called after them until somebody decides it is a standing
+ * thing — see `titleFor` on the server, which is where the three cases live.
+ */
+type MyGroup = {
+  id: string;
+  name: string | null;
+  title: string;
+  kind: GroupKind;
+  role: 'member' | 'admin';
+};
 
 /**
  * Where the app is. Three destinations and no history stack — every screen
@@ -222,7 +237,15 @@ type Route =
        * holds a `MyGroupDetail` and the group's own page holds a `GroupRoom`,
        * and each satisfies this without inventing the other's fields.
        */
-      group: { id: string; name: string; memberCount: number; eventCount: number };
+      group: {
+        id: string;
+        /* What to draw. A `MyGroupDetail` carries it as `title` and a
+           `GroupRoom` as `name`; both are already the derived one, so the bar
+           never has to know which kind of room it is looking at. */
+        name: string;
+        memberCount: number;
+        eventCount: number;
+      };
     }
   | { screen: 'person'; handle: string }
   /**
@@ -241,6 +264,15 @@ type Route =
    * may arrive holding come from a cluster — see `NewGroup.tsx`.
    */
   | { screen: 'newGroup'; people?: ClusterPerson[]; suggestedName?: string }
+  /**
+   * Making a chat, which is the same page asking one question instead of two.
+   *
+   * Its own route rather than a flag on `newGroup`, because they are reached
+   * from different tabs and mean different things: this is the Chats `+`, and
+   * it never carries a cluster or a suggested name — a chat has no name to
+   * suggest. See the note at the top of `NewGroup.tsx`.
+   */
+  | { screen: 'newChat' }
   /**
    * Making an album, in two steps.
    *
@@ -938,6 +970,45 @@ export default function App() {
   const leaveToTabs = useCallback(() => setRoute({ screen: 'tabs' }), []);
 
   /**
+   * Out of making a room and into it, whichever of the two was made.
+   *
+   * One callback for both `newGroup` and `newChat` because what happens after
+   * is identical: the room exists, the list behind is stale, and the person
+   * who just made it wants to be inside it. The two screens differ in what
+   * they ask for and not in where they land.
+   *
+   * Into the conversation, not onto the room's page. A room is made to talk
+   * in. Its page is the roster, the albums and the settings — the things
+   * somebody looks up later — and landing there after making one asks a
+   * person who has just decided to gather five friends to find the way in.
+   *
+   * The chat screen wants the room rather than its id, so this reads the
+   * detailed list back. It is the same request the Chats tab makes on arrival
+   * and the room is certainly in it, but a failure is survivable: the room's
+   * page is where this used to go and is a worse answer rather than a wrong
+   * one.
+   */
+  const openMadeRoom = useCallback(
+    async (id: string) => {
+      // The tab behind it is holding a list without this in it, and the room
+      // is about to be on screen — so both, before the push.
+      void refreshGroups();
+      const group = await api
+        .myGroupsDetailed()
+        .then((groups) => groups.find((g) => g.id === id) ?? null)
+        .catch(() => null);
+      // `title`, which is the derived one — the bar wants what the room is
+      // called and not whether anybody named it.
+      setRoute(
+        group
+          ? { screen: 'groupThread', group: { ...group, name: group.title } }
+          : { screen: 'group', id },
+      );
+    },
+    [api, refreshGroups],
+  );
+
+  /**
    * Out of making an album, from either of its two steps.
    *
    * Where the photographs' own Cancel goes, and now also where the gesture and
@@ -1273,33 +1344,32 @@ export default function App() {
             api={api}
             t={t}
             dark={dark}
+            kind="group"
             people={route.people}
             suggestedName={route.suggestedName}
             onCancel={leaveToTabs}
-            onCreated={async (id) => {
-              // The tab behind it is holding a list without this in it, and the
-              // group is about to be on screen — so both, before the push.
-              void refreshGroups();
-              /*
-               * Into the conversation, not onto the group's page.
-               *
-               * A group is made to talk in. Its page is the roster, the albums
-               * and the settings — the things somebody looks up later — and
-               * landing there after creating one asks a person who has just
-               * decided to gather five friends to find the way in.
-               *
-               * The chat screen wants the group rather than its id, so this
-               * reads the detailed list back. It is the same request the Chats
-               * tab makes on arrival and the group is certainly in it, but a
-               * failure is survivable: the group's page is where this used to
-               * go and is a worse answer rather than a wrong one.
-               */
-              const group = await api
-                .myGroupsDetailed()
-                .then((groups) => groups.find((g) => g.id === id) ?? null)
-                .catch(() => null);
-              setRoute(group ? { screen: 'groupThread', group } : { screen: 'group', id });
-            }}
+            onCreated={openMadeRoom}
+          />
+        </SwipeBack>
+      )}
+
+      {/*
+        Making a chat: the same page as above, asking who and nothing else.
+
+        Reached from the `+` on the Chats tab, which used to hand the person
+        over to Find and open the group form there — a button on the
+        conversations tab that changed tabs and then asked for a title. It
+        makes the thing the tab is made of now.
+      */}
+      {route.screen === 'newChat' && (
+        <SwipeBack onBack={leaveToTabs}>
+          <NewGroup
+            api={api}
+            t={t}
+            dark={dark}
+            kind="chat"
+            onCancel={leaveToTabs}
+            onCreated={openMadeRoom}
           />
         </SwipeBack>
       )}
@@ -1509,15 +1579,19 @@ export default function App() {
                 t={t}
                 active={tab === 'chats'}
                 /*
-                 * Making a group happens on Find, which is where the groups
-                 * are. This hands the tab over and asks it to open the page.
+                 * A chat, made here rather than somewhere else.
+                 *
+                 * This used to set the tab to Find and ask it to open the
+                 * group form: a `+` on the conversations tab that changed
+                 * tabs under somebody and then wanted a title. Making a
+                 * *group* still happens on Find, which is where the groups
+                 * are; making a chat happens on the tab the chats are on.
                  */
-                onCreateGroup={() => {
-                  setTab('search');
-                  setMakeGroup((n) => n + 1);
-                }}
+                onCreateChat={() => setRoute({ screen: 'newChat' })}
                 Button={Button}
-                onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
+                onOpenGroupThread={(group) =>
+                  setRoute({ screen: 'groupThread', group: { ...group, name: group.title } })
+                }
               />
             </Pane>
           )}
@@ -1729,7 +1803,7 @@ function JoinScreen({
               onPress={() => onOpenGroup(group.id)}
               style={styles.listRow}
             >
-              <Text style={[styles.body, { color: t.accent }]}>{group.name}</Text>
+              <Text style={[styles.body, { color: t.accent }]}>{group.title}</Text>
             </Pressable>
           ))}
         </View>

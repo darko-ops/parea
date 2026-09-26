@@ -67,14 +67,24 @@ describe('nothing is written until Create', () => {
      */
     expect(FORM.match(/api\.[a-zA-Z]+\(/g) ?? []).toEqual([]);
     const calls = PAGE.match(/api\.[a-zA-Z]+\(/g) ?? [];
-    expect(calls).toEqual(['api.createGroupFrom(']);
+    expect(calls).toEqual(['api.createChat(']);
   });
 
-  it('sends people, not an event', () => {
-    // The roll-up is a different act on a different endpoint shape, and the
-    // two are kept as separate methods for that reason.
-    expect(API).toMatch(/createGroupFrom\(name: string, memberIds: string\[\]\)/);
-    expect(API).toMatch(/JSON\.stringify\(\{ name, memberIds \}\)/);
+  it('sends people, not an event, and a name only when there is one', () => {
+    /*
+     * The roll-up is a different act on a different endpoint shape, and the
+     * two are kept as separate methods for that reason.
+     *
+     * The name is optional now and its absence is load-bearing: the Chats
+     * tab's `+` asks who and nothing else, and a body with no `name` is what
+     * tells the server to title the room from its people. An empty string
+     * would be a name somebody gave and cleared, which is a different row —
+     * see `schema.ts` on why the column keeps the two apart.
+     */
+    expect(API).toMatch(/createChat\(memberIds: string\[\], name\?: string\)/);
+    expect(API).toMatch(
+      /JSON\.stringify\(name \? \{ name, memberIds \} : \{ memberIds \}\)/,
+    );
   });
 });
 
@@ -97,7 +107,7 @@ describe('what the screen says', () => {
     // "Everyone you add is in the group straight away" is an instruction about
     // people who are not there yet, on a page that may legitimately be
     // submitted empty.
-    expect(PAGE).toMatch(/picked\.length > 0\s*\?/);
+    expect(PAGE).toMatch(/picked\.length > 0\s*$|picked\.length > 0\s*\n?\s*\?/m);
     expect(PAGE).toMatch(/You can make it empty and add people later/);
   });
 
@@ -213,8 +223,17 @@ describe('New group', () => {
      * creating one asks a person who has just decided to gather five friends
      * to find the way in.
      */
-    expect(APP).toMatch(/onCreated=\{async \(id\) => \{/);
-    expect(APP).toMatch(/setRoute\(group \? \{ screen: 'groupThread', group \} : \{ screen: 'group', id \}\)/);
+    expect(APP).toMatch(/const openMadeRoom = useCallback\(/);
+    expect(APP).toMatch(
+      /group\s*\?\s*\{ screen: 'groupThread', group: \{ \.\.\.group, name: group\.title \} \}\s*:\s*\{ screen: 'group', id \},/,
+    );
+    /*
+     * One callback for both screens that make a room. They ask different
+     * questions — a chat asks who, a group asks who and what it is called —
+     * and what happens after is the same in both: the list behind is stale,
+     * and the person who just made it wants to be inside it.
+     */
+    expect(APP.match(/onCreated=\{openMadeRoom\}/g) ?? []).toHaveLength(2);
   });
 
   it('falls back to the page it used to go to', () => {
@@ -235,5 +254,115 @@ describe('New group', () => {
      * event with you could not be made from this screen at all.
      */
     expect(PAGE).toMatch(/<InvitePicker/);
+  });
+});
+
+/**
+ * A chat is people and nothing else.
+ *
+ * The `+` on the Chats tab used to change tabs to Find and open the group
+ * form there — a button on the conversations tab that moved somebody
+ * somewhere else and then asked them for a title. Almost no conversation is
+ * a standing arrangement on the day it starts, and asking for a name up front
+ * made every one of them a small act of administration before it was a chat.
+ */
+describe('making a chat', () => {
+  it('asks who, and asks nothing else', () => {
+    // No field, not even an optional one: an optional field is still a
+    // question, and the question is what this screen stopped asking.
+    expect(PAGE).toMatch(/\{!chat && \(/);
+    expect(PAGE).toMatch(/chat \? 'New chat' : 'New group'/);
+    expect(PAGE).toMatch(/chat \? 'WHO ARE YOU TALKING TO' : 'ADD FRIENDS'/);
+  });
+
+  it('never says group on the screen that makes a chat', () => {
+    /*
+     * The words on this page are picked by `chat`, so the test is that no
+     * sentence reaches a chat with "group" in it — which is a claim about the
+     * branches rather than about the file, since the same file still draws
+     * the group form.
+     */
+    const chatSide = (PAGE.match(/chat\s*\n?\s*\?[^:]+/g) ?? []).join('\n');
+    expect(chatSide).not.toMatch(/group/i);
+  });
+
+  it('is ready when somebody is picked, where a group is ready when named', () => {
+    // A group needs a name — that is what somebody came to give it. A chat
+    // needs a person: a conversation with nobody is a room, which is the
+    // thing this screen is deliberately not making.
+    expect(PAGE).toMatch(/const ready = chat \? picked\.length > 0 : name\.trim\(\)\.length > 0;/);
+  });
+
+  it('is reached from the tab it belongs to, not by changing tabs', () => {
+    expect(APP).toMatch(/onCreateChat=\{\(\) => setRoute\(\{ screen: 'newChat' \}\)\}/);
+    expect(APP).toMatch(/kind="chat"/);
+    expect(APP).toMatch(/kind="group"/);
+    // And a chat never arrives holding a cluster or a suggested name: it has
+    // no name to suggest.
+    expect(APP).toMatch(/\| \{ screen: 'newChat' \}/);
+  });
+});
+
+/**
+ * What a room is called when nobody has called it anything.
+ *
+ * One rule, on the server, sent down as `title` — the derivation has three
+ * branches and two clients drawing from it, and written twice it would be two
+ * products within a release.
+ */
+describe('a room with no name', () => {
+  const GROUPS = readFileSync(
+    fileURLToPath(new URL('../../web/src/groups.ts', import.meta.url).href),
+    'utf8',
+  );
+
+  it('is called after the one other person, and is not a group', () => {
+    expect(GROUPS).toMatch(/if \(others\.length === 1\) return \{ title: others\[0\]!\.name, kind: 'direct' \};/);
+  });
+
+  it('is called after two of them and a count when there are more', () => {
+    // Two names because that is how somebody says it out loud, and the third
+    // is where a sentence becomes a membership list.
+    expect(GROUPS).toMatch(/export const CHAT_NAMES_SHOWN = 2;/);
+    expect(GROUPS).toMatch(/rest > 0 \? `\$\{named\.join\(', '\)\} \+ \$\{rest\} more` : named\.join\(', '\)/);
+  });
+
+  it('never counts the person reading it', () => {
+    // Their own name in the title of their own chat is the screen describing
+    // them to themselves, and on a two-person chat it would say two names
+    // where one is the point.
+    expect(GROUPS).toMatch(/if \(row\.actorId === viewerId\) continue;/);
+  });
+
+  it('keeps a conversation off the shelf of groups', () => {
+    expect(EVENTS).toMatch(/\(mine \?\? \[\]\)\.filter\(\(group\) => group\.kind !== 'direct'\)/);
+  });
+
+  it('wears the people in it where a named room wears a letter', () => {
+    const mark = EVENTS.slice(
+      EVENTS.indexOf('function RoomMark'),
+      EVENTS.indexOf('function ConversationLine'),
+    );
+    expect(mark).toMatch(/room\.kind === 'named' \|\| room\.deck\.length === 0/);
+    // Squares, because it stands exactly where the lens tile stood and a
+    // circle there would make the unnamed rooms read as a different kind of
+    // row rather than the same row drawn from what it has.
+    expect(mark).toMatch(/borderRadius: Math\.round\(card \* 0\.25\)/);
+    // And the deck is the members' own portraits, which the server only ever
+    // builds for a room the reader is in.
+    expect(GROUPS).toMatch(/export async function deckFor\(/);
+  });
+
+  it('can be named later, and a two-person chat cannot', () => {
+    const ROUTE = readFileSync(
+      fileURLToPath(new URL('../../web/app/api/groups/[id]/route.ts', import.meta.url).href),
+      'utf8',
+    );
+    expect(ROUTE).toMatch(/export async function PATCH\(/);
+    expect(ROUTE).toMatch(/chat_not_nameable/);
+    // Clearing it writes null and not '', which is what puts the room back to
+    // being called after its people.
+    expect(ROUTE).toMatch(/\{ name: null, slug: null, findable: false \}/);
+    expect(read('src/Groups.tsx')).toMatch(/nameable=\{group\.memberCount > 2\}/);
   });
 });

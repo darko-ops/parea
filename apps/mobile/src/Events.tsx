@@ -51,6 +51,7 @@ import type {
   Cluster,
   ClusterPerson,
   EventListing,
+  GroupKind,
   InvitablePerson,
   SuggestedPerson,
   MyGroupDetail,
@@ -1368,13 +1369,14 @@ export function ChatsTab({
   t,
   active,
   onOpenGroupThread,
-  onCreateGroup,
+  onCreateChat,
   Button,
 }: {
   api: Api;
   events: EventListing[];
   t: TabTheme;
-  onCreateGroup: () => void;
+  /** The `+`. A chat, made out of people — see `NewGroup.tsx`. */
+  onCreateChat: () => void;
   Button: ButtonComponent;
   active: boolean;
   onOpenGroupThread: (group: MyGroupDetail) => void;
@@ -1440,7 +1442,9 @@ export function ChatsTab({
     () =>
       (groups ?? [])
         .filter((group) =>
-          matches(group.name, group.lastMessage?.body, group.lastMessage?.author),
+          // `title` and not `name`: most rooms have none, and what somebody
+          // types is what the row says — which for a chat is a person's name.
+          matches(group.title, group.lastMessage?.body, group.lastMessage?.author),
         )
         .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? '')),
     [groups, matches],
@@ -1498,9 +1502,15 @@ export function ChatsTab({
         The `+` was on the left and opened the sheet that asks album or group;
         the envelope was on the right. Both are gone from here. The tray is
         reachable from every other tab and is not what somebody opens their
-        conversations to find, and a tab whose subject is groups does not need
-        to ask which of two things you meant — pressing `+` here makes a
-        group, and the sheet still exists everywhere it is a real question.
+        conversations to find, and a tab whose subject is conversations does
+        not need to ask which of two things you meant — pressing `+` here
+        starts a chat, and the sheet still exists everywhere it is a real
+        question.
+
+        It said "New group" and it went to Find and opened the group form: a
+        button on the conversations tab that changed tabs and then asked for a
+        title. It makes a chat now, in place, and a chat is people and nothing
+        else — see the note at the top of `NewGroup.tsx`.
 
         On the right, because that is the hand that reaches it and because the
         corner a thumb finds should hold the thing this screen is for.
@@ -1508,7 +1518,7 @@ export function ChatsTab({
       <PageHead
         color={t.fg}
         right={
-          <RoundButton t={t} onPress={onCreateGroup} accessibilityLabel="New group">
+          <RoundButton t={t} onPress={onCreateChat} accessibilityLabel="New chat">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
@@ -1588,8 +1598,8 @@ export function ChatsTab({
             <Text style={[styles.blankNote, { color: t.dim }]}>Create One Now.</Text>
             <RoundButton
               t={t}
-              onPress={onCreateGroup}
-              accessibilityLabel="Create a group chat"
+              onPress={onCreateChat}
+              accessibilityLabel="Start a chat"
             >
               <Glyph name="plus" size={20} color={t.fg} />
             </RoundButton>
@@ -1609,13 +1619,12 @@ export function ChatsTab({
           {groupChats.length > 0 && (
             <View style={{ gap: 2 }}>
               {groupChats.map((group, i) => {
-                const lens = lensFor(group.id);
                 return (
                   <Pressable
                     key={group.id}
                     onPress={() => onOpenGroupThread(group)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${group.name}, conversation`}
+                    accessibilityLabel={`${group.title}, conversation`}
                     style={({ pressed }) => [
                       styles.chatRow,
                       // No rule under the last one: a divider at the foot of a
@@ -1627,16 +1636,10 @@ export function ChatsTab({
                       { opacity: pressed ? 0.6 : 1 },
                     ]}
                   >
-                    <View
-                      style={[styles.chatThumb, styles.chatLetter, { backgroundColor: lens.fill }]}
-                    >
-                      <Text style={[styles.chatInitial, { color: lens.ink }]}>
-                        {initialOf(group.name)}
-                      </Text>
-                    </View>
+                    <RoomMark room={group} size={40} t={t} />
                     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                       <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                        {group.name}
+                        {group.title}
                       </Text>
                       {/* A count rather than a dot: a group is busy, and the
                           number is the useful part. */}
@@ -1673,6 +1676,123 @@ export function ChatsTab({
     </ScrollView>
   );
 }
+/**
+ * What a room is drawn as: a letter on a colour, or the people in it.
+ *
+ * ## Two icons, and the room chooses
+ *
+ * A **named** room keeps the letter on its lens colour, which is the shape
+ * this product has meant by "a group" since the Groups tab was written.
+ *
+ * A room **nobody has named** has no letter to wear — its title is a sentence
+ * about who is in it, and the first character of "Ana, Jack + 2 more" is a
+ * fact about Ana. So it wears the people instead: one square for a chat with
+ * one person, and a deck of overlapping squares for a room with more.
+ *
+ * ## It is not the photograph rule being broken
+ *
+ * "Never a photograph on a group tile" is stated in four places in this file
+ * and it still holds. That rule is about the pictures *inside* the room:
+ * borrowing a cover out of an evening would put something from a room onto
+ * the way in to it, and it would be shown to somebody who has not been let
+ * in. A member's own portrait is theirs, it is already on their profile, and
+ * the server only ever builds this list for a room the reader is in — a door
+ * to a group they are not in still carries a name and a count and nothing
+ * about who is behind it.
+ *
+ * ## Squares, and overlapping
+ *
+ * Squares because the thing it stands in for is a square: this sits exactly
+ * where the lens tile sat, in a column of them, and a circle there would make
+ * the unnamed rooms read as a different kind of row rather than as the same
+ * row drawn from what it has. The faces over an album's cover stay circles —
+ * that is a crowd read as a row, and this is one object.
+ *
+ * Overlapping rather than tiled, and leading-edge first, so the deck occupies
+ * the tile's own square whatever it holds: one picture fills it, three sit
+ * across it, and the row's text starts at the same x either way.
+ */
+function RoomMark({
+  room,
+  size,
+  t,
+}: {
+  room: { id: string; title: string; kind: GroupKind; deck: { name: string; avatarUrl: string | null }[] };
+  size: number;
+  t: { bg: string; line: string; dim: string };
+}) {
+  const lens = lensFor(room.id);
+  const radius = Math.round(size * 0.25);
+
+  if (room.kind === 'named' || room.deck.length === 0) {
+    return (
+      <View
+        style={[
+          { width: size, height: size, borderRadius: radius, backgroundColor: lens.fill },
+          styles.markCentre,
+        ]}
+      >
+        <Text style={{ fontSize: Math.round(size * 0.42), fontWeight: '600', color: lens.ink }}>
+          {initialOf(room.title)}
+        </Text>
+      </View>
+    );
+  }
+
+  /*
+   * One person fills the square; more than one is a deck across it.
+   *
+   * `slice(0, 3)` and not the whole membership: a fourth card at this size is
+   * four points of somebody's face, which is a texture rather than a person.
+   * The title beside it already says how many there are.
+   */
+  const cards = room.deck.slice(0, 3);
+  const card = cards.length === 1 ? size : Math.round(size * 0.72);
+  const step = cards.length === 1 ? 0 : Math.round((size - card) / (cards.length - 1));
+
+  return (
+    <View style={{ width: size, height: size }}>
+      {cards.map((person, i) => (
+        <View
+          key={`${person.name}-${i}`}
+          style={[
+            styles.markCard,
+            styles.markCentre,
+            {
+              width: card,
+              height: card,
+              borderRadius: Math.round(card * 0.25),
+              left: i * step,
+              // Later cards sit over earlier ones, and each wears a ring of
+              // the page's own colour so the stack reads as three things
+              // rather than one shape with bites out of it.
+              top: i * step,
+              zIndex: i,
+              borderColor: t.bg,
+              backgroundColor: t.line,
+            },
+          ]}
+        >
+          {person.avatarUrl ? (
+            <Image
+              source={{ uri: person.avatarUrl }}
+              style={styles.markShot}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <Text
+              style={{ fontSize: Math.round(card * 0.4), fontWeight: '700', color: t.dim }}
+            >
+              {initialOf(person.name)}
+            </Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * One conversation, as one line: who spoke, what they said, when, and how many
  * are waiting.
@@ -2039,18 +2159,42 @@ export function SearchTab({
   const asked = query.trim().length >= 2;
 
   /*
-   * The three most recently added to, unless somebody asked for the rest.
+   * Which of this person's rooms are rooms.
+   *
+   * A conversation with one person is not one. It is a group row in the
+   * database — that is how it holds a thread and a membership — but it is
+   * called by that person's name, it has no door, and nothing about it is a
+   * place you go. On the shelf below it would be Jack, filed beside Climbing
+   * and Sunday Lunch as though the two were the same kind of thing, and a
+   * phone with eleven conversations on it would show a shelf of eleven people
+   * with the two actual rooms below the fold.
+   *
+   * So the shelf is named and unnamed rooms of three or more, and every chat
+   * is on the tab that is for chats. The server decides which is which — see
+   * `kind` — so the two clients cannot draw different shelves.
+   *
+   * Adding a third person to a chat *is* what makes it a room, and it turns
+   * up here the moment somebody does. That is the whole of the promotion:
+   * there is no other step, and naming it is optional afterwards.
+   */
+  const myRooms = useMemo(
+    () => (mine ?? []).filter((group) => group.kind !== 'direct'),
+    [mine],
+  );
+
+  /*
+   * The most recently added to, unless somebody asked for the rest.
    *
    * `lastActiveAt` is null for a group nothing has happened in yet, and those
    * go last rather than first — an empty room is the least useful thing this
    * section can lead with.
    */
   const rooms = useMemo(() => {
-    const ordered = [...(mine ?? [])].sort((a, b) =>
+    const ordered = [...myRooms].sort((a, b) =>
       (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''),
     );
     return allGroups ? ordered : ordered.slice(0, GROUPS_SHOWN);
-  }, [allGroups, mine]);
+  }, [allGroups, myRooms]);
 
   /**
    * A door's column, from the window rather than from a constant.
@@ -2351,29 +2495,27 @@ export function SearchTab({
             is that and nothing else. What is left is the only thing this page
             was ever for: which rooms are yours, and a way into one.
 
-            So a door is what it draws — the letter on the group's own colour,
-            hashed from its id and the same on every screen and every device,
-            which is the shape this product has meant by "a group" since the
-            Groups tab was written. Never a photograph: a group has no picture
-            of its own, and borrowing one out of an evening inside it would
-            put something from a room on the way in to it.
+            So a door is what it draws — the letter on the group's own colour
+            where somebody named it, and the people in it where nobody has.
+            `RoomMark` holds both and the note on it holds the reasoning,
+            including why a deck of members' own portraits is not the
+            photograph rule being broken.
 
             What the block did carry alone was whether anybody is waiting, so
             that comes with it as a badge on the corner rather than as a line
             of prose underneath.
           */}
-          {mine.length > 0 && (
+          {myRooms.length > 0 && (
             <View style={{ gap: 6 }}>
               <Text style={[styles.sectionLabel, { color: t.dim }]}>YOUR GROUPS</Text>
               <View style={styles.doors}>
                 {rooms.map((group) => {
-                  const lens = lensFor(group.id);
                   return (
                     <Pressable
                       key={group.id}
                       onPress={() => onOpenGroup(group.id)}
                       accessibilityRole="button"
-                      accessibilityLabel={`${group.name}, ${plural(
+                      accessibilityLabel={`${group.title}, ${plural(
                         group.memberCount,
                         'person',
                         'people',
@@ -2396,18 +2538,11 @@ export function SearchTab({
                         on it.
                       */}
                       <View style={{ width: tile }}>
-                        <View
-                          style={[
-                            styles.door,
-                            { height: tile, borderRadius: doorRadius, backgroundColor: lens.fill },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.doorInitial, { fontSize: doorLetter, color: lens.ink }]}
-                          >
-                            {initialOf(group.name)}
-                          </Text>
-                        </View>
+                        {/* The letter, or the people. `RoomMark` sizes both
+                            off the square it is given, which is why the
+                            corner and the letter it works out are the same
+                            fractions this screen already uses. */}
+                        <RoomMark room={group} size={tile} t={t} />
 
                         {/*
                           Waiting messages, on the corner of the door.
@@ -2448,7 +2583,7 @@ export function SearchTab({
                         a third of the screen's width is most group names.
                       */}
                       <Text style={[styles.doorName, { color: t.fg }]} numberOfLines={2}>
-                        {group.name}
+                        {group.title}
                       </Text>
                     </Pressable>
                   );
@@ -2465,18 +2600,18 @@ export function SearchTab({
             the clusters below, and expanding in place rather than on a screen
             of its own keeps one place where a door is drawn.
           */}
-          {mine.length > rooms.length && (
+          {myRooms.length > rooms.length && (
             <Pressable
               onPress={() => setAllGroups(true)}
               accessibilityRole="button"
-              accessibilityLabel={`All groups, ${mine.length}`}
+              accessibilityLabel={`All groups, ${myRooms.length}`}
               style={({ pressed }) => [
                 styles.allGroups,
                 { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
               ]}
             >
               <Text style={[styles.allGroupsText, { color: t.fg }]}>All groups</Text>
-              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{mine.length}</Text>
+              <Text style={[styles.allGroupsCount, { color: t.dim }]}>{myRooms.length}</Text>
             </Pressable>
           )}
 
@@ -2498,7 +2633,7 @@ export function SearchTab({
             />
           ))}
 
-          {mine.length === 0 && clusters.length === 0 && (
+          {myRooms.length === 0 && clusters.length === 0 && (
             /*
               The fact, and nothing under it.
 
@@ -3702,6 +3837,10 @@ const styles = StyleSheet.create({
   },
   chatRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
   chatThumb: { width: 40, height: 40, borderRadius: 10 },
+  /* The mark a room wears where the lens tile used to be. See `RoomMark`. */
+  markCentre: { alignItems: 'center', justifyContent: 'center' },
+  markCard: { position: 'absolute', overflow: 'hidden', borderWidth: 1.5 },
+  markShot: { width: '100%', height: '100%' },
   /* The same square an album's cover fills, holding a letter instead. Centred,
      and sized to its own tile rather than to the product: every letter on a
      lens in this app is set to the box it is in. */

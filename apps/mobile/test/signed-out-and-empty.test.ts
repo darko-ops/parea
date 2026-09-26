@@ -149,7 +149,7 @@ describe('a chats tab with no chats', () => {
 
   it('offers a room rather than directions to another tab', () => {
     const blank = CHATS.slice(CHATS.indexOf('<View style={styles.blank}>'));
-    expect(blank.slice(0, blank.indexOf('</View>'))).toMatch(/onPress=\{onCreateGroup\}/);
+    expect(blank.slice(0, blank.indexOf('</View>'))).toMatch(/onPress=\{onCreateChat\}/);
     // The way out that used to stand here, and the prop that fed it.
     expect(CHATS).not.toMatch(/Your albums/);
     expect(CHATS).not.toMatch(/onGoToEvents/);

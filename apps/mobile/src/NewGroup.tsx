@@ -1,4 +1,30 @@
 /**
+ * Making a chat, or making a group — one page, two things.
+ *
+ * ## The difference, and why it is a prop rather than two files
+ *
+ * A **chat** is made out of people and nothing else. The `+` on the Chats tab
+ * asks who and then stops: there is no title field, the word "group" does not
+ * appear, and the room is called after whoever is in it until somebody decides
+ * otherwise. That is the common case by a long way — almost no conversation is
+ * a standing arrangement on the day it starts, and asking for a name up front
+ * made every one of them a small act of administration before it was a chat.
+ *
+ * A **group** is the other thing, and it is still reachable: Find offers one
+ * beside a cluster of people you keep ending up in events with, and that flow
+ * arrives with a suggested name because somebody there is deliberately naming
+ * a standing thing rather than starting a conversation.
+ *
+ * One file because the middle of the screen — who is in it, and the sentence
+ * about what adding them does — is the same screen in both, and it is the two
+ * thirds that matter. What differs is a field, a heading and three words, and
+ * two files would keep the picker in step by hand.
+ *
+ * A chat can become a group later, on its own page, by being named. Nothing
+ * here decides that; see `PATCH /api/groups/[id]`.
+ *
+ * ---
+ *
  * Making a group, on a page of its own.
  *
  * It was a card that unfolded inside the Groups tab: press `New group` and the
@@ -59,13 +85,21 @@ export function NewGroup({
   t,
   dark,
   /**
+   * Which of the two this is. See the note at the top of the file.
+   *
+   * No default. The two say different words and write different rows, and a
+   * screen that guessed would be the one place in the product where "is this
+   * a chat or a group" is decided by omission.
+   */
+  kind,
+  /**
    * Who is in it before anybody chooses.
    *
    * A cluster's people, when this was opened from one — the same set the card
    * used to arrive holding. Empty from a `+`.
    */
   people = [],
-  /** A cluster's suggested name, for the same reason. */
+  /** A cluster's suggested name, for the same reason. Never in chat mode. */
   suggestedName = '',
   onCancel,
   onCreated,
@@ -73,11 +107,13 @@ export function NewGroup({
   api: Api;
   t: GroupTheme;
   dark: boolean;
+  kind: 'chat' | 'group';
   people?: ClusterPerson[];
   suggestedName?: string;
   onCancel: () => void;
   onCreated: (groupId: string) => void;
 }) {
+  const chat = kind === 'chat';
   const [name, setName] = useState(suggestedName);
   /*
    * A cluster's people arrive as `ClusterPerson` and the picker speaks
@@ -99,18 +135,29 @@ export function NewGroup({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = name.trim().length > 0;
+  /*
+   * What makes the button pressable, and the two answers are the two screens.
+   *
+   * A group needs a name — that is what somebody came here to give it, and a
+   * nameless one made from this page would be indistinguishable from a chat.
+   * A chat needs a person: it is a conversation, and a conversation with
+   * nobody is a room, which is the thing this screen is deliberately not
+   * making. Neither needs both.
+   */
+  const ready = chat ? picked.length > 0 : name.trim().length > 0;
 
   const create = useCallback(async () => {
     const trimmed = name.trim();
-    if (!trimmed || busy) return;
+    const ids = picked.map((person) => person.actorId);
+    if (busy) return;
+    if (chat ? ids.length === 0 : !trimmed) return;
     setBusy(true);
     setError(null);
     try {
-      const group = await api.createGroupFrom(
-        trimmed,
-        picked.map((person) => person.actorId),
-      );
+      // No name goes up from a chat, not even an empty one: the server takes
+      // its absence as "title this from its people" and that is the whole of
+      // the difference between the two rows this page can write.
+      const group = await api.createChat(ids, chat ? undefined : trimmed);
       onCreated(group.id);
     } catch {
       // The page keeps everything it had. Somebody who has just chosen eleven
@@ -118,7 +165,7 @@ export function NewGroup({
       setError('That did not go through. Try again in a moment.');
       setBusy(false);
     }
-  }, [api, busy, name, onCreated, picked]);
+  }, [api, busy, chat, name, onCreated, picked]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
@@ -136,7 +183,9 @@ export function NewGroup({
         <Pressable onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={[styles.barCancel, { color: t.fg }]}>Cancel</Text>
         </Pressable>
-        <Text style={[styles.barTitle, { color: t.fg }]}>New group</Text>
+        <Text style={[styles.barTitle, { color: t.fg }]}>
+          {chat ? 'New chat' : 'New group'}
+        </Text>
         <Pressable
           onPress={() => void create()}
           disabled={!ready || busy}
@@ -164,28 +213,50 @@ export function NewGroup({
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.label, { color: t.dim }]}>GROUP TITLE</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Sunday roast"
-            placeholderTextColor={t.dim}
-            maxLength={80}
-            autoFocus={suggestedName === ''}
-            selectTextOnFocus
-            returnKeyType="done"
-            style={[styles.input, { borderColor: t.line, color: t.fg, backgroundColor: t.card }]}
-            accessibilityLabel="Group title"
-          />
-          {suggestedName !== '' && (
-            <Text style={[styles.hint, { color: t.dim }]}>
-              Suggested from the evening you were all at — change it to anything.
-            </Text>
+          {/*
+            The name, and only on the screen that is asking for one.
+
+            A chat has no field here at all — not a blank one, not an optional
+            one labelled "optional". An optional field is still a question, and
+            the question is the thing this screen was changed to stop asking:
+            somebody starting a conversation with one person has no name in
+            mind for it, and offering the box invites them to invent one.
+          */}
+          {!chat && (
+            <>
+              <Text style={[styles.label, { color: t.dim }]}>GROUP TITLE</Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Sunday roast"
+                placeholderTextColor={t.dim}
+                maxLength={80}
+                autoFocus={suggestedName === ''}
+                selectTextOnFocus
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  { borderColor: t.line, color: t.fg, backgroundColor: t.card },
+                ]}
+                accessibilityLabel="Group title"
+              />
+              {suggestedName !== '' && (
+                <Text style={[styles.hint, { color: t.dim }]}>
+                  Suggested from the evening you were all at — change it to anything.
+                </Text>
+              )}
+            </>
           )}
 
-          <View style={styles.section}>
+          {/*
+            The people. On a chat this is the whole screen, so it starts at the
+            top rather than under the space a field used to take.
+          */}
+          <View style={chat ? undefined : styles.section}>
             <View style={styles.labelRow}>
-              <Text style={[styles.label, { color: t.dim }]}>ADD FRIENDS</Text>
+              <Text style={[styles.label, { color: t.dim }]}>
+                {chat ? 'WHO ARE YOU TALKING TO' : 'ADD FRIENDS'}
+              </Text>
               {picked.length > 0 && (
                 <Text style={[styles.hint, { color: t.dim }]}>{picked.length} chosen</Text>
               )}
@@ -196,11 +267,21 @@ export function NewGroup({
           {/*
             Above the button rather than in a confirmation after it, so it is
             read before the decision instead of reported after it.
+
+            The chat's version says what a chat is rather than what adding
+            somebody does to them, because on that screen the two are the same
+            sentence: one person is a conversation with that person, and more
+            than one is a room. It is the only place the product explains that,
+            and it belongs here — before the choice, not after it.
           */}
           <Text style={[styles.hint, { color: t.dim }]}>
-            {picked.length > 0
-              ? 'Everyone you add is in the group straight away — they are not asked first. They can leave whenever they like.'
-              : 'You can make it empty and add people later, from the group itself.'}
+            {chat
+              ? picked.length > 1
+                ? 'Everybody here is in it straight away and can say something. You can give it a name later, from the chat itself.'
+                : 'Pick one person for a conversation with them, or more for a group. Nobody is asked first, and anybody can leave.'
+              : picked.length > 0
+                ? 'Everyone you add is in the group straight away — they are not asked first. They can leave whenever they like.'
+                : 'You can make it empty and add people later, from the group itself.'}
           </Text>
 
           {error && <Text style={[styles.hint, { color: t.warn }]}>{error}</Text>}

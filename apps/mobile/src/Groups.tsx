@@ -212,6 +212,28 @@ export function GroupScreen({
     }
   }, [api, groupId, load]);
 
+  /**
+   * Naming the room, or clearing the name back off it.
+   *
+   * The whole view is read again rather than the name being patched into the
+   * one in hand, because naming changes more than the heading: the crest
+   * stops being the people and becomes a letter, and the room appears on
+   * Find's shelf it was not on. The route answers with the new title, and
+   * taking that alone would leave the screen agreeing with itself and wrong
+   * about everything the title implies.
+   *
+   * A failure leaves the room as it was and says nothing. It is the only
+   * cosmetic write on this screen; an alert over a group because a name did
+   * not save is louder than the thing that did not happen.
+   */
+  const rename = useCallback(
+    async (name: string) => {
+      await api.nameGroup(groupId, name).catch(() => null);
+      setGroup(await api.group(groupId).catch(() => null));
+    },
+    [api, groupId],
+  );
+
   const leave = useCallback(() => {
     Alert.alert('Leave this group?', 'You keep any album links you already have.', [
       { text: 'Cancel', style: 'cancel' },
@@ -319,6 +341,18 @@ export function GroupScreen({
         </View>
 
         <View style={styles.identity}>
+          {/*
+            The crest: a letter on the room's own lens, and a letter is what a
+            *named* room has. A room called "Ana, Jack + 2 more" has no
+            initial worth drawing — the A would be a fact about Ana — so an
+            unnamed one wears the first thing in its title all the same, which
+            is a person, and reads as a person.
+
+            The deck of members belongs here too and is not drawn yet: this
+            screen is fetched through `GroupView`, which carries `people`
+            rather than the deck the lists carry. `RoomMark` on the Chats tab
+            is the shape it should take when it does.
+          */}
           <View style={[styles.crest, { backgroundColor: lens.fill }]}>
             <Text style={[styles.crestLetter, { color: lens.ink }]}>{initialOf(group.name)}</Text>
           </View>
@@ -560,7 +594,16 @@ export function GroupScreen({
       )}
 
       {more && group.member && (
-        <GroupMore t={t} Button={Button} onLeave={leave} onClose={() => setMore(false)} />
+        <GroupMore
+          t={t}
+          Button={Button}
+          named={group.named}
+          // Two people is a conversation, not a room. See `GroupMore`.
+          nameable={group.memberCount > 2}
+          onName={rename}
+          onLeave={leave}
+          onClose={() => setMore(false)}
+        />
       )}
     </View>
   );
@@ -701,9 +744,37 @@ function AlbumTile({
   );
 }
 
+/**
+ * Everything else about the room — which is now two things: naming it, and
+ * leaving it.
+ *
+ * ## Why naming lives here and not on the way in
+ *
+ * A chat is made out of people and nothing else, so most rooms arrive with no
+ * name and are called after whoever is in them. This is the other end of that:
+ * the moment a conversation turns out to be a standing thing is weeks after it
+ * started, and this is the screen somebody is on when they notice.
+ *
+ * The field is empty for an unnamed room and holds the name for a named one,
+ * and the button says which of the two is about to happen. Clearing it is
+ * allowed and puts the room back to being called after its people — a way out
+ * of a name somebody regrets, and the reason the column keeps null and `''`
+ * apart rather than treating both as "no name".
+ *
+ * ## Not offered on a conversation with one person
+ *
+ * `nameable` is false for a room of two. A chat with Jack is called Jack, it
+ * is not on any shelf of groups, and naming it would make it one — which is a
+ * thing done to the other person rather than with them. The server refuses it
+ * too; this is so the control is not there to press. The way to make a group
+ * out of a chat is to add somebody, which is a thing both people can see.
+ */
 function GroupMore({
   t,
   Button,
+  named,
+  nameable,
+  onName,
   onLeave,
   onClose,
 }: {
@@ -715,14 +786,66 @@ function GroupMore({
     primary?: boolean;
     disabled?: boolean;
   }) => React.ReactElement;
+  /** The name as stored, null for a room nobody has named. */
+  named: string | null;
+  /** False for a conversation with one person. See above. */
+  nameable: boolean;
+  onName: (name: string) => Promise<void>;
   onLeave: () => void;
   onClose: () => void;
 }) {
+  const [draft, setDraft] = useState(named ?? '');
+  const [busy, setBusy] = useState(false);
+
+  // Nothing to do when the field says what the room already says. Trimmed on
+  // both sides, so adding a space is not a change somebody can submit.
+  const changed = draft.trim() !== (named ?? '').trim();
+
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.sheetShell}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: t.card }]}>
+          {nameable && (
+            <>
+              <Text style={[styles.label, { color: t.fg }]}>
+                {named === null ? 'Name this group' : 'Group name'}
+              </Text>
+              <Text style={[styles.small, { color: t.dim }]}>
+                {named === null
+                  ? 'It is called after the people in it until you give it one.'
+                  : 'Clear it to go back to being called after the people in it.'}
+              </Text>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Sunday roast"
+                placeholderTextColor={t.dim}
+                maxLength={80}
+                returnKeyType="done"
+                style={[
+                  styles.nameField,
+                  { borderColor: t.line, color: t.fg, backgroundColor: t.bg },
+                ]}
+                accessibilityLabel="Group name"
+              />
+              <Button
+                label={busy ? 'Saving…' : named === null ? 'Name it' : 'Save name'}
+                onPress={() => {
+                  if (busy || !changed) return;
+                  setBusy(true);
+                  void onName(draft.trim()).finally(() => {
+                    setBusy(false);
+                    onClose();
+                  });
+                }}
+                disabled={busy || !changed}
+                primary
+                t={t}
+              />
+            </>
+          )}
+
           <Text style={[styles.label, { color: t.fg }]}>This group</Text>
           <Text style={[styles.small, { color: t.dim }]}>
             Leaving stops the next album reaching you. It takes nothing away
@@ -922,6 +1045,16 @@ const styles = StyleSheet.create({
   /* The rule the Albums pane ends on, and the only ruled-off block on it. */
   footnote: { marginTop: 14, paddingTop: 16, borderTopWidth: 1, fontSize: 12.5, lineHeight: 19 },
 
+  /* The one field on this screen. Sized like the album's own name field, on
+     the sheet's background rather than its card, so it reads as a hole in the
+     panel rather than a second panel on it. */
+  nameField: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
   sheetShell: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 34, gap: 12 },
   /* Capped, so a group of thirty is a list that scrolls inside the sheet
