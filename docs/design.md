@@ -716,10 +716,32 @@ iOS offers two paths with a real trade-off, so the app uses both:
 - **`expo-media-library`** with full library access enables §7.1, and requires
   a prompt.
 
-The prompt is therefore an *upgrade*, offered after a manual contribution, with
-the honest pitch: "next time we can find them for you." Same philosophy as the
-account ask — the permission sits at the moment of demonstrated value, not in
-front of the first upload.
+The prompt is therefore an *upgrade*, and where it sits has moved once. It was
+offered after a manual contribution — "next time we can find them for you" —
+on the reasoning that a permission wall in front of a stranger is how a
+permission gets refused forever. That is right about a *cold* prompt and was
+wrong about where the moment of value is: somebody who has just scrolled a
+five-year camera roll looking for last night has already paid the cost the
+permission removes, and telling them afterwards that it could have been avoided
+is a receipt rather than an offer.
+
+So it is asked when they press Add photos, before the picker opens, and only
+when there is an event window to be concrete about — the app promises *those*
+photographs, not access in general. Two properties are kept from the old
+placement and they are the load-bearing half:
+
+- **Our words before the system's.** The card is ours; the system prompt is
+  behind its button. A decline on the card costs nothing and opens the picker
+  anyway; a decline at the system prompt costs auto-selection for good.
+- **Asked once, ever.** Granted and denied both stop `libraryAccess()`
+  answering `undetermined`, so the OS prevents a second ask on its own. What it
+  cannot see is somebody closing our card without reaching it, so that is
+  recorded too — see `libraryAlreadyAsked`.
+
+Declining is not a dismissal: the card's second button is the manual picker,
+which is what they pressed Add photos for. And the first one lands in the
+suggestion rather than back on the album — the permission was a question on the
+way to something.
 
 iOS "limited library" selection must be handled as a first-class state, not an
 error: auto-select over the subset the user granted, with a clear path to widen.

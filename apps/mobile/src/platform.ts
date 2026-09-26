@@ -22,6 +22,7 @@ const SEARCHES_KEY = 'parea.searches';
 const QUEUE_FILE = 'upload-queue.json';
 const COVERS_FILE = 'owed-covers.json';
 const PUSH_ASKED_KEY = 'parea.pushAsked';
+const LIBRARY_ASKED_KEY = 'parea.libraryAsked';
 
 export type SavedEvent = {
   id: string;
@@ -648,6 +649,34 @@ export async function setAppBadge(count: number): Promise<void> {
  */
 export async function pushAlreadyAsked(): Promise<boolean> {
   return (await SecureStore.getItemAsync(PUSH_ASKED_KEY)) === 'yes';
+}
+
+/**
+ * Whether the photo library has been asked for in our own words yet.
+ *
+ * The same flag the push prompt keeps, for the same reason and with one
+ * difference worth stating.
+ *
+ * The system's own answer covers two of the three outcomes: granted and
+ * denied both stop `libraryAccess()` returning `undetermined`, so neither can
+ * be asked twice. What it does not cover is *Not now* — somebody who closed
+ * our card without reaching the system prompt at all. Without this that person
+ * is asked again every time they add photos to an album, which is the one
+ * shape of nagging the OS cannot protect anybody from, because from its side
+ * nothing happened.
+ *
+ * Set on both answers, which is the point: it records that we asked, not what
+ * they said.
+ */
+export async function libraryAlreadyAsked(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(LIBRARY_ASKED_KEY)) === 'yes';
+}
+
+export async function markLibraryAsked(): Promise<void> {
+  await SecureStore.setItemAsync(LIBRARY_ASKED_KEY, 'yes').catch(() => {
+    // A device that will not keep the flag asks again next time, which is a
+    // worse experience and not a broken one. Nothing here is worth an error.
+  });
 }
 
 export async function registerForPush(): Promise<string | null> {

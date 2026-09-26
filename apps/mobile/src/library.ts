@@ -38,11 +38,22 @@ export async function libraryAccess(): Promise<LibraryAccess> {
 }
 
 /**
- * The permission upgrade — offered *after* someone has contributed once.
+ * The permission upgrade — asked when somebody presses Add photos, behind a
+ * card of our own, and never cold.
  *
- * Same philosophy as the account ask: the prompt sits at the moment of
- * demonstrated value, not in front of the first upload. Until it is granted
- * the app uses the system picker, which needs no permission at all.
+ * It used to come *after* a manual contribution. That placement was protecting
+ * the right thing — a permission wall in front of a stranger is how a
+ * permission gets refused forever — and it was wrong about when the value is
+ * demonstrated: the person who has just scrolled a five-year camera roll
+ * looking for last night has already paid the cost this removes, and being
+ * told afterwards that it could have been avoided is a receipt rather than an
+ * offer.
+ *
+ * What is kept is the part that was load-bearing. This is never the first
+ * thing anybody sees, it is only asked where there is an event window to be
+ * concrete about, and our own card comes first: saying no there costs nothing
+ * and the system picker opens anyway, where saying no at the system prompt
+ * costs auto-selection for good and is not re-askable in practice.
  */
 export async function requestLibraryAccess(): Promise<LibraryAccess> {
   return classify(await requestPermissionsAsync(false, ['photo']));

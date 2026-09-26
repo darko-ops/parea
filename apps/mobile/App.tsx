@@ -97,7 +97,9 @@ import { Platform as RNPlatform } from 'react-native';
 
 import {
   BACKGROUND_UPLOAD_SUPPORTED,
+  libraryAlreadyAsked,
   loadActorToken,
+  markLibraryAsked,
   pushAlreadyAsked,
   fetchForCover,
   registerForPush,
@@ -2176,7 +2178,30 @@ function EventScreen({
   const [actionsFor, setActionsFor] = useState<FeedPhoto | null>(null);
   const [autoWindow, setAutoWindow] = useState<Window | null>(null);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
+  /**
+   * The card that asks for the library, in our own words.
+   *
+   * It used to appear *after* a first upload — "next time we can find them for
+   * you" — on the argument that a permission wall in front of a stranger is
+   * how a permission gets refused forever. That argument is still right about
+   * a cold prompt and was wrong about where the moment of value is: the person
+   * who has just scrolled a five-year camera roll looking for last night has
+   * already paid the cost the permission exists to remove, and telling them it
+   * could have been avoided is a receipt rather than an offer.
+   *
+   * So it comes up when they press Add photos, before the picker, and only
+   * when the app can say something concrete — there is a window for this
+   * evening, so it can promise *these* photographs rather than access in
+   * general.
+   *
+   * Still our words before the system's. That is the half of the old design
+   * that was load-bearing: a decline here costs nothing and the picker opens
+   * anyway, where a decline at the system prompt costs auto-selection for good
+   * and is not re-askable in practice.
+   */
   const [offerUpgrade, setOfferUpgrade] = useState(false);
+  /** Whether that card has ever been put up. See `libraryAlreadyAsked`. */
+  const asked = useRef(true);
   /**
    * Which of the three panes is up.
    *
@@ -2226,6 +2251,12 @@ function EventScreen({
 
   useEffect(() => {
     void libraryAccess().then(setAccess);
+    // Starts true so that a slow read cannot put the card up before we know
+    // whether it has been put up before. One extra pass through the picker
+    // beats asking somebody a second time.
+    void libraryAlreadyAsked().then((was: boolean) => {
+      asked.current = was;
+    });
   }, []);
 
   /**
@@ -2571,10 +2602,7 @@ function EventScreen({
       })),
     );
 
-    // Earned the right to ask: they have contributed, so the pitch is
-    // concrete rather than a permission wall in front of a stranger.
-    if (access === 'undetermined' && windowFor()) setOfferUpgrade(true);
-  }, [access, api, enqueue, event.id, windowFor]);
+  }, [api, enqueue, event.id]);
 
   const addPhotos = useCallback(async () => {
     // With library access and a known window, offer the photos rather than
@@ -2582,6 +2610,23 @@ function EventScreen({
     const window = windowFor();
     if ((access === 'granted' || access === 'limited') && window) {
       setAutoWindow(window);
+      return;
+    }
+
+    /*
+     * Never asked, and something concrete to ask for.
+     *
+     * Both halves matter. Without a window there is nothing to promise — the
+     * app cannot find photographs from an evening it cannot date — so the ask
+     * would be for access in general, which is the prompt people refuse. And
+     * `undetermined` is the only state worth asking in: granted and limited
+     * are already handled above, and denied is not re-askable from inside an
+     * app at all.
+     */
+    if (access === 'undetermined' && window && !asked.current) {
+      asked.current = true;
+      void markLibraryAsked();
+      setOfferUpgrade(true);
       return;
     }
 
@@ -3998,20 +4043,51 @@ function EventScreen({
                 style={[styles.upgrade, { backgroundColor: t.card, borderColor: t.line }]}
               >
                 <Text style={[styles.body, { color: t.fg }]}>
-                  Next time we can find them for you — pick out the photos from
-                  the evening so you do not have to scroll. Your photos stay on
-                  your phone; only the ones you choose are uploaded.
+                  We can pick out the photos from that evening so you do not
+                  have to scroll for them. Your photos stay on your phone; only
+                  the ones you choose are uploaded.
                 </Text>
                 <Button
-                  label="Let it find them"
+                  label="Find them for me"
                   t={t}
                   primary
                   onPress={async () => {
-                    setAccess(await requestLibraryAccess());
                     setOfferUpgrade(false);
+                    const next = await requestLibraryAccess();
+                    setAccess(next);
+                    /*
+                     * Straight into the suggestion, rather than back to where
+                     * they were. They pressed Add photos; the permission was a
+                     * question on the way, and answering it should not leave
+                     * somebody on the screen they were trying to leave.
+                     *
+                     * `windowFor()` again rather than the one captured above:
+                     * the system prompt is a round trip through another
+                     * process, and the feed may have landed while it was up.
+                     */
+                    const window = windowFor();
+                    if ((next === 'granted' || next === 'limited') && window) {
+                      setAutoWindow(window);
+                      return;
+                    }
+                    // Said no at the system prompt, or there is nothing to
+                    // suggest from. The picker is what always works.
+                    await pickFromLibrary();
                   }}
                 />
-                <Button label="Not now" t={t} onPress={() => setOfferUpgrade(false)} />
+                {/*
+                  Not a dismissal — the thing they asked for, without the part
+                  they declined. A card that closes and leaves somebody looking
+                  at the album again has taken a press and given nothing back.
+                */}
+                <Button
+                  label="I'll pick them"
+                  t={t}
+                  onPress={() => {
+                    setOfferUpgrade(false);
+                    void pickFromLibrary();
+                  }}
+                />
               </View>
             )}
 
