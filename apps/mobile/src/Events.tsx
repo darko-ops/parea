@@ -1560,6 +1560,12 @@ export function ChatsTab({
         rather than rearranging itself, so the control somebody was not
         reaching for never ends up under their thumb.
 
+        What opens is the field Find has, at Find's size. It used to take the
+        disc's own height and radius so that pressing the magnifier read as
+        that disc stretching, and the bigger box loses that — but two search
+        boxes a few points apart are two controls, and the same one twice is
+        the claim worth making. See `headField`.
+
         Hidden where there is nothing to search. On a tab with no rooms it is a
         control that cannot succeed, and it would be sitting in the corner
         above the paragraph explaining why there is nothing here.
@@ -1583,11 +1589,10 @@ export function ChatsTab({
               style={[
                 styles.field,
                 styles.headField,
-                styles.headPill,
                 { backgroundColor: t.card, borderColor: t.line },
               ]}
             >
-              <Glyph name="search" size={17} color={t.dim} />
+              <Glyph name="search" size={19} color={t.dim} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
@@ -1601,7 +1606,7 @@ export function ChatsTab({
                 // A field that opens and then waits to be tapped is two taps
                 // for one intention.
                 autoFocus
-                style={[styles.fieldText, { color: t.fg }]}
+                style={[styles.fieldText, styles.headFieldText, { color: t.fg }]}
               />
               {/*
                 One control and one meaning: it closes the search, and the
@@ -2413,7 +2418,6 @@ export function SearchTab({
             style={[
               styles.field,
               styles.headField,
-              styles.findField,
               { backgroundColor: t.card, borderColor: t.line },
             ]}
           >
@@ -2426,7 +2430,7 @@ export function SearchTab({
               autoCapitalize="none"
               autoCorrect={false}
               accessibilityLabel={`Find ${scope}`}
-              style={[styles.fieldText, styles.findText, { color: t.fg }]}
+              style={[styles.fieldText, styles.headFieldText, { color: t.fg }]}
             />
           </View>
         }
@@ -4160,45 +4164,34 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  /* The same field, sitting in a head row: the disc's height, and no vertical
-     padding of its own — with it the box is taller than the control beside it
-     and the row is nine points deeper than every other tab's.
+  /* A search in a head row, and there is one of these — Find's, which is the
+     row, and Chats', which becomes it. One style, because two search fields
+     that are nearly the same size are two controls; the same size twice is one
+     control in two places.
 
-     The radius is the field's own 12 and is left alone here, which makes the
-     squarer of the two shapes the default. See `headPill` for the tab that
-     wants the other one and why only that tab does. */
-  headField: { height: ROUND, paddingVertical: 0 },
-  /* Half the height, which is a pill — for a field that was a disc a moment
-     ago. On Chats the box is what the magnifier becomes when it is pressed,
-     and matching the disc's radius is what makes that read as one control
-     stretching rather than as two controls swapped.
+     Taller than the disc it shares the row with, which is the only place in
+     the app a field is allowed to be. Everywhere else a head row is chrome and
+     the things in it match each other; here the field is not a control on the
+     page, it is what the page is *for*, and drawn to the tray's height it said
+     the two were equally what somebody came for.
 
-     Find's does not get it. Its field is not opened, it is simply the row, so
-     there is no disc for it to have grown out of and a pill would be a shape
-     borrowed from a gesture that never happened — a search box the size of the
-     screen, rounded like a button. */
-  headPill: { borderRadius: ROUND / 2 },
-  /* Taller than the disc it shares the row with, which is the only place in
-     the app a field is allowed to be.
+     It cost Chats a metaphor and that is the trade, written down rather than
+     regretted: the box used to take the disc's height and half of it for a
+     radius, so pressing the magnifier read as that disc stretching. At 46 it
+     is plainly bigger than what was pressed. What replaces it is the better
+     claim — that this is the same search box the other tab has, opened.
 
-     Everywhere else a head row is chrome and the controls in it are the same
-     size as each other. Here the field is not a control on the page, it is
-     what the page is *for* — Find is a search — and a box drawn to the height
-     of the tray beside it says the two are equally what you came for. Ten more
-     points is what makes it read as the subject rather than as a third disc
-     stretched out.
+     No vertical padding: the field's own would make the box 70 points deep.
+     The radius is the field's 12, left alone, which at this height reads
+     squarer than it did at 36.
 
      The row grows with it and the tray centres against it, which `PageHead`
-     already does: its height is a floor rather than a fixed measure, so
-     nothing else has to know this number.
-
-     The radius stays 12. At 46 that is squarer than it looked at 36, which is
-     the direction this was already going. */
-  findField: { height: 46, paddingHorizontal: 16 },
+     already does — its height is a floor rather than a measure, so nothing
+     else has to know this number. */
+  headField: { height: 46, paddingVertical: 0, paddingHorizontal: 16 },
   /* A point up with it. 16 in a 46-point box is a caret with a lot of air
-     round it, and this is the one field somebody is looking at rather than
-     filling in. */
-  findText: { fontSize: 17 },
+     round it, and this is the one field somebody reads before filling in. */
+  headFieldText: { fontSize: 17 },
   /* No padding of its own: the box has it, and a field with both is a caret
      that starts a quarter of an inch from the magnifier. */
   fieldText: { flex: 1, fontSize: 16, padding: 0 },

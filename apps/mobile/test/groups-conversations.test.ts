@@ -470,31 +470,46 @@ describe('finding one', () => {
     // pressing the magnifier reads as that disc stretching rather than as one
     // control being swapped for another — and so the row does not jump nine
     // points on the way in.
-    expect(TAB).toMatch(/styles\.field,\s*styles\.headField,\s*styles\.headPill,/);
-    expect(TAB).toMatch(/\{ backgroundColor: t\.card, borderColor: t\.line \}/);
-    expect(TAB).toMatch(/<Glyph name="search"/);
-    expect(TAB).toMatch(/style=\{\[styles\.fieldText, \{ color: t\.fg \}\]\}/);
     /*
-     * Two rules in a head row, and only the first is shared.
+     * The same box, to the point, on both tabs — Find's, which is the row, and
+     * this one, which becomes it.
      *
-     * `headField` is the height and the loss of the field's own vertical
-     * padding — without it the box is taller than the control beside it and
-     * the row is nine points deeper than every other tab's. It leaves the
-     * radius alone, so the squarer shape is what a tab gets by default.
+     * One style and not two near-identical ones. Two search fields a few
+     * points apart are two controls somebody has to learn separately, and it
+     * is the drift a shared stylesheet exists to stop; the same one twice is
+     * one control in two places.
      *
-     * `headPill` is this tab's, because here the box is what the magnifier
-     * *becomes*: matching the disc's radius is what makes pressing it read as
-     * one control stretching rather than as two swapped. Find's field is
-     * simply the row — no disc, no gesture, and a pill there would be a shape
-     * borrowed from something that never happened.
+     * It cost this tab a metaphor. The box used to take the disc's height with
+     * half of it for a radius, so pressing the magnifier read as that disc
+     * stretching across the row. At 46 it is plainly bigger than the thing
+     * that was pressed, and what replaces the metaphor is the better claim —
+     * that this is Find's search box, opened.
      */
-    expect(EVENTS).toMatch(/headField: \{ height: ROUND, paddingVertical: 0 \}/);
-    expect(EVENTS).toMatch(/headPill: \{ borderRadius: ROUND \/ 2 \}/);
     const find = EVENTS.slice(
       EVENTS.indexOf('export function SearchTab'),
       EVENTS.indexOf('export function AccountCard'),
     );
-    expect(find).not.toMatch(/styles\.headPill/);
+    for (const [name, source] of [['chats', TAB], ['find', find]] as const) {
+      expect(source, name).toMatch(/styles\.field,\s*styles\.headField,\s*\{/);
+      expect(source, name).toMatch(/\{ backgroundColor: t\.card, borderColor: t\.line \}/);
+      expect(source, name).toMatch(/<Glyph name="search" size=\{19\}/);
+      expect(source, name).toMatch(
+        /style=\{\[styles\.fieldText, styles\.headFieldText, \{ color: t\.fg \}\]\}/,
+      );
+    }
+
+    /*
+     * No vertical padding, or the field's own would make the box seventy
+     * points deep; the radius is the field's 12, left alone, which at this
+     * height reads squarer than it did at 36; and the row grows with it,
+     * because `PageHead`'s height is a floor rather than a measure.
+     */
+    expect(EVENTS).toMatch(
+      /headField: \{ height: 46, paddingVertical: 0, paddingHorizontal: 16 \}/,
+    );
+    expect(EVENTS).toMatch(/headFieldText: \{ fontSize: 17 \}/);
+    // And nothing left of the shape that was only one tab's.
+    expect(EVENTS).not.toMatch(/headPill/);
   });
 
   it('has a way out that is not the backspace key', () => {
