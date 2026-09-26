@@ -28,7 +28,7 @@ const CSS = readFileSync(
 );
 
 describe('what a card says now that the photograph is the card', () => {
-  it('says the name, and nothing but the "added to" note in that line', () => {
+  it('says the name, and nothing else in that line', () => {
     expect(CARD).toMatch(/className="card-name">\{event\.name\}/);
   });
 
@@ -49,26 +49,43 @@ describe('what a card says now that the photograph is the card', () => {
     expect(meta).not.toMatch(/event\.live/);
   });
 
-  it('hangs "added to" on the title\u2019s line, at the card\u2019s trailing edge', () => {
+  it('hangs "added to" on the row that meets the photograph', () => {
     /*
-     * Not in the caption two lines down, where it began, and not on the host
-     * row, where it went next. It is a fact about the photographs directly
-     * above it, so it belongs on the first line under them — the further down
-     * it sits the more it reads as a footnote to the caption.
+     * Four places in four passes, each nearer the thing it is about: the
+     * caption, where it stood in place of the date; the host row; the title's
+     * line; and now the faces row, which is the only row on the card that
+     * touches the cover.
      *
-     * The pair of them is what a reader gets: one x and one y, so every album
-     * still being added to is found in a single sweep down a grid rather than
-     * by reading each card's caption to see which is which.
+     * At its far end, so a reader coming down a grid finds every album still
+     * being added to at one x and one y, in a single sweep, rather than by
+     * reading each card to see which is which.
      */
-    expect(CARD).toMatch(
-      /<div className="card-head">\s*<div className="card-name">\{event\.name\}<\/div>\s*\{event\.live && <span className="card-added">added to \{event\.added\}<\/span>\}/,
-    );
-    expect(CSS).toMatch(/\.card-head \{[^}]*align-items: baseline/);
+    const faces = CARD.slice(CARD.indexOf('card-faces'), CARD.indexOf('card-under'));
+    expect(faces).toMatch(/\{event\.live && <span className="card-added">added to \{event\.added\}<\/span>\}/);
     expect(CSS).toMatch(/\.card-added \{[^}]*margin-left: auto/);
-    // It must survive the squeeze; the title beside it is the one that
-    // ellipses. "added to" is what says what kind of fact the time is.
+    // It must survive a narrow card. "added to" is what says what kind of fact
+    // the time is; "… 2 minutes ago" is a duration with no claim attached.
     expect(CSS).toMatch(/\.card-added \{[^}]*white-space: nowrap/);
-    expect(CSS).toMatch(/\.card-name \{[^}]*min-width: 0/);
+  });
+
+  it('keeps the note off the photograph it is about', () => {
+    /*
+     * The faces row straddles the cover's bottom edge — 16 points over the
+     * picture and 16 below — and the circles survive the top half by wearing a
+     * ring of the page colour. Grey text has no ring, and a note laid over an
+     * unknown photograph is legible on about half of them. So it takes the
+     * bottom half: as near the picture as it can be set and still be read on
+     * every one.
+     */
+    expect(CSS).toMatch(/\.card-added \{[^}]*align-self: flex-end/);
+    /*
+     * And the row is drawn, at its full height, for a live album with no faces
+     * on it yet. Without the row there is nowhere for the note; without the
+     * `min-height` the row collapses to the note's own 15 points and the -16
+     * top margin lays it straight over the picture.
+     */
+    expect(CARD).toMatch(/\{\(event\.faces\.length > 0 \|\| event\.live\) && \(/);
+    expect(CSS).toMatch(/\.card-faces \{[^}]*min-height: 32px/);
   });
 
   it('sets the note under every other line on the card', () => {

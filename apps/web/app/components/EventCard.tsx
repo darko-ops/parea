@@ -130,7 +130,13 @@ export function EventCard({ event }: { event: CardEvent }) {
         below a picture reads as metadata, the same row half over it reads as
         who was there.
       */}
-      {event.faces.length > 0 && (
+      {/*
+        Drawn for the faces, and also for an album with no faces that is being
+        added to right now — the note below needs this row, and `min-height`
+        on it is what keeps the row its full 32 when it is holding nothing but
+        the note.
+      */}
+      {(event.faces.length > 0 || event.live) && (
         <div className="card-faces">
           {event.faces.map((face, i) => (
             <Face
@@ -148,39 +154,33 @@ export function EventCard({ event }: { event: CardEvent }) {
               +{event.moreFaces}
             </span>
           )}
+          {/*
+            What has just happened, at the other end of the row that touches
+            the photograph.
+
+            Four places in four passes, and each one moved it nearer the thing
+            it is about. It began in the caption, standing in place of the date
+            — so the one card worth spotting was the one that would not say
+            when its evening was. Then the host row, which fixed its x. Then
+            the title's line. This is the last rung: the faces row is the only
+            row on the card that meets the cover, and the note is now beside
+            them on it.
+
+            Below the picture and not over it, though. `align-self: flex-end`
+            sits it on the row's bottom edge, which is the 16 points of that
+            row that hang clear of the photograph — the half the circles are
+            wearing a ring to survive. Grey text has no ring, and a note laid
+            over an unknown photograph is legible on about half of them.
+
+            The app's card says the same thing at the end of its byline; see
+            `bylineAbout` in `apps/mobile/src/Events.tsx`.
+          */}
+          {event.live && <span className="card-added">added to {event.added}</span>}
         </div>
       )}
 
       <div className="card-under">
-        {/*
-          The name, and at the far end of its line, what has just happened.
-
-          The note has been in three places. It began in the caption below,
-          standing *in place of* the date — "8 people · added to 2 minutes ago"
-          — which made the one card worth spotting on the page the one card
-          that did not say when its evening was, and hid the news mid-sentence
-          behind a number nobody scans for. Then at the end of the host row,
-          which fixed the x and left it two lines down.
-
-          It is on the title's line because it is a fact about the photographs
-          directly above it, and the further it sits from them the more it
-          reads as a footnote to the caption instead. First line under the
-          cover, trailing edge: a reader coming down a grid finds every album
-          still being added to at one x and one y, in a single sweep.
-
-          Smaller than everything around it on purpose. It is the newest thing
-          on the card and still the least important — the subject is somebody's
-          photograph, and a note that competed with the title for the eye would
-          be the loudest thing on the card saying the least.
-
-          The app's card does the same thing in the same place — see
-          `bylineAbout` in `apps/mobile/src/Events.tsx`. One object, one
-          drawing of it, on both clients.
-        */}
-        <div className="card-head">
-          <div className="card-name">{event.name}</div>
-          {event.live && <span className="card-added">added to {event.added}</span>}
-        </div>
+        <div className="card-name">{event.name}</div>
         {/*
           Whose event it is, in their own two names.
 
