@@ -1450,7 +1450,9 @@ button.secondary {
 /* A findable group somebody could ask to be let into.
 
    Two up, and one up before the cards get too narrow for a name and a member
-   line to sit beside a 44px tile. */
+   line to sit beside the tile. The breakpoint did not move when the tile came
+   down to 36: it was never set by the tile's own width but by where the name
+   beside it starts truncating, and eight points does not buy a word. */
 .doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .door {
   background: var(--card); border: 1px solid var(--hairline);
@@ -1460,10 +1462,23 @@ button.secondary {
 /* A letter on a colour, never a photograph: a group has no cover, and
    borrowing one from an event inside it would put a picture from a room on a
    card offered to somebody who has not been let into the room. */
+/* 36, down from 44.
+
+   A letter on a colour is a stand-in for a picture, not a picture, and at 44
+   it was drawn at the size this product gives actual photographs — a column of
+   coloured squares reading louder than the grid of covers on Home. These are
+   rooms somebody has not been let into yet, offered for consideration; the
+   name and the member count are what is being read, and the tile is there to
+   tell one card from the next.
+
+   The radius comes down with it, to the tenth the rest of the product's small
+   tiles keep — `.hit-thumb` is 38 on 10 — so this reads as the same corner at
+   a smaller size rather than as a different shape. The letter follows at 15,
+   which is `.hit-thumb`'s, the tile nearest it in size on this page. */
 .door-mark {
-  flex: none; width: 44px; height: 44px; border-radius: 12px;
+  flex: none; width: 36px; height: 36px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 17px; font-weight: 700;
+  font-size: 15px; font-weight: 700;
 }
 .door-text { flex: 1; min-width: 0; display: grid; }
 .door-name {
@@ -1578,8 +1593,8 @@ button.secondary {
 }
 
 @media (max-width: 900px) {
-  /* One up. A 44px tile, a name and a member count do not fit beside each
-     other in half of a narrow column. */
+  /* One up. A tile, a name and a member count do not fit beside each other in
+     half of a narrow column. */
   .doors { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
