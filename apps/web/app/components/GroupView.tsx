@@ -279,9 +279,9 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       {/* The list page is new, so the way back to it is drawn rather than
           assumed — this screen used to be reachable only from a link. Named
           for what that page now is: a crumb reading `Groups` over a rail row
-          reading `Groupchats` is two names for one destination. */}
+          reading `Chat` is two names for one destination. */}
       <nav className="crumbs" aria-label="Where you are">
-        <a href="/groups">Groupchats</a>
+        <a href="/groups">Chat</a>
         <span aria-hidden="true">{'›'}</span>
         <span className="crumbs-here">{group.name}</span>
       </nav>

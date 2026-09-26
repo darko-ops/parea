@@ -150,7 +150,7 @@ export function HomeView({
             Only on this page, and the rail's copy is gone rather than kept:
             two links to the same place is two tab stops and two things for a
             screen reader to announce. What it costs is creating an album from
-            Groupchats or Notifications, which is now a click through Albums
+            Chat or Notifications, which is now a click through Albums
             first — the trade taken knowingly, because a create button in six
             different corners is the thing that made the rail's one invisible.
           */}

@@ -382,7 +382,7 @@ describe('the name of the page', () => {
 
   it('sits in the middle of the page, not of what the controls leave', () => {
     /*
-     * Four pages and four names: Your Parea, Find, Lately, Groupchats.
+     * Four pages and four names: Your Parea, Find, Lately, Chat.
      *
      * The two with a control in the corner use three tracks rather than a flex
      * row, and the outer two are equal. A flex row centres the title in *what
@@ -424,7 +424,7 @@ describe('the name of the page', () => {
   /** The four pages that greet, and what each falls back to. */
   const GREETS: [string, string][] = [
     ['components/HomeView.tsx', 'Your Parea'],
-    ['components/CreateGroupCard.tsx', 'Groupchats'],
+    ['components/CreateGroupCard.tsx', 'Chat'],
     ['activity/page.tsx', 'Lately'],
     ['components/FindView.tsx', 'Find'],
   ];
@@ -492,7 +492,7 @@ describe('how wide a page is', () => {
 
   it('gives every page the width Home has', () => {
     /*
-     * Three pages were capped at 820 — Notifications, Groupchats and Find —
+     * Three pages were capped at 820 — Notifications, Chat and Find —
      * which on a 1400px screen is a column with a third of the screen empty
      * beside it, while Home fills the same screen from one row up in the rail.
      *
@@ -670,10 +670,16 @@ describe('the rail and the app point at the same product', () => {
      *
      * Both differ for one reason. A phone's bar is four glyphs with a word
      * under each and nothing else on the row, so Albums and Chats name
-     * themselves against their three neighbours. A rail is a column beside a
-     * page: its first row is where somebody goes to start again, which is
-     * Home, and its third goes to the groups rather than to every
-     * conversation there is, which is Groupchats.
+     * themselves against their three neighbours by being the plural of what
+     * they hold. A rail is a column of five destinations beside a page, and a
+     * destination is named for what it is: the first row is where somebody
+     * goes to start again, which is Home, and the third is Chat.
+     *
+     * Chat was Groupchats, which said which kind of conversation this row
+     * goes to. Nothing on this rail was asking: there is no second
+     * conversations row to be told apart from, and the word was the longest
+     * label in the column by half again to answer a question the page never
+     * put. The singular is the same shape as Home and Find beside it.
      */
     for (const [tab, page] of SHARED.filter(([t]) => t === 'search' || t === 'profile')) {
       expect(ROWS.find((r) => r.page === page)?.label).toBe(
@@ -681,9 +687,14 @@ describe('the rail and the app point at the same product', () => {
       );
     }
     expect(ROWS.find((r) => r.page === 'events')?.label).toBe('Home');
+    /*
+     * Read off the app's own label rather than written out, so this still
+     * says something if the phone's bar is renamed: the two rows are the same
+     * word, and the web's is the singular of it.
+     */
     const chats = TABS.find((t) => t.tab === 'chats')?.label ?? '';
-    expect(chats).not.toBe('');
-    expect(ROWS.find((r) => r.page === 'groups')?.label).toBe(`Group${chats.toLowerCase()}`);
+    expect(chats).toMatch(/s$/);
+    expect(ROWS.find((r) => r.page === 'groups')?.label).toBe(chats.replace(/s$/, ''));
   });
 
   it('spells the two rows the app has no tab for', () => {

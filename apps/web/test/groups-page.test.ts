@@ -74,10 +74,10 @@ describe('where a group comes from', () => {
      * empty-room failure the original design refused outright, so the clusters
      * have to be read and the primary card has to be one of them.
      *
-     * They are on Find now. Groupchats is the conversations: the cards sat
-     * under the chat list as "these people keep turning up too", which made a
-     * page whose heading says Groupchats two thirds a groups directory. Making
-     * a group belongs where the groups are, which is also where the app makes
+     * They are on Find now. Chat is the conversations: the cards sat under the
+     * chat list as "these people keep turning up too", which made a page whose
+     * whole subject is conversations two thirds a groups directory. Making a
+     * group belongs where the groups are, which is also where the app makes
      * one.
      */
     expect(FIND_PAGE).toMatch(/recurringClusters\(db, actorId\)/);
@@ -604,12 +604,12 @@ describe('inside a group', () => {
 });
 
 describe('the rail', () => {
-  it('puts Groupchats between Find and Notifications', () => {
+  it('puts Chat between Find and Notifications', () => {
     /*
-     * Home, Find, Groupchats, Notifications, You: what you have, then the way
+     * Home, Find, Chat, Notifications, You: what you have, then the way
      * to more of it, then the rooms, then what has happened to you, then you.
      *
-     * It ran Home, Notifications, Groupchats, Find, on the argument that the
+     * It ran Home, Notifications, Chat, Find, on the argument that the
      * rows descend from what has already happened to you toward what you are
      * not part of yet. That is a true sentence about the rows and the wrong
      * axis to sort them on — Find is how this product is used, not the far end

@@ -34,12 +34,12 @@ export function GroupChatScreen({
       {/*
         Back to the conversations rather than to the room.
 
-        This screen is reached from Groupchats, and the room is the thing the
+        This screen is reached from Chat, and the room is the thing the
         bar below goes to — a back arrow that landed there as well would make
         the two controls one control with a coin flip in it.
       */}
       <nav className="crumbs" aria-label="Where you are">
-        <a href="/groups">Groupchats</a>
+        <a href="/groups">Chat</a>
         <span aria-hidden="true">{'›'}</span>
         <span className="crumbs-here">{group.name}</span>
       </nav>

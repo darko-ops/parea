@@ -1,7 +1,7 @@
 /**
  * A group's conversation, on a screen of its own.
  *
- * Opening a chat from Groupchats used to land on `/group/<id>?tab=chat` — the
+ * Opening a chat from Chat used to land on `/group/<id>?tab=chat` — the
  * room, with its crest, its three tabs and its albums, showing the Chat pane.
  * Which is the album view with a conversation inside it, and it made the page
  * a list of conversations open a page about a *group*. The app does not: its

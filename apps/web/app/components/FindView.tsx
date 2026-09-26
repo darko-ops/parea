@@ -199,11 +199,11 @@ export function FindView({
    * Sets of people this person keeps ending up in the same albums as, offered
    * as groups they could make.
    *
-   * These were on the Groupchats page, above the list when it was empty and
-   * demoted below it when it was not — so a page whose heading says
-   * Groupchats was two thirds a groups directory and the conversations were
-   * the part you scrolled past. Making a group belongs where groups are found,
-   * which is here and is where the app puts it.
+   * These were on Chat, above the list when it was empty and demoted below it
+   * when it was not — so the page whose whole subject is conversations was two
+   * thirds a groups directory and the conversations were the part you scrolled
+   * past. Making a group belongs where groups are found, which is here and is
+   * where the app puts it.
    */
   clusters: Cluster[];
   /** Who else could be added: people shared with once, not in any cluster. */

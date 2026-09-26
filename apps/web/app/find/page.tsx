@@ -71,9 +71,9 @@ export default async function FindPage() {
       /*
        * Sets of people this actor keeps ending up in the same albums as.
        *
-       * They were on the Groupchats page, which is now the conversations and
-       * nothing else. Making a group belongs where the groups are, which is
-       * this page — and it is where the app makes one.
+       * They were on Chat, which is now the conversations and nothing else.
+       * Making a group belongs where the groups are, which is this page — and
+       * it is where the app makes one.
        */
       recurringClusters(db, actorId),
     ]);

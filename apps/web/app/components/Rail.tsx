@@ -12,7 +12,7 @@
  * sent, and "what came of that?" is a question worth having a screen for.
  *
  * The four they share carry the app's drawings, and two of them carry its
- * words: Find and You. Home and Groupchats are the web's, and `ROWS` says why
+ * words: Find and You. Home and Chat are the web's, and `ROWS` says why
  * each of the two is — in both cases because a rail beside a page is not a bar
  * under a thumb, and the word that fits one does not fit the other. `ROWS`
  * also says why they are in the order they are in.
@@ -94,17 +94,17 @@ const ROWS: {
    * one product twice.
    *
    * Every picture is the app's now. Find and You are its words too; Home and
-   * Groupchats are the web's, and each says below why. `label` is what the row
+   * Chat are the web's, and each says below why. `label` is what the row
    * says and `page` is what the code calls it — the ids are what
    * `aria-current` is matched on and what every route underneath is named, so
    * they do not move when a word does.
    *
    * ## The order
    *
-   * Home, Find, Groupchats, Notifications, You. What you have, then the way to
+   * Home, Find, Chat, Notifications, You. What you have, then the way to
    * more of it, then the rooms, then what has happened to you, then you.
    *
-   * It ran Home, Notifications, Groupchats, Find before this, on the argument
+   * It ran Home, Notifications, Chat, Find before this, on the argument
    * that the rows descend from what has already happened to you toward what
    * you are not part of yet — which is a true sentence about the rows and the
    * wrong axis to sort them on. Find is how this product is used, not the far
@@ -122,17 +122,25 @@ const ROWS: {
   // albums, people and groups are all reached from here.
   { href: '/find', label: 'Find', page: 'find', glyph: 'search' },
   /*
-   * Groupchats, on two bubbles, where the app's bar says Chats.
+   * Chat, on two bubbles, where the app's bar says Chats.
    *
    * The two-people drawing is what the product uses for *members*, and it is
    * still doing that one screen in on a group's own People tab — using it for
    * the room as well meant one picture said "the room" and "who is in the
    * room" on consecutive screens. Two bubbles say what a group is for.
    *
-   * Chats on a phone holds every conversation there is; this row goes to the
-   * groups, so it says which kind.
+   * It said Groupchats, on the argument that the app's Chats holds every
+   * conversation there is and this row goes only to the groups, so it should
+   * say which kind. The word was doing that job and paying for it twice: a
+   * compound nobody says out loud, and the longest label in a column of five
+   * where every other row is one short word. What it was disambiguating from
+   * is not on this rail — there is no second conversations row here to be
+   * confused with — so it was answering a question the page never asked.
+   *
+   * Singular, like Home and Find beside it: these are places, and a place is
+   * named for what it is rather than counted.
    */
-  { href: '/groups', label: 'Groupchats', page: 'groups', glyph: 'bubbles' },
+  { href: '/groups', label: 'Chat', page: 'groups', glyph: 'bubbles' },
   /*
    * Notifications, on a tray. It was Activity, on an envelope.
    *

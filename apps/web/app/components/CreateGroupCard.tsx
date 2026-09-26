@@ -365,7 +365,7 @@ export function NewGroupPanel({
         <div>
           {/* The greeting is the heading, and the page's name is the
               fallback for a reader it cannot name. See `HomeView`. */}
-          <h1 className="home-title">{greeting ?? 'Groupchats'}</h1>
+          <h1 className="home-title">{greeting ?? 'Chat'}</h1>
         </div>
         {/*
           A `+` in the corner, which is the app's own Chats tab and now Home's

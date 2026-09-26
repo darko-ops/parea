@@ -1,5 +1,5 @@
 /**
- * Groupchats — the conversations, and the rooms you have not named yet.
+ * Chat — the conversations, and the rooms you have not named yet.
  *
  * This was a list of *rooms*, and the rail called it Groups. Both have
  * changed, and the second followed the first: what somebody opens this page
@@ -34,7 +34,7 @@
  * The list arrived first and the furniture stayed: under it sat the cluster
  * cards — "these people keep turning up too", each a stack of faces and a
  * `Make a group` — and under those a line about finding groups you are not in.
- * So a page whose heading says Groupchats went on being two thirds a groups
+ * So a page whose heading says Chat went on being two thirds a groups
  * directory, and the conversations were the part you scrolled past.
  *
  * Both have gone to Find, which is where groups are found and, in the app,
@@ -59,7 +59,7 @@ import { GroupChats, type ChatRow } from '@/../app/components/GroupChats';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Groupchats',
+  title: 'Chat',
   robots: { index: false, follow: false },
 };
 
