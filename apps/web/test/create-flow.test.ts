@@ -152,3 +152,61 @@ describe('what the share panel promises the person receiving the link', () => {
     expect(promise(undefined, true)).toMatch(/Anybody with this/);
   });
 });
+
+/**
+ * The cover, which is one of the picked photographs and therefore an original.
+ *
+ * All three of these were one bug: an iPhone HEIC chosen on the create screen
+ * silently did not become the cover. The browser would not re-encode it, the
+ * original was posted instead, the server could not decode that either, and
+ * the 400 it answered with was thrown away by the caller. Nothing anywhere
+ * said a word, so the album simply opened with no cover.
+ */
+describe('a cover that could not be made is not posted anyway', () => {
+  const COVER_BYTES = read('../app/components/coverBytes.ts');
+  const MANAGE = read('../app/components/ManageView.tsx');
+
+  it('reaches for the element decoder when createImageBitmap refuses', () => {
+    // Safari declines `createImageBitmap` on an HEIC and renders that very
+    // file in an `<img>` without complaint. An iPhone hands over HEICs, so
+    // without the second attempt the format most covers arrive in is the one
+    // that never converts.
+    expect(COVER_BYTES).toMatch(/createImageBitmap\(file\)/);
+    expect(COVER_BYTES).toMatch(/new Image\(\)/);
+    expect(COVER_BYTES).toMatch(/await img\.decode\(\)/);
+  });
+
+  it('answers null rather than handing back an original it could not read', () => {
+    expect(COVER_BYTES).toMatch(/Promise<Blob \| null>/);
+    expect(COVER_BYTES).toMatch(/return null;/);
+  });
+
+  it('only posts an unconverted original in formats the server is sure of', () => {
+    // The escape hatch is deliberate and it is not for HEIC: a JPEG, PNG or
+    // WebP this browser would not draw is still a file libvips opens. HEIC is
+    // the one that does not survive the trip, which is the whole reason the
+    // list is written out rather than being "whatever was picked".
+    expect(COVER_BYTES).toMatch(/type === 'image\/jpeg'/);
+    expect(COVER_BYTES).toMatch(/type === 'image\/png'/);
+    expect(COVER_BYTES).toMatch(/type === 'image\/webp'/);
+    expect(COVER_BYTES).not.toMatch(/type === 'image\/heic'/);
+  });
+
+  it('makes both screens look at the answer', () => {
+    // `.catch(() => {})` catches a dropped connection and nothing else — a 400
+    // resolves like any other response and used to go straight in the bin.
+    expect(CREATE).toMatch(/const bytes = await coverBytes\(cover\)/);
+    expect(CREATE).toMatch(/if \(!set\?\.ok\)/);
+    expect(MANAGE).toMatch(/if \(!bytes\) throw new Error/);
+  });
+
+  it('decodes each picked photograph once for the whole screen', () => {
+    // Two strips show the same files. Each used to mint its own blob URL, and
+    // a blob URL is an identity rather than a cache key, so one photograph was
+    // two full-resolution decodes. At the size an iPhone writes an HEIC that is
+    // what made the picker take its time appearing.
+    expect(CREATE).toMatch(/function usePreviewUrls\(/);
+    expect(CREATE.match(/URL\.createObjectURL/g) ?? []).toHaveLength(1);
+    expect(CREATE).toMatch(/urls=\{previews\}/);
+  });
+});

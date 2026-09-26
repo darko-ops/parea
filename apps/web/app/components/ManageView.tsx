@@ -219,10 +219,16 @@ export function ManageView({
     setBusy('cover');
     setError(null);
     try {
+      // Null means no decoder on this device read it, so there are no bytes to
+      // send — and posting the original instead is the request that produced
+      // "my cover did not save" with a 400 nobody saw. See `coverBytes`.
+      const bytes = await coverBytes(file);
+      if (!bytes) throw new Error('That file could not be read as a picture.');
+
       const res = await fetch(`/api/events/${eventId}/cover`, {
         method: 'POST',
         headers: { 'content-type': 'image/jpeg' },
-        body: await coverBytes(file),
+        body: bytes,
       });
       if (!res.ok) {
         throw new Error(

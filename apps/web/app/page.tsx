@@ -83,6 +83,8 @@ export default function CreatePage() {
   const [step, setStep] = useState<'photos' | 'details'>('photos');
   const [picked, setPicked] = useState<File[]>([]);
   const [skipped, setSkipped] = useState(0);
+  // Shared by both strips below — see `usePreviewUrls`.
+  const previews = usePreviewUrls(picked);
   const [name, setName] = useState('');
   const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
@@ -196,11 +198,30 @@ export default function CreatePage() {
          * twelve megabytes that came off the camera.
          */
         if (cover) {
-          await fetch(`/api/events/${created.id}/cover`, {
-            method: 'POST',
-            headers: { 'content-type': 'image/jpeg' },
-            body: await coverBytes(cover),
-          }).catch(() => {});
+          /*
+           * Still not fatal, and no longer silent.
+           *
+           * `.catch(() => {})` only ever caught a dropped connection. A 400
+           * resolves like any other response, so the one failure this actually
+           * had — a picture the browser could not re-encode, posted anyway and
+           * refused — went into the void, and the album opened with no cover
+           * and no reason. The server names it in its log now; this names it
+           * where whoever is looking at the screen can see it.
+           */
+          const bytes = await coverBytes(cover);
+          const set = bytes
+            ? await fetch(`/api/events/${created.id}/cover`, {
+                method: 'POST',
+                headers: { 'content-type': 'image/jpeg' },
+                body: bytes,
+              }).catch(() => null)
+            : null;
+          if (!set?.ok) {
+            console.warn(
+              `cover: not set on ${created.id} — ` +
+                (bytes ? `server answered ${set ? set.status : 'nothing'}` : 'no decoder read it'),
+            );
+          }
         }
 
         if (members.length > 0) {
@@ -327,7 +348,11 @@ export default function CreatePage() {
                   </p>
                 )}
 
-                <Thumbs files={picked} onRemove={(f) => setPicked((c) => c.filter((x) => x !== f))} />
+                <Thumbs
+                  files={picked}
+                  urls={previews}
+                  onRemove={(f) => setPicked((c) => c.filter((x) => x !== f))}
+                />
 
                 <div className="row">
                   <button type="button" onClick={() => setStep('details')}>
@@ -390,7 +415,12 @@ export default function CreatePage() {
                     living in an event, visible on everybody's home screen and
                     in none of its own grids.
                   */}
-                  <CoverPicker files={picked} cover={cover} onChoose={setCover} />
+                  <CoverPicker
+                    files={picked}
+                    urls={previews}
+                    cover={cover}
+                    onChoose={setCover}
+                  />
                 </div>
 
                 <div className="field">
@@ -561,23 +591,36 @@ export default function CreatePage() {
  * rather than offering a file input of its own: a cover that is not in the
  * event would be an image nobody in the event can find.
  */
-function CoverPicker({
-  files,
-  cover,
-  onChoose,
-}: {
-  files: File[];
-  cover: File | null;
-  onChoose: (file: File | null) => void;
-}) {
+/**
+ * One object URL per picked file, made once for the whole screen.
+ *
+ * Both strips show the same photographs — the one you remove from and the one
+ * you choose a cover in — and each used to mint its own URL for every file. A
+ * blob URL is an identity rather than a cache key, so two of them for one file
+ * is two decodes of that file, and at the size an iPhone writes an HEIC that is
+ * the difference between a picker that appears and a picker that arrives.
+ */
+function usePreviewUrls(files: File[]): string[] {
   const [urls, setUrls] = useState<string[]>([]);
-
   useEffect(() => {
     const made = files.map((file) => URL.createObjectURL(file));
     setUrls(made);
     return () => made.forEach((url) => URL.revokeObjectURL(url));
   }, [files]);
+  return urls;
+}
 
+function CoverPicker({
+  files,
+  urls,
+  cover,
+  onChoose,
+}: {
+  files: File[];
+  urls: string[];
+  cover: File | null;
+  onChoose: (file: File | null) => void;
+}) {
   if (files.length === 0) {
     return (
       <p className="field-help">
@@ -618,14 +661,15 @@ function CoverPicker({
   );
 }
 
-function Thumbs({ files, onRemove }: { files: File[]; onRemove: (file: File) => void }) {
-  const [urls, setUrls] = useState<string[]>([]);
-
-  useEffect(() => {
-    const made = files.map((file) => URL.createObjectURL(file));
-    setUrls(made);
-    return () => made.forEach((url) => URL.revokeObjectURL(url));
-  }, [files]);
+function Thumbs({
+  files,
+  urls,
+  onRemove,
+}: {
+  files: File[];
+  urls: string[];
+  onRemove: (file: File) => void;
+}) {
 
   if (files.length === 0) return null;
 
@@ -668,8 +712,11 @@ function Thumb({ src, name }: { src: string; name: string }) {
     );
   }
 
+  // `decoding="async"` because these are originals: a strip of them is a strip
+  // of full-resolution decodes, and doing that synchronously is what makes the
+  // form stop responding while it fills.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img ref={ref} onError={onError} src={src} alt="" />;
+  return <img ref={ref} onError={onError} src={src} alt="" decoding="async" />;
 }
 
 /** Enough to recognise the same file picked twice. Matches the queue's dedupe. */
