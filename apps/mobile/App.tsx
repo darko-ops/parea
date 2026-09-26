@@ -4767,19 +4767,29 @@ function TabBar({
                 color={tab === id ? t.fg : t.dim}
               />
               {/*
-                Ringed in the bar's own tint rather than in the page: this sits
-                on glass with other people's photographs going past underneath,
-                and an unringed dot over a busy picture is a speck. The two
-                values are the selected capsule's wash taken to full strength,
-                so the ring reads as the bar rather than as a second colour.
+                Bare, and pink.
+
+                It was the aqua with two points of the bar's own tint ringed
+                round it, on the reasoning that a dot over a photograph needs
+                separating from it. On a bubble this small the ring was most of
+                the dot — eleven points across with four of them spent on an
+                outline, leaving seven of colour, and in the dark scheme that
+                outline read as a black ring drawn round the mark rather than
+                as the bar showing through. Without it the same footprint is
+                all fill, so taking the ring off makes the thing it was there
+                to protect *more* visible, not less.
+
+                The mark's pink rather than its aqua, which is what every other
+                unread mark in the app wears. The two can be lit at the same
+                time and they point at opposite corners of one screen — the
+                tray at the top says *something happened to you*, and this at
+                the bottom says *somebody said something to you*. Two hues out
+                of the same logo is how you tell at a glance which of the two
+                is asking, and it is the one place in the app where that
+                question has two answers on screen at once.
               */}
               {id === 'chats' && chats && (
-                <View
-                  style={[
-                    styles.tabDot,
-                    { backgroundColor: t.news, borderColor: dark ? '#23272e' : '#eceef0' },
-                  ]}
-                />
+                <View style={[styles.tabDot, { backgroundColor: t.said }]} />
               )}
             </View>
           </Pressable>
@@ -6056,6 +6066,22 @@ function Button({
  */
 const NEWS: string = MARK_FILLS.blueOnMint;
 /**
+ * The other one, for the one mark that is not about news.
+ *
+ * `MARK_FILLS.pink` — the first of the three circles, and the warmest thing on
+ * the logo. It paints exactly one dot: the Chats tab, in the bar at the bottom
+ * of the screen.
+ *
+ * A second colour, deliberately. The tray in the top corner and the tab bar at
+ * the bottom can be lit at the same moment and they send somebody to two
+ * different screens: one means *something happened to you* and the other means
+ * *somebody said something to you*. In one hue they are the same claim made
+ * twice and the choice of which to press is a guess. Two hues out of the same
+ * mark keep them one family and still tell them apart, which is the whole
+ * reason the logo has more than one colour in it too.
+ */
+const SAID: string = MARK_FILLS.pink;
+/**
  * Ink for text sitting on `NEWS`.
  *
  * Dark, in both schemes, because the aqua is a light value: white on it is
@@ -6109,11 +6135,11 @@ function theme(dark: boolean) {
   return dark
     ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
         fg: '#f2f4f7', dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12',
-        news: NEWS, onNews: ON_NEWS,
+        news: NEWS, onNews: ON_NEWS, said: SAID,
         warn: '#ff7b70' }
     : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
         fg: '#14171c', dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff',
-        news: NEWS, onNews: ON_NEWS,
+        news: NEWS, onNews: ON_NEWS, said: SAID,
         warn: '#c23127' };
 }
 
@@ -6597,11 +6623,12 @@ const styles = StyleSheet.create({
      off. `overflow` stays visible — the dot deliberately sits outside it. */
   tabGlyph: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   /* Small, because it is a dot and not a badge: there is no number on this bar
-     and nothing for one to count. Two points of ring, the same as the tray's,
-     which is the other place in the app a mark sits on top of a drawing. */
+     and nothing for one to count. No ring — see the note at the call site for
+     why the one it had made it harder to see rather than easier — so the ten
+     points are ten points of colour where eleven ringed were seven. */
   tabDot: {
-    position: 'absolute', top: -3, right: -4,
-    width: 11, height: 11, borderRadius: 999, borderWidth: 2,
+    position: 'absolute', top: -2, right: -3,
+    width: 10, height: 10, borderRadius: 999,
   },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   /* The two who-can-see-it pills, the same shape the create screen asks the

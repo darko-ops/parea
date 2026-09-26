@@ -1217,10 +1217,14 @@ fail silently:
   foreground, because a push delivered to a sleeping process reaches no
   listener at all.
 
-Every one of those marks is the logo's aqua — `MARK_FILLS.blueOnMint`, read off
-`Mark.tsx` so it cannot drift from the icon — and not the accent, which is what
-a button is. The ink on a count goes dark to answer it: the aqua is a light
-value, and white on it is 2.3:1.
+Those marks are the logo's, read off `Mark.tsx` so they cannot drift from the
+icon, and not the accent — which is what a button is. Two of its colours, for
+the two questions: `blueOnMint` for news, on the tray and on every unread count,
+with a dark ink because the aqua is a light value and white on it is 2.3:1; and
+`pink` for the dot on the Chats tab. They can be lit at the same moment and they
+send somebody to opposite corners of one screen — *something happened to you*
+against *somebody said something to you* — and in one hue that is the same claim
+made twice with a guess about which to press.
 
 ## 13. Safety, moderation, and the App Store gate
 

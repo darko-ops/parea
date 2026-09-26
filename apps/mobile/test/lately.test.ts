@@ -166,11 +166,22 @@ describe('the door', () => {
      * A dot, hung off a box the size of the glyph. The four tabs are evenly
      * spaced, so a mark that took width would move the tab it is on — the bar
      * would shift under a thumb the moment a message arrived.
+     *
+     * Pink, and bare. The mark's pink rather than its aqua because this and
+     * the tray can be lit at the same moment and they point at two different
+     * screens; and no ring, because on an eleven-point dot two points of
+     * outline were four points of the eleven — the ring was most of the mark,
+     * and in the dark scheme it read as a black circle drawn round it.
      */
     expect(APP).toMatch(/\{id === 'chats' && chats && \(/);
-    expect(APP).toMatch(/styles\.tabDot,\s*\{ backgroundColor: t\.news/);
+    expect(APP).toMatch(/styles\.tabDot, \{ backgroundColor: t\.said \}/);
+    expect(APP).toMatch(/const SAID: string = MARK_FILLS\.pink/);
     expect(APP).toMatch(/tabGlyph: \{ width: 22, height: 22/);
     expect(APP).toMatch(/tabDot: \{\s*position: 'absolute'/);
+    // No ring at all, and none smuggled back in as a border colour.
+    const at = APP.indexOf('tabDot: {');
+    const dotRule = APP.slice(at, APP.indexOf('},', at));
+    expect(dotRule).not.toMatch(/borderWidth|borderColor/);
     // Said to a screen reader, which cannot see a dot.
     expect(APP).toMatch(/`\$\{label\}, something new`/);
     // And it comes off the same answer the tray does, rather than a second

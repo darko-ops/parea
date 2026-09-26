@@ -81,6 +81,7 @@ const GLASS: GroupTheme = {
      other screen rather than whatever this file happened to leave out. */
   news: '#61b8c9',
   onNews: '#07272e',
+  said: '#ffa6ad',
   warn: '#ff8080',
   bgClear: 'rgba(12,14,18,0)',
 };

@@ -105,6 +105,12 @@ export type GroupTheme = {
   news: string;
   /** Ink for text sitting on `news`, which is a light value. */
   onNews: string;
+  /**
+   * The mark's pink, for the one mark that is not about news: the dot on the
+   * Chats tab. Its own colour because it and the tray can be lit at once and
+   * they point at two different screens — see `theme` in `App.tsx`.
+   */
+  said: string;
   /** The one red, for the two actions that take something away. */
   warn: string;
   /** `bg` at zero alpha, for fading to the page without passing through grey. */
