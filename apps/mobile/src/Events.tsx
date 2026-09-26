@@ -1775,27 +1775,42 @@ function ConversationLine({
 }
 
 /**
- * The shelf of doors: four across, with the gutters the album shelves use.
+ * The shelf of doors: three across, with the gutters the album shelves use.
  *
- * More columns than a shelf of albums gets, because these are not
+ * Three rather than the two a shelf of albums gets, because these are not
  * photographs. An album tile has to be big enough to recognise an evening in;
- * a door is a letter on a colour, and there is nothing in it that rewards a
- * larger one — past the point where the letter is legible, every extra point
- * of edge is more of the same flat colour.
+ * a door is a letter on a colour, and at half the width of the screen it is a
+ * field of colour with a character floating in it.
  *
- * It was three, which on a phone is a 110pt square: bigger than any actual
- * photograph on the tab above it, for a drawing that is one character. Four
- * puts it near 80, which is the size of a thing you tap rather than a thing
- * you look at, and it is what these are. The same move the web's Find made
- * when its tiles came down from 44 to 36.
- *
- * Four and not five. The name under the door is the half a reader is actually
- * scanning, and at five across a column is 62 points — which takes "Sunday
- * lunch club" to three lines or to an ellipsis, and a shelf where the labels
- * are truncated is a shelf you have to open things to read.
+ * This went to four for a day, to make the doors smaller, and came back. The
+ * column is not the icon: what four bought was a smaller square, and what it
+ * cost was the name under it, which is the half of a door a reader is
+ * actually scanning. Three columns with a smaller square inside each gets the
+ * first without paying the second — see `DOOR_TILE` below, which is where the
+ * shrink lives now.
  */
-const GROUP_COLUMNS = 4;
+const GROUP_COLUMNS = 3;
 const GROUP_GAP = 10;
+
+/**
+ * How much of its column a door's square actually fills.
+ *
+ * The square used to be the column. At three across that is 110 points on a
+ * phone — larger than any real photograph on the tab above it, for a drawing
+ * that is one character, and past the point where the letter is legible every
+ * extra point of edge is more of the same flat colour. 0.7 puts it near 80,
+ * which is the size of a thing you tap rather than a thing you look at.
+ *
+ * A fraction of the column rather than a number of points, for the same
+ * reason the corner and the letter are fractions of the square: one decision
+ * about the shape, not the same decision made again on every screen width.
+ *
+ * What the column keeps is the name. It is the full 110 wide where the icon
+ * is 80, so "Sunday lunch club" sets on two lines here and would have needed
+ * three in a four-column shelf — the shrink happens to the part that was too
+ * big and not to the part that was already working.
+ */
+const DOOR_TILE = 0.7;
 
 /**
  * How many doors Find opens with.
@@ -1803,10 +1818,11 @@ const GROUP_GAP = 10;
  * Two rows, which is most people's rooms, and the rest stays behind the word.
  *
  * Written as the arithmetic rather than as the answer, because it is a
- * statement about rows and the row got wider: it was 6 against three columns,
- * and a column added would have left it a row of four and a row of two — a
- * shelf with a corner missing, and an "All groups" button under it for the
- * sake of two rooms.
+ * statement about rows and the row has already changed width once: at 6
+ * against four columns it drew a row of four and a row of two, a shelf with a
+ * corner missing and an "All groups" button under it for the sake of two
+ * rooms. The number is back at six because the shelf is back at three, and
+ * nobody had to remember to put it there.
  *
  * Before that it was three, and three was a measurement of the block the
  * doors replaced: a name, a strip of covers and a line of conversation came
@@ -2037,16 +2053,25 @@ export function SearchTab({
   }, [allGroups, mine]);
 
   /**
-   * A door's edge, from the window rather than from a constant.
+   * A door's column, from the window rather than from a constant.
    *
-   * 40 is the page's own padding; the gaps are the gutters between the four.
-   * The same arithmetic the album shelves do, with two columns more.
+   * 40 is the page's own padding; the gaps are the gutters between the three.
+   * The same arithmetic the album shelves do, with a column more.
+   *
+   * This is the cell and no longer the square. The square is `tile` below and
+   * is smaller, so the column's width is now the *name's* width — which is
+   * what it should have been measuring all along.
    */
-  const door = Math.floor(
+  const cell = Math.floor(
     (width - 40 - GROUP_GAP * (GROUP_COLUMNS - 1)) / GROUP_COLUMNS,
   );
+  /** The square itself, centred in that column. See `DOOR_TILE`. */
+  const tile = Math.round(cell * DOOR_TILE);
   /*
-   * The corner and the letter, both proportions of the edge above.
+   * The corner and the letter, both proportions of the square — not of the
+   * column, which is what they were taken from while the two were the same
+   * number. Off the column they would now be a corner and a letter sized for
+   * a tile 30 points bigger than the one they are drawn on.
    *
    * 0.225 is the corner an app icon wears, which is what this shape is
    * borrowing — written as a fraction rather than as a number of points so
@@ -2057,13 +2082,13 @@ export function SearchTab({
    * same proportion at this size reads as somebody shouting. 0.4 is the
    * largest it goes before a wide letter starts crowding the corners.
    *
-   * Both survived the door coming down from three columns to four without
-   * being touched, which is the whole reason they are fractions: a proportion
-   * of the edge is one decision about what the shape looks like, and a number
-   * of points is that decision made again at every size.
+   * Neither number has been touched through two resizings of this shelf,
+   * which is the whole reason they are fractions: a proportion is one
+   * decision about what the shape looks like, and a number of points is that
+   * decision made again at every size.
    */
-  const doorRadius = Math.round(door * 0.225);
-  const doorLetter = Math.round(door * 0.4);
+  const doorRadius = Math.round(tile * 0.225);
+  const doorLetter = Math.round(tile * 0.4);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -2354,50 +2379,67 @@ export function SearchTab({
                         'people',
                       )}${group.unreadCount > 0 ? `, ${plural(group.unreadCount, 'new message')}` : ''}`}
                       style={({ pressed }) => [
-                        { width: door, opacity: pressed ? 0.7 : 1 },
+                        styles.doorCell,
+                        { width: cell, opacity: pressed ? 0.7 : 1 },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.door,
-                          { height: door, borderRadius: doorRadius, backgroundColor: lens.fill },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.doorInitial, { fontSize: doorLetter, color: lens.ink }]}
-                        >
-                          {initialOf(group.name)}
-                        </Text>
-                      </View>
-
                       {/*
-                        Waiting messages, on the corner of the door.
+                        A box the size of the square, inside a cell that is
+                        wider than it.
 
-                        The same 19pt accent pill the rest of the app uses for
-                        this, with a ring in the page's own colour so it reads
-                        as sitting on top of the icon rather than painted into
-                        it. It is the one thing the block underneath said that
-                        nothing on this page would otherwise say.
-
-                        A sibling of the door rather than a child of it, and
-                        positioned against this cell — which is the door's own
-                        width, so the corner is the same corner. A child would
-                        be hanging outside a rounded box, and Android clips
-                        that where iOS does not.
+                        It exists for the badge below and for nothing else.
+                        The badge hangs off the square's corner, and while the
+                        square *was* the cell it could be positioned against
+                        the cell and land there. The square is 0.7 of the cell
+                        now, so the same absolute corner is 15 points out into
+                        the gutter — a badge floating beside a door rather than
+                        on it.
                       */}
-                      {group.unreadCount > 0 && (
+                      <View style={{ width: tile }}>
                         <View
                           style={[
-                            styles.unreadPill,
-                            styles.doorUnread,
-                            { backgroundColor: t.accent, borderColor: t.bg },
+                            styles.door,
+                            { height: tile, borderRadius: doorRadius, backgroundColor: lens.fill },
                           ]}
                         >
-                          <Text style={[styles.unreadCount, { color: t.onAccent }]}>
-                            {group.unreadCount > 99 ? '99+' : group.unreadCount}
+                          <Text
+                            style={[styles.doorInitial, { fontSize: doorLetter, color: lens.ink }]}
+                          >
+                            {initialOf(group.name)}
                           </Text>
                         </View>
-                      )}
+
+                        {/*
+                          Waiting messages, on the corner of the door.
+
+                          The same 19pt accent pill the rest of the app uses
+                          for this, with a ring in the page's own colour so it
+                          reads as sitting on top of the icon rather than
+                          painted into it. It is the one thing the block
+                          underneath said that nothing on this page would
+                          otherwise say.
+
+                          Still a sibling of the door rather than a child of
+                          it: a child would be hanging outside a rounded box,
+                          and Android clips that where iOS does not. What it is
+                          positioned against is the wrapper above, which is the
+                          square's own width — so the corner is the same
+                          corner.
+                        */}
+                        {group.unreadCount > 0 && (
+                          <View
+                            style={[
+                              styles.unreadPill,
+                              styles.doorUnread,
+                              { backgroundColor: t.accent, borderColor: t.bg },
+                            ]}
+                          >
+                            <Text style={[styles.unreadCount, { color: t.onAccent }]}>
+                              {group.unreadCount > 99 ? '99+' : group.unreadCount}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
 
                       {/*
                         Two lines rather than one. A door is a square with a
@@ -3480,6 +3522,11 @@ const styles = StyleSheet.create({
      one object the way a wall of photographs would be. The edge, the corner
      and the letter are all worked out from the window — see `door`. */
   doors: { flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP },
+  /* The column. It centres what is in it, which used to be automatic: the
+     square filled the cell, so there was nothing to centre. It is 0.7 of it
+     now and the name under it is the full width, so without this the icon sits
+     against the leading edge of its own label. */
+  doorCell: { alignItems: 'center' },
   door: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   /* Sized with the icon it fills, and weighted like the other letters on a
      lens in this app. */
@@ -3488,8 +3535,20 @@ const styles = StyleSheet.create({
      what makes it read as sitting on the icon rather than inside it. */
   doorUnread: { position: 'absolute', top: -5, right: -5, borderWidth: 2 },
   /* Centred under the door, because the door is centred. Two lines at most —
-     `numberOfLines` on the element holds that; this holds the rhythm. */
-  doorName: { marginTop: 7, fontSize: 13.5, lineHeight: 17, fontWeight: '600', textAlign: 'center' },
+     `numberOfLines` on the element holds that; this holds the rhythm.
+
+     `alignSelf: 'stretch'` against the cell's `alignItems: 'center'`, which
+     would otherwise size this to its own content: the name is the reason the
+     column stayed at three, and it has to wrap at the column's width rather
+     than at the icon's. */
+  doorName: {
+    alignSelf: 'stretch',
+    marginTop: 7,
+    fontSize: 13.5,
+    lineHeight: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   /* One conversation, as one line. Shared by a group row and an event chat. */
   sayRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sayerFace: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },

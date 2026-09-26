@@ -140,40 +140,60 @@ describe('what the screen may do', () => {
   it('draws the door as a letter, never as a photograph', () => {
     /*
      * The rule is about *the door*, and it is the whole of the shelf now: a
-     * group is a letter on the lens colour its id hashes to, four across with
-     * the name underneath, and nothing about a group is ever drawn from a
-     * picture.
+     * group is a letter on the lens colour its id hashes to, three across
+     * with the name underneath, and nothing about a group is ever drawn from
+     * a picture.
      */
     const shelf = between(tab, 'YOUR GROUPS', 'All groups');
     expect(shelf).toMatch(/styles\.door,/);
     expect(shelf).toMatch(/lensFor\(group\.id\)/);
     expect(shelf).toMatch(/initialOf\(group\.name\)/);
-    expect(EVENTS).toMatch(/const GROUP_COLUMNS = 4;/);
+    expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
     expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
     expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);
   });
 
-  it('draws the door small enough to be a way in rather than a thing to look at', () => {
+  it('draws the square smaller than the column it is centred in', () => {
     /*
-     * Three across is a 110pt square on a phone — bigger than any actual
-     * photograph on the tab above it, for a drawing that is one character.
-     * Past the point where the letter is legible every extra point of edge is
-     * more of the same flat colour, so four, which lands near 80.
+     * The square used to be the column, which at three across is 110 points
+     * on a phone: larger than any real photograph on the tab above it, for a
+     * drawing that is one character, and past the point where the letter is
+     * legible every extra point of edge is more of the same flat colour.
      *
-     * Not five: the name under the door is the half a reader scans, and a
-     * 62pt column takes "Sunday lunch club" to three lines or to an ellipsis.
-     *
-     * The corner and the letter are fractions of whatever the edge turns out
-     * to be, which is why neither had to be touched when the column count
-     * changed. That is the point of writing them that way.
+     * The shelf went to four columns for this and came back. The column is
+     * not the icon — four bought a smaller square and charged the name under
+     * it, which is the half of a door a reader is actually scanning. Shrinking
+     * inside the column gets the first without paying the second: the icon is
+     * near 80 and the label still has the full 110 to set in.
      */
-    expect(EVENTS).toMatch(/const doorRadius = Math\.round\(door \* 0\.225\);/);
-    expect(EVENTS).toMatch(/const doorLetter = Math\.round\(door \* 0\.4\);/);
-    // And both reach the element as the computed value rather than as a
-    // number somebody typed next to them.
+    expect(EVENTS).toMatch(/const DOOR_TILE = 0\.7;/);
+    expect(EVENTS).toMatch(/const tile = Math\.round\(cell \* DOOR_TILE\);/);
+    expect(EVENTS).toMatch(/doorCell: \{ alignItems: 'center' \}/);
+  });
+
+  it('measures the corner, the letter and the badge off the square, not the column', () => {
+    /*
+     * They were taken off the column while the two were the same number. Left
+     * there they would be a corner and a letter sized for a tile 30 points
+     * bigger than the one they are drawn on, and a badge 15 points out in the
+     * gutter beside the door rather than on its corner.
+     *
+     * Fractions, still: neither 0.225 nor 0.4 has been touched through two
+     * resizings of this shelf, which is what writing them that way is for.
+     */
+    expect(EVENTS).toMatch(/const doorRadius = Math\.round\(tile \* 0\.225\);/);
+    expect(EVENTS).toMatch(/const doorLetter = Math\.round\(tile \* 0\.4\);/);
     const shelf = between(tab, 'YOUR GROUPS', 'All groups');
-    expect(shelf).toMatch(/height: door, borderRadius: doorRadius,/);
+    expect(shelf).toMatch(/height: tile, borderRadius: doorRadius,/);
     expect(shelf).toMatch(/fontSize: doorLetter,/);
+    /*
+     * The badge is positioned against a box of the square's own width, and is
+     * still a sibling of the rounded box rather than a child — Android clips
+     * a child hanging outside one where iOS does not.
+     */
+    expect(shelf).toMatch(/<View style=\{\{ width: tile \}\}>/);
+    const wrapper = shelf.slice(shelf.indexOf('{{ width: tile }}'));
+    expect(wrapper.indexOf('styles.doorUnread')).toBeGreaterThan(wrapper.indexOf('styles.door,'));
   });
 
   it('puts no photograph under a group at all', () => {
