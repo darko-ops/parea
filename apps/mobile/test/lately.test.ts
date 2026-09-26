@@ -33,6 +33,8 @@ const EVENTS = read('src/Events.tsx');
 const HEAD = read('src/PageHead.tsx');
 /* The bubble on Home is gone; what survives of that file is the vocabulary. */
 const ANSWERS = read('src/answers.ts');
+/** Where the notification handler and the Android channel are set up. */
+const PLATFORM = read('src/platform.ts');
 
 const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -79,7 +81,7 @@ describe('the door', () => {
      * Home and Find keep it, so "somebody is waiting on you" is still one
      * press from the tab anybody opens the app on.
      */
-    expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
+    expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} unread=\{unread\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
       .toHaveLength(2);
     // And the corner it vacated is not empty — it is the thing that tab makes.
     const CHATS = EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function ConversationLine'));
@@ -107,10 +109,59 @@ describe('the door', () => {
      * rest of the app uses for unread, with the page colour ringing it so it
      * reads as sitting on the disc rather than inside it.
      */
-    expect(HEAD).toMatch(/\{count > 0 && \(/);
+    expect(HEAD).toMatch(/\{count > 0 \? \(/);
     expect(HEAD).toMatch(/\{count > 99 \? '99\+' : count\}/);
     expect(HEAD).toMatch(/badge: \{[\s\S]{0,240}minWidth: 19/);
     expect(HEAD).toMatch(/borderColor: t\.bg/);
+  });
+
+  it('falls back to a dot for news nobody can answer', () => {
+    /*
+     * Almost everything this product notifies about is not a job — a remark
+     * under your photograph, a tag, an album filling up — so none of it ever
+     * reached the count, and the tray stayed blank through all of it. A push
+     * arrived, was missed, and left no mark anywhere in the app.
+     *
+     * A dot rather than a number, because counting things nobody can act on
+     * makes the badge a measure of volume, and a number that only goes down
+     * when you look is a number that stops meaning anything.
+     */
+    expect(HEAD).toMatch(/\) : unread \? \(/);
+    expect(HEAD).toMatch(/styles\.badge, styles\.dot/);
+    // The same fill and the same ring as the pill: one badge making a smaller
+    // claim, not a second kind of urgency in a second colour.
+    expect(HEAD).toMatch(/styles\.dot[\s\S]{0,200}backgroundColor: t\.accent, borderColor: t\.bg/);
+    // And a screen reader is told which of the two it is looking at.
+    expect(HEAD).toMatch(/'Lately, something new'/);
+  });
+
+  it('moves the mark when a notification lands, and on the way back in', () => {
+    /*
+     * The count only ever moved on launch and on the way out of Lately, so a
+     * push that arrived while the app was open drew its banner and changed
+     * nothing underneath it — and one that arrived while the app was not
+     * running reached no listener at all.
+     */
+    expect(APP).toMatch(/onNotificationReceived\(\(\) => void refreshWaiting\(\)\)/);
+    expect(APP).toMatch(
+      /AppState\.addEventListener\('change', \(next\) => \{\s*if \(next === 'active'\) void refreshWaiting\(\);/,
+    );
+    // Both unsubscribed, or a remount leaves a listener behind holding the
+    // last render's callback.
+    expect(APP).toMatch(/unheard\(\);/);
+    expect(APP).toMatch(/awake\.remove\(\);/);
+  });
+
+  it('keeps the app icon on the same count as the tray', () => {
+    /*
+     * The tray is only visible to somebody who has already opened the app,
+     * which is the one person who did not need telling. The icon is what
+     * reaches a phone that was face down when the banner came and went.
+     */
+    expect(APP).toMatch(/void setAppBadge\(next\.waiting > 0 \? next\.waiting : next\.unread \? 1 : 0\)/);
+    // And the handler has to be allowed to set one at all, or nothing above
+    // ever draws.
+    expect(PLATFORM).toMatch(/shouldSetBadge: true/);
   });
 
   it('takes the count from above rather than fetching its own', () => {
@@ -127,8 +178,11 @@ describe('the door', () => {
   it('asks for a number rather than counting a list', () => {
     // The badge is drawn on a tab somebody may never open. Fetching fifty rows
     // to render one digit is fifty rows of somebody's data allowance.
-    expect(API).toMatch(/async waiting\(\): Promise<number>/);
+    expect(API).toMatch(/async waiting\(\): Promise<Waiting>/);
     expect(API).toMatch(/'\/api\/invites'/);
+    // Two fields, and a malformed answer is zeroes rather than a throw: every
+    // caller treats this as decoration.
+    expect(API).toMatch(/waiting: answer\.waiting \?\? 0, unread: answer\.unread \?\? false/);
   });
 
   it('re-reads the count on the way out, because looking clears it', () => {

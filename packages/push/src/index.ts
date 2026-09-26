@@ -109,11 +109,55 @@ const KINDS: Record<Notification['kind'], true> = {
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
 
+/**
+ * The Android channel these are delivered on, by id.
+ *
+ * Android decides whether a notification drops down over whatever somebody is
+ * looking at, and it decides it from the *channel*, not from the message: a
+ * channel at `DEFAULT` importance makes a sound and adds a line to the shade
+ * and never interrupts. That was the bug — every notification in this product
+ * arrived correctly and silently joined a list nobody had a reason to open.
+ *
+ * So the channel is named here, beside the messages that ask for it, and the
+ * app creates one with this id at high importance. The two have to agree: a
+ * `channelId` naming a channel that does not exist falls back to whatever
+ * Expo's default is, which is the behaviour this exists to stop. `config.test`
+ * in the app checks the string.
+ *
+ * Importance is fixed at creation and Android will not let an app raise it
+ * afterwards, so if this ever needs to change it changes by becoming a new id
+ * rather than by editing the channel.
+ */
+export const NOTIFICATION_CHANNEL = 'default';
+
 export type PushMessage = {
   to: string;
   title: string;
   body: string;
   data: Record<string, string>;
+  /**
+   * Android's channel, and the whole of whether this drops down. See above.
+   * Ignored on iOS, which decides presentation from the person's settings.
+   */
+  channelId: string;
+  /**
+   * FCM's delivery priority, which is a different thing from the channel and
+   * is also required: a normal-priority message is allowed to wait for the
+   * next time the phone wakes up, which for a device in Doze overnight can be
+   * hours. Everything this product sends is about something that just
+   * happened, and a reminder that arrives the next morning is worse than none.
+   */
+  priority: 'high';
+  /**
+   * Audible, and that is a decision rather than a default.
+   *
+   * §12 allows so few of these that none of them is noise — one reminder per
+   * event, ever — and a notification nobody hears is one more thing found
+   * later on a lock screen. The app silences it again while it is open, where
+   * a sound would be the product reacting to something already on the screen;
+   * see `setNotificationHandler`.
+   */
+  sound: 'default';
 };
 
 export function isExpoPushToken(token: string): boolean {
@@ -225,6 +269,18 @@ export function toMessage(token: string, notification: Notification): PushMessag
     data: Object.fromEntries(
       Object.entries(notification).map(([k, v]) => [k, String(v)]),
     ),
+    /*
+     * The three fields that decide whether anybody sees this.
+     *
+     * Not per-kind, and that is the point: there is no tier here. §12 is a
+     * list of four things worth interrupting somebody for, and anything that
+     * did not deserve a banner would not deserve to be sent. A notification
+     * this product delivers quietly into a list is a notification it should
+     * not have delivered.
+     */
+    channelId: NOTIFICATION_CHANNEL,
+    priority: 'high',
+    sound: 'default',
   };
 }
 

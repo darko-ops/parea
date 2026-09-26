@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   isExpoPushToken,
+  NOTIFICATION_CHANNEL,
+  NOTIFICATION_KINDS,
   render,
   sendAll,
   toMessage,
@@ -12,7 +14,15 @@ import {
 const TOKEN = 'ExponentPushToken[abc123]';
 
 function message(to = TOKEN): PushMessage {
-  return { to, title: 't', body: 'b', data: {} };
+  return {
+    to,
+    title: 't',
+    body: 'b',
+    data: {},
+    channelId: NOTIFICATION_CHANNEL,
+    priority: 'high',
+    sound: 'default',
+  };
 }
 
 /** Answers with one ticket per message, per Expo's shape. */
@@ -77,6 +87,46 @@ describe('what can be sent', () => {
     });
     expect(Object.values(msg.data).every((v) => typeof v === 'string')).toBe(true);
     expect(msg.data.photoCount).toBe('3');
+  });
+
+  it('asks to be seen, on every kind there is', () => {
+    /*
+     * The three fields that decide whether a notification interrupts anybody,
+     * and the reason this test exists at all: without them everything in this
+     * product arrived correctly and then sat in a list. `channelId` names an
+     * Android channel the app creates at high importance — importance is where
+     * Android decides whether to drop down over what somebody is looking at,
+     * and a channel at `DEFAULT` never does. `priority` is FCM's, which is a
+     * separate decision about whether a dozing phone may hold the message
+     * until morning.
+     *
+     * Asserted across the whole union rather than on one kind, because a
+     * notification that quietly lost its banner would be indistinguishable
+     * from one that was never sent — there is nothing to see and nothing to
+     * fail.
+     */
+    const each: Notification[] = [
+      { kind: 'nudge', eventId: 'e', eventName: 'Party', photoCount: 3 },
+      { kind: 'group_event', groupId: 'g', groupName: 'Flat', eventId: 'e', eventName: 'Roast' },
+      { kind: 'removal_answered', eventId: 'e', removed: true },
+      { kind: 'access_requested', eventId: 'e', eventName: 'Party', who: 'Ana' },
+      { kind: 'friend_requested', who: 'Ana' },
+      { kind: 'photo_comment', eventId: 'e', eventName: 'Party', who: 'Ana', said: 'hi' },
+      { kind: 'photo_tagged', eventId: 'e', eventName: 'Party', who: 'Ana' },
+      { kind: 'event_invited', eventId: 'e', eventName: 'Party', who: 'Ana' },
+      { kind: 'group_invited', groupId: 'g', groupName: 'Flat', who: 'Ana' },
+      { kind: 'group_added', groupId: 'g', groupName: 'Flat', who: 'Ana' },
+    ];
+    // One per kind, so a kind added without one fails here rather than going
+    // silent on somebody's phone.
+    expect(each.map((n) => n.kind).sort()).toEqual([...NOTIFICATION_KINDS].sort());
+
+    for (const notification of each) {
+      const sent = toMessage(TOKEN, notification);
+      expect(sent.channelId, notification.kind).toBe(NOTIFICATION_CHANNEL);
+      expect(sent.priority, notification.kind).toBe('high');
+      expect(sent.sound, notification.kind).toBe('default');
+    }
   });
 });
 

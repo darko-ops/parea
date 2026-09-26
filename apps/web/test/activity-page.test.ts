@@ -40,6 +40,9 @@ const ACTIVITY = await read('../src/activity.ts');
    feed: one implementation of "is this today?", for both clients. */
 const WHEN = await read('../src/when.ts');
 const ROUTE = await read('../app/api/activity/route.ts');
+/* Comments stripped: every claim about the rows below is about what a browser
+   does, and a browser does not read the prose. */
+const RULES = await read('../app/globals.css');
 
 describe('what is waiting on you', () => {
   it('is answerable where it is, not behind a click', () => {
@@ -257,5 +260,84 @@ describe('the route the phone reads', () => {
      */
     expect(ROUTE).toMatch(/const actorId = await currentActorId\(\)/);
     expect(ROUTE).not.toMatch(/schema\.(photos|events)\b/);
+  });
+});
+
+/**
+ * The shape of a row that does not fit on one line.
+ *
+ * On a phone the sentence has about forty characters to work with, and several
+ * of these kinds quote what somebody said — so two, three and four lines are
+ * ordinary rather than exceptional. Centred, every fixed-size thing in the row
+ * drifted to the middle of the text: the picture of who did it ended up beside
+ * the third line of what they said, with a hole above it where the row began,
+ * and the time and the `···` went with it. A row reads from the thing it is
+ * *from*, and that thing has to be where the row starts.
+ *
+ * The reason this needs a test rather than an eye is the other half of the
+ * change. Top-aligning alone would have moved every one-line row — which is
+ * most of them — so each fixed-size part is nudged down by exactly the
+ * difference between its own line and the 34px square. Get one of those numbers
+ * wrong and nothing breaks; the row is simply a pixel or two crooked in a way
+ * that is hard to see and impossible to unsee.
+ */
+describe('a row that runs to several lines', () => {
+  it('hangs everything from the top rather than the middle', () => {
+    const row = RULES.slice(
+      RULES.indexOf('.activity-row {'),
+      RULES.indexOf('.activity-new {'),
+    );
+    expect(row).toMatch(/\.activity-row \{[^}]*align-items: flex-start/);
+    expect(row).toMatch(
+      /\.activity a, \.activity > li > span \{[^}]*align-items: flex-start/,
+    );
+    /*
+     * The one `center` left in that block is inside the `···` button, where it
+     * centres the glyph in its own 58px box — the thing that puts it on the
+     * square. Both flex containers that hold the row's parts are `flex-start`,
+     * and the two assertions above are what say so; a stray `center` on either
+     * would have to replace one of them to take effect.
+     */
+    expect(row.match(/align-items: center/g) ?? []).toHaveLength(1);
+  });
+
+  it('keeps a one-line row exactly where it was', () => {
+    /*
+     * The sentence is 14.5px at 1.45, so ≈21px against a 34px square: half the
+     * difference is 6.5, which is where centring already put the first line.
+     * The time is 12.5px at the same leading, so ≈18px, and half of that
+     * difference is 8. Two numbers, two lines, and neither is a round guess.
+     */
+    expect(RULES).toMatch(/\.activity-said \{[^}]*padding-top: 6\.5px/);
+    expect(RULES).toMatch(/\.activity-when \{[^}]*padding-top: 8px/);
+    // The strip's squares are 38 rather than 34, so it goes the other way.
+    expect(RULES).toMatch(/\.activity-strip \{[^}]*margin-top: -2px/);
+  });
+
+  it('puts the ··· on the square rather than on the whole sentence', () => {
+    /*
+     * A height, not a margin: the glyph centres in the row's first line, which
+     * is the square plus the link's padding either side of it. 12 + 34 + 12 on
+     * a desktop and 10 + 34 + 10 below 720px, where the link's padding is
+     * smaller. A margin measured from the top would have to be recomputed
+     * whenever either number moved.
+     */
+    expect(RULES).toMatch(/\.activity-row \.dots-go \{[\s\S]{0,160}height: 58px/);
+    expect(RULES).toMatch(/\.activity-row \.dots-go \{ height: 54px; \}/);
+  });
+
+  it('still drops the time under the sentence on a phone', () => {
+    /*
+     * At that width a column of times is competing with the sentence for the
+     * same forty characters, so the time wraps to its own line under it —
+     * once the sentence is long enough to push it there. Between about 420
+     * and 720 it still fits beside the square, which is why this breakpoint
+     * must not undo the nudge: doing so left the time six pixels high on
+     * every row in that band, and where it does wrap the same eight pixels
+     * are simply the gap above it.
+     */
+    const phone = RULES.slice(RULES.indexOf('@media (max-width: 720px)'));
+    expect(phone).toMatch(/\.activity-when \{[\s\S]{0,120}margin-left: 46px/);
+    expect(phone).not.toMatch(/\.activity-when \{[\s\S]{0,120}padding-top/);
   });
 });

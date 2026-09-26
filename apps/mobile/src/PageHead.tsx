@@ -74,25 +74,56 @@ export function PageHead({
  * The badge is hidden at zero, as the web's is. A badge that draws "0" teaches
  * people that the number means nothing, and an empty circle is a claim that
  * something is there.
+ *
+ * ## Why there are two marks and not one
+ *
+ * The number is jobs — an invitation, a friend request, somebody at the door
+ * of an event you run — and each one is a separate thing to do, so four is
+ * worth distinguishing from one.
+ *
+ * Most of what this product sends a notification about is not a job. Somebody
+ * commented on your photograph, tagged you in one, added thirty to an album
+ * you were at: things that happened, which you may want to go and look at and
+ * cannot answer. Counting those would turn the badge into a measure of volume,
+ * and a number that only goes down when you look is a number that stops
+ * meaning anything. So news gets the smaller claim — a dot, saying there is
+ * something in there and nothing more.
+ *
+ * Without it the tray was silent for almost everything: the push arrived, the
+ * banner went, and the one control in the app that points at Lately carried no
+ * mark at all. Somebody who missed the banner had no way back except to open
+ * the screen on the off-chance.
+ *
+ * The count wins when there is one. A job is the more urgent of the two, and
+ * two marks on one disc is a disc nobody reads.
  */
 export function Notifications({
   t,
   count,
+  unread = false,
   onPress,
 }: {
   t: GroupTheme;
   /** How many things are waiting on an answer. Zero draws no badge. */
   count: number;
+  /** Whether anything has happened since the last look. Draws the dot. */
+  unread?: boolean;
   onPress: () => void;
 }) {
   return (
     <RoundButton
       t={t}
       onPress={onPress}
-      accessibilityLabel={count > 0 ? `Lately, ${count} waiting on you` : 'Lately'}
+      accessibilityLabel={
+        count > 0
+          ? `Lately, ${count} waiting on you`
+          : unread
+            ? 'Lately, something new'
+            : 'Lately'
+      }
     >
       <Glyph name="tray" size={20} color={t.fg} />
-      {count > 0 && (
+      {count > 0 ? (
         <View style={[styles.badge, { backgroundColor: t.accent, borderColor: t.bg }]}>
           <Text style={[styles.badgeCount, { color: t.onAccent }]}>
             {/* Past this the number stops being readable at 11.5pt and stops
@@ -101,7 +132,12 @@ export function Notifications({
             {count > 99 ? '99+' : count}
           </Text>
         </View>
-      )}
+      ) : unread ? (
+        /* The same pill with nothing in it. Same fill and same ring, because
+           it is the same badge making a smaller claim — a second colour here
+           would read as a second kind of urgency. */
+        <View style={[styles.badge, styles.dot, { backgroundColor: t.accent, borderColor: t.bg }]} />
+      ) : null}
     </RoundButton>
   );
 }
@@ -127,4 +163,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeCount: { fontSize: 11.5, fontWeight: '700', lineHeight: 14 },
+  /* Smaller than the pill and still ringed, so it reads as the same mark
+     rather than as a stray dot that happens to be near the disc. */
+  dot: { minWidth: 12, width: 12, height: 12, paddingHorizontal: 0, top: -1, right: -1 },
 });

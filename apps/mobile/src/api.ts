@@ -837,6 +837,18 @@ export type Lately = {
 };
 
 /**
+ * What the tray in every head row is claiming, in the two shapes it has.
+ *
+ * `waiting` is a count of jobs and `unread` is a boolean about news, and the
+ * difference is deliberate — see `Api.waiting` for why the second one is not a
+ * number. The tray draws the count when there is one and the dot otherwise.
+ */
+export type Waiting = {
+  waiting: number;
+  unread: boolean;
+};
+
+/**
  * Where you and somebody else stand, as the profile screen draws it.
  *
  * `asked` covers a refusal as well as an unanswered ask, and the server is
@@ -1465,16 +1477,26 @@ export class Api {
   }
 
   /**
-   * How many things are waiting, for the badge on the envelope.
+   * What the tray in the corner is claiming — a number, and a dot.
    *
    * Its own small request rather than the length of the list above, because
    * the badge is drawn on a tab somebody may never open and fetching fifty
    * rows to render a number is fifty rows of somebody's data allowance for one
    * digit. The same route the web rail's badge asks.
+   *
+   * Two things, because the tray has two things to say and only one of them is
+   * countable. `waiting` is jobs — an invitation, a friend request, somebody
+   * at the door — and `unread` is whether anything has merely *happened* since
+   * the last look. Most of what this product notifies about is the second
+   * kind, and before it was asked for the tray stayed blank through all of it:
+   * a push would arrive, be missed, and leave no mark anywhere in the app.
+   *
+   * Zeroes on a malformed answer rather than throwing. Every caller treats
+   * this as decoration, and a badge must not be able to become an error.
    */
-  async waiting(): Promise<number> {
-    const { waiting } = await this.call<{ waiting: number }>('/api/invites');
-    return waiting ?? 0;
+  async waiting(): Promise<Waiting> {
+    const answer = await this.call<Partial<Waiting>>('/api/invites');
+    return { waiting: answer.waiting ?? 0, unread: answer.unread ?? false };
   }
 
   /**

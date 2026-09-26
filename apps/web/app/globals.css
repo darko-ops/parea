@@ -388,6 +388,11 @@ button.secondary {
   font-size: 12px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+/* The same pill with nothing in it, shrunk to a dot: something is new in there
+   but nothing is waiting on an answer, so there is no number that would mean
+   anything. Same fill, because it is the same badge making a smaller claim —
+   a second colour here would read as a second kind of urgency. */
+.badge-dot { min-width: 9px; width: 9px; height: 9px; padding: 0; }
 /* The seat. A wash of the page's own value and the foreground at full
    strength — the row's glyph also steps up half a stroke, because value and
    weight together are what carry the state at 18px. See `--selected`. */
@@ -541,6 +546,9 @@ button.secondary {
     position: absolute; top: 2px; right: 2px;
     min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px;
   }
+  /* And the dot stays a dot on the burger, rather than taking the 16px the
+     rule above gives a number. */
+  .rail-burger .badge-dot { min-width: 8px; width: 8px; height: 8px; padding: 0; }
 
   /* The rows, as the column they already are — one set of markup, not a phone
      copy of it. Hung under the bar and the full width of it, because a panel
@@ -762,10 +770,33 @@ button.secondary {
 /* The row is a link and the menu is a button, and a button inside a link is
    markup a browser refuses to nest. So they are siblings and the link is what
    stretches — which also means the hover fill has to move to the row, or it
-   stops short of the menu it sits beside. */
-.activity-row { display: flex; align-items: center; gap: 4px; border-radius: 12px; }
+   stops short of the menu it sits beside.
+
+   Everything in it hangs from its top edge, not from its middle. A row is one
+   line most of the time and two or four when somebody has quoted a remark, and
+   on a phone — where the sentence has forty characters to work with — four is
+   ordinary. Centred, the square, the time and the `···` all drifted down to the
+   middle of a block of text they are not about: the picture of who did it
+   ended up beside the third line of what they said, with a hole above it where
+   the row started. The thing a row is *from* belongs at the point the row
+   begins.
+
+   What that would cost on a one-line row is paid back below: each of the three
+   is nudged down by exactly the amount that centres it on the square, so a row
+   that does not wrap is drawn where it always was and only a row that does
+   moves. See `.activity-said`, `.activity-when` and the `···` height. */
+.activity-row { display: flex; align-items: flex-start; gap: 4px; border-radius: 12px; }
 .activity-row > a, .activity-row > span:first-child { flex: 1; min-width: 0; }
-.activity-row .dots-go { flex: none; width: 24px; color: #c9c3b8; opacity: 0; transition: opacity 120ms; }
+/* As tall as the row's first line is — the square plus the link's padding
+   either side of it — so the glyph inside centres on the square rather than on
+   the whole of a four-line sentence. A height rather than a margin, because a
+   margin would have to be recalculated from the top whenever the padding
+   changed and this cannot be wrong by a pixel without looking crooked. */
+.activity-row .dots-go {
+  flex: none; width: 24px; height: 58px;
+  display: flex; align-items: center; justify-content: center;
+  color: #c9c3b8; opacity: 0; transition: opacity 120ms;
+}
 /* Shown on hover, and always on a touch screen — where there is no hover, an
    opacity-gated control is a control that does not exist. Focus-within so it
    survives being reached by keyboard. */
@@ -775,7 +806,7 @@ button.secondary {
   .activity-row .dots-go { opacity: 1; }
 }
 .activity a, .activity > li > span {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: flex-start; gap: 12px;
   padding: 12px 8px; border-radius: 12px;
   font-size: 14.5px; line-height: 1.45;
   color: var(--fg); text-decoration: none;
@@ -800,12 +831,21 @@ button.secondary {
 }
 /* The sentence, between the square and the time. Wraps rather than truncates:
    a mention quotes what somebody said, and an ellipsis mid-quote tells you
-   less than a second line does. */
-.activity-said { flex: 1; min-width: 0; }
+   less than a second line does.
+
+   The padding is what makes top-alignment free. A line is 14.5 × 1.45 ≈ 21px
+   and the square is 34px, so half the difference puts the *first* line on the
+   square's centre — which is exactly where a centred one-line row already drew
+   it. A row that wraps then grows downwards from that line, leaving the square
+   beside the sentence's opening words instead of beside its middle. */
+.activity-said { flex: 1; min-width: 0; padding-top: 6.5px; }
 .activity-who { font-weight: 600; }
 /* What the sentence is counting, on the one kind that counts photographs.
-   Before the time, so the times still form a column. */
-.activity-strip { flex: none; display: flex; gap: 4px; }
+   Before the time, so the times still form a column.
+
+   Lifted 2px, which is half the four it is taller than the square: the strip
+   and the face are two different sizes and both have to sit on one line. */
+.activity-strip { flex: none; display: flex; gap: 4px; margin-top: -2px; }
 .activity-strip-one {
   width: 38px; height: 38px; border-radius: 8px; flex: none;
   overflow: hidden; object-fit: cover; background: var(--hairline);
@@ -823,6 +863,10 @@ button.secondary {
 .activity-when {
   flex: none; min-width: 66px; text-align: right; white-space: nowrap;
   font-size: 12.5px; color: var(--dim-soft);
+  /* Its own half-difference, from its own smaller line: 12.5 × 1.45 ≈ 18px
+     against the square's 34. Same arithmetic as `.activity-said`, different
+     number, and hard-coding either is why both are written down. */
+  padding-top: 8px;
 }
 
 @media (max-width: 720px) {
@@ -833,7 +877,16 @@ button.secondary {
   /* The time under the sentence rather than in a column of its own, which at
      this width is competing with the sentence for the same 40 characters. */
   .activity a, .activity > li > span { flex-wrap: wrap; padding: 10px 6px; }
+  /* The column becomes a line under the sentence — but only once the sentence
+     is long enough to push it there. Between about 420 and 720 the time still
+     fits beside the square, so the nudge above has to stand: dropping it here
+     would leave the time six pixels high on every row in that band. Where it
+     does wrap, the same eight pixels are the gap under the sentence, which is
+     a space that row wanted anyway. */
   .activity-when { min-width: 0; margin-left: 46px; text-align: left; }
+  /* The link's padding is 10 here rather than 12, so the first line is 54 and
+     not 58 — see the note where the desktop height is set. */
+  .activity-row .dots-go { height: 54px; }
 }
 @media (max-width: 420px) {
   .activity-strip { display: none; }

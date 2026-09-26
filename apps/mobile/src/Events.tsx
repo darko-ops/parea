@@ -1097,6 +1097,7 @@ export function HomeTab({
   loading,
   t,
   waiting,
+  unread,
   onOpen,
   onRefresh,
   onOpenLately,
@@ -1124,8 +1125,14 @@ export function HomeTab({
    */
   onOpen: (event: EventListing, photo?: string, pane?: 'photos' | 'talk' | 'people') => void;
   onRefresh: () => Promise<void>;
-  /** How many things are waiting on an answer, for the badge on the envelope. */
+  /** How many things are waiting on an answer, for the badge on the tray. */
   waiting: number;
+  /**
+   * Whether anything has merely happened since the last look — a remark on a
+   * photograph, a tag, an album filling up. Draws the dot when there is no
+   * count to draw instead; see `Notifications`.
+   */
+  unread: boolean;
   /** Into Lately, from the corner every tab now keeps it in. */
   onOpenLately: () => void;
   onCreate: () => void;
@@ -1226,7 +1233,7 @@ export function HomeTab({
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
-        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+        right={<Notifications t={t} count={waiting} unread={unread} onPress={onOpenLately} />}
       />
 
       {starting && (
@@ -2012,6 +2019,7 @@ export function SearchTab({
   events,
   t,
   waiting,
+  unread,
   onOpen,
   onOpenGroup,
   onOpenPerson,
@@ -2028,8 +2036,14 @@ export function SearchTab({
   t: TabTheme;
   /** Whether this is the tab on screen. The rooms below are reloaded on arrival. */
   active: boolean;
-  /** How many things are waiting on an answer, for the badge on the envelope. */
+  /** How many things are waiting on an answer, for the badge on the tray. */
   waiting: number;
+  /**
+   * Whether anything has merely happened since the last look — a remark on a
+   * photograph, a tag, an album filling up. Draws the dot when there is no
+   * count to draw instead; see `Notifications`.
+   */
+  unread: boolean;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
   onOpenPerson: (handle: string) => void;
@@ -2325,7 +2339,7 @@ export function SearchTab({
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         }
-        right={<Notifications t={t} count={waiting} onPress={onOpenLately} />}
+        right={<Notifications t={t} count={waiting} unread={unread} onPress={onOpenLately} />}
       />
 
       {starting && (

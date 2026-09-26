@@ -504,21 +504,84 @@ export const BACKGROUND_UPLOAD_SUPPORTED = Platform.OS === 'ios';
 // --- push --------------------------------------------------------------------
 
 /**
+ * The Android channel everything is delivered on.
+ *
+ * The id has to be the one `@parea/push` puts on the message — it is
+ * `NOTIFICATION_CHANNEL` there, and a string here because this app does not
+ * take that package as a dependency. `config.test` checks the two agree,
+ * because a `channelId` naming a channel that does not exist does not fail: it
+ * quietly falls back to Expo's own, which is the behaviour this exists to
+ * replace.
+ */
+export const NOTIFICATION_CHANNEL = 'default';
+
+/**
  * How a notification behaves while the app is open.
  *
  * Shown rather than suppressed. Suppressing is the clever choice and the
  * surprising one — a person who saw their phone light up and then finds
  * nothing has been told something went wrong. §12 permits so few of these
  * that none of them is noise.
+ *
+ * Silent, though. A sound is for a phone in a pocket; making one about
+ * something already on the screen is the product reacting to itself. The
+ * message asks for one — see `toMessage` — and this is where that is dropped
+ * for the case where it would be noise.
+ *
+ * The badge is allowed now, where it was refused. That is not by itself what
+ * draws one — nothing sends a per-recipient count on the payload, and asking
+ * the server for one would be a query per person at send time — the number
+ * comes from `setAppBadge` below, off the same count the tray uses. What
+ * `false` did was make even that impossible on iOS, where the badge is a
+ * permission this handler is part of asking for.
  */
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
+
+/**
+ * The channel, created as early as the module is loaded.
+ *
+ * Android will not drop a notification down over what somebody is looking at
+ * unless its channel says it may, and that is `importance`, not anything on
+ * the message. At `DEFAULT` — which is what this was — a notification makes a
+ * sound and joins the shade and never interrupts, which for a product allowed
+ * one reminder per event is the whole feature spent on a line in a list.
+ *
+ * Created here rather than inside `registerForPush`, which is the only place
+ * it used to happen: that function runs once ever, behind a flag in
+ * `SecureStore`, so a channel lost to a failed call or to an Android version
+ * that cleared it would never be made again and every later notification would
+ * arrive on nothing. Creating a channel that already exists is a no-op, so
+ * doing it on every launch is the cheap way to be sure there is one.
+ *
+ * A note for the day this needs to change: Android fixes importance at
+ * creation and will not let an app raise it afterwards. Raising it means a new
+ * channel id, in both this file and `@parea/push`.
+ */
+if (Platform.OS === 'android') {
+  void Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNEL, {
+    // What somebody sees in Android's own settings, where they will go to turn
+    // this off. "Events" is what these are about; "Default" is what the
+    // scaffolding was called.
+    name: 'Events',
+    importance: Notifications.AndroidImportance.HIGH,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    // The dot the launcher puts on the app's own icon. Said rather than left
+    // to the platform's default, because it is half of what somebody who
+    // missed the banner has to find their way back by.
+    showBadge: true,
+    enableVibrate: true,
+  }).catch(() => {
+    // Nothing in the product depends on this having worked, and a phone that
+    // refuses the channel is not something a person can be asked to fix.
+  });
+}
 
 /** The payload of the notification that launched the app, if one did. */
 export async function launchNotification(): Promise<Record<string, unknown> | null> {
@@ -534,6 +597,41 @@ export function onNotificationTapped(
     handler((response.notification.request.content.data as Record<string, unknown>) ?? {});
   });
   return () => subscription.remove();
+}
+
+/**
+ * Arrivals, tapped or not. Returns an unsubscribe.
+ *
+ * The other half of `onNotificationTapped`, and the half that was missing. A
+ * notification that arrives while the app is open draws its banner and is then
+ * swiped away or ignored, and until this existed the app underneath learned
+ * nothing from it: the tray in the corner went on saying there was nothing
+ * there, because the only thing that ever moved that number was the app being
+ * launched or Lately being closed.
+ *
+ * So this is what makes the mark appear at the moment the notification does.
+ * It carries no payload to the caller on purpose — what arrived is already a
+ * row in the feed, and the app's job here is to go and ask.
+ */
+export function onNotificationReceived(handler: () => void): () => void {
+  const subscription = Notifications.addNotificationReceivedListener(() => handler());
+  return () => subscription.remove();
+}
+
+/**
+ * The number on the app's own icon.
+ *
+ * The one mark that outlives a banner: somebody who was not looking at their
+ * phone when it arrived, and who does not scroll back through the shade, has
+ * this and nothing else. Kept in step with the tray inside the app, from the
+ * same count — see `refreshWaiting` — so the icon and the corner never
+ * disagree about whether there is anything to come back for.
+ *
+ * Silent on failure. Badges are a permission of their own on iOS and somebody
+ * may simply have said no, which is an answer rather than an error.
+ */
+export async function setAppBadge(count: number): Promise<void> {
+  await Notifications.setBadgeCountAsync(Math.max(0, count)).catch(() => {});
 }
 
 /**
@@ -562,14 +660,6 @@ export async function registerForPush(): Promise<string | null> {
       existing.granted ||
       (existing.canAskAgain && (await Notifications.requestPermissionsAsync()).granted);
     if (!granted) return null;
-
-    // Android needs a channel or notifications are silently dropped.
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Events',
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
 
     const token = await Notifications.getExpoPushTokenAsync();
     return token.data ?? null;

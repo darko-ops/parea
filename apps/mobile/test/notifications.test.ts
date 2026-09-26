@@ -99,6 +99,48 @@ describe('against the payload the server actually sends', () => {
       expect(client, kind).toContain(`'${kind}'`);
     }
   });
+
+  it('creates the Android channel the message asks to be delivered on', async () => {
+    /*
+     * The one failure in this area that looks like success.
+     *
+     * Android decides whether a notification drops down over what somebody is
+     * looking at from the *channel*, not from the message — and a `channelId`
+     * naming a channel that does not exist does not error. It falls back to
+     * Expo's own, at whatever importance that has, and every notification this
+     * product sends arrives correctly and silently joins a list.
+     *
+     * So both halves are checked: that the two files agree on the id, and that
+     * the channel the app creates is at `HIGH`. `DEFAULT` is the value this
+     * was, and the one that makes a sound and never interrupts.
+     *
+     * Read as text rather than imported: `platform.ts` pulls in half of Expo
+     * and there is no native runtime in this suite.
+     */
+    const fs = await import('node:fs/promises');
+    const push = await fs.readFile(
+      new URL('../../../packages/push/src/index.ts', import.meta.url).pathname,
+      'utf8',
+    );
+    const platform = await fs.readFile(
+      new URL('../src/platform.ts', import.meta.url).pathname,
+      'utf8',
+    );
+
+    const named = (source: string) =>
+      source.match(/export const NOTIFICATION_CHANNEL = '([^']+)'/)?.[1] ?? null;
+
+    expect(named(push), 'the server names a channel').not.toBeNull();
+    expect(named(platform)).toBe(named(push));
+    // And the message actually carries it, rather than the constant sitting
+    // there unused beside a payload that never mentions a channel.
+    expect(push).toMatch(/channelId: NOTIFICATION_CHANNEL/);
+    expect(push).toMatch(/priority: 'high'/);
+    expect(platform).toMatch(
+      /setNotificationChannelAsync\(NOTIFICATION_CHANNEL, \{[\s\S]{0,400}AndroidImportance\.HIGH/,
+    );
+    expect(platform).not.toMatch(/AndroidImportance\.DEFAULT/);
+  });
 });
 
 /**

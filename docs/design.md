@@ -1187,6 +1187,32 @@ Nothing else. No "someone added 3 photos," no re-engagement, no digests. The
 feature test from the concept applies: *does this help people contribute, find,
 or retrieve shared photos?*
 
+### Being seen is part of sending
+
+A notification that arrives and does not interrupt is the whole budget spent on
+a line in a list. Three things decide that, none of them obvious, and all three
+fail silently:
+
+- **The Android channel.** Whether a notification drops down over what somebody
+  is looking at is the channel's `importance`, not anything on the message. At
+  `DEFAULT` it makes a sound and joins the shade and never interrupts. The app
+  creates one at `HIGH` under the id `@parea/push` puts on every message, and
+  a `channelId` naming a channel that does not exist falls back to Expo's own
+  rather than erroring. Importance is fixed at creation — raising it means a
+  new id in both places.
+- **FCM priority.** A separate decision from the channel: a normal-priority
+  message may wait for the next time a dozing phone wakes, which overnight is
+  hours. Everything here is about something that just happened.
+- **A mark that outlives the banner.** Somebody whose phone was face down has
+  only the app icon and, once they are inside, the tray. Both come off
+  `/api/invites`, which answers two things — a count of what is waiting on an
+  *answer*, and a boolean for whether anything has merely happened since the
+  last look. The second is a dot rather than a number: almost everything here
+  is unanswerable, and counting it would make the badge a measure of volume.
+  The app re-asks when a notification lands and when it returns to the
+  foreground, because a push delivered to a sleeping process reaches no
+  listener at all.
+
 ## 13. Safety, moderation, and the App Store gate
 
 Day-one needs from the concept, concretely:

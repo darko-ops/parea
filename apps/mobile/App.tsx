@@ -105,12 +105,14 @@ import {
   loadEvents,
   loadOwedCovers,
   loadQueue,
+  onNotificationReceived,
   onNotificationTapped,
   rememberEvent,
   saveActorToken,
   saveOwedCovers,
   saveQueue,
   saveToCameraRoll,
+  setAppBadge,
   uploadCover,
   uploadItem,
   type OwedCover,
@@ -383,7 +385,7 @@ export default function App() {
   const [makeGroup, setMakeGroup] = useState(0);
   const [events, setEvents] = useState<EventListing[]>([]);
   /**
-   * How many things are waiting on an answer, for the badge on the envelope.
+   * How many things are waiting on an answer, for the badge on the tray.
    *
    * Held here rather than in the Groups tab because it is a fact about the
    * account, not about that screen: the tab unmounts, Lately answers things
@@ -395,6 +397,21 @@ export default function App() {
    * render one digit is fifty rows of somebody's data allowance.
    */
   const [waiting, setWaiting] = useState(0);
+  /**
+   * And whether anything has merely *happened* since the last look.
+   *
+   * The other half of what the tray says, and the half that was missing. Most
+   * of what this product sends a notification about cannot be answered — a
+   * remark under your photograph, a tag, an album filling up overnight — so
+   * none of it reached `waiting`, and the tray stayed blank through all of it.
+   * A push would arrive, be missed, and leave no mark anywhere in the app.
+   *
+   * A boolean because counting things nobody can act on makes the badge a
+   * measure of volume; see `Notifications` in `PageHead`. Beside `waiting`
+   * rather than folded into it so the tray can still say which of the two it
+   * means.
+   */
+  const [unread, setUnread] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [arriving, setArriving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -743,7 +760,22 @@ export default function App() {
   const refreshWaiting = useCallback(async () => {
     // Silent. A badge is the least important thing on the screen and a failed
     // count must not become an error somebody has to read.
-    setWaiting(await api.waiting().catch(() => 0));
+    const next = await api.waiting().catch(() => ({ waiting: 0, unread: false }));
+    setWaiting(next.waiting);
+    setUnread(next.unread);
+    /*
+     * And the app's own icon, from the same answer.
+     *
+     * The tray in the corner is only visible to somebody who has already
+     * opened the app, which is the one person who did not need telling. The
+     * icon badge is what reaches everybody else — a phone that was face down
+     * when the banner came and went — and keeping the two off one count is how
+     * they end up disagreeing.
+     *
+     * The dot has no number, so it counts as one: iOS badges are integers and
+     * there is nothing here to show but "something".
+     */
+    void setAppBadge(next.waiting > 0 ? next.waiting : next.unread ? 1 : 0);
   }, [api]);
 
   const refreshEvents = useCallback(async () => {
@@ -1116,9 +1148,35 @@ export default function App() {
       void arrive(url);
     });
     const untap = onNotificationTapped((data) => void follow(data));
+    /*
+     * A notification arriving, whether or not anybody touches it.
+     *
+     * The tap listener above is about going somewhere; this one is about the
+     * app noticing at all. Without it a push that landed while somebody was
+     * looking at another screen drew its banner, was dismissed, and left the
+     * tray in the corner still saying there was nothing there — the count only
+     * ever moved on launch and on the way out of Lately.
+     *
+     * It asks rather than reads the payload: what arrived is already a row in
+     * the feed, and the server is the thing that knows whether it has been
+     * looked at.
+     */
+    const unheard = onNotificationReceived(() => void refreshWaiting());
+    /*
+     * And coming back to the app, which is the case a listener cannot cover.
+     *
+     * Notifications delivered while the process was not running never reach a
+     * listener at all — the app was asleep or gone — so returning to it is the
+     * only moment the tray can learn about them. Cheap: one small number.
+     */
+    const awake = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refreshWaiting();
+    });
     return () => {
       subscription.remove();
       untap();
+      unheard();
+      awake.remove();
     };
   }, [api, arrive, follow, refreshEvents, refreshGroups, refreshWaiting]);
 
@@ -1557,6 +1615,7 @@ export default function App() {
                 loading={loadingEvents}
                 t={t}
                 waiting={waiting}
+                unread={unread}
                 onOpenLately={() => setRoute({ screen: 'lately' })}
                 onOpen={openListing}
                 onRefresh={refreshEvents}
@@ -1607,6 +1666,7 @@ export default function App() {
                 active={tab === 'search'}
                 openCreate={makeGroup}
                 waiting={waiting}
+                unread={unread}
                 onOpen={openListing}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
