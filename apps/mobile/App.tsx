@@ -2634,12 +2634,39 @@ function EventScreen({
   const coverGiveUpAt = useRef(0);
   const coverWaiting = () => coverOwed.current && Date.now() < coverGiveUpAt.current;
 
+  /*
+   * Which photograph the cover is cut from, remembered the first time it is
+   * known.
+   *
+   * The queue is the only thing that can say — it holds the id the server gave
+   * the file that was picked — and it stops saying it almost immediately:
+   * `runUploads` calls `queue.prune()` when a run ends, and prune drops every
+   * `done` item. That is a second after the upload completes and twenty-odd
+   * seconds before the derivative exists, so every later pass of the effect
+   * below returned at the lookup, having no id to look for.
+   *
+   * Which is the whole of the bug the previous change did not reach. Production
+   * shows both halves of it: the album polled `/photos` every two seconds for
+   * the full wait, the deriver had the photograph ready at the second poll, and
+   * no cover request was ever made — the album kept the framing, the thing it
+   * was waiting for arrived, and the line that would have noticed could no
+   * longer name the picture.
+   *
+   * Latched at presign rather than at completion, because `photoId` is written
+   * then — well before anything prunes it away.
+   */
+  const coverPhotoId = useRef<string | null>(null);
+
   const coverSent = useRef(false);
   useEffect(() => {
     const local = initialUpload?.[0];
     if (!initialCover || !local || coverSent.current) return;
-    const item = uploads.items.find((i) => i.id === local && i.eventId === event.id);
-    if (!item?.photoId) return;
+    if (!coverPhotoId.current) {
+      const item = uploads.items.find((i) => i.id === local && i.eventId === event.id);
+      if (!item?.photoId) return;
+      coverPhotoId.current = item.photoId;
+    }
+    const from = coverPhotoId.current;
     /*
      * The derivative, and not the file that was picked.
      *
@@ -2659,7 +2686,7 @@ function EventScreen({
      * what makes it the thing to wait on.
      */
     const derived = (feed?.photos ?? []).find(
-      (photo) => photo.id === item.photoId && photo.card !== null,
+      (photo) => photo.id === from && photo.card !== null,
     );
     if (!derived) {
       /*
@@ -2687,8 +2714,17 @@ function EventScreen({
         file = await fetchForCover(derived.full, derived.id);
         await sendCover(file.uri, initialCover, derived.id);
       } catch {
-        // No cover is a card that leads with the same photograph anyway, so
-        // there is nothing here worth interrupting somebody about.
+        /*
+         * The download, and only the download — `sendCover` catches its own
+         * failures and says so itself.
+         *
+         * Quietly, on the line the queue already uses, rather than as an alert:
+         * an album with no cover leads with this same photograph, so nothing
+         * has been lost and nobody needs stopping. But it was said nowhere at
+         * all, and "my crop was ignored" arriving with nothing behind it is how
+         * both of the last two of these were found.
+         */
+        setQueueStatus('Could not set the cover — use Change cover.');
       } finally {
         try {
           file?.delete();

@@ -356,7 +356,7 @@ describe('the two paths that still handed iOS a library file', () => {
      * kept.
      */
     expect(CREATE).not.toMatch(/uploadCover/);
-    expect(APP).toMatch(/photo\.id === item\.photoId && photo\.card !== null/);
+    expect(APP).toMatch(/photo\.id === from && photo\.card !== null/);
     expect(APP).toMatch(/await fetchForCover\(derived\.full, derived\.id\)/);
     expect(APP).toMatch(/await sendCover\(file\.uri, initialCover, derived\.id\)/);
     expect(APP).not.toMatch(/const copy = await sandboxCopy\(local\);/);
@@ -383,6 +383,40 @@ describe('the two paths that still handed iOS a library file', () => {
       /const coverWaiting = \(\) =>\s*coverOwed\.current && Date\.now\(\) < coverGiveUpAt\.current/,
     );
     expect(APP).toMatch(/coverGiveUpAt\.current = Date\.now\(\) \+ COVER_WAIT_MS/);
+  });
+
+  it('remembers which photograph it is waiting on, because the queue forgets', () => {
+    /*
+     * Polling for the derivative was not enough on its own, and production
+     * shows why: the album asked `/photos` every two seconds for the whole
+     * wait, the deriver had the picture ready at the second ask, and no cover
+     * request was ever made.
+     *
+     * The id came out of the upload queue on every pass, and the queue stops
+     * holding it: `runUploads` prunes every `done` item when a run ends, which
+     * is a second after the bytes land and twenty-odd seconds before the
+     * derivative exists. So the effect spent the entire wait returning at the
+     * lookup — still owed a cover, still polling for it, and no longer able to
+     * name the photograph it was polling for.
+     *
+     * Read once and kept. The lookup is inside the latch so a pruned queue is
+     * not consulted again, and the id it reads is written at presign, long
+     * before anything prunes.
+     */
+    expect(APP).toMatch(/const coverPhotoId = useRef<string \| null>\(null\);/);
+    expect(APP).toMatch(
+      /if \(!coverPhotoId\.current\) \{\s*const item = uploads\.items\.find\([\s\S]*?\);\s*if \(!item\?\.photoId\) return;\s*coverPhotoId\.current = item\.photoId;\s*\}/,
+    );
+    expect(APP).toMatch(/const from = coverPhotoId\.current;/);
+    // And the wait itself is no longer read out of the queue.
+    expect(APP).not.toMatch(/photo\.id === item\.photoId/);
+  });
+
+  it('says so when the derivative it needs cannot be fetched', () => {
+    // `sendCover` reports its own failures; this one is the download in front
+    // of it, which reported nothing at all. Not an alert — an album with no
+    // cover leads with the same photograph — but not silence either.
+    expect(APP).toMatch(/setQueueStatus\('Could not set the cover — use Change cover\.'\)/);
   });
 
   it('leaves the avatar upload alone, which never needed it', () => {
