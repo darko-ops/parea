@@ -549,6 +549,20 @@ into it:
   does finding the album on its creator's profile, where private albums are
   listed by name and nothing else.
 
+**Being in is a fact in the database, not in one browser.** A participant row
+plus a stored capability is what carries a link-holder: the cookie is how a
+browser remembers the link, and rotation is what stales it. But somebody let in
+by name — an invitation they accepted, a request the owner approved — has no
+link to remember, and requiring the cookie of them made being in an album a
+property of the client that answered the invitation. Accept on a phone, open the
+album in a browser, and the row said you were in while the browser had nothing to
+present: a 404 on an album you had just been let into. So `authorize` reads that
+admission alongside the participant row, and it survives rotation for the same
+reason a group member's access does — rotation replaces a link, and neither of
+those people got in by holding one. It is never read *instead* of the row:
+leaving takes the row and leaves the accepted invitation behind, and an admission
+that admitted on its own would undo somebody walking out.
+
 Creator and group admins get `administer`, which no link and no policy grants.
 
 There were briefly three. `account_required` — the link admits whoever signs

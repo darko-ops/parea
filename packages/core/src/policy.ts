@@ -68,6 +68,29 @@ export type Presented = {
   capEpoch?: number;
   isParticipant?: boolean;
   /**
+   * They were let in by name rather than by link: an invitation they accepted,
+   * or a request the album's owner approved.
+   *
+   * It exists because the stored capability is a cookie in one browser and a
+   * person who is in an album has more than one. Accepting an invitation on a
+   * phone wrote the participant row — which is where being in *lives* — and
+   * the capability landed in whichever client made the request, so the same
+   * person opening the same album in another browser, or in the app, was a
+   * participant with nothing to present and got a 404 on an album they had
+   * just been let into.
+   *
+   * Only ever read alongside `isParticipant`, never instead of it. Leaving
+   * takes the participant row and leaves the accepted invitation behind, so an
+   * admission that did not also require the row would quietly readmit somebody
+   * who had walked out.
+   *
+   * What it deliberately does not do is survive removal from the album, and
+   * what it deliberately *does* do is survive rotation — for the same reason a
+   * group member's access does: rotation replaces a link, and neither of these
+   * two people got in by holding one.
+   */
+  admitted?: boolean;
+  /**
    * This actor's `event_participant.role` is `host`.
    *
    * Separate from `isParticipant` rather than a stronger value of it, because
@@ -235,6 +258,8 @@ export function authorize(
   const isGroupAdmin = Boolean(presented.isGroupAdmin);
   const isGroupMember = Boolean(presented.isGroupMember) || isGroupAdmin;
   const isParticipant = Boolean(presented.isParticipant);
+  /** Let in by name — see `admitted`. Only ever with the participant row. */
+  const admitted = isParticipant && Boolean(presented.admitted);
 
   // Administration is not something a link can grant, so it short-circuits
   // ahead of the credential checks below.
@@ -277,6 +302,7 @@ export function authorize(
     viaCode ||
     isCreator ||
     isGroupMember ||
+    admitted ||
     (isParticipant && capFresh);
 
   if (!hasCredential) {
@@ -286,7 +312,9 @@ export function authorize(
     if (codeMatches) return deny('sign_in_required');
     // A participant whose stored capability predates a link rotation gets a
     // distinguishable answer, because the client can act on it: re-present the
-    // new link rather than treat the event as gone.
+    // new link rather than treat the event as gone. Only reachable for
+    // somebody who got in by link — an invitation or an approved request
+    // carries its own admission and has already passed above.
     if (isParticipant && presented.capEpoch !== undefined && !capFresh) {
       return deny('stale_capability');
     }

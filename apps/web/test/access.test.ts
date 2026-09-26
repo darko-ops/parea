@@ -22,6 +22,7 @@ import {
   findEventById,
   findEventByLinkToken,
   guard,
+  lockedOutByRotation,
   recordParticipant,
   toResponse,
 } from '@/access';
@@ -160,6 +161,92 @@ describe('resolving credentials from the database', () => {
       .toEqual({ allow: true });
   });
 
+  /**
+   * The bug this was written for: somebody accepted an invitation and got a
+   * 404 on the album.
+   *
+   * Accepting writes the participant row and hands out a capability cookie, and
+   * the cookie is the half that only exists in one client. Accept on a phone —
+   * where the app carries a bearer token and no cookie jar — and the row said
+   * they were in while every browser they own had nothing to present. Being in
+   * an album is a fact in the database; it cannot be a fact only one browser
+   * knows.
+   */
+  it('lets an accepted invitation stand in for the stored capability', async () => {
+    const event = await makePrivateEvent();
+    const guest = await makeSignedInActor();
+
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: guest,
+      invitedByActorId: event.createdBy,
+      status: 'accepted',
+    });
+    await recordParticipant(db, event.id, guest);
+
+    // No capability and no link — a browser that has never been through the
+    // door, or the app, which never gets a cookie at all.
+    expect(await decide(db, event, 'view', { actorId: guest })).toEqual({ allow: true });
+  });
+
+  it('and an approved request is the same kind of fact', async () => {
+    const event = await makePrivateEvent();
+    const guest = await makeSignedInActor();
+
+    await db.insert(schema.eventAccessRequests).values({
+      eventId: event.id,
+      actorId: guest,
+      status: 'approved',
+    });
+    await recordParticipant(db, event.id, guest);
+
+    expect(await decide(db, event, 'view', { actorId: guest })).toEqual({ allow: true });
+  });
+
+  it('an invitation nobody has answered opens nothing', async () => {
+    const event = await makePrivateEvent();
+    const guest = await makeSignedInActor();
+
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: guest,
+      invitedByActorId: event.createdBy,
+      status: 'open',
+    });
+    // The row a host's guest list writes, and it grants nothing until answered
+    // — so even with a participant row from somewhere else this is not the
+    // thing that admitted them.
+    await recordParticipant(db, event.id, guest);
+
+    expect(await decide(db, event, 'view', { actorId: guest })).toEqual({
+      allow: false,
+      reason: 'no_credential',
+    });
+  });
+
+  it('and leaving still takes the access with it', async () => {
+    const event = await makePrivateEvent();
+    const guest = await makeSignedInActor();
+
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: guest,
+      invitedByActorId: event.createdBy,
+      status: 'accepted',
+    });
+    await recordParticipant(db, event.id, guest);
+    await db
+      .delete(schema.eventParticipants)
+      .where(eq(schema.eventParticipants.actorId, guest));
+
+    // The accepted invitation is still on the table, and it is not a way back
+    // in: it says how somebody was admitted, not that they are.
+    expect(await decide(db, event, 'view', { actorId: guest })).toEqual({
+      allow: false,
+      reason: 'no_credential',
+    });
+  });
+
   it('recording a participant twice is not an error', async () => {
     const event = await makeEvent();
     const actorId = await makeActor();
@@ -248,6 +335,75 @@ describe('resolving credentials from the database', () => {
       .toEqual({ allow: true });
     expect(await decide(db, after!, 'view', { actorId, linkToken: event.linkToken }))
       .toEqual({ allow: false, reason: 'no_credential' });
+  });
+
+  it('does not lock out somebody let in by name', async () => {
+    /*
+     * The other half of what rotation is for. It replaces a link, so it shuts
+     * out the people holding one — and an invitation is not a link. A group's
+     * members have always been the exception for exactly this reason; somebody
+     * the owner asked in by name is the same kind of exception.
+     */
+    const event = await makePrivateEvent();
+    const guest = await makeSignedInActor();
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: guest,
+      invitedByActorId: event.createdBy,
+      status: 'accepted',
+    });
+    await recordParticipant(db, event.id, guest);
+
+    const [after] = await db
+      .update(schema.events)
+      .set({ linkToken: newLinkToken(), capEpoch: event.capEpoch + 1 })
+      .where(eq(schema.events.id, event.id))
+      .returning();
+
+    expect(await decide(db, after!, 'view', { actorId: guest })).toEqual({ allow: true });
+  });
+
+  /**
+   * And the warning in front of the button counts the same people.
+   *
+   * It counted every participant row, which was a number true of nobody: the
+   * creator keeps the album, a group keeps a grouped one, and anybody let in by
+   * name keeps theirs. Twelve people would be reported as needing re-inviting
+   * when the answer was two — and a warning that overstates is one people learn
+   * to press through.
+   */
+  it('counts only the people a rotation actually shuts out', async () => {
+    const [group] = await db.insert(schema.groups).values({ name: 'Us' }).returning();
+    const creator = await makeSignedInActor();
+    const event = await makePrivateEvent({ createdBy: creator, groupId: group!.id });
+
+    const byLink = await makeSignedInActor();
+    const invited = await makeSignedInActor();
+    const approved = await makeSignedInActor();
+    const member = await makeSignedInActor();
+
+    await db.insert(schema.groupMembers).values({
+      groupId: group!.id,
+      actorId: member,
+      role: 'member',
+    });
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: invited,
+      invitedByActorId: creator,
+      status: 'accepted',
+    });
+    await db.insert(schema.eventAccessRequests).values({
+      eventId: event.id,
+      actorId: approved,
+      status: 'approved',
+    });
+    for (const actorId of [creator, byLink, invited, approved, member]) {
+      await recordParticipant(db, event.id, actorId);
+    }
+
+    // Five rows in the album, one person who will need the new link.
+    expect(await lockedOutByRotation(db, event)).toBe(1);
   });
 
   it('a soft-deleted event is gone even for its creator', async () => {
@@ -662,5 +818,49 @@ describe('the link exchange', () => {
     expect(denial).toBeGreaterThan(-1);
     expect(record).toBeGreaterThan(-1);
     expect(denial, 'participation must be recorded below the refusal').toBeLessThan(record);
+  });
+});
+
+describe('the album page, for somebody with nothing to present', () => {
+  const page = readFileSync(
+    fileURLToPath(new URL('../app/event/[id]/page.tsx', import.meta.url)),
+    'utf8',
+  );
+
+  /**
+   * It answered a 404, and the 404 was wrong in the ordinary case.
+   *
+   * An album's URL reaches somebody in a message and they open it in a browser
+   * that has never been signed in. They may well have been invited — the
+   * participant row is already there — and the only thing missing is the half
+   * of the credential a browser carries. "This page could not be found" is the
+   * product telling them the album does not exist.
+   */
+  it('sends them to sign in and brings them back, rather than answering 404', () => {
+    expect(page).toMatch(/redirect\(`\/account\?next=\$\{encodeURIComponent\(`\/event\/\$\{id\}`\)\}`\)/);
+    expect(page).toMatch(/currentAccountActorId\(\)\) == null/);
+    expect(page).toMatch(/reason === 'no_credential' \|\| reason === 'sign_in_required'/);
+  });
+
+  it('answers an id that does not exist the same way, so it is not an oracle', () => {
+    /*
+     * The property the redirect must not cost, and it is a matter of ordering:
+     * a redirect that only real albums produced would be a way to ask whether
+     * an id is real, which is what every 404 on this page is protecting. So the
+     * decision is made against an album that may be null, and the `notFound`
+     * for a missing one sits *below* the redirect.
+     */
+    const redirected = page.indexOf('/account?next=');
+    const missing = page.indexOf('if (!event || !decision) notFound();');
+    expect(redirected).toBeGreaterThan(-1);
+    expect(missing).toBeGreaterThan(-1);
+    expect(redirected, 'the sign-in step must answer for a missing album too').toBeLessThan(missing);
+  });
+
+  it('leaves a public album readable signed out', () => {
+    // Only a denial is redirected. A public album allows a visitor with no
+    // account at all, so nothing that could be read signed out has been put
+    // behind a sign-in — see the `isPublic` branch in `authorize`.
+    expect(page).toMatch(/if \(!decision\?\.allow &&/);
   });
 });

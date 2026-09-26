@@ -108,6 +108,31 @@ const CASES: Case[] = [
     capability: 'view', event: { accessPolicy: 'private' },
     presented: { capEpoch: 1 }, expect: 'no_credential' },
 
+  // --- let in by name, which no browser has to remember ----------------------
+  //
+  // The stored capability is a cookie in one browser, and somebody who accepted
+  // an invitation on their phone has the participant row and no cookie
+  // anywhere else. That person was a participant with nothing to present, and
+  // the answer was a 404 on an album they had just been let into.
+  { name: 'an accepted invitation needs no stored capability', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private' },
+    presented: { isParticipant: true, admitted: true }, expect: true },
+  { name: 'and it survives rotation, the way a group member does', actor: GUEST,
+    signedIn: true, capability: 'view',
+    event: { accessPolicy: 'private', capEpoch: 2 },
+    presented: { isParticipant: true, admitted: true }, expect: true },
+  // Leaving takes the participant row and leaves the accepted invitation
+  // behind, so admission on its own must open nothing — otherwise walking out
+  // of an album is undone by the record of having been asked into it.
+  { name: 'admission without being in the album is nothing', actor: GUEST, signedIn: true,
+    capability: 'view', event: { accessPolicy: 'private' },
+    presented: { admitted: true }, expect: 'no_credential' },
+  // It is a credential, not an account: an invitation accepted by a guest actor
+  // still has to say who is looking before a private album opens.
+  { name: 'and it is still not an account', actor: GUEST, capability: 'view',
+    event: { accessPolicy: 'private' },
+    presented: { isParticipant: true, admitted: true }, expect: 'sign_in_required' },
+
   // --- switch: joins ---------------------------------------------------------
   { name: 'joins closed refuses a new person holding the link', actor: GUEST, capability: 'view',
     event: { joinsOpen: false }, presented: { linkToken: LINK }, expect: 'joins_closed' },

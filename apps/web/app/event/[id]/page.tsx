@@ -48,10 +48,38 @@ export default async function EventPage({
 
   const db = getDb();
   const event = await findEventById(db, id);
-  if (!event) notFound();
 
+  // Cookies only, so it needs no album to have been found — see `requesterFor`.
   const requester = await requesterFor(id);
-  const decision = await decide(db, event, 'view', requester);
+  const decision = event ? await decide(db, event, 'view', requester) : null;
+
+  /*
+   * Somebody with no account, refused for want of a credential.
+   *
+   * Sent to sign in and brought back here, which is what `/e/<token>` does with
+   * the same person: this is a step rather than a wall. It was a 404, and the
+   * 404 was wrong in the ordinary case rather than in a corner — an album's URL
+   * reaches somebody in a message, they open it in a browser that has never
+   * been signed in, and the product tells them the thing does not exist. If
+   * they were invited, signing in is the whole of what was missing: the
+   * participant row is already there and the album opens on the way back.
+   *
+   * Answered the same way for an id that does not exist, which is the reason
+   * this sits above the `notFound` below rather than after it. A redirect only
+   * real albums produced would be a way to ask whether one is real, and that is
+   * the property every 404 on this page is protecting. A public album is
+   * allowed and never reaches here, so nothing that could be read signed out
+   * has been put behind a sign-in.
+   */
+  if (!decision?.allow && (await currentAccountActorId()) == null) {
+    const reason = decision?.reason;
+    if (!decision || reason === 'no_credential' || reason === 'sign_in_required') {
+      redirect(`/account?next=${encodeURIComponent(`/event/${id}`)}`);
+    }
+  }
+
+  if (!event || !decision) notFound();
+
   /*
    * A private album this person is not in yet, arrived at by its own URL —
    * from a profile listing, from a bookmark, from a link somebody pasted

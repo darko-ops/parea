@@ -17,18 +17,23 @@
  *      Worker reject signed image URLs minted before the rotation. Without it
  *      those stay valid until they expire.
  *
- * The cost, and it is real: everyone loses access until they get the new link.
- * Group members are the exception — their membership is not link-derived — so
- * a grouped event survives rotation for the people in the group. The response
- * says how many participants will need re-inviting so the UI can warn before
- * doing it.
+ * The cost, and it is real: everyone who got in by link loses access until they
+ * get the new one. There are two exceptions and they are the same exception:
+ * access that was not link-derived in the first place. A group's members keep a
+ * grouped album, and anybody let in by name — an invitation they accepted, or a
+ * request the owner approved — keeps theirs, because rotation replaces a link
+ * and neither of those people is holding one. See `admitted` in `authorize`.
+ *
+ * The response says how many people will actually need the new link, which is
+ * narrower than "the participants" for exactly that reason, so the UI can warn
+ * with a number that is true.
  */
 
 import { newLinkToken, schema } from '@parea/core';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { findEventById, guard, toResponse } from '@/access';
+import { findEventById, guard, lockedOutByRotation, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { epochMarkerKey } from '@/images';
 import { grantCapability, requesterFor } from '@/session';
@@ -63,10 +68,9 @@ export async function POST(
     return toResponse(err);
   }
 
-  const [participants] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.eventParticipants)
-    .where(eq(schema.eventParticipants.eventId, event.id));
+  // Who this actually shuts out, which is narrower than who is in it — see
+  // `lockedOutByRotation`.
+  const lockedOut = await lockedOutByRotation(db, event);
 
   const nextEpoch = event.capEpoch + 1;
   const [rotated] = await db
@@ -95,7 +99,7 @@ export async function POST(
     capEpoch: nextEpoch,
     code,
     /** Everyone here needs the new link before they can get back in. */
-    participantsLockedOut: participants?.count ?? 0,
+    participantsLockedOut: lockedOut,
   });
 }
 
