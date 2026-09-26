@@ -1091,15 +1091,29 @@ const styles = StyleSheet.create({
    * between them.
    */
   /*
-   * Centred, inset, and no negative margin.
+   * Centred, inset, and pulled up by part of the scroll's gap.
    *
-   * The -8 pulled it against a header whose height was set by a 104pt picture
-   * beside the text. There is no picture beside the text any more, so the
-   * pull is against nothing. The inset keeps a long bio to a readable measure
-   * once it is centred — full width and centred is a paragraph with ragged
-   * edges on both sides.
+   * The old -8 pulled it against a header whose height was set by a 104pt
+   * picture beside the text, and it went when the picture did. What is left is
+   * a real gap: the bio is a child of the scroller, so the space above it is
+   * the 16 the scroller puts between its rows plus the bio's own leading —
+   * about twenty points under a link that sits six under the counts. The
+   * header read as finished and the bio as the next section.
+   *
+   * Six of it back, not all sixteen: the bio is still the person's sentence
+   * rather than another line of facts, so it follows the header at the
+   * header's own rhythm and not at a section's.
+   *
+   * The inset keeps a long bio to a readable measure once it is centred —
+   * full width and centred is a paragraph with ragged edges on both sides.
    */
-  bio: { fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 },
+  bio: {
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: 'center',
+    paddingHorizontal: 36,
+    marginTop: -6,
+  },
   /* The same size and rhythm as the counts line it follows, in the accent —
      this is the one thing in the header that goes somewhere. */
   link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },

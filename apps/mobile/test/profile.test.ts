@@ -373,15 +373,22 @@ describe('a link on a profile', () => {
     );
   });
 
-  it('centres the bio rather than pulling it up', () => {
+  it('centres the bio and closes the gap under the link', () => {
     /*
-     * The -8 pulled it against a header whose height was set by a 104pt
-     * picture beside the text. There is no picture beside the text any more,
-     * so the pull is against nothing. The inset keeps a long bio to a
-     * readable measure once centred — full width and centred is a paragraph
-     * ragged on both sides.
+     * Centred and inset, because full width and centred is a paragraph ragged
+     * on both sides.
+     *
+     * And pulled up six: the bio is a child of the scroller, so the space
+     * above it is the scroller's 16 plus the bio's own leading — a section's
+     * worth of white under a link that sits six under the counts. Six back,
+     * not sixteen, so the bio follows the header rather than joining it.
+     *
+     * Not the old -8, which was pulling against a 104pt picture beside the
+     * text that no longer exists.
      */
-    expect(PROFILE).toMatch(/bio: \{[^}]*textAlign: 'center', paddingHorizontal: 36 \}/);
+    expect(PROFILE).toMatch(/bio: \{[^}]*textAlign: 'center'/);
+    expect(PROFILE).toMatch(/bio: \{[^}]*paddingHorizontal: 36/);
+    expect(PROFILE).toMatch(/bio: \{[^}]*marginTop: -6/);
     expect(PROFILE).not.toMatch(/marginTop: -8/);
   });
 });
