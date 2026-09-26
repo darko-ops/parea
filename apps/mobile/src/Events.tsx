@@ -739,18 +739,28 @@ function EventCard({
         </Pressable>
 
         {/*
-          Led by the separator rather than joined to the name by one, so the
-          two shrink independently: a long handle takes the room it needs and
-          this line loses its tail, rather than one string being truncated on
-          behalf of both.
+          Pushed to the far end of the row rather than set beside the handle.
+
+          It was `· added to 2 minutes ago`, hung off the name, and the
+          separator was doing the work of saying the two were different facts.
+          They are more different than a middle dot admits: the left of this row
+          is whose album it is, which is true of the card forever, and this is
+          what happened to it in the last hour, which is true of the card today.
+          Put at opposite ends they read as two columns of a line rather than
+          one sentence with a join in it, and the tail lands on the same right
+          edge as the screen — so the eye finds every card's "still happening"
+          in one place while scrolling instead of after a handle of some length.
+
+          The separator goes with the move. A `·` is a join, and there is
+          nothing left to join across half a row of space.
 
           Drawn only when there is something to say. Most cards have nothing —
-          an album stops being live within a day — and a `·` on its own after a
-          handle reads as a line that failed to load.
+          an album stops being live within a day — and the row is then a handle
+          on its own, which is what a byline is.
         */}
         {about !== '' && (
           <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
-            {`· ${about}`}
+            {about}
           </Text>
         )}
       </View>
@@ -3361,9 +3371,19 @@ const styles = StyleSheet.create({
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
   bylineName: { flexShrink: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
-  /* Takes what the name leaves, and loses its tail rather than its head: the
-     count of people is at the front because it is the half somebody reads. */
-  bylineAbout: { flex: 1, minWidth: 0, fontSize: 13 },
+  /*
+   * Takes what the name leaves and sits at the far end of it.
+   *
+   * `flex: 1` is what claims the gap and `textAlign: 'right'` is what puts the
+   * words at the end of that gap, so the note ends on the card's column edge —
+   * the same 16 from the glass the title and the faces answer to — whatever the
+   * handle beside it is called.
+   *
+   * It still loses its tail rather than its head on a narrow screen, because
+   * `added to` is the half that says what kind of fact this is; a line
+   * truncated to `… 2 minutes ago` is a time with no claim attached.
+   */
+  bylineAbout: { flex: 1, minWidth: 0, fontSize: 13, textAlign: 'right' },
   /* The card with nothing in it, which is mostly a button. Bordered, unlike
      the one that leads with a photograph: there is no picture to give it an
      edge, and a borderless block of text would not read as something to press. */

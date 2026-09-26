@@ -720,6 +720,41 @@ export default function App() {
     setLoadingEvents(false);
   }, [api]);
 
+  /**
+   * The home list is refetched when the queue goes quiet, not when a screen
+   * closes.
+   *
+   * `/api/events` comes back most-recently-added-to first, and adding a
+   * photograph is what moves an album up it — so an album somebody has just
+   * posted into belongs at the top, the same as a new one. It was not getting
+   * there. Every refresh on this screen hangs off leaving somewhere: `leaveEvent`
+   * asks for the list on the way out of an album, and on the way out of an
+   * album the photographs are still going up. The list that arrives is the
+   * order from before the upload, and it stands until the next pull-to-refresh
+   * — which is the one moment somebody is *not* looking for what they just did.
+   *
+   * So the trigger is the queue emptying instead. `pending` counts only the
+   * items still on their way; `prune` drops the finished ones but keeps
+   * failures and stale items forever, so a count of `items` would sit above
+   * zero for good on a phone that ever failed an upload and this would never
+   * fire again. The falling edge is the moment the server has been told about
+   * everything this phone was holding, which is the moment its answer to "what
+   * is newest" changes.
+   *
+   * A run that ends in failure refreshes too. Nothing moved, so the list comes
+   * back in the order it was already in — a wasted request, and cheaper than
+   * deciding which kinds of ending count.
+   */
+  const pending = uploads.items.filter(
+    (item) =>
+      item.status !== 'done' && item.status !== 'failed' && item.status !== 'stale',
+  ).length;
+  const wasUploading = useRef(false);
+  useEffect(() => {
+    if (wasUploading.current && pending === 0) void refreshEvents();
+    wasUploading.current = pending > 0;
+  }, [pending, refreshEvents]);
+
   const openListing = useCallback(
     (event: EventListing, photo?: string, pane?: Pane) =>
       open(

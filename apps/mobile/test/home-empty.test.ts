@@ -118,11 +118,37 @@ describe('the card the home list draws', () => {
     expect(CARD).not.toMatch(/'You'/);
     expect(CARD).not.toMatch(/memberCount, 'person', 'people'/);
     /*
-     * And the separator goes with it. Most cards have nothing to say here — an
-     * album stops being live within a day — and a `·` on its own after a
-     * handle reads as a line that failed to load.
+     * And most cards say nothing here at all — an album stops being live
+     * within a day — so the row is a handle on its own, which is what a byline
+     * is.
      */
     expect(CARD).toMatch(/\{about !== '' && \(/);
+  });
+
+  it('hangs the "added to" note on the right edge rather than off the handle', () => {
+    /*
+     * The two ends of this row are two kinds of fact. Whose album it is stays
+     * true forever; what happened to it in the last hour is true today. Set
+     * beside each other with a `·` between them they read as one sentence
+     * with a join in it, and the tail starts at a different place on every
+     * card because handles are different lengths — so a reader scrolling for
+     * "which of these is still happening" has to find the answer afresh on
+     * each one.
+     *
+     * At the far end it lands on the card's own column edge, the same 16 from
+     * the glass the title and the faces answer to, and the eye tracks one
+     * line down the screen.
+     */
+    const CARD = EVENTS.slice(
+      EVENTS.indexOf('function EventCard'),
+      EVENTS.indexOf('function emptyLine'),
+    );
+    // `flex: 1` claims the gap; `textAlign` puts the words at the end of it.
+    expect(EVENTS).toMatch(/bylineAbout: \{[^}]*flex: 1[^}]*textAlign: 'right'/);
+    // And the separator goes with the move: a `·` is a join, and there is
+    // nothing left to join across half a row of space.
+    expect(CARD).not.toMatch(/`· \$\{about\}`/);
+    expect(CARD).toMatch(/numberOfLines=\{1\}>\s*\{about\}\s*<\/Text>/);
   });
 
   it('leaves the host out of the circles and scales them to 70%', () => {
@@ -912,5 +938,44 @@ describe('a photograph with something new on it', () => {
     const FEED = read('../../apps/web/app/api/events/[id]/photos/route.ts');
     expect(FEED).toMatch(/from "event_thread_read"/);
     expect(FEED).toMatch(/union/);
+  });
+});
+
+describe('an album somebody has just added to', () => {
+  it('is fetched again when the upload queue goes quiet, not when a screen closes', () => {
+    /*
+     * `/api/events` comes back most-recently-added-to first, and adding a
+     * photograph is what moves an album up it — so an album somebody has just
+     * posted into belongs at the top of the home list, the same as a new one.
+     *
+     * It was not getting there. Every refresh on this screen hung off leaving
+     * somewhere — `leaveEvent` asks for the list on the way out of an album —
+     * and on the way out of an album the photographs are still going up. The
+     * list that arrived was the order from before the upload, and it stood
+     * until the next pull-to-refresh, which is the one moment somebody is not
+     * looking for what they just did.
+     */
+    expect(APP).toMatch(/if \(wasUploading\.current && pending === 0\) void refreshEvents\(\);/);
+    /*
+     * Counted over what is still on its way, not over the queue.
+     *
+     * `prune` drops finished items and keeps failures and stale ones forever,
+     * so a count of `items` sits above zero for good on a phone that ever
+     * failed an upload — and this would never fire again on that phone.
+     */
+    expect(APP).toMatch(/item\.status !== 'done' && item\.status !== 'failed' && item\.status !== 'stale'/);
+  });
+
+  it('is what the server means by first, so the client never re-sorts', () => {
+    // One order, decided in one place. A second sort on the phone is a second
+    // answer to "what is newest" that drifts from the web's the day either
+    // changes.
+    const LISTING = read('../../apps/web/src/events.ts');
+    expect(LISTING).toMatch(/\.orderBy\(desc\(schema\.events\.lastActiveAt\)\)/);
+    // And `lastActiveAt` is stamped where a photograph lands, which is what
+    // makes "added to" and "at the top" the same event rather than two.
+    const COMPLETE = read('../../apps/web/app/api/uploads/[id]/complete/route.ts');
+    expect(COMPLETE).toMatch(/\.set\(\{ lastActiveAt: new Date\(\) \}\)/);
+    expect(HOME).not.toMatch(/\.sort\(/);
   });
 });
