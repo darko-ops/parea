@@ -322,16 +322,21 @@ describe('what the server had to grow', () => {
 /**
  * How many rooms Find opens with.
  *
- * It was three, and three was a measurement of the block: a name, a strip of
- * covers and a line of conversation came to about a hundred points, so
- * somebody in eight groups scrolled past six of them to reach what was
- * underneath. A door and its name is about a third of that and three of them
- * sit on one row, so three would now buy one line of icons with an "All
- * groups" row under it — more chrome than list. Six is two rows.
+ * Two rows, and said as that rather than as a number: it was 6 while the
+ * shelf was three across, and widening the shelf to four would have left it a
+ * row of four and a row of two — a corner missing, and an "All groups" button
+ * under it for the sake of two rooms.
+ *
+ * Before that it was three, which was a measurement of the block the doors
+ * replaced: a name, a strip of covers and a line of conversation came to
+ * about a hundred points, so somebody in eight groups scrolled past six of
+ * them to reach what was underneath. A door and its name is a fraction of
+ * that, so three would now buy one line of icons with a button under it —
+ * more chrome than list.
  */
 describe('the first few', () => {
   it('draws two rows, then a way to the rest', () => {
-    expect(EVENTS).toMatch(/const GROUPS_SHOWN = 6;/);
+    expect(EVENTS).toMatch(/const GROUPS_SHOWN = GROUP_COLUMNS \* 2;/);
     expect(FIND).toMatch(/ordered\.slice\(0, GROUPS_SHOWN\)/);
     expect(FIND).toMatch(/>\s*All groups\s*</);
     // And no button when there is nothing behind it.

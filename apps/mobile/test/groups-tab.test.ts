@@ -140,17 +140,40 @@ describe('what the screen may do', () => {
   it('draws the door as a letter, never as a photograph', () => {
     /*
      * The rule is about *the door*, and it is the whole of the shelf now: a
-     * group is a letter on the lens colour its id hashes to, three across
-     * with the name underneath, and nothing about a group is ever drawn from
-     * a picture.
+     * group is a letter on the lens colour its id hashes to, four across with
+     * the name underneath, and nothing about a group is ever drawn from a
+     * picture.
      */
     const shelf = between(tab, 'YOUR GROUPS', 'All groups');
     expect(shelf).toMatch(/styles\.door,/);
     expect(shelf).toMatch(/lensFor\(group\.id\)/);
     expect(shelf).toMatch(/initialOf\(group\.name\)/);
-    expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
+    expect(EVENTS).toMatch(/const GROUP_COLUMNS = 4;/);
     expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
     expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);
+  });
+
+  it('draws the door small enough to be a way in rather than a thing to look at', () => {
+    /*
+     * Three across is a 110pt square on a phone — bigger than any actual
+     * photograph on the tab above it, for a drawing that is one character.
+     * Past the point where the letter is legible every extra point of edge is
+     * more of the same flat colour, so four, which lands near 80.
+     *
+     * Not five: the name under the door is the half a reader scans, and a
+     * 62pt column takes "Sunday lunch club" to three lines or to an ellipsis.
+     *
+     * The corner and the letter are fractions of whatever the edge turns out
+     * to be, which is why neither had to be touched when the column count
+     * changed. That is the point of writing them that way.
+     */
+    expect(EVENTS).toMatch(/const doorRadius = Math\.round\(door \* 0\.225\);/);
+    expect(EVENTS).toMatch(/const doorLetter = Math\.round\(door \* 0\.4\);/);
+    // And both reach the element as the computed value rather than as a
+    // number somebody typed next to them.
+    const shelf = between(tab, 'YOUR GROUPS', 'All groups');
+    expect(shelf).toMatch(/height: door, borderRadius: doorRadius,/);
+    expect(shelf).toMatch(/fontSize: doorLetter,/);
   });
 
   it('puts no photograph under a group at all', () => {

@@ -1775,29 +1775,46 @@ function ConversationLine({
 }
 
 /**
- * The shelf of doors: three across, with the gutters the album shelves use.
+ * The shelf of doors: four across, with the gutters the album shelves use.
  *
- * Three rather than the two a shelf of albums gets, because these are not
+ * More columns than a shelf of albums gets, because these are not
  * photographs. An album tile has to be big enough to recognise an evening in;
- * a door is a letter on a colour, and at half the width of the screen it is a
- * field of colour with a character floating in it.
+ * a door is a letter on a colour, and there is nothing in it that rewards a
+ * larger one — past the point where the letter is legible, every extra point
+ * of edge is more of the same flat colour.
+ *
+ * It was three, which on a phone is a 110pt square: bigger than any actual
+ * photograph on the tab above it, for a drawing that is one character. Four
+ * puts it near 80, which is the size of a thing you tap rather than a thing
+ * you look at, and it is what these are. The same move the web's Find made
+ * when its tiles came down from 44 to 36.
+ *
+ * Four and not five. The name under the door is the half a reader is actually
+ * scanning, and at five across a column is 62 points — which takes "Sunday
+ * lunch club" to three lines or to an ellipsis, and a shelf where the labels
+ * are truncated is a shelf you have to open things to read.
  */
-const GROUP_COLUMNS = 3;
+const GROUP_COLUMNS = 4;
 const GROUP_GAP = 10;
 
 /**
  * How many doors Find opens with.
  *
- * It was three, and the number was a measurement of the block it replaced: a
- * name, a strip of covers and a line of conversation came to about a hundred
- * points each, so three of them was what fitted under the search field. A
- * door and its name is about a third of that and three of them sit on one
- * row, so the old number now buys a single line of icons and an "All groups"
- * row underneath it — which is more chrome than list.
- *
  * Two rows, which is most people's rooms, and the rest stays behind the word.
+ *
+ * Written as the arithmetic rather than as the answer, because it is a
+ * statement about rows and the row got wider: it was 6 against three columns,
+ * and a column added would have left it a row of four and a row of two — a
+ * shelf with a corner missing, and an "All groups" button under it for the
+ * sake of two rooms.
+ *
+ * Before that it was three, and three was a measurement of the block the
+ * doors replaced: a name, a strip of covers and a line of conversation came
+ * to about a hundred points each, so three of them was what fitted under the
+ * search field. A door and its name is a fraction of that, so the old number
+ * bought a single line of icons and a button — more chrome than list.
  */
-const GROUPS_SHOWN = 6;
+const GROUPS_SHOWN = GROUP_COLUMNS * 2;
 
 /**
  * Find — one field, scoped by chips.
@@ -2022,8 +2039,8 @@ export function SearchTab({
   /**
    * A door's edge, from the window rather than from a constant.
    *
-   * 40 is the page's own padding; the gaps are the gutters between the three.
-   * The same arithmetic the album shelves do, with a column more.
+   * 40 is the page's own padding; the gaps are the gutters between the four.
+   * The same arithmetic the album shelves do, with two columns more.
    */
   const door = Math.floor(
     (width - 40 - GROUP_GAP * (GROUP_COLUMNS - 1)) / GROUP_COLUMNS,
@@ -2039,6 +2056,11 @@ export function SearchTab({
    * tile this replaced set it at 13, which is nearly half its edge, and the
    * same proportion at this size reads as somebody shouting. 0.4 is the
    * largest it goes before a wide letter starts crowding the corners.
+   *
+   * Both survived the door coming down from three columns to four without
+   * being touched, which is the whole reason they are fractions: a proportion
+   * of the edge is one decision about what the shape looks like, and a number
+   * of points is that decision made again at every size.
    */
   const doorRadius = Math.round(door * 0.225);
   const doorLetter = Math.round(door * 0.4);
