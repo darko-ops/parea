@@ -301,6 +301,35 @@ describe('the profile at two widths', () => {
     );
   });
 
+  it('puts two albums across a phone, on a profile and nowhere else', () => {
+    /*
+     * One album per screenful is right on the home page, where the card is
+     * what somebody came to look at. A profile is a different question —
+     * what does this person have — and answering it one tall cover at a time
+     * makes a shelf into a scroll. The app has always drawn two across; the
+     * browser drew one.
+     *
+     * Scoped to `.you-events`, which is both profiles and nothing else, and
+     * two explicit columns rather than a `minmax` that happens to fit two at
+     * one width and one at another.
+     *
+     * The cover takes the letterbox this stylesheet already falls back to,
+     * and the `[style]` selector is beaten with it: a portrait cover sets its
+     * own `aspect-ratio` inline, and at half width that is a column of one
+     * album again wearing a different rule.
+     */
+    expect(CSS).toMatch(
+      /\.you-events \.cards \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    expect(CSS).toMatch(
+      /\.you-events \.card-cover\[style\*="--card-aspect"\]\s*\{[^}]*aspect-ratio: 3 \/ 2/,
+    );
+    // Both profiles wrap their shelves in it, which is what makes one rule
+    // reach the pair.
+    expect(read('../app/components/AccountView.tsx')).toMatch(/className="you-events"/);
+    expect(read('../app/components/PersonView.tsx')).toMatch(/className="you-events"/);
+  });
+
   it('draws a shut album as shut rather than as empty', () => {
     /*
      * The one thing rows were better at. A locked album has no photograph to
@@ -316,6 +345,14 @@ describe('the profile at two widths', () => {
     expect(PERSON).toMatch(/album\.locked && \(\s*<span className="album-shut"/);
     expect(CSS).toMatch(/\.album-shut \{[^}]*position: absolute; inset: 0;/);
     expect(CSS).toMatch(/\.album-shut \{[^}]*repeating-linear-gradient/);
+    /*
+     * With a base colour under the stripes. `.card-cover` is already
+     * `--hairline`, so hatching in `--hairline` over `transparent` paints a
+     * flat grey rectangle with a padlock on it — which is the "empty" this
+     * panel exists not to look like. Caught by putting it on a screen.
+     */
+    expect(CSS).toMatch(/\.album-shut \{[^}]*var\(--line\), var\(--line\) 2px/);
+    expect(CSS).toMatch(/\.album-shut \{[^}]*\),\s*var\(--card\);/);
     // The cover itself is the same component the cards above use, so an
     // expired URL leaves a flat rectangle rather than a broken-image glyph.
     expect(PERSON).toMatch(/<CoverImage src=\{album\.cover\} sources=\{\[\]\} \/>/);

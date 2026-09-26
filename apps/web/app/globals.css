@@ -965,6 +965,60 @@ button.secondary {
 }
 
 /* ---------------------------------------------------------------------------
+   A profile's shelf on a phone: two across, the way the app draws it.
+
+   One album per screenful is right on the home page, where the card is the
+   thing you came to look at and a 300px cover is the photograph doing the
+   talking. A profile is a different question — somebody is reading a shelf to
+   see what this person has — and one tall card at a time makes that a scroll
+   through covers rather than a look at a collection. The app has always
+   answered it two across; the browser answered it one.
+
+   Scoped to `.you-events`, which is both profiles and nothing else: your own
+   page and somebody else's wrap their shelves in it, and the home page does
+   not. Two explicit columns rather than `auto-fill`, because the number is the
+   point — a `minmax` that happens to fit two at 390px fits one at 340.
+
+   The cover takes the product's own letterbox instead of a fixed height. 3:2
+   is what the stylesheet already falls back to for a cover with no recorded
+   shape, and at these widths it lands within a few pixels of the app's tile —
+   which is the thing being matched. The `[style]` selector has to be beaten
+   too: a cover that knows its own shape sets `aspect-ratio` inline, and a
+   portrait one at half width is a column of one album again.
+   --------------------------------------------------------------------------- */
+@media (max-width: 700px) {
+  .you-events .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+  .you-events .card-cover,
+  .you-events .card-cover[style*="--card-aspect"] {
+    height: auto; min-height: 0; aspect-ratio: 3 / 2; border-radius: 12px;
+  }
+  /* The two lines under it, at the size the app's tile sets them. */
+  .you-events .card-name { font-size: 15px; }
+  .you-events .card-meta { font-size: 12.5px; }
+  .you-events .card-under { padding-top: 7px; }
+  /* The faces still overlap the picture — half a column narrower, so they
+     overlap it by less and sit in from the corner by less. */
+  .you-events .card-faces { margin: -13px 0 0 8px; }
+  .you-events .card-facel { width: 26px; height: 26px; font-size: 11px; }
+  .you-events .card-facel + .card-facel { margin-left: -8px; }
+  /*
+     The album with nothing in it, which is a different card and keeps being
+     one. It has a name, a sentence and a button rather than a photograph, so
+     it is given no aspect ratio at all: the grid stretches it to whatever the
+     covers beside it came out at, and a fixed shape here would either crop the
+     button off or leave a hole under it.
+
+     The lenses go. Three 52px circles in a 170px column is the illustration
+     taking the card, and what the card is for is the button underneath them.
+  */
+  .you-events .card-empty {
+    min-height: 0; height: auto; padding: 12px; gap: 10px; border-radius: 12px;
+  }
+  .you-events .card-empty-lenses { display: none; }
+  .you-events .card-empty-go { padding: 9px 0; font-size: 13.5px; }
+}
+
+/* ---------------------------------------------------------------------------
    Event cards — the photograph is the card.
 
    What was here was a bordered panel: a mosaic of three or four thumbnails
@@ -1346,14 +1400,22 @@ button.secondary {
    wears, so the thing that means shut means it in one shape across both
    clients. Absolutely positioned so it covers the frame whether or not there
    is an image behind it; there never is on a locked one, since `albumsBy`
-   drops the key before the page can sign it. */
+   drops the key before the page can sign it.
+
+   Its own base colour under the stripes, not `transparent`. `.card-cover` is
+   already `--hairline`, so hatching in `--hairline` over nothing is a flat
+   grey rectangle with a padlock on it — which is exactly the "empty" this is
+   supposed to not look like. `--line` on `--card` is the pairing that shows.
+   */
 .album-shut {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   color: var(--dim-soft);
-  background: repeating-linear-gradient(
-    -45deg, var(--hairline), var(--hairline) 3px, transparent 3px, transparent 10px
-  );
+  background:
+    repeating-linear-gradient(
+      -45deg, var(--line), var(--line) 2px, transparent 2px, transparent 9px
+    ),
+    var(--card);
 }
 
 /* A name that leads to the person.
