@@ -57,8 +57,8 @@ import type { CardEvent } from '@/cards';
 import type { Standing } from '@/people';
 
 import { Avatar } from './Avatar';
+import { CoverImage } from './CoverImage';
 import { EventCard } from './EventCard';
-import { Face } from './Faces';
 import { ShareProfile } from './ShareProfile';
 
 export type ProfileAlbumCard = {
@@ -419,7 +419,7 @@ export function PersonView({
           </div>
           {/*
             What the padlocks are for, said once above them rather than per
-            row. A list of shut doors is a page that reads as a refusal; the
+            card. A wall of shut doors is a page that reads as a refusal; the
             sentence is what turns it into a queue. Only while there is
             something shut and a way to open it — a friend reading this would
             be told to do a thing they have already done.
@@ -429,9 +429,29 @@ export function PersonView({
               Become friends to see what&rsquo;s inside.
             </p>
           )}
-          <ul className="album-list">
+          {/*
+            The grid the rest of the product draws albums in.
+
+            These were rows: a 52px thumbnail, a name, a line, in a bordered
+            panel. The argument for that was the locked ones — half of a
+            stranger's shelf is albums with no photograph to show, and a card
+            with nothing in it looks like a picture that failed to load.
+
+            The phone answered that a while ago and this page did not follow.
+            A locked album there is not an empty tile, it is a *shut* one:
+            hatched, with the padlock an album's own header wears. So the
+            reason for rows was never the shape, it was the missing state —
+            and the missing state has a drawing.
+
+            What is left is a profile that laid its albums out one way while
+            your own laid the same objects out another, on a desk where the
+            difference is four across against a column of rows. `.cards` is
+            the same grid your own profile and the home page use, so the shelf
+            is the same shelf wherever somebody meets it.
+          */}
+          <ul className="cards album-shelf">
             {albums.map((album) => (
-              <li key={album.id} className="album-row">
+              <li key={album.id}>
                 {/*
                   A locked album goes to its door rather than to itself. Both
                   hrefs are plain links: the page on the other end decides, and
@@ -439,53 +459,62 @@ export function PersonView({
                   decision in a place that cannot see the block.
                 */}
                 <a
-                  className={album.locked ? 'album-card album-locked' : 'album-card'}
+                  className="card"
                   href={album.locked ? `/event/${album.id}/request` : `/event/${album.id}`}
                 >
-                  {/*
-                    `Face` rather than a bare `<img>`, for the reason it exists
-                    everywhere else on this page: a cover is presigned for an
-                    hour, so a tab left open long enough is holding a URL that
-                    has expired, and the browser's answer to that is the
-                    broken-image glyph. The empty frame stands in — which is
-                    also exactly what a locked album draws, since it has no
-                    cover to sign.
-                  */}
-                  <Face
-                    src={album.cover}
-                    size={52}
-                    className="album-cover"
-                    fallback={
-                      /*
-                        A padlock in the empty frame on a locked one, and a
-                        bare frame on an unlocked album that simply has no
-                        cover yet: the same glyph an album's own header wears
-                        to mean private, so the thing that means "shut" means
-                        it in one shape across both clients.
-                      */
-                      <span className="album-cover-empty" aria-hidden="true">
-                        {album.locked && (
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            focusable="false"
-                          >
-                            <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
-                            <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
-                          </svg>
-                        )}
+                  <div className="card-cover">
+                    {/*
+                      `CoverImage` rather than a bare `<img>`, for the reason
+                      the cards above use it: a cover is presigned for an hour,
+                      so a tab left open long enough is holding a URL that has
+                      expired, and the browser's answer to that is the
+                      broken-image glyph in the middle of every card. It
+                      removes itself instead and leaves the cover's own flat
+                      rectangle.
+
+                      One source and no `sources`: a cover object is a JPEG,
+                      and there is nothing for a browser to choose between.
+                    */}
+                    {album.cover && <CoverImage src={album.cover} sources={[]} />}
+                    {/*
+                      A shut album is not an empty one.
+
+                      Hatching over the whole frame with the padlock an album's
+                      own header wears, which is what the phone draws and what
+                      keeps a card with no photograph in it from reading as a
+                      photograph that failed to arrive. An unlocked album with
+                      no cover yet keeps the flat rectangle: nothing is being
+                      withheld there.
+                    */}
+                    {album.locked && (
+                      <span className="album-shut" aria-hidden="true">
+                        <svg
+                          width="30"
+                          height="30"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          focusable="false"
+                        >
+                          <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+                          <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+                        </svg>
                       </span>
-                    }
-                  />
-                  <span className="album-what">
-                    <span className="album-name">{album.name}</span>
-                    <span className="album-detail">
+                    )}
+                  </div>
+                  {/*
+                    The two lines an event card carries, in the same place and
+                    at the same size — the name, and one line of fact under it.
+                    No faces row: who is in somebody's album is that album's to
+                    disclose, and on the locked ones there is nothing to
+                    disclose it from.
+                  */}
+                  <div className="card-under">
+                    <div className="card-name">{album.name}</div>
+                    <div className="card-meta">
                       {album.locked
                         ? 'Private · ask to join'
                         : [
@@ -498,8 +527,8 @@ export function PersonView({
                           ]
                             .filter(Boolean)
                             .join(' · ')}
-                    </span>
-                  </span>
+                    </div>
+                  </div>
                 </a>
               </li>
             ))}

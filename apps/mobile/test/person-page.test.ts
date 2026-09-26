@@ -265,6 +265,24 @@ describe('the shape of somebody else’s page', () => {
      * rest.
      */
     expect(PERSON).toMatch(/const shelf = \[/);
+    /*
+     * The same tile as the profile's own shelf, drawn by the same decoder.
+     *
+     * Two grids of the same object sat next to each other in the app with one
+     * fading its covers in and the other popping them, and a pixel of drift
+     * under the second line. Neither is worth an argument on its own; together
+     * they are the reason somebody's page does not quite look like yours.
+     */
+    const OWN = read('src/Profile.tsx');
+    for (const source of [PERSON, OWN]) {
+      expect(source).toMatch(/import \{ Image \} from 'expo-image';/);
+      expect(source).toMatch(/const COLUMNS = 2;/);
+      expect(source).toMatch(/contentFit="cover"/);
+      expect(source).toMatch(
+        /tile: \{ width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' \}/,
+      );
+      expect(source).toMatch(/tileMeta: \{ fontSize: 12\.5 \}/);
+    }
     expect(PERSON).toMatch(/cover: mine\?\.cover\?\.src \?\? event\.thumb/);
     expect(PERSON).toMatch(/grid: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GAP \}/);
     // The same two-column shelf the viewer's own profile lays out.

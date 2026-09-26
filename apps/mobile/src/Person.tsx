@@ -36,10 +36,14 @@
  */
 
 import { dateLabel } from '@parea/cards';
+/* The same decoder the profile's own shelf draws its covers with, rather than
+   React Native's. Two shelves of the same objects were fading in and popping
+   in beside each other; `expo-image` also keeps a disk cache, which is what
+   stops a tile somebody has already seen from being fetched again. */
+import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Image,
   Linking,
   Pressable,
   ScrollView,
@@ -638,7 +642,12 @@ export function PersonScreen({
                   }
                 >
                   {item.cover ? (
-                    <Image source={{ uri: item.cover }} style={styles.tile} />
+                    <Image
+                      source={{ uri: item.cover }}
+                      style={styles.tile}
+                      contentFit="cover"
+                      transition={120}
+                    />
                   ) : (
                     /*
                       A locked album has no thumbnail to draw and it is not a
@@ -787,5 +796,7 @@ const styles = StyleSheet.create({
   /* Under the picture rather than over it: a scrim block across the bottom of
      every tile is a grid that reads as captioned stock photography. */
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
-  tileMeta: { fontSize: 12.5, marginTop: 1 },
+  /* No `marginTop`. The profile's own shelf sets none, and one pixel of drift
+     between two grids of the same object is a pixel nobody chose. */
+  tileMeta: { fontSize: 12.5 },
 });

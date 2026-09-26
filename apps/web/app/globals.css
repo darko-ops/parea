@@ -1320,39 +1320,41 @@ button.secondary {
 
 /* Somebody's albums, on their profile.
 
-   A list of rows rather than the wall of covers the home screen draws, and
-   that is the point: half of these are albums the viewer cannot open, and a
-   locked row has no photograph in it. Rows make the two kinds the same object
-   with one of them dimmer, where cards would make the locked ones look like
-   pictures that failed to load. */
-.album-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.album-card {
-  display: flex; align-items: center; gap: 14px;
-  background: var(--card); border: 1px solid var(--hairline);
-  border-radius: 14px; padding: 12px 14px;
-  color: inherit; text-decoration: none;
-}
-.album-card:hover { border-color: var(--accent-soft); }
-.album-cover {
-  flex: none; width: 52px; height: 52px; border-radius: 11px;
-  object-fit: cover; overflow: hidden; background: var(--accent-soft);
-}
-/* The locked one's square. Not a broken image and not a padlock: an empty
-   frame, which is what is actually being said. */
-/* Hatching, and a padlock in the middle of it on the ones that are shut. The
-   flex is what centres the glyph; without a glyph in it the box is the same
-   hatched square it always was. */
-.album-cover-empty {
+   The same `.cards` grid the home page and your own profile draw, so a shelf
+   of albums is one object wherever it is met. This was a column of 52px rows,
+   on the argument that half of a stranger's shelf is albums with no photograph
+   to show and a card with nothing in it reads as a picture that failed to
+   load. The phone settled that: a shut album is not an empty tile, it is a
+   hatched one with a padlock on it, and once the missing state has a drawing
+   there is nothing left for rows to be better at.
+
+   A `<ul>` carrying `.cards`, which is a grid — `list-style` and the browser's
+   own padding are the only things that need saying. */
+/* `padding-left`, not `padding`. `.cards` carries the 22px under its rule that
+   separates a shelf from the heading above it, and a shorthand here would take
+   it off this one only — which is the album shelf sitting tight against a line
+   the events shelf above it clears. */
+.album-shelf { list-style: none; margin: 0; padding-left: 0; }
+/* No rule at the wide breakpoint, deliberately: `.cards` is answered there
+   already, and a second one would be the profile deciding for itself how many
+   albums fit across a desk. */
+
+/* A shut album's cover, over the whole frame.
+
+   Hatching rather than a flat fill, which is the difference between "nothing
+   is here" and "this is closed" — and the same padlock an album's own header
+   wears, so the thing that means shut means it in one shape across both
+   clients. Absolutely positioned so it covers the frame whether or not there
+   is an image behind it; there never is on a locked one, since `albumsBy`
+   drops the key before the page can sign it. */
+.album-shut {
+  position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  width: 100%; height: 100%; border-radius: 11px; color: var(--dim-soft);
+  color: var(--dim-soft);
   background: repeating-linear-gradient(
-    -45deg, var(--hairline), var(--hairline) 2px, transparent 2px, transparent 7px
+    -45deg, var(--hairline), var(--hairline) 3px, transparent 3px, transparent 10px
   );
 }
-.album-what { flex: 1; min-width: 0; }
-.album-name { display: block; font-size: 15.5px; font-weight: 600; }
-.album-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--dim); }
-.album-locked .album-name { font-weight: 500; }
 
 /* A name that leads to the person.
 
@@ -4189,16 +4191,10 @@ button.link {
      else's. */
   .you-actions, .you-act { align-self: flex-start; }
 
-  /*
-     Their albums, in columns rather than one long stack.
- 
-     `.album-list` is a single column of rows, which is right on a phone and is
-     a 1400px page with a 60px-tall card down the middle of it on a laptop. The
-     row itself is unchanged — it carries a lock and a door that a home card
-     does not — so this only lays the same objects out the way the grid beside
-     them already does.
-  */
-  .album-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  /* Their albums need nothing here. They are drawn in `.cards`, which is the
+     grid this width is already answered with everywhere else — see
+     `.album-shelf`, and the note above about the profile and the home page
+     having to agree on how many fit across. */
 }
 
 /*

@@ -282,11 +282,43 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.you-link a \{ color: var\(--accent\)/);
   });
 
-  it('lays their albums out in columns on a laptop', () => {
-    // `.album-list` is a single column of rows, which is right on a phone and
-    // is a 1400px page with a 60px card down the middle of it on a laptop. The
-    // row is unchanged — it carries a lock and a door a home card does not.
-    expect(WIDE).toMatch(/\.album-list \{ grid-template-columns: repeat\(auto-fill, minmax\(340px, 1fr\)\); \}/);
+  it('lays their albums out in the grid every other shelf uses', () => {
+    /*
+     * There is no rule for this at the wide breakpoint any more, and that is
+     * the change. `.album-list` was a column of 52px rows that the laptop
+     * block widened into columns of its own; the shelf is `.cards` now — the
+     * same grid the home page and your own profile answer this width with — so
+     * a profile and the page listing the same albums cannot disagree about how
+     * many fit across.
+     */
+    const PERSON = read('../app/components/PersonView.tsx');
+    expect(PERSON).toMatch(/<ul className="cards album-shelf">/);
+    expect(PERSON).not.toMatch(/album-list|album-row|album-card/);
+    expect(WIDE).not.toMatch(/\.album-list/);
+    // The grid itself, unchanged and shared.
+    expect(CSS).toMatch(
+      /\.cards \{\s*display: grid; gap: 20px;\s*grid-template-columns: repeat\(auto-fill, minmax\(290px, 1fr\)\);/,
+    );
+  });
+
+  it('draws a shut album as shut rather than as empty', () => {
+    /*
+     * The one thing rows were better at. A locked album has no photograph to
+     * show, and a card with nothing in it reads as a picture that failed to
+     * arrive — which was the whole argument for a list of 52px rows.
+     *
+     * So it is not empty, it is hatched, with the padlock an album's own
+     * header wears and the phone's tile already draws. An unlocked album with
+     * no cover yet keeps the flat rectangle: nothing is being withheld there,
+     * and hatching it would say something untrue.
+     */
+    const PERSON = read('../app/components/PersonView.tsx');
+    expect(PERSON).toMatch(/album\.locked && \(\s*<span className="album-shut"/);
+    expect(CSS).toMatch(/\.album-shut \{[^}]*position: absolute; inset: 0;/);
+    expect(CSS).toMatch(/\.album-shut \{[^}]*repeating-linear-gradient/);
+    // The cover itself is the same component the cards above use, so an
+    // expired URL leaves a flat rectangle rather than a broken-image glyph.
+    expect(PERSON).toMatch(/<CoverImage src=\{album\.cover\} sources=\{\[\]\} \/>/);
   });
 
   it('offers the profile to somebody, and says which way before it does', () => {
