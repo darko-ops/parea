@@ -173,6 +173,30 @@ describe('the shape of somebody else’s page', () => {
     expect(read('src/api.ts')).toMatch(/method: 'DELETE'/);
   });
 
+  it('offers a conversation beside the friend decision', () => {
+    /*
+     * Two controls where there was one, and the second one is the ordinary
+     * errand: saying something to a person you have just looked up. The only
+     * way to do that was to leave this screen, open Chats and search for
+     * somebody already on it.
+     *
+     * `createChat` with one id and no name — the call the Chats tab makes —
+     * so it is the same room rather than a second kind of conversation, and
+     * the landing is `openMadeRoom`, which is where both making screens hand
+     * their new room. Same button, same place, whichever door it was pressed
+     * behind.
+     *
+     * Outside every `standing` branch: being somebody's friend is not a
+     * precondition for talking to them, and a Chat that waited for an accepted
+     * request would make asking to be friends the way to send a message.
+     */
+    expect(PERSON).toMatch(/api\.createChat\(\[person\.actorId\]\)/);
+    expect(PERSON).toMatch(/onPress=\{\(\) => void chat\(\)\}/);
+    expect(PERSON).toMatch(/onOpenChat\(room\.id\)/);
+    expect(PERSON).not.toMatch(/standing === '[a-z]+' && \([\s\S]{0,200}void chat\(\)/);
+    expect(read('App.tsx')).toMatch(/onOpenChat=\{\(id\) => void openMadeRoom\(id\)\}/);
+  });
+
   it('prints their three totals, worked out once on the server', () => {
     /*
      * The page used to print one number — how many of *your* albums they are

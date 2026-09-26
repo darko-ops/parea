@@ -20,6 +20,7 @@ import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
 import {
   addMember,
   deckFor,
+  directChatWith,
   facesFor,
   groupsFor,
   myGroups,
@@ -153,6 +154,56 @@ async function fromPeople(
     if (id === actorId) continue;
     if (!(await invitable(db, actorId, id))) continue;
     targets.push(id);
+  }
+
+  /*
+   * One other person and no name is a direct chat, and somebody may already
+   * have one.
+   *
+   * "Chat" on a profile is a button, not a form — there is nothing to fill in
+   * and nothing to confirm — so it is pressable as often as somebody likes,
+   * and each press means "take me to our conversation". Answering the second
+   * press with a second empty room would leave two rows with the same title in
+   * their chat list and the reply in only one of them.
+   *
+   * Existing rather than created, and the 201 becomes a 200: the caller gets
+   * the same three fields either way and goes to the same place, and the
+   * status code is the one honest difference. Nobody is notified, because
+   * nothing happened — a push saying somebody added you to a chat you have
+   * been in since March is a lie about a button press.
+   *
+   * Only for the nameless two-person case. A named room is somebody deciding
+   * this is a standing thing, and `fromPeople` with a name is the Find flow
+   * deliberately making a group; neither should be silently handed a room that
+   * already exists.
+   */
+  if (!name && targets.length === 1) {
+    const existing = await directChatWith(db, actorId, targets[0]!);
+    if (existing) {
+      return NextResponse.json({
+        id: existing.id,
+        name: existing.name,
+        title: await titleOf(db, existing, actorId),
+        findable: existing.findable,
+      });
+    }
+  }
+
+  /*
+   * Nobody to talk to is not a chat.
+   *
+   * `invitable` filters rather than refuses, which is right for a cluster of
+   * eleven where one id has gone stale — the room is still the room. One name
+   * in and nothing left is a different thing: it is "Chat" pressed on somebody
+   * who has since blocked you, or a merged actor, and making a room of one
+   * would answer that by putting an empty conversation in their list forever.
+   *
+   * The blocked and the merged get the same answer, deliberately. Blocking is
+   * silent, and a refusal that distinguished them would be where somebody
+   * learns.
+   */
+  if (!name && memberIds.length > 0 && targets.length === 0) {
+    return NextResponse.json({ error: 'cannot_message' }, { status: 403 });
   }
 
   /*

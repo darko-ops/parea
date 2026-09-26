@@ -319,6 +319,32 @@ describe('what the page looks like', () => {
     expect(OWN).toMatch(/you-handle">@\{account\.handle\}/);
   });
 
+  it('offers a conversation beside the friend decision', () => {
+    /*
+     * Two controls where there was one.
+     *
+     * The page's own comment used to call the friend button "the only thing
+     * you can do about somebody", and the thing it left out was the ordinary
+     * one: saying something to a person you have just looked up. The way to
+     * do that was to leave, open Chats, and search for the person already on
+     * screen.
+     *
+     * The same call the Chats tab makes — one member, no name — so it lands in
+     * the same room rather than inventing a second kind of conversation, and
+     * it is offered whatever the standing is. Being somebody's friend is not a
+     * precondition for talking to them, and a Chat button that waited for an
+     * accepted request would make asking to be friends the way to send a
+     * message.
+     */
+    expect(VIEW).toMatch(/memberIds: \[person\.actorId\]/);
+    // Into the conversation, which is where the Chats list goes too — a room
+    // made to talk in should not open on its roster.
+    expect(VIEW).toMatch(/window\.location\.href = `\/group\/\$\{group\.id\}\/chat`/);
+    expect(VIEW).toMatch(/onClick=\{chat\}>\s*Chat/);
+    // Outside every `standing ===` branch on the row.
+    expect(VIEW).not.toMatch(/standing === '[a-z]+' && \([\s\S]{0,200}onClick=\{chat\}/);
+  });
+
   it('says the same two things on the phone', () => {
     const NATIVE = stripComments(
       readFileSync(

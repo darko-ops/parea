@@ -82,6 +82,7 @@ export function PersonScreen({
   t,
   onBack,
   onOpenEvent,
+  onOpenChat,
   Button,
 }: {
   api: Api;
@@ -97,6 +98,15 @@ export function PersonScreen({
   t: GroupTheme;
   onBack: () => void;
   onOpenEvent: (event: EventListing) => void;
+  /**
+   * Into the conversation with this person, by the room's id.
+   *
+   * The same callback the two making screens hand a new room to — see
+   * `openMadeRoom` in `App.tsx` — because landing anywhere else would make
+   * "Chat" on a profile a different act from "Chat" on the Chats tab, and it
+   * is meant to be the same one.
+   */
+  onOpenChat: (groupId: string) => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -177,6 +187,36 @@ export function PersonScreen({
       setBusy(false);
     }
   }, [api, person]);
+
+  /**
+   * Say something to them, from here.
+   *
+   * The page had one control on it and it was the friend decision, so saying
+   * something to somebody you had just looked up meant leaving for Chats and
+   * searching for a person you already had open.
+   *
+   * `createChat` with one id and no name — the call the Chats tab makes — so
+   * it is the same room and not a second kind of conversation. The server
+   * hands back the one the two of you already have when there is one, which is
+   * what makes this safe to press twice.
+   *
+   * Nothing is confirmed and nobody is told. What it does is open a room; a
+   * room with nothing in it is not news, and the notification belongs to the
+   * first thing actually said in it.
+   */
+  const chat = useCallback(async () => {
+    if (!person) return;
+    setBusy(true);
+    try {
+      const room = await api.createChat([person.actorId]);
+      setError(null);
+      onOpenChat(room.id);
+    } catch {
+      setError('Could not start that chat. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  }, [api, onOpenChat, person]);
 
   /**
    * Asking to be let into one of their private albums.
@@ -409,8 +449,13 @@ export function PersonScreen({
       </View>
 
       {/*
-        Where Edit profile and Share profile sit on your own, there is one
-        control here and it is the only thing you can do about somebody.
+        Where Edit profile and Share profile sit on your own: what you can do
+        about somebody, which is two things now rather than one.
+
+        Chat first and the friend decision after it. Talking to somebody is the
+        more ordinary errand of the two and the one that changes nothing, so it
+        leads; the control that changes what the two of you are to each other
+        is what the row reads towards.
 
         The quiet standings are worn as a label rather than offered as a
         button: "Friends" and "Asked" are states, and a control that reports a
@@ -419,6 +464,28 @@ export function PersonScreen({
         buttons, because it is the one case with a decision in it.
       */}
       <View style={[styles.actions, styles.gutter]}>
+        {/*
+          Whatever the standing says. You do not have to be somebody's friend
+          to say something to them — this page being on screen already means
+          neither of you has blocked the other — and a Chat button that waited
+          for an accepted request would turn asking to be friends into the way
+          to send a message.
+        */}
+        <Pressable
+          onPress={() => void chat()}
+          disabled={busy}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.action,
+            {
+              borderColor: t.line,
+              backgroundColor: t.card,
+              opacity: busy ? 0.5 : pressed ? 0.6 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.actionText, { color: t.fg }]}>Chat</Text>
+        </Pressable>
         {standing === 'none' && (
           <Pressable
             onPress={ask}

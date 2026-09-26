@@ -621,6 +621,58 @@ export async function titleOf(
   return titleFor(group.name, others.get(group.id) ?? []).title;
 }
 
+/**
+ * The room the two of you already have, if there is one.
+ *
+ * Exactly two members and no name: the shape `titleFor` calls `direct`, and
+ * the shape "Chat" on somebody's profile makes. It exists because that button
+ * is pressable more than once. A person who taps it, says nothing, comes back
+ * a week later and taps it again means the same conversation both times —
+ * without this they would get a second empty room with the same title as the
+ * first, and then a chat list that is two identical rows and no way to tell
+ * which one holds the reply.
+ *
+ * Named rooms are out even when they hold the same two people. Naming one is
+ * how somebody says it is a standing thing, and reusing "Sunday tennis" as the
+ * place a direct message lands would rename their conversation for both of
+ * them.
+ *
+ * The oldest match, by `created_at`, if some earlier path left more than one:
+ * the first is where anything that was ever said is.
+ */
+export async function directChatWith(
+  db: Db,
+  actorId: string,
+  otherId: string,
+): Promise<GroupRow | null> {
+  const [row] = await db
+    .select()
+    .from(schema.groups)
+    .where(
+      and(
+        isNull(schema.groups.name),
+        isNull(schema.groups.deletedAt),
+        sql`exists (
+          select 1 from "group_member" m
+          where m.group_id = ${schema.groups.id} and m.actor_id = ${actorId}
+        )`,
+        sql`exists (
+          select 1 from "group_member" m
+          where m.group_id = ${schema.groups.id} and m.actor_id = ${otherId}
+        )`,
+        // And nobody else. Without this, a three-person room the two of you
+        // are both in would answer a request for the two of you.
+        sql`(
+          select count(*) from "group_member" m where m.group_id = ${schema.groups.id}
+        ) = 2`,
+      ),
+    )
+    .orderBy(asc(schema.groups.createdAt))
+    .limit(1);
+
+  return row ?? null;
+}
+
 /** How many events a group's row previews before "View all N" takes over. */
 export const GROUP_STRIP = 3;
 /** How many faces the stack beside a group's name shows. */

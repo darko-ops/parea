@@ -160,6 +160,55 @@ export function PersonView({
     }
   }, [person.actorId]);
 
+  /**
+   * Say something to them, from here.
+   *
+   * The page had one verb on it and it was about a relationship. Wanting to
+   * say something to somebody you have just looked up is the more ordinary
+   * errand of the two, and until now it sent people to Chats to search for a
+   * person they already had open.
+   *
+   * The same call the Chats tab makes — `POST /api/groups` with one member and
+   * no name — because it should be the same room. A second way to start a
+   * conversation is how you end up with two kinds of conversation.
+   *
+   * No confirmation, and nothing to fill in. What it does is open a room where
+   * only the two of you can see what is written; nobody is told anything until
+   * there is something to tell. Pressing it again lands in the same place —
+   * the route hands back the room the two of you already have rather than
+   * making another.
+   *
+   * Into `/group/<id>/chat` rather than the room's page. A room made to talk
+   * in opens on the talking — its page is the roster, the albums and the
+   * settings, which are things somebody looks up later. This is the same
+   * destination the Chats list uses and the same one the app lands on after
+   * making a room.
+   *
+   * `location.href` rather than a router push: the page being left is a server
+   * component and the one being opened is somebody else's, and a soft
+   * navigation between them buys nothing a chat is waiting on.
+   */
+  const chat = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ memberIds: [person.actorId] }),
+      });
+      if (!res.ok) throw new Error('Could not start that chat.');
+      const group = (await res.json()) as { id: string };
+      window.location.href = `/group/${group.id}/chat`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      // Only on the way out. The success path is a navigation, and a button
+      // that comes back to life under a page that is leaving is a flicker
+      // inviting a second press.
+      setBusy(false);
+    }
+  }, [person.actorId]);
+
   const answer = useCallback(
     async (action: 'accept' | 'decline') => {
       if (!person.requestId) return;
@@ -274,6 +323,24 @@ export function PersonView({
             thing read on the row and the one with a verb about a person on it.
           */}
           <ShareProfile handle={person.handle} />
+          {/*
+            Chat, and then the friend decision — two buttons where there was
+            one, in that order.
+
+            Second of the three and not last, because last is where the
+            decision goes: the friend control is the one that changes what the
+            two of you are to each other, and it should stay the thing the row
+            reads towards. Chat changes nothing; it just opens a room.
+
+            Offered whatever standing says. You do not have to be somebody's
+            friend to say something to them — the page is reachable, which
+            already means neither of you has blocked the other — and a Chat
+            button that appeared only after an accepted request would make
+            asking to be friends the way to send a message.
+          */}
+          <button type="button" className="secondary small" disabled={busy} onClick={chat}>
+            Chat
+          </button>
           {standing === 'friends' && <span className="pip">Friends</span>}
           {/*
             "Requested", and pressing it withdraws.

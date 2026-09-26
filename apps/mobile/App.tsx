@@ -1406,6 +1406,9 @@ export default function App() {
             t={t}
             onBack={leaveToTabs}
             onOpenEvent={openListing}
+            /* The same landing the making screens get: into the conversation,
+               with the tab behind it refreshed. See `openMadeRoom`. */
+            onOpenChat={(id) => void openMadeRoom(id)}
             Button={Button}
           />
         </SwipeBack>

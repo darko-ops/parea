@@ -1300,7 +1300,10 @@ button.secondary {
 /* Where Edit sits on your own profile, on somebody else's. Top-aligned with
    the name for the same reason Edit is: the header's height is set by the
    picture, and a control centred against it floats beside nothing. */
-.you-act { flex: none; display: flex; gap: 8px; }
+/* Share, Chat, and the friend decision. Wrapping, because it is three things
+   now and the narrow end of the header is not wide enough to promise a row —
+   the same reason `.you-actions` wraps on your own profile. */
+.you-act { flex: none; display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
@@ -4182,7 +4185,8 @@ button.link {
   /* The controls stay with the name rather than dropping under the bio: they
      are about the person in the header, and the header now has a corner to
      keep them in. Both rows — `.you-actions` is your own profile's Edit and
-     Share, `.you-act` is the friend decision and Share on somebody else's. */
+     Share, `.you-act` is Share, Chat and the friend decision on somebody
+     else's. */
   .you-actions, .you-act { align-self: flex-start; }
 
   /*

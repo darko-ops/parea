@@ -216,17 +216,17 @@ describe('the profile at two widths', () => {
      * the same *action*: `Edit` has no meaning here, and the slot beside the
      * name holds the friend decision instead.
      *
-     * Share goes first and quiet, so the control that is a decision about a
-     * person is the last thing read on the row. The app deliberately has one
-     * control on this screen — "the only thing you can do about somebody" —
-     * and that argument is about not crowding the decision, which this does
-     * not: sharing is not a thing you do to a person, and a browser has the
-     * address in the bar already.
+     * Three things in one order, and the order is the argument. Share first
+     * and quiet: it is not a thing you do to a person, and a browser has the
+     * address in the bar already. Chat next, because talking to somebody
+     * changes nothing about what the two of you are. The friend decision
+     * last, so the control that is a decision is what the row reads towards.
      */
     const PERSON = read('../app/components/PersonView.tsx');
     expect(PERSON).toMatch(/className="you-ribbon"/);
     const act = PERSON.slice(PERSON.indexOf('className="you-act"'));
-    expect(act.indexOf('<ShareProfile')).toBeLessThan(act.indexOf("standing === 'friends'"));
+    expect(act.indexOf('<ShareProfile')).toBeLessThan(act.indexOf('onClick={chat}'));
+    expect(act.indexOf('onClick={chat}')).toBeLessThan(act.indexOf("standing === 'friends'"));
   });
 
   it('pulls the ribbon back through whichever page it is on', () => {
