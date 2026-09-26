@@ -28,7 +28,7 @@ const CSS = readFileSync(
 );
 
 describe('what a card says now that the photograph is the card', () => {
-  it('says the name, and nothing else in that line', () => {
+  it('says the name, and nothing but the "added to" note in that line', () => {
     expect(CARD).toMatch(/className="card-name">\{event\.name\}/);
   });
 
@@ -49,31 +49,41 @@ describe('what a card says now that the photograph is the card', () => {
     expect(meta).not.toMatch(/event\.live/);
   });
 
-  it('hangs "added to" on the trailing edge of the host row', () => {
+  it('hangs "added to" on the title\u2019s line, at the card\u2019s trailing edge', () => {
     /*
-     * Not beside the handle and not in the middle of the line below it. Every
-     * album still being added to says so at the same x, so a reader coming
-     * down a grid finds all of them in one sweep rather than reading each
-     * caption to find out which is which.
+     * Not in the caption two lines down, where it began, and not on the host
+     * row, where it went next. It is a fact about the photographs directly
+     * above it, so it belongs on the first line under them — the further down
+     * it sits the more it reads as a footnote to the caption.
      *
-     * `margin-left: auto` is the whole mechanism — the gap is whatever the
-     * card has left, so the note ends on the card's own edge whatever the host
-     * is called. The app's card does the same thing in the same place; see
-     * `bylineAbout` in `apps/mobile/src/Events.tsx`.
-     */
-    expect(CARD).toMatch(/\{event\.live && \(\s*<span className="card-host-added">added to \{event\.added\}<\/span>/);
-    expect(CSS).toMatch(/\.card-host-added \{[^}]*margin-left: auto/);
-    // It must survive the squeeze; the handle beside it is the one that
-    // truncates. "added to" is what says what kind of fact the time is.
-    expect(CSS).toMatch(/\.card-host-added \{[^}]*white-space: nowrap/);
-    /*
-     * And the row is drawn for a live album with nobody to name — a guest who
-     * arrived by link and never made an account — or the one card that most
-     * needs saying "this is happening now" would be the one that could not.
+     * The pair of them is what a reader gets: one x and one y, so every album
+     * still being added to is found in a single sweep down a grid rather than
+     * by reading each card's caption to see which is which.
      */
     expect(CARD).toMatch(
-      /event\.mine \|\| event\.creatorName \|\| event\.creatorHandle \|\| event\.live/,
+      /<div className="card-head">\s*<div className="card-name">\{event\.name\}<\/div>\s*\{event\.live && <span className="card-added">added to \{event\.added\}<\/span>\}/,
     );
+    expect(CSS).toMatch(/\.card-head \{[^}]*align-items: baseline/);
+    expect(CSS).toMatch(/\.card-added \{[^}]*margin-left: auto/);
+    // It must survive the squeeze; the title beside it is the one that
+    // ellipses. "added to" is what says what kind of fact the time is.
+    expect(CSS).toMatch(/\.card-added \{[^}]*white-space: nowrap/);
+    expect(CSS).toMatch(/\.card-name \{[^}]*min-width: 0/);
+  });
+
+  it('sets the note under every other line on the card', () => {
+    /*
+     * 11px against the 13px of the host row and the caption, and a 17px title
+     * beside it. It is the newest thing on the card and still the least
+     * important — the subject is somebody's photograph, and a note set to
+     * compete with the title would be the loudest thing on the card saying the
+     * least.
+     */
+    const size = (rule: string) =>
+      Number(CSS.match(new RegExp(`\\${rule} \\{[^}]*font-size: (\\d+)px`))![1]);
+    expect(size('.card-added')).toBeLessThan(size('.card-host-handle'));
+    expect(size('.card-added')).toBeLessThan(size('.card-meta'));
+    expect(size('.card-added')).toBeLessThan(size('.card-name'));
   });
 
   it('says whose event it is, in both of their names', () => {

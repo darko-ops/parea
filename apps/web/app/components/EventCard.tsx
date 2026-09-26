@@ -152,7 +152,35 @@ export function EventCard({ event }: { event: CardEvent }) {
       )}
 
       <div className="card-under">
-        <div className="card-name">{event.name}</div>
+        {/*
+          The name, and at the far end of its line, what has just happened.
+
+          The note has been in three places. It began in the caption below,
+          standing *in place of* the date — "8 people · added to 2 minutes ago"
+          — which made the one card worth spotting on the page the one card
+          that did not say when its evening was, and hid the news mid-sentence
+          behind a number nobody scans for. Then at the end of the host row,
+          which fixed the x and left it two lines down.
+
+          It is on the title's line because it is a fact about the photographs
+          directly above it, and the further it sits from them the more it
+          reads as a footnote to the caption instead. First line under the
+          cover, trailing edge: a reader coming down a grid finds every album
+          still being added to at one x and one y, in a single sweep.
+
+          Smaller than everything around it on purpose. It is the newest thing
+          on the card and still the least important — the subject is somebody's
+          photograph, and a note that competed with the title for the eye would
+          be the loudest thing on the card saying the least.
+
+          The app's card does the same thing in the same place — see
+          `bylineAbout` in `apps/mobile/src/Events.tsx`. One object, one
+          drawing of it, on both clients.
+        */}
+        <div className="card-head">
+          <div className="card-name">{event.name}</div>
+          {event.live && <span className="card-added">added to {event.added}</span>}
+        </div>
         {/*
           Whose event it is, in their own two names.
 
@@ -166,15 +194,7 @@ export function EventCard({ event }: { event: CardEvent }) {
           so is a display name — and what is left stands alone rather than
           leaving a gap where the other was.
         */}
-        {/*
-          Drawn when there is a host to name *or* something still arriving, and
-          `event.live` is in that condition for the album with neither a display
-          name nor a handle behind it — a guest who arrived by link and never
-          made an account. Without it the note would have no row to sit on and
-          the one card that most needs saying "this is happening now" would be
-          the one card that could not.
-        */}
-        {(event.mine || event.creatorName || event.creatorHandle || event.live) && (
+        {(event.mine || event.creatorName || event.creatorHandle) && (
           <div className="card-host">
             {(event.mine || event.creatorName) && (
               <span className="card-host-name">
@@ -183,28 +203,6 @@ export function EventCard({ event }: { event: CardEvent }) {
             )}
             {event.creatorHandle && (
               <span className="card-host-handle">@{event.creatorHandle}</span>
-            )}
-            {/*
-              And at the far end of that row, what has just happened to it.
-
-              This was in the line below, standing *in place of* the date —
-              "8 people · added to 2 minutes ago" — which made the one card
-              worth spotting on the page the one card that did not say when its
-              evening was, and hid the news in the middle of a sentence whose
-              left half is a number nobody is scanning for.
-
-              Pushed to the card's trailing edge it becomes a column: every
-              album that is still being added to says so at the same x, so a
-              reader coming down a grid finds all of them in one sweep instead
-              of reading each caption to find out. The date goes back to being
-              the date.
-
-              The app's card does the same thing in the same place — see
-              `bylineAbout` in `apps/mobile/src/Events.tsx`. One object, one
-              drawing of it, on both clients.
-            */}
-            {event.live && (
-              <span className="card-host-added">added to {event.added}</span>
             )}
           </div>
         )}
