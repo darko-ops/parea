@@ -211,22 +211,51 @@ describe('the profile at two widths', () => {
 
   it('gives somebody else\u2019s profile the same page', () => {
     /*
-     * It is the same page about a different person, so it is the same ribbon,
-     * the same row on a laptop and the same share control. What it is not is
-     * the same *action*: `Edit` has no meaning here, and the slot beside the
-     * name holds the friend decision instead.
+     * It is the same page about a different person, so it is the same ribbon
+     * and the same row on a laptop. What it is not is the same *actions*:
+     * `Edit` has no meaning here, and neither, it turns out, does Share.
      *
-     * Three things in one order, and the order is the argument. Share first
-     * and quiet: it is not a thing you do to a person, and a browser has the
-     * address in the bar already. Chat next, because talking to somebody
-     * changes nothing about what the two of you are. The friend decision
-     * last, so the control that is a decision is what the row reads towards.
+     * Share went because the argument for it was the argument against it. A
+     * browser has this page's address in the bar, so a button that copies it
+     * offers to do what the reader can already see how to do — and it was
+     * taking a third of a row whose other two are the things only this page
+     * can do. The app never had one here. Your own profile keeps it, where it
+     * hands out a link to a page nobody can look up.
+     *
+     * Two things in one order: Chat, then the friend decision, because last
+     * is where the control that changes what the two of you are should sit.
      */
     const PERSON = read('../app/components/PersonView.tsx');
     expect(PERSON).toMatch(/className="you-ribbon"/);
+    expect(PERSON).not.toMatch(/ShareProfile/);
+    // Still on your own, which is the page a shared link is for.
+    expect(read('../app/components/AccountView.tsx')).toMatch(/<ShareProfile handle=/);
     const act = PERSON.slice(PERSON.indexOf('className="you-act"'));
-    expect(act.indexOf('<ShareProfile')).toBeLessThan(act.indexOf('onClick={chat}'));
     expect(act.indexOf('onClick={chat}')).toBeLessThan(act.indexOf("standing === 'friends'"));
+  });
+
+  it('gives the two controls one shape', () => {
+    /*
+     * A friend's profile showed a 13px bordered pill next to a 12.5px rounded
+     * chip: two controls with nothing in common but the row they sat on. They
+     * are the two halves of one question — what do you want to do about this
+     * person — and the page was answering it for the reader by drawing one of
+     * them as a different kind of object.
+     *
+     * So "Friends" is shaped as the button beside it, and "Add friend" stopped
+     * being the one filled control on the row. The numbers are repeated in
+     * `.you-state` rather than shared, because the button rules are written
+     * against `button` and widening them to a bare class would reach every
+     * `.small` on the site — which is why this test holds the pair together.
+     */
+    const PERSON = read('../app/components/PersonView.tsx');
+    expect(PERSON).toMatch(/<span className="you-state">Friends<\/span>/);
+    expect(PERSON).not.toMatch(/className="pip">Friends/);
+    expect(PERSON).toMatch(/className="secondary small" disabled=\{busy\} onClick=\{ask\}/);
+    expect(CSS).toMatch(/button\.small \{ padding: 7px 11px; font-size: 13px; border-radius: 8px; \}/);
+    expect(CSS).toMatch(/\.you-state \{[^}]*padding: 7px 11px; font-size: 13px; font-weight: 600;/);
+    expect(CSS).toMatch(/\.you-state \{[^}]*border-radius: 8px; border: 1px solid var\(--line\)/);
+    expect(CSS).toMatch(/button\.secondary \{\s*background: transparent; color: var\(--fg\); border: 1px solid var\(--line\)/);
   });
 
   it('pulls the ribbon back through whichever page it is on', () => {

@@ -1354,10 +1354,28 @@ button.secondary {
 /* Where Edit sits on your own profile, on somebody else's. Top-aligned with
    the name for the same reason Edit is: the header's height is set by the
    picture, and a control centred against it floats beside nothing. */
-/* Share, Chat, and the friend decision. Wrapping, because it is three things
-   now and the narrow end of the header is not wide enough to promise a row —
-   the same reason `.you-actions` wraps on your own profile. */
+/* Chat and the friend decision. Wrapping, the same reason `.you-actions` wraps
+   on your own profile: the narrow end of the header is not wide enough to
+   promise a row. Share used to be here and is not — see `PersonView`. */
 .you-act { flex: none; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* "Friends", which is a state rather than a control.
+
+   Shaped as `button.secondary.small` because it stands beside one: this row is
+   two answers to one question, and a chip next to a pill makes them two kinds
+   of thing. The declarations are repeated rather than shared, because the
+   button rules are written against `button` and widening them to a bare class
+   would reach every `.small` on the site. What has to stay true is that these
+   numbers are those numbers — `profile-link.test.ts` holds the pair together.
+
+   Not pressable, and that is said by it not pressing. A cursor and a hover
+   state are what would promise otherwise, and it has neither. */
+.you-state {
+  flex: none; padding: 7px 11px; font-size: 13px; font-weight: 600;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: transparent; color: var(--fg);
+  white-space: nowrap; line-height: normal;
+}
 
 /* The two ways of having no events in common. Given room rather than tucked
    under the heading: on this page it is the answer, not an aside. */
@@ -4249,8 +4267,7 @@ button.link {
   /* The controls stay with the name rather than dropping under the bio: they
      are about the person in the header, and the header now has a corner to
      keep them in. Both rows — `.you-actions` is your own profile's Edit and
-     Share, `.you-act` is Share, Chat and the friend decision on somebody
-     else's. */
+     Share, `.you-act` is Chat and the friend decision on somebody else's. */
   .you-actions, .you-act { align-self: flex-start; }
 
   /* Their albums need nothing here. They are drawn in `.cards`, which is the

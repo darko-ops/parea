@@ -59,7 +59,6 @@ import type { Standing } from '@/people';
 import { Avatar } from './Avatar';
 import { CoverImage } from './CoverImage';
 import { EventCard } from './EventCard';
-import { ShareProfile } from './ShareProfile';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -305,32 +304,32 @@ export function PersonView({
           )}
         </div>
 
-        {/* Where Edit and Share sit on your own. The quiet states are worn as a
-            label; the ones that are somebody's to answer are buttons. */}
+        {/*
+          Where Edit and Share sit on your own: two controls, the same size and
+          the same weight as each other.
+
+          There were three, and the first was Share. It went, and the argument
+          it used to carry is the argument against it: a browser has this
+          page's address in the bar above, so a button that copies it is the
+          page offering to do something the reader can already see how to do —
+          and it was taking a third of a row whose other two are the things
+          that only this page can do. The app never had it here either. Your
+          own profile keeps it, where it is how you hand out a link to a page
+          nobody can look up.
+
+          What is left is uniform on purpose. Chat and the friend control are
+          the same bordered pill at the same size, because they are the two
+          halves of one question — what do you want to do about this person —
+          and a filled button beside an outlined one answers it for the reader.
+        */}
         <div className="you-act">
           {/*
-            Handing somebody this person's page.
+            Chat first, the friend decision second.
 
-            The app deliberately has one control here — "the only thing you can
-            do about somebody" — and that argument is about the friend decision
-            not being crowded, which it still is not: sharing is not a thing
-            you do *to* a person. A browser also makes the case the phone
-            cannot, because the address is already in the bar above: a button
-            that copies it is the page agreeing with what somebody was about to
-            do by hand.
-
-            First and quiet, so the control that is a decision is the last
-            thing read on the row and the one with a verb about a person on it.
-          */}
-          <ShareProfile handle={person.handle} />
-          {/*
-            Chat, and then the friend decision — two buttons where there was
-            one, in that order.
-
-            Second of the three and not last, because last is where the
-            decision goes: the friend control is the one that changes what the
-            two of you are to each other, and it should stay the thing the row
-            reads towards. Chat changes nothing; it just opens a room.
+            Last is where the decision goes: the friend control is the one that
+            changes what the two of you are to each other, and it should stay
+            the thing the row reads towards. Chat changes nothing; it just
+            opens a room.
 
             Offered whatever standing says. You do not have to be somebody's
             friend to say something to them — the page is reachable, which
@@ -341,7 +340,16 @@ export function PersonView({
           <button type="button" className="secondary small" disabled={busy} onClick={chat}>
             Chat
           </button>
-          {standing === 'friends' && <span className="pip">Friends</span>}
+          {/*
+            Friends, worn as a label and shaped like the button beside it.
+
+            It was a `pip` — a small rounded chip, 12.5px, next to a 13px
+            pill with a border — so a friend's profile showed two controls
+            that had nothing in common but their row. There is still nothing
+            to press here, and that is said by it not pressing rather than by
+            it being a different kind of object.
+          */}
+          {standing === 'friends' && <span className="you-state">Friends</span>}
           {/*
             "Requested", and pressing it withdraws.
 
@@ -369,8 +377,11 @@ export function PersonView({
               Requested
             </button>
           )}
+          {/* The same pill as Chat. It was the one filled control on the row,
+              which made the other two read as its alternatives rather than as
+              two things you can do. */}
           {standing === 'none' && (
-            <button type="button" className="small" disabled={busy} onClick={ask}>
+            <button type="button" className="secondary small" disabled={busy} onClick={ask}>
               Add friend
             </button>
           )}

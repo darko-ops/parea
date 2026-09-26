@@ -241,12 +241,13 @@ describe('what the page looks like', () => {
      * The same header and the same cards, so that somebody arriving from a
      * search result does not have to read the screen before reading the
      * person. What is missing is Edit — it is not theirs to edit — and what is
-     * in its place is the friend decision, with Share beside it.
+     * in its place is Chat and the friend decision.
      *
      * `you-edit` is asserted absent as a *string*, which is what caught the
-     * share button borrowing that class for its styling: a quiet pill on
-     * somebody else's profile is not an Edit, and a class that has to lie for
-     * the styling to reach it is one that turns up in the wrong grep later.
+     * share button borrowing that class for its styling back when there was
+     * one here: a quiet pill on somebody else's profile is not an Edit, and a
+     * class that has to lie for the styling to reach it is one that turns up
+     * in the wrong grep later.
      */
     expect(VIEW).toMatch(/className="you-head"/);
     expect(VIEW).toMatch(/<Avatar\s+url=\{person\.avatar\}/);
