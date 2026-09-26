@@ -32,15 +32,48 @@ describe('what a card says now that the photograph is the card', () => {
     expect(CARD).toMatch(/className="card-name">\{event\.name\}/);
   });
 
-  it('says who and when, in that order', () => {
+  it('says who and when, in that order, and the when is always the evening', () => {
     /*
      * "8 people · Fri 14 Mar". The people first because that is what somebody
      * recognises an evening by, and the date is the event's own evening rather
-     * than the last upload — except while it is being added to, where the
-     * recent thing *is* the news.
+     * than the last upload.
+     *
+     * It used to be replaced by "added to 2 minutes ago" while the album was
+     * live, which made the one card worth spotting on the page the one card
+     * that would not say when its evening was. What has just arrived has a
+     * place of its own now — see below — so this line stopped having two jobs.
      */
     expect(CARD).toMatch(/event\.memberCount === 1 \? 'person' : 'people'/);
-    expect(CARD).toMatch(/event\.live \? `added to \$\{event\.added\}` : event\.date/);
+    expect(CARD).not.toMatch(/event\.live \? `added to/);
+    const meta = CARD.slice(CARD.indexOf('className="card-meta">\n'));
+    expect(meta).not.toMatch(/event\.live/);
+  });
+
+  it('hangs "added to" on the trailing edge of the host row', () => {
+    /*
+     * Not beside the handle and not in the middle of the line below it. Every
+     * album still being added to says so at the same x, so a reader coming
+     * down a grid finds all of them in one sweep rather than reading each
+     * caption to find out which is which.
+     *
+     * `margin-left: auto` is the whole mechanism — the gap is whatever the
+     * card has left, so the note ends on the card's own edge whatever the host
+     * is called. The app's card does the same thing in the same place; see
+     * `bylineAbout` in `apps/mobile/src/Events.tsx`.
+     */
+    expect(CARD).toMatch(/\{event\.live && \(\s*<span className="card-host-added">added to \{event\.added\}<\/span>/);
+    expect(CSS).toMatch(/\.card-host-added \{[^}]*margin-left: auto/);
+    // It must survive the squeeze; the handle beside it is the one that
+    // truncates. "added to" is what says what kind of fact the time is.
+    expect(CSS).toMatch(/\.card-host-added \{[^}]*white-space: nowrap/);
+    /*
+     * And the row is drawn for a live album with nobody to name — a guest who
+     * arrived by link and never made an account — or the one card that most
+     * needs saying "this is happening now" would be the one that could not.
+     */
+    expect(CARD).toMatch(
+      /event\.mine \|\| event\.creatorName \|\| event\.creatorHandle \|\| event\.live/,
+    );
   });
 
   it('says whose event it is, in both of their names', () => {

@@ -166,7 +166,15 @@ export function EventCard({ event }: { event: CardEvent }) {
           so is a display name — and what is left stands alone rather than
           leaving a gap where the other was.
         */}
-        {(event.mine || event.creatorName || event.creatorHandle) && (
+        {/*
+          Drawn when there is a host to name *or* something still arriving, and
+          `event.live` is in that condition for the album with neither a display
+          name nor a handle behind it — a guest who arrived by link and never
+          made an account. Without it the note would have no row to sit on and
+          the one card that most needs saying "this is happening now" would be
+          the one card that could not.
+        */}
+        {(event.mine || event.creatorName || event.creatorHandle || event.live) && (
           <div className="card-host">
             {(event.mine || event.creatorName) && (
               <span className="card-host-name">
@@ -176,22 +184,42 @@ export function EventCard({ event }: { event: CardEvent }) {
             {event.creatorHandle && (
               <span className="card-host-handle">@{event.creatorHandle}</span>
             )}
+            {/*
+              And at the far end of that row, what has just happened to it.
+
+              This was in the line below, standing *in place of* the date —
+              "8 people · added to 2 minutes ago" — which made the one card
+              worth spotting on the page the one card that did not say when its
+              evening was, and hid the news in the middle of a sentence whose
+              left half is a number nobody is scanning for.
+
+              Pushed to the card's trailing edge it becomes a column: every
+              album that is still being added to says so at the same x, so a
+              reader coming down a grid finds all of them in one sweep instead
+              of reading each caption to find out. The date goes back to being
+              the date.
+
+              The app's card does the same thing in the same place — see
+              `bylineAbout` in `apps/mobile/src/Events.tsx`. One object, one
+              drawing of it, on both clients.
+            */}
+            {event.live && (
+              <span className="card-host-added">added to {event.added}</span>
+            )}
           </div>
         )}
         {/*
           Who and when, in that order, and the when is the evening rather than
-          the upload — except on an event being added to now, where the recent
-          thing *is* the news. That sentence is the whole of it now: the badge
-          over the photograph said the same thing louder, and one claim does not
-          need saying twice on one card. No caption on this line and none above it: a
-          second sentence under the name is what made a photograph look like a
-          listing. The event with no photographs still has one, because that
-          card is text and the sentence is most of what it has.
+          the upload — always, now that what has just arrived has a place of its
+          own above. No caption on this line and none above it: a second
+          sentence under the name is what made a photograph look like a listing.
+          The event with no photographs still has one, because that card is text
+          and the sentence is most of what it has.
         */}
         <div className="card-meta">
           {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}
-          {(event.live || event.date) && ' · '}
-          {event.live ? `added to ${event.added}` : event.date}
+          {event.date && ' · '}
+          {event.date}
         </div>
       </div>
     </a>

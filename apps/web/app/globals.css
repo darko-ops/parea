@@ -1070,6 +1070,21 @@ button.secondary {
   font-size: 12px; color: var(--dim-soft);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* What has just arrived, at the trailing edge of the same row.
+
+   `margin-left: auto` is what puts it there — the gap between the handle and
+   this is whatever the card has left, so the note ends on the card's own edge
+   whatever the host is called, and a grid of these reads as a column of "still
+   happening" rather than a fact buried at a different x on every card.
+
+   `flex: none` and `nowrap` because it is the half that must survive: the
+   handle beside it already truncates, and "added to" is what says what kind of
+   fact the time is — a line clipped to "… 2 minutes ago" is a duration with no
+   claim attached. */
+.card-host-added {
+  margin-left: auto; flex: none; padding-left: 8px;
+  color: var(--dim); white-space: nowrap;
+}
 .card-meta { font-size: 13px; line-height: 1.35; color: var(--dim); margin-top: 2px; }
 
 /* An event with no photographs gets none of the above — cropping nothing

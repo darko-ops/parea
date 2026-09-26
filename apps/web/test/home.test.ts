@@ -11,6 +11,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -98,6 +99,42 @@ describe('the order the list comes back in', () => {
     expect(listing!.contributorCount, 'contributors').toBe(1);
     expect(listing!.photoCount, 'photos').toBe(2);
     expect(listing!.arrivingCount, 'arriving').toBe(1);
+  });
+});
+
+describe('an album somebody has just added to', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+
+  it('reaches the top of the page, because the page is rendered per visit', () => {
+    /*
+     * The order above is only worth having if somebody sees it. The list is
+     * sorted on the server, so the question for the web is whether the browser
+     * is ever shown a copy of it made before the upload.
+     *
+     * It is not, and three things have to stay true for that. The page is
+     * `force-dynamic`, so every visit is a fresh query rather than a build's
+     * answer. Nothing here re-sorts what the server sent — `HomeView` filters
+     * the cards it is handed by id and hands the rest back in order, so there
+     * is one answer to "what is newest" and it is the same one the app gets.
+     * And `lastActiveAt` is stamped where the bytes land, which is what makes
+     * "added to" on the card and "at the top" on the page the same event
+     * rather than two that can disagree.
+     *
+     * The app needed a fix here that this does not: it holds the list in
+     * memory across screens, so it had to be told when to ask again. See the
+     * queue-drain effect in `apps/mobile/App.tsx`.
+     */
+    const page = read('../app/events/page.tsx');
+    expect(page).toMatch(/export const dynamic = 'force-dynamic';/);
+    expect(page).not.toMatch(/\.sort\(/);
+    expect(read('../app/components/HomeView.tsx')).not.toMatch(/\.sort\(/);
+    expect(read('../src/events.ts')).toMatch(
+      /\.orderBy\(desc\(schema\.events\.lastActiveAt\)\)/,
+    );
+    expect(read('../app/api/uploads/[id]/complete/route.ts')).toMatch(
+      /\.set\(\{ lastActiveAt: new Date\(\) \}\)/,
+    );
   });
 });
 
