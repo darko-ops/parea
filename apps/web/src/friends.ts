@@ -40,6 +40,72 @@ export type Person = {
   avatarKey: string | null;
 };
 
+/**
+ * Where a viewer and a person in a list stand, worked out row by row.
+ *
+ * The same five words `profileFor` uses and deliberately the same type: a
+ * search result that offers "Add friend" to somebody you asked last week is
+ * the list disagreeing with the page it opens, and two vocabularies for that
+ * is how the disagreement gets written by accident.
+ *
+ * `self` never appears here — `findPeople` excludes the viewer — but the type
+ * is shared rather than narrowed, because a narrower one would have to be
+ * widened again at the boundary that renders both.
+ */
+export type Standing = 'friends' | 'asked' | 'asking' | 'none';
+
+/** A person in a list, with what the viewer may do about them. */
+export type FoundPerson = Person & { standing: Standing };
+
+/**
+ * The standing of every row, in the row's own query.
+ *
+ * Three correlated subqueries rather than three statements and a join in
+ * JavaScript: this runs over at most ten rows — `SEARCH_LIMIT` — and the
+ * alternative is a round trip per person in a list that is redrawn on every
+ * keystroke somebody types.
+ *
+ * Theirs before yours, the order `profileFor` argues for: if you have both
+ * asked, the one you can act on is the one pointing at you, and a row reading
+ * "Requested" over somebody's unanswered question is the list hiding it.
+ *
+ * An outgoing request counts whatever its status — a declined one reads the
+ * same as an open one, because saying "no" is said once and telling somebody
+ * they were refused is the refuser's to do.
+ */
+function standingOf(actorId: string | null) {
+  if (!actorId) return sql<Standing>`'none'`;
+  /*
+   * `"actor".id`, written out rather than interpolated.
+   *
+   * Drizzle qualifies an interpolated column with its table only when the
+   * query has a join, and neither search below has one — so `${schema.actors
+   * .id}` renders as a bare `"id"`, which inside `from "friend_request" r`
+   * resolves against `friend_request`, a table with an `id` of its own. The
+   * clause becomes `r.to_actor_id = r.id`: valid SQL, no error, and never
+   * true. Every row came back `none`, which is the answer that offers to ask
+   * somebody you already asked.
+   */
+  return sql<Standing>`(
+    case
+      when exists (
+        select 1 from "friendship" f
+        where f.actor_id = ${actorId} and f.friend_actor_id = "actor".id
+      ) then 'friends'
+      when exists (
+        select 1 from "friend_request" r
+        where r.from_actor_id = "actor".id and r.to_actor_id = ${actorId}
+          and r.status = 'open'
+      ) then 'asking'
+      when exists (
+        select 1 from "friend_request" r
+        where r.from_actor_id = ${actorId} and r.to_actor_id = "actor".id
+      ) then 'asked'
+      else 'none'
+    end
+  )`;
+}
+
 /** The most a search will return. Enough to find who you meant, and not a page. */
 export const SEARCH_LIMIT = 10;
 /** Below this a search is a way to enumerate handles rather than to find one. */
@@ -61,7 +127,7 @@ export async function findPeople(
   db: Db,
   actorId: string | null,
   query: string,
-): Promise<Person[]> {
+): Promise<FoundPerson[]> {
   const key = handleKey(query);
   if (key.length < SEARCH_MIN) return [];
 
@@ -71,6 +137,7 @@ export async function findPeople(
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
       avatarKey: schema.actors.avatarKey,
+      standing: standingOf(actorId),
     })
     .from(schema.actors)
     .where(
@@ -236,7 +303,7 @@ export async function findByPhone(
   db: Db,
   actorId: string | null,
   query: string,
-): Promise<Person[]> {
+): Promise<FoundPerson[]> {
   const e164 = normalisePhone(query);
   if (!e164) return [];
 
@@ -246,6 +313,10 @@ export async function findByPhone(
       handle: schema.actors.handle,
       displayName: schema.actors.displayName,
       avatarKey: schema.actors.avatarKey,
+      // The same field the handle search sends. A caller must not be able to
+      // tell from the response which door it came through — see the note in
+      // the route — and a row that is missing a column is a difference.
+      standing: standingOf(actorId),
     })
     .from(schema.actors)
     .where(

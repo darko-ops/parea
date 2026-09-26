@@ -217,7 +217,7 @@ export async function eventsFor(
                  p.storage_key as "storageKey",
                  encode(p.content_hash, 'hex') as hash
           from "photo" p
-          where p.event_id = ${schema.events.id}
+          where p.event_id = "event".id
             and p.status = 'ready' and p.deleted_at is null
           order by p.uploaded_at desc
           limit ${MOSAIC_TILES}
@@ -239,11 +239,11 @@ export async function eventsFor(
           select a.id as "actorId",
                  coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone') as name,
                  a.avatar_key as "avatarKey",
-                 (a.id = ${schema.events.createdBy}) as "isCreator"
+                 (a.id = "event".created_by) as "isCreator"
           from "event_participant" ep
           join "actor" a on a.id = ep.actor_id
-          where ep.event_id = ${schema.events.id}
-          order by (a.id = ${schema.events.createdBy}) desc, ep.first_seen_at asc
+          where ep.event_id = "event".id
+          order by (a.id = "event".created_by) desc, ep.first_seen_at asc
           limit ${CARD_FACES + 1}
         ) f
       )`,
@@ -263,7 +263,7 @@ export async function eventsFor(
        */
       firstPhotoAt: sql<Date | null>`(
         select min(coalesce(p.captured_at, p.uploaded_at)) from "photo" p
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'ready' and p.deleted_at is null
       )`,
       // Counted in the query rather than per row: a home screen that issues
@@ -271,16 +271,16 @@ export async function eventsFor(
       // the point someone has a lot of them.
       memberCount: sql<number>`(
         select count(*)::int from "event_participant" ep
-        where ep.event_id = ${schema.events.id}
+        where ep.event_id = "event".id
       )`,
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'ready' and p.deleted_at is null
       )`,
       contributorCount: sql<number>`(
         select count(distinct p.uploader_id)::int from "photo" p
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'ready' and p.deleted_at is null
       )`,
       // 'pending' is the state between the bytes landing and the deriver
@@ -288,7 +288,7 @@ export async function eventsFor(
       // arriving, it has arrived and been dealt with.
       arrivingCount: sql<number>`(
         select count(*)::int from "photo" p
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'pending' and p.deleted_at is null
       )`,
       /*
@@ -303,7 +303,7 @@ export async function eventsFor(
        */
       messageCount: sql<number>`(
         select count(*)::int from "event_message" m
-        where m.event_id = ${schema.events.id} and m.deleted_at is null
+        where m.event_id = "event".id and m.deleted_at is null
       )`,
       /*
        * And the reactions on those photographs.
@@ -316,13 +316,13 @@ export async function eventsFor(
       reactionCount: sql<number>`(
         select count(*)::int from "photo_reaction" r
         join "photo" p on p.id = r.photo_id
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'ready' and p.deleted_at is null
       )`,
       creatorName: schema.actors.displayName,
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
-      mine: sql<boolean>`${schema.events.createdBy} = ${actorId}`,
+      mine: sql<boolean>`"event".created_by = ${actorId}`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
@@ -335,7 +335,7 @@ export async function eventsFor(
         or(
           sql`exists (
             select 1 from "event_participant" ep
-            where ep.event_id = ${schema.events.id} and ep.actor_id = ${actorId}
+            where ep.event_id = "event".id and ep.actor_id = ${actorId}
           )`,
           sql`exists (
             select 1 from "group_member" gm

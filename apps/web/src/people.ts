@@ -382,23 +382,53 @@ export async function albumsBy(
       coverKey: schema.events.coverKey,
       createdAt: schema.events.createdAt,
       lastActiveAt: schema.events.lastActiveAt,
+      /*
+       * `"event".id` written out, not `${schema.events.id}`.
+       *
+       * Drizzle qualifies an interpolated column with its table only when the
+       * query has a join. This one does not, so the interpolation renders as a
+       * bare `"id"` — and a bare name inside `from "photo" p` resolves against
+       * *`photo`*, which has an `id` of its own. `p.event_id = p.id` is never
+       * true, so this counted zero photographs in every album on the page.
+       *
+       * The same hazard, spelt the same way, is in `groupArchive` and in the
+       * `EVENT_SHOT` and `FRESH` fragments beside it. Nowhere in this codebase
+       * may a correlated subquery in a *select list* name an outer column any
+       * other way — see the note on `joined` below for what it cost.
+       */
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
-        where p.event_id = ${schema.events.id}
+        where p.event_id = "event".id
           and p.status = 'ready' and p.deleted_at is null
       )`,
       /*
        * Whether the viewer is already in. A participant row, or membership of
        * the group the album belongs to — the same two facts `authorize` reads,
        * so an album that opens is an album this page draws as open.
+       *
+       * ## Why the table name is written out here
+       *
+       * This is where the bare-column hazard above stopped being a wrong
+       * number and became a disclosure. `${schema.events.groupId}` rendered as
+       * `"group_id"`, and `group_member` has a column of that name — so the
+       * test read `gm.group_id = gm.group_id`, which is true of every row.
+       * The second `exists` was therefore "is the viewer in *any* group at
+       * all", and for anybody who was, every private album on every profile
+       * came back unlocked: cover key signed, photograph count printed.
+       *
+       * It is the quietest possible failure. The query is valid, the column
+       * exists, nothing errors, and the clause reads correctly in the source.
+       * `person-page.test.ts` now builds exactly that case — a stranger in an
+       * unrelated group — because a test constructed from the intent would not
+       * have caught it either.
        */
       joined: sql<boolean>`(
         exists (
           select 1 from "event_participant" ep
-          where ep.event_id = ${schema.events.id} and ep.actor_id = ${viewerId}
+          where ep.event_id = "event".id and ep.actor_id = ${viewerId}
         ) or exists (
           select 1 from "group_member" gm
-          where gm.group_id = ${schema.events.groupId} and gm.actor_id = ${viewerId}
+          where gm.group_id = "event".group_id and gm.actor_id = ${viewerId}
         )
       )`,
     })

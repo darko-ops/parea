@@ -134,7 +134,7 @@ describe('finding somebody by handle', () => {
     expect(await findPeople(db, them, 'me')).toEqual([]);
   });
 
-  it('returns a handle, a name and a picture, and nothing else', async () => {
+  it('returns a handle, a name, a picture and where you stand, and nothing else', async () => {
     /*
      * The shape is the promise: no email, no events, no counts. A field added
      * here is a field published to anybody who can type a handle, so this test
@@ -144,6 +144,14 @@ describe('finding somebody by handle', () => {
      * which does not expire. It never leaves the server in that form; the two
      * routes below presign it and drop the key, which is what the next
      * describe is about.
+     *
+     * `standing` was the decision. It is not a fact about the person found —
+     * it is a fact about the *reader*: whether they have asked, been asked, or
+     * are already friends. All three are things the reader did or was told
+     * about, and the profile this row opens has printed the same word for as
+     * long as there has been a profile. What it buys is a list that agrees
+     * with that page: without it a result offers "Add friend" to somebody you
+     * asked last week.
      */
     const me = await person('me');
     await person('AmberQuietLantern', 'Sam');
@@ -153,7 +161,57 @@ describe('finding somebody by handle', () => {
       'avatarKey',
       'displayName',
       'handle',
+      'standing',
     ]);
+  });
+
+  it('says where you and each of them stand', async () => {
+    /*
+     * The four words, each from the reader's side. `asking` beats `asked` when
+     * both are true, which is the order `profileFor` argues for: the one you
+     * can act on is the one pointing at you, and a row saying "Requested" over
+     * somebody's unanswered question is the list hiding it.
+     */
+    const me = await person('me');
+    const stranger = await person('AmberQuietLantern');
+    const friend = await person('AmberWarmHarbour');
+    const asked = await person('AmberStillRiver');
+    const asking = await person('AmberLongMeadow');
+
+    await db.insert(schema.friendships).values([
+      { actorId: me, friendActorId: friend },
+      { actorId: friend, friendActorId: me },
+    ]);
+    await db
+      .insert(schema.friendRequests)
+      .values({ fromActorId: me, toActorId: asked, status: 'open' });
+    await db
+      .insert(schema.friendRequests)
+      .values({ fromActorId: asking, toActorId: me, status: 'open' });
+
+    const found = await findPeople(db, me, 'amber');
+    const standing = Object.fromEntries(found.map((p) => [p.actorId, p.standing]));
+    expect(standing[stranger]).toBe('none');
+    expect(standing[friend]).toBe('friends');
+    expect(standing[asked]).toBe('asked');
+    expect(standing[asking]).toBe('asking');
+  });
+
+  it('keeps calling a refusal an ask', async () => {
+    /*
+     * A declined request reads the same as an open one, here and on the
+     * profile and in `/api/friends`. "No" is said once rather than becoming
+     * something to press past, and telling somebody they were refused is the
+     * refuser's to do.
+     */
+    const me = await person('me');
+    const them = await person('AmberQuietLantern');
+    await db
+      .insert(schema.friendRequests)
+      .values({ fromActorId: me, toActorId: them, status: 'declined' });
+
+    const [found] = await findPeople(db, me, 'amber');
+    expect(found!.standing).toBe('asked');
   });
 });
 

@@ -39,8 +39,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
-    truncate "account", "actor", "event", "event_participant",
-      "friend_request", "friendship", "block"
+    truncate "account", "actor", "event", "event_participant", "photo",
+      "groups", "group_member", "friend_request", "friendship", "block"
     restart identity cascade
   `);
 });
@@ -477,6 +477,85 @@ describe('the albums on somebody’s page', () => {
 
     const [album] = await albumsBy(db, me, them);
     expect(album!.locked).toBe(false);
+  });
+
+  it('keeps it shut for a stranger who happens to be in some other group', async () => {
+    /*
+     * The case that was open, and the shape of test that would not have found
+     * it. Every assertion above constructs the *intent* — a stranger, a
+     * private album, no way in — and all of them passed while this failed.
+     *
+     * `joined` asks two questions: is the viewer a participant, or a member of
+     * the group this album belongs to. The second one was written as
+     * `gm.group_id = ${schema.events.groupId}`, which Drizzle renders as a
+     * bare `"group_id"` in a select list with no join — and `group_member` has
+     * a column by that name. So it compiled to `gm.group_id = gm.group_id`,
+     * true of every row, and the clause quietly became "is this viewer in any
+     * group at all". Anybody who was saw every private album on every profile
+     * unlocked, with its cover signed and its photographs counted.
+     *
+     * Valid SQL, real column, no error, and a source line that reads exactly
+     * as intended. The only thing that catches it is a viewer who satisfies
+     * the accidental predicate and none of the real ones — which is what this
+     * builds: a group the album has nothing to do with.
+     */
+    const me = await person('me');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await db
+      .update(schema.events)
+      .set({ coverKey: 'events/cover.jpg' })
+      .where((await import('drizzle-orm')).eq(schema.events.id, shut.id));
+
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Nothing to do with it', slug: 'unrelated' })
+      .returning();
+    await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: me });
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album).toMatchObject({ locked: true, coverKey: null, photoCount: null });
+  });
+
+  it('still unlocks one whose group the viewer really is in', async () => {
+    // The other half: the clause has to keep working, not just stop being
+    // true. A private album inside a group you are a member of is one you can
+    // already open — see `authorize` — so the profile draws it open.
+    const me = await person('me');
+    const them = await person('wren');
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Ours', slug: 'ours' })
+      .returning();
+    await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: me });
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await db
+      .update(schema.events)
+      .set({ groupId: group!.id })
+      .where((await import('drizzle-orm')).eq(schema.events.id, shut.id));
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album!.locked).toBe(false);
+  });
+
+  it('counts the photographs in an album it does unlock', async () => {
+    /*
+     * The same hazard, one line up, where it was a wrong number rather than a
+     * disclosure: `p.event_id = ${schema.events.id}` rendered as `p.event_id =
+     * p.id`, so every unlocked album on every profile printed zero.
+     */
+    const me = await person('me');
+    const them = await person('wren');
+    const open = await event(them, 'Open weekend', 'public');
+    await db.insert(schema.photos).values([
+      { eventId: open.id, storageKey: 'a', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+      { eventId: open.id, storageKey: 'b', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+    ] as never);
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album!.photoCount).toBe(2);
   });
 
   it('lists only what they made, never what they are in', async () => {

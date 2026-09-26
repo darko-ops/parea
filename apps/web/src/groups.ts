@@ -654,16 +654,16 @@ export async function directChatWith(
         isNull(schema.groups.deletedAt),
         sql`exists (
           select 1 from "group_member" m
-          where m.group_id = ${schema.groups.id} and m.actor_id = ${actorId}
+          where m.group_id = "groups".id and m.actor_id = ${actorId}
         )`,
         sql`exists (
           select 1 from "group_member" m
-          where m.group_id = ${schema.groups.id} and m.actor_id = ${otherId}
+          where m.group_id = "groups".id and m.actor_id = ${otherId}
         )`,
         // And nobody else. Without this, a three-person room the two of you
         // are both in would answer a request for the two of you.
         sql`(
-          select count(*) from "group_member" m where m.group_id = ${schema.groups.id}
+          select count(*) from "group_member" m where m.group_id = "groups".id
         ) = 2`,
       ),
     )
@@ -769,15 +769,15 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
        */
       memberCount: sql<number>`(
         select count(*)::int from "group_member" m
-        where m.group_id = ${schema.groups.id}
+        where m.group_id = "groups".id
       )`,
       eventCount: sql<number>`(
         select count(*)::int from "event" e
-        where e.group_id = ${schema.groups.id} and e.deleted_at is null
+        where e.group_id = "groups".id and e.deleted_at is null
       )`,
       lastActiveAt: sql<Date | null>`(
         select max(e.last_active_at) from "event" e
-        where e.group_id = ${schema.groups.id} and e.deleted_at is null
+        where e.group_id = "groups".id and e.deleted_at is null
       )`,
     })
     .from(schema.groupMembers)

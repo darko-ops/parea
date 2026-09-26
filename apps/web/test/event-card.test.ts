@@ -159,7 +159,11 @@ describe('the people on a card', () => {
     expect(CARD).toMatch(/event\.faces\.map/);
     expect(CARD).toMatch(/event\.moreFaces > 0/);
     expect(CARDS).toMatch(/moreFaces: Math\.max\(0, listing\.memberCount - CARD_FACES\)/);
-    expect(EVENTS).toMatch(/order by \(a\.id = \$\{schema\.events\.createdBy\}\) desc/);
+    // `"event".created_by` written out, not interpolated: Drizzle only
+    // qualifies an interpolated column when the query has a join, and a bare
+    // name inside a select-list subquery binds to the subquery's own table.
+    // See `correlated-subqueries.test.ts` for what that cost.
+    expect(EVENTS).toMatch(/order by \(a\.id = "event"\.created_by\) desc/);
   });
 
   it('puts a letter in an empty circle rather than a silhouette', () => {
