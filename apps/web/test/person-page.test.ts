@@ -284,6 +284,31 @@ describe('what the page looks like', () => {
     expect(PAGE).toMatch(/if \(person\.standing === 'self'\) redirect\('\/account'\)/);
   });
 
+  it('calls you what it calls you to everybody else', () => {
+    /*
+     * One person, one name.
+     *
+     * Your own header used to end its fallback chain at the email address, so
+     * an account that had never written a name in read as "info@obius.io" on
+     * the one screen its owner looks at and "@their-handle" on every screen
+     * anybody else does. The name somebody is known by cannot depend on who is
+     * reading it, and the half nobody chose should not be the half they see.
+     *
+     * Pinned as source rather than behaviour because it is a fallback: it is
+     * invisible on every account that has a name, which is how it survived.
+     */
+    const OWN = stripComments(
+      readFileSync(
+        fileURLToPath(new URL('../app/components/AccountView.tsx', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(OWN).toMatch(/account\?\.handle \? `@\$\{account\.handle\}`/);
+    expect(OWN).not.toMatch(/displayName[^\n]*\|\|[^\n]*email/);
+    // And the one it is agreeing with, so the pair moves together.
+    expect(VIEW).toMatch(/person\.displayName\?\.trim\(\) \|\| `@\$\{person\.handle\}`/);
+  });
+
   it('says the same two things on the phone', () => {
     const NATIVE = stripComments(
       readFileSync(

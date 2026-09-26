@@ -212,9 +212,23 @@ export function AccountView() {
      about which half of their shelf is showing. */
   const photos = events.reduce((n, event) => n + event.photoCount, 0);
 
-  const initial = (account?.displayName?.trim() || account?.email || '?')
-    .slice(0, 1)
-    .toUpperCase();
+  /**
+   * Your name, worked out the way everybody else's is.
+   *
+   * A written name, or the handle wearing its `@` — the rule `nameOf` keeps on
+   * every other surface and the one `PersonView` prints at the top of your
+   * profile when somebody else opens it. This line used to end in the email
+   * address, so an account with no name written in was "info@obius.io" to
+   * itself and "@some-handle" to everybody else: one person with two names,
+   * and the one only they could see was the one nobody had chosen. The address
+   * is still on Settings, where it is a way to sign in rather than a name.
+   */
+  const name =
+    account?.displayName?.trim() || (account?.handle ? `@${account.handle}` : 'You');
+
+  /* The first letter of what the page says, `@` not counted — the same letter
+     their avatar shows to everybody else. */
+  const initial = name.replace(/^@/, '').slice(0, 1).toUpperCase();
 
   /**
    * Everything below here is signed in, so it gets the rail.
@@ -356,7 +370,7 @@ export function AccountView() {
           changes are made.
         */}
         <div className="you-id">
-          <h1 className="you-name">{account?.displayName || account?.email}</h1>
+          <h1 className="you-name">{name}</h1>
           {/* No handle, no line. There is nothing to say here that "Edit
               profile" does not already say, and a prompt in this spot would be
               the third place to change one. */}
