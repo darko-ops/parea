@@ -141,6 +141,17 @@ export async function POST(
   const target = size ? coverSize(size) : null;
 
   let jpeg: Buffer;
+  /*
+   * Hoisted only so the line below can report it.
+   *
+   * A cover takes its photograph's own shape between `COVER_TALLEST` and
+   * `COVER_WIDEST`, so for most pictures the output is the same shape as the
+   * input, there is no overhang, and `regionFor` correctly answers null — a
+   * pan with nothing to pan within. That is indistinguishable from a framing
+   * that never arrived unless something says which, and "my crop was ignored"
+   * is exactly the report that cannot tell them apart.
+   */
+  let region: ReturnType<typeof regionFor> = null;
   try {
     if (!target || !size) throw new Error('no dimensions');
 
@@ -148,7 +159,7 @@ export async function POST(
     // for everyone whose renderer lacks the tag to correct it.
     let pipeline = decode(incoming).rotate();
 
-    const region = framing ? regionFor(size, framing) : null;
+    region = framing ? regionFor(size, framing) : null;
     if (region) pipeline = pipeline.extract(region);
 
     jpeg = await pipeline
@@ -188,6 +199,12 @@ export async function POST(
     );
     return NextResponse.json({ error: 'not_an_image' }, { status: 400 });
   }
+
+  console.info(
+    `cover: event ${event.id} ${admitted.mime} ${size?.w}x${size?.h} ` +
+      `framing ${framing ? `${framing.x}/${framing.y}@${framing.zoom}` : 'none'} ` +
+      `region ${region ? `${region.width}x${region.height}+${region.left}+${region.top}` : 'none'}`,
+  );
 
   // `objectKey` builds the same string, and this deliberately does not use it:
   // that helper's discriminator is a photograph's, and a cover is not one.
