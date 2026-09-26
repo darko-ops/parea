@@ -297,8 +297,12 @@ export function ProfileScreen({
             </Text>
           ) : (
             account?.handle && (
+              /* The handle standing in for the name it is missing, and bare
+                 while it does: the `@` belongs to the handle line below and to
+                 every list this person turns up in, not to the front of what
+                 somebody is called. */
               <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
-                @{account.handle}
+                {account.handle}
               </Text>
             )
           )}

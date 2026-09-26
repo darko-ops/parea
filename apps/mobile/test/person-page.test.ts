@@ -209,9 +209,11 @@ describe('the shape of somebody else’s page', () => {
      * draws both states out of one box — see `HangingTab` — so this page gets
      * that for nothing, and the letter it hands over is theirs.
      *
-     * And the handle keeps its `@`. A name is bare and a handle is not — the
-     * sigil is what marks the string as the thing you can type at a search
-     * box, which is why the fallback in `nameOf` wears one too.
+     * And the handle keeps its `@` — on the handle line. That is where the
+     * sigil is doing its job: it marks the string as the thing you can type
+     * at a search box. `nameOf` hands its fallback over bare, because there
+     * the handle is standing in for a name, and a name does not open with
+     * punctuation.
      */
     expect(PERSON).toMatch(/initial=\{initialOf\(name\)\}/);
     expect(PERSON).toMatch(/lens=\{lens\}/);

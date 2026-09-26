@@ -296,6 +296,13 @@ describe('what the page looks like', () => {
      *
      * Pinned as source rather than behaviour because it is a fallback: it is
      * invisible on every account that has a name, which is how it survived.
+     *
+     * Bare, both of them. The handle wears its `@` on the line under the name
+     * and in every list this person appears in, because there the sigil is
+     * doing its job — it says this string is the thing you can type at a
+     * search box. Standing in for a name at the top of a page it is
+     * punctuation in front of what somebody is called, and the two lines of
+     * the header would read as a name that is also an address.
      */
     const OWN = stripComments(
       readFileSync(
@@ -303,10 +310,13 @@ describe('what the page looks like', () => {
         'utf8',
       ),
     );
-    expect(OWN).toMatch(/account\?\.handle \? `@\$\{account\.handle\}`/);
+    expect(OWN).toMatch(/displayName\?\.trim\(\) \|\| account\?\.handle/);
     expect(OWN).not.toMatch(/displayName[^\n]*\|\|[^\n]*email/);
     // And the one it is agreeing with, so the pair moves together.
-    expect(VIEW).toMatch(/person\.displayName\?\.trim\(\) \|\| `@\$\{person\.handle\}`/);
+    expect(VIEW).toMatch(/person\.displayName\?\.trim\(\) \|\| person\.handle;/);
+    // The `@` still belongs to the handle line, on both of them.
+    expect(VIEW).toMatch(/you-handle">@\{person\.handle\}/);
+    expect(OWN).toMatch(/you-handle">@\{account\.handle\}/);
   });
 
   it('says the same two things on the phone', () => {

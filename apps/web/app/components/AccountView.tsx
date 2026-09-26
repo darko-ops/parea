@@ -215,20 +215,25 @@ export function AccountView() {
   /**
    * Your name, worked out the way everybody else's is.
    *
-   * A written name, or the handle wearing its `@` — the rule `nameOf` keeps on
-   * every other surface and the one `PersonView` prints at the top of your
-   * profile when somebody else opens it. This line used to end in the email
-   * address, so an account with no name written in was "info@obius.io" to
-   * itself and "@some-handle" to everybody else: one person with two names,
-   * and the one only they could see was the one nobody had chosen. The address
-   * is still on Settings, where it is a way to sign in rather than a name.
+   * A written name, or the handle standing in for one — the rule `PersonView`
+   * keeps at the top of your profile when somebody else opens it. This line
+   * used to end in the email address, so an account with no name written in
+   * was "info@obius.io" to itself and something else entirely to everybody
+   * else: one person with two names, and the one only they could see was the
+   * one nobody had chosen. The address is still on Settings, where it is a way
+   * to sign in rather than a name.
+   *
+   * The handle comes here bare. It wears its `@` in a list and in a sentence,
+   * where the sigil is what marks it as the thing you can type at a search
+   * box — but this is the name slot on somebody's own page, and a name does
+   * not start with punctuation. The line under it is the handle, with the `@`
+   * it keeps everywhere it is being a handle.
    */
-  const name =
-    account?.displayName?.trim() || (account?.handle ? `@${account.handle}` : 'You');
+  const name = account?.displayName?.trim() || account?.handle || 'You';
 
-  /* The first letter of what the page says, `@` not counted — the same letter
-     their avatar shows to everybody else. */
-  const initial = name.replace(/^@/, '').slice(0, 1).toUpperCase();
+  /* The first letter of what the page says — the same letter their avatar
+     shows to everybody else. */
+  const initial = name.slice(0, 1).toUpperCase();
 
   /**
    * Everything below here is signed in, so it gets the rail.

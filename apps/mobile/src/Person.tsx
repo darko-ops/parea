@@ -65,14 +65,14 @@ const GAP = 10;
 /**
  * What we call somebody: their name if they gave one, else the handle.
  *
- * A name is bare and a handle wears its `@`, which is the distinction the
- * sigil is for: it is not decoration on a person, it is what marks the string
- * as the thing you can type at a search box. So the fallback keeps it — what
- * is standing in for the name here *is* a handle, and stripping the `@` would
- * make it read as somebody whose name happens to be lowercase.
+ * Bare either way. The `@` is the distinction the sigil is for — it marks a
+ * string as the thing you can type at a search box — and it earns that on the
+ * handle line below, in a list, and anywhere the handle is being a handle.
+ * Here the string is filling the name slot at the top of somebody's page, and
+ * a name does not open with punctuation.
  */
 function nameOf(person: Person): string {
-  return person.displayName?.trim() || `@${person.handle}`;
+  return person.displayName?.trim() || person.handle;
 }
 
 export function PersonScreen({

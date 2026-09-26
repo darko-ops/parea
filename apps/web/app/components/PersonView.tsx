@@ -104,11 +104,13 @@ export function PersonView({
   /*
    * Their name, or their handle standing in for one.
    *
-   * A name is bare and a handle wears its `@`: the sigil is not decoration on
-   * a person, it is what marks the string as the thing you can type at a
-   * search box. The app says the same thing in `nameOf`.
+   * Bare either way. The `@` is not decoration on a person — it marks a string
+   * as the thing you can type at a search box, which is what it is doing in a
+   * list, in a sentence, and on the line directly under this one. In the name
+   * slot it is punctuation at the front of somebody's name. The app says the
+   * same thing in `nameOf`.
    */
-  const name = person.displayName?.trim() || `@${person.handle}`;
+  const name = person.displayName?.trim() || person.handle;
 
   const ask = useCallback(async () => {
     setBusy(true);
@@ -194,7 +196,7 @@ export function PersonView({
               Never a silhouette: a generic avatar is a photograph of nobody. */}
           <Avatar
             url={person.avatar}
-            initial={name.replace('@', '').slice(0, 1).toUpperCase()}
+            initial={name.slice(0, 1).toUpperCase()}
           />
         </div>
 
