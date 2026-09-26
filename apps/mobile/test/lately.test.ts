@@ -167,15 +167,15 @@ describe('the door', () => {
      * spaced, so a mark that took width would move the tab it is on — the bar
      * would shift under a thumb the moment a message arrived.
      *
-     * Pink, and bare. The mark's pink rather than its aqua because this and
-     * the tray can be lit at the same moment and they point at two different
-     * screens; and no ring, because on an eleven-point dot two points of
-     * outline were four points of the eleven — the ring was most of the mark,
-     * and in the dark scheme it read as a black circle drawn round it.
+     * Bare, and the same blue as every other mark. A ring on an eleven-point
+     * dot was four of the eleven — most of the mark — and in the dark scheme
+     * it read as a black circle drawn round it rather than as the bar showing
+     * through. A second hue was tried here and said the wrong thing: that this
+     * is a different *kind* of alert, which is a distinction the app does not
+     * make.
      */
     expect(APP).toMatch(/\{id === 'chats' && chats && \(/);
-    expect(APP).toMatch(/styles\.tabDot, \{ backgroundColor: t\.said \}/);
-    expect(APP).toMatch(/const SAID: string = MARK_FILLS\.pink/);
+    expect(APP).toMatch(/styles\.tabDot, \{ backgroundColor: t\.news \}/);
     expect(APP).toMatch(/tabGlyph: \{ width: 22, height: 22/);
     expect(APP).toMatch(/tabDot: \{\s*position: 'absolute'/);
     // No ring at all, and none smuggled back in as a border colour.
@@ -190,23 +190,34 @@ describe('the door', () => {
     expect(APP).toMatch(/setChats\(next\.chats\)/);
   });
 
-  it('paints every unread mark in the mark’s own aqua', () => {
+  it('paints every unread mark in one colour', () => {
     /*
-     * One colour for arriving, across the whole app, and it is the logo's —
-     * `MARK_FILLS.blueOnMint`, the lens where the blue circle crosses the mint
-     * one. Read off `Mark.tsx` rather than written out, so it cannot drift
-     * from the icon it is quoting; `brand.test.ts` pins those values across
-     * all four copies of the mark.
+     * One colour for arriving, across the whole app: the tray's badge and its
+     * dot, the dot on the Chats tab, every count on a conversation. One
+     * constant, so there is no way for a screen to be added wearing something
+     * else — which is how `accent` came to be doing this job in the first
+     * place.
+     *
+     * The hue is the mark's: `blueOnMint` is 189° and so is this, to within a
+     * degree. The chroma is not, and that is deliberate rather than drift. On
+     * the logo the aqua is a region two hundred points across and a muted value
+     * is what keeps the mark quiet; a notification dot is eight points wide on
+     * frosted glass, and at that size the same colour is a grey-blue smudge.
+     * Chroma is what survives being small.
      */
-    expect(APP).toMatch(/const NEWS: string = MARK_FILLS\.blueOnMint/);
-    expect(APP).toMatch(/import \{ MARK_FILLS \} from '\.\/src\/Mark'/);
+    expect(APP).toMatch(/const NEWS: string = '#[0-9a-f]{6}'/);
     // Both schemes, one value — and the ink dark in both, because the aqua is
     // a light value whatever the page behind it is doing.
     expect(APP.match(/news: NEWS, onNews: ON_NEWS,/g) ?? []).toHaveLength(2);
+    // One, and no second unread colour beside it. A hue that means a different
+    // kind of alert is a distinction this app does not make.
+    expect(APP).not.toMatch(/const SAID/);
     // The conversation rows, which are the counts somebody actually reads.
     expect(EVENTS).toMatch(/styles\.unreadDot, \{ backgroundColor: t\.news \}/);
     expect(EVENTS).toMatch(/styles\.unreadPill, \{ backgroundColor: t\.news \}/);
     expect(EVENTS).toMatch(/styles\.unreadCount, \{ color: t\.onNews \}/);
+    // And the tray, which is the other corner of the same screen.
+    expect(HEAD).toMatch(/backgroundColor: t\.news, borderColor: t\.bg \}\]\}>/);
   });
 
   it('moves the mark when a notification lands, and on the way back in', () => {

@@ -64,9 +64,6 @@ import {
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
-/* For one colour: the aqua where the mark's blue circle crosses its mint one,
-   which is what every unread mark in the app is painted in. See `theme`. */
-import { MARK_FILLS } from './src/Mark';
 import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
 import { ContributeChoice } from './src/ContributeChoice';
@@ -4767,11 +4764,11 @@ function TabBar({
                 color={tab === id ? t.fg : t.dim}
               />
               {/*
-                Bare, and pink.
+                Bare.
 
-                It was the aqua with two points of the bar's own tint ringed
-                round it, on the reasoning that a dot over a photograph needs
-                separating from it. On a bubble this small the ring was most of
+                It had two points of the bar's own tint ringed round it, on the
+                reasoning that a dot over a photograph needs separating from
+                it. On a bubble this small the ring was most of
                 the dot — eleven points across with four of them spent on an
                 outline, leaving seven of colour, and in the dark scheme that
                 outline read as a black ring drawn round the mark rather than
@@ -4779,17 +4776,17 @@ function TabBar({
                 all fill, so taking the ring off makes the thing it was there
                 to protect *more* visible, not less.
 
-                The mark's pink rather than its aqua, which is what every other
-                unread mark in the app wears. The two can be lit at the same
-                time and they point at opposite corners of one screen — the
-                tray at the top says *something happened to you*, and this at
-                the bottom says *somebody said something to you*. Two hues out
-                of the same logo is how you tell at a glance which of the two
-                is asking, and it is the one place in the app where that
-                question has two answers on screen at once.
+                The same blue as every other mark in the app, and that is the
+                second reason the ring had to go. This dot and the tray's can
+                be lit at the same moment, in opposite corners of one screen —
+                and what tells them apart is where they are, not what colour
+                they are. A second hue was tried here and said the wrong thing:
+                it read as a different *kind* of alert rather than as the same
+                one somewhere else, which is a distinction the app does not
+                make and cannot explain.
               */}
               {id === 'chats' && chats && (
-                <View style={[styles.tabDot, { backgroundColor: t.said }]} />
+                <View style={[styles.tabDot, { backgroundColor: t.news }]} />
               )}
             </View>
           </Pressable>
@@ -4844,7 +4841,7 @@ function Segmented({
               pill — a conversation's row, a group's door — so one place
               drawing the same fact as loose type read as a different kind of
               thing. And the fill that makes them one thing is `news`, the
-              mark's aqua, which is a light value: as *text* on this control's
+              unread aqua, which is a light value: as *text* on this control's
               own grey it is 1.8:1 and nobody can read it. On a pill it is ink
               on a fill, which is the arrangement that colour works in.
             */}
@@ -6057,30 +6054,36 @@ function Button({
 }
 
 /**
- * The unread colour, widened to `string`.
+ * The one colour every mark in this app that means *something arrived* is
+ * painted in — the tray's badge and its dot, the dot on the Chats tab, and
+ * every unread count on a conversation.
  *
- * `MARK_FILLS` is `as const`, so reading a field off it gives the literal
- * `'#61b8c9'` rather than a colour — and a `Theme` whose `news` is one exact
- * string is a type nothing else can satisfy, including `GroupTheme`, which is
+ * It is the mark's aqua at full chroma. `MARK_FILLS.blueOnMint` is `#61b8c9`,
+ * the lens where the logo's blue circle crosses its mint one; this is the same
+ * hue to within a degree — 189° in both — with the saturation taken from 49%
+ * up to 81%.
+ *
+ * ## Why not the mark's own value
+ *
+ * Because of how large the two things are. On the logo that aqua is a region
+ * two hundred points across with six other colours around it, and at that size
+ * a muted value is what keeps the mark from shouting. A notification dot is
+ * eight points wide, alone, often on frosted glass with somebody's photographs
+ * going past underneath — and at *that* size the same colour is a grey-blue
+ * smudge. Chroma is what survives being small; lightness is not. So the hue is
+ * the logo's and the intensity is this one's, which is the trade every small
+ * mark taken from a large drawing has to make.
+ *
+ * Written out rather than read off `Mark.tsx`, and that is the cost, stated: it
+ * is no longer a value that cannot drift, because it is deliberately not the
+ * same value. The hue is the thing to keep — if the mark's lens ever moves,
+ * this moves with it.
+ *
+ * Typed `string` rather than inferred. A `Theme` whose `news` is one exact
+ * literal is a type nothing else can satisfy, including `GroupTheme`, which is
  * declared structurally so that file can stay out of App's import cycle.
  */
-const NEWS: string = MARK_FILLS.blueOnMint;
-/**
- * The other one, for the one mark that is not about news.
- *
- * `MARK_FILLS.pink` — the first of the three circles, and the warmest thing on
- * the logo. It paints exactly one dot: the Chats tab, in the bar at the bottom
- * of the screen.
- *
- * A second colour, deliberately. The tray in the top corner and the tab bar at
- * the bottom can be lit at the same moment and they send somebody to two
- * different screens: one means *something happened to you* and the other means
- * *somebody said something to you*. In one hue they are the same claim made
- * twice and the choice of which to press is a guess. Two hues out of the same
- * mark keep them one family and still tell them apart, which is the whole
- * reason the logo has more than one colour in it too.
- */
-const SAID: string = MARK_FILLS.pink;
+const NEWS: string = '#17c0de';
 /**
  * Ink for text sitting on `NEWS`.
  *
@@ -6135,11 +6138,11 @@ function theme(dark: boolean) {
   return dark
     ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
         fg: '#f2f4f7', dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12',
-        news: NEWS, onNews: ON_NEWS, said: SAID,
+        news: NEWS, onNews: ON_NEWS,
         warn: '#ff7b70' }
     : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
         fg: '#14171c', dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff',
-        news: NEWS, onNews: ON_NEWS, said: SAID,
+        news: NEWS, onNews: ON_NEWS,
         warn: '#c23127' };
 }
 

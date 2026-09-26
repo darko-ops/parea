@@ -97,11 +97,11 @@ export function PageHead({
  * The count wins when there is one. A job is the more urgent of the two, and
  * two marks on one disc is a disc nobody reads.
  *
- * Both are `news` — the mark's own aqua — rather than `accent`, which is what
- * a button is. They were the accent, and the cost was that the one control in
- * the corner saying *something arrived* wore the same blue as every control
- * saying *press me*. The ink on the count goes dark to answer it: the aqua is
- * a light value and white on it is 2.3:1, which at 11.5 points is a number
+ * Both are `news` — the app's one unread aqua — rather than `accent`, which is
+ * what a button is. They were the accent, and the cost was that the one
+ * control in the corner saying *something arrived* wore the same blue as every
+ * control saying *press me*. The ink goes dark to answer it: the aqua is a
+ * light value, white on it is 2.7:1, and at 11.5 points that is a number
  * nobody can read.
  */
 export function Notifications({

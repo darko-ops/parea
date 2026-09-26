@@ -1217,14 +1217,20 @@ fail silently:
   foreground, because a push delivered to a sleeping process reaches no
   listener at all.
 
-Those marks are the logo's, read off `Mark.tsx` so they cannot drift from the
-icon, and not the accent — which is what a button is. Two of its colours, for
-the two questions: `blueOnMint` for news, on the tray and on every unread count,
-with a dark ink because the aqua is a light value and white on it is 2.3:1; and
-`pink` for the dot on the Chats tab. They can be lit at the same moment and they
-send somebody to opposite corners of one screen — *something happened to you*
-against *somebody said something to you* — and in one hue that is the same claim
-made twice with a guess about which to press.
+All of them are one colour, `news`, and it is not the accent — which is what a
+button is. It is the logo's aqua at full chroma: the same hue as the mark's
+`blueOnMint` lens to within a degree, with the saturation taken from 49% up to
+81%. Not the mark's own value, because of the difference in size. On the logo
+that aqua is a region two hundred points across and a muted value is what keeps
+the mark from shouting; a notification dot is eight points wide, often on
+frosted glass over somebody's photographs, and at that size the same colour is a
+grey-blue smudge. Chroma is what survives being small.
+
+One colour, not one per kind. A second hue was tried on the Chats dot and said
+the wrong thing — that it was a different *kind* of alert, a distinction this
+product does not make. What tells the tray from the tab bar is which corner they
+are in. The ink on a count goes dark, because the aqua is a light value and
+white on it is 2.7:1.
 
 ## 13. Safety, moderation, and the App Store gate
 

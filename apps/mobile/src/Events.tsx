@@ -3957,7 +3957,7 @@ const styles = StyleSheet.create({
   /* The mobile unread pill, moved onto the corner of a disc: same 19pt, same
      fill, same ink. The ring is the page behind it, so the badge reads as
      sitting on top of the button rather than inside it. The fill is `news`,
-     the mark's aqua — see `theme` in `App.tsx` for why unread is not accent. */
+     the unread aqua — see `theme` in `App.tsx` for why unread is not accent. */
   unreadPill: {
     minWidth: 19,
     height: 19,

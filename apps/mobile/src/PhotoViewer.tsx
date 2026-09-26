@@ -75,13 +75,12 @@ const GLASS: GroupTheme = {
   line: 'rgba(255,255,255,0.18)',
   accent: '#6ea8fe',
   onAccent: '#0b1220',
-  /* The mark's aqua, as everywhere else. Nothing on this panel draws an unread
-     mark today — the palette is complete because the type is, and the day a
-     count appears on the board it should be the same colour it is on every
-     other screen rather than whatever this file happened to leave out. */
-  news: '#61b8c9',
+  /* The unread aqua, as everywhere else — see `theme` in `App.tsx`. Nothing on
+     this panel draws an unread mark today; the palette is complete because the
+     type is, and the day a count appears on the board it should be the colour
+     it is on every other screen rather than whatever this file left out. */
+  news: '#17c0de',
   onNews: '#07272e',
-  said: '#ffa6ad',
   warn: '#ff8080',
   bgClear: 'rgba(12,14,18,0)',
 };
