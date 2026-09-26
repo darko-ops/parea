@@ -111,7 +111,7 @@ export function ShareEvent({
 
   return createPortal(
     <div
-      className="share-scrim"
+      className="dialog-scrim"
       // Only a press that both starts and ends on the scrim is a dismissal.
       // Checking the target rather than stopping propagation inside means a
       // drag that begins on the card and releases outside does not close it.
@@ -120,7 +120,7 @@ export function ShareEvent({
       }}
     >
       <div
-        className="share-card"
+        className="dialog-card"
         role="dialog"
         aria-modal="true"
         aria-label="Share this album"

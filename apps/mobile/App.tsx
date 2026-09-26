@@ -3365,11 +3365,80 @@ function EventScreen({
     }
   }, [api, event.id, refresh]);
 
-  /** Whichever way in `+` takes: the picker, or the account it first needs. */
+  /**
+   * Why the `+` did nothing, on the press that asked.
+   *
+   * The button used to be dim and inert on an album this reader may not add
+   * to, with a sentence beside the grid saying who does. That sentence is the
+   * half of the answer nobody reads: somebody who opened the album to add
+   * photographs goes for the `+` in the corner, finds it greyed, and learns
+   * that the app is unreliable rather than that the album is closed. So the
+   * corner answers, and it answers on the press.
+   *
+   * `canAsk` is the server's decision — see `hostingFor` — rather than a guess
+   * off `contributePolicy`, so an album set to "Only me" says its piece and
+   * offers nothing: there is no set to join, and a button to ask would make
+   * "Only me" something its owner has to keep defending. A declined ask draws
+   * the same one button, because declined stays declined and the line reads as
+   * the album's rule rather than as a verdict — telling somebody they were
+   * turned down is the host's to do, not the app's.
+   */
+  const refuseAdd = useCallback(() => {
+    const standing = hostAsk ?? feed?.hosting.asked ?? null;
+    const pending = standing === 'open';
+    const mayAsk =
+      (feed?.hosting.canAsk ?? false) && !pending && standing !== 'approved' && standing !== 'declined';
+    /*
+     * The reader who owns the setting refusing them, which happens: `nobody` is
+     * a legacy contribute policy that shut the album to everybody including the
+     * person who made it, and the engine still understands it because a value
+     * one deployed client knows and the engine does not fails closed on the
+     * wrong side of a rollback. Telling that reader that "whoever made the
+     * album" decides is the app not knowing who it is talking to, so they are
+     * sent to the switch instead.
+     */
+    const mine = (feed?.event.canAdminister ?? false) && !mayAsk && !pending && standing !== 'approved';
+
+    Alert.alert(
+      'You cannot add photos to this album',
+      pending
+        ? 'You have asked, and whoever made the album has not answered yet. You can add photos once they have. Nothing arrives by email — this button starts working the moment they say yes.'
+        : standing === 'approved'
+          ? 'You are one of this album’s hosts already. The button works from here.'
+          : mayAsk
+            ? 'Hosts add the photographs here. You can ask to be one — whoever made the album decides, and nothing changes until they do.'
+            : mine
+              ? 'This album is set so that nobody adds photographs to it, including you. Who can add is a setting, and it is yours.'
+              : 'Adding is not open to you on this one. Whoever made the album decides who puts photographs in it, and they are the person to ask.',
+      mayAsk
+        ? [
+            { text: 'Request access', onPress: () => void askToHost() },
+            { text: 'OK', style: 'cancel' },
+          ]
+        : mine
+          ? [
+              { text: 'Change who can add', onPress: () => setSheetOpen(true) },
+              { text: 'OK', style: 'cancel' },
+            ]
+          : [{ text: 'OK', style: 'cancel' }],
+    );
+  }, [askToHost, feed, hostAsk]);
+
+  /**
+   * Whichever way in `+` takes: the picker, the account it first needs, or the
+   * note saying this is not an album this reader adds to.
+   *
+   * The refusal is read off `canAdd`, which is the server's answer about this
+   * reader — the same value that used to dim the button. `feed` is null on the
+   * first frame and the picker is what a press gets then, deliberately: the
+   * server refuses an upload it would refuse anyway, and a `+` that answers a
+   * question nobody has asked yet with "no" is worse.
+   */
   const add = useCallback(() => {
     if (signedIn === false) return setGateOpen(true);
+    if (feed && !feed.canAdd) return refuseAdd();
     void addPhotos();
-  }, [addPhotos, signedIn]);
+  }, [addPhotos, feed, refuseAdd, signedIn]);
 
 
   /** The evening this was, for the line under the name. */
@@ -3898,23 +3967,22 @@ function EventScreen({
         <View style={styles.tabRow}>
           {tabs}
           {/*
-            Dimmed on the server's answer about *this* reader, not on a fact
-            about the album.
+            Always pressable, and what it does depends on the server's answer
+            about *this* reader rather than on a fact about the album.
 
-            It read `uploadsOpen`, which is a property of the album and was the
-            same for everybody. With three settings that stops being true: on a
-            host-only album everybody would have been offered the button and
-            refused on the way up, which is the shape of failure that teaches
-            people the app is unreliable rather than that the album is closed.
+            It was dim and inert where `canAdd` was false, which is a control
+            somebody has already decided does not work: the reader can see the
+            album, can talk in it, and cannot work out why the one thing they
+            came for is greyed. A press now says which it is — see `refuseAdd`,
+            which is the whole of the difference between a refusal and a rule.
 
-            `feed` is null on the first frame, and `canAdd` is undefined then.
-            Left enabled in that moment on purpose: a control that starts
-            disabled and enables itself is a control somebody has already
-            decided does not work.
+            What it must never do is go by `uploadsOpen`, which is a property of
+            the album and the same for everybody: on a host-only one that
+            offered the picker to all of them and failed on the way up, which is
+            the shape of failure that teaches people the app is unreliable.
           */}
           <Pressable
             onPress={add}
-            disabled={feed ? !feed.canAdd : false}
             accessibilityRole="button"
             accessibilityLabel="Add photos"
             style={({ pressed }) => [
@@ -3922,7 +3990,7 @@ function EventScreen({
               {
                 backgroundColor: t.card,
                 borderColor: t.line,
-                opacity: feed && !feed.canAdd ? 0.4 : pressed ? 0.7 : 1,
+                opacity: pressed ? 0.7 : 1,
               },
             ]}
           >
@@ -3933,11 +4001,11 @@ function EventScreen({
         {pane === 'photos' ? (
           <>
             {/*
-              Why the `+` is dim, and the one thing to do about it.
+              Who adds here, said before anybody presses anything.
 
-              A disabled button with no sentence beside it is the app looking
-              broken: the reader can see the album, can talk in it, and cannot
-              work out why the one control they came for is greyed. Saying
+              The press has its own answer now — `refuseAdd` — and this line is
+              still worth drawing: it is the rule stated in front of the grid,
+              for somebody deciding whether to reach for the `+` at all. Saying
               "hosts add the photographs here" is the difference between a
               refusal and a rule.
 

@@ -2428,24 +2428,28 @@ button.secondary {
 .picking button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
 .picking .secondary { background: var(--card); }
 
-/* The share dialog, over everything.
+/* A dialog, over everything.
 
-   The last scrim in the product, and the only one. The photo dialog it used to
-   share a stacking context with is a page now, and the thread's sheet went
-   when the conversation became a tab — so this is a `z-index` with nothing
-   left to be above, kept high because it is opened from a sticky header.
+   The only scrim in the product, and now two panels use it: the share panel
+   and the note that answers a `+` somebody may not press. It was called
+   `.share-*`, which was true of the one and a lie about the other — a second
+   copy of these rules under a second name is how two dialogs drift into two
+   shapes. The photo dialog this used to share a stacking context with is a page
+   now, and the thread's sheet went when the conversation became a tab, so it is
+   a `z-index` with nothing left to be above, kept high because it is opened
+   from a sticky header.
 
-   Light, at 28%: it frames a link. Blacking out the event to show somebody a
-   URL is heavier than the moment deserves. */
-.share-scrim {
+   Light, at 28%: it frames a link, or one sentence. Blacking out the album to
+   say either is heavier than the moment deserves. */
+.dialog-scrim {
   position: fixed; inset: 0; z-index: 30;
   background: rgba(20, 23, 28, .28);
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
-/* The rows that used to live in the create screen's aside, which is gone —
-   creating an event now drops you inside it, and this panel is the one place
-   left where a link gets passed on. */
-.share-card {
+/* The card. It carries the rows that used to live in the create screen's aside,
+   which is gone — creating an event now drops you inside it, and the share
+   panel is the one place left where a link gets passed on. */
+.dialog-card {
   width: 100%; max-width: 420px;
   background: var(--card); border: 1px solid var(--line);
   border-radius: 20px; padding: 22px;
@@ -2454,17 +2458,17 @@ button.secondary {
     0 6px 16px rgba(20, 23, 28, .05),
     0 20px 40px rgba(20, 23, 28, .12);
 }
-.share-card:focus-visible { outline: none; }
-.share-card h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
-.share-card p { font-size: 13px; line-height: 1.5; margin: 10px 0 0; }
-.share-card .row { margin-top: 16px; }
+.dialog-card:focus-visible { outline: none; }
+.dialog-card h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
+.dialog-card p { font-size: 13px; line-height: 1.5; margin: 10px 0 0; }
+.dialog-card .row { margin-top: 16px; }
 /* Flex and grid children floor at their min-content, and the row below holds a
    URL, which has no break opportunities at all: it measured 433px inside a
    328px box, spilled past the card's border and scrolled the whole page
    sideways. `.aside-link` was already set to truncate and never got the
    chance, because the box above it refused to shrink. The panel this was first
    found in has been deleted; the row moved here, so the rule follows it. */
-.share-card > * { min-width: 0; }
+.dialog-card > * { min-width: 0; }
 
 /* The upload block: folded away at the foot of the page. */
 .uploads { border: 1px solid var(--line); border-radius: 14px; }

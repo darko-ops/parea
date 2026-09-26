@@ -42,6 +42,7 @@ import type { Member, Roster } from '@/members';
 import { Face, Faces } from './Faces';
 import { Mark } from './Mark';
 import { AlbumRequests } from './AlbumRequests';
+import { AddRefused } from './AddRefused';
 import { RailIcon } from './RailIcon';
 import { useUploads } from './useUploads';
 
@@ -369,15 +370,39 @@ export function EventView({
    * no on their behalf.
    */
   const [hostAsk, setHostAsk] = useState<string | null>(null);
+  /*
+   * An ask in flight, so the button in the dialog can say so.
+   *
+   * The line beside the gallery never needed this — it is a link in a
+   * sentence, and a sentence that changes under a click is enough of an
+   * acknowledgement. A button somebody presses and watches is the case where
+   * one round trip is long enough to feel ignored.
+   */
+  const [asking, setAsking] = useState(false);
   const askToHost = useCallback(async () => {
-    const res = await fetch(`/api/events/${eventId}/host-requests`, { method: 'POST' });
-    if (!res.ok) return;
-    const body = (await res.json().catch(() => ({}))) as { status?: string };
-    setHostAsk(body.status ?? 'open');
-    // Approved happens when the host had already promoted them and this page
-    // had not come round yet: the album can be added to now.
-    if (body.status === 'approved') await refresh();
+    setAsking(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/host-requests`, { method: 'POST' });
+      if (!res.ok) return;
+      const body = (await res.json().catch(() => ({}))) as { status?: string };
+      setHostAsk(body.status ?? 'open');
+      // Approved happens when the host had already promoted them and this page
+      // had not come round yet: the album can be added to now.
+      if (body.status === 'approved') await refresh();
+    } finally {
+      setAsking(false);
+    }
   }, [eventId, refresh]);
+
+  /*
+   * The answer to a `+` this reader may not press.
+   *
+   * State rather than a branch on `canAdd`, because it is a thing they did:
+   * the album says nothing about adding until the control is pressed, and then
+   * it says everything — see `AddRefused`. Closed again on `OK`, on Escape and
+   * on the scrim.
+   */
+  const [refused, setRefused] = useState(false);
 
   /*
    * The host, and the first few faces beside them.
@@ -764,7 +789,7 @@ export function EventView({
             rather than `disabled`, which a label does not have — the real
             disabling is on the input.
           */}
-          {feed.canAdd && session.account && (
+          {feed.canAdd && session.account ? (
             <label
               htmlFor="add-photos"
               className="round event-add"
@@ -773,6 +798,39 @@ export function EventView({
             >
               <RailIcon glyph="plus" />
             </label>
+          ) : (
+            session.account && (
+              /*
+                The same control, for somebody who may not add — and it is a
+                control rather than a gap.
+
+                It was absent, which is the page looking broken: the reader can
+                see the album, can talk in it, and cannot work out where the
+                button went. There is a sentence beside the gallery saying who
+                adds here, and it is the half of the answer nobody reads —
+                somebody who came to add photographs goes for the `+` in the
+                corner. So the corner answers: pressing it says why, and offers
+                the ask where asking is a thing. See `AddRefused`.
+
+                A `<button>` rather than the label above, because it opens a
+                dialog instead of a file picker. It carries the same name and
+                the same round chrome, so the one thing that differs between
+                the two readers is what happens when it is pressed.
+
+                Only once there is an account. Signing in is the step in front
+                of this one and it has its own panel in the body — a dialog
+                about who may add, shown to somebody the server has not been
+                told the name of yet, would be answering the wrong question.
+              */
+              <button
+                type="button"
+                className="round event-add"
+                aria-label="Add photos"
+                onClick={() => setRefused(true)}
+              >
+                <RailIcon glyph="plus" />
+              </button>
+            )
           )}
         </div>
 
@@ -812,12 +870,13 @@ export function EventView({
           )}
 
           {/*
-            Why there is no Add photos button, and the one thing to do about it.
+            Who adds here, said before anybody presses anything.
 
-            A header with the control simply missing is the page looking
-            broken: the reader can see the album, can talk in it, and cannot
-            work out where the button went. Saying "hosts add the photographs
-            here" is the difference between a refusal and a rule.
+            The `+` has its own answer now — see `AddRefused` — and this line
+            is still worth drawing: it is the rule stated in front of the grid,
+            for somebody deciding whether to reach for the corner at all.
+            Saying "hosts add the photographs here" is the difference between a
+            refusal and a rule.
 
             Only where asking is actually a thing — `canAsk` is the server's
             answer, not a reading of `contributePolicy`, so an album set to
@@ -1062,6 +1121,31 @@ export function EventView({
           accessPolicy={feed.event.accessPolicy}
           joinsOpen={feed.event.joinsOpen}
           onClose={() => setSharing(false)}
+        />
+      )}
+
+      {/*
+        Why the `+` did nothing, on the press that asked.
+
+        Beside the share panel and portalled the same way, for the same reason:
+        it is opened from the sticky head. `hostAsk` first and the feed behind
+        it, so the ask this tab just sent outranks a poll that has not come
+        round — and dropping the local one is how the dialog would go back to
+        offering a button for something already asked.
+
+        It stays open after the ask rather than closing on it: what somebody
+        pressed the button to find out is whether the ask went, and a dialog
+        that vanishes answers that with nothing.
+      */}
+      {refused && (
+        <AddRefused
+          eventId={eventId}
+          canAsk={feed.hosting.canAsk}
+          canAdminister={feed.event.canAdminister}
+          asked={(hostAsk as 'open' | 'approved' | 'declined' | null) ?? feed.hosting.asked}
+          asking={asking}
+          onAsk={askToHost}
+          onClose={() => setRefused(false)}
         />
       )}
 

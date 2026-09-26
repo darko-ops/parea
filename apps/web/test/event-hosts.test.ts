@@ -232,13 +232,42 @@ describe('what the two clients draw', () => {
     }
   });
 
-  it('says why the button is gone, and offers the one thing to do', () => {
+  it('says who adds here, and offers the one thing to do', () => {
     const VIEW = read('app/components/EventView.tsx');
     expect(VIEW).toMatch(/Hosts add the photographs here\./);
     expect(VIEW).toMatch(/Ask to be a host/);
     // Only where asking exists. An album set to "Only me" says its piece and
     // offers nothing, which is correct: there is no set to join.
     expect(VIEW).toMatch(/!feed\.canAdd && feed\.hosting\.canAsk/);
+  });
+
+  it('answers the `+` itself, rather than leaving the corner empty', () => {
+    /*
+     * The sentence above is the half nobody reads: somebody who opened the
+     * album to add photographs goes for the `+` in the corner, and a corner
+     * with nothing in it is the page looking broken rather than the album being
+     * closed. So the control is drawn for a reader who may not add, and the
+     * press is what explains — one note, and the one thing to do about it.
+     */
+    const VIEW = read('app/components/EventView.tsx');
+    const DIALOG = read('app/components/AddRefused.tsx');
+    // A button rather than the label, because it opens a dialog and not a file
+    // picker — under the same name and the same round chrome as the label.
+    expect(VIEW).toMatch(/onClick=\{\(\) => setRefused\(true\)\}/);
+    expect(VIEW).toMatch(/className="round event-add"[\s\S]{0,120}aria-label="Add photos"/);
+    expect(VIEW).toMatch(/<AddRefused/);
+    // The two buttons, and the one that does something is the ask this album
+    // already had — one endpoint, not a second way to ask.
+    expect(DIALOG).toMatch(/Request access/);
+    expect(DIALOG).toMatch(/OK/);
+    expect(VIEW).toMatch(/onAsk=\{askToHost\}/);
+    /*
+     * And the dialog decides what to offer off the server's answer, exactly as
+     * the line beside the gallery does: `canAsk` on an album set to "Only me"
+     * is false, so it says its piece and offers nothing.
+     */
+    expect(VIEW).toMatch(/canAsk=\{feed\.hosting\.canAsk\}/);
+    expect(DIALOG).toMatch(/const mayAsk = canAsk && !pending && !allowed && asked !== 'declined'/);
   });
 
   it('offers the promotion only where it means something', () => {

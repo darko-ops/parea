@@ -158,6 +158,6 @@ describe('the share panel fits inside itself', () => {
     // set to truncate and never got the chance.
     // The row moved into the share panel when the create screen's aside was
     // deleted; the rule that keeps it inside its box moved with it.
-    expect(CSS).toMatch(/\.share-card > \*\s*\{[^}]*min-width:\s*0/);
+    expect(CSS).toMatch(/\.dialog-card > \*\s*\{[^}]*min-width:\s*0/);
   });
 });

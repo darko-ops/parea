@@ -23,14 +23,35 @@ const API = read('src/api.ts');
 const THREAD = read('src/Thread.tsx');
 
 describe('asking to be a host', () => {
-  it('says why the `+` is dim, and offers the one thing to do', () => {
+  it('says who adds here, and offers the one thing to do', () => {
     /*
-     * A disabled button with no sentence beside it is the app looking broken:
-     * the reader can see the album, can talk in it, and cannot work out why
-     * the one control they came for is greyed.
+     * A control that refuses with no sentence anywhere is the app looking
+     * broken: the reader can see the album, can talk in it, and cannot work out
+     * why the one thing they came for does not happen. The line in front of the
+     * grid is one half of the answer.
      */
     expect(APP).toMatch(/Hosts add the photographs here\./);
     expect(APP).toMatch(/Ask to be a host/);
+  });
+
+  it('answers the press as well, rather than dimming the `+` and stopping', () => {
+    /*
+     * The other half, and the one somebody actually reaches for. The button was
+     * `disabled` on `!canAdd` with a sentence beside the grid — which is the
+     * half nobody reads, because a person who opened the album to add
+     * photographs goes for the `+` in the corner. So the press says why, and
+     * offers the ask where asking exists.
+     *
+     * The alert is asserted rather than the absence of `disabled`: a negative
+     * match here would pass the day the prop comes back under another name.
+     */
+    expect(APP).toMatch(/const refuseAdd = useCallback/);
+    expect(APP).toMatch(/You cannot add photos to this album/);
+    expect(APP).toMatch(/text: 'Request access', onPress: \(\) => void askToHost\(\)/);
+    expect(APP).toMatch(/\{ text: 'OK', style: 'cancel' \}/);
+    // And the refusal is the server's answer about this reader, not a reading
+    // of the album's policy.
+    expect(APP).toMatch(/if \(feed && !feed\.canAdd\) return refuseAdd\(\)/);
   });
 
   it('draws it off the server’s answer, not off the policy', () => {

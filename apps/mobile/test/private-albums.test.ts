@@ -329,18 +329,24 @@ describe('who can add photos', () => {
     expect(APP).toMatch(/setPolicy\(null\);\s*\n\s*setAdding\(null\);/);
   });
 
-  it('dims the add button on the server’s answer about this reader', () => {
+  it('answers the add button on the server’s answer about this reader', () => {
     /*
      * It read `uploadsOpen`, which is a fact about the album and the same for
      * everybody. On a host-only album that would offer the button to all of
      * them and refuse it on the way up — the shape of failure that teaches
      * people the app is unreliable rather than that the album is closed.
      *
-     * Left enabled while the feed is still arriving: a control that starts
-     * disabled and enables itself is a control somebody has already decided
-     * does not work.
+     * The button used to be `disabled` on this and is not any more: a dim `+`
+     * with the explanation somewhere else is a control somebody has already
+     * decided does not work. It is the press that answers now, off the same
+     * field — see `refuseAdd`.
+     *
+     * Nothing is refused while the feed is still arriving. `canAdd` is
+     * undefined then, and a `+` that answers a question nobody has asked yet
+     * with "no" is worse than one that opens the picker the server would refuse
+     * anyway.
      */
-    expect(APP).toMatch(/disabled=\{feed \? !feed\.canAdd : false\}/);
+    expect(APP).toMatch(/if \(feed && !feed\.canAdd\) return refuseAdd\(\)/);
     // Comments stripped: the note beside the button names the field it
     // replaced, and prose about a property is not a read of one.
     expect(code(APP)).not.toMatch(/uploadsOpen/);
