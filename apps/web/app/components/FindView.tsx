@@ -710,7 +710,10 @@ function mutualLine(group: SuggestedGroup): string {
  * about.
  */
 function PersonCard({ person }: { person: Suggestion }) {
-  const name = person.displayName?.trim() || (person.handle ? `@${person.handle}` : 'Someone');
+  /* Bare, like the row below and like the top of the page this leads to. The
+     `@` marks a string as the thing you can type at a search box; in the slot
+     where a card says who somebody is, it is punctuation in front of a name. */
+  const name = person.displayName?.trim() || person.handle || 'Someone';
   const href = person.handle ? `/u/${encodeURIComponent(person.handle)}` : '/friends';
   const tint = tintFor(person.actorId);
   return (
@@ -787,7 +790,14 @@ function EventRow({ event }: { event: EventHit }) {
  * whose rows are fuller.
  */
 function PersonRow({ person }: { person: Person }) {
-  const name = person.displayName?.trim() || (person.handle ? `@${person.handle}` : 'Someone');
+  /*
+   * Bare. The handle is on the line underneath, always, wearing the `@` that
+   * says what it is — so a result with no name written in read "@wren" over
+   * "@wren", which is the sigil doing its job once and decorating a name the
+   * other time. This is the same rule the profile this row opens keeps at the
+   * top of the page: a name does not start with punctuation.
+   */
+  const name = person.displayName?.trim() || person.handle || 'Someone';
   /*
    * The person, not the friends list.
    *

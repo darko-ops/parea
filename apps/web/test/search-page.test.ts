@@ -228,3 +228,30 @@ describe('who a suggestion may be', () => {
     expect(SUGGEST).toMatch(/limit \$\{SUGGESTION_LIMIT\}/);
   });
 });
+
+describe('what a result calls somebody', () => {
+  it('never opens a name with the handle\u2019s sigil', () => {
+    /*
+     * A result for somebody with no name written in read "@wren" in bold with
+     * "@wren" in grey underneath: the sigil doing its job on one line and
+     * decorating a name on the other.
+     *
+     * The `@` marks a string as the thing you can type into the box above —
+     * that is what it is for, and the handle line is where it earns it. The
+     * name slot is what somebody is called, and a name does not start with
+     * punctuation. Same rule as the top of the profile this row opens.
+     */
+    expect(VIEW).toMatch(/const name = person\.displayName\?\.trim\(\) \|\| person\.handle \|\| 'Someone';/);
+    expect(VIEW).not.toMatch(/const name = person\.displayName\?\.trim\(\) \|\| \(person\.handle \? `@/);
+    // And the handle keeps its own line, which is the half that should have it.
+    expect(VIEW).toMatch(/person\.handle \? `@\$\{person\.handle\}` : ''/);
+  });
+
+  it('says the same thing in the app', () => {
+    const RESULTS = read('../../mobile/src/Events.tsx');
+    expect(RESULTS).toMatch(/name=\{person\.displayName\?\.trim\(\) \|\| person\.handle \|\| 'Someone'\}/);
+    // The handle under it whether or not a name is above — it used to appear
+    // only when there was one, which left the `@` living on the name line.
+    expect(RESULTS).toMatch(/under=\{person\.handle \? `@\$\{person\.handle\}` : null\}/);
+  });
+});

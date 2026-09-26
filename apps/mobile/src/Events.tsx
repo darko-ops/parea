@@ -2397,7 +2397,11 @@ export function SearchTab({
             >
               {suggested.map((person) => {
                 const standing = sent[person.actorId];
-                const name = person.displayName?.trim() || `@${person.handle}`;
+                /* Bare, like the row below it and like the profile it opens:
+                   the `@` marks a handle as the thing you can type at a search
+                   box, and in the slot where a card says who somebody is it is
+                   punctuation in front of a name. */
+                const name = person.displayName?.trim() || person.handle;
                 return (
                   <View
                     key={person.actorId}
@@ -2680,8 +2684,19 @@ export function SearchTab({
                  of searching for a person rather than for a word. */
               avatar={person.avatar}
               seed={person.handle ?? person.actorId}
-              name={person.displayName?.trim() || `@${person.handle}`}
-              under={person.displayName?.trim() && person.handle ? `@${person.handle}` : null}
+              /*
+                The name bare and the handle under it, wearing the `@`.
+
+                A result with no name written in used to read "@wren" on the
+                first line and nothing on the second, so the one line that was
+                the person's name was also the only place the sigil appeared.
+                Now the second line always carries the handle — which is where
+                the `@` means something — and the first is what somebody is
+                called, which does not start with punctuation. Same rule as the
+                top of the profile this row opens.
+              */
+              name={person.displayName?.trim() || person.handle || 'Someone'}
+              under={person.handle ? `@${person.handle}` : null}
               disabled={!person.handle}
               onPress={() => person.handle && onOpenPerson(person.handle)}
             />
