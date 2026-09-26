@@ -9,7 +9,14 @@
  * time.
  */
 
-import { DEFAULT_PROVIDER, PROVIDERS, isKnownProvider } from '@parea/core';
+import {
+  CARRIERS,
+  DEFAULT_CARRIER,
+  DEFAULT_PROVIDER,
+  PROVIDERS,
+  isKnownCarrier,
+  isKnownProvider,
+} from '@parea/core';
 
 export type ConfigItem = {
   name: string;
@@ -171,6 +178,55 @@ export function describeConfig(): ConfigItem[] {
       name: 'MAIL_FROM',
       present: has('MAIL_FROM'),
       consequence: 'sign-in codes are never sent; accounts cannot be claimed',
+      requiredInProduction: false,
+    },
+    {
+      name: 'SMS_PROVIDER',
+      // Reported the way MAIL_PROVIDER is: unset is fine and means the default,
+      // and false here means somebody set it to a carrier no transport exists
+      // for. The consequence is worth spelling out because it is invisible —
+      // the route that sends a code answers the same either way, so a typo
+      // shows up as everybody's phone verification silently never arriving.
+      present: isKnownCarrier(process.env.SMS_PROVIDER?.trim() || DEFAULT_CARRIER),
+      consequence: `unrecognised; must be one of ${Object.keys(CARRIERS).join(', ')}`,
+      requiredInProduction: false,
+    },
+    {
+      name: 'SMS_API_URL',
+      // Load-bearing for Twilio, whose path carries the account SID, and
+      // filled in from the carrier table for the other two.
+      present: has('SMS_API_URL'),
+      consequence: 'defaults to the carrier endpoint; required for twilio',
+      requiredInProduction: false,
+    },
+    {
+      name: 'SMS_API_KEY',
+      // Not required: the product is complete without phone discovery, the way
+      // it is complete without accounts. But an app offering to verify a number
+      // and unable to send is worse than one not offering it, so the same rule
+      // applies — in production an unconfigured texter refuses rather than
+      // pretending a code went out.
+      present: has('SMS_API_KEY'),
+      consequence: 'phone numbers cannot be verified; friend discovery stays closed',
+      requiredInProduction: false,
+    },
+    {
+      name: 'SMS_FROM',
+      present: has('SMS_FROM'),
+      consequence: 'phone numbers cannot be verified; friend discovery stays closed',
+      requiredInProduction: false,
+    },
+    {
+      name: 'PHONE_PEPPER',
+      /*
+       * Falls back to `SESSION_SECRET`, and the fallback is the reason this is
+       * listed rather than left implicit. Rotating a dedicated pepper
+       * invalidates every stored number hash — everybody has to enter and verify
+       * their number again — so sharing the session secret is one fewer thing to
+       * configure and one more thing that cannot be rotated independently.
+       */
+      present: has('PHONE_PEPPER'),
+      consequence: 'falls back to SESSION_SECRET; rotating either re-verifies every number',
       requiredInProduction: false,
     },
     {

@@ -285,6 +285,25 @@ export type AccountProfile = {
   avatarUrl: string | null;
   /** "47" when a number is set, null when none is. Never the number. */
   phoneLast2: string | null;
+  /**
+   * Whether a code sent to that number came back.
+   *
+   * Two digits and a boolean rather than one field, because "a number is here"
+   * and "a number is proved" are different states with different screens: an
+   * unproved number is a flow somebody abandoned halfway, and the page has to
+   * be able to offer to finish it rather than either claiming it is done or
+   * pretending nothing happened. Only a proved number makes anybody findable —
+   * see `findByPhone`.
+   */
+  phoneVerified: boolean;
+  /**
+   * Whether the number and the address may be used to find this person.
+   *
+   * On the profile payload because it is a setting, and a setting a screen
+   * cannot read is a switch that draws itself in the wrong position on the
+   * first frame. See the column for what it governs.
+   */
+  discoverable: boolean;
 };
 
 export async function accountFor(
@@ -304,6 +323,10 @@ export async function accountFor(
       avatarKey: schema.actors.avatarKey,
       // The last two digits, never the number — there is no number to send.
       phoneLast2: schema.actors.phoneLast2,
+      // The moment, reduced to a boolean below. The timestamp is a fact about
+      // when somebody did something and nothing on any screen needs it.
+      phoneVerifiedAt: schema.actors.phoneVerifiedAt,
+      discoverable: schema.actors.discoverable,
     })
     .from(schema.actors)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
@@ -311,8 +334,12 @@ export async function accountFor(
     .limit(1);
   if (!row) return null;
 
-  const { avatarKey, ...rest } = row;
-  return { ...rest, avatarUrl: await avatarUrl(avatarKey) };
+  const { avatarKey, phoneVerifiedAt, ...rest } = row;
+  return {
+    ...rest,
+    phoneVerified: phoneVerifiedAt != null,
+    avatarUrl: await avatarUrl(avatarKey),
+  };
 }
 
 /**

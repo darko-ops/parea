@@ -2090,12 +2090,10 @@ export function SearchTab({
   api,
   events,
   t,
-  waiting,
-  unread,
   onOpen,
   onOpenGroup,
   onOpenPerson,
-  onOpenLately,
+  onFindFriends,
   onCreateGroup,
   onCreateGroupFrom,
   active,
@@ -2107,18 +2105,17 @@ export function SearchTab({
   t: TabTheme;
   /** Whether this is the tab on screen. The rooms below are reloaded on arrival. */
   active: boolean;
-  /** How many things are waiting on an answer, for the badge on the tray. */
-  waiting: number;
-  /**
-   * Whether anything has merely happened since the last look — a remark on a
-   * photograph, a tag, an album filling up. Draws the dot when there is no
-   * count to draw instead; see `Notifications`.
-   */
-  unread: boolean;
   onOpen: (event: EventListing) => void;
   onOpenGroup: (groupId: string) => void;
   onOpenPerson: (handle: string) => void;
-  onOpenLately: () => void;
+  /**
+   * The disc in the corner, where the tray was.
+   *
+   * The tray's three props went with it — the count, the dot and the way to
+   * Lately — because this tab no longer draws any of them. Home still does, and
+   * that is one press from wherever anybody opens the app.
+   */
+  onFindFriends: () => void;
   /** The `+`'s two halves. Nothing is made until one of them is picked. */
   onCreateGroup: () => void;
   onCreateGroupFrom: (cluster: Cluster) => void;
@@ -2434,7 +2431,25 @@ export function SearchTab({
             />
           </View>
         }
-        right={<Notifications t={t} count={waiting} unread={unread} onPress={onOpenLately} />}
+        /*
+          The corner that used to hold the tray, and why it changed hands.
+
+          The tray is "somebody is waiting on you", which is a thing that came to
+          you — and it is still one press from Home, the tab anybody opens the app
+          on. What this corner is worth more to is the half of finding that nobody
+          can type: the box below answers *who is called this*, and the disc
+          answers *who is here that I know*.
+
+          One control, not two. A head row with a field, a tray and a `+` is
+          three targets under one thumb on the screen whose whole subject is the
+          field — which is the argument that took the `+` away, and it does not
+          stop applying at two.
+        */
+        right={
+          <RoundButton t={t} onPress={onFindFriends} accessibilityLabel="Find friends">
+            <Glyph name="add-person" size={20} color={t.fg} />
+          </RoundButton>
+        }
       />
 
       {/*

@@ -65,6 +65,22 @@ export {
   type ProviderId,
 } from './email';
 export {
+  CARRIERS,
+  ConsoleTexter,
+  DEFAULT_CARRIER,
+  HttpTexter,
+  isKnownCarrier,
+  redactNumber,
+  splitPair,
+  TextUnavailable,
+  texterFromEnv,
+  UnconfiguredTexter,
+  verifyText,
+  type CarrierId,
+  type Text,
+  type Texter,
+} from './sms';
+export {
   clientLabel,
   describeClient,
   type ClientDescription,

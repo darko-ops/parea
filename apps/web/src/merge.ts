@@ -305,22 +305,61 @@ export async function mergeActor(
      * they set most recently and the one they expect to keep.
      */
     const [loser] = await tx
-      .select({ hash: schema.actors.phoneHash, last2: schema.actors.phoneLast2 })
+      .select({
+        hash: schema.actors.phoneHash,
+        last2: schema.actors.phoneLast2,
+        /*
+         * And when it was proved, which has to travel with it.
+         *
+         * Every lookup reads `phone_verified_at` rather than the hash, so a
+         * merge that carried the number and left the timestamp behind would
+         * hand somebody a number they could see on their own profile and
+         * nobody could find them by. Silent, and unfixable from any screen —
+         * the number is already set, so there is nothing to add.
+         */
+        verifiedAt: schema.actors.phoneVerifiedAt,
+      })
       .from(schema.actors)
       .where(eq(schema.actors.id, from));
     if (loser?.hash) {
       await tx
         .update(schema.actors)
-        .set({ phoneHash: loser.hash, phoneLast2: loser.last2 })
+        .set({
+          phoneHash: loser.hash,
+          phoneLast2: loser.last2,
+          phoneVerifiedAt: loser.verifiedAt,
+        })
         .where(and(eq(schema.actors.id, into), isNull(schema.actors.phoneHash)));
     }
+
+    /*
+     * A verification the loser had in flight is dropped rather than moved.
+     *
+     * The only row in the schema pointing at an actor that a merge throws away,
+     * and the reason is that it cannot be moved: the stored code is an HMAC over
+     * the actor id — see `hashCode` in `phone.ts` — so a row under a new owner
+     * is a row whose code can never match again. Keeping it would leave the
+     * survivor with a pending verification nothing can answer, which is worse
+     * than none: `confirmVerification` reads the newest outstanding row, so it
+     * would shadow the next real attempt until it expired.
+     *
+     * Nothing is lost. The number was never claimed, and asking again is one
+     * button on the screen somebody was already looking at.
+     */
+    await tx.delete(schema.phoneCodes).where(eq(schema.phoneCodes.actorId, from));
 
     // Tombstoned rather than deleted: the phone that owned this actor still
     // has its token in the keychain, and `currentActorId` follows the pointer
     // so that phone keeps working without anyone signing in again.
     await tx
       .update(schema.actors)
-      .set({ mergedIntoId: into, accountId: null, phoneHash: null, phoneLast2: null })
+      .set({
+        mergedIntoId: into,
+        accountId: null,
+        phoneHash: null,
+        phoneLast2: null,
+        phoneVerifiedAt: null,
+      })
       .where(eq(schema.actors.id, from));
 
     // Anything that pointed at the loser now points at the survivor, so a

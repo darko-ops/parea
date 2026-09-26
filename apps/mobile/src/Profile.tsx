@@ -53,6 +53,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -682,6 +683,10 @@ export function ProfileScreen({
           api={api}
           t={t}
           Button={Button}
+          /* Undefined while the answer is in flight, which is how the privacy
+             switch tells "not yet" from "off" — see the note on it. */
+          account={account ?? null}
+          onChanged={load}
           onClose={() => setSettings(false)}
           onSignedIn={() => {
             void load();
@@ -752,10 +757,107 @@ export function ProfileScreen({
  * It is the same `AccountCard` the gated callers use rather than a second
  * copy, so signing in and out says the same thing wherever it is asked.
  */
+/**
+ * "Let people who have my phone number or email find me on Parea."
+ *
+ * The one privacy switch in this product, and the reason it exists is that the
+ * two identifiers behind it were not given to be found by. A handle is a name
+ * somebody chose so that people could look them up; a number and an address are
+ * how the product reaches them, handed over for that, and being *found* by them
+ * is a second use of the same fact. This is where somebody says no to the second
+ * without giving up the first.
+ *
+ * ## Why it is here and not on the Find Friends screen
+ *
+ * That screen turns it on — adding a number is what it is for, and the sentence
+ * beside the field says so. Turning it off is a different kind of act: it is not
+ * part of a flow, it is a thing somebody goes looking for weeks later, and the
+ * place people look is Settings. The Find Friends screen says out loud that the
+ * switch is on and names this sheet, so the route is short in the direction that
+ * matters.
+ *
+ * ## What it does not do
+ *
+ * It is not general invisibility, and the sub-line is careful about that. The
+ * handle search still finds you, and so do the friends of your friends, who can
+ * see you on a mutual friend's list already. Advertising it as "hide me" would be
+ * a promise the product does not keep.
+ *
+ * Optimistic, and it puts the switch back if the request fails. A toggle that
+ * waits for a round trip before moving reads as broken; one that moves and stays
+ * moved after a failure is a lie about what is stored.
+ */
+function Discoverability({
+  api,
+  t,
+  account,
+  onChanged,
+}: {
+  api: Api;
+  t: GroupTheme;
+  account: Account;
+  onChanged: () => void;
+}) {
+  /*
+   * `!== false` rather than `=== true`.
+   *
+   * An app build outlives the server it talks to, and against a deploy from
+   * before this column shipped the field is simply absent. Undefined has to read
+   * as on, because the alternative is a switch that draws itself off and tells
+   * somebody their number is private when it is not.
+   */
+  const [on, setOn] = useState(account.discoverable !== false);
+  const [busy, setBusy] = useState(false);
+
+  const set = useCallback(
+    async (next: boolean) => {
+      setOn(next);
+      setBusy(true);
+      try {
+        await api.setDiscoverable(next);
+        onChanged();
+      } catch {
+        setOn(!next);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [api, onChanged],
+  );
+
+  return (
+    <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+      <View style={styles.switchRow}>
+        <Text style={[styles.switchLabel, { color: t.fg }]}>
+          Let people who have my phone number or email find me on Parea
+        </Text>
+        <Switch
+          value={on}
+          disabled={busy}
+          onValueChange={(next) => void set(next)}
+          trackColor={{ true: t.accent, false: t.line }}
+          accessibilityLabel="Let people who have my phone number or email find me on Parea"
+        />
+      </View>
+      <Text style={[styles.hint, { color: t.dim }]}>
+        {on
+          ? 'Somebody who types your number or your address finds your profile. Turn this off and neither matches.'
+          : 'Your number and your address match nothing. People can still find you by your handle.'}
+      </Text>
+      <Text style={[styles.hint, { color: t.dim }]}>
+        Neither is ever shown to anybody, either way.
+        {account.phoneLast2 ? ` Your number ends ${account.phoneLast2}.` : ''}
+      </Text>
+    </View>
+  );
+}
+
 function Settings({
   api,
   t,
   Button,
+  account,
+  onChanged,
   onClose,
   onSignedIn,
   onSignedOut,
@@ -763,6 +865,13 @@ function Settings({
   api: Api;
   t: GroupTheme;
   Button: ButtonEl;
+  /**
+   * The account, or null for a device with none and while the answer is in
+   * flight. The privacy switch below is the only thing that reads it.
+   */
+  account: Account | null;
+  /** The switch was moved, so the profile's copy of the account is stale. */
+  onChanged: () => void;
   onClose: () => void;
   onSignedIn: () => void;
   onSignedOut: () => void;
@@ -795,6 +904,8 @@ function Settings({
                   onSignedOut();
                 }}
               />
+
+              {account && <Discoverability api={api} t={t} account={account} onChanged={onChanged} />}
 
               <Button
                 label="Safety, reporting and contact"
@@ -1163,4 +1274,9 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 11, paddingVertical: 12, paddingHorizontal: 15, fontSize: 16 },
   inputTall: { minHeight: 84, textAlignVertical: 'top' },
   hint: { fontSize: 12.5, lineHeight: 18 },
+  /* The label takes what the switch does not. `flex: 1` because the sentence is
+     a sentence rather than a word, and it has to wrap instead of pushing the
+     control off the edge. */
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  switchLabel: { flex: 1, fontSize: 14.5, lineHeight: 20, fontWeight: '600' },
 });

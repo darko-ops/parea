@@ -282,6 +282,23 @@ MAIL_API_KEY=
 MAIL_FROM=
 MAIL_API_URL=
 
+# Confirming a phone number, which is what friend discovery is gated on.
+# Optional the same way the mailer is; in production an unconfigured texter
+# refuses rather than pretending a code went out.
+# twilio | messagebird | vonage (default twilio). SMS_API_KEY is one value and
+# for two of them it is a pair: <sid>:<token> for twilio, <key>:<secret> for
+# vonage, the access key alone for messagebird. SMS_API_URL is required for
+# twilio, whose path carries the account SID.
+SMS_PROVIDER=
+SMS_API_KEY=
+SMS_FROM=
+SMS_API_URL=
+
+# The key phone numbers are hashed with. Blank falls back to SESSION_SECRET,
+# which is the right answer unless there is somewhere safer to keep this:
+# rotating it makes everybody confirm their number again.
+PHONE_PEPPER=
+
 # Waking the deriver rather than having it ask every five seconds. That poll
 # kept a Neon compute awake around the clock until a month's quota was gone.
 # Leave the token empty in development, where `deriver watch` still polls a

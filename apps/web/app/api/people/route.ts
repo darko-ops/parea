@@ -22,7 +22,13 @@ import { NextResponse } from 'next/server';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { findByPhone, findPeople, looksLikePhone } from '@/friends';
+import {
+  findByEmail,
+  findByPhone,
+  findPeople,
+  looksLikeEmail,
+  looksLikePhone,
+} from '@/friends';
 import { PEOPLE_SEARCH_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId } from '@/session';
 
@@ -72,6 +78,24 @@ export async function GET(request: Request) {
 
   if (looksLikePhone(query)) {
     return NextResponse.json({ people: await seen(await findByPhone(db, actorId, query)) });
+  }
+
+  /*
+   * An address is the same kind of lookup as a number, and it is here because
+   * the setting promises it.
+   *
+   * "Let people who have my phone number or email find me on Parea" was half a
+   * sentence while an address matched nothing: somebody could turn the switch off
+   * and the only thing it retracted was the number. Exact and whole, for the
+   * number's reason — possession of the address is the introduction, and a prefix
+   * over that column would be a way to read the account table.
+   *
+   * A handle cannot contain an `@`, so nothing is taken away from the search
+   * below: there was no query that used to find somebody by handle and now does
+   * not.
+   */
+  if (looksLikeEmail(query)) {
+    return NextResponse.json({ people: await seen(await findByEmail(db, actorId, query)) });
   }
 
   return NextResponse.json({ people: await seen(await findPeople(db, actorId, query)) });

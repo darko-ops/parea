@@ -20,6 +20,14 @@ type Profile = {
   bio: string | null;
   /** "47" when a number is set. Never the number — see `phone.ts`. */
   phoneLast2?: string | null;
+  /**
+   * Whether a code sent to that number came back.
+   *
+   * The reason this sheet no longer has a field for a number: adding one is two
+   * round trips with a code in between, and that flow lives in one place. All
+   * this screen can honestly do is say which number is on file and take it away.
+   */
+  phoneVerified?: boolean;
   avatarUrl: string | null;
 };
 
@@ -38,49 +46,18 @@ export function EditProfile({
   const [handleError, setHandleError] = useState<string | null>(null);
   const [picError, setPicError] = useState<string | null>(null);
   /*
-   * The number is write-only from here.
+   * The two digits, and there was never anything else to have.
    *
-   * There is nothing to prefill it with: what the server holds is a hash and
-   * two digits, and it could not send the number back if it wanted to. So the
-   * box is empty with the masked digits beside it, which is also the honest
-   * picture of what is stored.
+   * What the server holds is a keyed hash and these two; it could not send the
+   * number back if it wanted to. There used to be a field here as well, and it
+   * has gone somewhere better — see the note at the phone section below.
    */
-  const [phone, setPhone] = useState('');
   const [last2, setLast2] = useState(profile.phoneLast2 ?? null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const initial = (name.trim() || '?').slice(0, 1).toUpperCase();
-
-  const savePhone = useCallback(async () => {
-    setBusy(true);
-    setPhoneError(null);
-    try {
-      const res = await fetch('/api/account/phone', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      if (res.ok) {
-        setLast2(((await res.json()) as { last2: string }).last2);
-        setPhone('');
-        await onSaved();
-        return;
-      }
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      // Two failures worth telling apart. One is a format nobody can guess is
-      // wrong without being told which part; the other is a number that is
-      // already somebody's, and re-typing it will not help.
-      setPhoneError(
-        body.error === 'already_claimed'
-          ? 'That number is already on another account.'
-          : 'Start with the country code, like +1 555 010 4477.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [onSaved, phone]);
 
   const removePhone = useCallback(async () => {
     setBusy(true);
@@ -276,9 +253,24 @@ export function EditProfile({
         it.
       </p>
 
-      <label htmlFor="edit-phone" style={{ marginTop: 16 }}>
-        Phone number
-      </label>
+      {/*
+        The number, and no field for it.
+
+        There was one, and it wrote the column directly. That was wrong in a way
+        nothing on this screen could show: a hash says two people typed the same
+        digits and nothing about whose digits they are, so a form that saves it
+        unchecked is a form anybody can fill with somebody else's number — and
+        the person harmed is the one who owns it, who is not here.
+
+        Adding one is two round trips with a code in between now, which is a flow
+        rather than a field, and it lives on the page whose whole subject is being
+        findable. Duplicating it here would be two implementations of the one
+        thing in this product that must not be got wrong twice.
+
+        What is left is what this sheet can honestly do: say which number is on
+        file, and take it away.
+      */}
+      <label style={{ marginTop: 16 }}>Phone number</label>
       {last2 ? (
         <div className="row">
           <span className="phone-set">••• ••• ••{last2}</span>
@@ -287,27 +279,19 @@ export function EditProfile({
           </button>
         </div>
       ) : (
-        <div className="row">
-          <input
-            id="edit-phone"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+1 555 010 4477"
-            autoComplete="tel"
-            style={{ flex: 1, minWidth: 200 }}
-          />
-          <button className="small" onClick={savePhone} disabled={busy || !phone.trim()}>
-            Save
-          </button>
-        </div>
+        <p className="muted">
+          None. <a href="/find/friends">Find friends</a> is where you add one.
+        </p>
       )}
       {phoneError && <p className="muted">{phoneError}</p>}
       <p className="muted">
         Optional, and only so people who already have your number can find you.
         It is never shown to anybody and never appears on your profile — what is
-        kept is a scrambled form of it and the last two digits, which is why the
-        box above is empty even when a number is set.
+        kept is a scrambled form of it and the last two digits, which is why
+        there is nothing to show you here even when a number is set.
+        {last2 && profile.phoneVerified === false
+          ? ' This one was added before numbers were confirmed by text, so it finds nobody until you add it again.'
+          : ''}
       </p>
 
       <div className="row" style={{ marginTop: 20 }}>

@@ -996,6 +996,56 @@ export type Account = {
   link: string | null;
   handle: string | null;
   avatarUrl: string | null;
+  /**
+   * The last two digits of the number on file, or null. Never the number.
+   *
+   * There is nothing to prefill a field with and that is the honest picture of
+   * what is stored rather than an omission: the number is a keyed hash and two
+   * digits, so "•• •• 47" is the most anybody's own screen can say.
+   *
+   * Optional because an app outlives the server it talks to. A build on
+   * somebody's phone can be talking to a deploy from before these three shipped
+   * — or to a response cached from one — and a screen that read
+   * `account.phoneVerified` as a boolean would decide the number was unproved
+   * and offer to start over.
+   */
+  phoneLast2?: string | null;
+  /** Whether a code sent to that number came back. Only then does it find you. */
+  phoneVerified?: boolean;
+  /** "Let people who have my phone number or email find me on Parea." */
+  discoverable?: boolean;
+};
+
+/**
+ * Somebody the product thinks you may already know, and why.
+ *
+ * The three reasons stay apart rather than being summed. A row has to be able to
+ * say *why* it is there — "2 mutual friends" and "3 albums together" are
+ * different sentences carrying different weight — and one score would leave the
+ * screen saying "suggested" and nothing a reader could check.
+ *
+ * All three optional for `Account`'s reason: a build outlives its server, and a
+ * screen that read `mutuals` off an older response would render "undefined
+ * mutual friends".
+ */
+export type Recommendation = InvitablePerson & {
+  mutuals?: number;
+  albums?: number;
+  groups?: number;
+};
+
+/**
+ * The Find Friends screen, in one answer.
+ *
+ * Together rather than in three calls because the screen cannot draw any of it
+ * without the rest: whether a number is proved decides whether the page is a
+ * form or a list. Three requests would draw the list, then the form over it,
+ * then move the switch — three frames of a page changing its mind.
+ */
+export type Discovery = {
+  phone: { last2: string | null; verified: boolean };
+  discoverable: boolean;
+  people: Recommendation[];
 };
 
 /**
@@ -2037,6 +2087,72 @@ export class Api {
       '/api/people/suggestions',
     );
     return people ?? [];
+  }
+
+  /**
+   * The Find Friends screen: whether a number is proved, and who may know you.
+   *
+   * People come back only once a number is proved, and the gate is the server's
+   * rather than the screen's — a client is a suggestion. An empty list with
+   * `phone.verified` false is not an error: it is what lets one screen say "add
+   * your number" and "nobody new right now" without a second round trip to find
+   * out which.
+   */
+  discovery(): Promise<Discovery> {
+    return this.call<Discovery>('/api/people/recommendations');
+  }
+
+  /**
+   * Ask for a code to be texted to a number.
+   *
+   * Answers `sent` whatever happened after the number parsed — a carrier
+   * outage, a number that has had its share of texts this hour, a number
+   * another account holds. That is the endpoint's design rather than this
+   * method being lax: a distinguishable failure would answer "has somebody been
+   * asked about this number?" for anybody with a keypad.
+   *
+   * The two digits come back so the screen can say which number it texted,
+   * which is what somebody who mistyped needs in order to notice.
+   */
+  startPhone(phone: string): Promise<{ sent?: boolean; last2?: string }> {
+    return this.call('/api/account/phone', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+  }
+
+  /**
+   * Present the code, which is what actually claims the number.
+   *
+   * The code and nothing else. The number is on the pending row already — as a
+   * hash and two digits, never as digits — and sending it again would be the
+   * server matching two things the caller supplied against each other, which
+   * proves nothing.
+   */
+  verifyPhone(code: string): Promise<{ last2?: string; verified?: boolean }> {
+    return this.call('/api/account/phone/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  /** Give the number back. Clears the hash, the two digits and the proof. */
+  removePhone(): Promise<unknown> {
+    return this.call('/api/account/phone', { method: 'DELETE' });
+  }
+
+  /**
+   * "Let people who have my phone number or email find me on Parea."
+   *
+   * Through `/api/account` rather than a route of its own, because it is one
+   * column on the row the profile fields live on. Only ever sent false from a
+   * screen: `true` is written by the request that first proves a number.
+   */
+  setDiscoverable(on: boolean): Promise<{ ok?: boolean }> {
+    return this.call('/api/account', {
+      method: 'PATCH',
+      body: JSON.stringify({ discoverable: on }),
+    });
   }
 
   /** Answering one, from their page rather than from the bubble on home. */

@@ -66,6 +66,7 @@ import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
+import { FindFriends } from './src/FindFriends';
 import { ContributeChoice } from './src/ContributeChoice';
 import { CoverFramer, type CoverFraming } from './src/CoverFramer';
 import { CreateEvent } from './src/CreateEvent';
@@ -260,6 +261,16 @@ type Route =
    * permanent quarter of the tab bar. See `Lately.tsx`.
    */
   | { screen: 'lately' }
+  /**
+   * Find Friends, pushed from the disc in the corner of Find.
+   *
+   * A screen rather than a section of that tab. The tab is one field and the
+   * answers to what is typed in it; this is a page that asks for something —
+   * a number, once — and then draws a list nobody typed for. Folding it in
+   * would put a form above the search box on the screen whose whole subject is
+   * the search box.
+   */
+  | { screen: 'findFriends' }
   /**
    * Making a group, on its own page.
    *
@@ -1492,6 +1503,28 @@ export default function App() {
         </SwipeBack>
       )}
 
+      {/*
+        Find Friends, over the tabs.
+
+        A push rather than a modal, for the reason the person page is one: this is
+        somewhere you go and come back from, not a task to finish or abandon. The
+        gesture is the same as everywhere else, so backing out of it is the same
+        movement as backing out of an album.
+      */}
+      {route.screen === 'findFriends' && (
+        <SwipeBack onBack={leaveToTabs}>
+          <FindFriends
+            api={api}
+            t={t}
+            Button={Button}
+            onBack={leaveToTabs}
+            /* Deeper rather than back: a suggestion is somebody you are
+               deciding whether you recognise, and their page is how. */
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+          />
+        </SwipeBack>
+      )}
+
       {route.screen === 'person' && (
         <SwipeBack onBack={leaveToTabs}>
           <PersonScreen
@@ -1703,12 +1736,10 @@ export default function App() {
                 t={t}
                 active={tab === 'search'}
                 openCreate={makeGroup}
-                waiting={waiting}
-                unread={unread}
                 onOpen={openListing}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
-                onOpenLately={() => setRoute({ screen: 'lately' })}
+                onFindFriends={() => setRoute({ screen: 'findFriends' })}
                 onCreateGroup={() => {
                   /*
                    * Spent on the way in, and that is the whole of this fix.

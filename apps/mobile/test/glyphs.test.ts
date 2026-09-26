@@ -46,6 +46,49 @@ describe('the shared drawings', () => {
     expect(GLYPH).toContain('M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5');
   });
 
+  it('draws finding a friend out of the group glyph, not a new person', () => {
+    /*
+     * One person and a `+`, where `group` has a second person. The head and the
+     * shoulders are that glyph's own two elements, character for character, in
+     * both clients — a second unrelated drawing of a person in one set is what
+     * makes an icon set look assembled, which is the whole subject of this file.
+     *
+     * Not a magnifier with a person in it: Find already wears the magnifier and
+     * this control sits in the corner of that very screen.
+     */
+    const OFFSET_FIGURE = 'M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5';
+    for (const source of [RAIL, GLYPH]) {
+      expect(source).toContain(OFFSET_FIGURE);
+    }
+
+    const app = GLYPH.slice(GLYPH.indexOf("case 'add-person':"), GLYPH.indexOf("case 'search':"));
+    expect(app).not.toBe('');
+    expect(app).toContain(OFFSET_FIGURE);
+    expect(app).toMatch(/<Circle cx=\{9\.5\} cy=\{8\.5\} r=\{3\.5\} \/>/);
+    // The `+`, and only one of it. A second figure would make this `group`.
+    expect((app.match(/<Line/g) ?? [])).toHaveLength(2);
+    expect(app).toMatch(/x1=\{18\.5\} y1=\{3\.5\} x2=\{18\.5\} y2=\{9\.5\}/);
+    expect(app).toMatch(/x1=\{15\.5\} y1=\{6\.5\} x2=\{21\.5\} y2=\{6\.5\}/);
+
+    // And the web ships the same two lines, so the corner of Find and the
+    // corner of the web's Find page are one drawing.
+    expect(RAIL).toContain('<line x1="18.5" y1="3.5" x2="18.5" y2="9.5" />');
+    expect(RAIL).toContain('<line x1="15.5" y1="6.5" x2="21.5" y2="6.5" />');
+  });
+
+  it('puts it in the corner of Find, and on the screen it opens', () => {
+    // The door and the room. A disc showing one picture that opens a screen
+    // illustrated with another is two screens as far as anybody can tell — the
+    // same rule the tray is held to below.
+    const EVENTS = read('src/Events.tsx');
+    const find = EVENTS.slice(
+      EVENTS.indexOf('export function SearchTab'),
+      EVENTS.indexOf('export function AccountCard'),
+    );
+    expect(find).toMatch(/<Glyph name="add-person"/);
+    expect(read('src/FindFriends.tsx')).toMatch(/<Glyph name="add-person"/);
+  });
+
   it('draws the magnifier exactly as the web search field does', () => {
     expect(SEARCH).toContain('cx="11" cy="11" r="7"');
     expect(GLYPH).toMatch(/<Circle cx=\{11\} cy=\{11\} r=\{7\} \/>/);

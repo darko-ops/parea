@@ -69,6 +69,7 @@ import { matches } from '@/search';
 
 import { CreateGroupCard, type ClusterPerson } from './CreateGroupCard';
 import { Face } from './Faces';
+import { RailIcon } from './RailIcon';
 import { SearchIcon } from './SearchIcon';
 
 type Door = { id: string; name: string; memberCount: number };
@@ -484,8 +485,33 @@ export function FindView({
         "Find" rather than "Search", which is what the rail still calls it: the
         rail is naming a place to go and this is naming what you get. It also
         matches the route.
+
+        The row is the app's `PageHead` trick: equal flex on both sides so the
+        word stays centred on the page rather than on what is left of it. The
+        leading side holds nothing and still exists — a single control on the
+        right with no counterweight would push the greeting left by half a disc,
+        which is close enough to read as centred and not be.
       */}
-      <h1 className="find-title">{greeting ?? 'Find'}</h1>
+      <div className="find-top">
+        <span className="find-top-side" />
+        <h1 className="find-title">{greeting ?? 'Find'}</h1>
+        <span className="find-top-side find-top-trailing">
+          {/*
+            The other half of finding, and the half nobody can type.
+
+            The box below answers *who is called this*. This answers *who is
+            here that I know* — a question with no spelling, so it cannot be a
+            scope on the field. The app puts it in the same corner of the same
+            tab, wearing the same drawing.
+
+            A link rather than a button: it is a page, it should be openable in
+            a new tab, and it should be reachable with no JavaScript at all.
+          */}
+          <a href="/find/friends" className="round" aria-label="Find friends">
+            <RailIcon glyph="add-person" />
+          </a>
+        </span>
+      </div>
 
       {/*
         The box, given the weight of the thing the page is for. It used to be

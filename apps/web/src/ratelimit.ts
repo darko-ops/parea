@@ -322,3 +322,60 @@ export const PEOPLE_SEARCH_LIMIT: Limit = {
   max: 60,
   windowSeconds: 3600,
 };
+
+/**
+ * Verification codes, per source.
+ *
+ * The text-message twin of `SIGN_IN_LIMIT`, and the note there applies word for
+ * word: this is the one endpoint that makes the deployment send a message to a
+ * number a caller chose, so unbounded it is a way to post things to strangers
+ * over somebody else's reputation, and the bill lands here. A text costs real
+ * money per segment, which the email path does not, so the ceiling is lower.
+ *
+ * Five an hour is a person mistyping their number twice and still getting
+ * through, and far below anything worth automating.
+ */
+export const PHONE_CODE_LIMIT: Limit = {
+  name: 'phone-code',
+  max: 5,
+  windowSeconds: 3600,
+};
+
+/**
+ * Verification codes, per *number asked about*.
+ *
+ * The half a per-source cap cannot reach, and here it matters more than it does
+ * for mail. The person on the receiving end of a texted code did not ask for it,
+ * may not use this product at all, and cannot make it stop — and a text wakes a
+ * phone up. Three an hour turns the worst case from a flood into a nuisance.
+ *
+ * Keyed on the number, which means the number reaches `withinLimitFor` — where
+ * it is HMACed into a bucket name and never written down. That is the same
+ * treatment `hashPhone` gives it and the reason this is safe to key on at all.
+ *
+ * Exceeding it is silent: the route answers as though the text went, because a
+ * distinguishable "that number has had enough" is an oracle on whether somebody
+ * has been asked about.
+ */
+export const PHONE_NUMBER_LIMIT: Limit = {
+  name: 'phone-number',
+  max: 3,
+  windowSeconds: 3600,
+};
+
+/**
+ * Presenting a verification code, per source.
+ *
+ * Its own bucket for exactly the reason `SIGN_IN_VERIFY_LIMIT` has one: sending
+ * and guessing are two budgets, and sharing them means somebody who asked for a
+ * couple of codes and mistyped one has no allowance left to present the code
+ * already on their phone.
+ *
+ * Guessing is bounded better by `MAX_PHONE_ATTEMPTS` — five per code, counted on
+ * the row. This bounds one source spraying guesses across many codes.
+ */
+export const PHONE_VERIFY_LIMIT: Limit = {
+  name: 'phone-verify',
+  max: 20,
+  windowSeconds: 3600,
+};

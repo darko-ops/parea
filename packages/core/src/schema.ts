@@ -80,6 +80,48 @@ export const signInCodes = pgTable(
 );
 
 /**
+ * A code sent by text, to prove a number belongs to whoever typed it.
+ *
+ * The same shape as `sign_in_code` and for the same reasons — an HMAC rather
+ * than the digits, a short life, a per-row attempt counter, consumed on use —
+ * so there is one idea in this system about what a one-time code is rather
+ * than two that drift.
+ *
+ * What is different is the two columns in the middle. A verification cannot
+ * keep the number it is verifying: the whole promise of `phone.ts` is that the
+ * digits are never written down, and a pending row holding them for ten
+ * minutes would be that promise with a footnote. So the row carries what the
+ * actor's own columns will carry if the code comes back — the keyed hash and
+ * the last two digits — and the digits themselves exist only for as long as
+ * the request that sent the text.
+ *
+ * Bound to an actor rather than to a number, unlike sign-in. Signing in has
+ * nobody yet, so the address is the only thing to key on; this is somebody
+ * already signed in adding something to their own row, and keying on the actor
+ * means a code sent to one number cannot be presented to claim another.
+ */
+export const phoneCodes = pgTable(
+  'phone_code',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    /** What lands on the actor when this is answered. Never the digits. */
+    phoneHash: text('phone_hash').notNull(),
+    phoneLast2: text('phone_last2').notNull(),
+    codeHash: bytea('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    /** Wrong guesses against this code. Six digits needs a ceiling per code. */
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  // "The newest outstanding code for this person", which is the only read.
+  (t) => [index('phone_code_actor_idx').on(t.actorId, t.createdAt)],
+);
+
+/**
  * Every upload, removal and membership belongs to an actor. A guest actor has
  * no credentials — just a signed cookie or a keychain token. Claiming an
  * account sets `accountId`; nothing else moves. See design §3.
@@ -132,6 +174,41 @@ export const actors = pgTable(
    * "is it my old one?".
    */
   phoneLast2: text('phone_last2'),
+  /**
+   * When a code sent to that number came back.
+   *
+   * The column exists because the hash alone says nothing about whose number
+   * it is. Anybody could type anybody's digits, and an unverified hash sitting
+   * in this table would make the owner of that number findable as somebody
+   * else — which is worse than not having the feature, because the person
+   * harmed by it never touched the product.
+   *
+   * So discovery reads this and not `phone_hash`. Null means a number was
+   * offered and never proved, and it is treated exactly as no number at all.
+   */
+  phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
+  /**
+   * Whether the two identifiers this product holds — a number and an address —
+   * may be used to put this person in front of somebody who already has one.
+   *
+   * "Let people who have my phone number or email find me on Parea", which is
+   * the sentence on the settings screen and the whole of what this column
+   * decides. It gates the exact-match lookups in `friends.ts` and nothing
+   * else: a handle is something somebody chose in order to be findable, and
+   * turning this off does not retract it.
+   *
+   * Off until somebody proves a number, and on from that moment — which is not
+   * the same as defaulting true, and the difference is the whole reason the
+   * default is what it is. Defaulting true would have made every account that
+   * already exists matchable by its email address on the day this column
+   * shipped, without anybody being asked. Instead the request that first proves
+   * a number turns it on, in the same statement; see the verify route. That is
+   * where the promise is made, so that is where it is kept.
+   *
+   * Never set back to true by anything else. Somebody who turns it off has said
+   * something, and a later re-verification must not overrule it.
+   */
+  discoverable: boolean('discoverable').notNull().default(false),
   /**
    * A line or two somebody writes about themselves, shown on their profile.
    *

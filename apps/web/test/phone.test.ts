@@ -36,6 +36,16 @@ beforeEach(async () => {
   await db.execute(sql`truncate "account", "actor", "block" restart identity cascade`);
 });
 
+/**
+ * Somebody with a number already proved, which is the only state a number is
+ * useful in.
+ *
+ * `phoneVerifiedAt` and `discoverable` are set together here because they are
+ * set together in the product: the request that proves a number turns the switch
+ * on, in one statement. A fixture that wrote the hash alone would be testing a
+ * state the verify route cannot produce — and every test below would pass
+ * against a lookup that had stopped checking either one.
+ */
 async function person(handle: string, phone?: string) {
   const [account] = await db
     .insert(schema.accounts)
@@ -48,7 +58,12 @@ async function person(handle: string, phone?: string) {
       handle,
       accountId: account!.id,
       ...(phone
-        ? { phoneHash: hashPhone(normalisePhone(phone)!), phoneLast2: lastTwo(phone) }
+        ? {
+            phoneHash: hashPhone(normalisePhone(phone)!),
+            phoneLast2: lastTwo(phone),
+            phoneVerifiedAt: new Date(),
+            discoverable: true,
+          }
         : {}),
     })
     .returning();

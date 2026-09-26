@@ -103,12 +103,12 @@ describe('the screens it wraps', () => {
     for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs', 'leaveLately']) {
       expect(APP).toMatch(new RegExp(`<SwipeBack onBack=\\{${back}\\}>`));
     }
-    // Event, group, group thread, person, door and Lately — every screen
-    // pushed over the tabs that has an arrow in its corner — plus the four
-    // below, which are the album flow's first step, the account gate in front
-    // of it, and the two pages a room is made on: a group, which is asked for
-    // a name, and a chat, which is asked only who.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(10);
+    // Event, group, group thread, person, door, Lately and Find Friends —
+    // every screen pushed over the tabs that has an arrow in its corner — plus
+    // the four below, which are the album flow's first step, the account gate
+    // in front of it, and the two pages a room is made on: a group, which is
+    // asked for a name, and a chat, which is asked only who.
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(11);
   });
 
   it('is on the photographs and on the gate in front of them', () => {

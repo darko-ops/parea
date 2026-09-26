@@ -14,7 +14,7 @@
  * visible and fixable by asking again; only the second makes anyone friends.
  */
 
-import { handleKey, schema } from '@parea/core';
+import { handleKey, normaliseEmail, schema } from '@parea/core';
 import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
@@ -289,6 +289,75 @@ export function looksLikePhone(query: string): boolean {
 }
 
 /**
+ * Whether what somebody typed is an address rather than a name.
+ *
+ * An `@` with something either side of it and a dot in the right-hand half,
+ * which is as much as is worth checking here: `normaliseEmail` is what decides,
+ * and this only has to be sure enough not to send a handle down the exact-match
+ * door. A handle cannot contain an `@` — see `handleKey` — so there is no
+ * overlap to arbitrate.
+ */
+export function looksLikeEmail(query: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(query.trim());
+}
+
+/**
+ * Who may be surfaced by one of the two identifiers they did not choose to
+ * publish.
+ *
+ * A handle is a name somebody picked in order to be found by it, so the handle
+ * search asks nobody's permission. A phone number and an email address are not
+ * that: they are how the product reaches you, given for that reason, and being
+ * *found* by them is a second use of the same fact. `discoverable` is where
+ * somebody says no to the second without giving up the first — it is the
+ * settings line "Let people who have my phone number or email find me on
+ * Parea", and this clause is the whole of its enforcement.
+ *
+ * On for everybody by default; see the column. Written once and shared by both
+ * lookups below, because a flag honoured by one door and not the other is worse
+ * than no flag at all — somebody who turned it off would still be findable and
+ * would have been told otherwise.
+ */
+const discoverableOnly = sql`${schema.actors.discoverable} = true`;
+
+/**
+ * The exclusions every exact lookup shares with the handle search.
+ *
+ * Yourself, a device that never signed in, a merged actor, and either side of a
+ * block. Factored out rather than written twice: the phone door and the email
+ * door have to admit exactly the same set, or the narrower one becomes a way to
+ * ask questions the wider one refuses.
+ */
+function reachable(actorId: string | null) {
+  return and(
+    sql`${schema.actors.accountId} is not null`,
+    sql`${schema.actors.mergedIntoId} is null`,
+    actorId ? ne(schema.actors.id, actorId) : sql`true`,
+    actorId
+      ? sql`not exists (
+          select 1 from "block" b
+          where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.actors.id})
+             or (b.blocker_actor_id = ${schema.actors.id} and b.blocked_actor_id = ${actorId})
+        )`
+      : sql`true`,
+  );
+}
+
+/** The four columns an exact lookup answers with, plus where you stand. */
+function found(actorId: string | null) {
+  return {
+    actorId: schema.actors.id,
+    handle: schema.actors.handle,
+    displayName: schema.actors.displayName,
+    avatarKey: schema.actors.avatarKey,
+    // The same field the handle search sends. A caller must not be able to
+    // tell from the response which door it came through — see the note in
+    // the route — and a row that is missing a column is a difference.
+    standing: standingOf(actorId),
+  };
+}
+
+/**
  * The one person whose number this is, if they are findable at all.
  *
  * Exact, because possession of the number is the permission: somebody who has
@@ -298,6 +367,14 @@ export function looksLikePhone(query: string): boolean {
  * The same exclusions as the handle search — yourself, and anybody either of
  * you has blocked — and the same answer shape, so nothing about the response
  * says which door it came through.
+ *
+ * Two conditions have joined the hash since this was written, and both are the
+ * point of the discovery work rather than incidental. The number has to have
+ * been **proved** — a hash written straight from a form is anybody's guess at
+ * somebody else's digits, and matching on one would hand a stranger's account
+ * to whoever typed the number first. And its owner has to still be
+ * **discoverable**, which is the setting that exists so that giving this
+ * product a number is not the same as agreeing to be found by it forever.
  */
 export async function findByPhone(
   db: Db,
@@ -308,35 +385,235 @@ export async function findByPhone(
   if (!e164) return [];
 
   const rows = await db
-    .select({
-      actorId: schema.actors.id,
-      handle: schema.actors.handle,
-      displayName: schema.actors.displayName,
-      avatarKey: schema.actors.avatarKey,
-      // The same field the handle search sends. A caller must not be able to
-      // tell from the response which door it came through — see the note in
-      // the route — and a row that is missing a column is a difference.
-      standing: standingOf(actorId),
-    })
+    .select(found(actorId))
     .from(schema.actors)
     .where(
       and(
         eq(schema.actors.phoneHash, hashPhone(e164)),
-        sql`${schema.actors.accountId} is not null`,
-        sql`${schema.actors.mergedIntoId} is null`,
-        actorId ? ne(schema.actors.id, actorId) : sql`true`,
-        actorId
-          ? sql`not exists (
-              select 1 from "block" b
-              where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.actors.id})
-                 or (b.blocker_actor_id = ${schema.actors.id} and b.blocked_actor_id = ${actorId})
-            )`
-          : sql`true`,
+        // Proved, not merely typed. See the note above.
+        isNotNull(schema.actors.phoneVerifiedAt),
+        discoverableOnly,
+        reachable(actorId),
       ),
     )
     .limit(1);
 
   return rows;
+}
+
+/**
+ * The one person whose address this is, on the same terms as the number.
+ *
+ * The other half of the sentence the setting makes. "People who have my phone
+ * number or email" was only ever half true while an address matched nothing:
+ * somebody could turn the switch off and the only thing it retracted was the
+ * number.
+ *
+ * Exact and normalised, for the phone lookup's reason — possession of the
+ * address is the permission, and a prefix over this column would be a way to
+ * read the account table. Nothing about the answer names the address, and the
+ * address is never sent back: an email belongs to its owner and to the people
+ * they gave it to, and this route is neither.
+ *
+ * `account.email` rather than a second column, so there is one address per
+ * person and no question of which one discovery uses.
+ */
+export async function findByEmail(
+  db: Db,
+  actorId: string | null,
+  query: string,
+): Promise<FoundPerson[]> {
+  const email = normaliseEmail(query);
+  if (!email) return [];
+
+  const rows = await db
+    .select(found(actorId))
+    .from(schema.actors)
+    .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
+    .where(and(eq(schema.accounts.email, email), discoverableOnly, reachable(actorId)))
+    .limit(1);
+
+  return rows;
+}
+
+/**
+ * People you may already know, and why the product thinks so.
+ *
+ * This is the list behind the Find Friends page, and the whole design argument
+ * is about what is *not* in it.
+ *
+ * ## No address book
+ *
+ * The obvious way to build this is to ask for the contacts permission, upload
+ * the phone's address book and match it. That is the industry's answer and this
+ * product refuses it, for a reason that has nothing to do with squeamishness: an
+ * uploaded address book is a list of people who never agreed to anything. Half
+ * of them are not users, some of them are ex-partners and doctors and the
+ * plumber, and the product would then hold a social graph of strangers it has no
+ * business knowing. There is no contacts permission in either client, nothing
+ * here reads one, and the recommendation set is built entirely out of records
+ * this product already had a reason to keep.
+ *
+ * ## The three reasons somebody appears
+ *
+ * Each is a relationship the viewer can already see the other end of, which is
+ * the test every suggestion in this product has to pass — a suggestion should
+ * save a message, never disclose something you had no route to.
+ *
+ *   **mutual friends** — a friend of a friend, already the basis of
+ *   `suggestionsFor`. You could reach them by asking the friend you share.
+ *
+ *   **albums together** — you have both been in the same album. You were in a
+ *   room with them; the album is on both your screens and so is their face.
+ *
+ *   **groups together** — you are in the same group. The member list is a
+ *   thing you can both already read.
+ *
+ * ## What a verified number has to do with any of it
+ *
+ * Nothing, mechanically, and that is worth stating plainly rather than dressing
+ * up. The page asks for a number before it shows this list, and the reason is
+ * reciprocity rather than data: a list of people who may know you is the one
+ * screen in the product where somebody is being handed the benefit of everybody
+ * else being findable, and the price of it is being findable yourself. The
+ * number is what makes that true — it is the thing that lets the people who
+ * already have it reach you without anybody uploading a contact list.
+ *
+ * Which is why `discoverable` is *not* consulted here. It governs the two exact
+ * lookups and only those: turning it off means "do not use my number or my
+ * address to put me in front of people", not "hide me from the friends of my
+ * friends", who can see me on a mutual friend's list already. Reading the flag
+ * here would quietly make it a general invisibility switch, which is a
+ * different promise from the one the settings line makes.
+ */
+export type Recommendation = Person & {
+  /** Friends you have in common. Zero when this is not why they are here. */
+  mutuals: number;
+  /** Albums you have both been in. */
+  albums: number;
+  /** Groups you are both in. */
+  groups: number;
+};
+
+/** Enough to be worth the screen, few enough to read in one pass. */
+export const RECOMMENDATION_LIMIT = 24;
+
+export async function recommendationsFor(
+  db: Db,
+  actorId: string | null,
+): Promise<Recommendation[]> {
+  if (!actorId) return [];
+
+  type Row = {
+    actorId: string;
+    handle: string | null;
+    displayName: string | null;
+    avatarKey: string | null;
+    mutuals: number;
+    albums: number;
+    groups: number;
+  };
+
+  /*
+   * One statement, three sources, counted separately.
+   *
+   * Three queries and a merge in JavaScript would be the same answer and three
+   * round trips, and — worse — the exclusions would be written three times. It
+   * is the exclusions that matter most here: this is the only list in the
+   * product that puts a person in front of somebody who has never looked for
+   * them, so a missed block is a person reappearing in front of somebody who
+   * cut them off, on a screen they did not ask for.
+   *
+   * The counts stay separate rather than being summed into one score. The row
+   * has to be able to say *why*, and "3 mutual friends" and "2 albums together"
+   * are different sentences with different weight; a single number would make
+   * the screen say "suggested" and nothing else.
+   */
+  const answer = await db.execute<Row>(sql`
+    with mutual as (
+      select theirs.friend_actor_id as id, count(*)::int as mutuals
+      from "friendship" mine
+      join "friendship" theirs on theirs.actor_id = mine.friend_actor_id
+      where mine.actor_id = ${actorId}
+        and theirs.friend_actor_id <> ${actorId}
+      group by theirs.friend_actor_id
+    ),
+    together as (
+      -- Albums, and only ones that still exist: a deleted album is not a room
+      -- anybody was in any more, and eventsFor reads the same flag.
+      select theirs.actor_id as id, count(distinct theirs.event_id)::int as albums
+      from "event_participant" mine
+      join "event" e on e.id = mine.event_id and e.deleted_at is null
+      join "event_participant" theirs
+        on theirs.event_id = mine.event_id and theirs.actor_id <> ${actorId}
+      where mine.actor_id = ${actorId}
+      group by theirs.actor_id
+    ),
+    rooms as (
+      select theirs.actor_id as id, count(distinct theirs.group_id)::int as groups
+      from "group_member" mine
+      join "group_member" theirs
+        on theirs.group_id = mine.group_id and theirs.actor_id <> ${actorId}
+      where mine.actor_id = ${actorId}
+      group by theirs.actor_id
+    ),
+    candidates as (
+      select id from mutual
+      union select id from together
+      union select id from rooms
+    )
+    select
+      a.id                          as "actorId",
+      a.handle                      as "handle",
+      a.display_name                as "displayName",
+      a.avatar_key                  as "avatarKey",
+      coalesce(mutual.mutuals, 0)   as "mutuals",
+      coalesce(together.albums, 0)  as "albums",
+      coalesce(rooms.groups, 0)     as "groups"
+    from candidates c
+    join "actor" a on a.id = c.id
+    left join mutual on mutual.id = c.id
+    left join together on together.id = c.id
+    left join rooms on rooms.id = c.id
+    -- An account, not a device: the same test the handle search applies, and
+    -- the reason a guest who once opened a link is not a person in a list.
+    where a.account_id is not null
+      and a.merged_into_id is null
+      -- A suggestion is an offer to ask, so anybody there is nothing left to
+      -- ask goes: already friends, or a request open in either direction.
+      and not exists (
+        select 1 from "friendship" f
+        where f.actor_id = ${actorId} and f.friend_actor_id = a.id
+      )
+      and not exists (
+        select 1 from "friend_request" r
+        where (r.from_actor_id = ${actorId} and r.to_actor_id = a.id)
+           or (r.from_actor_id = a.id and r.to_actor_id = ${actorId})
+      )
+      and not exists (
+        select 1 from "block" b
+        where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
+           or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
+      )
+    -- Mutual friends first, because it is the strongest of the three and the
+    -- only one that says other people already vouched. Then albums, which is
+    -- "we were in the same room", then groups, which is only "we are both on a
+    -- list". The handle breaks ties so the order is stable between reloads.
+    order by
+      coalesce(mutual.mutuals, 0) desc,
+      coalesce(together.albums, 0) desc,
+      coalesce(rooms.groups, 0) desc,
+      a.handle asc
+    limit ${RECOMMENDATION_LIMIT}
+  `);
+
+  /*
+   * `db.execute` answers `{ rows }` on one driver and a bare array on the
+   * other, and both are in this codebase. The fourth place to have learned it
+   * — see `suggestionsFor`, which learned it the hard way.
+   */
+  const rows = answer as unknown as Row[] | { rows: Row[] };
+  return Array.isArray(rows) ? rows : (rows.rows ?? []);
 }
 
 export type FriendRequest = Person & { id: string; askedAt: string };

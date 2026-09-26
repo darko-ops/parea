@@ -206,6 +206,35 @@ A sign-in code is transactional mail. If the provider offers separate streams
 (Postmark does), keep it off the broadcast one: shared with marketing, it gets
 rate-shaped like marketing.
 
+### Texts, for confirming a phone number
+
+A second transport, and optional in the same way the mailer is: the product is
+complete without it, and what it gates is friend discovery. While `SMS_API_KEY`
+and `SMS_FROM` are unset, the Find Friends page can be opened and cannot get
+past asking for a number — in production the texter refuses rather than
+pretending a code went out, and `/api/health` names what is missing.
+
+1. **Get a number that can send to your users' countries.** A2P registration is
+   the part that takes days rather than minutes: Twilio requires a registered
+   campaign to send to US numbers at all, and an unregistered sender is silently
+   filtered rather than rejected, which looks exactly like a code that never
+   arrives.
+2. **Set `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_FROM`** and, for Twilio,
+   `SMS_API_URL` — its path carries the account SID, so there is no endpoint to
+   guess:
+   `https://api.twilio.com/2010-04-01/Accounts/<sid>/Messages.json`.
+   `SMS_API_KEY` is one value: `<sid>:<token>` for Twilio, `<key>:<secret>` for
+   Vonage, the access key alone for MessageBird.
+3. **Leave `PHONE_PEPPER` unset unless there is somewhere safe to keep it.** It
+   falls back to `SESSION_SECRET`, and rotating either invalidates every stored
+   number — everybody has to enter and confirm theirs again. A dedicated pepper
+   buys the ability to rotate the session secret without that; it costs one more
+   secret to lose.
+
+The number itself is never stored, here or anywhere: it is hashed on arrival
+with that key and the digits are discarded. A carrier's error message quotes the
+recipient back, so the log lines redact it — see `redactNumber`.
+
 ## 5. Deriver and jobs
 
 **Deploy from the repository root, not from `services/deriver`.** The Dockerfile
@@ -339,6 +368,11 @@ Generate with `openssl rand -base64 32`.
 | `MAIL_API_KEY` | ● | | sign-in codes; unset means accounts cannot be claimed |
 | `MAIL_FROM` | ● | | must be at a domain verified with the provider |
 | `MAIL_API_URL` | ● | | only to override the endpoint; required for `mailgun` |
+| `SMS_PROVIDER` | ● | | `twilio`, `messagebird` or `vonage`; default `twilio` |
+| `SMS_API_KEY` | ● | | confirming a phone number. One value: `<sid>:<token>` for Twilio, `<key>:<secret>` for Vonage, the access key alone for MessageBird |
+| `SMS_FROM` | ● | | the number or sender ID texts come from |
+| `SMS_API_URL` | ● | | required for `twilio`, whose path carries the account SID |
+| `PHONE_PEPPER` | ● | | the key numbers are hashed with. Falls back to `SESSION_SECRET`; rotating either makes everybody confirm their number again |
 | `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
 | `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
 | `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |

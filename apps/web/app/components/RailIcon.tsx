@@ -47,6 +47,15 @@ export type RailGlyph =
   /* Notifications, and the one the web has that the app's bar does not. */
   | 'tray'
   | 'groups'
+  /*
+   * Finding somebody who is already here, which is not the same row as Find.
+   *
+   * `groups` with the second figure swapped for a `+`: one person and an
+   * addition, rather than two people who are already together. Built from the
+   * same head and shoulders for `groups`' own reason — a second unrelated
+   * drawing of a person is what makes a set look assembled.
+   */
+  | 'add-person'
   | 'settings'
   /* Create. The app's own `+`, in the app's own round chrome. */
   | 'plus'
@@ -190,6 +199,27 @@ export function RailIcon({
           <path d="M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5" />
           <path d="M16 5.4a3.5 3.5 0 0 1 0 6.2" />
           <path d="M17.5 14.9c2.2.5 3.5 1.9 3.5 4.6" />
+        </>
+      )}
+      {glyph === 'add-person' && (
+        /*
+         * One person, and a `+` where the second one stands in `groups`.
+         *
+         * The head and the shoulders are that glyph's own paths, character for
+         * character, and the app ships the same two — see `Glyph.tsx`. The
+         * figure sits left of centre rather than in the middle so the `+` has
+         * the corner the second head had, which is also why it is `groups`'
+         * offset figure rather than `profile`'s centred one.
+         *
+         * Not a magnifier with a person in it. The Find row already wears the
+         * magnifier, and this control lives in the corner of that very page —
+         * two magnifiers on one screen is two of the same instruction.
+         */
+        <>
+          <circle cx="9.5" cy="8.5" r="3.5" />
+          <path d="M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5" />
+          <line x1="18.5" y1="3.5" x2="18.5" y2="9.5" />
+          <line x1="15.5" y1="6.5" x2="21.5" y2="6.5" />
         </>
       )}
       {glyph === 'search' && (

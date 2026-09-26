@@ -1541,11 +1541,29 @@ button.secondary {
    inside it lays itself out: the doors and the faces are already grids that
    fill whatever they are given. */
 .find-page { width: 100%; }
-/* The same aside, on Find — see `.home-title`. More room under it, because
-   what follows here is the field the page is for rather than a rule. */
+/* The greeting and the one control beside it.
+
+   The app's `PageHead` trick: equal flex on both sides, so the word centres on
+   the page rather than on what is left of it after a 36px disc. The leading
+   side is empty and still drawn — a single control on the right with nothing
+   opposite pushes the greeting half a disc left, which is close enough to read
+   as centred and not be, which is the version that looks like a mistake. */
+.find-top {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 36px; margin: 2px 0 14px;
+}
+.find-top-side { flex: 1; display: flex; align-items: center; }
+.find-top-trailing { justify-content: flex-end; }
+/* The same aside, on Find — see `.home-title`.
+
+   No margin of its own any more: the row above carries the space, because the
+   word is now one of three things on a line and a margin on the middle one
+   would push the disc beside it down. The 2px that used to lift it and the 14px
+   under it are both on `.find-top`, so the box below sits exactly where it
+   always did whether or not there is a greeting to draw. */
 .find-title {
   font-size: 13px; font-weight: 400; letter-spacing: 0;
-  color: var(--dim-soft); margin: 2px 0 14px;
+  color: var(--dim-soft); margin: 0;
   text-align: center;
 }
 
@@ -4201,6 +4219,19 @@ img.you-face { object-fit: cover; }
    a narrow screen the sentence drops below the button by itself. */
 .settings-out { align-items: center; gap: 14px; margin-top: 12px; }
 .settings-out p { margin: 0; flex: 1; min-width: 220px; font-size: 13px; line-height: 1.5; }
+/* A switch whose label is a sentence.
+
+   The whole row is the `<label>`, so the words are part of the target — a
+   checkbox on its own is a 13px hit area, and this is the one control in the
+   product where a mis-click changes who can find somebody. `align-items:
+   flex-start` because the sentence wraps on a narrow window and the box has to
+   stay on its first line rather than centring against two. */
+.settings-switch {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 4px 0 10px; font-size: 14.5px; line-height: 1.45;
+  font-weight: 600; cursor: pointer;
+}
+.settings-switch input { flex: none; margin: 2px 0 0; width: 16px; height: 16px; }
 
 /* A label doing a button's job, because the file input it belongs to is
    hidden — the default control reads "Choose File / no file selected", which

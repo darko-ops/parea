@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Avatar } from './Avatar';
 import { Devices } from './Devices';
+import { Discoverability } from './Discoverability';
 import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
@@ -87,6 +88,10 @@ export function AccountView() {
     handle: string | null;
     avatarUrl: string | null;
     phoneLast2: string | null;
+    /** Whether a code sent to that number came back. Only then does it find you. */
+    phoneVerified: boolean;
+    /** "Let people who have my phone number or email find me on Parea." */
+    discoverable: boolean;
   } | null>(null);
   /**
    * Which face of this page is showing.
@@ -288,6 +293,36 @@ export function AccountView() {
             </p>
           </div>
         </section>
+
+        {/*
+          The one privacy switch in this product, above the devices and below the
+          address.
+
+          It belongs with the address because that is one of the two things it
+          governs: a number and an email are how the product reaches somebody,
+          handed over for that, and being *found* by them is a second use of the
+          same fact. This is where they say no to the second without giving up
+          the first.
+
+          Above Devices and Delete because those two are about who can get *in*,
+          which is a different question and a rarer errand.
+        */}
+        {account && (
+          /*
+            Its own component, and the reason is an invariant this file holds:
+            the page that displays a profile has no field in it and writes
+            nothing, so there is one writer for a name, a handle, a bio and a
+            link. This switch is neither a profile field nor something the You
+            page shows, and loosening the assertion to let it in would be
+            loosening the assertion. See `Discoverability.tsx`.
+          */
+          <Discoverability
+            discoverable={account.discoverable}
+            phoneLast2={account.phoneLast2}
+            phoneVerified={account.phoneVerified}
+            onChanged={load}
+          />
+        )}
 
         {/*
           Between signing out of here and deleting everything, which is where it

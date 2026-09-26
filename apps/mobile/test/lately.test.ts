@@ -75,16 +75,18 @@ describe('the door', () => {
      * stops either from being hunted for.
      */
     /*
-     * Two of the three now, and the one it left is the one it was least
-     * useful on. Chats holds a `+` in that corner instead: a tab whose whole
-     * subject is groups makes one, and the tray is a thing that came to you
-     * rather than a thing you open your conversations to find.
+     * One of the three now, and the two it left are the two it was least useful
+     * on. Chats holds a `+` in that corner instead: a tab whose whole subject is
+     * groups makes one, and the tray is a thing that came to you rather than a
+     * thing you open your conversations to find. Find holds the way to Find
+     * Friends, which is the half of finding nobody can type into the box.
      *
-     * Home and Find keep it, so "somebody is waiting on you" is still one
-     * press from the tab anybody opens the app on.
+     * Home keeps it, so "somebody is waiting on you" is still one press from the
+     * tab anybody opens the app on — which is the only claim this ever needed to
+     * make. Three copies of the disc was reach, not reachability.
      */
     expect(EVENTS.match(/right=\{<Notifications t=\{t\} count=\{waiting\} unread=\{unread\} onPress=\{onOpenLately\} \/>\}/g) ?? [])
-      .toHaveLength(2);
+      .toHaveLength(1);
     // And the corner it vacated is not empty — it is the thing that tab makes.
     const CHATS = EVENTS.slice(EVENTS.indexOf('export function ChatsTab'), EVENTS.indexOf('function ConversationLine'));
     expect(CHATS).toMatch(/right=\{\s*<RoundButton t=\{t\} onPress=\{onCreateChat\} accessibilityLabel="New chat">/);
@@ -97,8 +99,8 @@ describe('the door', () => {
      *
      * Find had one and does not any more: the search field took that row, and
      * a screen whose whole subject is looking up what already exists is the
-     * wrong place to be offered a new one. The tray keeps its corner there —
-     * that is why this still counts two of them above and one of these.
+     * wrong place to be offered a new one. Its corner is the way to Find
+     * Friends now — that is why this counts one tray above and one `+` here.
      */
     expect(EVENTS.match(/accessibilityLabel="New album or group"/g) ?? []).toHaveLength(1);
     const home = EVENTS.slice(EVENTS.indexOf('export function HomeTab'));
@@ -108,9 +110,14 @@ describe('the door', () => {
 
     /*
      * And on Find the field is what leads the row, from the corner the `+` had
-     * to the tray. `PageHead` takes it as `searching` — the same slot Chats
-     * opens on demand — so the two tabs cannot end up with two head rows that
-     * behave differently.
+     * to the one the tray had. `PageHead` takes it as `searching` — the same slot
+     * Chats opens on demand — so the two tabs cannot end up with two head rows
+     * that behave differently.
+     *
+     * What sits at the end of it is Find Friends, and the tab no longer knows
+     * anything about Lately: the count, the dot and the way there went with the
+     * disc, because three props kept for a control that is gone is how a screen
+     * comes to fetch something nobody draws.
      */
     const find = EVENTS.slice(
       EVENTS.indexOf('export function SearchTab'),
@@ -120,6 +127,9 @@ describe('the door', () => {
     expect(finding.indexOf('searching={')).toBeLessThan(finding.indexOf('right={'));
     expect(finding).toMatch(/styles\.field,\s*styles\.headField,/);
     expect(find).not.toMatch(/left=\{/);
+    expect(finding).toMatch(/accessibilityLabel="Find friends"/);
+    expect(find).not.toMatch(/Notifications/);
+    expect(find).not.toMatch(/onOpenLately/);
   });
 
   it('carries the count, and nothing at zero', () => {

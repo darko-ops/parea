@@ -29,6 +29,14 @@ export type GlyphName =
   | 'bubbles'
   | 'group'
   | 'profile'
+  /*
+   * Finding somebody who is already here, which is not the same thing as Find.
+   *
+   * `group` with the second figure swapped for a `+`: one person and an
+   * addition, rather than two people who are already together. The web rail
+   * ships the same four elements — see `RailIcon.tsx`.
+   */
+  | 'add-person'
   | 'search'
   | 'plus'
   | 'unlocked'
@@ -207,6 +215,28 @@ function paths(name: GlyphName, weight: number) {
         <>
           <Circle cx={12} cy={8} r={3.5} />
           <Path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" />
+        </>
+      );
+    /*
+      One person, and a `+` where the second one stands in `group`.
+
+      The head and the shoulders are that glyph's own two elements, unchanged,
+      so this is the set extending rather than a new drawing of a person
+      arriving beside the old one. The figure sits left of centre — `group`'s
+      offset rather than `profile`'s middle — because the `+` wants the corner
+      the second head had.
+
+      Not a magnifier with a person in it. Find already wears the magnifier and
+      this control lives in the corner of that very screen; two magnifiers on
+      one screen is two of the same instruction.
+    */
+    case 'add-person':
+      return (
+        <>
+          <Circle cx={9.5} cy={8.5} r={3.5} />
+          <Path d="M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5" />
+          <Line x1={18.5} y1={3.5} x2={18.5} y2={9.5} />
+          <Line x1={15.5} y1={6.5} x2={21.5} y2={6.5} />
         </>
       );
     case 'search':

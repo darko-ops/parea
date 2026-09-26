@@ -165,6 +165,13 @@ describe('the closed list of what is collected', () => {
       // straight about the number being *sent* in order to be matched.
       phone_hash: /scrambled form of it/,
       phone_last2: /last two digits/,
+      // When a code sent to that number came back. A fact about something
+      // somebody did, and the thing every lookup actually reads — so it is
+      // disclosed rather than waved through as bookkeeping.
+      phone_verified_at: /<h3>That your number was checked, and when<\/h3>/,
+      // A setting, and the page has to say both halves: what turning it off
+      // stops, and what it does not.
+      discoverable: /let people who have my phone\s+number or email find me on Parea/i,
     };
 
     // `getTableColumns` rather than `Object.values`, which also hands back
@@ -258,6 +265,10 @@ describe('the closed list of what is collected', () => {
       // The same shape as a sign-in code: a one-time secret with a short life,
       // disclosed the same way rather than waved through as internal.
       webauthn_challenge: /random one-time challenge is\s+stored for five minutes/,
+      // The same shape as a sign-in code and disclosed the same way. The
+      // unusual part is what it holds while it waits — the makings of a claim
+      // on a number nobody has proved yet — so the page says that too.
+      phone_code: /a scrambled\s+form of the code/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt
@@ -292,7 +303,17 @@ describe('the closed list of what is collected', () => {
     // Not a hand-kept list checked against another hand-kept list: these are
     // the services the deployment is actually wired to, and a subprocessor
     // nobody disclosed is the failure that matters.
-    for (const party of ['Cloudflare', 'Neon', 'Vercel', 'Fly.io', 'Resend', 'Expo']) {
+    for (const party of [
+      'Cloudflare',
+      'Neon',
+      'Vercel',
+      'Fly.io',
+      'Resend',
+      // Sees the number a verification code goes to, on the occasions one is
+      // asked for. The only third party that ever sees a phone number at all.
+      'Twilio',
+      'Expo',
+    ]) {
       expect(PRIVACY, party).toContain(party);
     }
   });

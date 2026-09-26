@@ -236,7 +236,8 @@ const SCREENS = [
     'App.tsx',
     ...[
       'AutoSelect.tsx', 'CoverFramer.tsx', 'CreateEvent.tsx', 'CreateGroup.tsx',
-      'DetectedEvents.tsx', 'Door.tsx', 'Events.tsx', 'GroupThread.tsx', 'Groups.tsx',
+      'DetectedEvents.tsx', 'Door.tsx', 'Events.tsx', 'FindFriends.tsx',
+      'GroupThread.tsx', 'Groups.tsx',
       'InvitePeople.tsx', 'Lately.tsx', 'NewGroup.tsx', 'PageHead.tsx', 'Person.tsx',
       'PhotoViewer.tsx', 'PickPhotos.tsx', 'Profile.tsx', 'StartSomething.tsx',
       'Thread.tsx',

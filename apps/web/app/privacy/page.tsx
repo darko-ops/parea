@@ -333,8 +333,50 @@ export default function PrivacyPage() {
             To match a number, it has to reach our server: it travels in the
             request, is scrambled here, and is not written down. &ldquo;Never
             stored&rdquo; is the promise; &ldquo;never sent&rdquo; would not be
-            true, and we would rather say so. Removing your number deletes both
-            the scrambled form and the two digits.
+            true, and we would rather say so. Removing your number deletes the
+            scrambled form, the two digits and the record that it was checked.
+          </p>
+          <p className="muted">
+            We do not read your contacts. There is no address-book permission
+            in the app and nothing here uploads one: the people the Find
+            Friends page suggests come from albums you have both been in,
+            groups you are both in, and friends you have in common &mdash;
+            records this product already holds because you and they made them.
+            A number is asked for so that people who have yours can reach you,
+            not so that we can look through your phone.
+          </p>
+
+          <h3>That your number was checked, and when</h3>
+          <p className="muted">
+            A number only counts once a code sent to it comes back, so we keep
+            the moment that happened. Without it the scrambled number would be
+            a claim nobody had tested &mdash; anybody could type your digits and
+            be found as you, and you would never know. The time is the whole of
+            it: not the code, not how many tries it took, not the message.
+          </p>
+          <p className="muted">
+            While a code is outstanding there is one more row, for up to ten
+            minutes: the scrambled number, its last two digits, a scrambled
+            form of the code, when it expires and how many wrong tries it has
+            had. Never the number, and never the code. It is deleted when the
+            code is used, and swept away shortly after it expires whether or
+            not it ever was.
+          </p>
+
+          <h3>Whether people who have your number or address may find you</h3>
+          <p className="muted">
+            One setting, stored as yes or no: <em>let people who have my phone
+            number or email find me on Parea</em>. It is turned on when you
+            first confirm a number, because that is what adding a number is
+            for, and you can turn it off in your account settings at any time.
+          </p>
+          <p className="muted">
+            Turned off, neither your number nor your address will match a
+            lookup, so neither can be used to put your account in front of
+            anybody. Your handle still can &mdash; a handle is a name you chose
+            in order to be findable, and this setting is about the two things
+            you gave us to be reached at instead. Nobody is ever shown your
+            number or your email address either way.
           </p>
 
           <h3>Notifications you have hidden</h3>
@@ -404,6 +446,11 @@ export default function PrivacyPage() {
             <li>
               <strong>Resend</strong> &mdash; sends sign-in codes. It sees the
               address the code goes to.
+            </li>
+            <li>
+              <strong>Twilio</strong> &mdash; sends the code that confirms a
+              phone number. It sees the number the code goes to, on the
+              occasions you ask us to send one.
             </li>
             <li>
               <strong>Expo</strong> &mdash; delivers push notifications to the

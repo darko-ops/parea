@@ -281,6 +281,13 @@
       "when": 1790396350720,
       "tag": "0039_unnamed_group",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790458773544,
+      "tag": "0040_phone_verification",
+      "breakpoints": true
     }
   ]
 }

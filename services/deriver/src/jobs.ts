@@ -229,6 +229,25 @@ export async function expireSignInCodes(
 }
 
 /**
+ * Phone verification codes that have expired or been spent.
+ *
+ * The same housekeeping as the sign-in codes above, and one difference worth
+ * saying: a spent row here holds the hash of a number and its last two digits,
+ * which is the makings of a claim that was either granted — in which case the
+ * actor row carries it and this one is a duplicate — or refused. Neither is
+ * worth keeping past the ten minutes the code was good for.
+ */
+export async function expirePhoneCodes(
+  database: ReturnType<typeof db>,
+): Promise<number> {
+  const removed = await database
+    .delete(schema.phoneCodes)
+    .where(lt(schema.phoneCodes.expiresAt, new Date()))
+    .returning({ id: schema.phoneCodes.id });
+  return removed.length;
+}
+
+/**
  * WebAuthn challenges that have expired or been spent.
  *
  * The same housekeeping argument as the sign-in codes above, and the same
@@ -477,6 +496,7 @@ async function main(): Promise<void> {
   await run('expire-observations', () => expireObservations(database));
   await run('expire-sign-in-codes', () => expireSignInCodes(database));
   await run('expire-webauthn-challenges', () => expireWebauthnChallenges(database));
+  await run('expire-phone-codes', () => expirePhoneCodes(database));
   await run('expire-sessions', () => expireSessions(database));
 
   // Read-only, and last: a report is not a job, but this is the only process

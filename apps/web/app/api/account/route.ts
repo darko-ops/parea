@@ -46,6 +46,7 @@ export async function PATCH(request: Request) {
     bio?: unknown;
     link?: unknown;
     handle?: unknown;
+    discoverable?: unknown;
   };
 
   const db = getDb();
@@ -54,6 +55,7 @@ export async function PATCH(request: Request) {
     bio?: string | null;
     link?: string | null;
     handle?: string | null;
+    discoverable?: boolean;
   } = {};
 
   if (typeof body.displayName === 'string') {
@@ -167,6 +169,25 @@ export async function PATCH(request: Request) {
        */
       patch.handle = handleKey(handle);
     }
+  }
+
+  /*
+   * Whether a number or an address may be used to find this person.
+   *
+   * Here rather than on a settings route of its own, because it is one column on
+   * the same row as the four above and the screen that changes it is the same
+   * screen. A route per switch is a route per switch to get the session check
+   * wrong in.
+   *
+   * A boolean and nothing else — no string, no "1". This is the one field in this
+   * body where a value nobody meant has a direction: a truthy string arriving
+   * from a client that had not been updated would turn discovery *on* for
+   * somebody who never asked, and that is the failure worth refusing over. It is
+   * only ever set false from a screen anyway; `true` is written by the request
+   * that first proves a number. See the verify route.
+   */
+  if (typeof body.discoverable === 'boolean') {
+    patch.discoverable = body.discoverable;
   }
 
   if (Object.keys(patch).length === 0) {

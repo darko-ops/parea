@@ -505,6 +505,17 @@ describe('the list of things a merge moves', () => {
     // `actor.merged_into_id` is the pointer itself, handled separately.
     handled.add('actor.merged_into_id');
     handled.add('actor.account_id');
+    /*
+     * And the one reference a merge deliberately destroys rather than moves.
+     *
+     * A pending phone verification cannot be moved: its code is an HMAC over
+     * the actor id, so a row under a new owner is a row no code can ever
+     * answer — and because `confirmVerification` reads the newest outstanding
+     * row, keeping it would shadow the next real attempt. `mergeActor` deletes
+     * it, which loses nothing: the number was never claimed and asking again is
+     * one button.
+     */
+    handled.add('phone_code.actor_id');
 
     expect([...found].filter((ref) => !handled.has(ref)).sort()).toEqual([]);
     expect(found.size, 'the extractor found nothing, which is not a pass').toBeGreaterThan(8);

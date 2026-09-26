@@ -422,6 +422,74 @@ Mitigations: the removal-request path (§13) works for anyone, the host can
 always remove, and the account prompt appears exactly when someone has something
 worth protecting. **Accepted.**
 
+## 3a. Being found
+
+Three things can find a person, and they are three different permissions rather
+than one feature. The distinction is the whole of this section.
+
+**A handle** is a name somebody chose in order to be found by it. Prefix
+search, accounts only, ten results, and what comes back is a handle, a name and
+a picture — being findable leads to somebody being able to *ask*, and to
+nothing further. No setting governs it, because retracting it is what clearing
+the handle does.
+
+**A phone number or an email address** is not that. It is how the product
+reaches somebody, handed over for that, and being found by it is a second use
+of the same fact. Both are exact-match only: possession of the number *is* the
+introduction — whoever has it can already ring you — and a prefix over either
+column would be a way to read the account table. Both are governed by one
+switch, `actor.discoverable`, whose words on the settings screen are *let
+people who have my phone number or email find me on Parea*.
+
+**A friend of a friend, an album you were both in, a group you are both in** is
+the third, and it is a recommendation rather than a lookup. Every one of them
+is a relationship the reader can already see the other end of, which is the
+test any suggestion in this product has to pass: it should save a message, never
+disclose something you had no route to.
+
+### The number has to be proved
+
+A keyed hash of a number says two people typed the same digits. It says nothing
+about *whose* digits they are — so a column written straight from a form is a
+column anybody can fill with somebody else's number, and the person harmed by
+that never touched the product and cannot see it happen. That was the first
+version of `/api/account/phone` and it was wrong.
+
+So a code is texted to the number, `phone_verified_at` records when one came
+back, and every lookup reads that rather than the hash. `sms.ts` is the
+transport, shaped exactly like `email.ts` and failing closed in production for
+the same reason: an app that offers to confirm a number and silently cannot
+send is worse than one that does not offer it. Numbers set before this existed
+are in the column and unproved, so they find nobody until re-entered — the
+right way round for a claim nobody ever checked.
+
+### Why the switch defaults off and is turned on by the flow
+
+Defaulting the column true would have made every account that already existed
+matchable by its email address on the day it shipped, without anybody being
+asked. So it defaults false, and the request that *first* proves a number turns
+it on in the same statement — which is what the screen asking for the number
+said adding one would do. Nothing else ever writes it true: somebody who turns
+it off has said something, and a later re-verification must not overrule it.
+
+Turning it off is not invisibility, and the sub-line on the setting says so. The
+handle search still finds you, and so do the friends of your friends, who can
+see you on a mutual friend's list already.
+
+### Why recommendations do not read the switch
+
+They are not derived from a number or an address, so the setting has nothing to
+say about them. Reading it there would quietly turn one switch into a general
+hide-me, which is a different promise from the one the sentence makes.
+
+### What a verified number has to do with the list
+
+Mechanically nothing — `recommendationsFor` never touches it. The Find Friends
+page requires one before it shows anybody, and the reason is reciprocity rather
+than data: it is the one screen where somebody is handed the benefit of everyone
+else being reachable, and the price of that is being reachable themselves. The
+gate is on the server, because a client is a suggestion.
+
 ## 4. Data model
 
 ```sql
@@ -1502,6 +1570,15 @@ these people use, and picking someone in it tells this app nothing.
 
 Revisit deliberately if the avatars are worth it. The cost is a permission
 prompt, a label change, and a rewritten line in a legal document.
+
+**Friend discovery shipped without reopening any of it.** The obvious build of
+"people you may know" is the address book, and §3a is what was built instead:
+the suggestions are derived from albums, groups and friendships this product
+already holds, and a verified phone number is what makes somebody reachable
+*by* the people who have it. No contacts permission, no privacy-manifest entry,
+no change to the nutrition labels, and the line on `/privacy` above is still
+true word for word. The row of contact avatars in the handoff remains unbuilt
+for the reason above; the thing it was there to accomplish is now a page.
 
 ### 17a. The web shell
 
