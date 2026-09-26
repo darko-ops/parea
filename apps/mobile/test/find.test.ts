@@ -253,15 +253,47 @@ describe('what the box remembers', () => {
      * a list of what was asked would be "w", "wr", "wre". What means "this was
      * the search" is opening one of its answers.
      */
-    expect(TAB).toMatch(/remember\(query\);\s*onOpenPerson\(person\.handle\)/);
-    expect(TAB).toMatch(/remember\(query\);\s*onOpenGroup\(group\.id\)/);
+    expect(TAB).toMatch(/rememberPerson\(person\);\s*onOpenPerson\(person\.handle\)/);
+    expect(TAB).toMatch(/rememberTerm\(query\);\s*onOpenGroup\(group\.id\)/);
     expect(TAB).toMatch(/if \(term\.trim\(\)\.length < 2\) return;/);
   });
 
-  it('keeps one of a term however it was capitalised', () => {
-    // "Wren" and "wren" are the same search; the one to keep is the one last
-    // written.
-    expect(PLATFORM).toMatch(/t\.toLowerCase\(\) !== kept\.toLowerCase\(\)/);
+  it('keeps the person when a search ended on one', () => {
+    /*
+     * The two letters that reached somebody are not who the reader was looking
+     * for. "wr" is what they had got as far as typing; Wren Halliday is the
+     * answer — so that is the row, and pressing it goes back to the profile
+     * rather than refilling the box with a prefix.
+     *
+     * A handle and a name and nothing else. Not the picture: every avatar here
+     * is presigned for an hour, so one kept on the device is a blank square
+     * tomorrow — the letter on their lens is what the rest of the app falls
+     * back to and it never expires.
+     */
+    expect(PLATFORM).toMatch(/kind: 'person'; handle: string; name: string/);
+    expect(TAB).toMatch(/kind: 'person',\s*handle: person\.handle,/);
+    // No picture in the shape itself — the prose above it says why.
+    const shape = /export type RecentSearch =[\s\S]*?\n\n/.exec(PLATFORM);
+    expect(shape).not.toBeNull();
+    expect(shape![0]).toMatch(/kind: 'term'; term: string/);
+    expect(shape![0]).not.toMatch(/avatar/i);
+    expect(TAB).toMatch(/person \? onOpenPerson\(entry\.handle\) : void search\(entry\.term, scope\)/);
+    expect(TAB).toMatch(/lensFor\(entry\.handle\)/);
+  });
+
+  it('keeps one row per person and per term, however capitalised', () => {
+    // "Wren" and "wren" are the same search, and a handle is unique by
+    // case-insensitive index — so one rule gives one row for both kinds.
+    expect(PLATFORM).toMatch(/searchId\(e\) !== id/);
+    expect(PLATFORM).toMatch(/entry\.handle\.toLowerCase\(\)/);
+    expect(PLATFORM).toMatch(/entry\.term\.toLowerCase\(\)/);
+  });
+
+  it('reads a list written before it knew about people', () => {
+    // A bare string is what the first version wrote. Somebody's list should
+    // not empty itself because the app learned to remember a person.
+    expect(PLATFORM).toMatch(/typeof item === 'string' && item\.trim\(\)/);
+    expect(PLATFORM).toMatch(/kept\.push\(\{ kind: 'term', term: item \}\)/);
   });
 
   it('shows it only while nothing is typed, and offers to forget it', () => {

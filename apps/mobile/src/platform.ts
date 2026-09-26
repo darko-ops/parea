@@ -89,27 +89,76 @@ export async function signOutDevice(): Promise<void> {
 // --- what was typed into the search box -------------------------------------
 
 /**
- * The last few things somebody looked for, on their own phone.
+ * The last few searches, on their own phone.
  *
  * Ten, and nowhere else. A search term is a sentence about who somebody was
  * looking for and this product keeps none of them: no table, no request, no
- * field. This is a list of what was typed into the box, held by the device
- * that typed it, and it is handed back with everything else on sign-out.
+ * field. This is a list of what was done with the box, held by the device that
+ * did it, and it is handed back with everything else on sign-out.
  *
  * The same store the joined events use, and for a plainer reason than theirs:
  * it is the store this app has. There is no keychain argument here — a search
  * term is not a credential — but a second mechanism for one small list is a
  * second thing to remember to clear.
+ *
+ * ## Two kinds of entry, because there were two kinds of search
+ *
+ * A search that ended on a person is kept as **that person**: "wr" is what
+ * somebody had got as far as typing, and Wren Halliday is who they were
+ * looking for. Pressing it opens the profile rather than putting a prefix back
+ * in the box and making them find the row again.
+ *
+ * Anything else — a group opened, a term that found nothing worth opening — is
+ * kept as **the term**, because that is all it was, and pressing it runs it
+ * again.
+ *
+ * A person is a handle and a name and nothing else. Not the picture: every
+ * avatar in this product is presigned for an hour, so one kept here would be a
+ * broken image by tomorrow. The letter on their lens is what the rest of the
+ * app falls back to, and it never expires.
  */
 export const RECENT_SEARCHES = 10;
 
-export async function loadSearches(): Promise<string[]> {
+export type RecentSearch =
+  | { kind: 'person'; handle: string; name: string }
+  | { kind: 'term'; term: string };
+
+/** What two entries have to differ in to both be kept. */
+const searchId = (entry: RecentSearch) =>
+  entry.kind === 'person' ? `p:${entry.handle.toLowerCase()}` : `t:${entry.term.toLowerCase()}`;
+
+/**
+ * Read, tolerating every shape the key could be in.
+ *
+ * A bare string is what the first version of this wrote and it is read as the
+ * term it was, rather than dropped: somebody's list should not empty itself
+ * because the app learned to remember people.
+ */
+export async function loadSearches(): Promise<RecentSearch[]> {
   const raw = await SecureStore.getItemAsync(SEARCHES_KEY);
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_SEARCHES);
+    const kept: RecentSearch[] = [];
+    for (const item of parsed) {
+      if (typeof item === 'string' && item.trim()) {
+        kept.push({ kind: 'term', term: item });
+        continue;
+      }
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      if (row.kind === 'person' && typeof row.handle === 'string' && row.handle) {
+        kept.push({
+          kind: 'person',
+          handle: row.handle,
+          name: typeof row.name === 'string' && row.name ? row.name : row.handle,
+        });
+      } else if (row.kind === 'term' && typeof row.term === 'string' && row.term.trim()) {
+        kept.push({ kind: 'term', term: row.term });
+      }
+    }
+    return kept.slice(0, RECENT_SEARCHES);
   } catch {
     return [];
   }
@@ -118,17 +167,17 @@ export async function loadSearches(): Promise<string[]> {
 /**
  * Most recent first, without repeating it.
  *
- * Case-folded for the comparison and kept as it was typed: "Wren" and "wren"
- * are the same search, and the one worth keeping is the one last written.
+ * Case-folded for the comparison and kept as it was written: "Wren" and "wren"
+ * are the same search, and the one worth keeping is the one last written. A
+ * handle is unique by case-insensitive index, so the same rule gives one row
+ * per person.
  */
-export async function rememberSearch(term: string): Promise<string[]> {
-  const kept = term.trim();
-  if (!kept) return loadSearches();
+export async function rememberSearch(entry: RecentSearch): Promise<RecentSearch[]> {
+  if (entry.kind === 'term' && !entry.term.trim()) return loadSearches();
+  if (entry.kind === 'person' && !entry.handle) return loadSearches();
+  const id = searchId(entry);
   const had = await loadSearches();
-  const next = [kept, ...had.filter((t) => t.toLowerCase() !== kept.toLowerCase())].slice(
-    0,
-    RECENT_SEARCHES,
-  );
+  const next = [entry, ...had.filter((e) => searchId(e) !== id)].slice(0, RECENT_SEARCHES);
   await SecureStore.setItemAsync(SEARCHES_KEY, JSON.stringify(next));
   return next;
 }

@@ -75,6 +75,7 @@ import {
   rememberSearch,
   saveActorToken,
   signOutDevice,
+  type RecentSearch,
 } from './platform';
 import { DevicesCard } from './Devices';
 import { passkeysSupported } from './passkeys';
@@ -2089,7 +2090,7 @@ export function SearchTab({
    * writes it. See `rememberSearch`, and `signOutDevice`, which hands it back
    * with everything else.
    */
-  const [recent, setRecent] = useState<string[]>([]);
+  const [recent, setRecent] = useState<RecentSearch[]>([]);
   useEffect(() => {
     void loadSearches().then(setRecent);
   }, []);
@@ -2101,10 +2102,24 @@ export function SearchTab({
    * list built from what was asked would be "w", "wr", "wre" — a history of
    * somebody's typing rather than of their searches. What means "this was the
    * one" is opening something it found.
+   *
+   * And what is kept depends on what was opened. A person is kept as the
+   * person: the two letters that reached them are not who the reader was
+   * looking for, and pressing the row again should go where it went. Anything
+   * else keeps the term, which is all it was.
    */
-  const remember = useCallback((term: string) => {
+  const rememberTerm = useCallback((term: string) => {
     if (term.trim().length < 2) return;
-    void rememberSearch(term).then(setRecent);
+    void rememberSearch({ kind: 'term', term: term.trim() }).then(setRecent);
+  }, []);
+
+  const rememberPerson = useCallback((person: InvitablePerson) => {
+    if (!person.handle) return;
+    void rememberSearch({
+      kind: 'person',
+      handle: person.handle,
+      name: person.displayName?.trim() || person.handle,
+    }).then(setRecent);
   }, []);
 
   const forgetAll = useCallback(() => {
@@ -2422,22 +2437,49 @@ export function SearchTab({
             </Pressable>
           </View>
           <View style={styles.recentRow}>
-            {recent.map((term) => (
-              <Pressable
-                key={term}
-                onPress={() => void search(term, scope)}
-                accessibilityRole="button"
-                accessibilityLabel={`Search for ${term} again`}
-                style={({ pressed }) => [
-                  styles.recentChip,
-                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={[styles.recentText, { color: t.fg }]} numberOfLines={1}>
-                  {term}
-                </Text>
-              </Pressable>
-            ))}
+            {recent.map((entry) => {
+              /*
+                A person goes to the person; a term goes back in the box.
+
+                This row was the end of a search, so pressing it should end the
+                same way rather than refilling the field with the prefix that
+                got there. The letter sits on their own lens — the colour a
+                handle hashes to, which is the colour they wear on every other
+                screen — rather than on their picture: an avatar is presigned
+                for an hour, so one kept here would be a blank square tomorrow.
+              */
+              const person = entry.kind === 'person';
+              const label = person ? entry.name : entry.term;
+              const lens = person ? lensFor(entry.handle) : null;
+              return (
+                <Pressable
+                  key={person ? `p:${entry.handle}` : `t:${entry.term}`}
+                  onPress={() =>
+                    person ? onOpenPerson(entry.handle) : void search(entry.term, scope)
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    person ? `${entry.name}, open their profile` : `Search for ${label} again`
+                  }
+                  style={({ pressed }) => [
+                    styles.recentChip,
+                    person && styles.recentPerson,
+                    { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  {lens && (
+                    <View style={[styles.recentFace, { backgroundColor: lens.fill }]}>
+                      <Text style={[styles.recentLetter, { color: lens.ink }]}>
+                        {initialOf(label)}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={[styles.recentText, { color: t.fg }]} numberOfLines={1}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       )}
@@ -2823,7 +2865,7 @@ export function SearchTab({
               disabled={!person.handle}
               onPress={() => {
                 if (!person.handle) return;
-                remember(query);
+                rememberPerson(person);
                 onOpenPerson(person.handle);
               }}
             />
@@ -2842,9 +2884,10 @@ export function SearchTab({
               under={null}
               aside={plural(group.memberCount, 'member')}
               onPress={() => {
-                // The other half of "this was the search": opening a group it
-                // found means the same as opening a person it found.
-                remember(query);
+                // A group is not a person, so this keeps the term: there is no
+                // second list of rooms somebody looked at, and the thing worth
+                // repeating is the search.
+                rememberTerm(query);
                 onOpenGroup(group.id);
               }}
             />
@@ -4069,6 +4112,11 @@ const styles = StyleSheet.create({
      scope chips above wear, at the size of a word rather than a control. */
   recentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   recentChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  /* A person's chip carries their lens, so the row is tighter on the left and
+     laid out across rather than as one string. */
+  recentPerson: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingLeft: 7 },
+  recentFace: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  recentLetter: { fontSize: 11, fontWeight: '700' },
   recentText: { fontSize: 14, maxWidth: 220 },
   placeEvent: { paddingVertical: 6, paddingLeft: 50 },
 });

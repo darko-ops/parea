@@ -281,10 +281,50 @@ describe('what the box remembers', () => {
      * one of the answers. Both, because either can be the last thing somebody
      * does.
      */
-    expect(VIEW).toMatch(/if \(e\.key === 'Enter'\) remember\(query\)/);
-    expect(VIEW).toMatch(/onOpen=\{\(\) => remember\(query\)\}/);
+    expect(VIEW).toMatch(/if \(e\.key === 'Enter'\) rememberTerm\(query\)/);
+    expect(VIEW).toMatch(/onOpen=\{\(\) => rememberTerm\(query\)\}/);
     // Below `MIN`, a term is a prefix of everybody and not a search.
     expect(VIEW).toMatch(/if \(term\.length < MIN\) return;/);
+  });
+
+  it('keeps the person when a search ended on one', () => {
+    /*
+     * The two letters that reached somebody are not who the reader was looking
+     * for. "wr" is what they had got as far as typing; Wren Halliday is the
+     * answer — so that is the row, and pressing it goes to the profile rather
+     * than refilling the box with a prefix and making them find the row again.
+     *
+     * The term is *not* also kept. Two entries for one search — "wr" beside
+     * Wren — is the list reporting somebody's typing back to them next to the
+     * answer they already found.
+     *
+     * A handle and a name and nothing else: every avatar in this product is
+     * presigned for an hour, so a URL kept here would be a broken image by
+     * tomorrow. The letter on their lens is the fallback every other face in
+     * the product already uses, and it never expires.
+     */
+    expect(VIEW).toMatch(/onOpen=\{\(\) => rememberPerson\(person\)\}/);
+    expect(VIEW).toMatch(/\{ kind: 'person'; handle: string; name: string \}/);
+    const shape = /type Recent =[\s\S]*?;\n/.exec(VIEW);
+    expect(shape).not.toBeNull();
+    expect(shape![0]).not.toMatch(/avatar/i);
+    expect(VIEW).toMatch(/href=\{`\/u\/\$\{encodeURIComponent\(entry\.handle\)\}`\}/);
+    expect(VIEW).toMatch(/tintFor\(entry\.handle\)/);
+  });
+
+  it('keeps one row per person and per term, however capitalised', () => {
+    // A handle is unique by case-insensitive index and "Wren" and "wren" are
+    // the same search, so one rule covers both kinds.
+    expect(VIEW).toMatch(/const idOf = \(entry: Recent\) =>/);
+    expect(VIEW).toMatch(/entry\.handle\.toLowerCase\(\)/);
+    expect(VIEW).toMatch(/entry\.term\.toLowerCase\(\)/);
+  });
+
+  it('reads a list written before it knew about people', () => {
+    // A bare string is what the first version of this wrote. Somebody's list
+    // should not empty itself because the page learned to remember a person.
+    expect(VIEW).toMatch(/typeof item === 'string' && item\.trim\(\)/);
+    expect(VIEW).toMatch(/kept\.push\(\{ kind: 'term', term: item \}\)/);
   });
 
   it('survives a browser that refuses to store anything', () => {
@@ -294,7 +334,7 @@ describe('what the box remembers', () => {
      * wrote. A search page that will not render because of its own
      * convenience list is worse than one without the list.
      */
-    expect(VIEW).toMatch(/function readRecent\(\): string\[\] \{[\s\S]*?catch \{[\s\S]*?return \[\];/);
+    expect(VIEW).toMatch(/function readRecent\(\): Recent\[\] \{[\s\S]*?catch \{[\s\S]*?return \[\];/);
     expect(VIEW).toMatch(/if \(!Array\.isArray\(parsed\)\) return \[\];/);
     // Read after mount, never during render: the server has no localStorage,
     // and a list that differs between its HTML and the first client pass is a

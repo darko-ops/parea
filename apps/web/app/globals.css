@@ -1754,10 +1754,24 @@ button.secondary {
 .hit-said-link { color: var(--accent); text-decoration: none; }
 .hit-said-link:hover { text-decoration: underline; }
 
-/* The terms this browser remembers, as the same pills the scopes above use —
-   they do the same thing, which is put a word in the box. Its own rule only
-   for the gap above, which is the heading's rather than the row's. */
+/* What this browser remembers, as the same pills the scopes above use — a term
+   does the same thing one of those does, which is put a word in the box. Its
+   own rule only for the gap above, which is the heading's rather than the
+   row's. */
 .find-recent { margin-top: 2px; }
+/* A person, which is a pill that goes somewhere rather than one that fills the
+   box. The letter is on their lens — the colour a handle is hashed to, the
+   same one their tile wears everywhere else — because an avatar URL expires in
+   an hour and a remembered one would be a broken image by tomorrow. */
+.recent-person {
+  display: inline-flex; align-items: center; gap: 7px;
+  text-decoration: none; color: inherit;
+}
+.recent-face {
+  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
 .pill[aria-pressed='true'] .pill-count { color: inherit; opacity: .7; }
 /* The heading and its filters on one line, wrapping to two on a phone. */
 .you-events-head {

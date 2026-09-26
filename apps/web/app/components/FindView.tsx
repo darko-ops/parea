@@ -128,20 +128,45 @@ export type EventHit = {
 };
 
 /**
- * The last few things somebody looked for, kept on their own machine.
+ * The last few searches, kept on their own machine.
  *
  * Ten, and never anywhere else. A search term is a sentence about who somebody
  * was looking for, and this product does not keep one: there is no table, no
  * request, and nothing about it reaches the server — the box is the same box
- * it was, and this is a list of what was typed into it, held by the browser
- * that typed it.
+ * it was, and this is a list of what was done with it, held by the browser
+ * that did it.
  *
  * Which is also why "Clear" is beside the heading rather than in a settings
  * page. A shared laptop is the ordinary case for wanting it gone, and the
  * place somebody looks for that is the list itself.
+ *
+ * ## Two kinds of entry, because there were two kinds of search
+ *
+ * A search that ended on a person is remembered as **that person**, not as
+ * what was typed to reach them. The two are not the same thing to the reader:
+ * "wr" is what they had got as far as typing, and Wren Halliday is who they
+ * were looking for. Pressing it goes straight to the profile rather than
+ * refilling the box with a prefix and making them find the row again.
+ *
+ * A search that ended anywhere else — Enter pressed, a group opened, an album
+ * opened — is remembered as **the term**, because that is all it was. Pressing
+ * one of those puts it back in the box and runs it again.
+ *
+ * A person is stored as a handle and a name and nothing else. Not the picture:
+ * every avatar in this product is presigned for an hour, so a URL kept here is
+ * a broken image by tomorrow — the letter on their lens is the same fallback
+ * every other face in the product falls back to, and it never expires.
  */
 const RECENT_KEY = 'parea.find.recent';
 const RECENT_MAX = 10;
+
+type Recent =
+  | { kind: 'person'; handle: string; name: string }
+  | { kind: 'term'; term: string };
+
+/** What two entries have to differ in to both be kept. */
+const idOf = (entry: Recent) =>
+  entry.kind === 'person' ? `p:${entry.handle.toLowerCase()}` : `t:${entry.term.toLowerCase()}`;
 
 /**
  * Read, tolerating every shape the key could be in.
@@ -150,22 +175,44 @@ const RECENT_MAX = 10;
  * null, and the value could be anything a previous version or another tab
  * wrote. A search page that fails to render because of its own convenience
  * list is worse than one with no list, so every failure is an empty one.
+ *
+ * A bare string is what the first version of this wrote, and it is read as the
+ * term it was rather than dropped: somebody's list should not empty itself
+ * because the page learned to remember people.
  */
-function readRecent(): string[] {
+function readRecent(): Recent[] {
   try {
     const raw = window.localStorage.getItem(RECENT_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_MAX);
+    const kept: Recent[] = [];
+    for (const item of parsed) {
+      if (typeof item === 'string' && item.trim()) {
+        kept.push({ kind: 'term', term: item });
+        continue;
+      }
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      if (row.kind === 'person' && typeof row.handle === 'string' && row.handle) {
+        kept.push({
+          kind: 'person',
+          handle: row.handle,
+          name: typeof row.name === 'string' && row.name ? row.name : row.handle,
+        });
+      } else if (row.kind === 'term' && typeof row.term === 'string' && row.term.trim()) {
+        kept.push({ kind: 'term', term: row.term });
+      }
+    }
+    return kept.slice(0, RECENT_MAX);
   } catch {
     return [];
   }
 }
 
-function writeRecent(terms: string[]) {
+function writeRecent(entries: Recent[]) {
   try {
-    window.localStorage.setItem(RECENT_KEY, JSON.stringify(terms.slice(0, RECENT_MAX)));
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(entries.slice(0, RECENT_MAX)));
   } catch {
     // Out of quota, or a browser that refuses storage. The list is a
     // convenience and its failure is not the page's problem to report.
@@ -278,28 +325,54 @@ export function FindView({
    * and the second is the page with it — which is what it looked like a
    * moment ago anyway.
    */
-  const [recent, setRecent] = useState<string[]>([]);
+  const [recent, setRecent] = useState<Recent[]>([]);
   useEffect(() => setRecent(readRecent()), []);
 
   /**
-   * Remember a term, most recent first, without repeating it.
+   * Put an entry at the front, most recent first, without repeating it.
    *
-   * Case-folded for the comparison and kept as it was typed: "Wren" and
+   * Case-folded for the comparison and kept as it was written: "Wren" and
    * "wren" are the same search and the list should hold one of them, and the
-   * one to hold is the one somebody last wrote.
+   * one to hold is the one somebody last wrote. The same holds for a person —
+   * a handle is unique by case-insensitive index, so one row per person.
    */
-  const remember = useCallback((raw: string) => {
-    const term = raw.trim();
-    if (term.length < MIN) return;
+  const keep = useCallback((entry: Recent) => {
+    const id = idOf(entry);
     setRecent((was) => {
-      const next = [term, ...was.filter((t) => t.toLowerCase() !== term.toLowerCase())].slice(
-        0,
-        RECENT_MAX,
-      );
+      const next = [entry, ...was.filter((e) => idOf(e) !== id)].slice(0, RECENT_MAX);
       writeRecent(next);
       return next;
     });
   }, []);
+
+  /** A search that ended on nobody in particular: what was typed. */
+  const rememberTerm = useCallback(
+    (raw: string) => {
+      const term = raw.trim();
+      if (term.length < MIN) return;
+      keep({ kind: 'term', term });
+    },
+    [keep],
+  );
+
+  /**
+   * A search that ended on a person: the person.
+   *
+   * Not the term as well. Two rows for one search — "wr" beside Wren — is the
+   * list reporting the reader's typing back to them alongside the answer they
+   * already found.
+   */
+  const rememberPerson = useCallback(
+    (person: Person) => {
+      if (!person.handle) return;
+      keep({
+        kind: 'person',
+        handle: person.handle,
+        name: person.displayName?.trim() || person.handle,
+      });
+    },
+    [keep],
+  );
 
   const forgetAll = useCallback(() => {
     setRecent([]);
@@ -439,7 +512,7 @@ export function FindView({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') remember(query);
+            if (e.key === 'Enter') rememberTerm(query);
           }}
           placeholder="A person, an album, a group"
           autoComplete="off"
@@ -488,19 +561,50 @@ export function FindView({
             </button>
           </h2>
           <div className="pills find-recent">
-            {recent.map((term) => (
-              <button
-                key={term}
-                type="button"
-                className="pill small"
-                onClick={() => {
-                  setQuery(term);
-                  remember(term);
-                }}
-              >
-                {term}
-              </button>
-            ))}
+            {recent.map((entry) =>
+              entry.kind === 'person' ? (
+                /*
+                  A person goes to the person.
+
+                  This row was the end of a search, so pressing it should end
+                  the same way rather than putting the two letters that reached
+                  them back in the box. A letter on their own lens rather than
+                  their picture: an avatar URL is presigned for an hour, so one
+                  kept here would be a broken image by tomorrow — and the lens
+                  is keyed on the handle, so it is the colour they have
+                  everywhere else in the product.
+                */
+                <a
+                  key={idOf(entry)}
+                  href={`/u/${encodeURIComponent(entry.handle)}`}
+                  className="pill small recent-person"
+                >
+                  <span
+                    className="recent-face"
+                    style={{
+                      background: tintFor(entry.handle).fill,
+                      color: tintFor(entry.handle).ink,
+                    }}
+                    aria-hidden="true"
+                  >
+                    {initial(entry.name)}
+                  </span>
+                  {entry.name}
+                </a>
+              ) : (
+                <button
+                  key={idOf(entry)}
+                  type="button"
+                  className="pill small"
+                  onClick={() => {
+                    setQuery(entry.term);
+                    rememberTerm(entry.term);
+                  }}
+                >
+                  {entry.term}
+                </button>
+              ),
+            )}
           </div>
         </section>
       )}
@@ -508,7 +612,11 @@ export function FindView({
       {wantsPeople && foundFriends.length > 0 && (
         <Answers title="Friends">
           {foundFriends.map((person) => (
-            <PersonRow key={person.actorId} person={person} onOpen={() => remember(query)} />
+            <PersonRow
+              key={person.actorId}
+              person={person}
+              onOpen={() => rememberPerson(person)}
+            />
           ))}
         </Answers>
       )}
@@ -516,7 +624,11 @@ export function FindView({
       {wantsPeople && strangers.length > 0 && (
         <Answers title="People">
           {strangers.map((person) => (
-            <PersonRow key={person.actorId} person={person} onOpen={() => remember(query)} />
+            <PersonRow
+              key={person.actorId}
+              person={person}
+              onOpen={() => rememberPerson(person)}
+            />
           ))}
         </Answers>
       )}
@@ -524,7 +636,7 @@ export function FindView({
       {wantsEvents && foundEvents.length > 0 && (
         <Answers title="Albums">
           {foundEvents.map((event) => (
-            <EventRow key={event.id} event={event} onOpen={() => remember(query)} />
+            <EventRow key={event.id} event={event} onOpen={() => rememberTerm(query)} />
           ))}
         </Answers>
       )}
@@ -536,7 +648,7 @@ export function FindView({
               <a
                 href={`/group/${door.id}`}
                 className="hit"
-                onClick={() => remember(query)}
+                onClick={() => rememberTerm(query)}
               >
                 <span className="hit-thumb" aria-hidden="true">
                   {initial(door.name)}
