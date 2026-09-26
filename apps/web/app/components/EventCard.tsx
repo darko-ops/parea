@@ -121,6 +121,30 @@ export function EventCard({ event }: { event: CardEvent }) {
         }
       >
         {cover && <CoverImage src={cover.src} sources={cover.sources} />}
+        {/*
+          What has just happened, in the corner of the thing it happened to.
+
+          Five places in five passes, and each one moved it nearer the
+          photographs it is about: the caption, where it stood in place of the
+          date; the host row; the title's line; the faces row; and now the
+          picture itself, which is where the eye already is.
+
+          On the photograph it can be short. "added to 41 min ago" was a
+          sentence because it was sitting in a column of sentences and had to
+          say which album it was about; a mark in the corner of a cover is
+          about that cover, so the words that said so are the reader's own
+          work now and only the time is left.
+
+          Except to a screen reader, which meets it as a phrase inside a link
+          named "Sunday lunch, 48 photos" — "41 min ago" there is a duration
+          attached to nothing. The two words come back for that alone.
+        */}
+        {event.live && (
+          <span className="card-added">
+            <span className="visually-hidden">added to </span>
+            {event.added}
+          </span>
+        )}
       </div>
 
       {/*
@@ -130,13 +154,7 @@ export function EventCard({ event }: { event: CardEvent }) {
         below a picture reads as metadata, the same row half over it reads as
         who was there.
       */}
-      {/*
-        Drawn for the faces, and also for an album with no faces that is being
-        added to right now — the note below needs this row, and `min-height`
-        on it is what keeps the row its full 32 when it is holding nothing but
-        the note.
-      */}
-      {(event.faces.length > 0 || event.live) && (
+      {event.faces.length > 0 && (
         <div className="card-faces">
           {event.faces.map((face, i) => (
             <Face
@@ -154,28 +172,6 @@ export function EventCard({ event }: { event: CardEvent }) {
               +{event.moreFaces}
             </span>
           )}
-          {/*
-            What has just happened, at the other end of the row that touches
-            the photograph.
-
-            Four places in four passes, and each one moved it nearer the thing
-            it is about. It began in the caption, standing in place of the date
-            — so the one card worth spotting was the one that would not say
-            when its evening was. Then the host row, which fixed its x. Then
-            the title's line. This is the last rung: the faces row is the only
-            row on the card that meets the cover, and the note is now beside
-            them on it.
-
-            Below the picture and not over it, though. `align-self: flex-end`
-            sits it on the row's bottom edge, which is the 16 points of that
-            row that hang clear of the photograph — the half the circles are
-            wearing a ring to survive. Grey text has no ring, and a note laid
-            over an unknown photograph is legible on about half of them.
-
-            The app's card says the same thing at the end of its byline; see
-            `bylineAbout` in `apps/mobile/src/Events.tsx`.
-          */}
-          {event.live && <span className="card-added">added to {event.added}</span>}
         </div>
       )}
 

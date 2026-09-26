@@ -49,52 +49,64 @@ describe('what a card says now that the photograph is the card', () => {
     expect(meta).not.toMatch(/event\.live/);
   });
 
-  it('hangs "added to" on the row that meets the photograph', () => {
+  it('marks a live album in the corner of its cover, not in a line below it', () => {
     /*
-     * Four places in four passes, each nearer the thing it is about: the
+     * Five places in five passes, each nearer the thing it is about: the
      * caption, where it stood in place of the date; the host row; the title's
-     * line; and now the faces row, which is the only row on the card that
-     * touches the cover.
+     * line; the faces row; and now the photograph itself. Each move answered
+     * the same complaint — it is a fact about the pictures and it was being
+     * read a line away from them — and there is no line closer than none.
+     */
+    const cover = CARD.slice(CARD.indexOf('card-cover'), CARD.indexOf('card-faces'));
+    expect(cover).toMatch(/\{event\.live && \(/);
+    expect(cover).toMatch(/className="card-added"/);
+    expect(CSS).toMatch(/\.card-added \{[^}]*position: absolute/);
+    expect(CSS).toMatch(/\.card-added \{[^}]*right: 10px; bottom: 10px/);
+    // The box it is positioned against. Without this the pill escapes to the
+    // card, or to the page.
+    expect(CSS).toMatch(/\.card-cover \{[^}]*position: relative/);
+  });
+
+  it('says only the time on screen, and what kind of time to a screen reader', () => {
+    /*
+     * A mark in the corner of a cover is about that cover, so "added to" is
+     * the reader's own work and only "41 min ago" is left. A screen reader
+     * meets it as a phrase inside a link named "Sunday lunch, 48 photos",
+     * where a bare duration is attached to nothing — so the two words come
+     * back for that alone.
+     */
+    expect(CARD).toMatch(
+      /<span className="visually-hidden">added to <\/span>\s*\{event\.added\}/,
+    );
+    expect(CARD).not.toMatch(/added to \{event\.added\}/);
+  });
+
+  it('is glass over the photograph rather than a wash across it', () => {
+    /*
+     * A flat dark rectangle in the corner of somebody's picture is the cheap
+     * version of this and it looks the same on every card. The pill takes what
+     * is behind it, saturates it, blurs it and tints the result, so it is made
+     * of that photograph — green over a hedge, warm over a kitchen. The
+     * album header on the phone is built the same way; see `CoverGlass.tsx`.
      *
-     * At its far end, so a reader coming down a grid finds every album still
-     * being added to at one x and one y, in a single sweep, rather than by
-     * reading each card to see which is which.
+     * `saturate()` before `blur()`, and that order is the whole of it: blurring
+     * averages neighbouring pixels and averaging colour is how you make it
+     * grey, so the boost has to land while there are still colours to boost.
      */
-    const faces = CARD.slice(CARD.indexOf('card-faces'), CARD.indexOf('card-under'));
-    expect(faces).toMatch(/\{event\.live && <span className="card-added">added to \{event\.added\}<\/span>\}/);
-    expect(CSS).toMatch(/\.card-added \{[^}]*margin-left: auto/);
-    // It must survive a narrow card. "added to" is what says what kind of fact
-    // the time is; "… 2 minutes ago" is a duration with no claim attached.
-    expect(CSS).toMatch(/\.card-added \{[^}]*white-space: nowrap/);
+    expect(CSS).toMatch(/\.card-added \{[^}]*backdrop-filter: saturate\(180%\) blur\(14px\)/);
+    // Safari still wants the prefix, and a browser with neither must not be
+    // left reading white text off a raw photograph.
+    expect(CSS).toMatch(/-webkit-backdrop-filter: saturate\(180%\) blur\(14px\)/);
+    expect(CSS).toMatch(
+      /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.card-added \{ background: rgba\(12, 12, 14, \.58\)/,
+    );
   });
 
-  it('keeps the note off the photograph it is about', () => {
-    /*
-     * The faces row straddles the cover's bottom edge — 16 points over the
-     * picture and 16 below — and the circles survive the top half by wearing a
-     * ring of the page colour. Grey text has no ring, and a note laid over an
-     * unknown photograph is legible on about half of them. So it takes the
-     * bottom half: as near the picture as it can be set and still be read on
-     * every one.
-     */
-    expect(CSS).toMatch(/\.card-added \{[^}]*align-self: flex-end/);
-    /*
-     * And the row is drawn, at its full height, for a live album with no faces
-     * on it yet. Without the row there is nowhere for the note; without the
-     * `min-height` the row collapses to the note's own 15 points and the -16
-     * top margin lays it straight over the picture.
-     */
-    expect(CARD).toMatch(/\{\(event\.faces\.length > 0 \|\| event\.live\) && \(/);
-    expect(CSS).toMatch(/\.card-faces \{[^}]*min-height: 32px/);
-  });
-
-  it('sets the note under every other line on the card', () => {
+  it('sets the mark under every line on the card', () => {
     /*
      * 11px against the 13px of the host row and the caption, and a 17px title
-     * beside it. It is the newest thing on the card and still the least
-     * important — the subject is somebody's photograph, and a note set to
-     * compete with the title would be the loudest thing on the card saying the
-     * least.
+     * below it. It is the newest thing on the card and still the least
+     * important — the subject is the photograph it is sitting on.
      */
     const size = (rule: string) =>
       Number(CSS.match(new RegExp(`\\${rule} \\{[^}]*font-size: (\\d+)px`))![1]);

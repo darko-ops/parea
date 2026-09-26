@@ -27,6 +27,7 @@
  */
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
@@ -507,28 +508,26 @@ function EventCard({
   const measured = [date, plural(event.photoCount, 'photo')].filter(Boolean).join(' · ');
 
   /*
-   * The byline's tail: whether anything is still arriving, and nothing else.
+   * When something last arrived — the one thing nothing else on the card says.
    *
-   * It has lost two things in two passes, and for the same reason both times.
-   * First "demetri · You · 1 person", which counted one person three ways —
-   * the handle names them, "You" says it is theirs, "1 person" says they are
-   * the only one. Now the count of people goes altogether: the circles over
-   * the cover are the people, drawn as their faces, which is the version of
-   * that fact somebody actually reads. A number beside the handle was the same
-   * thing again in a worse form, and it was there on every card, so it cost
-   * the line its silence for nothing.
+   * Drawn in the corner of the cover rather than beside the handle, and the
+   * words shrank when it moved. "added to 41 min ago" was a sentence because
+   * it sat in a column of sentences and had to say which album it was about; a
+   * mark on a photograph is about that photograph, so what is left is the
+   * time.
    *
-   * What is left is the one thing nothing else on the card says: that somebody
-   * added to it half an hour ago. Only while that is true — an evening from
-   * March does not need telling you it has stopped — so on most cards the tail
-   * is empty and the byline is a handle on its own, which is what a byline is.
+   * Only while it is true. An evening from March does not need telling you it
+   * has stopped, so on most cards there is no mark at all and the cover is a
+   * cover — which is the reason this can sit on the picture without becoming
+   * furniture. The byline is a handle on its own again, which is what a byline
+   * is.
    *
-   * There is no `live` chip on the rule above either. A coloured dot and the
-   * word beside it is the loudest thing on a card whose subject is somebody
-   * else's photograph, and this says the same thing in words the reader was
-   * going to read anyway.
+   * The old objection to a chip stands and this answers it: a coloured dot and
+   * the word "live" beside it is the loudest thing on a card whose subject is
+   * somebody else's photograph. This is the photograph's own colours behind
+   * two words of its own size — see `coverMark`.
    */
-  const about = live ? `added to ${ago(new Date(event.lastActiveAt), now)}` : '';
+  const about = live ? ago(new Date(event.lastActiveAt), now) : '';
 
   /*
    * The sheet: a strip of what is actually inside, under the cover.
@@ -738,31 +737,6 @@ function EventCard({
           </Text>
         </Pressable>
 
-        {/*
-          Pushed to the far end of the row rather than set beside the handle.
-
-          It was `· added to 2 minutes ago`, hung off the name, and the
-          separator was doing the work of saying the two were different facts.
-          They are more different than a middle dot admits: the left of this row
-          is whose album it is, which is true of the card forever, and this is
-          what happened to it in the last hour, which is true of the card today.
-          Put at opposite ends they read as two columns of a line rather than
-          one sentence with a join in it, and the tail lands on the same right
-          edge as the screen — so the eye finds every card's "still happening"
-          in one place while scrolling instead of after a handle of some length.
-
-          The separator goes with the move. A `·` is a join, and there is
-          nothing left to join across half a row of space.
-
-          Drawn only when there is something to say. Most cards have nothing —
-          an album stops being live within a day — and the row is then a handle
-          on its own, which is what a byline is.
-        */}
-        {about !== '' && (
-          <Text style={[styles.bylineAbout, { color: t.dim }]} numberOfLines={1}>
-            {about}
-          </Text>
-        )}
       </View>
 
       {/*
@@ -785,7 +759,43 @@ function EventCard({
           />
         )}
 
-            </View>
+        {/*
+          The mark, in the corner of the thing it is about.
+
+          Top right rather than bottom: the circles come over the picture's
+          bottom edge and the cover's own bottom half is where a photograph
+          usually has its subject, a table or a face. The top right corner of a
+          snapshot is sky, wall or ceiling about as often as not, and it is the
+          corner nothing else on this card uses.
+
+          Behind glass, for the reason the album header is — see the note at
+          the top of `CoverGlass.tsx`. A flat dark chip is the cheap version
+          and it puts the same grey lozenge on every card; this takes the
+          photograph behind it and blurs it, so the mark is made of that
+          picture. `systemUltraThinMaterialDark` is the thinnest material that
+          darkens: `dark` washes what is behind it grey, which is the one thing
+          this must not do.
+
+          The tint underneath is not a fallback for the blur — it is what the
+          white text is legible against on a cover that is a bright sky, and it
+          also carries the whole job on an Android build where the blur does
+          not land.
+
+          `pointerEvents="none"` because the card is one press. A view over the
+          cover that ate touches would make a small dead patch in the corner of
+          the one control on the row.
+        */}
+        {about !== '' && (
+          <View style={styles.coverMark} pointerEvents="none">
+            <BlurView
+              intensity={26}
+              tint="systemUltraThinMaterialDark"
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.coverMarkText}>{about}</Text>
+          </View>
+        )}
+      </View>
 
       {faces.length > 0 && (
         <View style={styles.faces}>
@@ -3215,6 +3225,38 @@ const styles = StyleSheet.create({
    */
   cover: { marginHorizontal: -20, overflow: 'hidden', backgroundColor: '#8881' },
   coverShot: { width: '100%', height: '100%' },
+  /*
+   * The recency mark: a pill of the photograph's own colours, top right.
+   *
+   * `overflow: 'hidden'` is what makes it a pill rather than a blurred square
+   * — the `BlurView` inside it is `absoluteFill`, and without the clip it
+   * paints the corners the radius is pretending are not there.
+   *
+   * The tint is under the blur and does two jobs: it is the contrast white
+   * text needs on a cover that is a bright sky, and it is the whole of the
+   * effect anywhere the blur does not land. The hairline is the glass's own
+   * edge, which is what stops the pill reading as a hole in the picture.
+   *
+   * 10 from the corner, which is the number the web card uses; the text
+   * column's 16 is a margin off the *screen* and this is a mark on a picture.
+   */
+  coverMark: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(12,12,14,0.34)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  /* White, not the theme's ink: this sits on a photograph rather than on the
+     page, and the page is light or dark while a photograph is neither. 11 is
+     the web pill's size and a size below everything else on this card — it is
+     the newest thing on it and still the least important. */
+  coverMarkText: { fontSize: 11, fontWeight: '500', color: '#ffffff' },
   /* Over the picture's bottom edge, not under it — see the note on the card.
      The negative margin is the overlap, and the row sits above the text it
      shares a column with.
@@ -3371,19 +3413,6 @@ const styles = StyleSheet.create({
   bylineBlank: { alignItems: 'center', justifyContent: 'center' },
   bylineLetter: { fontSize: 12, fontWeight: '700' },
   bylineName: { flexShrink: 1, minWidth: 0, fontSize: 14.5, fontWeight: '700' },
-  /*
-   * Takes what the name leaves and sits at the far end of it.
-   *
-   * `flex: 1` is what claims the gap and `textAlign: 'right'` is what puts the
-   * words at the end of that gap, so the note ends on the card's column edge —
-   * the same 16 from the glass the title and the faces answer to — whatever the
-   * handle beside it is called.
-   *
-   * It still loses its tail rather than its head on a narrow screen, because
-   * `added to` is the half that says what kind of fact this is; a line
-   * truncated to `… 2 minutes ago` is a time with no claim attached.
-   */
-  bylineAbout: { flex: 1, minWidth: 0, fontSize: 13, textAlign: 'right' },
   /* The card with nothing in it, which is mostly a button. Bordered, unlike
      the one that leads with a photograph: there is no picture to give it an
      edge, and a borderless block of text would not read as something to press. */

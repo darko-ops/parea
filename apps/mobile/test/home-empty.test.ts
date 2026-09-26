@@ -99,56 +99,78 @@ describe('the card the home list draws', () => {
      */
     expect(CARD.match(/>\s*\{by\}\s*</g) ?? []).toHaveLength(1);
     /*
-     * And nothing beside it counts anybody.
+     * And nothing beside it counts anybody, or dates anything.
      *
-     * The tail has lost two things in two passes, for the same reason both
-     * times. First "demetri · You · 1 person", which counted one person three
-     * ways: the handle names them, "You" says it is theirs, "1 person" says
-     * they are the only one. Then the count of people altogether — the circles
-     * over the cover *are* the people, drawn as their faces, which is the
-     * version of that fact somebody reads, and a number beside the handle was
-     * the same thing again in a worse form on every card.
+     * The tail has lost three things in three passes. First "demetri · You · 1
+     * person", which counted one person three ways: the handle names them,
+     * "You" says it is theirs, "1 person" says they are the only one. Then the
+     * count of people altogether — the circles over the cover *are* the
+     * people, drawn as their faces, which is the version of that fact somebody
+     * reads. Then "added to 41 min ago", which went onto the photograph it is
+     * about; see the mark below.
      *
-     * What is left is the one thing nothing else on the card says: that
-     * somebody added to it half an hour ago, and only while that is true.
+     * What is left is a handle, which is what a byline is.
      */
-    expect(CARD).toMatch(
-      /const about = live \? `added to \$\{ago\(new Date\(event\.lastActiveAt\), now\)\}` : '';/,
-    );
     expect(CARD).not.toMatch(/'You'/);
     expect(CARD).not.toMatch(/memberCount, 'person', 'people'/);
-    /*
-     * And most cards say nothing here at all — an album stops being live
-     * within a day — so the row is a handle on its own, which is what a byline
-     * is.
-     */
-    expect(CARD).toMatch(/\{about !== '' && \(/);
+    expect(CARD).not.toMatch(/bylineAbout/);
+    const byline = CARD.slice(CARD.indexOf('styles.byline}'), CARD.indexOf('styles.cover,'));
+    expect(byline).not.toMatch(/\{about\b/);
   });
 
-  it('hangs the "added to" note on the right edge rather than off the handle', () => {
+  it('marks a live album in the corner of its cover, not beside the handle', () => {
     /*
-     * The two ends of this row are two kinds of fact. Whose album it is stays
-     * true forever; what happened to it in the last hour is true today. Set
-     * beside each other with a `·` between them they read as one sentence
-     * with a join in it, and the tail starts at a different place on every
-     * card because handles are different lengths — so a reader scrolling for
-     * "which of these is still happening" has to find the answer afresh on
-     * each one.
+     * It was `· added to 2 minutes ago` hung off the name, then the far end of
+     * the same row. Both were a line away from the thing they are about, and
+     * both started at a different place on every card because handles are
+     * different lengths.
      *
-     * At the far end it lands on the card's own column edge, the same 16 from
-     * the glass the title and the faces answer to, and the eye tracks one
-     * line down the screen.
+     * On the picture there is no line away and no handle to start after. Top
+     * right rather than bottom: the circles come over the cover's bottom edge,
+     * and the bottom half of a snapshot is where its subject usually is.
+     *
+     * `pointerEvents="none"` because the card is one press — a view over the
+     * cover that ate touches would make a dead patch in the corner of the one
+     * control on the row.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
-    // `flex: 1` claims the gap; `textAlign` puts the words at the end of it.
-    expect(EVENTS).toMatch(/bylineAbout: \{[^}]*flex: 1[^}]*textAlign: 'right'/);
-    // And the separator goes with the move: a `·` is a join, and there is
-    // nothing left to join across half a row of space.
-    expect(CARD).not.toMatch(/`· \$\{about\}`/);
-    expect(CARD).toMatch(/numberOfLines=\{1\}>\s*\{about\}\s*<\/Text>/);
+    expect(CARD).toMatch(/<View style=\{styles\.coverMark\} pointerEvents="none">/);
+    expect(EVENTS).toMatch(/coverMark: \{[^}]*position: 'absolute',\s*top: 10,\s*right: 10,/);
+    // Inside the cover, so it is positioned against the picture.
+    expect(CARD.indexOf('styles.coverMark')).toBeGreaterThan(CARD.indexOf('styles.coverShot'));
+    expect(CARD.indexOf('styles.coverMark')).toBeLessThan(CARD.indexOf('styles.faces'));
+  });
+
+  it('makes the mark out of the photograph rather than laying a chip on it', () => {
+    /*
+     * A flat dark lozenge is the cheap version of this and it looks the same
+     * on every card. The blur takes the picture behind it, so the mark is made
+     * of that picture — and `systemUltraThinMaterialDark` rather than `dark`,
+     * which washes what is behind it grey. Same reasoning as the album
+     * header's; see `CoverGlass.tsx`.
+     *
+     * The tint underneath is not a fallback for the blur. It is the contrast
+     * white text needs on a cover that is a bright sky, and it carries the
+     * whole job where the blur does not land.
+     */
+    expect(EVENTS).toMatch(/tint="systemUltraThinMaterialDark"/);
+    expect(EVENTS).toMatch(/coverMark: \{[^}]*backgroundColor: 'rgba\(12,12,14,0\.34\)'/);
+    expect(EVENTS).toMatch(/coverMark: \{[^}]*overflow: 'hidden'/);
+    expect(EVENTS).toMatch(/coverMarkText: \{ fontSize: 11,[^}]*color: '#ffffff' \}/);
+  });
+
+  it('says only the time, because a mark on a cover is about that cover', () => {
+    /*
+     * "added to 41 min ago" was a sentence because it sat in a column of
+     * sentences and had to say which album it was about. The picture says
+     * that now.
+     */
+    expect(EVENTS).toMatch(
+      /const about = live \? ago\(new Date\(event\.lastActiveAt\), now\) : '';/,
+    );
   });
 
   it('leaves the host out of the circles and scales them to 70%', () => {
@@ -250,15 +272,15 @@ describe('the card the home list draws', () => {
     /*
      * And no live chip on the end of it. A coloured dot and the word beside it
      * is the loudest thing on a card whose subject is somebody else's
-     * photograph, and the byline already says "added to 20 min ago" in words
-     * the reader was going to read anyway.
+     * photograph; the recency is a mark in the corner of that photograph, in
+     * its own colours, saying the time and no more.
      */
     const CARD = EVENTS.slice(
       EVENTS.indexOf('function EventCard'),
       EVENTS.indexOf('function emptyLine'),
     );
     expect(CARD).not.toMatch(/>\s*live\s*</i);
-    expect(CARD).toMatch(/live \? `added to \$\{ago\(/);
+    expect(CARD).toMatch(/const live = isLive\(event\.lastActiveAt, now\);/);
   });
 
   it('shows what is inside as a row of three, and counts what it leaves out', () => {

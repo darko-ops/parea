@@ -305,8 +305,17 @@ describe('what the product calls an album', () => {
        * what keeps this to text and off `pointerEvents="none"` and every prop
        * and identifier in the file. Newlines *are* allowed, because JSX wraps
        * its prose — which is the other half of why the nine were missed.
+       *
+       * No semicolon and no `=` either, and those two are here for a false
+       * positive rather than a true one. `a.length > b` and `n <= 1` are a
+       * `>` and a `<` like any other, so a run of ordinary statements between
+       * two comparisons reads to this as a very long line of prose — and it
+       * says "event" constantly, because the identifiers are exempt precisely
+       * so they can. A statement carries a `;` or an `=` and a sentence on a
+       * card carries neither, which is the cheapest thing that tells them
+       * apart without teaching this test to parse.
        */
-      const nodes = [...source.matchAll(/>([^<>{}]*\b[Ee]vents?\b[^<>{}]*)</g)]
+      const nodes = [...source.matchAll(/>([^<>{};=]*\b[Ee]vents?\b[^<>{};=]*)</g)]
         .map((m) => m[1]!.split(/\s+/).filter(Boolean).join(' '))
         .filter(Boolean);
 
