@@ -23,6 +23,10 @@ const read = (path: string) =>
 
 const VIEW = read('../app/components/FindView.tsx');
 const PAGE = read('../app/find/page.tsx');
+const CSS = readFileSync(
+  fileURLToPath(new URL('../app/globals.css', import.meta.url)),
+  'utf8',
+);
 
 describe('the box searches four things and no more', () => {
   it('asks the two endpoints that are allowed to be asked', () => {
@@ -253,5 +257,106 @@ describe('what a result calls somebody', () => {
     // The handle under it whether or not a name is above — it used to appear
     // only when there was one, which left the `@` living on the name line.
     expect(RESULTS).toMatch(/under=\{person\.handle \? `@\$\{person\.handle\}` : null\}/);
+  });
+});
+
+describe('what the box remembers', () => {
+  it('keeps the last ten in this browser and nowhere else', () => {
+    /*
+     * A search term is a sentence about who somebody was looking for. This
+     * product keeps none: there is no table, no request and no field — the
+     * list lives in the browser that typed it, which is why the assertion
+     * below is that nothing reaches the server.
+     */
+    expect(VIEW).toMatch(/const RECENT_MAX = 10;/);
+    expect(VIEW).toMatch(/localStorage\.setItem\(RECENT_KEY/);
+    expect(VIEW).not.toMatch(/fetch\([^)]*recent|\/api\/[a-z]*search[^)]*post/i);
+  });
+
+  it('remembers a search rather than a keystroke', () => {
+    /*
+     * The box asks on a 250ms debounce, so every prefix of a name is a
+     * request — "w", "wr", "wre" — and a list built from those is a history of
+     * nothing. What means "this was the search" is pressing Enter, or opening
+     * one of the answers. Both, because either can be the last thing somebody
+     * does.
+     */
+    expect(VIEW).toMatch(/if \(e\.key === 'Enter'\) remember\(query\)/);
+    expect(VIEW).toMatch(/onOpen=\{\(\) => remember\(query\)\}/);
+    // Below `MIN`, a term is a prefix of everybody and not a search.
+    expect(VIEW).toMatch(/if \(term\.length < MIN\) return;/);
+  });
+
+  it('survives a browser that refuses to store anything', () => {
+    /*
+     * `localStorage` throws in a Safari private window rather than returning
+     * null, and the value could be anything another tab or an older version
+     * wrote. A search page that will not render because of its own
+     * convenience list is worse than one without the list.
+     */
+    expect(VIEW).toMatch(/function readRecent\(\): string\[\] \{[\s\S]*?catch \{[\s\S]*?return \[\];/);
+    expect(VIEW).toMatch(/if \(!Array\.isArray\(parsed\)\) return \[\];/);
+    // Read after mount, never during render: the server has no localStorage,
+    // and a list that differs between its HTML and the first client pass is a
+    // hydration mismatch.
+    expect(VIEW).toMatch(/useEffect\(\(\) => setRecent\(readRecent\(\)\), \[\]\)/);
+  });
+
+  it('offers a way to forget, beside the list itself', () => {
+    // A shared laptop is the ordinary reason to want it gone, and the place
+    // people look for that is the list, not a settings page.
+    expect(VIEW).toMatch(/onClick=\{forgetAll\}/);
+    expect(VIEW).toMatch(/writeRecent\(\[\]\)/);
+  });
+});
+
+describe('asking somebody from a result', () => {
+  it('offers it to a stranger and to nobody else', () => {
+    /*
+     * Being findable leads to being asked and to nothing else — so the ask
+     * belongs where somebody is found, rather than two screens away on a
+     * profile they have to open and come back from.
+     *
+     * The other standings are words, not controls. Withdrawing is somebody's
+     * own to do and is done on their page; answering an ask wants Accept and
+     * Decline side by side and room to say what they mean, which a row does
+     * not have.
+     */
+    expect(VIEW).toMatch(/standing === 'none' && \([\s\S]{0,200}Add friend/);
+    expect(VIEW).toMatch(/standing === 'asked' && <span className="hit-said">Requested/);
+    expect(VIEW).toMatch(/standing === 'asking' && \([\s\S]{0,200}Asked you/);
+  });
+
+  it('makes the same request the profile makes', () => {
+    // One endpoint, so a list and a page cannot come to disagree about what
+    // asking does — including the crossed case, where `/api/friends` answers
+    // an open request of theirs instead of opening a second one.
+    expect(VIEW).toMatch(/fetch\('\/api\/friends', \{[\s\S]{0,160}method: 'POST'/);
+    expect(VIEW).toMatch(/JSON\.stringify\(\{ actorId: person\.actorId \}\)/);
+    expect(VIEW).toMatch(/body\.status === 'accepted' \? 'friends' : 'asked'/);
+  });
+
+  it('puts the control beside the row rather than inside it', () => {
+    // A `<button>` inside an `<a>` is a button that navigates, whichever the
+    // browser decides wins. They are siblings, and the link takes the rest.
+    expect(VIEW).toMatch(/<li className="hit-row">/);
+    expect(CSS).toMatch(/\.hit-row \{ display: flex;/);
+    expect(CSS).toMatch(/\.hit-row \.hit \{ flex: 1; min-width: 0; \}/);
+  });
+
+  it('knows where the two of you stand before anybody presses', () => {
+    /*
+     * Without this the row offers "Add friend" to somebody asked last week.
+     * It comes from `/api/people` and it is a fact about the reader rather
+     * than about the person found — see `friends.test.ts`.
+     *
+     * The local lists send none, and the default is `friends`: this page's
+     * other person list is the reader's own friends, who are friends by
+     * definition rather than by guess.
+     */
+    expect(VIEW).toMatch(/standing\?: Standing;/);
+    expect(VIEW).toMatch(/useState<Standing>\(person\.standing \?\? 'friends'\)/);
+    const PEOPLE = read('../app/api/people/route.ts');
+    expect(PEOPLE).toMatch(/\.\.\.person/);
   });
 });

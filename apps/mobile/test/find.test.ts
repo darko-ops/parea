@@ -221,3 +221,91 @@ describe('what the page says it can reach', () => {
   });
 });
 
+/**
+ * The last few things somebody looked for, and the ask beside a stranger.
+ */
+describe('what the box remembers', () => {
+  const PLATFORM = read('src/platform.ts');
+
+  it('keeps ten on this phone and sends none of them anywhere', () => {
+    /*
+     * A search term is a sentence about who somebody was looking for, and this
+     * product keeps none: no table, no request, no field. The list is held by
+     * the device that typed it.
+     */
+    expect(PLATFORM).toMatch(/export const RECENT_SEARCHES = 10;/);
+    expect(PLATFORM).toMatch(/SecureStore\.setItemAsync\(SEARCHES_KEY/);
+    expect(TAB).not.toMatch(/api\.[a-zA-Z]*[Ss]earch[a-zA-Z]*\([^)]*recent/);
+  });
+
+  it('is handed back with the phone', () => {
+    // Not a credential like the token and the link tokens beside it, which is
+    // why it is last in that function rather than first — but it is still the
+    // last person's, and they are gone.
+    expect(PLATFORM).toMatch(
+      /signOutDevice[\s\S]{0,600}deleteItemAsync\(SEARCHES_KEY\)/,
+    );
+  });
+
+  it('remembers a search rather than a keystroke', () => {
+    /*
+     * The box asks after two characters and on every keystroke after that, so
+     * a list of what was asked would be "w", "wr", "wre". What means "this was
+     * the search" is opening one of its answers.
+     */
+    expect(TAB).toMatch(/remember\(query\);\s*onOpenPerson\(person\.handle\)/);
+    expect(TAB).toMatch(/remember\(query\);\s*onOpenGroup\(group\.id\)/);
+    expect(TAB).toMatch(/if \(term\.trim\(\)\.length < 2\) return;/);
+  });
+
+  it('keeps one of a term however it was capitalised', () => {
+    // "Wren" and "wren" are the same search; the one to keep is the one last
+    // written.
+    expect(PLATFORM).toMatch(/t\.toLowerCase\(\) !== kept\.toLowerCase\(\)/);
+  });
+
+  it('shows it only while nothing is typed, and offers to forget it', () => {
+    expect(TAB).toMatch(/\{!asked && recent\.length > 0 && \(/);
+    expect(TAB).toMatch(/onPress=\{forgetAll\}/);
+  });
+});
+
+describe('asking somebody from a result', () => {
+  it('offers it to a stranger and says the rest in words', () => {
+    /*
+     * Being findable leads to being asked and to nothing else — so the ask is
+     * on the row where somebody was found rather than two screens away.
+     *
+     * "Requested" and "Asked you" are words, not controls: withdrawing is
+     * somebody's own to do and answering wants Decline beside it, and both of
+     * those live on the profile, which is one press away.
+     */
+    expect(TAB).toMatch(/standing === 'none' \? \(/);
+    expect(TAB).toMatch(/>Add</);
+    expect(TAB).toMatch(/standing === 'asked' \? \([\s\S]{0,120}Requested/);
+    expect(TAB).toMatch(/standing === 'asking' \? \([\s\S]{0,120}Asked you/);
+  });
+
+  it('makes the same ask the profile and the suggestions make', () => {
+    // One call, so three surfaces cannot come to disagree about what asking
+    // does — including the crossed case the endpoint answers for all of them.
+    expect(TAB).toMatch(/onPress=\{\(\) => void ask\(person\.actorId\)\}/);
+    expect(TAB).toMatch(/api\.askFriend\(actorId\)/);
+  });
+
+  it('lets what this screen just did outrank what the server last said', () => {
+    /*
+     * Results are refetched on the next keystroke, and the standing in them is
+     * as old as the request. A row that reverted to "Add" mid-flight would be
+     * offering to do a thing that is already done.
+     */
+    expect(TAB).toMatch(
+      /const standing = sent\[person\.actorId\] \? 'asked' : \(person\.standing \?\? 'none'\);/,
+    );
+  });
+
+  it('knows where the two of you stand before anybody presses', () => {
+    const API = read('src/api.ts');
+    expect(API).toMatch(/standing\?: Standing;/);
+  });
+});

@@ -18,6 +18,7 @@ import { inOutbox, sandboxCopy } from './library';
 
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
+const SEARCHES_KEY = 'parea.searches';
 const QUEUE_FILE = 'upload-queue.json';
 const COVERS_FILE = 'owed-covers.json';
 const PUSH_ASKED_KEY = 'parea.pushAsked';
@@ -77,8 +78,63 @@ export async function forgetActor(): Promise<void> {
 export async function signOutDevice(): Promise<void> {
   await SecureStore.deleteItemAsync(ACTOR_KEY);
   await SecureStore.deleteItemAsync(EVENTS_KEY);
+  // What the last person looked for is theirs, and this phone is being handed
+  // back. It is not a credential like the two above, which is the only reason
+  // it is last rather than first.
+  await SecureStore.deleteItemAsync(SEARCHES_KEY);
   await saveQueue({ items: [] });
   await saveOwedCovers([]);
+}
+
+// --- what was typed into the search box -------------------------------------
+
+/**
+ * The last few things somebody looked for, on their own phone.
+ *
+ * Ten, and nowhere else. A search term is a sentence about who somebody was
+ * looking for and this product keeps none of them: no table, no request, no
+ * field. This is a list of what was typed into the box, held by the device
+ * that typed it, and it is handed back with everything else on sign-out.
+ *
+ * The same store the joined events use, and for a plainer reason than theirs:
+ * it is the store this app has. There is no keychain argument here — a search
+ * term is not a credential — but a second mechanism for one small list is a
+ * second thing to remember to clear.
+ */
+export const RECENT_SEARCHES = 10;
+
+export async function loadSearches(): Promise<string[]> {
+  const raw = await SecureStore.getItemAsync(SEARCHES_KEY);
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_SEARCHES);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Most recent first, without repeating it.
+ *
+ * Case-folded for the comparison and kept as it was typed: "Wren" and "wren"
+ * are the same search, and the one worth keeping is the one last written.
+ */
+export async function rememberSearch(term: string): Promise<string[]> {
+  const kept = term.trim();
+  if (!kept) return loadSearches();
+  const had = await loadSearches();
+  const next = [kept, ...had.filter((t) => t.toLowerCase() !== kept.toLowerCase())].slice(
+    0,
+    RECENT_SEARCHES,
+  );
+  await SecureStore.setItemAsync(SEARCHES_KEY, JSON.stringify(next));
+  return next;
+}
+
+export async function forgetSearches(): Promise<void> {
+  await SecureStore.deleteItemAsync(SEARCHES_KEY);
 }
 
 // --- events you have joined --------------------------------------------------

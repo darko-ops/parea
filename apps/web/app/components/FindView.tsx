@@ -82,7 +82,17 @@ type Person = {
    * anybody whose row predates `/api/people` sending it.
    */
   avatar: string | null;
+  /**
+   * Where you and they stand, so a row can offer the right thing.
+   *
+   * Sent by `/api/people` and absent from the two local lists this page also
+   * draws — your own friends are friends by definition, which is what the
+   * default below says. It is a fact about the reader rather than about the
+   * person found: whether *they* asked, were asked, or are already friends.
+   */
+  standing?: Standing;
 };
+type Standing = 'friends' | 'asked' | 'asking' | 'none';
 type Suggestion = Person & { mutuals: number };
 type Membership = { id: string; name: string; role: string };
 
@@ -116,6 +126,51 @@ export type EventHit = {
   /** Name and place, lowercased on the server. See `search.ts`. */
   haystack: string;
 };
+
+/**
+ * The last few things somebody looked for, kept on their own machine.
+ *
+ * Ten, and never anywhere else. A search term is a sentence about who somebody
+ * was looking for, and this product does not keep one: there is no table, no
+ * request, and nothing about it reaches the server — the box is the same box
+ * it was, and this is a list of what was typed into it, held by the browser
+ * that typed it.
+ *
+ * Which is also why "Clear" is beside the heading rather than in a settings
+ * page. A shared laptop is the ordinary case for wanting it gone, and the
+ * place somebody looks for that is the list itself.
+ */
+const RECENT_KEY = 'parea.find.recent';
+const RECENT_MAX = 10;
+
+/**
+ * Read, tolerating every shape the key could be in.
+ *
+ * `localStorage` throws in a Safari private window rather than returning
+ * null, and the value could be anything a previous version or another tab
+ * wrote. A search page that fails to render because of its own convenience
+ * list is worse than one with no list, so every failure is an empty one.
+ */
+function readRecent(): string[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecent(terms: string[]) {
+  try {
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(terms.slice(0, RECENT_MAX)));
+  } catch {
+    // Out of quota, or a browser that refuses storage. The list is a
+    // convenience and its failure is not the page's problem to report.
+  }
+}
 
 /** Long enough that typing a word is one request, short enough to feel live. */
 const DEBOUNCE_MS = 250;
@@ -214,6 +269,42 @@ export function FindView({
   const [doors, setDoors] = useState<Door[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [searching, setSearching] = useState(false);
+  /*
+   * Empty on the first render, filled after mount.
+   *
+   * `localStorage` does not exist while this is being rendered on the server,
+   * and a list that differs between the server's HTML and the browser's first
+   * pass is a hydration mismatch. So the first frame is the page without it
+   * and the second is the page with it — which is what it looked like a
+   * moment ago anyway.
+   */
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => setRecent(readRecent()), []);
+
+  /**
+   * Remember a term, most recent first, without repeating it.
+   *
+   * Case-folded for the comparison and kept as it was typed: "Wren" and
+   * "wren" are the same search and the list should hold one of them, and the
+   * one to hold is the one somebody last wrote.
+   */
+  const remember = useCallback((raw: string) => {
+    const term = raw.trim();
+    if (term.length < MIN) return;
+    setRecent((was) => {
+      const next = [term, ...was.filter((t) => t.toLowerCase() !== term.toLowerCase())].slice(
+        0,
+        RECENT_MAX,
+      );
+      writeRecent(next);
+      return next;
+    });
+  }, []);
+
+  const forgetAll = useCallback(() => {
+    setRecent([]);
+    writeRecent([]);
+  }, []);
   // Guards against an early request landing after a later one and overwriting
   // newer results with staler ones.
   const latest = useRef(0);
@@ -334,11 +425,22 @@ export function FindView({
         <label htmlFor="q" className="visually-hidden">
           Search people, albums and groups
         </label>
+        {/*
+          Two moments are worth remembering and neither of them is a keystroke.
+
+          Typing is not searching here — the box asks on a 250ms debounce, so
+          every prefix of a name would go in the list and "w", "wr", "wre" is
+          not a history of anything. What means "this was the search" is
+          pressing Enter, or opening one of the answers; both are below.
+        */}
         <input
           id="q"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') remember(query);
+          }}
           placeholder="A person, an album, a group"
           autoComplete="off"
           autoFocus
@@ -364,10 +466,49 @@ export function FindView({
         ))}
       </div>
 
+      {/*
+        What was typed here before, when nothing is typed now.
+
+        Above the suggestions rather than below them: this is the only thing on
+        the idle page that came from the reader, and a list of their own
+        searches under two lists of the product's guesses reads as another
+        guess. It is gone the moment somebody types, because then the page is
+        answering rather than offering.
+
+        Held in this browser and nowhere else — see `RECENT_KEY`. "Clear" is
+        beside the heading because a shared laptop is the ordinary reason to
+        want it gone, and the place people look for that is the list.
+      */}
+      {!asking && recent.length > 0 && (
+        <section className="find-section">
+          <h2 className="hit-head">
+            Recent
+            <button type="button" className="link hit-head-note" onClick={forgetAll}>
+              Clear
+            </button>
+          </h2>
+          <div className="pills find-recent">
+            {recent.map((term) => (
+              <button
+                key={term}
+                type="button"
+                className="pill small"
+                onClick={() => {
+                  setQuery(term);
+                  remember(term);
+                }}
+              >
+                {term}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {wantsPeople && foundFriends.length > 0 && (
         <Answers title="Friends">
           {foundFriends.map((person) => (
-            <PersonRow key={person.actorId} person={person} />
+            <PersonRow key={person.actorId} person={person} onOpen={() => remember(query)} />
           ))}
         </Answers>
       )}
@@ -375,7 +516,7 @@ export function FindView({
       {wantsPeople && strangers.length > 0 && (
         <Answers title="People">
           {strangers.map((person) => (
-            <PersonRow key={person.actorId} person={person} />
+            <PersonRow key={person.actorId} person={person} onOpen={() => remember(query)} />
           ))}
         </Answers>
       )}
@@ -383,7 +524,7 @@ export function FindView({
       {wantsEvents && foundEvents.length > 0 && (
         <Answers title="Albums">
           {foundEvents.map((event) => (
-            <EventRow key={event.id} event={event} />
+            <EventRow key={event.id} event={event} onOpen={() => remember(query)} />
           ))}
         </Answers>
       )}
@@ -392,7 +533,11 @@ export function FindView({
         <Answers title="Groups">
           {doors.map((door) => (
             <li key={door.id}>
-              <a href={`/group/${door.id}`} className="hit">
+              <a
+                href={`/group/${door.id}`}
+                className="hit"
+                onClick={() => remember(query)}
+              >
                 <span className="hit-thumb" aria-hidden="true">
                   {initial(door.name)}
                 </span>
@@ -760,10 +905,10 @@ function Answers({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** An event somebody typed for. */
-function EventRow({ event }: { event: EventHit }) {
+function EventRow({ event, onOpen }: { event: EventHit; onOpen?: () => void }) {
   return (
     <li>
-      <a href={`/event/${event.id}`} className="hit">
+      <a href={`/event/${event.id}`} className="hit" onClick={onOpen}>
         <Face
           src={event.thumb}
           size={38}
@@ -789,7 +934,7 @@ function EventRow({ event }: { event: EventHit }) {
  * A friend's row with more on it would be a reason to go looking for people
  * whose rows are fuller.
  */
-function PersonRow({ person }: { person: Person }) {
+function PersonRow({ person, onOpen }: { person: Person; onOpen?: () => void }) {
   /*
    * Bare. The handle is on the line underneath, always, wearing the `@` that
    * says what it is — so a result with no name written in read "@wren" over
@@ -807,9 +952,47 @@ function PersonRow({ person }: { person: Person }) {
    * a findable person, so it is not one with a page.
    */
   const href = person.handle ? `/u/${encodeURIComponent(person.handle)}` : '/friends';
+
+  /*
+   * Where the two of you stand, and what the row is allowed to offer about it.
+   *
+   * `standing` comes from `/api/people`. The two local lists on this page —
+   * your own friends and the events you can already see — send none, and for
+   * friends that is not a gap: somebody in your friends list is a friend, and
+   * defaulting to it is the truth rather than a guess.
+   *
+   * Held in state because pressing changes it, and the answer comes from the
+   * server: `POST /api/friends` replies with the status it now holds, which
+   * is `accepted` when this crossed with an ask of theirs and the endpoint
+   * answered that instead of opening a second one.
+   */
+  const [standing, setStanding] = useState<Standing>(person.standing ?? 'friends');
+  const [busy, setBusy] = useState(false);
+
+  const ask = useCallback(async () => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/friends', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorId: person.actorId }),
+      });
+      if (!res.ok) throw new Error('no');
+      const body = (await res.json().catch(() => ({}))) as { status?: string };
+      setStanding(body.status === 'accepted' ? 'friends' : 'asked');
+    } catch {
+      // The row keeps saying what it said. A search result is not the place to
+      // report a failed request — the profile is one tap away and says the
+      // same thing with room to explain itself.
+      setStanding('none');
+    } finally {
+      setBusy(false);
+    }
+  }, [person.actorId]);
+
   return (
-    <li>
-      <a href={href} className="hit">
+    <li className="hit-row">
+      <a href={href} className="hit" onClick={onOpen}>
         {/*
           Their picture, and the letter only when there is none.
 
@@ -831,6 +1014,34 @@ function PersonRow({ person }: { person: Person }) {
           <span className="muted">{person.handle ? `@${person.handle}` : ''}</span>
         </span>
       </a>
+      {/*
+        Asking, from the list.
+
+        A stranger found by handle is somebody you looked up in order to ask —
+        that is the whole of what being findable leads to in this product — and
+        the ask was two screens away: open their profile, find the button,
+        come back. It is the same `POST /api/friends` that button makes, and it
+        is beside the row rather than inside it because a button inside a link
+        is a button that navigates.
+
+        Only the two states this row can honestly act on. "Requested" is a word
+        rather than a control: withdrawing is somebody's own to do and it is
+        done on their page, where there is room to say what it means. An ask
+        pointing at *you* says so and sends you there to answer it — a list is
+        not the place to accept somebody, and the page that is already has
+        Accept and Decline side by side.
+      */}
+      {standing === 'none' && (
+        <button type="button" className="secondary small hit-do" disabled={busy} onClick={ask}>
+          Add friend
+        </button>
+      )}
+      {standing === 'asked' && <span className="hit-said">Requested</span>}
+      {standing === 'asking' && (
+        <a href={href} className="hit-said hit-said-link" onClick={onOpen}>
+          Asked you
+        </a>
+      )}
     </li>
   );
 }

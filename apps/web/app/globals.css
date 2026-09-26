@@ -1731,6 +1731,33 @@ button.secondary {
 .hit-text .muted {
   font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* A result with something to do about it beside the row.
+
+   The row is a link and the control is not inside it: a `<button>` within an
+   `<a>` is a button that navigates, whichever one the browser decides won. So
+   they are siblings, and the link takes the space the control does not. The
+   negative margin `.hit` carries for its hover panel is why this row has none
+   of its own — the padding is already the link's. */
+.hit-row { display: flex; align-items: center; gap: 8px; }
+.hit-row .hit { flex: 1; min-width: 0; }
+.hit-do { flex: none; }
+
+/* "Requested", and "Asked you". A word rather than a control, because the
+   thing to do about either is done on their page: withdrawing is somebody's
+   own, and answering an ask wants Accept and Decline side by side and room to
+   say what they mean. The second is a link for exactly that reason. */
+.hit-said {
+  flex: none; font-size: 13px; color: var(--dim); white-space: nowrap;
+  padding: 7px 2px;
+}
+.hit-said-link { color: var(--accent); text-decoration: none; }
+.hit-said-link:hover { text-decoration: underline; }
+
+/* The terms this browser remembers, as the same pills the scopes above use —
+   they do the same thing, which is put a word in the box. Its own rule only
+   for the gap above, which is the heading's rather than the row's. */
+.find-recent { margin-top: 2px; }
 .pill[aria-pressed='true'] .pill-count { color: inherit; opacity: .7; }
 /* The heading and its filters on one line, wrapping to two on a phone. */
 .you-events-head {

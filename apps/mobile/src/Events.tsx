@@ -68,7 +68,14 @@ import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
 import { BELOW_TABS } from './chrome';
 import { initialOf, lensFor } from './lens';
-import { loadQueue, saveActorToken, signOutDevice } from './platform';
+import {
+  forgetSearches,
+  loadQueue,
+  loadSearches,
+  rememberSearch,
+  saveActorToken,
+  signOutDevice,
+} from './platform';
 import { DevicesCard } from './Devices';
 import { passkeysSupported } from './passkeys';
 import { addPasskey, signInWithPasskey } from './signin';
@@ -2074,6 +2081,37 @@ export function SearchTab({
   const [suggested, setSuggested] = useState<SuggestedPerson[] | null>(null);
   const [sent, setSent] = useState<Record<string, 'asking' | 'asked'>>({});
 
+  /**
+   * The last few things typed into the box, from this phone's own store.
+   *
+   * Read once on mount rather than on every arrival at the tab: it changes
+   * only when somebody searches, and this screen is the only thing that
+   * writes it. See `rememberSearch`, and `signOutDevice`, which hands it back
+   * with everything else.
+   */
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    void loadSearches().then(setRecent);
+  }, []);
+
+  /*
+   * Remembered when a search is *used*, not when it is typed.
+   *
+   * The box asks after two characters and on every keystroke after that, so a
+   * list built from what was asked would be "w", "wr", "wre" — a history of
+   * somebody's typing rather than of their searches. What means "this was the
+   * one" is opening something it found.
+   */
+  const remember = useCallback((term: string) => {
+    if (term.trim().length < 2) return;
+    void rememberSearch(term).then(setRecent);
+  }, []);
+
+  const forgetAll = useCallback(() => {
+    setRecent([]);
+    void forgetSearches();
+  }, []);
+
   const loadMine = useCallback(async () => {
     const [rooms, found, people] = await Promise.all([
       api.myGroupsDetailed().catch(() => []),
@@ -2360,6 +2398,47 @@ export function SearchTab({
       {!asked && mine === null && (
         <View style={styles.groupsLoading}>
           <Waiting size={40} />
+        </View>
+      )}
+
+      {/*
+        What was typed here before, when nothing is typed now.
+
+        Above the suggestions, because it is the only thing on the resting page
+        that came from the reader — under two lists of the product's guesses it
+        would read as a third one. Gone the moment somebody types: then the
+        page is answering rather than offering.
+
+        Held on this phone and nowhere else — see `rememberSearch` — and handed
+        back with everything else on sign-out. "Clear" is beside the label
+        because a phone passed around is the ordinary reason to want it gone.
+      */}
+      {!asked && recent.length > 0 && (
+        <View style={{ gap: 6 }}>
+          <View style={styles.headRow}>
+            <Text style={[styles.sectionLabel, { color: t.dim }]}>RECENT</Text>
+            <Pressable onPress={forgetAll} accessibilityRole="button" hitSlop={8}>
+              <Text style={[styles.resultUnder, { color: t.dim }]}>Clear</Text>
+            </Pressable>
+          </View>
+          <View style={styles.recentRow}>
+            {recent.map((term) => (
+              <Pressable
+                key={term}
+                onPress={() => void search(term, scope)}
+                accessibilityRole="button"
+                accessibilityLabel={`Search for ${term} again`}
+                style={({ pressed }) => [
+                  styles.recentChip,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.recentText, { color: t.fg }]} numberOfLines={1}>
+                  {term}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       )}
 
@@ -2673,7 +2752,17 @@ export function SearchTab({
 
       <View style={styles.results}>
         {(scope === 'people' || scope === 'all') &&
-          people.map((person, i) => (
+          people.map((person, i) => {
+            /*
+             * Where the two of you stand, with anything done from here on top.
+             *
+             * `standing` is what the server said when the list came back;
+             * `sent` is what this screen has done since, and it wins — a row
+             * that reverts to "Add" while the next keystroke's results are in
+             * flight is a row offering to do a thing that is already done.
+             */
+            const standing = sent[person.actorId] ? 'asked' : (person.standing ?? 'none');
+            return (
             <Result
               key={person.actorId}
               first={i === 0}
@@ -2697,10 +2786,49 @@ export function SearchTab({
               */
               name={person.displayName?.trim() || person.handle || 'Someone'}
               under={person.handle ? `@${person.handle}` : null}
+              /*
+                The ask, on the row where somebody was found.
+
+                Being findable leads to being asked and to nothing else, and
+                the ask was two screens away: open their profile, press it,
+                come back. It is the same `askFriend` the profile makes and the
+                same one the suggestions above this list make.
+
+                Only for a stranger. "Requested" is a word rather than a
+                control — withdrawing is somebody's own to do and is done on
+                their page, where there is room to say what it means — and an
+                ask pointing at *you* is answered there too, beside the Decline
+                that has to sit next to it.
+              */
+              action={
+                standing === 'none' ? (
+                  <Pressable
+                    onPress={() => void ask(person.actorId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${person.handle ?? 'them'} as a friend`}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.resultDo,
+                      { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <Text style={[styles.resultDoText, { color: t.fg }]}>Add</Text>
+                  </Pressable>
+                ) : standing === 'asked' ? (
+                  <Text style={[styles.resultUnder, { color: t.dim }]}>Requested</Text>
+                ) : standing === 'asking' ? (
+                  <Text style={[styles.resultUnder, { color: t.dim }]}>Asked you</Text>
+                ) : null
+              }
               disabled={!person.handle}
-              onPress={() => person.handle && onOpenPerson(person.handle)}
+              onPress={() => {
+                if (!person.handle) return;
+                remember(query);
+                onOpenPerson(person.handle);
+              }}
             />
-          ))}
+            );
+          })}
 
         {(scope === 'groups' || scope === 'all') &&
           groups.map((group, i) => (
@@ -2713,7 +2841,12 @@ export function SearchTab({
               name={group.name}
               under={null}
               aside={plural(group.memberCount, 'member')}
-              onPress={() => onOpenGroup(group.id)}
+              onPress={() => {
+                // The other half of "this was the search": opening a group it
+                // found means the same as opening a person it found.
+                remember(query);
+                onOpenGroup(group.id);
+              }}
             />
           ))}
 
@@ -2830,6 +2963,7 @@ function Result({
   name,
   under,
   aside,
+  action,
   disabled,
   onPress,
 }: {
@@ -2842,6 +2976,16 @@ function Result({
   name: string;
   under: string | null;
   aside?: string;
+  /**
+   * Something to do about this row, at the end of it.
+   *
+   * A node rather than a label because it is a control: a search result for
+   * somebody you have not asked carries the ask, which is the one thing being
+   * findable leads to in this product. Nested inside the row's own `Pressable`
+   * quite deliberately — the inner one takes the touch, so pressing the button
+   * asks and pressing anywhere else opens the profile.
+   */
+  action?: React.ReactNode;
   disabled?: boolean;
   onPress: () => void;
 }) {
@@ -2880,6 +3024,7 @@ function Result({
         )}
       </View>
       {aside && <Text style={[styles.resultUnder, { color: t.dim }]}>{aside}</Text>}
+      {action}
     </Pressable>
   );
 }
@@ -3909,5 +4054,21 @@ const styles = StyleSheet.create({
   resultLetter: { fontSize: 14, fontWeight: '700' },
   resultName: { fontSize: 15.5, fontWeight: '600' },
   resultUnder: { fontSize: 13 },
+  /* The ask, at the end of a result. The pill the profile's own controls wear,
+     at the size a 38pt row can carry: a bordered word, never a filled button —
+     a row of accent rectangles down a list of strangers reads as a page urging
+     you to add them. */
+  resultDo: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  resultDoText: { fontSize: 13, fontWeight: '600' },
+  /* What was typed before, as chips that wrap. The same bordered pill the
+     scope chips above wear, at the size of a word rather than a control. */
+  recentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  recentChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  recentText: { fontSize: 14, maxWidth: 220 },
   placeEvent: { paddingVertical: 6, paddingLeft: 50 },
 });

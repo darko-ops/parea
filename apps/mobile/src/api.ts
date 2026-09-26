@@ -925,6 +925,22 @@ export type InvitablePerson = {
   handle: string | null;
   displayName: string | null;
   avatar: string | null;
+  /**
+   * Where you and they stand, so a row can offer the right thing.
+   *
+   * Sent by `/api/people`, and a fact about the reader rather than about the
+   * person found: whether *they* asked, were asked, or are already friends.
+   * Without it a search result offers to add somebody asked last week.
+   *
+   * Optional because `/api/friends` answers in this shape too and everybody in
+   * that list is a friend by definition — see the default where it is read.
+   *
+   * The profile's `Standing` rather than a narrower one of its own. `self`
+   * cannot appear here — the search excludes the reader — but one word for
+   * one idea is worth more than a type that says so, and a second one would
+   * have to be widened again wherever both are drawn.
+   */
+  standing?: Standing;
 };
 
 /**
