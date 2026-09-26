@@ -19,6 +19,7 @@ import { inOutbox, sandboxCopy } from './library';
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
 const QUEUE_FILE = 'upload-queue.json';
+const COVERS_FILE = 'owed-covers.json';
 const PUSH_ASKED_KEY = 'parea.pushAsked';
 
 export type SavedEvent = {
@@ -68,11 +69,16 @@ export async function forgetActor(): Promise<void> {
  * left, and the next identity on this phone would finish sending them. The
  * screen says how many before asking, and the photographs are still in the
  * camera roll.
+ *
+ * And the covers still owed, for the same reason and more sharply: an owed
+ * cover is an instruction to change the face of somebody else's album, held
+ * against a link token that is being handed back on the line above.
  */
 export async function signOutDevice(): Promise<void> {
   await SecureStore.deleteItemAsync(ACTOR_KEY);
   await SecureStore.deleteItemAsync(EVENTS_KEY);
   await saveQueue({ items: [] });
+  await saveOwedCovers([]);
 }
 
 // --- events you have joined --------------------------------------------------
@@ -123,6 +129,75 @@ export async function saveQueue(state: QueueState): Promise<void> {
   const file = queueFile();
   if (!file.exists) file.create({ intermediates: true });
   file.write(JSON.stringify(state));
+}
+
+// --- covers still owed -------------------------------------------------------
+
+/**
+ * A cover somebody framed, waiting for the photograph it is cut from.
+ *
+ * The first cover of an album cannot be sent when it is chosen. It is cut from
+ * the derivative rather than from the camera's own file — an iPhone writes
+ * HEIC and the cover endpoint cannot read one — and the derivative lands some
+ * twenty to thirty seconds after the upload does. Between those two moments the
+ * intention exists and nothing on the server records it.
+ *
+ * It used to live in a ref on the album screen, which is to say it lived for
+ * exactly as long as somebody stood watching the album fill. Backing out to the
+ * home screen in those thirty seconds — which is the ordinary thing to do, the
+ * album is empty and there is nothing to look at — unmounted the screen and
+ * threw the framing away. No cover, no request, and nothing anywhere saying one
+ * had been asked for.
+ *
+ * So it is written down next to the upload queue, for the same reasons that one
+ * is: the work outlives the screen that started it, and it must survive the app
+ * being killed mid-way.
+ */
+export type OwedCover = {
+  eventId: string;
+  /**
+   * The queue item this cover is cut from, before the server has named it.
+   *
+   * The framing is chosen on the phone's own asset, which has no photo id yet —
+   * that arrives with the presign. `photoId` below is filled in from the queue
+   * the moment it does, and is what every later pass looks for.
+   */
+  localId: string;
+  photoId?: string;
+  framing: { x: number; y: number; zoom: number };
+  /**
+   * How many times this has been looked for and not found.
+   *
+   * A count rather than a deadline, because the clock that matters is time
+   * spent looking and not time elapsed: a phone in a pocket overnight has not
+   * used up any of its chances, and a photograph whose derivative is never
+   * coming uses them at the rate this app is actually open. It persists, so the
+   * count carries across a restart the way the intention does.
+   */
+  looks: number;
+};
+
+function coversFile(): File {
+  return new File(Paths.document, COVERS_FILE);
+}
+
+export async function loadOwedCovers(): Promise<OwedCover[]> {
+  try {
+    const file = coversFile();
+    if (!file.exists) return [];
+    const parsed = JSON.parse(file.textSync()) as OwedCover[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // The same reasoning as the queue: a corrupt file must not brick the app on
+    // launch, and what is lost is one framing that can be chosen again.
+    return [];
+  }
+}
+
+export async function saveOwedCovers(covers: OwedCover[]): Promise<void> {
+  const file = coversFile();
+  if (!file.exists) file.create({ intermediates: true });
+  file.write(JSON.stringify(covers));
 }
 
 // --- uploading ---------------------------------------------------------------

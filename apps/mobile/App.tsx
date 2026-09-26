@@ -102,14 +102,17 @@ import {
   registerForPush,
   launchNotification,
   loadEvents,
+  loadOwedCovers,
   loadQueue,
   onNotificationTapped,
   rememberEvent,
   saveActorToken,
+  saveOwedCovers,
   saveQueue,
   saveToCameraRoll,
   uploadCover,
   uploadItem,
+  type OwedCover,
   type SavedEvent,
 } from './src/platform';
 import { Offline, UploadQueue, type QueueState } from '@parea/upload';
@@ -194,16 +197,6 @@ type Route =
        * a selection.
        */
       upload?: string[];
-      /**
-       * How the first of those photographs was framed as the cover.
-       *
-       * Travels with the upload because the cover is sent from the album now,
-       * not from the form — the form has no photo id to name it by, and a
-       * cover with no photograph recorded behind it is one the server cannot
-       * drop from the strip, which is how a card came to show the same
-       * picture twice.
-       */
-      cover?: CoverFraming;
     }
   /**
    * The door of a private album — a real link to one that has not let this
@@ -275,6 +268,25 @@ type Route =
 function making(route: Route): route is Extract<Route, { screen: 'pick' | 'create' }> {
   return route.screen === 'pick' || route.screen === 'create';
 }
+
+/**
+ * How often an owed cover is looked for, and how many times.
+ *
+ * The derivative it waits on lands twenty to thirty seconds after the upload,
+ * so five seconds is a handful of looks either side of it and a cover that
+ * appears on the home screen while somebody is still looking at the home
+ * screen. The pass costs nothing at all when nothing is owed, which is almost
+ * always: it reads a list in memory and returns.
+ *
+ * Sixty is the bound, and it counts looks rather than minutes because minutes
+ * are not what runs out. A phone in a pocket overnight has spent none of its
+ * chances; a derivative that is never coming spends them at the rate the app is
+ * open, which is five minutes of somebody actually using it. The count is
+ * written down with the rest, so it is not reset by closing the app either —
+ * otherwise "never coming" becomes "asked forever, a few times per launch".
+ */
+const COVER_LOOK_MS = 5_000;
+const COVER_LOOKS = 60;
 
 export default function App() {
   const dark = useColorScheme() === 'dark';
@@ -356,15 +368,9 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(
-    async (
-      event: SavedEvent,
-      pane?: Pane,
-      upload?: string[],
-      photo?: string,
-      cover?: CoverFraming,
-    ) => {
+    async (event: SavedEvent, pane?: Pane, upload?: string[], photo?: string) => {
       setRemembered(await rememberEvent(event));
-      setRoute({ screen: 'event', event, pane, upload, photo, cover });
+      setRoute({ screen: 'event', event, pane, upload, photo });
     },
     [],
   );
@@ -402,6 +408,90 @@ export default function App() {
   const [uploads, setUploads] = useState<QueueState>({ items: [] });
 
   /**
+   * Covers that have been framed and not yet sent.
+   *
+   * Held here rather than on the album screen, and that is the whole of what
+   * this is for. A first cover cannot go up when it is chosen — it is cut from
+   * the derivative, which lands half a minute after the upload does — so
+   * between choosing and sending there is a gap, and the gap used to be kept in
+   * a ref inside the album. Backing out to the home screen during it unmounted
+   * the screen and lost the framing, which is the ordinary thing to do: the
+   * album is empty, there is nothing in it to watch yet.
+   *
+   * So it lives beside the upload queue, at the level that outlives every
+   * screen, and is written to disk for the same reason the queue is.
+   *
+   * Two copies on purpose. The ref is what the runner reads — it must see the
+   * current list from inside a timer that was built once — and the state is
+   * what the album screen renders from, so a cover landing while somebody is
+   * looking at the album redraws it.
+   */
+  const owedCovers = useRef<OwedCover[]>([]);
+  const [coversOwed, setCoversOwed] = useState<OwedCover[]>([]);
+  const keepOwedCovers = useCallback(async (next: OwedCover[]) => {
+    owedCovers.current = next;
+    setCoversOwed(next);
+    await saveOwedCovers(next);
+  }, []);
+  useEffect(() => {
+    void (async () => {
+      const stored = await loadOwedCovers();
+      owedCovers.current = stored;
+      setCoversOwed(stored);
+    })();
+  }, []);
+
+  /**
+   * Note that an album is owed a cover, before anything can be done about it.
+   *
+   * Written at the moment the album is made, which is the only moment that
+   * knows the framing — and deliberately before the photograph has an id, or
+   * bytes on the server, or anything else. The point of writing it down is that
+   * everything after this can be interrupted.
+   */
+  const oweCover = useCallback(
+    async (eventId: string, localId: string, framing: CoverFraming) => {
+      await keepOwedCovers([
+        ...owedCovers.current.filter((owed) => owed.eventId !== eventId),
+        { eventId, localId, framing, looks: 0 },
+      ]);
+    },
+    [keepOwedCovers],
+  );
+
+  /**
+   * The photograph's own id, taken from the queue the moment there is one.
+   *
+   * The queue is the only thing that ever knows it — a presign is where the
+   * server names a photograph — and it is the last thing that still knows it:
+   * `prune` below drops every finished item a second after the bytes land, and
+   * a good twenty seconds before the derivative the cover is cut from exists.
+   * Reading it on demand was the previous version of this bug, and the fix
+   * there was a ref that the album screen then took with it when it unmounted.
+   * So it is copied out here, into the thing that is written down.
+   *
+   * Runs on every queue save and costs a comparison on a list that is almost
+   * always empty.
+   */
+  const nameOwedCovers = useCallback(
+    async (state: QueueState) => {
+      if (!owedCovers.current.some((owed) => !owed.photoId)) return;
+      let named = false;
+      const next = owedCovers.current.map((owed) => {
+        if (owed.photoId) return owed;
+        const item = state.items.find(
+          (i) => i.id === owed.localId && i.eventId === owed.eventId,
+        );
+        if (!item?.photoId) return owed;
+        named = true;
+        return { ...owed, photoId: item.photoId };
+      });
+      if (named) await keepOwedCovers(next);
+    },
+    [keepOwedCovers],
+  );
+
+  /**
    * One runner, for the whole phone.
    *
    * `running` is what keeps it one. Two runs over the same persisted queue
@@ -417,6 +507,7 @@ export default function App() {
       const save = async (state: QueueState) => {
         await saveQueue(state);
         setUploads({ items: [...state.items] });
+        await nameOwedCovers(state);
       };
       const token = (eventId: string) => linkTokens.current.get(eventId) ?? '';
       const queue = new UploadQueue(
@@ -436,7 +527,132 @@ export default function App() {
     } finally {
       running.current = false;
     }
-  }, [api]);
+  }, [api, nameOwedCovers]);
+
+  /**
+   * The one album whose cover was given up on, until somebody has been told.
+   *
+   * Given up on is the only outcome worth saying out loud — a cover that is
+   * still coming needs no announcement and one that landed announces itself by
+   * being there. Said on the album's own status line rather than in an alert,
+   * and said whenever that album is next opened if it is not open now: "could
+   * not set the cover" is as true an hour later, and the way back to it —
+   * Change cover — is on that screen.
+   */
+  const [coverTrouble, setCoverTrouble] = useState<string | null>(null);
+  const coverTroubleSeen = useCallback(() => setCoverTrouble(null), []);
+
+  /**
+   * Send every cover whose photograph has finished arriving.
+   *
+   * The wait is the derivative and not the upload. `fetchForCover` downloads
+   * the album's own rendition and posts that, because the file that was picked
+   * is whatever the camera wrote — HEIC on any iPhone, which is the one thing
+   * the cover endpoint cannot read. `card` is null until the deriver has been
+   * round, so that is what says the rendition exists.
+   *
+   * One pass per tick, serial, and it keeps anything it could not finish. The
+   * ways to not finish are all different and mostly temporary: no link token
+   * yet means the album has not been remembered on this launch, a feed that
+   * will not load means no network, and no `card` means the deriver is still
+   * working. Only the last of those spends a look.
+   */
+  const lookingForCovers = useRef(false);
+  const runCovers = useCallback(async () => {
+    if (lookingForCovers.current || owedCovers.current.length === 0) return;
+    lookingForCovers.current = true;
+    try {
+      const keep: OwedCover[] = [];
+      // Only written back when something moved: this runs every five seconds,
+      // and rewriting an unchanged list is a disk write per tick for as long as
+      // one album is waiting on a network that is not there.
+      let changed = false;
+      const looked = (owed: OwedCover) => {
+        changed = true;
+        if (owed.looks + 1 < COVER_LOOKS) keep.push({ ...owed, looks: owed.looks + 1 });
+        else setCoverTrouble(owed.eventId);
+      };
+      for (const owed of owedCovers.current) {
+        /*
+         * No id yet, which is either "the presign has not come back" or
+         * "it never will".
+         *
+         * `nameOwedCovers` fills this in from the queue, so the queue still
+         * holding the item is what says the first one. If it does not — the
+         * photograph was taken out of the batch, or the app was killed after
+         * the item was pruned and before this was named — then nothing will
+         * ever name it, and keeping it is keeping a row that can only be
+         * skipped. Neither branch spends a look: nothing was looked at.
+         */
+        if (!owed.photoId) {
+          const queued = await loadQueue().catch(() => ({ items: [] }));
+          const stillQueued = queued.items.some(
+            (i) => i.id === owed.localId && i.eventId === owed.eventId,
+          );
+          if (stillQueued) keep.push(owed);
+          else {
+            changed = true;
+            setCoverTrouble(owed.eventId);
+          }
+          continue;
+        }
+        const token = linkTokens.current.get(owed.eventId);
+        if (!token) {
+          keep.push(owed);
+          continue;
+        }
+        let photo;
+        try {
+          const feed = await api.feed(owed.eventId, token);
+          photo = feed.photos.find((p) => p.id === owed.photoId);
+        } catch {
+          // Offline, or an album this phone can no longer read. Neither is an
+          // answer about the derivative, so neither costs a look.
+          keep.push(owed);
+          continue;
+        }
+        /*
+         * Not derived yet, or gone.
+         *
+         * The same branch for both, which is deliberate: a photograph deleted
+         * before its cover was cut can never satisfy this, and the look count
+         * is what stops either of them being asked about forever.
+         */
+        if (!photo || photo.card === null) {
+          looked(owed);
+          continue;
+        }
+
+        let file: Awaited<ReturnType<typeof fetchForCover>> | null = null;
+        try {
+          file = await fetchForCover(photo.full, photo.id);
+          const target = api.coverTarget(owed.eventId, owed.framing, photo.id);
+          await uploadCover(target.url, target.headers, file.uri);
+          changed = true;
+        } catch {
+          // A refusal and a dropped connection look the same from here, and a
+          // cover the server will never accept must not be posted sixty times:
+          // a failed send spends a look, like a failed wait.
+          looked(owed);
+        } finally {
+          try {
+            file?.delete();
+          } catch {
+            // The operating system's to clear, and not worth a second failure
+            // on top of the first.
+          }
+        }
+      }
+      if (changed) await keepOwedCovers(keep);
+    } finally {
+      lookingForCovers.current = false;
+    }
+  }, [api, keepOwedCovers]);
+
+  useEffect(() => {
+    const timer = setInterval(() => void runCovers(), COVER_LOOK_MS);
+    return () => clearInterval(timer);
+  }, [runCovers]);
 
   /**
    * And it keeps going.
@@ -819,7 +1035,12 @@ export default function App() {
             initialPane={route.pane}
             initialPhoto={route.photo}
             initialUpload={route.upload}
-            initialCover={route.cover}
+            // Whether this album is still owed the cover somebody framed for
+            // it, which is the album's only interest in the machinery above:
+            // it keeps looking while one is coming, and redraws when it lands.
+            coverOwed={coversOwed.some((owed) => owed.eventId === route.event.id)}
+            coverTrouble={coverTrouble === route.event.id}
+            onCoverTroubleSeen={coverTroubleSeen}
             uploads={uploads}
             onRunUploads={runUploads}
             webBase={API_BASE}
@@ -937,23 +1158,35 @@ export default function App() {
           onCancel={backToPhotographs}
           onCreated={(created, photos, framing) => {
             void refreshGroups();
-            void open(
-              {
-                id: created.id,
-                name: created.name,
-                linkToken: created.linkToken,
-                startsAt: created.startsAt,
-                endsAt: created.endsAt,
-              },
-              undefined,
-              // What the form is holding, not what the picker handed it: the
-              // row under the cover has a ⊗ on every tile.
-              photos.map((photo) => photo.id),
-              undefined,
-              // The first of those ids is the cover — `CreateEvent` takes
-              // `photos[0]` — so the album needs only how it was framed.
-              framing,
-            );
+            void (async () => {
+              /*
+               * Written down before the album is even opened.
+               *
+               * The framing is the only thing here that exists nowhere else —
+               * the photographs are in the camera roll and the album is on the
+               * server, and this is a decision somebody made on a screen that
+               * is now gone. It used to be handed to the album screen and kept
+               * in a ref there, which meant it survived exactly as long as
+               * somebody stayed on that screen.
+               *
+               * The first of these ids is the cover: `CreateEvent` takes
+               * `photos[0]`, and the same id leads the upload list below.
+               */
+              if (photos[0]) await oweCover(created.id, photos[0].id, framing);
+              await open(
+                {
+                  id: created.id,
+                  name: created.name,
+                  linkToken: created.linkToken,
+                  startsAt: created.startsAt,
+                  endsAt: created.endsAt,
+                },
+                undefined,
+                // What the form is holding, not what the picker handed it: the
+                // row under the cover has a ⊗ on every tile.
+                photos.map((photo) => photo.id),
+              );
+            })();
           }}
           Button={Button}
         />
@@ -1525,16 +1758,6 @@ function JoinScreen({
 const COVER = 196;
 
 /**
- * How long an album keeps looking for the derivative its cover is cut from.
- *
- * Long enough for a slow derive on a cold ingest machine — it starts on demand
- * and a first photograph waits for the boot — and short enough that a
- * derivative which is never coming stops being polled for. Past this the album
- * simply has no cover, which is the state it was already in while waiting.
- */
-const COVER_WAIT_MS = 3 * 60 * 1000;
-
-/**
  * Where the page begins — flush with the header, not sixteen points below it.
  *
  * There was background showing between the two, which on a screen whose header
@@ -1559,7 +1782,9 @@ function EventScreen({
   initialPane,
   initialPhoto,
   initialUpload,
-  initialCover,
+  coverOwed,
+  coverTrouble,
+  onCoverTroubleSeen,
   uploads,
   onRunUploads,
   webBase,
@@ -1594,8 +1819,24 @@ function EventScreen({
    * photographs somebody actually picked.
    */
   initialUpload?: string[];
-  /** How `initialUpload[0]` was framed, when it was chosen as the cover. */
-  initialCover?: CoverFraming;
+  /**
+   * Whether a cover framed for this album is still on its way.
+   *
+   * The sending is not this screen's job and has not been since it turned out
+   * to outlive it — see `runCovers`. What is this screen's job is not standing
+   * still while it happens: it keeps asking for the feed while one is owed, and
+   * redraws when the flag goes out, which is the moment the cover exists.
+   */
+  coverOwed: boolean;
+  /**
+   * Whether the cover framed for this album was given up on.
+   *
+   * The one outcome nothing else shows: a cover still coming needs no notice
+   * and one that landed is on the screen. Cleared as soon as it has been put on
+   * the status line, so it is said once.
+   */
+  coverTrouble: boolean;
+  onCoverTroubleSeen: () => void;
   /**
    * What the phone's one upload queue is holding, and how to ask it to run.
    *
@@ -2597,144 +2838,37 @@ function EventScreen({
     })();
   }, [enqueue, initialUpload]);
 
-  /**
-   * The cover, once the photograph it was cropped from has an id.
-   *
-   * The form used to send this the moment the album existed — before any
-   * photograph did, so there was no id to name it by and the route wrote
-   * `coverPhotoId: null`. The server drops the photograph a cover was made
-   * from only where it knows which one that was, so it kept it: the card led
-   * with the cover and showed the same picture again as the first thumbnail.
-   * An album of four looked like it held a duplicate.
-   *
-   * So it waits here for `initialUpload[0]` — which is the cover, because the
-   * form takes `photos[0]` — to be presigned, and sends the framing with the
-   * id the server gave it. The album is uncovered for those few seconds and
-   * looks the same: with no cover the card leads with `mosaic[0]`, which is
-   * that photograph.
-   *
-   * `sent` latches, because the queue state changes on every save and this
-   * must not send a cover per item.
-   */
   /*
-   * A cover we still owe is the third reason to keep looking.
+   * A cover still on its way is the third reason to keep looking.
    *
-   * The album's first cover is cut from the derivative, not the file that was
-   * picked — see the effect below, and the HEIC it exists to avoid. The
-   * derivative lands a few seconds after the upload completes, and the two
-   * conditions in `stillComing` stop the moment nothing is arriving, which turned out to
-   * be just before the thing the cover was waiting for existed. The album kept
-   * the framing, the derivative appeared, and nobody ever asked again: no
-   * cover, no request, and nothing to report because nothing was attempted.
+   * The album's first cover is cut from the derivative and not from the file
+   * that was picked — an iPhone writes HEIC and the cover endpoint cannot read
+   * one — so it lands some twenty to thirty seconds after the upload does. The
+   * other two conditions stop the moment nothing is arriving, which is a second
+   * or two before that, and this screen then sat on a feed with no cover in it
+   * until somebody pulled to refresh.
    *
-   * Bounded, because a wait that cannot end is a poll in somebody's pocket for
-   * a derivative that is never coming.
+   * `runCovers` is what actually sends it, at a level that outlives this
+   * screen. This is only the looking, and it is bounded the same way the
+   * sending is: the flag goes out when the cover lands or when the app gives up
+   * on it.
    */
-  const coverOwed = useRef(false);
-  const coverGiveUpAt = useRef(0);
-  const coverWaiting = () => coverOwed.current && Date.now() < coverGiveUpAt.current;
-
-  /*
-   * Which photograph the cover is cut from, remembered the first time it is
-   * known.
-   *
-   * The queue is the only thing that can say — it holds the id the server gave
-   * the file that was picked — and it stops saying it almost immediately:
-   * `runUploads` calls `queue.prune()` when a run ends, and prune drops every
-   * `done` item. That is a second after the upload completes and twenty-odd
-   * seconds before the derivative exists, so every later pass of the effect
-   * below returned at the lookup, having no id to look for.
-   *
-   * Which is the whole of the bug the previous change did not reach. Production
-   * shows both halves of it: the album polled `/photos` every two seconds for
-   * the full wait, the deriver had the photograph ready at the second poll, and
-   * no cover request was ever made — the album kept the framing, the thing it
-   * was waiting for arrived, and the line that would have noticed could no
-   * longer name the picture.
-   *
-   * Latched at presign rather than at completion, because `photoId` is written
-   * then — well before anything prunes it away.
-   */
-  const coverPhotoId = useRef<string | null>(null);
-
-  const coverSent = useRef(false);
+  const wasOwedCover = useRef(coverOwed);
   useEffect(() => {
-    const local = initialUpload?.[0];
-    if (!initialCover || !local || coverSent.current) return;
-    if (!coverPhotoId.current) {
-      const item = uploads.items.find((i) => i.id === local && i.eventId === event.id);
-      if (!item?.photoId) return;
-      coverPhotoId.current = item.photoId;
-    }
-    const from = coverPhotoId.current;
-    /*
-     * The derivative, and not the file that was picked.
-     *
-     * This used to send a sandbox copy of the original, which is the one thing
-     * the cover endpoint cannot read. An iPhone writes HEIC; the picker is
-     * asked for `quality: 1` precisely so the deriver gets the camera's own
-     * file; and `uploadCover` sends bytes untouched while declaring JPEG. The
-     * endpoint sniffs bytes rather than the header, so what it saw was HEIC,
-     * libheif answered `bad seek`, and it answered 400 — which the `catch`
-     * below then swallowed. A cover chosen while making an album silently
-     * never took, on the format every iPhone photograph is in.
-     *
-     * The deriver already makes something this tier can decode, and both other
-     * ways into a cover go through it. Waiting costs only the few seconds the
-     * album is uncovered anyway — with no cover the card leads with this same
-     * photograph — and `card` is null until the derivatives exist, which is
-     * what makes it the thing to wait on.
-     */
-    const derived = (feed?.photos ?? []).find(
-      (photo) => photo.id === from && photo.card !== null,
-    );
-    if (!derived) {
-      /*
-       * Say so, and start the clock. `stillComing` is recomputed on render and
-       * the interval reads it on its own schedule, so it is also set here: the
-       * render that would have picked this up may not happen, precisely because
-       * nothing else is going on.
-       */
-      if (!coverOwed.current) {
-        coverOwed.current = true;
-        coverGiveUpAt.current = Date.now() + COVER_WAIT_MS;
-      }
-      stillComing.current = true;
-      return;
-    }
+    // On the way out, not on the way in: every ordinary album opens with
+    // nothing owed, and refreshing on that would be a second request per open.
+    const settled = wasOwedCover.current && !coverOwed;
+    wasOwedCover.current = coverOwed;
+    // The cover arrived — or was given up on — while this album was open, so
+    // the feed on screen is one request out of date: it has no cover in it.
+    if (settled) void refresh();
+  }, [coverOwed, refresh]);
 
-    coverOwed.current = false;
-    coverSent.current = true;
-    void (async () => {
-      let file: Awaited<ReturnType<typeof fetchForCover>> | null = null;
-      try {
-        // Into the cache, which is this app's own sandbox. That is the property
-        // the copy was here for — a background session cannot open a path
-        // inside the Photos container — and it is kept for the same reason.
-        file = await fetchForCover(derived.full, derived.id);
-        await sendCover(file.uri, initialCover, derived.id);
-      } catch {
-        /*
-         * The download, and only the download — `sendCover` catches its own
-         * failures and says so itself.
-         *
-         * Quietly, on the line the queue already uses, rather than as an alert:
-         * an album with no cover leads with this same photograph, so nothing
-         * has been lost and nobody needs stopping. But it was said nowhere at
-         * all, and "my crop was ignored" arriving with nothing behind it is how
-         * both of the last two of these were found.
-         */
-        setQueueStatus('Could not set the cover — use Change cover.');
-      } finally {
-        try {
-          file?.delete();
-        } catch {
-          // A cache file that will not delete is the operating system's to
-          // clear, and not worth a second failure on top of the first.
-        }
-      }
-    })();
-  }, [uploads, initialCover, initialUpload, event.id, feed?.photos, sendCover]);
+  useEffect(() => {
+    if (!coverTrouble) return;
+    setQueueStatus('Could not set the cover — use Change cover.');
+    onCoverTroubleSeen();
+  }, [coverTrouble, onCoverTroubleSeen]);
 
   const markRead = useCallback(() => {
     setSeen(messages.length);
@@ -2797,7 +2931,7 @@ function EventScreen({
    * started, with a single post-upload refresh doing all the work.
    */
   const stillComing = useRef(false);
-  stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0 || coverWaiting();
+  stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0 || coverOwed;
 
   /*
    * One timer, made once, for as long as the album is open.

@@ -69,7 +69,7 @@ describe('sharing an event from the event', () => {
     // A link built from the API base is a link that works wherever this build
     // points; one built from a constant is a link to production in a test app.
     expect(screen).toMatch(/webBase: string;/);
-    expect(app).toMatch(/<EventScreen[\s\S]{0,600}webBase=\{API_BASE\}/);
+    expect(app).toMatch(/<EventScreen[\s\S]{0,1000}webBase=\{API_BASE\}/);
   });
 });
 

@@ -508,7 +508,7 @@ describe('the home list', () => {
      * and hands it the photographs the form is holding, so the album it lands
      * on is filling rather than empty.
      */
-    expect(APP).toMatch(/onCreated=\{\(created, photos, framing\) => \{[\s\S]{0,260}void open\(/);
+    expect(APP).toMatch(/onCreated=\{\(created, photos, framing\) => \{[\s\S]{0,1400}await open\(/);
     expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);
   });
 });
@@ -537,7 +537,7 @@ describe('pressing a byline', () => {
     const VIEWER = read('src/PhotoViewer.tsx');
     expect(VIEWER).toMatch(/onOpenPerson\(uploader\.handle!\)/);
     expect(APP).toMatch(/onOpenPerson=\{onOpenPerson\}/);
-    expect(APP).toMatch(/<EventScreen[\s\S]{0,900}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
+    expect(APP).toMatch(/<EventScreen[\s\S]{0,1300}onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
   });
 
   it('leaves the rest of each surface doing what it did', () => {

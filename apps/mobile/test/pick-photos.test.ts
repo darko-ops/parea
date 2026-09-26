@@ -356,33 +356,42 @@ describe('the two paths that still handed iOS a library file', () => {
      * kept.
      */
     expect(CREATE).not.toMatch(/uploadCover/);
-    expect(APP).toMatch(/photo\.id === from && photo\.card !== null/);
-    expect(APP).toMatch(/await fetchForCover\(derived\.full, derived\.id\)/);
-    expect(APP).toMatch(/await sendCover\(file\.uri, initialCover, derived\.id\)/);
+    expect(APP).toMatch(/if \(!photo \|\| photo\.card === null\)/);
+    expect(APP).toMatch(/await fetchForCover\(photo\.full, photo\.id\)/);
+    expect(APP).toMatch(/api\.coverTarget\(owed\.eventId, owed\.framing, photo\.id\)/);
     expect(APP).not.toMatch(/const copy = await sandboxCopy\(local\);/);
   });
 
-  it('keeps looking until the derivative its cover needs exists', () => {
+  it('outlives the screen that chose it', () => {
     /*
-     * Waiting for the derivative introduced a way to wait forever. The album
-     * polls only while something is arriving, and it stops the moment nothing
-     * is — which is a second or two before the derivative the cover is cut
-     * from actually exists. So the framing was kept, the picture became ready,
-     * and nobody asked again: no cover, no request, and nothing to report,
-     * because nothing was attempted. It read as a cover that silently came out
-     * unframed, which is what an album with no cover looks like — the card
-     * leads with that same photograph either way.
+     * The two fixes before this one both lived in the album screen, and the
+     * album screen is the thing that goes away. A first cover cannot be sent
+     * when it is chosen — it is cut from the derivative, which lands twenty to
+     * thirty seconds after the upload — and backing out to the home screen
+     * during those seconds is the ordinary thing to do, because the album is
+     * still empty. That unmounted the effect and threw the framing away.
      *
-     * Bounded, because a derivative that is never coming must not be polled
-     * for in somebody's pocket.
+     * So the framing is written down next to the upload queue, at the level
+     * that outlives every screen, and the sending happens there.
      */
-    expect(APP).toMatch(
-      /stillComing\.current =\s*uploading > 0 \|\| \(feed\?\.arriving \?\? 0\) > 0 \|\| coverWaiting\(\)/,
+    const PLATFORM = read('src/platform.ts');
+    expect(PLATFORM).toMatch(/const COVERS_FILE = 'owed-covers\.json';/);
+    expect(PLATFORM).toMatch(/export async function loadOwedCovers\(\)/);
+    expect(PLATFORM).toMatch(/export async function saveOwedCovers\(/);
+    // Recorded when the album is made, before anything can go wrong with it.
+    expect(APP).toMatch(/await oweCover\(created\.id, photos\[0\]\.id, framing\)/);
+    // And sent from the runner, not from the album.
+    expect(APP).toMatch(/const runCovers = useCallback\(async \(\) => \{/);
+    expect(APP).toMatch(/setInterval\(\(\) => void runCovers\(\), COVER_LOOK_MS\)/);
+  });
+
+  it('hands back the framings when the phone is signed out', () => {
+    // An owed cover is an instruction to change the face of somebody else's
+    // album, held against a link token that signing out gives back.
+    const PLATFORM = read('src/platform.ts');
+    expect(PLATFORM).toMatch(
+      /export async function signOutDevice[\s\S]*?await saveOwedCovers\(\[\]\);/,
     );
-    expect(APP).toMatch(
-      /const coverWaiting = \(\) =>\s*coverOwed\.current && Date\.now\(\) < coverGiveUpAt\.current/,
-    );
-    expect(APP).toMatch(/coverGiveUpAt\.current = Date\.now\(\) \+ COVER_WAIT_MS/);
   });
 
   it('remembers which photograph it is waiting on, because the queue forgets', () => {
@@ -392,31 +401,42 @@ describe('the two paths that still handed iOS a library file', () => {
      * wait, the deriver had the picture ready at the second ask, and no cover
      * request was ever made.
      *
-     * The id came out of the upload queue on every pass, and the queue stops
-     * holding it: `runUploads` prunes every `done` item when a run ends, which
-     * is a second after the bytes land and twenty-odd seconds before the
-     * derivative exists. So the effect spent the entire wait returning at the
-     * lookup — still owed a cover, still polling for it, and no longer able to
-     * name the photograph it was polling for.
+     * The id was read out of the upload queue on every pass, and the queue
+     * stops holding it: `runUploads` prunes every `done` item when a run ends,
+     * which is a second after the bytes land and twenty-odd seconds before the
+     * derivative exists.
      *
-     * Read once and kept. The lookup is inside the latch so a pruned queue is
-     * not consulted again, and the id it reads is written at presign, long
-     * before anything prunes.
+     * So it is copied out of the queue on every save — a presign is where the
+     * server names a photograph — and into the record that is written down.
      */
-    expect(APP).toMatch(/const coverPhotoId = useRef<string \| null>\(null\);/);
-    expect(APP).toMatch(
-      /if \(!coverPhotoId\.current\) \{\s*const item = uploads\.items\.find\([\s\S]*?\);\s*if \(!item\?\.photoId\) return;\s*coverPhotoId\.current = item\.photoId;\s*\}/,
-    );
-    expect(APP).toMatch(/const from = coverPhotoId\.current;/);
-    // And the wait itself is no longer read out of the queue.
+    expect(APP).toMatch(/await nameOwedCovers\(state\);/);
+    expect(APP).toMatch(/return \{ \.\.\.owed, photoId: item\.photoId \};/);
+    // And nothing reads it back out of the queue at send time.
     expect(APP).not.toMatch(/photo\.id === item\.photoId/);
   });
 
-  it('says so when the derivative it needs cannot be fetched', () => {
-    // `sendCover` reports its own failures; this one is the download in front
-    // of it, which reported nothing at all. Not an alert — an album with no
-    // cover leads with the same photograph — but not silence either.
+  it('gives up eventually, and says so when it does', () => {
+    /*
+     * A derivative that is never coming must not be asked after forever, and
+     * the clock that runs out is looks rather than minutes: a phone in a pocket
+     * overnight has spent none of its chances, and a persisted count is not
+     * reset by closing the app.
+     *
+     * Giving up is the one outcome worth saying out loud. A cover still on its
+     * way needs no notice and one that landed is on the screen.
+     */
+    expect(APP).toMatch(/if \(owed\.looks \+ 1 < COVER_LOOKS\) keep\.push\(\{ \.\.\.owed, looks: owed\.looks \+ 1 \}\);/);
+    expect(APP).toMatch(/else setCoverTrouble\(owed\.eventId\);/);
     expect(APP).toMatch(/setQueueStatus\('Could not set the cover — use Change cover\.'\)/);
+  });
+
+  it('keeps looking at the album while one is still owed', () => {
+    // The sending is not the screen's job any more; not standing still while it
+    // happens is, and so is redrawing when it lands.
+    expect(APP).toMatch(
+      /stillComing\.current = uploading > 0 \|\| \(feed\?\.arriving \?\? 0\) > 0 \|\| coverOwed;/,
+    );
+    expect(APP).toMatch(/const settled = wasOwedCover\.current && !coverOwed;/);
   });
 
   it('leaves the avatar upload alone, which never needed it', () => {
@@ -577,26 +597,26 @@ describe('the fields on the create screen', () => {
 describe('a cover that knows which photograph it came from', () => {
   it('is sent once that photograph has an id, not before', () => {
     // The wait: the queue item for the first chosen picture, with a photoId.
-    expect(APP).toMatch(/const local = initialUpload\?\.\[0\];/);
-    expect(APP).toMatch(/uploads\.items\.find\(\(i\) => i\.id === local && i\.eventId === event\.id\)/);
-    expect(APP).toMatch(/if \(!item\?\.photoId\) return;/);
+    // Recorded against the local id the form chose, and named from the queue.
+    expect(APP).toMatch(/\{ eventId, localId, framing, looks: 0 \}/);
+    expect(APP).toMatch(/\(i\) => i\.id === owed\.localId && i\.eventId === owed\.eventId/);
+    expect(APP).toMatch(/if \(!owed\.photoId\) \{/);
   });
 
   it('names it, which is the whole point', () => {
-    // `derived` is found by `photo.id === item.photoId`, so naming it by
-    // `derived.id` is naming it by the id the wait above was for.
-    expect(APP).toMatch(/sendCover\(file\.uri, initialCover, derived\.id\)/);
-    // `sendCover` hands it to the route as `?photo=`, which is what the
+    // The photograph the cover was cut from travels with it, which is what the
     // server records and later uses to drop it from the strip.
+    expect(APP).toMatch(/api\.coverTarget\(owed\.eventId, owed\.framing, photo\.id\)/);
     expect(APP).toMatch(/api\.coverTarget\(event\.id, framing, photoId\)/);
     const API = read('src/api.ts');
     expect(API).toMatch(/if \(photoId\) query\.set\('photo', photoId\);/);
   });
 
-  it('sends one cover, however often the queue is saved', () => {
-    // The queue state changes on every save, and this effect watches it.
-    expect(APP).toMatch(/const coverSent = useRef\(false\);/);
-    expect(APP).toMatch(/coverSent\.current = true;/);
+  it('sends one cover, however many ticks pass', () => {
+    // A pass that is still running must not be started again on the next tick,
+    // and a cover that went up is dropped from the list rather than resent.
+    expect(APP).toMatch(/if \(lookingForCovers\.current \|\| owedCovers\.current\.length === 0\) return;/);
+    expect(APP).toMatch(/if \(changed\) await keepOwedCovers\(keep\);/);
   });
 
   it('leaves the card looking right in the meantime', () => {
