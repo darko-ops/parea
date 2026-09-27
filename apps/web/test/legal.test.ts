@@ -450,3 +450,80 @@ describe('what showing a name beside a photograph discloses', () => {
     expect(PROSE).toMatch(/Looking at an album does not put you in that list/);
   });
 });
+
+/**
+ * What the mobile networks require the legal pages to say.
+ *
+ * A separate concern from the App Store guidelines above, enforced by a different
+ * party for a different reason: a US A2P messaging campaign is approved or refused
+ * partly on the contents of these two documents, and the clauses carriers look for
+ * are specific enough that a well-meaning copy edit can remove one without anybody
+ * noticing until a campaign is rejected weeks later.
+ *
+ * Every assertion here is a claim the product genuinely keeps — none of this is
+ * boilerplate pasted to satisfy a form. That is the test's own justification: if
+ * one of these stops being true, the fix is the behaviour, not the sentence.
+ */
+describe('what the carriers require', () => {
+  it('describes the messaging programme in the terms', () => {
+    // What is sent, to whom, and why. The campaign's "message flow" field has to
+    // match this, so a reviewer comparing the two finds one story.
+    expect(TERMS).toMatch(/<h2>The text message we send<\/h2>/);
+    expect(TERMS).toMatch(/six-digit code, to a number\s+you have just typed/);
+  });
+
+  it('states the frequency, and that there is no programme to be in', () => {
+    expect(TERMS).toMatch(/One message per request/);
+    expect(TERMS).toMatch(/no\s+recurring programme, no campaign and no list/i);
+  });
+
+  it('says message and data rates may apply', () => {
+    // The one phrase every carrier checklist names literally.
+    expect(TERMS).toMatch(/Message and data rates may apply/);
+  });
+
+  it('says how to stop, and does not promise a keyword it has not built', () => {
+    /*
+     * The interesting one. The convention is STOP, and this product has nothing
+     * for a keyword to do — a single transactional message and no list to leave.
+     * Promising STOP and not implementing it is worse than saying plainly that
+     * there is nothing to leave, so the terms say the latter and point at the
+     * thing that does work: removing the number.
+     */
+    expect(TERMS).toMatch(/nothing to unsubscribe from/);
+    expect(TERMS).toMatch(/remove it/);
+    expect(TERMS).not.toMatch(/reply STOP/i);
+  });
+
+  it('offers a way to get help from a person', () => {
+    expect(TERMS).toMatch(/<strong>Help\.<\/strong>/);
+    expect(TERMS).toMatch(/safety page/);
+  });
+
+  it('disclaims delivery, which is the carrier’s own requirement', () => {
+    expect(TERMS).toMatch(/not liable for delayed or undelivered messages/);
+  });
+
+  it('promises in the privacy policy that mobile data is not shared for marketing', () => {
+    /*
+     * Checked as its own section rather than against the general "nothing sold or
+     * shared" bullet further down the page. Carrier review wants the mobile case
+     * named specifically, and it wants the *consent record* covered as well as the
+     * number — so both halves are pinned.
+     */
+    expect(PRIVACY).toMatch(/<h3>Your number is not shared for anybody&rsquo;s marketing<\/h3>/);
+    expect(PRIVACY).toMatch(
+      /will not be shared with third parties or affiliates for marketing or\s+promotional purposes/,
+    );
+    expect(PRIVACY).toMatch(/the record that you asked to be sent a code/);
+    expect(PRIVACY).toMatch(/Neither is used to send you anything other than the code you asked/);
+  });
+
+  it('names the one place a number does go, rather than claiming it goes nowhere', () => {
+    // "Never shared" would be false: the carrier receives it in order to deliver
+    // the message. The honest version names that and bounds it, which is the same
+    // move `phone.ts` makes about "never stored" versus "never sent".
+    expect(PRIVACY).toMatch(/the number reaches the\s+company that delivers the text/);
+    expect(PRIVACY).toContain('Twilio');
+  });
+});

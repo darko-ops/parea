@@ -158,6 +158,49 @@ export default function TermsPage() {
         </section>
 
         <section className="panel">
+          <h2>The text message we send</h2>
+          <p className="muted">
+            Parea sends exactly one kind of text: a six-digit code, to a number
+            you have just typed into the app or the website yourself, so that we
+            can confirm the number is yours. That is the only message this
+            service will ever send you by SMS.
+          </p>
+          <p className="muted">
+            <strong>Frequency.</strong> One message per request. There is no
+            recurring programme, no campaign and no list &mdash; you receive a
+            text only in the seconds after you ask for one, and never otherwise.
+          </p>
+          <p className="muted">
+            <strong>Cost.</strong> Message and data rates may apply, charged by
+            your own mobile network. We do not charge you for it.
+          </p>
+          <p className="muted">
+            <strong>Stopping it.</strong> There is nothing to unsubscribe from,
+            because there is nothing recurring to leave. If you no longer want
+            your number here at all, remove it &mdash; in the app under Settings,
+            or at <a href="/account">/account</a> on the web &mdash; and both the
+            scrambled form of it and the record that it was confirmed are
+            deleted. You will not be texted again.
+          </p>
+          <p className="muted">
+            <strong>Help.</strong> Write to the address on our{' '}
+            <a href="/safety">safety page</a> and a person will answer.
+          </p>
+          <p className="muted">
+            <strong>Delivery.</strong> Mobile networks and message providers are
+            not liable for delayed or undelivered messages, and neither are we: a
+            code depends on your carrier to arrive, which is outside anybody
+            here&rsquo;s control. If one does not turn up you can ask for another.
+          </p>
+          <p className="muted">
+            What happens to the number itself &mdash; that it is never stored as
+            digits, never shown to anybody, and never shared for anyone&rsquo;s
+            marketing &mdash; is set out on the{' '}
+            <a href="/privacy">privacy page</a>.
+          </p>
+        </section>
+
+        <section className="panel">
           <h2>Ending it</h2>
           <p className="muted">
             You can delete your account at any time, at{' '}

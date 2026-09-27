@@ -379,6 +379,29 @@ export default function PrivacyPage() {
             number or your email address either way.
           </p>
 
+          <h3>Your number is not shared for anybody&rsquo;s marketing</h3>
+          <p className="muted">
+            Said here in its own words, rather than left to the list further down
+            that already promises nothing is sold or shared for anyone
+            else&rsquo;s marketing. The mobile networks require this one to be
+            said plainly about phone numbers specifically, and it is also the
+            question people actually have when a product asks for theirs.
+          </p>
+          <p className="muted">
+            Your phone number, and the record that you asked to be sent a code,
+            will not be shared with third parties or affiliates for marketing or
+            promotional purposes. Neither is sold or rented, to anybody, ever.
+            Neither is used to send you anything other than the code you asked
+            for &mdash; there is no list to be added to, which is why there is
+            nothing to unsubscribe from.
+          </p>
+          <p className="muted">
+            One exception, and it is not really one: the number reaches the
+            company that delivers the text, named below, in order to deliver that
+            text. It acts on our instructions and for that purpose only. That is
+            the whole of where a number goes.
+          </p>
+
           <h3>Notifications you have hidden</h3>
           <p className="muted">
             The Activity page is worked out when you open it, from things that
