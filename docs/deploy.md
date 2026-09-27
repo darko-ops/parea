@@ -265,6 +265,11 @@ The number itself is never stored, here or anywhere: it is hashed on arrival
 with that key and the digits are discarded. A carrier's error message quotes the
 recipient back, so the log lines redact it — see `redactNumber`.
 
+**Registering the campaign is its own errand**, and it is where the time goes:
+`docs/sms-a2p.md` holds the state of this deployment's Twilio account, every
+answer the campaign form needs, what earlier submissions were refused for, and
+the two things in the code that are easy to break without noticing.
+
 ## 5. Deriver and jobs
 
 **Deploy from the repository root, not from `services/deriver`.** The Dockerfile

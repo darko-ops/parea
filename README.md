@@ -31,6 +31,11 @@ on what, and which items are not code at all. [`docs/deploy.md`](docs/deploy.md)
 is the reference for each piece, including the three secrets that are shared
 between services and fail silently when they disagree.
 
+[`docs/sms-a2p.md`](docs/sms-a2p.md) is a third thing that is not code: phone
+verification is built and has never sent a real text, because a US number cannot
+send one until a carrier campaign is registered. That note holds the state of the
+account, the wording the campaign was approved or refused on, and what is left.
+
 ## Running it
 
 ```
