@@ -538,9 +538,35 @@ export function FindView({
    * by them: a heading with nothing under it reads as something that failed to
    * load, and a page with neither a heading nor a sentence reads the same way.
    */
+  /*
+   * Which of this person's rooms are rooms.
+   *
+   * A conversation with one person is not one. It is a group row in the
+   * database — that is how it holds a thread and a membership — but it is
+   * called by that person's name, it has no door, and nothing about it is a
+   * place you go. On the shelf below it would be Jack, filed beside Climbing
+   * and Sunday Lunch as though the two were the same kind of thing, and
+   * somebody with eleven conversations would get a shelf of eleven people with
+   * their two actual rooms under it.
+   *
+   * So the shelf is named and unnamed rooms of three or more, and every chat
+   * is on the page that is for chats. The server decides which is which — see
+   * `kind` in `titleFor` — so the two clients cannot draw different shelves,
+   * which is the whole reason this filters on `kind` rather than on a count of
+   * anything it can see from here.
+   *
+   * Adding a third person to a chat *is* what makes it a room, and it turns up
+   * here the moment somebody does. That is the whole of the promotion; naming
+   * it is optional afterwards.
+   *
+   * The app has filtered this way since the shelf existed and the site did
+   * not, which is the same room appearing on one client and not the other.
+   */
+  const rooms = mine.filter((group) => group.kind !== 'direct');
+
   const showsDoors = !asking && wantsGroups && suggestedGroups.length > 0;
   const showsPeople = !asking && wantsPeople && suggested.length > 0;
-  const showsMine = !asking && wantsGroups && mine.length > 0;
+  const showsMine = !asking && wantsGroups && rooms.length > 0;
   const bare = !asking && !showsDoors && !showsPeople && !showsMine;
 
   return (
@@ -847,7 +873,7 @@ export function FindView({
         </section>
       )}
 
-      {!asking && wantsGroups && mine.length > 0 && (
+      {!asking && wantsGroups && rooms.length > 0 && (
         <section className="find-section">
           <h2 className="find-head">Your groups</h2>
           {/*
@@ -881,7 +907,7 @@ export function FindView({
             `group-shelf` was taken too, by the album grid on a group's page.
           */}
           <div className="room-doors">
-            {mine.map((group) => (
+            {rooms.map((group) => (
               <a
                 key={group.id}
                 href={`/group/${group.id}`}
@@ -913,7 +939,13 @@ export function FindView({
         ((scope === 'all' && bare) ||
           (scope === 'groups' && !showsDoors && !showsMine)) && (
         <p className="find-empty">
-          {mine.length === 0
+          {/*
+            `rooms` and not `mine`: somebody whose only rooms are one-to-one
+            chats has no groups in the sense this sentence means, and telling
+            them there are none to *suggest* would be answering a question they
+            did not ask.
+          */}
+          {rooms.length === 0
             ? 'You are not in any groups yet. Type a name to look one up — a group can be findable, and what you get back is a door rather than what is behind it.'
             : 'No groups to suggest yet — these are findable groups your friends are in. Type a name to look one up.'}
         </p>

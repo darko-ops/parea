@@ -90,7 +90,7 @@ describe('what the page offers before anybody types', () => {
      */
     expect(VIEW).toMatch(/!asking && wantsGroups && suggestedGroups\.length > 0/);
     expect(VIEW).toMatch(/!asking && wantsPeople && suggested\.length > 0/);
-    expect(VIEW).toMatch(/!asking && wantsGroups && mine\.length > 0/);
+    expect(VIEW).toMatch(/!asking && wantsGroups && rooms\.length > 0/);
     expect(PAGE).toMatch(/groupsFor\(db, actorId, \{ deck: true \}\)/);
     expect(PAGE).toMatch(/suggestedGroupsFor\(db, actorId\)/);
   });
@@ -496,5 +496,50 @@ describe('what a recent row and a group chip are drawn as', () => {
     const SRC = read('../src/groups.ts');
     expect(SRC).toMatch(/opts: \{ deck\?: boolean \} = \{\}/);
     expect(SRC).toMatch(/if \(!opts\.deck\)/);
+  });
+});
+
+describe('which of your rooms are rooms', () => {
+  it('leaves a one-to-one chat off the shelf, as the app does', () => {
+    /*
+     * A conversation with one person is a group row in the database — that is
+     * how it holds a thread and a membership — and it is not a room. It is
+     * called by that person's name, it has no door, and nothing about it is a
+     * place you go. On the shelf it would be Jack, filed beside Climbing as
+     * though the two were the same kind of thing, and somebody with eleven
+     * conversations would get a shelf of eleven people with their two actual
+     * rooms under it.
+     *
+     * The app has filtered this way since the shelf existed and the site had
+     * not, which is one room appearing on one client and not the other.
+     */
+    expect(VIEW).toMatch(/const rooms = mine\.filter\(\(group\) => group\.kind !== 'direct'\)/);
+    const APP = readFileSync(
+      fileURLToPath(new URL('../../mobile/src/Events.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(APP).toMatch(/\(mine \?\? \[\]\)\.filter\(\(group\) => group\.kind !== 'direct'\)/);
+  });
+
+  it('decides it on the server’s word, not on a count it can see', () => {
+    /*
+     * `kind` comes from `titleFor`, which is the one place the three kinds are
+     * worked out. Counting members in the browser would be a second rule that
+     * agrees until the day it does not — and the two clients would then draw
+     * different shelves from the same payload.
+     */
+    expect(VIEW).not.toMatch(/memberCount === 2|deck\.length === 1 \?/);
+    const SRC = readFileSync(
+      fileURLToPath(new URL('../src/groups.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(SRC).toMatch(/if \(others\.length === 1\) return \{ title: others\[0\]!\.name, kind: 'direct' \}/);
+  });
+
+  it('says the right empty sentence to somebody with only chats', () => {
+    // Their shelf is empty, so "no groups to *suggest*" would be answering a
+    // question they did not ask.
+    expect(VIEW).toMatch(/\{rooms\.length === 0/);
+    expect(VIEW).not.toMatch(/\{mine\.length === 0/);
   });
 });
