@@ -53,8 +53,8 @@ import { lensFor, myGroupsDetailed } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentActorId } from '@/session';
 import { readerZone } from '@/zone';
-import { NewGroupPanel } from '@/../app/components/CreateGroupCard';
-import { GroupChats, type ChatRow } from '@/../app/components/GroupChats';
+import { ChatView } from '@/../app/components/ChatView';
+import { type ChatRow } from '@/../app/components/GroupChats';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,15 +109,55 @@ export default async function GroupsPage() {
     <Shell current="groups" at={partOfDay(now, zone)}>
       <main className="groups-page">
         {/*
-          The header and the create form, together — see `NewGroupPanel`. The
-          button is here in every state, including the empty one: outlined, so
-          the filled `Make a group` on the first cluster card is still the
-          page's single primary action.
-        */}
-        <NewGroupPanel greeting={greeting} />
+          The head, the search and the list, under one owner of one query —
+          see `ChatView`. The head and the create form are still
+          `NewGroupPanel`, and the `+` is in it in every state including the
+          empty one: outlined, so the filled `Make a group` on the first
+          cluster card is still the page's single primary action.
 
-        {groups.length === 0 ? (
-          /*
+          The empty state goes down as children rather than being rebuilt in
+          the browser: it is prose with links in it and this is a server
+          component, so saying it here is saying it once and shipping none of
+          it. What `ChatView` decides is only whether it is what gets drawn.
+        */}
+        <ChatView
+          greeting={greeting}
+          chats={[...groups]
+            .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''))
+            .map((group): ChatRow => ({
+              id: group.id,
+              // What the room is called to whoever is reading, which for most
+              // of them is who else is in it. See `titleFor`.
+              name: group.title,
+              lens: lensFor(group.id),
+              // How the name above was arrived at, and who is in the room:
+              // together they are the icon. A named group wears its letter;
+              // one nobody has named wears the people. See `RoomMark`.
+              kind: group.kind,
+              deck: group.deck,
+              last: group.lastMessage && {
+                author: group.lastMessage.author,
+                body: group.lastMessage.body,
+                mine: group.lastMessage.mine,
+                // Signed in `myGroupsDetailed`, which answers for the whole
+                // page at once — a storage key does not reach a browser.
+                avatarUrl: group.lastMessage.avatarUrl,
+                // Worded here, like every relative time in this product: the
+                // two clocks disagree and React answers a text mismatch by
+                // throwing the tree away.
+                when: ago(group.lastMessage.at, now),
+                // Keyed on who they are rather than on what they are called: a
+                // lens is somebody's colour, and it cannot change the day they
+                // write a display name in. `lensFor` cannot cross into the
+                // browser — `groups.ts` opens the database on the way past —
+                // so it is resolved here and the row is handed two colours,
+                // not a palette.
+                lens: lensFor(group.lastMessage.authorKey),
+              },
+              unread: group.unreadCount,
+            }))}
+        >
+          {/*
             Not a failure and not an empty product: somebody here has not been
             in a group yet, which is a thing that happens after a couple of
             evenings with the same people rather than a thing to go and do.
@@ -131,7 +171,7 @@ export default async function GroupsPage() {
             outright; Find is where the product offers to make one out of
             people it has noticed you keep ending up with, which is the version
             that does not produce an empty room.
-          */
+          */}
           <div className="groups-none">
             <p className="groups-none-lead">No chats yet.</p>
             <p>
@@ -149,53 +189,7 @@ export default async function GroupsPage() {
               Your albums
             </a>
           </div>
-        ) : (
-          /*
-            The conversations, newest first — see `GroupChats` for why the
-            order is the last thing *said* rather than the last album added
-            to, and why a silent room is still in the list.
-
-            Sorted here rather than in the browser, so the order is in the HTML
-            somebody's reader sees before any script runs.
-          */
-          <GroupChats
-            chats={[...groups]
-              .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''))
-              .map((group): ChatRow => ({
-                id: group.id,
-                // What the room is called to whoever is reading, which for
-                // most of them is who else is in it. See `titleFor`.
-                name: group.title,
-                lens: lensFor(group.id),
-                // How the name above was arrived at, and who is in the room:
-                // together they are the icon. A named group wears its letter;
-                // one nobody has named wears the people. See `RoomMark`.
-                kind: group.kind,
-                deck: group.deck,
-                last: group.lastMessage && {
-                  author: group.lastMessage.author,
-                  body: group.lastMessage.body,
-                  mine: group.lastMessage.mine,
-                  // Signed in `myGroupsDetailed`, which answers for the whole
-                  // page at once — a storage key does not reach a browser.
-                  avatarUrl: group.lastMessage.avatarUrl,
-                  // Worded here, like every relative time in this product: the
-                  // two clocks disagree and React answers a text mismatch by
-                  // throwing the tree away.
-                  when: ago(group.lastMessage.at, now),
-                  // The author's colour, from the same hash the tiles use.
-                  // `lensFor` cannot cross into the browser — `groups.ts`
-                  // opens the database on the way past — so it is resolved
-                  // here and the row is handed two colours, not a palette.
-                  // Keyed on who they are rather than on what they are
-                  // called: a lens is somebody's colour, and it cannot change
-                  // the day they write a display name in.
-                  lens: lensFor(group.lastMessage.authorKey),
-                },
-                unread: group.unreadCount,
-              }))}
-          />
-        )}
+          </ChatView>
 
         <SiteFooter />
       </main>

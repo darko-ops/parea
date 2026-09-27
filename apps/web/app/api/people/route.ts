@@ -29,8 +29,18 @@ import {
   looksLikeEmail,
   looksLikePhone,
 } from '@/friends';
+import { profileFor } from '@/people';
 import { PEOPLE_SEARCH_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId } from '@/session';
+
+/**
+ * How many faces one `handles=` call will answer for.
+ *
+ * The same ceiling the recent list keeps — see `RECENT_MAX` in `FindView` —
+ * because that list is the only caller and a request for more than it can hold
+ * is a request for somebody else's reason.
+ */
+const FACES_MAX = 10;
 
 export const runtime = 'nodejs';
 
@@ -47,7 +57,54 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
 
-  const query = new URL(request.url).searchParams.get('q') ?? '';
+  const params = new URL(request.url).searchParams;
+
+  /*
+   * Faces for handles somebody already has.
+   *
+   * The recent list is kept in a browser and holds a handle and a name, never
+   * a picture: an avatar URL is presigned for an hour, so one stored there
+   * would be a broken image by tomorrow. That was the reason those rows drew a
+   * letter, and it is a reason not to *store* a URL rather than a reason not to
+   * show a face — so the list asks for fresh ones when it draws.
+   *
+   * `profileFor` and not a query of its own, because that is where "who may see
+   * this person" is decided: a blocked account, a merged one, a handle that
+   * never existed and a device that never signed in all come back the same
+   * nothing here as they do on `/u/<handle>` and on `/api/people/<handle>`.
+   * A face is not a door this can open that the profile would not.
+   */
+  const asked = params.get('handles');
+  if (asked !== null) {
+    const wanted = [
+      ...new Set(
+        asked
+          .split(',')
+          .map((handle) => handle.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ].slice(0, FACES_MAX);
+
+    const found = await Promise.all(
+      wanted.map(async (handle) => {
+        const person = await profileFor(db, actorId, handle);
+        if (!person) return null;
+        return {
+          handle: person.handle,
+          name: person.displayName,
+          // Presigned here, the key dropped — the boundary every picture in
+          // this product crosses.
+          avatar: await avatarUrl(person.avatarKey),
+        };
+      }),
+    );
+
+    // Silently short where somebody has gone: the caller is drawing rows it
+    // already has names for, and a missing face is a letter rather than a gap.
+    return NextResponse.json({ people: found.filter((person) => person !== null) });
+  }
+
+  const query = params.get('q') ?? '';
 
   /*
    * A number is an exact lookup, not a search.

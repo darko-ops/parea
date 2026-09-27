@@ -139,7 +139,19 @@ export async function groupEvents(db: Db, groupId: string) {
  * behind `GET /api/groups/<id>`, which checks membership again rather than
  * trusting that this list produced the id.
  */
-export async function groupsFor(db: Db, actorId: string | null) {
+export async function groupsFor(
+  db: Db,
+  actorId: string | null,
+  /**
+   * Whether to sign the members' pictures as well.
+   *
+   * Off by default, and that default is the point: this is the list the app
+   * asks for at launch, and the note below is right that the title needs no
+   * signer. Find's "Your groups" chips draw the deck an unnamed room wears —
+   * see `RoomMark` — so they ask for it, and nothing else pays for it.
+   */
+  opts: { deck?: boolean } = {},
+) {
   if (!actorId) return [];
   const rows = await db
     .select({
@@ -165,14 +177,27 @@ export async function groupsFor(db: Db, actorId: string | null) {
    * the first thing anybody saw. One query for the whole list rather than one
    * per row; see `othersInGroups`.
    *
-   * No pictures, though. The title needs names and the launch call draws no
-   * deck, so nothing here touches the URL signer.
+   * No pictures unless they are asked for. The title needs names and the
+   * launch call draws no deck, so by default nothing here touches the URL
+   * signer — see `opts.deck`.
    */
   const others = await othersInGroups(db, rows.map((row) => row.id), actorId);
-  return rows.map((row) => ({
-    ...row,
-    ...titleFor(row.name, others.get(row.id) ?? []),
-  }));
+  if (!opts.deck) {
+    return rows.map((row) => ({
+      ...row,
+      ...titleFor(row.name, others.get(row.id) ?? []),
+      deck: [] as { name: string; avatarUrl: string | null }[],
+      deckMore: 0,
+    }));
+  }
+
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      ...titleFor(row.name, others.get(row.id) ?? []),
+      ...(await deckFor(others.get(row.id) ?? [])),
+    })),
+  );
 }
 
 /**

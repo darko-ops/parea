@@ -61,7 +61,9 @@ export default async function FindPage() {
       // The groups this person is already in. Not a search — the page names
       // Groups as one of the three things it finds, and a heading that only ever
       // fills up after you type is a heading that has to be discovered.
-      groupsFor(db, actorId),
+      // With the deck: Find's "Your groups" chips wear the mark a room wears
+      // everywhere else, and an unnamed one is drawn as the people in it.
+      groupsFor(db, actorId, { deck: true }),
       // Findable groups a friend is already in. The only thing on this page that
       // is *recommended* rather than listed back, and it is a door — see
       // `suggestedGroupsFor` for why a group may be one and an event may not.
@@ -176,6 +178,10 @@ export default async function FindPage() {
               id: g.id,
               name: g.title,
               role: g.role,
+              // And the mark it wears, which for a room nobody has named is
+              // the people in it rather than a letter. See `RoomMark`.
+              kind: g.kind,
+              deck: g.deck,
             }))}
             clusters={clusters}
             also={also}

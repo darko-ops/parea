@@ -69,6 +69,8 @@ import { matches } from '@/search';
 
 import { CreateGroupCard, type ClusterPerson } from './CreateGroupCard';
 import { Face } from './Faces';
+import { PersonFace } from './PersonFace';
+import { RoomMark, type Deck } from './RoomMark';
 import { RailIcon } from './RailIcon';
 import { SearchIcon } from './SearchIcon';
 
@@ -95,7 +97,15 @@ type Person = {
 };
 type Standing = 'friends' | 'asked' | 'asking' | 'none';
 type Suggestion = Person & { mutuals: number };
-type Membership = { id: string; name: string; role: string };
+type Membership = {
+  id: string;
+  name: string;
+  role: string;
+  /** Which of the three ways the name above was arrived at. See `titleFor`. */
+  kind: 'named' | 'direct' | 'unnamed';
+  /** The members' own pictures, for a room with no letter to wear. */
+  deck: Deck;
+};
 
 /** A friend of yours who is in a group you are not in. */
 type Mutual = {
@@ -329,6 +339,7 @@ export function FindView({
   const [recent, setRecent] = useState<Recent[]>([]);
   useEffect(() => setRecent(readRecent()), []);
 
+
   /**
    * Put an entry at the front, most recent first, without repeating it.
    *
@@ -385,6 +396,58 @@ export function FindView({
 
   const term = query.trim().toLowerCase();
   const asking = term.length >= MIN;
+
+  /*
+   * The faces for those rows, asked for rather than remembered.
+   *
+   * What is kept in the browser is a handle and a name — a presigned URL put
+   * there would be a broken image within the hour, which is why these rows
+   * drew a letter and nothing else. Fetching them instead costs one request
+   * for the whole list and keeps the stored shape exactly as it was.
+   *
+   * Keyed on the handles rather than on `recent` itself: the array is replaced
+   * whenever somebody opens a person, and depending on it would re-ask for the
+   * same ten faces every time the list reordered.
+   */
+  const [faces, setFaces] = useState<Record<string, string | null>>({});
+  const wanted = recent
+    .filter((entry) => entry.kind === 'person')
+    .map((entry) => (entry as { handle: string }).handle.toLowerCase())
+    .sort()
+    .join(',');
+
+  /*
+   * Asked once, and only while the list is actually on screen.
+   *
+   * `asking` is in the guard because the recent section is hidden the moment
+   * somebody types: a request for faces nobody is looking at is disclosure
+   * bought for nothing. The ref is what stops the same ten being re-asked
+   * every time the box empties and the section comes back.
+   */
+  const fetched = useRef('');
+  useEffect(() => {
+    if (asking || !wanted || fetched.current === wanted) return;
+    fetched.current = wanted;
+    // An answer that arrives after the list has moved on is dropped rather
+    // than written over the newer one.
+    let alive = true;
+    void (async () => {
+      const res = await fetch(`/api/people?handles=${encodeURIComponent(wanted)}`).catch(
+        () => null,
+      );
+      if (!res?.ok || !alive) return;
+      const { people } = (await res.json()) as {
+        people: { handle: string; avatar: string | null }[];
+      };
+      if (!alive) return;
+      setFaces(
+        Object.fromEntries(people.map((person) => [person.handle.toLowerCase(), person.avatar])),
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [asking, wanted]);
 
   const wantsPeople = scope === 'all' || scope === 'people';
   const wantsEvents = scope === 'all' || scope === 'events';
@@ -594,27 +657,27 @@ export function FindView({
 
                   This row was the end of a search, so pressing it should end
                   the same way rather than putting the two letters that reached
-                  them back in the box. A letter on their own lens rather than
-                  their picture: an avatar URL is presigned for an hour, so one
-                  kept here would be a broken image by tomorrow — and the lens
-                  is keyed on the handle, so it is the colour they have
-                  everywhere else in the product.
+                  them back in the box.
+
+                  Their picture, and the letter on their own lens where there
+                  is none. It drew the letter always, and the reason given was
+                  that an avatar URL is presigned for an hour so one kept here
+                  would be a broken image by tomorrow — which is a reason not
+                  to *store* a URL, not a reason not to show a face. Nothing
+                  stored has changed: the list still holds a handle and a name.
+                  The pictures are asked for when it draws. See `faces`.
                 */
                 <a
                   key={idOf(entry)}
                   href={`/u/${encodeURIComponent(entry.handle)}`}
                   className="pill small recent-person"
                 >
-                  <span
+                  <PersonFace
+                    name={entry.name}
+                    avatarUrl={faces[entry.handle.toLowerCase()] ?? null}
+                    lens={tintFor(entry.handle)}
                     className="recent-face"
-                    style={{
-                      background: tintFor(entry.handle).fill,
-                      color: tintFor(entry.handle).ink,
-                    }}
-                    aria-hidden="true"
-                  >
-                    {initial(entry.name)}
-                  </span>
+                  />
                   {entry.name}
                 </a>
               ) : (
@@ -791,9 +854,21 @@ export function FindView({
           <div className="group-chips">
             {mine.map((group) => (
               <a key={group.id} href={`/group/${group.id}`} className="group-chip">
-                <span className="group-chip-mark" aria-hidden="true">
-                  {initial(group.name)}
-                </span>
+                {/*
+                  The mark a room wears everywhere else in the product: its
+                  letter when somebody named it, and the people in it when
+                  nobody has. This drew the letter in both cases, so a room
+                  that is three faces on the chat list and in the app was a
+                  grey initial here — the same room, three times, two ways.
+                */}
+                <RoomMark
+                  title={group.name}
+                  kind={group.kind}
+                  deck={group.deck}
+                  lens={tintFor(group.id)}
+                  size={26}
+                  className="group-chip-mark"
+                />
                 <span className="group-chip-name">{group.name}</span>
                 <span className="group-chip-note">
                   {group.role === 'admin' ? 'Admin' : 'Member'}

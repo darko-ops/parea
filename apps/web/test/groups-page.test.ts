@@ -49,7 +49,10 @@ const FIND_PAGE = await read('../app/find/page.tsx');
 const GROUPS_SRC = await read('../src/groups.ts');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
 const MARK = await read('../app/components/RoomMark.tsx');
-const SAYER = await read('../app/components/SayerFace.tsx');
+const SAYER = await read('../app/components/PersonFace.tsx');
+const VIEW = await read('../app/components/ChatView.tsx');
+const SEARCH = await read('../app/components/SearchControl.tsx');
+const HOME_VIEW = await read('../app/components/HomeView.tsx');
 /*
  * Raw, not comment-stripped, because the thing being asserted *is* a comment:
  * the rule about tiles and photographs lives beside the class it governs, and
@@ -103,7 +106,10 @@ describe('where a group comes from', () => {
     for (const furniture of ['clusters-also', 'groups-foot', '<CreateGroupCard']) {
       expect(PAGE, `${furniture} belongs on Find`).not.toContain(furniture);
     }
-    expect(PAGE).toMatch(/<GroupChats/);
+    // The list is drawn through `ChatView`, which holds the one query the head
+    // and the rows share. The page still renders nothing else.
+    expect(PAGE).toMatch(/<ChatView/);
+    expect(VIEW).toMatch(/<GroupChats/);
   });
 
   it('never says the clusters are groups', () => {
@@ -164,8 +170,9 @@ describe('where a group comes from', () => {
      * events", which only means anything beside a cluster — there is nothing
      * for it to be *also* to in a blank form, and the clusters are on Find.
      */
-    expect(PAGE).toMatch(/<NewGroupPanel greeting=\{greeting\} \/>/);
-    expect(PAGE).not.toMatch(/groups\.length > 0 && <NewGroupPanel/);
+    expect(VIEW).toMatch(/<NewGroupPanel/);
+    expect(VIEW).not.toMatch(/length > 0 && <NewGroupPanel/);
+    expect(PAGE).not.toMatch(/groups\.length > 0 && <ChatView/);
     expect(CARD).toMatch(/aria-label="New group"/);
   });
 
@@ -244,7 +251,7 @@ describe('what a row shows', () => {
      * sees anyway — and what an expired presigned URL becomes, rather than a
      * broken glyph in the middle of the list.
      */
-    expect(CHATS).toMatch(/<SayerFace/);
+    expect(CHATS).toMatch(/<PersonFace/);
     expect(SAYER).toMatch(/useImageFailure/);
     expect(SAYER).toMatch(/if \(!avatarUrl \|\| failed\)/);
     /*
@@ -685,5 +692,58 @@ describe('the rail', () => {
     const groups = icons.slice(icons.indexOf("glyph === 'groups'"), icons.indexOf("glyph === 'search'"));
     expect(groups).not.toBe('');
     expect((groups.match(/<circle/g) ?? []).length).toBeLessThan(3);
+  });
+});
+
+describe('the search, which is a disc until it is asked for', () => {
+  it('is a button in the leading corner, not a field above the list', () => {
+    /*
+     * The page argued the other way and the argument was written down: a
+     * permanent field, because it was the only control here and the list under
+     * it is what it acts on.
+     *
+     * What that left out is the cost, which the app had already paid and
+     * recorded — a bordered box mostly empty, on every visit, taking a line
+     * above the conversations somebody came to read. Searching them is
+     * something people do sometimes; reading them is what the page is.
+     */
+    expect(CSS).not.toMatch(/\.chat-search \{/);
+    expect(CHATS).not.toMatch(/<input/);
+    expect(VIEW).toMatch(/<SearchControl/);
+    expect(VIEW).toMatch(/label="Search chats"/);
+    // Leading corner, which the grid has held open since the title moved to
+    // the middle — the app puts its own search disc in exactly this slot.
+    expect(CSS).toMatch(/\.groups-head > \.groups-seek \{ grid-column: 1; justify-self: start; \}/);
+  });
+
+  it('is one control, worn by two pages', () => {
+    /*
+     * Home had this first. Writing it again for Chat would have meant two
+     * copies of the focus handling, and every note on that handling is a bug
+     * report — the `requestAnimationFrame` that focused the button behind the
+     * field, the blur that fired when focus moved to the button beside it.
+     */
+    expect(SEARCH).toMatch(/export function SearchControl/);
+    expect(HOME_VIEW).toMatch(/<SearchControl/);
+    expect(VIEW).toMatch(/<SearchControl/);
+    expect(HOME_VIEW).not.toMatch(/className="round search-go"/);
+  });
+
+  it('spends the heading rather than moving the plus', () => {
+    /*
+     * The app's `PageHead` gives up its wordmark when a field opens and leaves
+     * the trailing corner exactly where it was, so the control somebody was
+     * not reaching for never ends up under their cursor. The greeting is this
+     * page's wordmark and the `+` is that corner.
+     */
+    expect(CARD).toMatch(/\{!searching && \(/);
+    expect(CSS).toMatch(/\.groups-head:has\(\.search-open\) \.groups-new \{ grid-column: 2; \}/);
+  });
+
+  it('has nothing to open where there is nothing to search', () => {
+    // On a page with no rooms it is a control that cannot succeed, sitting in
+    // the corner above the paragraph explaining why there is nothing here.
+    expect(VIEW).toMatch(/const searchable = chats\.length > 0/);
+    expect(VIEW).toMatch(/searchable &&/);
   });
 });

@@ -435,7 +435,14 @@ describe('the name of the page', () => {
       expect(rule, `${head} is not a grid`).toMatch(/grid-template-columns: 1fr auto 1fr/);
     }
     expect(CSS).toMatch(/\.home-head > :first-child \{ grid-column: 2; text-align: center; \}/);
-    expect(CSS).toMatch(/\.groups-head > :first-child \{ grid-column: 2; text-align: center; \}/);
+    /*
+     * Chat places its middle by class rather than by position in source.
+     * `:first-child` was fine while its leading corner was empty; it holds the
+     * search disc now, and hanging a column on which element happens to come
+     * first is how a title ends up in the corner the day a slot appears.
+     */
+    expect(CSS).toMatch(/\.groups-head > \.groups-title \{ grid-column: 2; text-align: center; \}/);
+    expect(CSS).toMatch(/\.groups-head > \.groups-seek \{ grid-column: 1;/);
     // The two with nothing in the corner are the text, not a grid.
     expect(CSS).toMatch(/\.lately-head \{[^}]*text-align: center/);
     expect(CSS).toMatch(/\.find-title \{[^}]*text-align: center/);
@@ -548,6 +555,7 @@ describe('how wide a page is', () => {
 describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const HOME = read(join(APP, 'components/HomeView.tsx'));
+  const SEARCH = read(join(APP, 'components/SearchControl.tsx'));
   const CSS = read(join(APP, 'globals.css'));
   /** The rules that only apply below tablet. */
   const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
@@ -634,7 +642,13 @@ describe('the create button', () => {
      */
     expect(HOME).toMatch(/className="home-actions"/);
     expect(HOME).toMatch(/className="round home-create"/);
-    expect(HOME).toMatch(/className="round search-go"/);
+    /*
+     * The search half is `SearchControl` now — one component worn by Home and
+     * by Chat, rather than two copies of the same focus handling drifting
+     * apart. `.round` is still what makes it the same control as the `+`.
+     */
+    expect(SEARCH).toMatch(/className="round search-go"/);
+    expect(HOME).toMatch(/<SearchControl/);
     // And the disc gives up its edge inside the open pill, or the field is a
     // circle drawn inside a pill.
     expect(CSS).toMatch(/\.search-open \.search-go \{[^}]*border-color: transparent/);

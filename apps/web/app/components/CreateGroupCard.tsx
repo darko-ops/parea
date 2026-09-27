@@ -353,20 +353,51 @@ export function CreateGroupCard({
  */
 export function NewGroupPanel({
   greeting,
+  search,
+  searching = false,
 }: {
   /** Worded on the server, like every greeting in this product. */
   greeting: string | null;
+  /**
+   * The search control, in the leading corner.
+   *
+   * A slot rather than something built here, because the query it holds
+   * belongs to the list underneath — see `ChatView`. The corner has been in
+   * the grid since the title moved to the middle and has stood empty since;
+   * this is the app's arrangement exactly, which is a disc on the left, the
+   * page's own mark in the middle and the `+` on the right.
+   */
+  search?: React.ReactNode;
+  /** Whether that control is open, which costs the heading. See below. */
+  searching?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <div className="groups-head">
-        <div>
-          {/* The greeting is the heading, and the page's name is the
-              fallback for a reader it cannot name. See `HomeView`. */}
-          <h1 className="home-title">{greeting ?? 'Chat'}</h1>
-        </div>
+        {search && <div className="groups-seek">{search}</div>}
+        {/*
+          The heading is what an open search is paid for with.
+
+          The app spends its wordmark on the same gesture and the note there
+          is the argument: the mark says whose app this is, which is worth a
+          row on a screen somebody is reading and worth nothing on one they
+          are searching — they know where they are, they are looking for
+          something in it. Here it is a greeting, which is the same kind of
+          claim and the same thing to spend.
+
+          What does *not* move is the `+`. It stays in its corner at its size
+          whether or not a field is open, so the control somebody was not
+          reaching for never ends up under their cursor.
+        */}
+        {!searching && (
+          <div className="groups-title">
+            {/* The greeting is the heading, and the page's name is the
+                fallback for a reader it cannot name. See `HomeView`. */}
+            <h1 className="home-title">{greeting ?? 'Chat'}</h1>
+          </div>
+        )}
         {/*
           A `+` in the corner, which is the app's own Chats tab and now Home's
           too: the one thing this page makes, in the corner the eye finishes

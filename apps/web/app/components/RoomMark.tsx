@@ -120,11 +120,35 @@ export function RoomMark({
 }) {
   const cards = (deck ?? []).slice(0, 3);
 
+  /*
+   * The geometry is the prop's, written inline, in both branches.
+   *
+   * It used to be the class's, and the class lost. `.group-tile` is declared
+   * after `.chat-tile`, `.chat-head-tile` and `.group-chip-mark` at the same
+   * specificity, so its 44px won every one of them: a chat row whose rule says
+   * 40 drew 44, and a 26px chip drew 44 — the same letter at one size wherever
+   * it appeared, silently, because nothing about the cascade is visible from
+   * the call site.
+   *
+   * Inline means the caller's `size` is the answer. It is also how the deck
+   * branch below has always worked, so the two halves now agree, and it is
+   * what the app does: a quarter of the box for the corner and 0.42 of it for
+   * the letter, at whatever size it was handed.
+   */
+  const radius = Math.round(size * 0.25);
+
   if (kind === 'named' || cards.length === 0) {
     return (
       <span
         className={`group-tile ${className}`.trim()}
-        style={{ background: lens.fill, color: lens.ink }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: radius,
+          fontSize: Math.round(size * 0.42),
+          background: lens.fill,
+          color: lens.ink,
+        }}
         aria-hidden="true"
       >
         {initialOf(title)}

@@ -26,24 +26,22 @@
  * and goes last, behind every group that has — and it is still listed, because
  * a silent room is one you might be the first to say something in.
  *
- * ## `'use client'` for the field
+ * ## `'use client'` for the filtering
  *
- * The filtering is local. Everything on this screen is already in the props by
- * the time it draws, so a round trip would cost the one thing that makes a
- * search field feel like one: that the list narrows while you type rather than
- * a moment after you stop.
+ * The field itself is in the head now — see `ChatView` — and the query comes
+ * down as a prop, but the narrowing still happens here. Everything on this
+ * screen is already in the props by the time it draws, so a round trip would
+ * cost the one thing that makes a search field feel like one: that the list
+ * narrows while you type rather than a moment after you stop.
  *
  * It reads what was *said* as well as the names. Somebody looking for a
  * conversation, on the page that is only conversations, is as likely to
  * remember a word out of it as the name of the room it happened in.
  */
 
-import { useState } from 'react';
-
 import { LeaveGroup } from './LeaveGroup';
 import { RoomMark, type Deck } from './RoomMark';
-import { SearchIcon } from './SearchIcon';
-import { SayerFace } from './SayerFace';
+import { PersonFace } from './PersonFace';
 
 export type ChatRow = {
   id: string;
@@ -89,9 +87,7 @@ export type ChatRow = {
  * happened there.
  */
 
-export function GroupChats({ chats }: { chats: ChatRow[] }) {
-  const [query, setQuery] = useState('');
-
+export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }) {
   const looking = query.trim().toLowerCase();
   const shown = chats.filter(
     (chat) =>
@@ -104,25 +100,17 @@ export function GroupChats({ chats }: { chats: ChatRow[] }) {
   return (
     <>
       {/*
-        A field that is always a field, unlike Home's.
+        No field here any more — it is a disc in the head, and the query
+        arrives as a prop. See `SearchControl` for the control and `ChatView`
+        for who holds the query.
 
-        Home's search is a button that opens: it shares a head with a greeting
-        and a title and is one of two things somebody might do there. This one
-        is the only control on the page and the list under it is what it acts
-        on, so a control that has to be opened before it can be used is a step
-        in front of the thing it does.
+        This page used to argue the other way: a permanent field, because it
+        was the only control here and the list under it is what it acts on.
+        What that reasoning left out is the cost, which the app had already
+        paid and written down — a bordered box mostly empty, on every visit,
+        taking a line above the conversations somebody came to read. Searching
+        them is something people do sometimes. Reading them is the page.
       */}
-      <div className="chat-search">
-        <SearchIcon size={17} />
-        <input
-          type="search"
-          value={query}
-          placeholder="Search chats"
-          aria-label="Search chats"
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
       <ul className="chat-list">
         {shown.map((chat) => (
           <li className="chat-item" key={chat.id}>
@@ -165,7 +153,7 @@ export function GroupChats({ chats }: { chats: ChatRow[] }) {
                       a list of people, and it was the one place in the product
                       where somebody with a picture did not have one.
                     */}
-                    <SayerFace
+                    <PersonFace
                       name={chat.last.author}
                       avatarUrl={chat.last.avatarUrl}
                       lens={chat.last.lens}

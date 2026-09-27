@@ -31,13 +31,13 @@
  * disagree during hydration and React would throw the tree away.
  */
 
-import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
+import { Children, isValidElement, useState } from 'react';
 
 import { matches } from '@/search';
 
 import { Face } from './Faces';
 import { RailIcon } from './RailIcon';
-import { SearchIcon } from './SearchIcon';
+import { SearchControl } from './SearchControl';
 
 export type RowPerson = {
   actorId: string;
@@ -63,38 +63,9 @@ export function HomeView({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
 
   const searching = query.trim() !== '';
   const person = people.find((p) => p.actorId === selected) ?? null;
-
-  /*
-   * Focus follows the state, not the click.
-   *
-   * This was a `requestAnimationFrame` in the button's handler, which fires
-   * before React has committed — so the field grew to 220px and focus stayed
-   * on the button behind it. An effect runs after the commit, when the input
-   * is its real width and its `tabIndex` is 0.
-   */
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-
-  /*
-   * Collapse when focus leaves the whole control, not merely the field —
-   * `onBlur` alone fired when focus moved to the button beside it — and only
-   * when it is empty, because collapsing a field with a live query in it hides
-   * the reason the list underneath is short.
-   */
-  const collapse = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      const next = e.relatedTarget as Node | null;
-      if (next && wrapRef.current?.contains(next)) return;
-      if (query.trim() === '') setOpen(false);
-    },
-    [query],
-  );
 
   const inFilter = person ? new Set(person.eventIds) : null;
 
@@ -158,47 +129,19 @@ export function HomeView({
             <RailIcon glyph="plus" />
           </a>
 
-          <div ref={wrapRef} className={`search${open ? ' search-open' : ''}`}>
-            {/*
-              A button that reveals a field, not a label for one. While collapsed
-              the input has no width and is out of the tab order, so the button
-              owns the expanding and the field takes focus once there is
-              something there to take it.
-            */}
-            <button
-              type="button"
-              className="round search-go"
-              aria-expanded={open}
-              aria-label="Search your albums"
-              onClick={() => {
-                if (open && query.trim() === '') setOpen(false);
-                else setOpen(true);
-              }}
-            >
-              <SearchIcon />
-            </button>
-            <input
-              ref={inputRef}
-              type="search"
-              className="search-field"
-              value={query}
-              placeholder="Search your albums"
-              aria-label="Search your albums"
-              tabIndex={open ? 0 : -1}
-              onChange={(e) => setQuery(e.target.value)}
-              onBlur={collapse}
-              onKeyDown={(e) => {
-                if (e.key !== 'Escape') return;
-                // Clear first, close second — so Escape never loses a query and
-                // a field in one press.
-                if (searching) setQuery('');
-                else {
-                  setOpen(false);
-                  inputRef.current?.blur();
-                }
-              }}
-            />
-          </div>
+          {/*
+            A button that reveals a field, not a label for one — and the same
+            one the Chat page's head wears, so the shape, the focus handling
+            and the way Escape behaves cannot drift into two search controls
+            in one product. See `SearchControl`.
+          */}
+          <SearchControl
+            label="Search your albums"
+            query={query}
+            onQuery={setQuery}
+            open={open}
+            onOpen={setOpen}
+          />
         </div>
       </div>
 

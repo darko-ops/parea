@@ -1347,6 +1347,18 @@ button.secondary {
    top of the rounded container's edge. Escape already clears. */
 .search-field::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
+/* Chat's variant: the open field runs the row rather than to a set width.
+
+   Home's 220px is right where the field opens beside a `+` in a corner with a
+   heading holding the middle. On Chat the heading gives way, so there is a row
+   to take — and a 220px box floating in the space where a title used to be is
+   a control that has moved rather than one that has grown. */
+.search-wide { min-width: 0; }
+.search-open.search-wide { width: 100%; }
+.search-open.search-wide .search-field.search-field {
+  width: auto; flex: 1; min-width: 0; padding: 0 10px 0 2px;
+}
+
 @media (max-width: 560px) {
   .search-open .search-field.search-field { width: min(220px, 42vw); }
 }
@@ -1733,12 +1745,27 @@ button.secondary {
   color: inherit; text-decoration: none;
 }
 .group-chip:hover { border-color: var(--line); }
-.group-chip-mark {
-  width: 26px; height: 26px; border-radius: 50%; flex: none;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--photo-bed); color: var(--dim-soft);
-  font-size: 12px; font-weight: 700;
-}
+/* The mark a room wears, at chip size.
+
+   `RoomMark` draws one of two things through this class: a letter on the
+   group's own colour for a room somebody named, and a deck of the members'
+   pictures for one nobody has. So the fill and the ink are the mark's own —
+   set inline from the lens, or by `.room-card` — and what is left here is the
+   box, which both halves share.
+
+   Squared rather than the circle this was. It is the shape a group's tile has
+   on every other screen, and a deck of overlapping squares inside a circle is
+   two shapes arguing. */
+/* The box is `RoomMark`'s, from its `size` — this rule could not have set it:
+   `.group-tile` is declared below at the same specificity and won, which is
+   how a 26px chip came to draw a 44px letter. See the note in `RoomMark`. */
+.group-chip-mark { flex: none; font-weight: 700; }
+/* A deck's own cards are positioned, so the box has to be the frame for them.
+   `RoomMark` sizes the cards; this only says where they hang from. */
+.room-mark.group-chip-mark { display: inline-block; position: relative; }
+/* The ring each card wears is the page's colour by default, and a chip is not
+   the page — it is `--card`, which is what these sit on. */
+.group-chip .room-card { border-color: var(--card); }
 .group-chip-name { font-size: 14px; font-weight: 600; }
 .group-chip-note { font-size: 12px; color: var(--dim-soft); }
 
@@ -1847,16 +1874,33 @@ button.secondary {
    row's. */
 .find-recent { margin-top: 2px; }
 /* A person, which is a pill that goes somewhere rather than one that fills the
-   box. The letter is on their lens — the colour a handle is hashed to, the
-   same one their tile wears everywhere else — because an avatar URL expires in
-   an hour and a remembered one would be a broken image by tomorrow. */
+   box — and a squared one, because a row of these is a row of *people and
+   things*, and the round lozenge made every entry read as a term.
+
+   Squared, not square: the corner is the 12px every tile in this product
+   wears, so a recent person and the same person's tile elsewhere are the same
+   object at two sizes. A term stays a lozenge; it is a word, not a thing. */
 .recent-person {
   display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 12px; padding-left: 7px;
   text-decoration: none; color: inherit;
 }
+/* Their picture, and the letter on their lens where there is none — the colour
+   a handle is hashed to, the same one they wear everywhere else.
+
+   It was the letter always, and the reason recorded here was that an avatar
+   URL expires in an hour so a remembered one would be broken by tomorrow. That
+   is a reason not to *store* a URL: nothing stored has changed, and the
+   pictures are fetched when the list draws. See `FindView`.
+
+   One rule for both halves, so the letter and the photograph occupy the
+   identical box and a chip does not shift by a pixel the day somebody sets a
+   picture. `object-fit` is inert on the `<span>` and flex centring is inert on
+   the `<img>`; each half ignores what it does not need. */
 .recent-face {
-  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  flex: none; width: 22px; height: 22px; border-radius: 6px;
   display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
   font-size: 11px; font-weight: 700;
 }
 .pill[aria-pressed='true'] .pill-count { color: inherit; opacity: .7; }
@@ -3191,8 +3235,20 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
      over a grid that is not 820 either.
   */
 }
-.groups-head > :first-child { grid-column: 2; text-align: center; }
+/* Placed by class rather than by `:first-child`, which is what decided this
+   while the leading corner was empty. It is not any more — the search disc is
+   in it — and position-in-source is the wrong thing to hang a column on the
+   moment a slot can come and go. */
+.groups-head > .groups-seek { grid-column: 1; justify-self: start; }
+.groups-head > .groups-title { grid-column: 2; text-align: center; }
 .groups-head .groups-new { grid-column: 3; justify-self: end; }
+/* Open, the field takes the row: the heading is gone, so the middle column has
+   nothing in it, and the two remaining slots are the field and the `+`. The
+   `+` does not move — that is the whole point of doing it here rather than
+   letting the field push it, and the app's `PageHead` says the same. */
+.groups-head:has(.search-open) { grid-template-columns: 1fr auto; }
+.groups-head:has(.search-open) > .groups-seek { justify-self: stretch; }
+.groups-head:has(.search-open) .groups-new { grid-column: 2; }
 
 .groups-list { list-style: none; margin: 0; padding: 0; }
 .groups-list li + li { border-top: 1px solid var(--row-line); }
@@ -3209,26 +3265,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    The rooms are on Find and on `/group/<id>`. See `GroupChats`.
    --------------------------------------------------------------------------- */
 
-/* Always a field, unlike Home's button-that-opens: it is the only control on
-   the page and the list under it is what it acts on. */
-.chat-search {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 8px; padding: 0 12px; height: 40px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
-  color: var(--dim);
-}
-.chat-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-/* Overriding the global input rules, which give every field its own border,
-   background and 13px of padding — this one is inside a container drawing all
-   three. Doubled class to beat `input[type="search"]:focus-visible`, which is
-   the specificity trap the other search field has its own note about. */
-.chat-search input.chat-search input, .chat-search input {
-  flex: 1; min-width: 0; width: auto;
-  padding: 0; border: 0; background: none; border-radius: 0;
-  font-size: 15px; color: var(--fg);
-}
-.chat-search input:focus-visible { outline: none; border: 0; box-shadow: none; }
-.chat-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+/* The page's own search is `.search` now — the disc in the head that Home
+   wears, shared as `SearchControl` so there is one of it rather than two. What
+   was here was a permanent bordered box above the conversations; the note on
+   the component says why that was the wrong trade. */
 
 /* No cap. A chat row is a tile, a name, a line of what was said and when, and
    it has somewhere to put all four at any width — the middle is what grows, so
@@ -3250,8 +3290,13 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .chat-row:hover { background: var(--card); }
 .chat-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* Smaller than the 44px a room's tile was: a chat row is one line of name over
-   one line of talk, and a tile taller than both makes the row about the tile. */
-.chat-tile { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+   one line of talk, and a tile taller than both makes the row about the tile.
+
+   The number lives at the call site now — `<RoomMark size={40} />` — because
+   this rule never won: `.group-tile` is declared below it at the same
+   specificity, so a tile that said 40 here drew 44 on the page. What is left
+   is the hook, and the note about why 40 is the right number. */
+.chat-tile { }
 .chat-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .chat-name {
   font-size: 15px; font-weight: 600;
@@ -3351,7 +3396,9 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .chat-head:hover { border-color: var(--dim-soft); }
 .chat-head:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.chat-head-tile { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+/* Sized by `RoomMark` from its `size` prop, like the row's — see `.chat-tile`
+   for why the number cannot live here. */
+.chat-head-tile { }
 .chat-head-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .chat-head-name {
   font-size: 16px; font-weight: 600;

@@ -23,6 +23,7 @@ const read = (path: string) =>
 
 const VIEW = read('../app/components/FindView.tsx');
 const PAGE = read('../app/find/page.tsx');
+const API_PEOPLE = read('../app/api/people/route.ts');
 const CSS = readFileSync(
   fileURLToPath(new URL('../app/globals.css', import.meta.url)),
   'utf8',
@@ -90,7 +91,7 @@ describe('what the page offers before anybody types', () => {
     expect(VIEW).toMatch(/!asking && wantsGroups && suggestedGroups\.length > 0/);
     expect(VIEW).toMatch(/!asking && wantsPeople && suggested\.length > 0/);
     expect(VIEW).toMatch(/!asking && wantsGroups && mine\.length > 0/);
-    expect(PAGE).toMatch(/groupsFor\(db, actorId\)/);
+    expect(PAGE).toMatch(/groupsFor\(db, actorId, \{ deck: true \}\)/);
     expect(PAGE).toMatch(/suggestedGroupsFor\(db, actorId\)/);
   });
 
@@ -264,13 +265,39 @@ describe('what the box remembers', () => {
   it('keeps the last ten in this browser and nowhere else', () => {
     /*
      * A search term is a sentence about who somebody was looking for. This
-     * product keeps none: there is no table, no request and no field — the
-     * list lives in the browser that typed it, which is why the assertion
-     * below is that nothing reaches the server.
+     * product keeps none: there is no table, no field and nothing written
+     * anywhere but the browser that typed it.
+     *
+     * ## What narrowed, and what did not
+     *
+     * This used to assert that *nothing* reaches the server, and that is no
+     * longer true in one exact way: the person rows draw the reader's picture
+     * now, and a picture has to be fetched because a presigned URL cannot be
+     * stored — it expires within the hour. So the handles on those rows go up,
+     * once, while the list is on screen, and come back as faces.
+     *
+     * What still holds, and is the part that was load-bearing:
+     *
+     *   - **No term ever leaves.** A word somebody typed is the sentence about
+     *     what they were looking for, and it is still written nowhere but here.
+     *   - **Nothing is recorded.** `GET /api/people?handles=` reads; there is
+     *     no table behind it and no history written by it.
+     *   - **It discloses nothing new.** Those handles are ones this reader
+     *     already holds and could fetch one at a time by opening each profile,
+     *     and the route answers through `profileFor` — the same decision about
+     *     who may see whom that `/u/<handle>` makes.
+     *   - **Only when drawn.** Hidden the moment somebody types, so the guard
+     *     is `asking`, and asked once per set of handles.
      */
     expect(VIEW).toMatch(/const RECENT_MAX = 10;/);
     expect(VIEW).toMatch(/localStorage\.setItem\(RECENT_KEY/);
-    expect(VIEW).not.toMatch(/fetch\([^)]*recent|\/api\/[a-z]*search[^)]*post/i);
+    // No term, by any route.
+    expect(VIEW).not.toMatch(/fetch\([^)]*\bterm\b/);
+    expect(VIEW).not.toMatch(/\/api\/[a-z]*search[^)]*post/i);
+    // And the one thing that does go up is read-only, guarded and asked once.
+    expect(VIEW).toMatch(/fetch\(`\/api\/people\?handles=/);
+    expect(VIEW).toMatch(/if \(asking \|\| !wanted \|\| fetched\.current === wanted\) return;/);
+    expect(API_PEOPLE).toMatch(/profileFor\(db, actorId, handle\)/);
   });
 
   it('remembers a search rather than a keystroke', () => {
@@ -398,5 +425,45 @@ describe('asking somebody from a result', () => {
     expect(VIEW).toMatch(/useState<Standing>\(person\.standing \?\? 'friends'\)/);
     const PEOPLE = read('../app/api/people/route.ts');
     expect(PEOPLE).toMatch(/\.\.\.person/);
+  });
+});
+
+describe('what a recent row and a group chip are drawn as', () => {
+  it('draws a person as their picture, in a squared chip', () => {
+    /*
+     * A row of round lozenges made every entry read as a term, and the person
+     * rows drew a letter where a face belongs — on the one list that is a list
+     * of people somebody already chose.
+     *
+     * A term stays a lozenge, because a term is a word rather than a thing.
+     */
+    expect(VIEW).toMatch(/<PersonFace/);
+    expect(VIEW).toMatch(/className="recent-face"/);
+    expect(CSS).toMatch(/\.recent-person \{[^}]*border-radius: 12px/);
+    expect(CSS).toMatch(/\.recent-face \{[^}]*border-radius: 6px/);
+    expect(CSS).not.toMatch(/\.recent-face \{[^}]*border-radius: 50%/);
+  });
+
+  it('draws a room as the mark it wears everywhere else', () => {
+    /*
+     * The chip drew `initial(group.name)` for every room, so one nobody has
+     * named was three faces on the chat list and in the app, and a grey
+     * initial here. `RoomMark` is that drawing, and this is the third screen
+     * to wear it.
+     */
+    expect(VIEW).toMatch(/<RoomMark/);
+    expect(VIEW).toMatch(/className="group-chip-mark"/);
+    expect(CSS).not.toMatch(/\.group-chip-mark \{[^}]*border-radius: 50%/);
+    // Fed from the server, which signs the pictures only where they are drawn.
+    expect(PAGE).toMatch(/groupsFor\(db, actorId, \{ deck: true \}\)/);
+    expect(PAGE).toMatch(/deck: g\.deck/);
+  });
+
+  it('does not make the app pay for a deck it does not draw', () => {
+    // `groupsFor` is the list the phone asks for at launch, and signing three
+    // avatars a room for it would be round trips nothing on that screen uses.
+    const SRC = read('../src/groups.ts');
+    expect(SRC).toMatch(/opts: \{ deck\?: boolean \} = \{\}/);
+    expect(SRC).toMatch(/if \(!opts\.deck\)/);
   });
 });
