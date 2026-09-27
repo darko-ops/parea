@@ -112,12 +112,33 @@ export const phoneCodes = pgTable(
     phoneLast2: text('phone_last2').notNull(),
     codeHash: bytea('code_hash').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /**
+     * When this code stopped being outstanding, by either of the two ways.
+     *
+     * Spent — somebody presented it and it was right — or superseded, because
+     * asking for a code retires whatever the last one was. Both are the same
+     * fact as far as every read is concerned, which all ask `consumed_at is
+     * null` and mean "is there a live code for this person".
+     *
+     * The two are not distinguished because nothing needs them apart, and one
+     * column that means "not live" is harder to get wrong than two that have to
+     * be checked together. What matters is that only one row per actor can be
+     * null at a time; see `startVerification`.
+     */
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     /** Wrong guesses against this code. Six digits needs a ceiling per code. */
     attempts: integer('attempts').notNull().default(0),
     createdAt: createdAt(),
   },
-  // "The newest outstanding code for this person", which is the only read.
+  /*
+   * "The outstanding code for this person", which is the only read.
+   *
+   * `created_at` is in it as a tiebreak for rows written before asking again
+   * began retiring the previous code, and not as the thing that picks one —
+   * `now()` is the transaction timestamp, so it does not order two rows written
+   * together, and a coin toss there used to decide which phone number somebody
+   * was credited with.
+   */
   (t) => [index('phone_code_actor_idx').on(t.actorId, t.createdAt)],
 );
 

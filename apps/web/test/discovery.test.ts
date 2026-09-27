@@ -23,7 +23,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { readFileSync } from 'node:fs';
@@ -228,6 +228,12 @@ describe('the code that proves it', () => {
      * Somebody mistypes their number, asks again with the right one, and then
      * presents the code. Two live rows would mean the older one claiming the
      * wrong number — the number they had just corrected.
+     *
+     * This used to be flaky, and the flake was the bug rather than the test:
+     * the newest row was found by ordering on `created_at`, which defaults to
+     * `now()` — the *transaction* timestamp — so two rows written close together
+     * tie and the tiebreak is arbitrary. Asking again now retires the previous
+     * code, so there is one outstanding row and nothing to sort.
      */
     const me = await person('me');
     await startVerification(db, SECRET, me, '+15550104466', '111111');
@@ -241,6 +247,55 @@ describe('the code that proves it', () => {
       ok: true,
       phoneLast2: '77',
     });
+  });
+
+  it('retires the previous code rather than leaving it live', async () => {
+    /*
+     * The fix stated directly, and without reference to ordering: after asking
+     * twice there is exactly one row anybody could still present. Ordering was
+     * how the old code *guessed* at this, and a guess that ties is a guess that
+     * credits somebody with a number they corrected.
+     */
+    const me = await person('me');
+    await startVerification(db, SECRET, me, '+15550104466', '111111');
+    await startVerification(db, SECRET, me, '+15550104477', '222222');
+
+    const live = await db
+      .select()
+      .from(schema.phoneCodes)
+      .where(and(eq(schema.phoneCodes.actorId, me), isNull(schema.phoneCodes.consumedAt)));
+    expect(live).toHaveLength(1);
+    expect(live[0]!.phoneLast2).toBe('77');
+  });
+
+  it('leaves nothing live once a number is proved', async () => {
+    /*
+     * A proved number settles the question, so a second pending claim on the
+     * same account has been answered too. Reachable where two requests raced, and
+     * where rows written before superseding are still sitting in pairs — leaving
+     * one live would leave a code that verifies a number nobody confirmed.
+     */
+    const me = await person('me');
+    // Written directly, which is the state a race or an old row leaves behind.
+    await db.insert(schema.phoneCodes).values({
+      actorId: me,
+      phoneHash: 'stale-hash',
+      phoneLast2: '66',
+      codeHash: Buffer.from('stale'),
+      expiresAt: new Date(Date.now() + PHONE_CODE_TTL_MS),
+    });
+    await startVerification(db, SECRET, me, '+15550104477', '222222');
+
+    expect(await confirmVerification(db, SECRET, me, '222222')).toMatchObject({
+      ok: true,
+      phoneLast2: '77',
+    });
+
+    const live = await db
+      .select()
+      .from(schema.phoneCodes)
+      .where(and(eq(schema.phoneCodes.actorId, me), isNull(schema.phoneCodes.consumedAt)));
+    expect(live).toEqual([]);
   });
 
   it('cannot be presented by somebody else', async () => {

@@ -153,12 +153,47 @@ export async function startVerification(
   code: string,
   now = new Date(),
 ): Promise<void> {
-  await db.insert(schema.phoneCodes).values({
-    actorId,
-    phoneHash: hashPhone(e164),
-    phoneLast2: lastTwo(e164),
-    codeHash: hashCode(secret, actorId, code),
-    expiresAt: new Date(now.getTime() + PHONE_CODE_TTL_MS),
+  /*
+   * Asking again supersedes. It does not accumulate — and that used to be a
+   * sentence in a comment rather than a thing the table did.
+   *
+   * `confirmVerification` wanted "the newest outstanding code" and got it by
+   * ordering on `created_at`, which is not a total order: the column defaults to
+   * `now()`, and `now()` in Postgres is the *transaction* timestamp, so two rows
+   * written close enough together tie and the tiebreak is whatever the planner
+   * felt like. A tie there is not a cosmetic problem. The case the ordering
+   * exists for is somebody who mistyped their number, asked again with the right
+   * one, and then presented the code — and losing that coin toss means the code
+   * they were sent claims the number they had just corrected.
+   *
+   * So the second row no longer has to win a race: writing it retires the first.
+   * At most one code is outstanding per actor, which makes the read below
+   * unambiguous rather than probably-right.
+   *
+   * In a transaction, because the two halves are one act. Retiring without
+   * inserting would leave somebody holding a code that verifies nothing;
+   * inserting without retiring is the bug. Read-committed is enough here — two
+   * concurrent requests could still both insert, which is why the read below
+   * keeps its ordering as a fallback rather than dropping it.
+   */
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.phoneCodes)
+      .set({ consumedAt: now })
+      .where(
+        and(
+          eq(schema.phoneCodes.actorId, actorId),
+          isNull(schema.phoneCodes.consumedAt),
+        ),
+      );
+
+    await tx.insert(schema.phoneCodes).values({
+      actorId,
+      phoneHash: hashPhone(e164),
+      phoneLast2: lastTwo(e164),
+      codeHash: hashCode(secret, actorId, code),
+      expiresAt: new Date(now.getTime() + PHONE_CODE_TTL_MS),
+    });
   });
 }
 
@@ -169,11 +204,18 @@ export type PhoneCheck =
 /**
  * Check a code and consume it.
  *
- * Only the newest outstanding code for this actor is considered, which is the
- * same rule sign-in follows and matters more here: somebody who mistypes their
- * number, asks again with the right one and then presents the code would
- * otherwise have two live rows and the older one would claim the wrong number.
- * Asking again supersedes; it does not accumulate.
+ * At most one code is outstanding per actor, because `startVerification` retires
+ * the previous one as it writes the next. That is what makes this read
+ * unambiguous: "the newest outstanding code" used to mean "whichever of several
+ * rows an ordering on a non-unique timestamp happened to return", and the row it
+ * returned decided which phone number a person was about to be credited with.
+ *
+ * The ordering stays as a fallback rather than a mechanism. Two concurrent
+ * requests under read-committed could still write two rows, and rows that
+ * predate the change above can still be sitting in the table in pairs — in
+ * either case newest-wins is the right guess, and success below retires every
+ * outstanding row for the actor rather than only the one it read, so the state
+ * collapses to one the first time anybody verifies.
  *
  * The answer carries the hash and the digits rather than writing them, because
  * what to do with a proved number is the route's decision — it is the thing
@@ -191,6 +233,8 @@ export async function confirmVerification(
     .select()
     .from(schema.phoneCodes)
     .where(and(eq(schema.phoneCodes.actorId, actorId), isNull(schema.phoneCodes.consumedAt)))
+    // See the header: a fallback for rows that predate superseding, not the
+    // thing that picks the code.
     .orderBy(desc(schema.phoneCodes.createdAt))
     .limit(1);
 
@@ -210,10 +254,23 @@ export async function confirmVerification(
     return { ok: false, reason: 'wrong' };
   }
 
+  /*
+   * Every outstanding row for this actor, not only the one just read.
+   *
+   * A proved number settles the question, so any other pending claim on this
+   * account — a mistyped number from a minute ago, a second row from two
+   * requests that raced — has been answered too, and leaving it live would leave
+   * a code that still verifies a number this person did not confirm.
+   *
+   * It is also what collapses a table that already holds pairs written before
+   * `startVerification` began retiring them.
+   */
   await db
     .update(schema.phoneCodes)
     .set({ consumedAt: now })
-    .where(eq(schema.phoneCodes.id, row.id));
+    .where(
+      and(eq(schema.phoneCodes.actorId, actorId), isNull(schema.phoneCodes.consumedAt)),
+    );
 
   return { ok: true, phoneHash: row.phoneHash, phoneLast2: row.phoneLast2 };
 }
