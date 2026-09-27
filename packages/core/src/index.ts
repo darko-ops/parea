@@ -6,6 +6,8 @@ export {
   CONTRIBUTE_EVERYONE,
   CONTRIBUTE_HOST,
   CONTRIBUTE_NOBODY,
+  CONTRIBUTE_POLICIES,
+  ACCESS_POLICIES,
   PRIVATE,
   PUBLIC,
   type Capability,
@@ -14,6 +16,8 @@ export {
   type PolicyActor,
   type PolicyEvent,
   type Presented,
+  type AccessPolicy,
+  type ContributePolicy,
 } from './policy';
 export {
   CODE_SEPARATOR,

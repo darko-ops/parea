@@ -11,12 +11,11 @@
  */
 
 import {
-  CONTRIBUTE_EVERYONE,
-  CONTRIBUTE_HOST,
-  CONTRIBUTE_NOBODY,
-  PRIVATE,
-  PUBLIC,
+  ACCESS_POLICIES,
+  CONTRIBUTE_POLICIES,
   schema,
+  type AccessPolicy,
+  type ContributePolicy,
 } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -62,8 +61,8 @@ export async function PATCH(
     name?: string;
     caption?: string | null;
     joinsOpen?: boolean;
-    contributePolicy?: typeof CONTRIBUTE_EVERYONE | typeof CONTRIBUTE_HOST | typeof CONTRIBUTE_NOBODY;
-    accessPolicy?: typeof PUBLIC | typeof PRIVATE;
+    contributePolicy?: ContributePolicy;
+    accessPolicy?: AccessPolicy;
   } = {};
 
   /*
@@ -91,20 +90,21 @@ export async function PATCH(
 
   if (typeof body.joinsOpen === 'boolean') patch.joinsOpen = body.joinsOpen;
   /*
-   * Who may add photographs. Three settings where there was a boolean, and the
-   * same rule the access policy below follows: an unrecognised value is
-   * refused rather than stored, because `authorize` fails closed on one and a
-   * typo would quietly seal the album.
+   * Who may add photographs, where there was a boolean, and the same rule the
+   * access policy below follows: an unrecognised value is refused rather than
+   * stored, because `authorize` fails closed on one and a typo would quietly
+   * seal the album.
+   *
+   * Against `CONTRIBUTE_POLICIES` and not three names written out here, which
+   * is what this was — and the three were missing `creator`, so "Only me"
+   * could not be set on an album any more than it could be chosen when making
+   * one. Both lists were hand-copied and both went stale at migration 0034.
    */
   if (body.contributePolicy !== undefined) {
-    if (
-      body.contributePolicy !== CONTRIBUTE_EVERYONE &&
-      body.contributePolicy !== CONTRIBUTE_HOST &&
-      body.contributePolicy !== CONTRIBUTE_NOBODY
-    ) {
+    if (!CONTRIBUTE_POLICIES.includes(body.contributePolicy as ContributePolicy)) {
       return NextResponse.json({ error: 'invalid_contribute_policy' }, { status: 400 });
     }
-    patch.contributePolicy = body.contributePolicy;
+    patch.contributePolicy = body.contributePolicy as ContributePolicy;
   }
 
   /*
@@ -128,8 +128,7 @@ export async function PATCH(
    * screen says so, because "private" sounds like it should mean the opposite.
    */
   if (typeof body.accessPolicy === 'string') {
-    const known = [PUBLIC, PRIVATE] as const;
-    const chosen = known.find((policy) => policy === body.accessPolicy);
+    const chosen = ACCESS_POLICIES.find((policy) => policy === body.accessPolicy);
     if (!chosen) {
       return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
     }

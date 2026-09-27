@@ -7,13 +7,14 @@
  */
 
 import {
+  ACCESS_POLICIES,
   CONTRIBUTE_EVERYONE,
-  CONTRIBUTE_HOST,
-  CONTRIBUTE_NOBODY,
-  PRIVATE,
+  CONTRIBUTE_POLICIES,
   PUBLIC,
   newLinkToken,
   schema,
+  type AccessPolicy,
+  type ContributePolicy,
 } from '@parea/core';
 import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -291,11 +292,10 @@ export async function POST(request: Request) {
   // not know, so a typo that reached the column would lock the creator out of
   // the event they had just made.
   const requested = body.accessPolicy === undefined ? PUBLIC : body.accessPolicy;
-  const OFFERED = [PUBLIC, PRIVATE] as const;
-  if (!OFFERED.includes(requested as (typeof OFFERED)[number])) {
+  if (!ACCESS_POLICIES.includes(requested as AccessPolicy)) {
     return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
   }
-  const accessPolicy = requested as (typeof OFFERED)[number];
+  const accessPolicy = requested as AccessPolicy;
 
   /*
    * Who may add photographs, decided at the same moment and by the same rule:
@@ -308,15 +308,20 @@ export async function POST(request: Request) {
    */
   const wantsContribute =
     body.contributePolicy === undefined ? CONTRIBUTE_EVERYONE : body.contributePolicy;
-  const CONTRIBUTE_OFFERED = [
-    CONTRIBUTE_EVERYONE,
-    CONTRIBUTE_HOST,
-    CONTRIBUTE_NOBODY,
-  ] as const;
-  if (!CONTRIBUTE_OFFERED.includes(wantsContribute as (typeof CONTRIBUTE_OFFERED)[number])) {
+  /*
+   * `CONTRIBUTE_POLICIES` and not a list written out here, which is what this
+   * was — and it was missing `creator`.
+   *
+   * "Only me" is the second option a public album offers and the *first* a
+   * private one does, so choosing it answered 400 and the form, having no
+   * wording for `invalid_contribute_policy`, said "Could not create the album
+   * (400)". The same three were hand-written in the update route, so the
+   * setting could not be changed afterwards either.
+   */
+  if (!CONTRIBUTE_POLICIES.includes(wantsContribute as ContributePolicy)) {
     return NextResponse.json({ error: 'invalid_contribute_policy' }, { status: 400 });
   }
-  const contributePolicy = wantsContribute as (typeof CONTRIBUTE_OFFERED)[number];
+  const contributePolicy = wantsContribute as ContributePolicy;
 
   // Creating inside a group is the whole point of having one: its members get
   // access without anyone re-solving "how do I reach everyone" (design §3).

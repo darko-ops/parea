@@ -225,12 +225,38 @@ export const CONTRIBUTE_CREATOR = 'creator';
  */
 export const CONTRIBUTE_NOBODY = 'nobody';
 
-const KNOWN_CONTRIBUTE: readonly string[] = [
+/**
+ * Every contribute policy this product knows, and the one list of them.
+ *
+ * Exported because it was not, and two routes then wrote their own. Both wrote
+ * the same three of the four — `creator` was the one that fell out — so
+ * "Only me", which is the *first* option a private album offers, could not be
+ * chosen at creation and could not be set afterwards either. Both answered 400
+ * and the create form had no wording for that code, so what somebody saw was
+ * "Could not create the album (400)."
+ *
+ * `authorize` below fails closed on a policy it does not recognise, which is
+ * the right shape and is why a validator has to exist at the edge at all: a
+ * value that reached the column and then was not understood would seal an
+ * album against the person who had just made it. What that argument does not
+ * survive is the list being written out a second time by hand, which is how
+ * one of them came to be missing a policy `authorize` has always handled.
+ */
+export const CONTRIBUTE_POLICIES = [
   CONTRIBUTE_EVERYONE,
   CONTRIBUTE_CREATOR,
   CONTRIBUTE_HOST,
   CONTRIBUTE_NOBODY,
-];
+] as const;
+
+export type ContributePolicy = (typeof CONTRIBUTE_POLICIES)[number];
+
+/** The same two for who may *see* an album. See `PUBLIC` and `PRIVATE`. */
+export const ACCESS_POLICIES = [PUBLIC, PRIVATE] as const;
+
+export type AccessPolicy = (typeof ACCESS_POLICIES)[number];
+
+const KNOWN_CONTRIBUTE: readonly string[] = CONTRIBUTE_POLICIES;
 
 export function authorize(
   actor: PolicyActor,

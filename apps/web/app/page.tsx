@@ -734,8 +734,29 @@ async function explain(res: Response): Promise<string> {
       return 'This browser has no identity yet. Reload and try again.';
     case 'not_configured':
       return 'This deployment is not finished — it has no database yet. Check /api/health.';
+    case 'sign_in_required':
+      return 'Sign in first — an album belongs to an account.';
+    case 'too_many_requests':
+      return 'That is a lot of albums at once. Wait a moment and try again.';
   }
-  return res.status >= 500
-    ? `The server failed (${res.status}). Check /api/health for what is missing.`
+  if (res.status >= 500) {
+    return `The server failed (${res.status}). Check /api/health for what is missing.`;
+  }
+  /*
+   * The code, where there is one and no wording for it.
+   *
+   * This said "Could not create the album (400)" and stopped, which is a
+   * sentence with the useful half removed: the server had already named the
+   * problem and the number was all that reached the screen. What it hid was
+   * `invalid_contribute_policy` — the route refusing "Only me" because its
+   * list of policies had gone stale — and a bare 400 sent somebody looking at
+   * their own form for a mistake that was not in it.
+   *
+   * Every case above is a sentence because somebody can act on it. The rest
+   * are for whoever is going to read them in a report, so they are shown as
+   * they are rather than translated into a friendlier nothing.
+   */
+  return body.error
+    ? `Could not create the album (${res.status}: ${body.error}).`
     : `Could not create the album (${res.status}).`;
 }

@@ -16,6 +16,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import {
+  CONTRIBUTE_CREATOR,
+  CONTRIBUTE_POLICIES,
+  PRIVATE,
+  PUBLIC,
+} from '@parea/core';
+
+import { contributeOptions } from '../app/components/ContributeChoice';
 import { parseWindow } from '../src/eventwindow';
 
 const source = readFileSync(
@@ -291,13 +299,52 @@ describe('the access policy a creator chooses', () => {
   });
 
   it('refuses anything that is not one it offers', () => {
-    // Checked against a named list rather than a chain of `!==`. The list is
-    // two long now and the check does not care: a policy that leaves is one
-    // fewer name here, and the old values fall through to the 400 rather than
-    // reaching a column `authorize` would fail closed on.
+    /*
+     * Checked against the one exported list rather than a copy of it. It was a
+     * copy, for both policies, and the contribute one went stale: migration
+     * 0034 made `creator` a value the column holds and neither write path was
+     * told, so "Only me" answered 400 on creation and on change.
+     *
+     * A policy that arrives or leaves is now one edit in `policy.ts`, which is
+     * also where `authorize` reads it.
+     */
     expect(source).toContain("error: 'invalid_access_policy'");
-    expect(source).toMatch(/const OFFERED = \[PUBLIC, PRIVATE\]/);
-    expect(source).toMatch(/!OFFERED\.includes\(/);
+    expect(source).toMatch(/ACCESS_POLICIES\.includes\(/);
+    expect(source).not.toMatch(/const OFFERED = \[/);
+  });
+
+  it('accepts every contribute policy the form offers, `creator` included', () => {
+    /*
+     * The bug this is here to stop coming back, stated as it happened.
+     *
+     * `ContributeChoice` offers "Only me" — second on a public album, first on
+     * a private one — and both routes refused it, because each had its own
+     * three-name list and `creator` was not in either. The create form had no
+     * wording for `invalid_contribute_policy`, so what somebody saw was
+     * "Could not create the album (400)."
+     */
+    expect(source).toMatch(/CONTRIBUTE_POLICIES\.includes\(/);
+    expect(source).not.toMatch(/const CONTRIBUTE_OFFERED = \[/);
+    expect(CONTRIBUTE_POLICIES).toContain(CONTRIBUTE_CREATOR);
+    // Every value the picker can produce has to be one the routes take.
+    for (const option of [...contributeOptions(PUBLIC), ...contributeOptions(PRIVATE)]) {
+      expect(CONTRIBUTE_POLICIES, `${option.value} is offered`).toContain(option.value);
+    }
+  });
+
+  it('keeps `creator` a value the column may hold', () => {
+    /*
+     * The list on the column is a TypeScript narrowing over plain `text` — no
+     * CHECK, deliberately, because `authorize` fails closed on a value it does
+     * not know. That is what let it go stale silently: migration 0034 wrote
+     * `creator` into rows and the type kept claiming three values, so it was
+     * lying about data that already existed.
+     */
+    const schemaSrc = readFileSync(
+      fileURLToPath(new URL('../../../packages/core/src/schema.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(schemaSrc).toMatch(/enum: \['everyone', 'creator', 'host', 'nobody'\]/);
   });
 
   it('persists the validated value, not the raw body', () => {

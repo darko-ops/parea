@@ -654,8 +654,12 @@ describe('who can see it, changed after the fact', () => {
         'utf8',
       ),
     );
-    expect(route).toMatch(/known\.find\(/);
+    // Against the one exported list, not a copy: the copy is how the contribute
+    // policy came to refuse `creator`, which `authorize` has always handled.
+    expect(route).toMatch(/ACCESS_POLICIES\.find\(/);
     expect(route).toMatch(/invalid_access_policy/);
+    expect(route).toMatch(/CONTRIBUTE_POLICIES\.includes\(/);
+    expect(route).not.toMatch(/!== CONTRIBUTE_/);
     // And it is behind the same door as the rest of that handler. Anchored on
     // the assignment rather than the word: the body is read at the top of the
     // handler, which is before the guard and has to be.

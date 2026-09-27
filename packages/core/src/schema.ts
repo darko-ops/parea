@@ -723,21 +723,40 @@ export const events = pgTable(
      * "nobody at all", and the case somebody actually asks for — *I* put the
      * photographs in and everybody else looks — could not be said.
      *
-     * The three, and they compose with `access_policy` rather than repeating
-     * it. `everyone` defers: whoever can see the album can add to it, which on
-     * a private one is the people in it and on a public one is whoever holds
-     * the link. `host` is the creator and a group's admins. `nobody` closes it
-     * to everybody including the person who made it — an album that is
-     * finished is finished for them too.
+     * They compose with `access_policy` rather than repeating it. `everyone`
+     * defers: whoever can see the album can add to it, which on a private one
+     * is the people in it and on a public one is whoever holds the link.
+     * `creator` is one person's album to add to. `host` is the creator and a
+     * group's admins. `nobody` closes it to everybody including the person who
+     * made it.
+     *
+     * ## `creator` was missing from this list and not from the table
+     *
+     * Migration 0034 retired `nobody` as something anything *writes* — an
+     * album nobody could add to was a dead end people reached by accident and
+     * could not leave, because the setting that would undo it was the one they
+     * had just closed — and moved those rows to `creator`. So the column has
+     * held `creator` since that migration ran, and this list did not.
+     *
+     * Nothing failed loudly, because the list is a TypeScript narrowing and
+     * the column is plain `text`. What it did instead was make the type lie
+     * about rows that already existed, and give the two write paths a wrong
+     * list to copy: both refused `creator`, so "Only me" — the second choice a
+     * public album offers and the first a private one does — answered 400 on
+     * creation and on change.
+     *
+     * `nobody` stays. `authorize` still understands it and a row that kept the
+     * value has to keep behaving as it did; nothing writes it any more.
      *
      * Plain text with no CHECK, for the same reason `access_policy` is:
      * `authorize` denies any value it does not recognise, so an unknown string
      * here closes the album rather than opening it. Which is what makes the
      * migration off the boolean safe in either order — a row not yet backfilled
-     * reads as closed, not as open to all comers.
+     * reads as closed, not as open to all comers. It is also why adding a value
+     * here is a type change and not a migration.
      */
     contributePolicy: text('contribute_policy', {
-      enum: ['everyone', 'host', 'nobody'],
+      enum: ['everyone', 'creator', 'host', 'nobody'],
     })
       .notNull()
       .default('everyone'),
