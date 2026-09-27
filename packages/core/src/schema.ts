@@ -67,15 +67,44 @@ export const signInCodes = pgTable(
     email: text('email').notNull(),
     codeHash: bytea('code_hash').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /**
+     * When this code stopped being outstanding, by either of the two ways.
+     *
+     * Spent — somebody presented it and it was right — or retired, because
+     * asking for a code supersedes whatever the last one was. Both are the same
+     * fact to every read, which all ask `consumed_at is null` and mean "is there
+     * a live code for this address".
+     *
+     * Not distinguished because nothing needs them apart, and one column meaning
+     * "not live" is harder to get wrong than two that have to be checked
+     * together. What matters is that only one row per address can be null at a
+     * time; see `storeCode`.
+     */
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     /**
-     * Wrong guesses against this code. Six digits is a million, but a million
-     * is only a few hours of guessing without a ceiling, and the ceiling has
-     * to be per code rather than per request or a new code resets it.
+     * Wrong guesses against this code. Six digits is a million, and a million is
+     * a few hours of guessing without a ceiling.
+     *
+     * Per code rather than per request, so a wrong guess costs something that
+     * persists. Asking for a fresh code does start a fresh five — carrying the
+     * count forward would spend a mistyping person's budget on a code that is no
+     * longer theirs to guess — so what bounds guessing *across* codes is the mail
+     * budget: `SIGN_IN_ADDRESS_LIMIT` allows five codes an hour per address, and
+     * five tries each makes twenty-five, which is the number the note on
+     * `SIGN_IN_VERIFY_LIMIT` works out.
      */
     attempts: integer('attempts').notNull().default(0),
     createdAt: createdAt(),
   },
+  /*
+   * "The outstanding code for this address", which is the only read.
+   *
+   * `created_at` is in it as a tiebreak for rows written before asking again
+   * began retiring the previous code, and not as the thing that picks one —
+   * `now()` is the transaction timestamp, so it does not order two rows written
+   * together, and a tie there used to leave the code in somebody's inbox as the
+   * one that did not work.
+   */
   (t) => [index('sign_in_code_email_idx').on(t.email, t.createdAt)],
 );
 

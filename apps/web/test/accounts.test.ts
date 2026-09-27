@@ -10,7 +10,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { groupSlug, handleProblem, newLinkToken, normaliseEmail, normaliseSignInCode, newSignInCode, schema } from '@parea/core';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { readFileSync } from 'node:fs';
@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
   accountFor,
   consumeCode,
@@ -166,14 +167,83 @@ describe('presenting a code', () => {
   });
 
   it('only honours the newest, so asking again invalidates the last', async () => {
-    // Otherwise every request widens the window instead of refreshing it, and
-    // three requests means three live secrets in an inbox.
+    /*
+     * Otherwise every request widens the window instead of refreshing it, and
+     * three requests means three live secrets in an inbox.
+     *
+     * The `setTimeout` that used to sit between these two calls is gone, and it
+     * was the tell: correctness depended on the two rows landing in different
+     * milliseconds, because the newest was found by ordering on `created_at` —
+     * which defaults to `now()`, the *transaction* timestamp, so rows written
+     * together tie and the tiebreak is arbitrary. Asking again retires the
+     * previous code now, so there is one outstanding row and nothing to sort.
+     */
     await storeCode(db, SECRET, 'sam@example.com', '111111');
-    await new Promise((r) => setTimeout(r, 5));
     await storeCode(db, SECRET, 'sam@example.com', '222222');
 
     expect((await consumeCode(db, SECRET, 'sam@example.com', '111111')).ok).toBe(false);
     expect((await consumeCode(db, SECRET, 'sam@example.com', '222222')).ok).toBe(true);
+  });
+
+  it('retires the previous code rather than leaving it live', async () => {
+    /*
+     * The fix stated without reference to ordering: after asking twice there is
+     * exactly one row anybody could still present. A sort was how the old code
+     * *guessed* at this, and when the guess went the other way the code in
+     * somebody's inbox was the one that did not work — which the screen reported
+     * as an expired code, sending them to ask for another.
+     */
+    await storeCode(db, SECRET, 'sam@example.com', '111111');
+    await storeCode(db, SECRET, 'sam@example.com', '222222');
+
+    const live = await db
+      .select()
+      .from(schema.signInCodes)
+      .where(
+        and(
+          eq(schema.signInCodes.email, 'sam@example.com'),
+          isNull(schema.signInCodes.consumedAt),
+        ),
+      );
+    expect(live).toHaveLength(1);
+  });
+
+  it('leaves no second live code once one has been spent', async () => {
+    /*
+     * Reachable where two requests raced, and where rows written before retiring
+     * are still sitting in pairs. Leaving one live leaves a second secret in an
+     * inbox that still signs somebody in — which is the thing `consumeCode` has
+     * always said it does not do.
+     */
+    await db.insert(schema.signInCodes).values({
+      email: 'sam@example.com',
+      codeHash: Buffer.from('stale'),
+      expiresAt: new Date(Date.now() + CODE_TTL_MS),
+    });
+    await storeCode(db, SECRET, 'sam@example.com', '222222');
+
+    expect((await consumeCode(db, SECRET, 'sam@example.com', '222222')).ok).toBe(true);
+
+    const live = await db
+      .select()
+      .from(schema.signInCodes)
+      .where(
+        and(
+          eq(schema.signInCodes.email, 'sam@example.com'),
+          isNull(schema.signInCodes.consumedAt),
+        ),
+      );
+    expect(live).toEqual([]);
+  });
+
+  it('keeps one address out of another address codes', async () => {
+    // Retiring is scoped to the address asked about. Somebody signing in must
+    // not invalidate a code sitting in a different person's inbox.
+    await storeCode(db, SECRET, 'sam@example.com', '111111');
+    await storeCode(db, SECRET, 'other@example.com', '222222');
+
+    expect((await consumeCode(db, SECRET, 'sam@example.com', '111111')).ok).toBe(true);
+    expect((await consumeCode(db, SECRET, 'other@example.com', '222222')).ok).toBe(true);
   });
 });
 

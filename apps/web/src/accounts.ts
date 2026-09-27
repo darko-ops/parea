@@ -57,10 +57,43 @@ export async function storeCode(
   code: string,
   now = new Date(),
 ): Promise<void> {
-  await db.insert(schema.signInCodes).values({
-    email,
-    codeHash: hashCode(secret, email, code),
-    expiresAt: new Date(now.getTime() + CODE_TTL_MS),
+  /*
+   * Asking again retires the last code. It does not add a second one.
+   *
+   * `consumeCode` wanted "the newest outstanding code for this address" and got
+   * it by ordering on `created_at`, which is not a total order: the column
+   * defaults to `now()`, and `now()` in Postgres is the *transaction* timestamp,
+   * so two rows written close enough together tie and the tiebreak is whatever
+   * the planner felt like. Its own doc said asking again "should invalidate the
+   * previous one", and nothing did — a sort is a guess about which row is
+   * newest, not an act that retires the other.
+   *
+   * What the guess costs when it goes wrong: the code in somebody's inbox is not
+   * the one that works, and the screen tells them it did not work and that codes
+   * expire after ten minutes. So they ask for another, from a mail budget of five
+   * an hour per address.
+   *
+   * The phone twin of this is `startVerification`, where the same tie decided
+   * which number somebody had just proved. Same shape, same fix.
+   *
+   * In a transaction, because the two halves are one act: retiring without
+   * inserting leaves somebody with nothing that works. Read-committed is enough
+   * — two concurrent requests could still both insert, which is why the read
+   * below keeps its ordering as a fallback rather than dropping it.
+   */
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.signInCodes)
+      .set({ consumedAt: now })
+      .where(
+        and(eq(schema.signInCodes.email, email), isNull(schema.signInCodes.consumedAt)),
+      );
+
+    await tx.insert(schema.signInCodes).values({
+      email,
+      codeHash: hashCode(secret, email, code),
+      expiresAt: new Date(now.getTime() + CODE_TTL_MS),
+    });
   });
 }
 
@@ -71,10 +104,22 @@ export type CodeCheck =
 /**
  * Checks a code and consumes it.
  *
- * Only the newest outstanding code for an address is considered. Asking again
- * should invalidate the previous one — otherwise every request widens the
- * window rather than refreshing it, and a person who requested three codes has
- * three live secrets in three inboxes.
+ * At most one code is outstanding per address, because `storeCode` retires the
+ * previous one as it writes the next — so every request refreshes the window
+ * rather than widening it, and somebody who asked three times has one live
+ * secret rather than three sitting in an inbox.
+ *
+ * That used to be this comment's claim and an ordering's approximation of it.
+ * "The newest outstanding code" meant "whichever of several rows a sort on a
+ * non-unique timestamp happened to return", and when it returned the wrong one
+ * the code in somebody's inbox simply did not work.
+ *
+ * The ordering stays as a fallback rather than a mechanism: two concurrent
+ * requests under read-committed could still write two rows, and rows that
+ * predate the change above can be sitting in the table in pairs. Newest-wins is
+ * the right guess for both, and success below retires every outstanding row for
+ * the address rather than only the one it read, so the state collapses to one the
+ * first time anybody signs in.
  */
 export async function consumeCode(
   db: Db,
@@ -87,6 +132,8 @@ export async function consumeCode(
     .select()
     .from(schema.signInCodes)
     .where(and(eq(schema.signInCodes.email, email), isNull(schema.signInCodes.consumedAt)))
+    // See the header: a fallback for rows that predate retiring, not the thing
+    // that picks the code.
     .orderBy(desc(schema.signInCodes.createdAt))
     .limit(1);
 
@@ -109,10 +156,21 @@ export async function consumeCode(
     return { ok: false, reason: 'wrong' };
   }
 
+  /*
+   * Every outstanding row for this address, not only the one just read.
+   *
+   * A code that has been spent settles the request it belonged to, so any other
+   * live row for the address — one from two requests that raced, or a pair
+   * written before `storeCode` began retiring — has been answered too. Leaving
+   * one live leaves a second secret in an inbox that still signs somebody in,
+   * which is the thing this function's header has always said it does not do.
+   */
   await db
     .update(schema.signInCodes)
     .set({ consumedAt: now })
-    .where(eq(schema.signInCodes.id, row.id));
+    .where(
+      and(eq(schema.signInCodes.email, email), isNull(schema.signInCodes.consumedAt)),
+    );
   return { ok: true, email };
 }
 

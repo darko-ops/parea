@@ -125,10 +125,15 @@ export const SIGN_IN_ADDRESS_LIMIT: Limit = {
  * either. Testing the sign-in screen for ten minutes was enough to do it.
  *
  * Guessing is already bounded, and bounded better, by `MAX_CODE_ATTEMPTS`:
- * five tries *per code*, counted on the row so a fresh code cannot reset it.
- * What that cannot see is one source spraying guesses across many addresses,
- * because every address is a new row with a new allowance. This is that, and
- * nothing else.
+ * five tries *per code*, counted on the row so a wrong guess costs something
+ * that persists. A fresh code does start a fresh five — carrying the count
+ * forward would spend a mistyping person's budget on a code that is no longer
+ * theirs to guess — which is why the ceiling below is worked out from the *mail*
+ * budget rather than from the attempt counter alone.
+ *
+ * What neither of those can see is one source spraying guesses across many
+ * addresses, because every address is a new row with a new allowance. This is
+ * that, and nothing else.
  *
  * Thirty an hour is past anything honest — five codes is all one address can
  * receive in an hour and each allows five tries, so twenty-five is the ceiling
