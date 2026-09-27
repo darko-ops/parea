@@ -282,3 +282,64 @@ const HEIF_BRANDS = new Set([
  * hundred photographs should change it — that is what chunking is for.
  */
 export const MAX_FILES_PER_PRESIGN = 50;
+
+/**
+ * The biggest single file the presign route will sign for.
+ *
+ * Here rather than in the route for `MAX_FILES_PER_PRESIGN`'s reason: it is a
+ * rule the client has to know in order to *not* send something, and a rule
+ * stated in one place and enforced in another is one the two ends eventually
+ * disagree about.
+ */
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/** Longer than any filename a camera or a phone produces. */
+export const MAX_UPLOAD_NAME = 512;
+
+/**
+ * The type a browser's `File` will actually be uploaded as.
+ *
+ * Browsers routinely fail to type a HEIC — an iPhone photograph through the
+ * file dialog on Windows, or on some Android builds — and hand back an empty
+ * string. That is not a rejection: the deriver reads the real format out of
+ * the bytes and corrects the row, so the declared type only has to be
+ * something the route accepts. JPEG is the guess, and it is wrong in a way
+ * that costs nothing.
+ *
+ * Refusing an untyped file instead would turn "we could not guess" into "you
+ * may not upload your iPhone photos".
+ */
+export function sendableMime(type: string): AcceptedMime | null {
+  return type === '' ? 'image/jpeg' : acceptedMime(type);
+}
+
+/** Why the presign route would refuse this file, or null if it would not. */
+export type Refusal = 'empty' | 'too_big' | 'named' | 'type';
+
+/**
+ * The client's mirror of what `parseFiles` will do, per file.
+ *
+ * It exists because that route answers **null for the whole request** rather
+ * than a short list — deliberately, so nothing half-succeeds and no row is
+ * written for a batch that was refused. The cost of that choice is that one
+ * unacceptable file loses every file beside it, which is why both pickers
+ * filter before sending: a video dropped alongside two hundred photographs
+ * should cost the video.
+ *
+ * The filter checked the type and not the size, and that is the gap this
+ * closes. A `File` can be zero bytes and perfectly well typed — a folder
+ * dropped instead of its contents, a cloud file the OS never materialised, a
+ * photograph moved between the dialog and the upload — and every one of those
+ * took the whole batch down with a 400 that said only `invalid_files`.
+ *
+ * The native client cannot hit this: it copies each asset into its own sandbox
+ * and reads the size off the copy, so a file it cannot read fails as one file.
+ * That is why the same four photographs went up from the app and not the site.
+ */
+export function refuseFile(file: { name: string; size: number; type: string }): Refusal | null {
+  if (file.name.length > MAX_UPLOAD_NAME) return 'named';
+  if (!Number.isFinite(file.size) || file.size <= 0) return 'empty';
+  if (file.size > MAX_UPLOAD_BYTES) return 'too_big';
+  if (!sendableMime(file.type)) return 'type';
+  return null;
+}

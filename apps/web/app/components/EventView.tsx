@@ -29,7 +29,7 @@
 import { ago } from '@parea/cards';
 import { CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
 import type { Message } from '@/messages';
-import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
+import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
@@ -465,14 +465,14 @@ export function EventView({
        * request if any one file is unacceptable, so without this a single
        * video dropped alongside two hundred photos loses all two hundred.
        *
-       * An empty `type` is not a rejection. Browsers routinely fail to type a
-       * HEIC, and the deriver reads the real format out of the bytes anyway;
-       * refusing those would turn "we could not guess" into "you may not
-       * upload your iPhone photos".
+       * `refuseFile` rather than a type check written here, because a type
+       * check written here is what this was, and it missed the size. A zero-
+       * byte `File` is well typed and perfectly ordinary — a folder dropped
+       * instead of its contents, a cloud file the OS never materialised — and
+       * it took the whole batch down with it. An empty `type` is still not a
+       * rejection; see `sendableMime`.
        */
-      const usable = picked.filter(
-        (file) => file.type === '' || acceptedMime(file.type) !== null,
-      );
+      const usable = picked.filter((file) => refuseFile(file) === null);
       setSkipped(picked.length - usable.length);
 
       if (usable.length > 0) await uploads.add(usable);

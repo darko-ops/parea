@@ -11,6 +11,7 @@
 import {
   SourceGone,
   UploadQueue,
+  sendableMime,
   type Deps,
   type QueueItem,
   type QueueState,
@@ -61,11 +62,13 @@ export function describe(eventId: string, file: File): NewFile & {
       name: file.name,
       size: file.size,
       // Browsers leave `type` empty for formats they do not recognise, HEIC
-      // among them on some Android builds — and the presign route rejects an
-      // empty MIME. Guessing JPEG is wrong for a HEIC, but the deriver reads
-      // the real type from the bytes and corrects the row, so the guess only
-      // has to get past validation.
-      mime: file.type || 'image/jpeg',
+      // among them — and the presign route rejects an empty MIME. The guess is
+      // JPEG and it is wrong for a HEIC, but the deriver reads the real type
+      // from the bytes and corrects the row, so it only has to get past
+      // validation. `sendableMime` is that rule, shared with the filter that
+      // decides whether this file is sent at all — the two have to agree about
+      // an untyped file or the picker keeps one the route then refuses.
+      mime: sendableMime(file.type) ?? 'image/jpeg',
     },
   };
 }

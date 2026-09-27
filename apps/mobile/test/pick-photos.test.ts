@@ -228,7 +228,9 @@ describe('the size that made them fail', () => {
       ),
       'utf8',
     );
-    expect(route).toMatch(/size <= 0\) return null/);
+    // It says which file and why now, rather than `null` for six different
+    // conditions — but zero is still refused, which is what this pins.
+    expect(route).toMatch(/size <= 0\) \{\s*\n\s*return \{ reason: 'empty_file'/);
   });
 });
 

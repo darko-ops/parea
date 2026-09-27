@@ -6,7 +6,7 @@
  */
 
 import { schema } from '@parea/core';
-import { acceptedMime, MAX_FILES_PER_PRESIGN } from '@parea/upload';
+import { acceptedMime, MAX_FILES_PER_PRESIGN, MAX_UPLOAD_BYTES, MAX_UPLOAD_NAME } from '@parea/upload';
 import { and, count, eq, isNull, sum } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -28,7 +28,9 @@ export const runtime = 'nodejs';
  * more than anyone brings back from a party, and if someone hits one it is
  * worth knowing rather than silently allowing.
  */
-const MAX_BYTES_PER_FILE = 200 * 1024 * 1024;
+// The client has to know this to skip a file rather than send one the route
+// will refuse, so it is shared — see `MAX_UPLOAD_BYTES`.
+const MAX_BYTES_PER_FILE = MAX_UPLOAD_BYTES;
 const MAX_PHOTOS_PER_ACTOR_PER_EVENT = 500;
 const MAX_BYTES_PER_ACTOR_PER_EVENT = 5 * 1024 * 1024 * 1024;
 
@@ -63,8 +65,13 @@ export async function POST(
     displayName?: unknown;
   };
 
-  const files = parseFiles(body.files);
-  if (!files) return NextResponse.json({ error: 'invalid_files' }, { status: 400 });
+  const parsed = parseFiles(body.files);
+  if (!Array.isArray(parsed)) {
+    // `invalid_files` stays the error, because that is what clients switch on.
+    // Everything beside it is new and is there to be read.
+    return NextResponse.json({ error: 'invalid_files', ...parsed }, { status: 400 });
+  }
+  const files = parsed;
 
   const db = getDb();
 
@@ -213,8 +220,26 @@ async function used(
   return { photos: row?.photos ?? 0, bytes: Number(row?.bytes ?? 0) };
 }
 
-function parseFiles(value: unknown): FileRequest[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null;
+/**
+ * The refused request, said in enough detail to act on.
+ *
+ * It was the bare string `invalid_files` for six different conditions, and the
+ * note above already regretted that the uploader "had no way to know why".
+ * That cost a real morning: four photographs, a 400, and nothing anywhere
+ * saying which of the four or what was wrong with it.
+ *
+ * Both clients filter before sending — see `refuseFile` — so reaching this is
+ * either a client that has drifted or one nobody here wrote. Either way the
+ * answer belongs in the response rather than in somebody's afternoon.
+ *
+ * The name is echoed and nothing else is: it came from the caller, it is the
+ * one thing that identifies which file, and it is already theirs.
+ */
+type Refused = { reason: string; at: number; name?: string };
+
+function parseFiles(value: unknown): FileRequest[] | Refused {
+  if (!Array.isArray(value)) return { reason: 'not_a_list', at: -1 };
+  if (value.length === 0) return { reason: 'no_files', at: -1 };
   /*
    * The same constant the queue chunks by, imported rather than restated.
    *
@@ -224,22 +249,37 @@ function parseFiles(value: unknown): FileRequest[] | null {
    * written and nothing partially succeeds — and the uploader had no way to
    * know why. See `MAX_FILES_PER_PRESIGN`.
    */
-  if (value.length > MAX_FILES_PER_PRESIGN) return null;
+  if (value.length > MAX_FILES_PER_PRESIGN) {
+    return { reason: 'too_many_files', at: -1 };
+  }
 
   const out: FileRequest[] = [];
-  for (const raw of value) {
-    if (typeof raw !== 'object' || raw === null) return null;
+  for (const [at, raw] of value.entries()) {
+    if (typeof raw !== 'object' || raw === null) return { reason: 'not_a_file', at };
     const { name, size, type } = raw as Record<string, unknown>;
-    if (typeof name !== 'string' || name.length > 512) return null;
-    if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) return null;
-    if (size > MAX_BYTES_PER_FILE) return null;
+    const named = typeof name === 'string' ? name : undefined;
+    if (typeof name !== 'string') return { reason: 'no_name', at };
+    if (name.length > MAX_UPLOAD_NAME) return { reason: 'name_too_long', at, name: named };
+    /*
+     * Zero is the one that actually happened.
+     *
+     * A browser hands back a well-typed `File` of no bytes for a folder
+     * dropped instead of its contents, for a cloud file the OS never
+     * materialised, and for a photograph moved between the dialog and the
+     * upload. The presign signs a `content-length`, so a file of no length has
+     * nothing to sign and nothing to send.
+     */
+    if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) {
+      return { reason: 'empty_file', at, name: named };
+    }
+    if (size > MAX_BYTES_PER_FILE) return { reason: 'file_too_big', at, name: named };
     // The authoritative check. A picker that hides videos is a courtesy; this
     // is what makes it true, because anything can POST here — and what gets
     // past it is stored, quota'd, and then fails in the deriver where nobody
     // is watching.
-    if (typeof type !== 'string') return null;
+    if (typeof type !== 'string') return { reason: 'no_type', at, name: named };
     const mime = acceptedMime(type);
-    if (!mime) return null;
+    if (!mime) return { reason: 'unacceptable_type', at, name: named };
     out.push({ name, size, type: mime });
   }
   return out;

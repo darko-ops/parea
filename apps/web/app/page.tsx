@@ -1,6 +1,6 @@
 'use client';
 
-import { ACCEPT_ATTRIBUTE, acceptedMime } from '@parea/upload';
+import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -130,11 +130,12 @@ export default function CreatePage() {
   const router = useRouter();
 
   const pick = useCallback((files: File[]) => {
-    // Same filter as the event page: `accept` is advice that a drop or "All
-    // Files" gets past, and the presign endpoint refuses the whole batch if one
-    // file is unacceptable. An empty type is not a rejection — browsers
-    // routinely fail to type a HEIC.
-    const usable = files.filter((f) => f.type === '' || acceptedMime(f.type) !== null);
+    // Same filter as the event page, and the same function rather than the
+    // same idea written twice: `accept` is advice that a drop or "All Files"
+    // gets past, and the presign endpoint refuses the whole batch if one file
+    // is unacceptable — including one that is zero bytes. An empty type is
+    // still not a rejection; see `sendableMime`.
+    const usable = files.filter((f) => refuseFile(f) === null);
     setSkipped(files.length - usable.length);
     setPicked((current) => {
       // Picking twice adds rather than replaces, and picking the same photo

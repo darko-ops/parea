@@ -38,6 +38,11 @@ export {
   type DecoderRegistry,
   MAX_INPUT_PIXELS,
   MAX_FILES_PER_PRESIGN,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_NAME,
+  sendableMime,
+  refuseFile,
+  type Refusal,
   type AcceptedMime,
 } from './accepted';
 
