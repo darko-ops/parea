@@ -309,13 +309,22 @@ export function FindFriendsView() {
                     the line directly beneath it. The app places it identically —
                     one campaign covers both clients, and a screenshot of one is
                     submitted as evidence for the other.
+
+                    It *asks* rather than describes, and that is a correction. It
+                    used to open "Tapping this sends you one text…", which states
+                    a fact about what the button does — true, and not consent. A
+                    carrier reviewing it said so: the opt-in has to show somebody
+                    agreeing to receive text messages rather than merely being
+                    told that some will arrive. "You agree to receive" is the
+                    difference, and naming the button in the sentence is what ties
+                    the agreement to the act.
                   */}
                   <p className="muted sms-consent">
-                    Tapping this sends you one text from Parea with a code in it.
-                    One message, not a subscription &mdash; we have nothing else
-                    to text you about, and there is nothing to unsubscribe from.
-                    Your carrier may charge you for it. See our{' '}
-                    <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.
+                    By tapping &ldquo;Send me a code&rdquo; you agree to receive
+                    one text message from Parea containing a verification code.
+                    One message per request, not a subscription. Message and data
+                    rates may apply. See our <a href="/terms">Terms</a> and{' '}
+                    <a href="/privacy">Privacy</a>.
                   </p>
                 </>
               ) : (

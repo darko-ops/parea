@@ -196,7 +196,9 @@ export default function TermsPage() {
             What happens to the number itself &mdash; that it is never stored as
             digits, never shown to anybody, and never shared for anyone&rsquo;s
             marketing &mdash; is set out on the{' '}
-            <a href="/privacy">privacy page</a>.
+            <a href="/privacy">privacy page</a>. The message, the words you agree
+            to before it is sent, and everything above restated in one place are
+            on <a href="/texts">the text messages page</a>.
           </p>
         </section>
 

@@ -39,6 +39,19 @@ export function SiteFooter() {
         <a href="/safety">Safety and reporting</a>
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
+        {/*
+          A fourth link, for a page most visitors have no reason to open.
+
+          It is here because of who else reads this footer. The screen that asks
+          for a phone number is behind a sign-in, and a carrier reviewing the
+          messaging campaign needs a *publicly reachable* page showing the
+          opt-in wording — a URL handed over in a form is evidence a reviewer
+          cannot confirm is part of the site, and an unlinked page is one a
+          crawler never sees. This footer is on `/`, the one indexable page, so
+          a link here is what makes `/texts` part of the product rather than an
+          address.
+        */}
+        <a href="/texts">Text messages</a>
       </footer>
     </>
   );

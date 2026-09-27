@@ -348,16 +348,22 @@ export function FindFriends({
                         differently is a screenshot of one that does not evidence
                         the other, and one campaign covers both.
 
+                        It *asks* rather than describes, which is a correction a
+                        carrier made for us. "Tapping this sends you one text…"
+                        states a fact about the button; consent has to be somebody
+                        agreeing to receive messages, not being told some will
+                        arrive. Naming the button inside the sentence is what ties
+                        the agreement to the act.
+
                         The two links open a browser, the way Settings opens the
                         safety page: these are the product's own published
                         documents and there is no version of them in the app.
                       */}
                       <Text style={[styles.hint, { color: t.dim }]}>
-                        Tapping this sends you one text from Parea with a code in
-                        it. One message, not a subscription — we have nothing
-                        else to text you about, and there is nothing to
-                        unsubscribe from. Your carrier may charge you for it. See
-                        our{' '}
+                        By tapping “Send me a code” you agree to receive one text
+                        message from Parea containing a verification code. One
+                        message per request, not a subscription. Message and data
+                        rates may apply. See our{' '}
                         <Text
                           style={[styles.link, { color: t.accent }]}
                           onPress={() => void Linking.openURL('https://parea.photos/terms')}

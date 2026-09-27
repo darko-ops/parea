@@ -346,6 +346,11 @@ export default function PrivacyPage() {
             not so that we can look through your phone.
           </p>
 
+          <p className="muted">
+            The message itself, and the words you agree to before it is sent, are
+            quoted in full on <a href="/texts">the text messages page</a>.
+          </p>
+
           <h3>That your number was checked, and when</h3>
           <p className="muted">
             A number only counts once a code sent to it comes back, so we keep
