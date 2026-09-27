@@ -446,17 +446,48 @@ describe('what a recent row and a group chip are drawn as', () => {
 
   it('draws a room as the mark it wears everywhere else', () => {
     /*
-     * The chip drew `initial(group.name)` for every room, so one nobody has
-     * named was three faces on the chat list and in the app, and a grey
-     * initial here. `RoomMark` is that drawing, and this is the third screen
-     * to wear it.
+     * It drew `initial(group.name)` for every room, so one nobody has named
+     * was three faces on the chat list and in the app, and a grey initial
+     * here. `RoomMark` is that drawing, and this is the third screen to wear
+     * it.
      */
     expect(VIEW).toMatch(/<RoomMark/);
-    expect(VIEW).toMatch(/className="group-chip-mark"/);
-    expect(CSS).not.toMatch(/\.group-chip-mark \{[^}]*border-radius: 50%/);
+    expect(VIEW).toMatch(/className="room-door-mark"/);
     // Fed from the server, which signs the pictures only where they are drawn.
     expect(PAGE).toMatch(/groupsFor\(db, actorId, \{ deck: true \}\)/);
     expect(PAGE).toMatch(/deck: g\.deck/);
+  });
+
+  it('draws your rooms as a shelf, the way the app does', () => {
+    /*
+     * They were pills, and a row of pills on this page reads as a row of
+     * scopes — the same shape the filters use eighty pixels above, for the one
+     * list here that goes somewhere. A long name stretched its chip across
+     * half the row, so the shelf had no rhythm, and `Admin` was the loudest
+     * word on most of them.
+     *
+     * A door is a square with the name under it, at the column's full width
+     * and two lines, because the names are what a reader scans.
+     */
+    expect(VIEW).toMatch(/className="room-doors"/);
+    expect(VIEW).toMatch(/className="room-door"/);
+    expect(VIEW).not.toMatch(/group-chip/);
+    expect(CSS).toMatch(/\.room-doors \{[^}]*repeat\(auto-fill/);
+    expect(CSS).toMatch(/\.room-door-name \{[^}]*-webkit-line-clamp: 2/);
+    // The role has not gone, it has stopped being furniture.
+    expect(VIEW).toMatch(/aria-label=\{`\$\{group\.name\}, \$\{group\.role === 'admin'/);
+  });
+
+  it('does not collide with the doors this page already had', () => {
+    /*
+     * `.door` on this page is the card for a group you could ask *into*. The
+     * shelf is rooms that are already yours, and naming both `door` put two
+     * different things under one rule — which is what the first version of
+     * this did, and what the grid above silently redefined.
+     */
+    expect(CSS).toMatch(/\.doors \{ display: grid; grid-template-columns: repeat\(2/);
+    expect(VIEW).toMatch(/<div className="doors">/);
+    expect(CSS).not.toMatch(/\.room-doors[\s\S]{0,400}\n\.door \{/);
   });
 
   it('does not make the app pay for a deck it does not draw', () => {

@@ -2204,8 +2204,10 @@ export function SearchTab({
 
   const forgetAll = useCallback(() => {
     setRecent([]);
+    setFaces({});
     void forgetSearches();
   }, []);
+
 
   const loadMine = useCallback(async () => {
     const [rooms, found, people] = await Promise.all([
@@ -2306,6 +2308,53 @@ export function SearchTab({
 
   const unplaced = events.filter((event) => !event.place).length;
   const asked = query.trim().length >= 2;
+
+  /*
+   * The faces for those rows, asked for rather than remembered.
+   *
+   * What is kept on the phone is a handle and a name. A presigned URL written
+   * beside them would be a blank square within the hour, which is why these
+   * rows drew a letter and nothing else — a reason not to store one, not a
+   * reason to have no face. `facesFor` asks for the whole list at once and the
+   * stored shape is untouched.
+   *
+   * Keyed on the handles rather than on `recent` itself: the array is replaced
+   * whenever somebody opens a person, and depending on it would re-ask for the
+   * same ten faces every time the list reordered. Only while it is on screen —
+   * `asked` hides the section — because a request for faces nobody is looking
+   * at is disclosure bought for nothing.
+   */
+  const [faces, setFaces] = useState<Record<string, string | null>>({});
+  const wantedFaces = recent
+    .filter((entry) => entry.kind === 'person')
+    .map((entry) => (entry as { handle: string }).handle.toLowerCase())
+    .sort()
+    .join(',');
+  const askedFaces = useRef('');
+
+  useEffect(() => {
+    if (asked || !wantedFaces || askedFaces.current === wantedFaces) return;
+    askedFaces.current = wantedFaces;
+    let alive = true;
+    void api
+      .facesFor(wantedFaces.split(','))
+      .then((people) => {
+        if (!alive) return;
+        setFaces(
+          Object.fromEntries(
+            people
+              .filter((person) => person.handle)
+              .map((person) => [person.handle!.toLowerCase(), person.avatar]),
+          ),
+        );
+      })
+      // A face is decoration on a row that already has a name. Nothing is said
+      // about a lookup that did not answer; the letter is what stays.
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [api, asked, wantedFaces]);
 
   /*
    * Which of this person's rooms are rooms.
@@ -2543,14 +2592,20 @@ export function SearchTab({
 
                 This row was the end of a search, so pressing it should end the
                 same way rather than refilling the field with the prefix that
-                got there. The letter sits on their own lens — the colour a
-                handle hashes to, which is the colour they wear on every other
-                screen — rather than on their picture: an avatar is presigned
-                for an hour, so one kept here would be a blank square tomorrow.
+                got there.
+
+                Their picture, and the letter on their own lens where there is
+                none — the colour a handle hashes to, which is the colour they
+                wear on every other screen. It drew the letter always, and the
+                reason recorded here was that an avatar is presigned for an
+                hour so one kept would be a blank square tomorrow. That is a
+                reason not to *store* one: nothing stored has changed, and the
+                faces are asked for when the list draws. See `faces`.
               */
               const person = entry.kind === 'person';
               const label = person ? entry.name : entry.term;
               const lens = person ? lensFor(entry.handle) : null;
+              const shot = person ? (faces[entry.handle.toLowerCase()] ?? null) : null;
               return (
                 <Pressable
                   key={person ? `p:${entry.handle}` : `t:${entry.term}`}
@@ -2567,13 +2622,21 @@ export function SearchTab({
                     { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  {lens && (
-                    <View style={[styles.recentFace, { backgroundColor: lens.fill }]}>
-                      <Text style={[styles.recentLetter, { color: lens.ink }]}>
-                        {initialOf(label)}
-                      </Text>
-                    </View>
-                  )}
+                  {lens &&
+                    (shot ? (
+                      <Image
+                        source={{ uri: shot }}
+                        style={styles.recentFace}
+                        contentFit="cover"
+                        transition={120}
+                      />
+                    ) : (
+                      <View style={[styles.recentFace, { backgroundColor: lens.fill }]}>
+                        <Text style={[styles.recentLetter, { color: lens.ink }]}>
+                          {initialOf(label)}
+                        </Text>
+                      </View>
+                    ))}
                   <Text style={[styles.recentText, { color: t.fg }]} numberOfLines={1}>
                     {label}
                   </Text>
@@ -4240,11 +4303,34 @@ const styles = StyleSheet.create({
   /* What was typed before, as chips that wrap. The same bordered pill the
      scope chips above wear, at the size of a word rather than a control. */
   recentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  /* A term stays a lozenge: it is a word, not a thing. */
   recentChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
   /* A person's chip carries their lens, so the row is tighter on the left and
      laid out across rather than as one string. */
-  recentPerson: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingLeft: 7 },
-  recentFace: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  /* A person is squared, at the 12 every tile in this app wears.
+
+     A row of lozenges made every entry read as a *term*, including the ones
+     that are people — and the row is mostly people, because opening somebody
+     is the commonest way a search ends. The corner is what tells the two
+     kinds apart before either is read. */
+  recentPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingLeft: 7,
+    borderRadius: 12,
+  },
+  /* Their picture, or the letter on their lens. Squared for the same reason
+     the chip is, and `overflow: 'hidden'` because it is what the photograph is
+     clipped to. */
+  recentFace: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   recentLetter: { fontSize: 11, fontWeight: '700' },
   recentText: { fontSize: 14, maxWidth: 220 },
   placeEvent: { paddingVertical: 6, paddingLeft: 50 },

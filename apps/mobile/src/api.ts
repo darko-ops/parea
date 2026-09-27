@@ -1879,6 +1879,32 @@ export class Api {
   }
 
   /**
+   * Faces for handles this phone already holds.
+   *
+   * The recent-search list is kept on the device and holds a handle and a
+   * name, never a picture: an avatar is presigned for an hour, so one written
+   * there would be a blank square by tomorrow. That is why those rows drew a
+   * letter, and it is a reason not to *store* a URL rather than a reason not
+   * to show a face — so the list asks for fresh ones when it draws.
+   *
+   * The same endpoint and the same shape as `findPeople`, by the same door:
+   * the route answers through `profileFor`, which is where "who may see this
+   * person" is decided for `/u/<handle>` and for `/api/people/<handle>` too. A
+   * face is nothing this can open that a profile would not.
+   *
+   * Ten at most, which is what the list holds. Somebody who has gone — blocked,
+   * merged, deleted — is simply absent from the answer, and the row keeps the
+   * letter it already had.
+   */
+  async facesFor(handles: string[]): Promise<InvitablePerson[]> {
+    if (handles.length === 0) return [];
+    const { people } = await this.call<{ people: InvitablePerson[] }>(
+      `/api/people?handles=${encodeURIComponent(handles.join(','))}`,
+    );
+    return people;
+  }
+
+  /**
    * Your friends, which is the list a picker opens with.
    *
    * Search finds anybody by handle; this is the half somebody does not have to

@@ -227,15 +227,64 @@ describe('what the page says it can reach', () => {
 describe('what the box remembers', () => {
   const PLATFORM = read('src/platform.ts');
 
-  it('keeps ten on this phone and sends none of them anywhere', () => {
+  it('keeps ten on this phone, and sends only the handles it draws faces for', () => {
     /*
      * A search term is a sentence about who somebody was looking for, and this
-     * product keeps none: no table, no request, no field. The list is held by
-     * the device that typed it.
+     * product keeps none: no table, no field, nothing written off the device
+     * that typed it.
+     *
+     * ## What narrowed, and what did not
+     *
+     * This asserted that *nothing* goes anywhere, and that is no longer true
+     * in one exact way: the person rows draw a picture now, and a picture has
+     * to be fetched because a presigned URL cannot be stored — it is a blank
+     * square within the hour. So the handles on those rows go up, once, while
+     * the list is on screen.
+     *
+     * What still holds is the load-bearing part:
+     *
+     *   - **No term ever leaves.** The word somebody typed is still written
+     *     nowhere but here.
+     *   - **Nothing is recorded.** `facesFor` reads; there is no table behind
+     *     it and no history written by it.
+     *   - **It discloses nothing new.** Those handles are ones this phone
+     *     already holds, and the route answers through `profileFor` — the same
+     *     decision about who may see whom that a profile makes.
+     *   - **Only while drawn.** `asked` hides the section, so it guards the
+     *     ask too, and the ref makes it once per set of handles.
      */
     expect(PLATFORM).toMatch(/export const RECENT_SEARCHES = 10;/);
     expect(PLATFORM).toMatch(/SecureStore\.setItemAsync\(SEARCHES_KEY/);
+    // No term, by any route.
     expect(TAB).not.toMatch(/api\.[a-zA-Z]*[Ss]earch[a-zA-Z]*\([^)]*recent/);
+    expect(TAB).not.toMatch(/api\.[a-zA-Z]+\([^)]*\bterm\b/);
+    // And the one thing that does go up is read-only, guarded and asked once.
+    expect(TAB).toMatch(/api[\s\S]{0,40}\.facesFor\(wantedFaces\.split\(','\)\)/);
+    expect(TAB).toMatch(
+      /if \(asked \|\| !wantedFaces \|\| askedFaces\.current === wantedFaces\) return;/,
+    );
+    const API = read('src/api.ts');
+    expect(API).toMatch(/\/api\/people\?handles=/);
+  });
+
+  it('draws a person as their picture, in a squared chip', () => {
+    /*
+     * A row of lozenges made every entry read as a *term*, including the ones
+     * that are people — and most of them are people, because opening somebody
+     * is the commonest way a search ends. The corner is what tells the two
+     * kinds apart before either is read, and it is the 12 every tile in this
+     * app wears.
+     *
+     * The letter stays as the fallback: it is what somebody with no picture
+     * has anyway, and what an expired URL becomes.
+     */
+    expect(TAB).toMatch(/const shot = person \? \(faces\[entry\.handle\.toLowerCase\(\)\]/);
+    expect(TAB).toMatch(/shot \? \([\s\S]{0,160}<Image/);
+    expect(EVENTS).toMatch(/recentPerson: \{[^}]*borderRadius: 12/);
+    expect(EVENTS).toMatch(/recentFace: \{[^}]*borderRadius: 6/);
+    expect(EVENTS).not.toMatch(/recentFace: \{ width: 20, height: 20, borderRadius: 10/);
+    // A term is a word rather than a thing, and keeps its lozenge.
+    expect(EVENTS).toMatch(/recentChip: \{[^}]*borderRadius: 999/);
   });
 
   it('is handed back with the phone', () => {

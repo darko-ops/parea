@@ -89,9 +89,19 @@ export async function GET(request: Request) {
       wanted.map(async (handle) => {
         const person = await profileFor(db, actorId, handle);
         if (!person) return null;
+        /*
+         * The same shape `q=` answers in, minus the standing.
+         *
+         * One endpoint answering in two shapes is how a caller comes to depend
+         * on which door it went through. `standing` is the one field this
+         * branch cannot fill — it is a fact about a search result, and nobody
+         * asking for a face by handle is looking at one — and it is optional
+         * on the type for exactly that reason.
+         */
         return {
+          actorId: person.actorId,
           handle: person.handle,
-          name: person.displayName,
+          displayName: person.displayName,
           // Presigned here, the key dropped — the boundary every picture in
           // this product crosses.
           avatar: await avatarUrl(person.avatarKey),

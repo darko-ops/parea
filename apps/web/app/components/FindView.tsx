@@ -437,11 +437,15 @@ export function FindView({
       );
       if (!res?.ok || !alive) return;
       const { people } = (await res.json()) as {
-        people: { handle: string; avatar: string | null }[];
+        people: { handle: string | null; avatar: string | null }[];
       };
       if (!alive) return;
       setFaces(
-        Object.fromEntries(people.map((person) => [person.handle.toLowerCase(), person.avatar])),
+        Object.fromEntries(
+          people
+            .filter((person) => person.handle)
+            .map((person) => [person.handle!.toLowerCase(), person.avatar]),
+        ),
       );
     })();
     return () => {
@@ -847,32 +851,54 @@ export function FindView({
         <section className="find-section">
           <h2 className="find-head">Your groups</h2>
           {/*
-            Chips rather than rows. These are places this person already goes;
-            drawn at the same size as a suggestion they have never heard of,
-            they were the loudest thing on a page about finding something else.
+            A shelf of doors, which is what the app draws and what these are.
+
+            They were chips: a mark, the name and an `Admin`/`Member` note on a
+            pill, wrapped into a paragraph of them. Three things were wrong with
+            that at once. A row of pills reads as a set of *filters* — the same
+            shape this page uses for its scopes, eighty pixels above — so the
+            one list here that goes somewhere looked like the one list that does
+            not. The name was set beside the mark, so a long one stretched its
+            chip across half the row and the shelf had no rhythm. And the role
+            was the loudest word on most of them, which is the least useful
+            thing a door can say.
+
+            A door is a square and a name under it. The square is the mark the
+            room wears everywhere else — its letter where somebody named it,
+            the people in it where nobody has — and the name gets the column's
+            full width and two lines, which is what makes a shelf scannable:
+            the eye goes down the names, not along the boxes.
+
+            The role has not gone, it has stopped shouting. It is in the link's
+            accessible name, where the app puts the member count and the unread
+            count, because it is a fact about the room worth having and not one
+            worth a word of furniture on every tile.
           */}
-          <div className="group-chips">
+          {/*
+            `room-door` and not `door`: this page already calls the card for a
+            group you could ask into a `.door`, and the two are different
+            things — one is a room of yours, the other is somewhere to knock.
+            `group-shelf` was taken too, by the album grid on a group's page.
+          */}
+          <div className="room-doors">
             {mine.map((group) => (
-              <a key={group.id} href={`/group/${group.id}`} className="group-chip">
-                {/*
-                  The mark a room wears everywhere else in the product: its
-                  letter when somebody named it, and the people in it when
-                  nobody has. This drew the letter in both cases, so a room
-                  that is three faces on the chat list and in the app was a
-                  grey initial here — the same room, three times, two ways.
-                */}
+              <a
+                key={group.id}
+                href={`/group/${group.id}`}
+                className="room-door"
+                aria-label={`${group.name}, ${group.role === 'admin' ? 'admin' : 'member'}`}
+              >
                 <RoomMark
                   title={group.name}
                   kind={group.kind}
                   deck={group.deck}
                   lens={tintFor(group.id)}
-                  size={26}
-                  className="group-chip-mark"
+                  size={64}
+                  className="room-door-mark"
                 />
-                <span className="group-chip-name">{group.name}</span>
-                <span className="group-chip-note">
-                  {group.role === 'admin' ? 'Admin' : 'Member'}
-                </span>
+                {/* Two lines at most, centred under a centred square. "Sunday
+                    Roast Cl…" at a column's width is most group names. */}
+                <span className="room-door-name">{group.name}</span>
               </a>
             ))}
           </div>

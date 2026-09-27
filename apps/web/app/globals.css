@@ -1737,37 +1737,54 @@ button.secondary {
 /* The groups you are already in. Chips, because they are places you go rather
    than things to consider — drawn at a suggestion's size they were the
    loudest thing on a page about finding something else. */
-.group-chips { display: flex; gap: 9px; flex-wrap: wrap; }
-.group-chip {
-  display: inline-flex; align-items: center; gap: 9px;
-  padding: 8px 14px 8px 8px; border-radius: 999px;
-  border: 1px solid var(--hairline); background: var(--card);
+/* The shelf of rooms — the app's `YOUR GROUPS` grid, on the site.
+
+   `room-door-*`, and the name took two goes. `.door` on this page is already
+   the card for a group you could *ask into*; `.group-shelf` is already the
+   album grid on a group's own page. Both of those were live rules this one
+   silently redefined before the browser said so — which is the argument for
+   grepping a class name in a stylesheet this size before spending it.
+
+   These were pills, and a row of pills on this page reads as a row of scopes:
+   the same shape the filters above use, for the one list here that goes
+   somewhere. A door is a square with the name under it, and the name is what a
+   reader is scanning — so it gets the column's full width and the square is a
+   fraction of it, which is the trade the app's own note works through.
+
+   `auto-fill` rather than a fixed three. Three is right on a phone and absurd
+   on a laptop, where it would draw three tiles the width of a hand; the column
+   is the unit and the page fits as many as it has room for. `minmax` keeps a
+   name from wrapping to four lines on a narrow one. */
+.room-doors {
+  display: grid; gap: 10px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+/* The column: the square centred in it, the name under. Centred, because the
+   square is 0.66 of the column rather than filling it — without this it sits
+   against the leading edge of its own label. */
+.room-door {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 4px 10px; border-radius: 12px;
   color: inherit; text-decoration: none;
 }
-.group-chip:hover { border-color: var(--line); }
-/* The mark a room wears, at chip size.
-
-   `RoomMark` draws one of two things through this class: a letter on the
-   group's own colour for a room somebody named, and a deck of the members'
-   pictures for one nobody has. So the fill and the ink are the mark's own —
-   set inline from the lens, or by `.room-card` — and what is left here is the
-   box, which both halves share.
-
-   Squared rather than the circle this was. It is the shape a group's tile has
-   on every other screen, and a deck of overlapping squares inside a circle is
-   two shapes arguing. */
-/* The box is `RoomMark`'s, from its `size` — this rule could not have set it:
-   `.group-tile` is declared below at the same specificity and won, which is
-   how a 26px chip came to draw a 44px letter. See the note in `RoomMark`. */
-.group-chip-mark { flex: none; font-weight: 700; }
+.room-door:hover { background: var(--card); }
+.room-door:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Sized by `RoomMark` from its `size`, like every other mark in the product —
+   see the note there for why the number cannot live in a class. */
+.room-door-mark { font-weight: 700; }
+/* Centred under a centred square, and two lines at most. `-webkit-line-clamp`
+   is the only clamp with support worth having; the fallback where it is
+   missing is a name that wraps further, which is a longer tile rather than a
+   broken one. */
+.room-door-name {
+  margin-top: 7px; align-self: stretch;
+  font-size: 13.5px; line-height: 17px; font-weight: 600; text-align: center;
+  overflow: hidden; display: -webkit-box;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
 /* A deck's own cards are positioned, so the box has to be the frame for them.
    `RoomMark` sizes the cards; this only says where they hang from. */
-.room-mark.group-chip-mark { display: inline-block; position: relative; }
-/* The ring each card wears is the page's colour by default, and a chip is not
-   the page — it is `--card`, which is what these sit on. */
-.group-chip .room-card { border-color: var(--card); }
-.group-chip-name { font-size: 14px; font-weight: 600; }
-.group-chip-note { font-size: 12px; color: var(--dim-soft); }
+.room-mark.room-door-mark { display: inline-block; position: relative; }
 
 /* The foot: the rules behind a link, and beside them the one rule that has to
    be readable without being asked for.
@@ -1786,8 +1803,7 @@ button.secondary {
    find with the tab key. */
 .door-ask:focus-visible,
 .door-name:focus-visible,
-.face-card:focus-visible,
-.group-chip:focus-visible {
+.face-card:focus-visible {
   outline: 3px solid var(--accent); outline-offset: 2px;
 }
 
