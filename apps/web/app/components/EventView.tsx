@@ -27,7 +27,7 @@
  */
 
 import { ago } from '@parea/cards';
-import { CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
+import { CONTRIBUTE_CREATOR, CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
 import type { Message } from '@/messages';
 import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -965,7 +965,20 @@ export function EventView({
                     <span />
                   </span>
                   <strong>{uploads.running ? 'Adding…' : 'Add your photos'}</strong>
-                  <span className="muted">Everyone here can contribute.</span>
+                  {/*
+                    Who else can, which is not always everybody.
+
+                    It said "Everyone here can contribute" on every album,
+                    written when that was the only thing an album could be. On
+                    one set to "Hosts" it is false to everybody reading it, and
+                    on "Only me" it is false in the other direction — the person
+                    seeing this tile is the only one who will ever see it.
+
+                    Drawn only where `canAdd` is already true, so this is never
+                    the sentence that tells somebody they cannot add; it says
+                    who is standing beside them.
+                  */}
+                  <span className="muted">{contributeNote(feed.event.contributePolicy)}</span>
                 </label>
               ) : null
             }
@@ -1102,7 +1115,7 @@ export function EventView({
             linkToken={feed.event.linkToken}
             accessPolicy={feed.event.accessPolicy}
             canAdminister={feed.event.canAdminister}
-            hosted={feed.event.contributePolicy === CONTRIBUTE_HOST}
+            contributePolicy={feed.event.contributePolicy}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
             onInvite={() => setSharing(true)}
           />
@@ -1313,13 +1326,13 @@ function People({
   linkToken,
   accessPolicy,
   canAdminister,
-  hosted,
+  contributePolicy,
   onSetHost,
   onInvite,
 }: {
   roster: Roster[];
   linkToken: string;
-  /** Decides what the line under the link is allowed to promise. */
+  /** Half of what the line under the link is allowed to promise. */
   accessPolicy: string;
   /**
    * Whether this reader may hand the camera over.
@@ -1330,11 +1343,22 @@ function People({
    * for anybody else would be the page promising what the server refuses.
    */
   canAdminister: boolean;
-  /** Only worth asking about on an album actually set to `host`. */
-  hosted: boolean;
+  /**
+   * Who may add photographs, as the album has it — the other half.
+   *
+   * The policy rather than the `hosted` boolean it used to be, because this
+   * component now asks two different questions of it: whether being a co-host
+   * means anything here, and what the link is allowed to promise. The second
+   * has to tell "Only me" from "Hosts", which a boolean about `host` cannot,
+   * and deriving one of them from a boolean derived from the other is how the
+   * two come to disagree.
+   */
+  contributePolicy: string;
   onSetHost: (actorId: string, host: boolean) => void;
   onInvite: () => void;
 }) {
+  /** Only worth asking about on an album actually set to `host`. */
+  const hosted = contributePolicy === CONTRIBUTE_HOST;
   const [copied, setCopied] = useState(false);
   const joined = roster.filter((person) => person.role !== 'invited');
 
@@ -1467,14 +1491,23 @@ function People({
       <div className="people-foot">
         <Mark size={26} />
         {/*
-          The sentence has to match the policy. It said "anyone with the link"
-          on every event, which on a private one is the opposite of true — and
-          it is the line somebody reads while deciding who to send the link to.
+          The sentence has to match the policy — both of them.
+
+          It said "anyone with the link" on every event, which on a private one
+          is the opposite of true. That half was fixed by reading `accessPolicy`,
+          and the fix stopped one question short: a public album set to "Hosts"
+          or "Only me" still promised that whoever holds the link can add
+          photographs, which is exactly what those settings exist to refuse.
+
+          The two questions compose, so the sentence has to as well — and this
+          is the line somebody reads while deciding who to send the link to, so
+          getting it wrong sends the link to people who will find they can only
+          look.
         */}
         <p>
           {accessPolicy === PRIVATE
             ? 'The link lets somebody ask to come in. You let them in, under Members.'
-            : 'Anyone with the link can add photos — no account needed to look.'}
+            : linkPromise(contributePolicy)}
         </p>
         <button
           type="button"
@@ -1492,6 +1525,55 @@ function People({
       </div>
     </div>
   );
+}
+
+/**
+ * What the contribute tile says under "Add your photos".
+ *
+ * Only ever drawn for somebody the server has already said may add, so this is
+ * never a refusal — it answers "and who else", which is the thing that decides
+ * whether they wait for other people's photographs or accept that the album is
+ * theirs to fill.
+ *
+ * `nobody` has no wording because it has no tile: it denies `upload` to
+ * everybody, the creator included, so `canAdd` is false and this is not
+ * reached. It falls through to the neutral line rather than being asserted
+ * about — nothing writes that policy any more, and a client that meets one is
+ * meeting a row older than the migration that retired it.
+ */
+function contributeNote(contributePolicy: string): string {
+  switch (contributePolicy) {
+    case CONTRIBUTE_CREATOR:
+      return 'Only you can add to this one.';
+    case CONTRIBUTE_HOST:
+      // Not "you and your co-hosts": a co-host reads this too, and the album is
+      // not theirs to speak of that way.
+      return 'You and the album’s other hosts can add.';
+    default:
+      return 'Everyone here can contribute.';
+  }
+}
+
+/**
+ * What the link is worth on a public album, which is two facts and not one.
+ *
+ * Seeing it and adding to it are separate permissions, and the link only ever
+ * carried the first. Saying "anyone with the link can add photos" over an album
+ * set to "Hosts" promised the thing that setting exists to refuse — and this is
+ * the line somebody reads while deciding who to send the link to.
+ *
+ * Private albums never reach this: the link is a way to ask, not a way in, and
+ * the caller says so in its own sentence.
+ */
+function linkPromise(contributePolicy: string): string {
+  switch (contributePolicy) {
+    case CONTRIBUTE_CREATOR:
+      return 'Anyone with the link can see it — no account needed. You are the only one who adds photos.';
+    case CONTRIBUTE_HOST:
+      return 'Anyone with the link can see it — no account needed. Only the hosts add photos.';
+    default:
+      return 'Anyone with the link can add photos — no account needed to look.';
+  }
 }
 
 const ROLE_WORDS: Record<Roster['role'], string> = {

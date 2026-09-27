@@ -381,6 +381,31 @@ describe('what both clients say', () => {
     }
   });
 
+  it('never promises the link can add what the setting refuses', () => {
+    /*
+     * Two sentences on the album page described who can add photographs, and
+     * both were written when "Everyone" was the only answer an album had.
+     *
+     * The footer under the People tab is the one that mattered: "Anyone with
+     * the link can add photos" is the line somebody reads while deciding who to
+     * send the link to, and on an album set to "Hosts" or "Only me" it promised
+     * exactly what those settings exist to refuse. It had been half-fixed once
+     * already — taught about `accessPolicy`, so a private album stopped claiming
+     * the link lets people in — and the two questions compose, so reading one of
+     * them is reading half the answer.
+     */
+    const source = stripComments(read('app/components/EventView.tsx'));
+    for (const helper of ['function linkPromise', 'function contributeNote']) {
+      const body = source.slice(source.indexOf(helper));
+      expect(body).toContain('CONTRIBUTE_CREATOR');
+      expect(body).toContain('CONTRIBUTE_HOST');
+    }
+    // And the callers read the policy rather than a boolean derived from it:
+    // `hosted` cannot tell "Only me" from "Hosts", and both need saying.
+    expect(source).toContain('linkPromise(contributePolicy)');
+    expect(source).toContain('contributeNote(feed.event.contributePolicy)');
+  });
+
   it('says a co-host cannot administer the album', () => {
     // The property the setting rests on: the set of people who can add cannot
     // grow without the album's owner. Said on both screens that offer it.
