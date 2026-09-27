@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { findEventById, guard, isSignedIn, toResponse } from '@/access';
-import { accountFor } from '@/accounts';
+import { accountFor, avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
 import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
@@ -119,7 +119,25 @@ export async function GET(request: Request) {
         ...group,
         ...(await facesFor(db, group.id)),
         ...(await deckFor(others.get(group.id) ?? [])),
-        ...(threads.get(group.id) ?? EMPTY_SUMMARY),
+        ...(await (async () => {
+          /*
+           * The last speaker's face, signed here rather than in the query.
+           *
+           * `groupThreadSummaries` answers for the whole list at once and
+           * hands back a storage key rather than a URL — presigning inside it
+           * would be a round trip per row — so the signing happens at this
+           * boundary, beside the deck's, and the key stops here the way every
+           * other one does. `/api/events` does the identical unpacking for
+           * the same summary on an album.
+           */
+          const thread = threads.get(group.id) ?? EMPTY_SUMMARY;
+          if (!thread.lastMessage) return thread;
+          const { avatarKey, ...said } = thread.lastMessage;
+          return {
+            ...thread,
+            lastMessage: { ...said, avatarUrl: await avatarUrl(avatarKey) },
+          };
+        })()),
       })),
     ),
   });

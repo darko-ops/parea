@@ -24,7 +24,7 @@ import { notFound } from 'next/navigation';
 import { GroupChatScreen } from '@/../app/components/GroupChatScreen';
 import { Shell } from '@/../app/components/Shell';
 import { getDb } from '@/db';
-import { findGroup, groupEvents, lensFor, memberCount, membershipOf, titleOf } from '@/groups';
+import { findGroup, groupEvents, lensFor, memberCount, membershipOf, roomOf } from '@/groups';
 import { currentActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
@@ -55,9 +55,13 @@ export default async function GroupChatPage({
    * opened it. Asking for what is used lets the page fetch two counts instead
    * of a room.
    */
-  const [people, albums] = await Promise.all([
+  const [people, albums, room] = await Promise.all([
     memberCount(db, group.id),
     groupEvents(db, group.id),
+    // The title and the mark off one query — `titleOf` answered only the
+    // first, and asking for the second separately is the same query twice for
+    // one row. See `roomOf`.
+    roomOf(db, group, actorId),
   ]);
 
   return (
@@ -65,10 +69,12 @@ export default async function GroupChatPage({
       <GroupChatScreen
         group={{
           id: group.id,
-          name: await titleOf(db, group, actorId),
+          name: room.title,
           memberCount: people,
           eventCount: albums.length,
           lens: lensFor(group.id),
+          kind: room.kind,
+          deck: room.deck,
         }}
       />
     </Shell>

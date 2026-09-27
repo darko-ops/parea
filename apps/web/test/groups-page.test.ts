@@ -48,6 +48,8 @@ const CHAT_PAGE = await read('../app/group/[id]/chat/page.tsx');
 const FIND_PAGE = await read('../app/find/page.tsx');
 const GROUPS_SRC = await read('../src/groups.ts');
 const GROUP_PAGE = await read('../app/group/[id]/page.tsx');
+const MARK = await read('../app/components/RoomMark.tsx');
+const SAYER = await read('../app/components/SayerFace.tsx');
 /*
  * Raw, not comment-stripped, because the thing being asserted *is* a comment:
  * the rule about tiles and photographs lives beside the class it governs, and
@@ -183,27 +185,77 @@ describe('where a group comes from', () => {
 });
 
 describe('what a row shows', () => {
-  it('draws the tile as a letter, never a photograph', () => {
+  it('draws the tile as a letter, never a photograph out of the room', () => {
     /*
-     * This assertion used to be "nothing on this page may be an image", and
-     * that was the rule stated more broadly than its reason. The reason is
-     * about *the door* — the search page's group card, where the viewer may
-     * not be a member and a borrowed picture would show a room to somebody
-     * outside it. It does not reach a list of groups the viewer is in.
+     * This assertion has narrowed twice, and each time to its actual reason.
      *
-     * What survives, and is the part that was always load-bearing: the tile
-     * stands for the group rather than for anything inside it, so it is a
-     * letter in a lens colour on every screen a group appears on.
+     * It began as "nothing on this page may be an image". Then as "the tile is
+     * a letter in a lens colour on every screen" — which was still broader
+     * than the reason, and the reason is about *the door*: the search page's
+     * group card, where the viewer may not be a member and a picture borrowed
+     * out of an album would show a room to somebody outside it.
+     *
+     * A member's own portrait is not a picture out of the room. It is theirs,
+     * it is already on their profile, and `deckFor` only ever builds this list
+     * for a room the viewer is in. So an unnamed room — one with no name and
+     * therefore no letter to wear — is drawn as the people in it, which is
+     * what the app has always done and what this page was missing.
+     *
+     * What survives, and is the part that was always load-bearing: the mark
+     * stands for the group rather than for anything *inside* it. No cover, no
+     * photograph out of an album, on any screen a group appears on.
      */
-    const tile = CHATS.match(/<span\s+className="group-tile chat-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
-    expect(tile).not.toBe('');
-    expect(tile).not.toMatch(/<img|<Face|cover/);
-    expect(tile).toMatch(/initialOf\(chat\.name\)/);
-    expect(CHATS).toMatch(/slice\(0, 1\)\.toUpperCase\(\)/);
-    // And the same on the group's own screen.
+    expect(CHATS).toMatch(/<RoomMark/);
+    expect(CHATS).not.toMatch(/cover/i);
+    // A named room still wears its letter, and that branch is `RoomMark`'s.
+    expect(MARK).toMatch(/kind === 'named' \|\| cards\.length === 0/);
+    expect(MARK).toMatch(/className=\{`group-tile \$\{className\}`\.trim\(\)\}/);
+    expect(MARK).toMatch(/initialOf\(title\)/);
+    // And the pictures it may draw are the members', never an album's.
+    expect(MARK).toMatch(/person\.avatarUrl/);
+    expect(MARK).not.toMatch(/cover|event/i);
+    // The group's own screen is untouched: it is a letter there as before.
     const headTile = GROUP.match(/className="group-tile group-head-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
     expect(headTile).not.toBe('');
     expect(headTile).not.toMatch(/<img|<Face/);
+  });
+
+  it('wears the same mark in the list and at the top of the chat', () => {
+    /*
+     * Without this the header drew a letter for every room, so an unnamed
+     * group was three faces in the list and a grey initial the moment somebody
+     * opened it — the same room, twice, differently.
+     */
+    expect(SCREEN).toMatch(/<RoomMark/);
+    expect(SCREEN).not.toMatch(/group\.name\.trim\(\)\.slice\(0, 1\)/);
+    // Fed from one query rather than by asking for the title and the members
+    // separately. See `roomOf`.
+    expect(CHAT_PAGE).toMatch(/roomOf\(db, group, actorId\)/);
+    expect(GROUPS_SRC).toMatch(/export async function roomOf/);
+  });
+
+  it('shows who spoke last as their own picture', () => {
+    /*
+     * A list of conversations is a list of people, and this was the one place
+     * in the product where somebody with a photograph did not have one: the
+     * row drew their initial on a lens colour and nothing else.
+     *
+     * The letter stays as the fallback, which is what somebody with no picture
+     * sees anyway — and what an expired presigned URL becomes, rather than a
+     * broken glyph in the middle of the list.
+     */
+    expect(CHATS).toMatch(/<SayerFace/);
+    expect(SAYER).toMatch(/useImageFailure/);
+    expect(SAYER).toMatch(/if \(!avatarUrl \|\| failed\)/);
+    /*
+     * Keyed on who they are, not on what they are called. A lens hashed off a
+     * display name changes colour the day somebody fills one in.
+     */
+    expect(PAGE).toMatch(/lensFor\(group\.lastMessage\.authorKey\)/);
+    // And the key itself is signed before it leaves the server, on both paths.
+    expect(PAGE).toMatch(/avatarUrl: group\.lastMessage\.avatarUrl/);
+    expect(API).toMatch(/avatarUrl: await avatarUrl\(avatarKey\)/);
+    expect(API).not.toMatch(/avatarKey: /);
   });
 
   it('says which screen the no-photograph rule governs', () => {

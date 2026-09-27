@@ -167,10 +167,18 @@ export default async function GroupsPage() {
                 // most of them is who else is in it. See `titleFor`.
                 name: group.title,
                 lens: lensFor(group.id),
+                // How the name above was arrived at, and who is in the room:
+                // together they are the icon. A named group wears its letter;
+                // one nobody has named wears the people. See `RoomMark`.
+                kind: group.kind,
+                deck: group.deck,
                 last: group.lastMessage && {
                   author: group.lastMessage.author,
                   body: group.lastMessage.body,
                   mine: group.lastMessage.mine,
+                  // Signed in `myGroupsDetailed`, which answers for the whole
+                  // page at once — a storage key does not reach a browser.
+                  avatarUrl: group.lastMessage.avatarUrl,
                   // Worded here, like every relative time in this product: the
                   // two clocks disagree and React answers a text mismatch by
                   // throwing the tree away.
@@ -179,7 +187,10 @@ export default async function GroupsPage() {
                   // `lensFor` cannot cross into the browser — `groups.ts`
                   // opens the database on the way past — so it is resolved
                   // here and the row is handed two colours, not a palette.
-                  lens: lensFor(group.lastMessage.author),
+                  // Keyed on who they are rather than on what they are
+                  // called: a lens is somebody's colour, and it cannot change
+                  // the day they write a display name in.
+                  lens: lensFor(group.lastMessage.authorKey),
                 },
                 unread: group.unreadCount,
               }))}

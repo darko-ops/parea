@@ -3270,13 +3270,45 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .chat-said-quiet { font-style: italic; }
 .chat-sayer { font-weight: 600; flex: none; }
 .chat-body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The author, as their own initial in their own colour — the same hash the
-   group tiles use, so one person is one colour wherever they appear. */
+/* The author: their picture, or their initial in their own colour — the same
+   hash the marks use, so one person is one colour wherever they appear.
+
+   One rule for both, so the letter and the photograph occupy the identical
+   circle and a row does not shift by a pixel the day somebody sets a picture.
+   `object-fit` is inert on the `<span>` and `flex` centring is inert on the
+   `<img>`; each half ignores what it does not need. */
 .sayer-face {
   flex: none; width: 18px; height: 18px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden; object-fit: cover;
   font-size: 10px; font-weight: 700;
 }
+
+/* ---------------------------------------------------------------------------
+   The deck a room wears when nobody has named it.
+
+   The app's `RoomMark`, drawn the same way: squares because it stands in a
+   column of squares, overlapping from the leading edge so the stack occupies
+   the tile's own box whatever it holds — one picture fills it, three sit
+   across it, and the text beside it starts at the same x either way.
+
+   Sized inline, by `RoomMark`: the card, the step and the corner are all
+   fractions of whatever size the caller asked for, so a 40px row and a larger
+   header are one drawing rather than two sets of numbers to keep in step. */
+.room-mark { flex: none; position: relative; display: inline-block; }
+.room-card {
+  position: absolute; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: var(--dim);
+  /* `--photo-bed` because that is what this is: the bed a picture sits on, and
+     the grey somebody with no picture shows instead. `--track` was a shade off
+     `--page` — a card with no photograph in it was invisible, so a deck of
+     three read as a deck of two with a gap. The ring is the page's own colour,
+     so the stack reads as three things rather than as one shape with bites out
+     of it. */
+  background: var(--photo-bed); border: 2px solid var(--page);
+}
+.room-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* Pinned to the top of the row rather than centred in it.
 
    Centred, a row carrying a count is taller than one without, so its time sits

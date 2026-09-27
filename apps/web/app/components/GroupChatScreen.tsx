@@ -17,6 +17,7 @@
  */
 
 import { GroupChat } from './GroupChat';
+import { RoomMark, type Deck } from './RoomMark';
 
 export function GroupChatScreen({
   group,
@@ -27,6 +28,15 @@ export function GroupChatScreen({
     memberCount: number;
     eventCount: number;
     lens: { fill: string; ink: string };
+    /**
+     * The same two fields the room's row in the list carries.
+     *
+     * Without them this header drew a letter for every room, so an unnamed
+     * group was three faces in the list and a grey initial the moment somebody
+     * opened it — the same room, twice, differently.
+     */
+    kind: 'named' | 'direct' | 'unnamed';
+    deck: Deck;
   };
 }) {
   return (
@@ -45,13 +55,14 @@ export function GroupChatScreen({
       </nav>
 
       <a className="chat-head" href={`/group/${group.id}`}>
-        <span
-          className="group-tile chat-head-tile"
-          style={{ background: group.lens.fill, color: group.lens.ink }}
-          aria-hidden="true"
-        >
-          {group.name.trim().slice(0, 1).toUpperCase()}
-        </span>
+        <RoomMark
+          title={group.name}
+          kind={group.kind}
+          deck={group.deck}
+          lens={group.lens}
+          size={40}
+          className="chat-head-tile"
+        />
         <span className="chat-head-what">
           <span className="chat-head-name">{group.name}</span>
           {/*

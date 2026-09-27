@@ -323,13 +323,36 @@ export async function groupOfMessage(db: Db, messageId: string): Promise<string 
 /**
  * The one line a conversation shows when it is a row rather than a screen.
  *
- * Deliberately not a `Message`: a row draws a name, some words and a time, and
- * handing it the full shape would mean presigning an avatar and building a
- * reaction map for every conversation on the tab in order to throw both away.
+ * Deliberately not a `Message`: a row draws a name, a face, some words and a
+ * time, where the full shape would also mean building a reaction map for every
+ * conversation on the tab in order to throw it away.
+ *
+ * `avatarKey` and not a URL, for the reason `EventThreadSummary` gives: signing
+ * is a round trip to storage and this function answers for a whole page at
+ * once, so the caller signs — and a storage key never crosses the boundary
+ * into a browser. The chat list drew a coloured initial here and the picture
+ * was the thing it was missing: a list of conversations is a list of people,
+ * and a column of letters is the one place in the product where somebody with
+ * a photograph does not have one.
  */
 export type ThreadSummary = {
   /** Null for a thread nobody has said anything in. A door, not an error. */
-  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  lastMessage: {
+    author: string;
+    body: string;
+    at: string;
+    mine: boolean;
+    /** Null for somebody with no picture, which the letter stands in for. */
+    avatarKey: string | null;
+    /**
+     * What `lensFor` is given for the letter, when there is no picture.
+     *
+     * Their handle where they have one and their actor id where they do not —
+     * never the display name, because the point of a lens is that somebody's
+     * colour is theirs and does not change the day they write a name in.
+     */
+    authorKey: string;
+  } | null;
   /** Posted since this viewer last read it. Zero for a signed-out viewer. */
   unreadCount: number;
 };
@@ -514,10 +537,11 @@ export async function groupThreadSummaries(
     author_actor_id: string;
     display_name: string | null;
     handle: string | null;
+    avatar_key: string | null;
   }>(await db.execute(sql`
     select distinct on (m.group_id)
       m.group_id, m.body, m.created_at, m.deleted_at, m.author_actor_id,
-      a.display_name, a.handle
+      a.display_name, a.handle, a.avatar_key
     from "group_message" m
     join "actor" a on a.id = m.author_actor_id
     where m.group_id in (${idList(groupIds)})
@@ -531,6 +555,14 @@ export async function groupThreadSummaries(
         body: row.deleted_at != null ? 'Message deleted' : row.body,
         at: new Date(row.created_at).toISOString(),
         mine: viewerId != null && row.author_actor_id === viewerId,
+        /*
+         * A deleted message keeps its face, the same way it keeps its name:
+         * the row exists to say somebody said something and took it back, and
+         * a tombstone with nobody attached to it is a gap rather than a
+         * retraction. `eventThreadSummaries` above reasons the same way.
+         */
+        avatarKey: row.avatar_key,
+        authorKey: row.handle ?? row.author_actor_id,
       },
       unreadCount: 0,
     });

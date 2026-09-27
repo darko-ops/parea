@@ -434,8 +434,22 @@ export type MyGroupDetailed = MyGroup & {
    *
    * Null for a group nobody has spoken in — a door rather than an error, and
    * the row says so in words rather than going missing.
+   *
+   * Signed here rather than carried as a key: `ThreadSummary` hands back an
+   * `avatarKey` so one page's worth of rows can be signed together, and this
+   * is the function that answers for a page. A key does not cross into a
+   * browser.
    */
-  lastMessage: { author: string; body: string; at: string; mine: boolean } | null;
+  lastMessage: {
+    author: string;
+    body: string;
+    at: string;
+    mine: boolean;
+    /** Their picture. Null draws the letter, in their own lens colour. */
+    avatarUrl: string | null;
+    /** What `lensFor` is given for that letter — see `ThreadSummary`. */
+    authorKey: string;
+  } | null;
   /** Posted since this viewer last read the group thread. */
   unreadCount: number;
 };
@@ -622,6 +636,34 @@ export async function titleOf(
 }
 
 /**
+ * The title *and* the mark, for one room, off one query.
+ *
+ * `titleOf` answers the question a breadcrumb asks. A screen that draws the
+ * room's icon needs two more things — which of the three kinds it is, and the
+ * pictures of the people in it — and getting them by calling `titleOf` and
+ * then `othersInGroups` again is the same query twice for one row.
+ *
+ * Everything here is already derived per row in `myGroupsDetailed`; this is
+ * that derivation for the screens that hold exactly one room, so a chat's own
+ * header wears the mark its row in the list wore rather than falling back to
+ * a letter the moment somebody opens it.
+ */
+export async function roomOf(
+  db: Db,
+  group: { id: string; name: string | null },
+  viewerId: string | null,
+): Promise<{
+  title: string;
+  kind: GroupKind;
+  deck: { name: string; avatarUrl: string | null }[];
+  deckMore: number;
+}> {
+  const others = othersInGroups(db, [group.id], viewerId);
+  const people = (await others).get(group.id) ?? [];
+  return { ...titleFor(group.name, people), ...(await deckFor(people)) };
+}
+
+/**
  * The room the two of you already have, if there is one.
  *
  * Exactly two members and no name: the shape `titleFor` calls `direct`, and
@@ -746,7 +788,21 @@ export async function myGroupsDetailed(
         deckFor(others.get(group.id) ?? []),
       ]);
       const thread = threads.get(group.id) ?? EMPTY_SUMMARY;
-      return { ...group, events, ...people, ...deck, ...thread };
+      /*
+       * The last speaker's picture, signed once the row is known to exist.
+       *
+       * `avatarKey` is dropped rather than passed through: everything built
+       * here is read by a browser, and the key is the one field in the summary
+       * that must not get there. The same unpacking happens in
+       * `/api/events` — see the note on `lastMessage` there.
+       */
+      let lastMessage: MyGroupDetailed['lastMessage'] = null;
+      if (thread.lastMessage) {
+        const { avatarKey, ...said } = thread.lastMessage;
+        lastMessage = { ...said, avatarUrl: await avatarUrl(avatarKey) };
+      }
+
+      return { ...group, events, ...people, ...deck, ...thread, lastMessage };
     }),
   );
 }

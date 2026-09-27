@@ -41,13 +41,22 @@
 import { useState } from 'react';
 
 import { LeaveGroup } from './LeaveGroup';
+import { RoomMark, type Deck } from './RoomMark';
 import { SearchIcon } from './SearchIcon';
+import { SayerFace } from './SayerFace';
 
 export type ChatRow = {
   id: string;
   name: string;
   /** The group's own colour, by a stable hash of the id — see `lensFor`. */
   lens: { fill: string; ink: string };
+  /**
+   * Which of the three kinds the name above was arrived at by, and who is in
+   * the room. Together they are the icon — see `RoomMark`: a group somebody
+   * named wears its letter, and one nobody has named wears the people in it.
+   */
+  kind: 'named' | 'direct' | 'unnamed';
+  deck: Deck;
   /**
    * The last thing said in the room, or null for one nobody has spoken in.
    *
@@ -62,13 +71,12 @@ export type ChatRow = {
     mine: boolean;
     /** The author's own colour, from the same `lensFor` the tiles use. */
     lens: { fill: string; ink: string };
+    /** Their picture. Null falls back to the letter, in the colour above. */
+    avatarUrl: string | null;
   } | null;
   /** Posted since this reader last opened the thread. Zero draws no count. */
   unread: number;
 };
-
-/** The first letter, for a tile. Trimmed, because " dinner" has one. */
-const initialOf = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?';
 
 /*
  * Both colours arrive as props rather than being worked out here.
@@ -129,38 +137,39 @@ export function GroupChats({ chats }: { chats: ChatRow[] }) {
             */}
             <a className="chat-row" href={`/group/${chat.id}/chat`}>
               {/*
-                A letter on the group's own colour, never a photograph. A group
-                has no picture of its own and the only ones available are
-                inside albums that belong to it — putting one on the door shows
-                something from a room on the way in to it.
+                The room's mark: a letter on its own colour for a group
+                somebody named, and the people in it for one nobody has. Never
+                a photograph out of an album — that rule is about the pictures
+                *inside* the room, and it is untouched. See `RoomMark`.
               */}
-              <span
-                className="group-tile chat-tile"
-                style={{ background: chat.lens.fill, color: chat.lens.ink }}
-                aria-hidden="true"
-              >
-                {initialOf(chat.name)}
-              </span>
+              <RoomMark
+                title={chat.name}
+                kind={chat.kind}
+                deck={chat.deck}
+                lens={chat.lens}
+                size={40}
+                className="chat-tile"
+              />
 
               <span className="chat-what">
                 <span className="chat-name">{chat.name}</span>
                 {chat.last ? (
                   <span className={`chat-said${chat.unread > 0 ? ' chat-said-new' : ''}`}>
                     {/*
-                      Who said it, as their own initial in their own colour —
-                      the same hash the tiles use, so one person is one colour
-                      wherever they turn up.
+                      Who said it, as their own photograph — and as their
+                      initial in their own colour where they have none, which
+                      is the same hash the marks use, so one person is one
+                      colour wherever they turn up.
+
+                      This was only ever the letter. A list of conversations is
+                      a list of people, and it was the one place in the product
+                      where somebody with a picture did not have one.
                     */}
-                    <span
-                      className="sayer-face"
-                      style={{
-                        background: chat.last.lens.fill,
-                        color: chat.last.lens.ink,
-                      }}
-                      aria-hidden="true"
-                    >
-                      {initialOf(chat.last.author)}
-                    </span>
+                    <SayerFace
+                      name={chat.last.author}
+                      avatarUrl={chat.last.avatarUrl}
+                      lens={chat.last.lens}
+                    />
                     {/* "You" rather than your own name read back at you, which
                         is what every card in this product does. */}
                     <span className="chat-sayer">
