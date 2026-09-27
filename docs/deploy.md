@@ -219,6 +219,19 @@ pretending a code went out, and `/api/health` names what is missing.
    campaign to send to US numbers at all, and an unregistered sender is silently
    filtered rather than rejected, which looks exactly like a code that never
    arrives.
+
+   The campaign's **sample message** has to be what `verifyText` emits, with the
+   code in square brackets and nothing else changed — carriers compare submitted
+   samples against real traffic, and a paraphrase is a mismatch. There is one
+   message type, so a second sample is the same template with a different code
+   rather than an invented one: fiction there fails in the other direction.
+
+   Its wording is also load-bearing in a way that is invisible from the console.
+   Every character is GSM-7, because one character outside it forces the whole
+   message into UCS-2 where a segment is 70 characters rather than 160 — an em
+   dash once turned a one-segment message into three, at triple the price of
+   every verification. `sms.test.ts` asserts the alphabet and the septet count;
+   do not "improve" the punctuation without reading it.
 2. **Set `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_FROM`** and, for Twilio,
    `SMS_API_URL` — its path carries the account SID, so there is no endpoint to
    guess:

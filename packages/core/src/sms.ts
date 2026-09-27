@@ -266,10 +266,29 @@ export function texterFromEnv(
  * It names Parea first. A six-digit code from an unnamed sender is the shape
  * every phishing text takes, and the product's name in front of it is the only
  * thing that distinguishes the two in a notification.
+ *
+ * ## Why every character here is GSM-7, and why that is not fussiness
+ *
+ * A text is billed per segment, and the segment size depends on the alphabet the
+ * whole message has to be encoded in. GSM-7 gives 160 characters; a single
+ * character outside it forces the *entire* message into UCS-2, where a segment is
+ * 70 characters. So one wrong glyph does not cost one character, it costs two
+ * thirds of the message.
+ *
+ * This sentence used to contain an em dash. That is U+2014, which is not in
+ * GSM-7 or its extension table, so a 159-character message was being sent as
+ * **three** segments: triple the price of every verification this product will
+ * ever send, and slower, for one piece of punctuation. Nothing reported it —
+ * the carrier accepts it and bills it — and a length check passed the whole time,
+ * because the length was never the problem.
+ *
+ * So the punctuation here is ASCII, deliberately: a full stop where the dash was.
+ * `sms.test.ts` asserts the alphabet and the resulting segment count rather than
+ * the character count, which is the check that would have caught it.
  */
 export function verifyText(code: string): string {
   return [
     `${code} is your Parea code. It works once and expires in ten minutes.`,
-    'If you did not ask for it, somebody typed your number by mistake — there is nothing to do.',
+    'If you did not ask for it, somebody mistyped their number. Nothing to do.',
   ].join(' ');
 }

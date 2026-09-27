@@ -214,10 +214,56 @@ describe('the text itself', () => {
     expect(verifyText('123456')).toMatch(/did not ask for it/);
   });
 
-  it('stays inside one segment, because a text is billed by the segment', () => {
-    // 160 GSM-7 characters. Two segments is twice the price of the one thing
-    // this transport exists to send, on every verification.
-    expect(verifyText('123456').length).toBeLessThanOrEqual(160);
+  /**
+   * The alphabet, and then the segment count that follows from it.
+   *
+   * This replaces a character-count assertion that passed while the message was
+   * being sent as three segments. A text is billed per segment and the segment
+   * size depends on the encoding: GSM-7 gives 160 characters, and a *single*
+   * character outside it forces the whole message into UCS-2, where a segment is
+   * 70. So the cost of one wrong glyph is not one character, it is two thirds of
+   * the message — and the old check could not see that, because the length was
+   * never what was wrong.
+   *
+   * The offender was an em dash. Nothing reported it: the carrier accepts the
+   * message and bills for three.
+   */
+  const GSM7_BASIC =
+    '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡' +
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+  /** These cost two septets each, which is why the count below is not the length. */
+  const GSM7_EXTENDED = '^{}\\[~]|€';
+
+  it('is written entirely in GSM-7, so one segment stays one segment', () => {
+    const message = verifyText('123456');
+    const outside = [...message].filter(
+      (c) => !GSM7_BASIC.includes(c) && !GSM7_EXTENDED.includes(c),
+    );
+    expect(
+      outside.map((c) => `${c} U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`),
+      'these characters force the whole message into UCS-2, at 70 chars a segment',
+    ).toEqual([]);
+  });
+
+  it('fits in one segment, counted in septets rather than characters', () => {
+    // Two segments is twice the price of the one thing this transport exists to
+    // send, on every verification, forever.
+    const message = verifyText('123456');
+    const septets = [...message].reduce(
+      (n, c) => n + (GSM7_EXTENDED.includes(c) ? 2 : 1),
+      0,
+    );
+    expect(septets).toBeLessThanOrEqual(160);
+  });
+
+  it('leaves room for a longer code without spilling into a second segment', () => {
+    /*
+     * `SIGN_IN_CODE_LENGTH` is six and could reasonably become eight. A message
+     * sized to exactly 160 would silently double in price on that change, which
+     * is the kind of consequence nobody connects to a constant two files away.
+     */
+    const septets = verifyText('12345678').length;
+    expect(septets).toBeLessThanOrEqual(160);
   });
 });
 
