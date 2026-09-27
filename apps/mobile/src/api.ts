@@ -376,8 +376,35 @@ export type Roster = {
    * which is exactly the pair the settings sheet has to tell apart.
    */
   isHost: boolean;
+  /**
+   * They were asked *as* a co-host and have not answered yet.
+   *
+   * Never true at the same time as `isHost`, and that is the point: the role
+   * lives on the participant row, so somebody who has not accepted has nothing
+   * to hold it — the promise waits on the invitation and is spent on arrival.
+   * Drawing them as a co-host would have the app offer an Add button the server
+   * refuses.
+   */
+  hostAsked: boolean;
   /** For somebody asked and not yet arrived: when the invitation was sent. */
   invitedAt: string | null;
+};
+
+/**
+ * One of an album's co-hosts, as the server lists them.
+ *
+ * `pending` is why this is not a `Member`: somebody named a co-host before they
+ * arrived has no participant row to hold the role, so the promise sits on their
+ * invitation until they accept. They belong on the list because whoever named
+ * them thinks of them as a co-host — and can take them back off it before they
+ * ever turn up.
+ */
+export type CoHost = {
+  actorId: string;
+  name: string;
+  handle: string | null;
+  avatar: string | null;
+  pending: boolean;
 };
 
 /** Somebody already in an album, asking to be one of the people who may add. */
@@ -1932,10 +1959,27 @@ export class Api {
    * which of the people you named it accepted — that would report whether each
    * one has blocked you.
    */
-  invite(eventId: string, actorIds: string[]): Promise<{ invited: number }> {
+  invite(
+    eventId: string,
+    actorIds: string[],
+    /**
+     * The ones being asked in *as co-hosts* — people who may add photographs to
+     * an album set to `host` once they accept.
+     *
+     * The same call, because it is the same act: there is no co-host of an album
+     * somebody is not in, and the role cannot be written until they arrive, so
+     * naming one is asking them in with a promise attached. The server holds the
+     * promise on the invitation and spends it on acceptance.
+     *
+     * Not a subset of `actorIds` and not required to be — a caller that means
+     * "ask Sam as a co-host" sends Sam here only, and the route reconciles a
+     * name that turns up in both.
+     */
+    hostActorIds: string[] = [],
+  ): Promise<{ invited: number }> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}/invites`, {
       method: 'POST',
-      body: JSON.stringify({ actorIds }),
+      body: JSON.stringify({ actorIds, hostActorIds }),
     });
   }
 
@@ -2013,6 +2057,21 @@ export class Api {
       method: 'POST',
       body: JSON.stringify({ actorId, host }),
     });
+  }
+
+  /**
+   * The album's co-hosts, for the sheet that manages them.
+   *
+   * Both kinds in one list — the people who are here with the role, and the
+   * people who were named and have not answered — because that is the set the
+   * album's owner is looking at, and `pending` is the only thing that differs
+   * between them. `administer` only; 404 for everybody else.
+   */
+  async eventHosts(eventId: string): Promise<CoHost[]> {
+    const { hosts } = await this.call<{ hosts: CoHost[] }>(
+      `/api/events/${encodeURIComponent(eventId)}/hosts`,
+    );
+    return hosts ?? [];
   }
 
   setContributePolicy(eventId: string, contributePolicy: ContributePolicy): Promise<unknown> {

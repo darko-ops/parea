@@ -33,6 +33,13 @@
  * for adding a picture to those two replies: a column of identical letters is
  * a list you read, where a face is one you pick somebody out of, and this
  * screen is the one asking "who is this album for".
+ *
+ * ## Two questions, one picker
+ *
+ * An album set to `host` asks a second one on the same screen — which of these
+ * people holds the camera — and it is the same act of finding a person. So
+ * `placeholder` and `exclude` are arguments and the lists are not. See them
+ * below.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -127,11 +134,32 @@ export function InvitePicker({
   t,
   picked,
   onChange,
+  /**
+   * What the search box says it is for.
+   *
+   * An argument because the same picker asks two questions on one screen — who
+   * is in the album, and which of them holds the camera — and they are the same
+   * act of finding a person: the same two lists, the same debounce, the same
+   * rule that picking somebody asks them rather than adds them. Only the words
+   * differ, so only the words are passed in.
+   */
+  placeholder = 'Find somebody by handle',
+  /**
+   * Actors this picker must not offer.
+   *
+   * What keeps the two questions from disagreeing. Somebody already named a
+   * co-host must not also be offered under "who is in it": they are being asked
+   * into the album either way, and a name in both places is one invitation that
+   * looks like two decisions.
+   */
+  exclude,
 }: {
   api: Api;
   t: GroupTheme;
   picked: InvitablePerson[];
   onChange: (next: InvitablePerson[]) => void;
+  placeholder?: string;
+  exclude?: Set<string>;
 }) {
   const [friends, setFriends] = useState<InvitablePerson[]>([]);
   const [term, setTerm] = useState('');
@@ -192,7 +220,8 @@ export function InvitePicker({
 
   const isPicked = (person: InvitablePerson) =>
     picked.some((p) => p.actorId === person.actorId);
-  const offered = (list: InvitablePerson[]) => list.filter((p) => !isPicked(p));
+  const offered = (list: InvitablePerson[]) =>
+    list.filter((p) => !isPicked(p) && !exclude?.has(p.actorId));
 
   return (
     <View>
@@ -213,12 +242,12 @@ export function InvitePicker({
       <TextInput
         value={term}
         onChangeText={setTerm}
-        placeholder="Find somebody by handle"
+        placeholder={placeholder}
         placeholderTextColor={t.dim}
         autoCapitalize="none"
         autoCorrect={false}
         style={[styles.input, { borderColor: t.line, color: t.fg }]}
-        accessibilityLabel="Find somebody by handle"
+        accessibilityLabel={placeholder}
       />
 
       {searching && <ActivityIndicator color={t.accent} style={styles.spinner} />}

@@ -4,7 +4,7 @@ import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CONTRIBUTE_EVERYONE } from '@parea/core';
+import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
 
 import { policyFor } from './components/AccessChoice';
 import { ContributeChoice, type ContributePolicy } from './components/ContributeChoice';
@@ -89,6 +89,21 @@ export default function CreatePage() {
   const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
   const [members, setMembers] = useState<Person[]>([]);
+  /*
+   * The people who will hold the camera with them, on an album set to `host`.
+   *
+   * Its own list rather than a flag on `members`, because the two questions are
+   * asked separately and answered separately: somebody can be in the album
+   * without being a co-host, which is the ordinary case, and naming a co-host is
+   * also asking them in, which is why the create call below sends this list on
+   * its own rather than repeating those names under members.
+   *
+   * Kept when the setting moves off "Hosts" rather than cleared. Somebody
+   * reading the three options and tapping between them has not withdrawn
+   * anything, and a list that emptied itself on the way past "Only me" would
+   * cost them the typing — see the note beside the field.
+   */
+  const [coHosts, setCoHosts] = useState<Person[]>([]);
   /*
    * The picture the album leads with, if they chose one.
    *
@@ -225,11 +240,35 @@ export default function CreatePage() {
           }
         }
 
-        if (members.length > 0) {
+        /*
+         * The invitations, members and co-hosts in one call.
+         *
+         * One request rather than two, because the route counts them as one
+         * guest list and applies its cap of fifty to the pair — and because a
+         * name in both lists is one invitation, which the server is the right
+         * place to reconcile.
+         *
+         * The co-hosts are only sent where the setting means anything. Somebody
+         * who picked two co-hosts and then chose "Only me" has changed their
+         * mind about the album, and asking those people in *as co-hosts* of an
+         * album nobody but its owner can add to would be honouring a sentence
+         * they backed out of. They are still asked in — the names are kept, and
+         * they go under members, which is what "who is in it" meant.
+         */
+        const hosting = contribute === CONTRIBUTE_HOST;
+        const asHosts = hosting ? coHosts : [];
+        const asMembers = [
+          ...members,
+          ...(hosting ? [] : coHosts),
+        ];
+        if (asHosts.length > 0 || asMembers.length > 0) {
           await fetch(`/api/events/${created.id}/invites`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ actorIds: members.map((m) => m.actorId) }),
+            body: JSON.stringify({
+              actorIds: asMembers.map((m) => m.actorId),
+              hostActorIds: asHosts.map((m) => m.actorId),
+            }),
           }).catch(() => {});
         }
 
@@ -266,6 +305,8 @@ export default function CreatePage() {
       passPhrase,
       groupId,
       members,
+      coHosts,
+      contribute,
       picked,
       cover,
       uploads,
@@ -454,39 +495,18 @@ export default function CreatePage() {
                     an event by somebody else: this writes invitations, and they
                     answer in Activity.
                   */}
-                  <MemberPicker picked={members} onChange={setMembers} />
-                </div>
-
-                <fieldset className="field">
-                  <legend className="field-label">WHO CAN ADD PHOTOS</legend>
-                  {/*
-                    Asked when the album is made, and changeable afterwards on
-                    the manage screen — the same component in both, so the
-                    words are written once.
-
-                    Here rather than left to the default because it is the one
-                    decision on this form that somebody can only discover by
-                    being surprised: an evening where one person had the camera
-                    is an ordinary thing to want, and an album that quietly
-                    accepts everybody's photographs is not what they meant.
-                  */}
-                  <ContributeChoice
-                    value={contribute}
+                  <MemberPicker
+                    picked={members}
+                    onChange={setMembers}
                     /*
-                      The visibility chosen a field below, not the album's
-                      saved policy — there is no saved album yet.
-
-                      The two questions compose, so what this one's answers are
-                      called depends on the other's: "Everyone" on a public
-                      album is whoever opens the link, and on a private one it
-                      is the members. Reading the live switch means ticking
-                      "private" renames the option under the cursor rather than
-                      leaving a word that stopped being true.
+                      Not the people already named as co-hosts. Naming a co-host
+                      asks them in, so offering them here again is one
+                      invitation dressed as two decisions — and "Add" beside a
+                      name that is already going to be asked does nothing.
                     */
-                    accessPolicy={policyFor({ isPrivate })}
-                    onChange={setContribute}
+                    exclude={new Set(coHosts.map((p) => p.actorId))}
                   />
-                </fieldset>
+                </div>
 
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>
@@ -533,6 +553,91 @@ export default function CreatePage() {
                       onChange={setPassPhrase}
                     />
                   </div>
+                </fieldset>
+
+                <fieldset className="field">
+                  <legend className="field-label">WHO CAN ADD PHOTOS</legend>
+                  {/*
+                    Second of the two, and the order is load-bearing rather than
+                    a layout choice.
+
+                    This question's answers are named by the other one's: the
+                    middle option is "Everyone" on a public album and "Members"
+                    on a private one, because they compose rather than restate
+                    each other. Asked first — which is how this form used to ask
+                    it — somebody read three labels, chose one, and then ticked a
+                    switch underneath that silently renamed what they had chosen.
+                    The app has always asked them this way round; a browser and a
+                    phone disagreeing about the order of two questions that
+                    depend on each other is two products.
+
+                    Asked when the album is made, and changeable afterwards on
+                    the manage screen — the same component in both, so the
+                    words are written once.
+
+                    Here rather than left to the default because it is the one
+                    decision on this form that somebody can only discover by
+                    being surprised: an evening where one person had the camera
+                    is an ordinary thing to want, and an album that quietly
+                    accepts everybody's photographs is not what they meant.
+                  */}
+                  <ContributeChoice
+                    value={contribute}
+                    /*
+                      The visibility chosen a field above, not the album's
+                      saved policy — there is no saved album yet.
+
+                      The two questions compose, so what this one's answers are
+                      called depends on the other's: "Everyone" on a public
+                      album is whoever opens the link, and on a private one it
+                      is the members. Reading the live switch means ticking
+                      "private" renames the option under the cursor rather than
+                      leaving a word that stopped being true.
+                    */
+                    accessPolicy={policyFor({ isPrivate })}
+                    onChange={setContribute}
+                  />
+
+                  {/*
+                    And who those hosts are, asked here because this is the
+                    moment the answer exists.
+
+                    "Hosts" without a way to name one is a setting that means
+                    "only me" until somebody finds the People tab, which is a
+                    strange thing for an album to do on the evening it is made:
+                    the person handing over the camera is standing next to
+                    whoever they are handing it to. So the question follows the
+                    answer that raises it, on the same screen, and the same
+                    control answers it again afterwards on the manage screen.
+
+                    Picking somebody here asks them into the album *and* records
+                    that accepting makes them a co-host. Nobody is made a
+                    co-host of an album they have not joined — the role lives on
+                    the participant row — so the promise waits on the invitation
+                    and is spent when they say yes. Which is why the copy says
+                    asked.
+                  */}
+                  {contribute === CONTRIBUTE_HOST && (
+                    <div className="field" style={{ marginTop: 14 }}>
+                      <div className="field-head">
+                        <label className="field-label">CO-HOSTS</label>
+                        <span className="field-note">Optional · you are one already</span>
+                      </div>
+                      <MemberPicker
+                        picked={coHosts}
+                        onChange={setCoHosts}
+                        placeholder="Search friends, or anyone by handle"
+                        label="Search for people to make co-hosts"
+                        hint="Whoever you pick is asked into the album as a co-host, and can add photographs once they accept. You can add or remove co-hosts later, under Manage."
+                        /*
+                          Not somebody already being asked in as a member. The
+                          two lists are one guest list, and a name in both is
+                          one invitation — see the picker's own header.
+                        */
+                        exclude={new Set(members.map((p) => p.actorId))}
+                      />
+                    </div>
+                  )}
                 </fieldset>
 
                 <div className="row">

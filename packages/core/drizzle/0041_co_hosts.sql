@@ -1,0 +1,19 @@
+-- Naming a co-host before they have arrived.
+--
+-- `0034_event_hosts` put the role on the participant row, which is the right
+-- place for it: being a host of an album is a property of being in it, and
+-- leaving takes the row and the role together. What that shape cannot express
+-- is the moment the role is usually decided — an album set to `host` is asked
+-- who its co-hosts are while it is being made, and at that point nobody has a
+-- participant row, because an invitation grants nothing until it is accepted.
+--
+-- So the intent waits on the invitation, and accepting spends it: an accepted
+-- invitation with this set writes `role = 'host'` in the same statement that
+-- writes the row. Nothing here grants anything — the column `authorize` reads
+-- is still `event_participant.role`, and this one is a promise about what will
+-- be written if the person says yes.
+--
+-- False for every existing row, which is what they all are: co-hosts could
+-- only be made after the fact, from the People tab, against somebody who was
+-- already in.
+ALTER TABLE "event_invite" ADD COLUMN "as_host" boolean DEFAULT false NOT NULL;

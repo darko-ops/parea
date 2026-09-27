@@ -315,9 +315,15 @@ export async function pendingRequestsFor(
       // "Marcus invited you to Beach Weekend", said in two lines: the event is
       // the headline and this is who asked. Warmer than "asked you", which
       // reads like a form somebody filled in about you.
+      /*
+        And "to co-host" where that is what was asked, because it is a different
+        yes. Joining is joining; this is also being handed the camera, and the
+        card is the only place somebody sees the difference before agreeing to
+        it.
+      */
       detail: invite.caption
-        ? `${invite.from} invited you · ${invite.caption}`
-        : `${invite.from} invited you`,
+        ? `${invite.from} invited you${invite.asHost ? ' to co-host' : ''} · ${invite.caption}`
+        : `${invite.from} invited you${invite.asHost ? ' to co-host' : ''}`,
       at: invite.createdAt,
       image: null as string | null,
     })),

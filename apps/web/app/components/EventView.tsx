@@ -1381,7 +1381,15 @@ function People({
               </div>
               <div className="roster-did">
                 {person.role === 'invited'
-                  ? `Invited ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
+                  ? /*
+                      A co-host who has not answered says so, because the two
+                      facts are different and both matter to whoever is reading
+                      the row: they were asked to hold the camera, and they
+                      cannot hold it yet. The role lives on the participant row,
+                      so until they accept there is nothing to grant — see
+                      `event_invite.as_host`.
+                    */
+                    `${person.hostAsked ? 'Asked to co-host' : 'Invited'} ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
                   : person.photoCount > 0
                     ? `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'} added`
                     : 'Nothing added yet'}
@@ -1409,10 +1417,43 @@ function People({
                 aria-pressed={person.isHost}
                 onClick={() => onSetHost(person.actorId!, !person.isHost)}
               >
-                {person.isHost ? 'Host' : 'Make a host'}
+                {/*
+                  "Co-host", not "Host", and the distinction is the one the
+                  setting rests on: the album has one host — whoever made it,
+                  who cannot stop being one — and these are the people they
+                  handed the camera to. Calling both "Host" made the list read
+                  as though the album had several owners, which is the thing a
+                  co-host is deliberately not.
+                */}
+                {person.isHost ? 'Co-host' : 'Make a co-host'}
               </button>
             ) : (
-              <span className={`role role-${person.role}`}>{ROLE_WORDS[person.role]}</span>
+              /*
+                And the word for everybody else, which is a co-host before it is
+                anything else.
+
+                `role` describes what somebody has done here — made it, added to
+                it, only looked — and being a co-host is something they were
+                granted, so the two can both be true of one person. The grant
+                wins the label: on an album set to `host` it is the fact the row
+                is about, and "Contributor" beside somebody holding the camera
+                tells the rest of the album nothing it did not already know from
+                the photographs.
+
+                Read off `hosted` so it says this only where it means something.
+                On `everyone` every member may add and the word would be noise;
+                the creator keeps theirs, since they are the host rather than a
+                co-host of their own album.
+              */
+              <span
+                className={`role role-${person.isHost && hosted && person.role !== 'creator' ? 'cohost' : person.role}`}
+              >
+                {person.isHost && hosted && person.role !== 'creator'
+                  ? 'Co-host'
+                  : person.hostAsked && person.role === 'invited' && hosted
+                    ? 'Co-host asked'
+                    : ROLE_WORDS[person.role]}
+              </span>
             )}
           </li>
         ))}

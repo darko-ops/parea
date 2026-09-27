@@ -54,12 +54,14 @@ import {
   ApiError,
   tokenFromInput,
   type ClusterPerson,
+  type CoHost,
   type ContributePolicy,
   type EventListing,
   type Feed,
   type FeedPhoto,
   type Member,
   type GroupKind,
+  type InvitablePerson,
   type MyGroupDetail,
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
@@ -73,7 +75,7 @@ import { CreateEvent } from './src/CreateEvent';
 import { DoorScreen } from './src/Door';
 import { GroupScreen, GroupSearch } from './src/Groups';
 import { GroupThread } from './src/GroupThread';
-import { InviteCard } from './src/InvitePeople';
+import { InviteCard, InvitePicker } from './src/InvitePeople';
 import { PersonScreen } from './src/Person';
 import { CoverGlass } from './src/CoverGlass';
 import { Lately } from './src/Lately';
@@ -5310,6 +5312,45 @@ function HostSheet({
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
   const photos = feed?.photos.length ?? 0;
 
+  /*
+   * The album's co-hosts, and the people about to be asked to be one.
+   *
+   * Two pieces of state because they are two different things: `coHosts` is what
+   * the server says is true, and `coHostPick` is a sentence somebody is still
+   * composing. The picker holds nothing it has not been given, and this sheet
+   * sends on a button rather than as it goes — so a mis-tap is undone by taking
+   * the chip off rather than by undoing an invitation.
+   */
+  const [coHosts, setCoHosts] = useState<CoHost[]>([]);
+  const [coHostPick, setCoHostPick] = useState<InvitablePerson[]>([]);
+  const [coHostBusy, setCoHostBusy] = useState<string | null>(null);
+  const [coHostError, setCoHostError] = useState<string | null>(null);
+
+  /*
+   * Read only on an album that has a use for the answer.
+   *
+   * On `everyone` there is no set — whoever can see it can add — and on "Only
+   * me" the point of the setting is that there is not one, so a list of co-hosts
+   * on either would be a request spent on a section nothing draws.
+   *
+   * `adding` is in the dependencies rather than the saved policy, which is what
+   * makes switching the album to "Hosts" fill this in without closing the sheet:
+   * the person who just switched it is about to name somebody.
+   */
+  const loadCoHosts = useCallback(async () => {
+    if (!host || adding !== 'host') return;
+    try {
+      setCoHosts(await api.eventHosts(event.id));
+    } catch {
+      /* The section draws its empty line. A list that failed to arrive must not
+         take the setting above it down with it. */
+    }
+  }, [adding, api, event.id, host]);
+
+  useEffect(() => {
+    void loadCoHosts();
+  }, [loadCoHosts]);
+
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       {/*
@@ -5595,6 +5636,193 @@ function HostSheet({
                 />
                 {contributeError && (
                   <Text style={[styles.small, { color: t.warn }]}>{contributeError}</Text>
+                )}
+
+                {/*
+                  And who the hosts are, in the card that raises the question.
+
+                  Inside the same card rather than one of its own, because it is
+                  not a separate decision: "Hosts" is only an answer once there
+                  is a way to say who they are, and somebody who has just tapped
+                  it is looking for exactly this. On the other two settings there
+                  is nothing to draw — `everyone` has no set, and the whole point
+                  of "Only me" is that there is not one.
+                */}
+                {adding === 'host' && (
+                  <View style={{ gap: 10, borderTopWidth: 1, borderTopColor: t.line, paddingTop: 12 }}>
+                    <Text style={[styles.label, { color: t.fg }]}>Co-hosts</Text>
+
+                    {coHosts.length > 0 ? (
+                      coHosts.map((person) => (
+                        <View key={person.actorId} style={styles.coHostRow}>
+                          {person.avatar ? (
+                            <ExpoImage
+                              source={{ uri: person.avatar }}
+                              style={[styles.coHostFace, { backgroundColor: t.line }]}
+                              contentFit="cover"
+                              transition={120}
+                            />
+                          ) : (
+                            <View style={[styles.coHostFace, { backgroundColor: t.line }]}>
+                              <Text style={[styles.small, { color: t.dim }]}>
+                                {initialOf(person.name)}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[styles.body, { color: t.fg }]} numberOfLines={1}>
+                              {person.name}
+                            </Text>
+                            {/*
+                              Said plainly, because the difference matters to
+                              whoever is reading it: a co-host who has not
+                              accepted cannot add anything yet, and an owner
+                              wondering why their pictures have not arrived
+                              deserves the answer on the line with the name.
+                            */}
+                            <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+                              {person.pending
+                                ? 'Asked · a co-host once they accept'
+                                : person.handle
+                                  ? `@${person.handle}`
+                                  : 'Can add photographs'}
+                            </Text>
+                          </View>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${person.name} as a co-host`}
+                            disabled={coHostBusy === person.actorId}
+                            onPress={() => {
+                              /*
+                               * One call whether or not they have arrived — the
+                               * route writes to the participant row where there
+                               * is one and to the open invitation where there is
+                               * not. "Take Sam back out" is one sentence, and
+                               * the album's owner should not have to know which
+                               * kind of row Sam has.
+                               *
+                               * It does not remove them from the album. A
+                               * co-host who is no longer one is still somebody
+                               * who was asked in, and taking away the camera is
+                               * not the same act as showing somebody the door.
+                               */
+                              setCoHostBusy(person.actorId);
+                              setCoHostError(null);
+                              void api
+                                .setEventHost(event.id, person.actorId, false)
+                                .then(() => loadCoHosts())
+                                .catch(() => setCoHostError('Could not take that back.'))
+                                .finally(() => setCoHostBusy(null));
+                            }}
+                            style={({ pressed }) => [
+                              styles.coHostOut,
+                              { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                            ]}
+                          >
+                            <Text style={[styles.small, { color: t.dim }]}>
+                              {coHostBusy === person.actorId ? 'Removing…' : 'Remove'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={[styles.small, { color: t.dim }]}>
+                        Only you, so far. Anybody you add here can put
+                        photographs in; nothing else about the album changes
+                        hands.
+                      </Text>
+                    )}
+
+                    <InvitePicker
+                      api={api}
+                      t={t}
+                      picked={coHostPick}
+                      onChange={setCoHostPick}
+                      placeholder="Find a co-host by handle"
+                      /*
+                        Not the people who are already one. There is a "Remove"
+                        beside each of those names, and an "Add" for somebody
+                        already on the list is a control that does nothing.
+                      */
+                      exclude={new Set(coHosts.map((person) => person.actorId))}
+                    />
+
+                    {coHostPick.length > 0 && (
+                      <ButtonEl
+                        label={
+                          coHostBusy === 'add'
+                            ? 'Asking…'
+                            : `Ask ${coHostPick.length} ${coHostPick.length === 1 ? 'person' : 'people'} to co-host`
+                        }
+                        t={t}
+                        disabled={coHostBusy !== null}
+                        onPress={() => {
+                          /*
+                           * `invite` with the host list rather than
+                           * `setEventHost`, and the difference is not
+                           * bookkeeping: naming a co-host who is not in the
+                           * album is also asking them in, and the role cannot
+                           * be written until they accept. The server writes the
+                           * role where there is a row and the promise where
+                           * there is only an invitation, so this does not have
+                           * to know which of the picked people is which.
+                           */
+                          setCoHostBusy('add');
+                          setCoHostError(null);
+                          void api
+                            .invite(
+                              event.id,
+                              [],
+                              coHostPick.map((person) => person.actorId),
+                            )
+                            .then(() => {
+                              setCoHostPick([]);
+                              return loadCoHosts();
+                            })
+                            .catch(() => setCoHostError('Could not add them.'))
+                            .finally(() => setCoHostBusy(null));
+                        }}
+                      />
+                    )}
+
+                    {coHostError && (
+                      <Text style={[styles.small, { color: t.warn }]}>{coHostError}</Text>
+                    )}
+
+                    {/*
+                      The line that stops this reading as a promotion. A co-host
+                      adds photographs; the album stays yours, which is the
+                      property that makes the setting safe to offer at all.
+                    */}
+                    <Text style={[styles.small, { color: t.dim }]}>
+                      A co-host adds photographs. They cannot rename the album,
+                      change these settings, let anybody in, or make anybody else
+                      a co-host.
+                    </Text>
+
+                    {/*
+                      And the people this list cannot show, said rather than left
+                      out.
+
+                      `authorize` treats a group's admins as hosts of anything in
+                      their group — without it, an album nobody in the group could
+                      add to except its original maker would strand the room's own
+                      archive the day that person left. Their power comes from the
+                      group rather than from a role on a participant row, so they
+                      are not rows here and a "Remove" beside them would be a
+                      control that does nothing. Which leaves the list
+                      understating who can add, and the fix is a sentence: an
+                      owner reading "only you, so far" on a group album is reading
+                      something untrue.
+                    */}
+                    {feed?.event.groupId && (
+                      <Text style={[styles.small, { color: t.dim }]}>
+                        This album is in a group, so the group’s admins can add
+                        photographs too. That comes with being an admin, and is
+                        changed in the group rather than here.
+                      </Text>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -6844,6 +7072,11 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   label: { fontSize: 16, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
+  /* One of the album's co-hosts: a face, a name, and the way to take the camera
+     back. The same row the People pane draws, at the size a sheet has room for. */
+  coHostRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  coHostFace: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  coHostOut: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
   /* One floating control, where there were two bars.
 
      The tab bar spanned the screen with a hairline on top, and a join pill sat

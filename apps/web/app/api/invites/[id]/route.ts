@@ -54,7 +54,21 @@ export async function PATCH(
         eq(schema.eventInvites.status, 'open'),
       ),
     )
-    .returning({ eventId: schema.eventInvites.eventId });
+    .returning({
+      eventId: schema.eventInvites.eventId,
+      /*
+       * The promise made when they were asked, read back off the row that was
+       * just spent.
+       *
+       * From the statement's own `RETURNING` rather than a read before it: the
+       * update is already scoped to an open invitation belonging to this actor,
+       * so whatever it hands back is the row that was answered. A separate
+       * select would be the same question asked of a row something else could
+       * have changed in between — which is the window this route's header
+       * refuses everywhere else.
+       */
+      asHost: schema.eventInvites.asHost,
+    });
 
   if (!invite) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
@@ -67,7 +81,24 @@ export async function PATCH(
    * to revoke, because nothing was ever granted.
    */
   if (status === 'accepted') {
-    await recordParticipant(db, invite.eventId, actorId);
+    /*
+     * And the role, where the invitation was an invitation to be a co-host.
+     *
+     * This is where `as_host` is spent. Somebody named a co-host while the
+     * album was being made had no participant row to carry the role, so the
+     * promise waited on the invitation; saying yes is the moment there is a row
+     * to write it on, and it is written in the same statement rather than a
+     * moment later. See `recordParticipant`.
+     *
+     * Declining spends nothing and grants nothing — there is no row, so there
+     * is no role, and the album's owner can see as much on the People tab.
+     */
+    await recordParticipant(
+      db,
+      invite.eventId,
+      actorId,
+      invite.asHost ? 'host' : 'member',
+    );
 
     /*
      * And the capability cookie, here, because this is the moment it is

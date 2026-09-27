@@ -1964,6 +1964,16 @@ button.secondary {
    this sits in the middle of a form with a button under it. */
 .members .people { max-height: 236px; overflow-y: auto; margin: 0; }
 
+/* Who holds the camera, inside the panel that asks who can add photographs.
+   Set off by a rule rather than a card of its own: it is the second half of one
+   decision, and a second card would read as a second question. */
+.cohosts { display: grid; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.cohosts h3 { margin: 0; }
+/* The list of people who are already co-hosts is short by nature — the set of
+   people holding a camera at one evening — so it scrolls only if something has
+   gone strange. */
+.cohosts > .people { max-height: 260px; overflow-y: auto; margin: 0; }
+
 .toggles { display: grid; gap: 2px; }
 .toggle {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
@@ -2427,6 +2437,10 @@ button.secondary {
   font-size: 11.5px; font-weight: 600;
 }
 .role-creator { background: #f5ece2; color: #7d5230; }
+/* Next to the creator's rather than next to the viewer's, because that is what
+   the word means: somebody who was handed the camera. Its own colour and not the
+   creator's own, because the album is still one person's. */
+.role-cohost { background: #efeaf6; color: #5b4a7d; }
 .role-contributor { background: #eaf5ef; color: #3d6a55; }
 .role-viewer { background: #eef1f4; color: var(--dim); }
 .role-invited { background: #fbf3e8; color: #8a6a3a; }

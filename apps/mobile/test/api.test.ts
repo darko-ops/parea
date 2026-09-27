@@ -454,6 +454,30 @@ describe('a private album, on the wire', () => {
     expect(calls[0]!.init.method).toBe('POST');
     expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
       actorIds: ['a1', 'a2', 'a3'],
+      // Sent empty rather than omitted. An album set to `host` asks who its
+      // co-hosts are in the same call, and a field that appears only sometimes
+      // is a field the route has to guess the absence of.
+      hostActorIds: [],
+    });
+  });
+
+  it('asks somebody in as a co-host, which is one call and not two', async () => {
+    /*
+     * Naming a co-host is asking them into the album: there is no co-host of an
+     * album somebody is not in, and the role lives on the participant row, so it
+     * cannot be written until they accept. The promise waits on the invitation.
+     *
+     * Which is why this is the invite route and not `/hosts` — that one is for
+     * changing the role of somebody already here.
+     */
+    const calls = respondTo({ invited: 1 });
+    expect(await new Api('https://api.test').invite('ev7', [], ['a4'])).toEqual({
+      invited: 1,
+    });
+    expect(calls[0]!.url).toBe('https://api.test/api/events/ev7/invites');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      actorIds: [],
+      hostActorIds: ['a4'],
     });
   });
 

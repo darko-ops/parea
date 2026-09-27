@@ -1215,11 +1215,18 @@ export function People({
                 <Text
                   style={[styles.personDoText, { color: item.isHost ? t.dim : t.accent }]}
                 >
-                  {item.isHost ? 'Host' : 'Make a host'}
+                  {/*
+                    "Co-host", not "Host": the album has one host — whoever made
+                    it, who cannot stop being one — and these are the people they
+                    handed the camera to. Calling both the same made the list read
+                    as though the album had several owners, which is the thing a
+                    co-host is deliberately not.
+                  */}
+                  {item.isHost ? 'Co-host' : 'Make a co-host'}
                 </Text>
               </Pressable>
             ) : (
-              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
+              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item, hosted === true)}</Text>
             )}
           </View>
         );
@@ -1236,9 +1243,36 @@ export function People({
  * The one exception is somebody the album's owner promoted on an album that
  * turns on it: there, being a host is the fact the row is about.
  */
-function standing(person: Roster): string {
-  if (person.role === 'invited') return 'Asked';
+function standing(
+  person: Roster,
+  /**
+   * Whether the album is set to `host`, which is what gives the word "co-host"
+   * any meaning here.
+   *
+   * Passed in rather than read off the person, because it is a fact about the
+   * album and not about them: on `everyone` every member may add, so the label
+   * would be true of everybody and say nothing.
+   */
+  hosted: boolean,
+): string {
+  /*
+   * Somebody asked *as* a co-host says which, because the two are different
+   * facts and both matter to whoever reads the row: they were asked to hold the
+   * camera, and they cannot hold it yet. The role lives on the participant row,
+   * so until they accept there is nothing to grant.
+   */
+  if (person.role === 'invited') return person.hostAsked ? 'Co-host asked' : 'Asked';
   if (person.role === 'creator') return 'Host';
+  /*
+   * And a co-host who has arrived, which is the one case where being granted
+   * something outranks what somebody has done here. On an album that turns on
+   * the setting it is the fact the row is about, and a photo count beside a
+   * person holding the camera says nothing the photographs did not.
+   *
+   * Only where the album's own setting gives the word meaning: on `everyone`
+   * every member may add, and "Co-host" on all of them would be noise.
+   */
+  if (person.isHost && hosted) return 'Co-host';
   if (person.photoCount === 0) return 'Here';
   return `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'}`;
 }

@@ -27,10 +27,22 @@
  * So this creates an `open` invitation and nothing else. Accepting is what
  * grants access; until then the person has been asked and has not answered,
  * which is a state the product can show honestly.
+ *
+ * ## Co-hosts come through the same door
+ *
+ * `hostActorIds` asks somebody in *and* records that accepting makes them one
+ * of the people who may add photographs. Not a second endpoint, because it is
+ * not a second act: there is no co-host of an album somebody is not in, and an
+ * album set to `host` is asked who its co-hosts are while it is being made —
+ * when nobody has a participant row for a role to live on. The promise waits on
+ * `event_invite.as_host` and `PATCH /api/invites/<id>` spends it.
+ *
+ * Which leaves `POST /hosts` for the other half: changing the role of somebody
+ * who is already here, and taking it back off either of them.
  */
 
 import { schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById } from '@/access';
@@ -60,13 +72,37 @@ export async function POST(
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { actorIds?: unknown };
-  const asked = Array.isArray(body.actorIds)
-    ? body.actorIds.filter((a): a is string => typeof a === 'string')
-    : [];
+  const body = (await request.json().catch(() => ({}))) as {
+    actorIds?: unknown;
+    hostActorIds?: unknown;
+  };
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((a): a is string => typeof a === 'string') : [];
+
+  /*
+   * Two lists, because an album set to `host` asks two different questions
+   * while it is being made: who is in it, and which of them holds the camera.
+   *
+   * `hostActorIds` is not a subset of `actorIds` and is not required to be.
+   * Naming somebody a co-host is asking them into the album — there is no
+   * co-host of an album they are not in — so a client that sends only the
+   * second list has said everything it needs to, and both clients do exactly
+   * that rather than repeating a name in both.
+   */
+  const hostAsked = strings(body.hostActorIds);
+  const memberAsked = strings(body.actorIds).filter((id) => !hostAsked.includes(id));
+  const asked = [...hostAsked, ...memberAsked];
+  /*
+   * The cap counts everybody, once.
+   *
+   * Two lists with a limit each would be a hundred, said as fifty twice — and
+   * this is one guest list with a bound on it rather than two things that
+   * happen to arrive together.
+   */
   if (asked.length === 0 || asked.length > MAX_PER_REQUEST) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
+  const wantsHost = new Set(hostAsked);
 
   /*
    * Checked per person rather than trusted from the list the client sent.
@@ -90,10 +126,47 @@ export async function POST(
      */
     const [row] = await db
       .insert(schema.eventInvites)
-      .values({ eventId: id, actorId: target, invitedByActorId: actorId })
+      .values({
+        eventId: id,
+        actorId: target,
+        invitedByActorId: actorId,
+        asHost: wantsHost.has(target),
+      })
       .onConflictDoNothing()
       .returning({ id: schema.eventInvites.id });
-    if (row) invited.push(target);
+    if (row) {
+      invited.push(target);
+      continue;
+    }
+
+    /*
+     * Already asked, and now being asked as a co-host — the one case where
+     * this route writes to a row it did not create.
+     *
+     * Scoped to `open`, which is what keeps the rule above intact: an answer
+     * already given is not revisited, so a declined invitation stays declined
+     * and an accepted one is a member whose role belongs to `POST /hosts`. What
+     * is left is somebody who has not answered yet, and for them this is the
+     * same ask with more in it rather than a second ask — which is why it does
+     * not touch `created_at` or notify again.
+     *
+     * The narrow direction, too: it only ever sets the flag. Taking a pending
+     * co-host back out is `POST /hosts` with `host: false`, beside the toggle
+     * that does it for somebody who has arrived, because the album's owner
+     * thinks of those as one control and not as a re-invitation.
+     */
+    if (wantsHost.has(target)) {
+      await db
+        .update(schema.eventInvites)
+        .set({ asHost: true })
+        .where(
+          and(
+            eq(schema.eventInvites.eventId, id),
+            eq(schema.eventInvites.actorId, target),
+            eq(schema.eventInvites.status, 'open'),
+          ),
+        );
+    }
   }
 
   if (invited.length > 0) {

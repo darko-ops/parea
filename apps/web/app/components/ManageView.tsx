@@ -14,7 +14,7 @@
  */
 
 import { PRIVATE, PUBLIC } from '@parea/core';
-import { CONTRIBUTE_EVERYONE } from '@parea/core';
+import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
 import { ACCEPT_ATTRIBUTE } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -24,6 +24,8 @@ import {
   ContributeChoice,
   type ContributePolicy,
 } from './ContributeChoice';
+import { Face } from './Faces';
+import { MemberPicker, type Person } from './MemberPicker';
 import { coverBytes } from './coverBytes';
 import { useImageFailure } from './useImageFailure';
 
@@ -36,6 +38,23 @@ type PendingReport = {
 };
 
 type Friend = { actorId: string; handle: string | null; displayName: string | null };
+
+/**
+ * One of the album's co-hosts, as the server lists them.
+ *
+ * `pending` is the whole reason this is not just a member row: somebody named a
+ * co-host before they arrived has no participant row to hold the role, so the
+ * promise sits on their invitation until they accept. They are on this list
+ * because the person who named them thinks of them as a co-host — and they can
+ * be taken back off it before they ever turn up.
+ */
+type CoHost = {
+  actorId: string;
+  name: string;
+  handle: string | null;
+  avatar: string | null;
+  pending: boolean;
+};
 
 
 export function ManageView({
@@ -67,6 +86,18 @@ export function ManageView({
     CONTRIBUTE_OPTIONS.find((o) => o.value === initial.contributePolicy)?.value ??
       CONTRIBUTE_EVERYONE,
   );
+  /*
+   * The album's co-hosts, and the people about to be asked to be one.
+   *
+   * Two pieces of state because they are two different things: `coHosts` is
+   * what the server says is true, and `coHostPick` is a sentence somebody is
+   * still composing. The picker holds nothing it has not been given — see
+   * `MemberPicker` — and this screen sends on a button rather than as it goes,
+   * so a mis-tap is undone by taking the chip off rather than by undoing an
+   * invitation.
+   */
+  const [coHosts, setCoHosts] = useState<CoHost[]>([]);
+  const [coHostPick, setCoHostPick] = useState<Person[]>([]);
   const [reports, setReports] = useState<PendingReport[]>([]);
   const [link, setLink] = useState(initial.url);
   const [code, setCode] = useState(initial.code);
@@ -132,10 +163,33 @@ export function ManageView({
     setAlready(new Set<string>(a.already ?? []));
   }, [eventId]);
 
+  /**
+   * The album's co-hosts.
+   *
+   * Only asked for on an album that has any use for the answer. On `everyone`
+   * there is no set — whoever can see it can add — and on "Only me" the point of
+   * the setting is that there is not one, so a list of co-hosts on either would
+   * be a request spent on a section nothing draws.
+   *
+   * Which also means it has to be re-read when the setting changes, and that is
+   * what `contribute` in the dependencies is for: switching an album to "Hosts"
+   * has to fill this section in without a reload, because the person who just
+   * switched it is about to name somebody.
+   */
+  const loadHosts = useCallback(async () => {
+    if (contribute !== CONTRIBUTE_HOST) return;
+    const res = await fetch(`/api/events/${eventId}/hosts`);
+    if (res.ok) setCoHosts(((await res.json()) as { hosts: CoHost[] }).hosts ?? []);
+  }, [contribute, eventId]);
+
   useEffect(() => {
     void loadReports();
     void loadFriends();
   }, [loadReports, loadFriends]);
+
+  useEffect(() => {
+    void loadHosts();
+  }, [loadHosts]);
 
   /*
    * Anybody, by handle — not only friends.
@@ -177,6 +231,68 @@ export function ManageView({
       setInvited(body.invited);
       setPicked(new Set());
       await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Ask the picked people in as co-hosts.
+   *
+   * `POST /invites` with `hostActorIds` rather than `POST /hosts`, and the
+   * difference is not bookkeeping: naming a co-host who is not in the album is
+   * also asking them in, and the role cannot be written until they accept. The
+   * other route is for somebody already here.
+   *
+   * It is the same route for both cases, though, which is why this does not have
+   * to know which of the picked people are already members: the server writes the
+   * role where there is a row and the promise where there is only an invitation.
+   */
+  async function addCoHosts() {
+    if (coHostPick.length === 0) return;
+    setBusy('cohosts');
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/invites`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hostActorIds: coHostPick.map((p) => p.actorId) }),
+      });
+      if (!res.ok) throw new Error('Could not add them.');
+      setCoHostPick([]);
+      await Promise.all([loadHosts(), loadFriends()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Take somebody back out of the set.
+   *
+   * One call whether or not they have arrived — the route writes to the
+   * participant row where there is one and to the open invitation where there is
+   * not — because "take Sam back out" is one sentence and an owner should not
+   * have to know which kind of row Sam has.
+   *
+   * It does not remove them from the album. A co-host who is no longer one is
+   * still somebody who was asked in, and taking away the camera is not the same
+   * act as showing somebody the door.
+   */
+  async function removeCoHost(actorId: string) {
+    setBusy(`cohost:${actorId}`);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/hosts`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorId, host: false }),
+      });
+      if (!res.ok) throw new Error('Could not take that back.');
+      await loadHosts();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -711,6 +827,124 @@ export function ManageView({
             }}
             note="Nothing already added is removed, whichever of the three this is."
           />
+
+          {/*
+            And who the hosts are, in the panel that raises the question.
+
+            Below the pills and inside the same panel rather than a section of
+            its own, because it is not a separate decision: "Hosts" is only an
+            answer at all once there is a way to say who they are, and somebody
+            who has just tapped it is looking for exactly this. On the other two
+            settings there is nothing to draw — `everyone` has no set, and the
+            whole point of "Only me" is that there is not one.
+          */}
+          {contribute === CONTRIBUTE_HOST && (
+            <div className="cohosts">
+              <h3 className="field-label">CO-HOSTS</h3>
+              {coHosts.length > 0 ? (
+                <ul className="people">
+                  {coHosts.map((person) => (
+                    <li key={person.actorId}>
+                      <Face
+                        src={person.avatar}
+                        size={34}
+                        className="member-face"
+                        fallback={
+                          <span aria-hidden="true">
+                            {person.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
+                          </span>
+                        }
+                      />
+                      <div>
+                        <strong>{person.name}</strong>
+                        {/*
+                          Said plainly, because the difference matters to whoever
+                          is reading it: a co-host who has not accepted cannot add
+                          anything yet, and an owner wondering why their pictures
+                          have not arrived deserves the answer on the same line as
+                          the name.
+                        */}
+                        <p className="muted">
+                          {person.pending
+                            ? 'Asked · a co-host once they accept'
+                            : person.handle
+                              ? `@${person.handle}`
+                              : 'Can add photographs'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary small"
+                        disabled={busy === `cohost:${person.actorId}`}
+                        onClick={() => void removeCoHost(person.actorId)}
+                      >
+                        {busy === `cohost:${person.actorId}` ? 'Removing…' : 'Remove'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="field-help">
+                  Only you, so far. Anybody you add here can put photographs in;
+                  nothing else about the album changes hands.
+                </p>
+              )}
+
+              <MemberPicker
+                picked={coHostPick}
+                onChange={setCoHostPick}
+                label="Search for people to make co-hosts"
+                hint="Whoever you pick is asked into the album as a co-host, and can add photographs once they accept."
+                /*
+                  Not the people who are already one. An owner looking at this
+                  list has the "Remove" beside each name for that, and offering
+                  "Add" for somebody already on it is a button that does nothing.
+                */
+                exclude={new Set(coHosts.map((person) => person.actorId))}
+              />
+              {coHostPick.length > 0 && (
+                <button
+                  type="button"
+                  disabled={busy === 'cohosts'}
+                  onClick={() => void addCoHosts()}
+                >
+                  {busy === 'cohosts'
+                    ? 'Asking…'
+                    : `Ask ${coHostPick.length} ${coHostPick.length === 1 ? 'person' : 'people'} to co-host`}
+                </button>
+              )}
+              <p className="field-help">
+                {/*
+                  The line that stops this reading as a promotion. A host adds
+                  photographs; the album stays yours, which is the property that
+                  makes the setting safe to offer at all.
+                */}
+                A co-host adds photographs. They cannot rename the album, change
+                these settings, let anybody in, or make anybody else a co-host.
+              </p>
+              {initial.groupId && (
+                /*
+                  And the people this list cannot show, said rather than left out.
+
+                  `authorize` treats a group's admins as hosts of anything in
+                  their group — without it, an album nobody in the group could add
+                  to except its original maker would strand the room's own archive
+                  the day that person left. Their power comes from the group and
+                  not from a role on a participant row, so they are not rows here
+                  and a "Remove" beside them would be a control that does nothing.
+
+                  Which leaves the list understating who can add, and the fix for
+                  that is a sentence rather than a row: an owner reading "co-hosts:
+                  nobody" on a group album is reading something untrue.
+                */
+                <p className="field-help">
+                  This album is in a group, so the group&rsquo;s admins can add
+                  photographs too. That comes with being an admin, and is changed
+                  in the group rather than here.
+                </p>
+              )}
+            </div>
+          )}
         </section>
       )}
 

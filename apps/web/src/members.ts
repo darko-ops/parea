@@ -143,6 +143,23 @@ export type Roster = {
    * apart.
    */
   isHost: boolean;
+  /**
+   * They were asked *as* a co-host and have not answered yet.
+   *
+   * Separate from `isHost` and never both, because they are different facts and
+   * the difference is the whole reason `event_invite.as_host` exists: `isHost`
+   * is a role on a participant row and buys `upload` today, and this is a
+   * promise about a row that does not exist. Folding the two would have a
+   * client draw somebody as one of the people who may add when the server would
+   * refuse them — and then have the album's owner wonder why nothing they put
+   * in arrived.
+   *
+   * What it is for: the People tab saying "co-host · asked" rather than
+   * "invited", and the manage screen listing a co-host who has been named and
+   * has not turned up — so that taking them back out is possible before they
+   * do.
+   */
+  hostAsked: boolean;
   /** For somebody invited and not yet arrived: when the invitation was sent. */
   invitedAt: string | null;
 };
@@ -168,6 +185,7 @@ export async function invitedTo(db: Db, eventId: string): Promise<Roster[]> {
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
       createdAt: schema.eventInvites.createdAt,
+      asHost: schema.eventInvites.asHost,
     })
     .from(schema.eventInvites)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.eventInvites.actorId))
@@ -191,6 +209,9 @@ export async function invitedTo(db: Db, eventId: string): Promise<Roster[]> {
       // Nobody who is not in yet is a host of anything: the role lives on the
       // participant row, and an invitation is the absence of one.
       isHost: false,
+      // What they were asked to be, which is a different question and the one
+      // a list of co-hosts has to be able to answer before anybody arrives.
+      hostAsked: row.asHost,
       invitedAt: row.createdAt.toISOString(),
     })),
   );
@@ -221,6 +242,8 @@ export function rosterFrom(
         ? ('contributor' as const)
         : ('viewer' as const),
     isHost: member.isHost,
+    // Nothing to promise: they are here, so the participant row answers it.
+    hostAsked: false,
     invitedAt: null,
   }));
 

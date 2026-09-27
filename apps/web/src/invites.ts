@@ -231,6 +231,16 @@ export type PendingInvite = {
   caption: string | null;
   /** Who asked. A name, because deciding needs to know from whom. */
   from: string;
+  /**
+   * They were asked as a co-host, not only as somebody in the album.
+   *
+   * Carried this far because it changes what is being agreed to. Accepting a
+   * plain invitation is joining; accepting this one is also taking on the
+   * camera, and a card that did not say so would have somebody find out by
+   * discovering an Add button they did not expect — or worse, have the person
+   * who asked assume a yes they never got in those terms.
+   */
+  asHost: boolean;
   createdAt: string;
 };
 
@@ -257,6 +267,7 @@ export async function pendingInvites(
       createdAt: schema.eventInvites.createdAt,
       displayName: schema.actors.displayName,
       handle: schema.actors.handle,
+      asHost: schema.eventInvites.asHost,
     })
     .from(schema.eventInvites)
     .innerJoin(schema.events, eq(schema.events.id, schema.eventInvites.eventId))
@@ -281,6 +292,7 @@ export async function pendingInvites(
     eventName: row.eventName,
     caption: row.caption,
     from: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+    asHost: row.asHost,
     createdAt: row.createdAt.toISOString(),
   }));
 }

@@ -223,10 +223,27 @@ export async function recordParticipant(
   db: Db,
   eventId: string,
   actorId: string,
+  /**
+   * `host` where the row is being written *because* somebody was named a
+   * co-host — an accepted invitation carrying `as_host`.
+   *
+   * Written in the insert rather than by a second statement afterwards, so
+   * there is no instant in which the person is in the album and not yet one of
+   * the people who may add to it. That instant is short and it is real: a phone
+   * accepting an invitation goes straight to the album and asks whether it may
+   * add, and an `UPDATE` still in flight would have it told no.
+   *
+   * `onConflictDoNothing` is untouched, which means a promotion cannot arrive
+   * by this door for somebody already in. That is correct: an invitation
+   * accepted twice is one arrival, and changing the role of an existing
+   * participant is `POST /hosts` — one write, one place, `administer` in front
+   * of it.
+   */
+  role: 'member' | 'host' = 'member',
 ): Promise<void> {
   await db
     .insert(schema.eventParticipants)
-    .values({ eventId, actorId })
+    .values({ eventId, actorId, role })
     .onConflictDoNothing();
 }
 

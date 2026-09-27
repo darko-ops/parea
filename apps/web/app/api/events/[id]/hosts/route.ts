@@ -22,19 +22,45 @@
  * place the same fact is stored, and the day the two disagree the wrong one
  * wins silently. Demoting is refused for the same reason rather than allowed
  * and quietly ineffective.
+ *
+ * ## Two kinds of co-host, one toggle
+ *
+ * Somebody named a co-host while the album was being made has no participant
+ * row — an invitation grants nothing until it is accepted — so the promise sits
+ * on `event_invite.as_host` and is spent on arrival. That means the set of
+ * co-hosts an owner is looking at has two kinds of row in it, and this route
+ * writes to whichever one the person has: the participant row where they are
+ * here, the open invitation where they are not.
+ *
+ * One endpoint rather than two, because it is one control. "Take Sam back out"
+ * is the same sentence whether or not Sam has opened the link yet, and an owner
+ * who had to know which would be doing the server's bookkeeping.
+ *
+ * Adding a co-host who is not in the album at all is the other route:
+ * `POST /invites` with `hostActorIds`, since that act is also asking them in.
  */
 
 import { schema } from '@parea/core';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById } from '@/access';
+import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
 const notFound = () => NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+/**
+ * A bound on the list, high rather than tight.
+ *
+ * The set of people holding the camera at one evening is small, and this exists
+ * so that an album whose invitations went somewhere strange cannot turn one
+ * screen into a thousand presigned URLs. The same reasoning as `MEMBER_LIMIT`.
+ */
+const MAX_HOSTS = 200;
 
 /**
  * Making somebody a host, or taking it back.
@@ -94,7 +120,42 @@ export async function POST(
     )
     .returning({ actorId: schema.eventParticipants.actorId });
 
-  if (updated.length === 0) return notFound();
+  /*
+   * Nobody in the album by that name — so try the invitation, which is where a
+   * co-host named before they arrived is recorded.
+   *
+   * `open` only, and for the same reason the invites route restricts its own
+   * write to it: a declined invitation is an answer, and an accepted one
+   * belongs to the participant row above. What is left is a promise nobody has
+   * answered yet, which is exactly the thing an owner is taking back.
+   *
+   * A miss here as well is a 404. It was already one; this only moves where the
+   * last look happens.
+   */
+  if (updated.length === 0) {
+    const promised = await db
+      .update(schema.eventInvites)
+      .set({ asHost: body.host })
+      .where(
+        and(
+          eq(schema.eventInvites.eventId, id),
+          eq(schema.eventInvites.actorId, body.actorId),
+          eq(schema.eventInvites.status, 'open'),
+        ),
+      )
+      .returning({ id: schema.eventInvites.id });
+
+    if (promised.length === 0) return notFound();
+    /*
+     * And no host request to close.
+     *
+     * Asking to be a co-host is something people already inside do — the route
+     * next door requires `contribute` — so somebody with an open invitation and
+     * no participant row cannot have one waiting. Falling through to the update
+     * below would be a statement that matches nothing, every time.
+     */
+    return NextResponse.json({ ok: true, host: body.host, pending: true });
+  }
 
   /*
    * And their open request, answered by the thing it was asking for.
@@ -122,4 +183,99 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true, host: body.host });
+}
+
+/**
+ * The album's co-hosts, for the screen that manages them.
+ *
+ * Both kinds in one list — the people who are here with `role = 'host'`, and
+ * the people who were named and have not answered — because that is what the
+ * owner of the album is looking at. Which of the two a row is comes back as
+ * `pending`, since the only thing it changes is the word beside the name.
+ *
+ * Not the creator. They are a host by being the creator and cannot stop being
+ * one, so a row for them in a list whose every entry has a "Remove" beside it
+ * is a control that does nothing — see the refusal in `POST`.
+ *
+ * `administer` rather than `view`: the People tab already shows everybody in the
+ * album who may add, to everybody in it, and that is the right disclosure for a
+ * room. This is the editable list, and an open invitation is not something the
+ * rest of the album is told about.
+ */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const db = getDb();
+
+  const event = await findEventById(db, id);
+  if (!event) return notFound();
+
+  const decision = await decide(db, event, 'administer', await requesterFor(id));
+  if (!decision.allow) return notFound();
+
+  /*
+   * Two reads, side by side. They have nothing to say to each other — a person
+   * cannot hold a participant row and an open invitation to the same album at
+   * once, since accepting is what writes the row — so running them in series
+   * would be a round trip spent on nothing.
+   */
+  const [here, promised] = await Promise.all([
+    db
+      .select({
+        actorId: schema.actors.id,
+        displayName: schema.actors.displayName,
+        handle: schema.actors.handle,
+        avatarKey: schema.actors.avatarKey,
+      })
+      .from(schema.eventParticipants)
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.eventParticipants.actorId))
+      .where(
+        and(
+          eq(schema.eventParticipants.eventId, id),
+          eq(schema.eventParticipants.role, 'host'),
+          ne(schema.eventParticipants.actorId, event.createdBy),
+        ),
+      )
+      .orderBy(asc(schema.eventParticipants.firstSeenAt))
+      .limit(MAX_HOSTS),
+    db
+      .select({
+        actorId: schema.actors.id,
+        displayName: schema.actors.displayName,
+        handle: schema.actors.handle,
+        avatarKey: schema.actors.avatarKey,
+      })
+      .from(schema.eventInvites)
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.eventInvites.actorId))
+      .where(
+        and(
+          eq(schema.eventInvites.eventId, id),
+          eq(schema.eventInvites.status, 'open'),
+          eq(schema.eventInvites.asHost, true),
+        ),
+      )
+      .orderBy(asc(schema.eventInvites.createdAt))
+      .limit(MAX_HOSTS),
+  ]);
+
+  const named = async (
+    row: { actorId: string; displayName: string | null; handle: string | null; avatarKey: string | null },
+    pending: boolean,
+  ) => ({
+    actorId: row.actorId,
+    name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+    handle: row.handle,
+    // Presigned here, one HMAC per row. The key never crosses the boundary.
+    avatar: await avatarUrl(row.avatarKey),
+    pending,
+  });
+
+  return NextResponse.json({
+    hosts: [
+      ...(await Promise.all(here.map((row) => named(row, false)))),
+      ...(await Promise.all(promised.map((row) => named(row, true)))),
+    ],
+  });
 }

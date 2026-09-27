@@ -1349,6 +1349,30 @@ export const eventInvites = pgTable(
     invitedByActorId: uuid('invited_by_actor_id')
       .notNull()
       .references(() => actors.id, { onDelete: 'cascade' }),
+    /**
+     * Whether accepting this makes them one of the album's co-hosts.
+     *
+     * On the invitation rather than written straight onto a participant row,
+     * because at the moment somebody is named a co-host there is usually no
+     * row to write. An album set to `host` asks who its co-hosts are while it
+     * is being made — before anybody has answered anything — and `role` lives
+     * on `event_participant` precisely so that being a host of an album is a
+     * property of being in it. There is no honest state where somebody is a
+     * host of an album they have not joined.
+     *
+     * So the intent waits here, and `PATCH /api/invites/<id>` spends it: an
+     * accepted invitation with this set writes `role = 'host'` in the same
+     * statement that writes the row. Declining spends nothing, which is the
+     * same shape as the rest of this table — an invitation grants nothing on
+     * its own.
+     *
+     * It is also what lets the album's owner take a co-host back out before
+     * they have arrived. Without it the only record of the promise would be in
+     * the head of whoever made it, and the People tab would have to show
+     * somebody as a plain invitee and then surprise everybody by promoting
+     * them on arrival.
+     */
+    asHost: boolean('as_host').notNull().default(false),
     status: text('status', { enum: ['open', 'accepted', 'declined'] })
       .notNull()
       .default('open'),

@@ -232,6 +232,21 @@ export function CreateEvent({
    * that was never made. See `InvitePeople.tsx`.
    */
   const [invitees, setInvitees] = useState<InvitablePerson[]>([]);
+  /*
+   * The people who will hold the camera with them, on an album set to `host`.
+   *
+   * Its own list rather than a flag on `invitees`, because the two questions are
+   * asked separately and answered separately: being in the album is the ordinary
+   * case and holding the camera is the exception, and naming a co-host is also
+   * asking them in — which is why the call below sends this list on its own
+   * rather than repeating those names under the other one.
+   *
+   * Kept when the setting moves off "Hosts" rather than cleared. Somebody
+   * reading the three options and tapping between them has not withdrawn
+   * anything, and a list that emptied itself on the way past "Only me" would
+   * cost them the typing.
+   */
+  const [coHosts, setCoHosts] = useState<InvitablePerson[]>([]);
 
   /**
    * Asked once, on arrival, rather than waited for.
@@ -341,11 +356,26 @@ export function CreateEvent({
        * costs the event nothing — it is made, and asking again is in its own
        * `⋯` sheet — which is why nothing here surfaces one.
        */
-      if (invitees.length > 0) {
+      /*
+       * Members and co-hosts in one call, because the route counts them as one
+       * guest list and applies its cap of fifty to the pair.
+       *
+       * The co-hosts are only sent *as* co-hosts where the setting means
+       * anything. Somebody who picked two and then chose "Only me" has changed
+       * their mind about the album, and asking those people in as co-hosts of an
+       * album nobody but its owner can add to would be honouring a sentence they
+       * backed out of. They are still asked in — the names are kept, and they go
+       * under the other list, which is what "who is in it" meant.
+       */
+      const hosting = contribute === 'host';
+      const asHosts = hosting ? coHosts : [];
+      const asMembers = [...invitees, ...(hosting ? [] : coHosts)];
+      if (asHosts.length > 0 || asMembers.length > 0) {
         void api
           .invite(
             created.id,
-            invitees.map((person) => person.actorId),
+            asMembers.map((person) => person.actorId),
+            asHosts.map((person) => person.actorId),
           )
           .catch(() => {});
       }
@@ -374,6 +404,8 @@ export function CreateEvent({
     }
   }, [
     api,
+    coHosts,
+    contribute,
     cover,
     framing,
     groupId,
@@ -692,7 +724,18 @@ export function CreateEvent({
             for most private albums: the link is the other way in, and this is
             the one that does not depend on somebody forwarding anything.
           */}
-          <InvitePicker api={api} t={t} picked={invitees} onChange={setInvitees} />
+          <InvitePicker
+            api={api}
+            t={t}
+            picked={invitees}
+            onChange={setInvitees}
+            /*
+              Not the people already named as co-hosts. Naming a co-host asks
+              them in, so offering them here again is one invitation dressed as
+              two decisions.
+            */
+            exclude={new Set(coHosts.map((person) => person.actorId))}
+          />
 
           <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
             WHO CAN SEE IT
@@ -778,6 +821,47 @@ export function CreateEvent({
             accessPolicy={isPrivate ? 'private' : 'public'}
             onChange={setContribute}
           />
+
+          {/*
+            And who those hosts are, asked here because this is the moment the
+            answer exists.
+
+            "Hosts" with no way to name one means "only me" until somebody finds
+            the People tab, which is a strange thing for an album to do on the
+            evening it is made: the person handing over the camera is standing
+            next to whoever they are handing it to. So the question follows the
+            answer that raises it, and the same control answers it again
+            afterwards in the album's own settings.
+
+            Picking somebody asks them into the album *and* records that
+            accepting makes them a co-host. Nobody is made a co-host of an album
+            they have not joined — the role lives on the participant row — so the
+            promise waits on the invitation and is spent when they say yes. Which
+            is why the copy says asked.
+          */}
+          {contribute === 'host' && (
+            <>
+              <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+                CO-HOSTS
+              </Text>
+              <Text style={[styles.small, { color: t.dim, marginBottom: 8 }]}>
+                You are one already. Anybody you add here can put photographs in
+                once they accept — nothing else about the album changes hands.
+              </Text>
+              <InvitePicker
+                api={api}
+                t={t}
+                picked={coHosts}
+                onChange={setCoHosts}
+                placeholder="Find a co-host by handle"
+                /*
+                  Not somebody already being asked in as a member. The two lists
+                  are one guest list, and a name in both is one invitation.
+                */
+                exclude={new Set(invitees.map((person) => person.actorId))}
+              />
+            </>
+          )}
       </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}

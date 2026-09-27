@@ -14,6 +14,19 @@
  * — which also means backing out of the form invites nobody, where a picker
  * that sent as it went would leave a trail of asks for an event that was never
  * made.
+ *
+ * ## Two questions, one picker
+ *
+ * "Who is in it" and "who holds the camera" are asked on the same screen when
+ * an album is set to `host`, and they are the same act of finding a person: the
+ * same two lists, the same debounce, the same rule that picking somebody asks
+ * them rather than adds them. So the words are arguments — `placeholder`,
+ * `hint` — and the lists are not.
+ *
+ * `exclude` is what keeps the two from disagreeing. Somebody already named a
+ * co-host must not also be offered under "add members": they are being asked
+ * into the album either way, and a name in both places is one invitation that
+ * looks like two decisions.
  */
 
 import { useEffect, useState } from 'react';
@@ -39,9 +52,23 @@ export function nameOf(person: Person): string {
 export function MemberPicker({
   picked,
   onChange,
+  /** What the search box says it is for. */
+  placeholder = 'Search friends, or anyone by handle',
+  label = 'Search for people to add',
+  /**
+   * The line under an empty list, which is where this picker says what picking
+   * somebody actually does. Two callers, two different promises.
+   */
+  hint = 'Your friends show up here. Search a handle to find anyone else — they get an invitation to accept, and the link works whether or not they do.',
+  /** Actors this picker must not offer — see `exclude` in the header. */
+  exclude,
 }: {
   picked: Person[];
   onChange: (next: Person[]) => void;
+  placeholder?: string;
+  label?: string;
+  hint?: string;
+  exclude?: Set<string>;
 }) {
   const [friends, setFriends] = useState<Person[]>([]);
   const [term, setTerm] = useState('');
@@ -81,7 +108,14 @@ export function MemberPicker({
   const chosen = new Set(picked.map((p) => p.actorId));
   // Friends until there is a query. One list rather than two stacked, because
   // two make "not found" ambiguous — nobody can tell which list was searched.
-  const offered = term.trim().length >= 2 ? found : friends;
+  //
+  // Filtered after that choice rather than before it, so the empty state below
+  // still reads off the same variable: a search that found one person who is
+  // already a co-host says "nobody by that handle", which is the honest answer
+  // to "can I add them" even though the reason is the other picker.
+  const offered = (term.trim().length >= 2 ? found : friends).filter(
+    (person) => !exclude?.has(person.actorId),
+  );
 
   const toggle = (person: Person) =>
     onChange(
@@ -99,8 +133,8 @@ export function MemberPicker({
         type="search"
         value={term}
         onChange={(e) => setTerm(e.target.value)}
-        placeholder="Search friends, or anyone by handle"
-        aria-label="Search for people to add"
+        placeholder={placeholder}
+        aria-label={label}
       />
 
       {picked.length > 0 && (
@@ -158,7 +192,7 @@ export function MemberPicker({
             ? 'Looking…'
             : term.trim().length >= 2
               ? 'Nobody by that handle.'
-              : 'Your friends show up here. Search a handle to find anyone else — they get an invitation to accept, and the link works whether or not they do.'}
+              : hint}
         </p>
       )}
     </div>

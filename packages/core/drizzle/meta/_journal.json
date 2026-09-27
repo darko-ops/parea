@@ -288,6 +288,13 @@
       "when": 1790458773544,
       "tag": "0040_phone_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790525458546,
+      "tag": "0041_co_hosts",
+      "breakpoints": true
     }
   ]
 }
