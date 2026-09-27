@@ -252,10 +252,10 @@ describe('the sandbox copy', () => {
     expect(LIBRARY).toMatch(/source: copy\.uri/);
   });
 
-  it('names the copy by the asset, not by its filename', () => {
+  it('names the copy by the id, not by its filename', () => {
     // Two photographs taken a second apart can share `IMG_0042.HEIC`, and a
     // collision would upload one of them twice.
-    expect(LIBRARY).toMatch(/assetId\.replace\(\/\[\^A-Za-z0-9\._-\]\/g, '_'\)/);
+    expect(LIBRARY).toMatch(/id\.replace\(\/\[\^A-Za-z0-9\._-\]\/g, '_'\)/);
   });
 
   it('does not copy again over a copy it already made', () => {
@@ -718,5 +718,74 @@ describe('asking for the camera roll', () => {
     expect(card).toMatch(/const window = windowFor\(\);\s*if \(\(next === 'granted' \|\| next === 'limited'\) && window\) \{\s*setAutoWindow\(window\);/);
     // No, or nothing to suggest from: the picker, which always works.
     expect(card.match(/pickFromLibrary\(\)/g) ?? []).toHaveLength(2);
+  });
+});
+
+describe('the picker path, which never uploaded anything', () => {
+  const PLATFORM = read('src/platform.ts');
+  // Comments stripped for the negative assertions: this block's own prose in
+  // App.tsx names the very things it is checking are not in the code.
+  const app = code(APP);
+
+  it('copies what the picker returned into the outbox before queueing it', () => {
+    /*
+     * The bug this whole block is about.
+     *
+     * `launchImageLibraryAsync` returns a `file://` URL in `tmp`, and the
+     * picker path handed it to the queue as the source. `uploadItem` does not
+     * trust a source outside the outbox — rightly, a persisted item can carry
+     * a path into the Photos container — so it repaired every one of them by
+     * re-reading `item.id` as a library id. Picked items have no library id,
+     * only the one invented for them, so every repair raised
+     *
+     *   AssetNotFoundException: Asset not found: 1790480378140-0
+     *
+     * which the queue read as `SourceGone` and the album reported as
+     * "17 could not be read — add them again". Adding them again took the
+     * same path. Nothing added through the picker could reach an album.
+     */
+    expect(APP).toMatch(/await adoptIntoOutbox\(/);
+    // And what goes into the queue is the copy, not the picker's file.
+    expect(APP).toMatch(/source: copy\.uri/);
+    expect(app).not.toMatch(/source: asset\.uri/);
+  });
+
+  it('marks the id it invents as invented', () => {
+    // The mark is what lets `uploadItem` ask rather than assume; a bare
+    // `${Date.now()}-${index}` is indistinguishable from an Android asset id.
+    expect(APP).toMatch(/\$\{PICKED\}\$\{stamp\}-\$\{index\}/);
+    expect(app).not.toMatch(/id: `\$\{Date\.now\(\)\}-\$\{index\}`/);
+  });
+
+  it('does not reach for the picker asset id it sometimes has', () => {
+    /*
+     * This is the path somebody without library access takes, so an
+     * `assetId` here names an asset `new Asset()` may not read either — using
+     * it would reintroduce the same failure for exactly the people the picker
+     * exists to serve.
+     */
+    expect(app).not.toMatch(/asset\.assetId/);
+  });
+
+  it('sends the size of the copy rather than the picker\'s optional one', () => {
+    // `fileSize` is optional and was defaulted to `0`, which the presign route
+    // refuses outright — a second way the same photographs could not go up.
+    expect(APP).toMatch(/size: copy\.size/);
+    expect(app).not.toMatch(/size: asset\.fileSize \?\? 0/);
+  });
+
+  it('never hands an invented id to the media library', () => {
+    expect(PLATFORM).toMatch(/if \(!isLibraryAsset\(item\.id\)\)/);
+    // And says so as a sentence, not as a native exception naming an id
+    // nobody has ever seen.
+    expect(PLATFORM).toMatch(/this phone no longer has a copy of the photo/);
+  });
+
+  it('keeps the rest of a selection when one file cannot be read', () => {
+    // iOS can reclaim the picker's temporary file between choosing it and
+    // reading it. Losing the whole selection over one of them would be worse
+    // than saying which.
+    expect(APP).toMatch(/unreadable \+= 1/);
+    expect(APP).toMatch(/could not be read — \$\{unreadable === 1 \? 'it was' : 'they were'\} not added/);
   });
 });

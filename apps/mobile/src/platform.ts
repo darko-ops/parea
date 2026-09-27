@@ -14,7 +14,7 @@ import { Platform } from 'react-native';
 
 import { Offline, SourceGone, type QueueItem, type QueueState } from '@parea/upload';
 
-import { inOutbox, sandboxCopy } from './library';
+import { inOutbox, isLibraryAsset, sandboxCopy } from './library';
 
 const ACTOR_KEY = 'parea.actorToken';
 const EVENTS_KEY = 'parea.events';
@@ -345,6 +345,27 @@ export async function uploadItem(item: QueueItem): Promise<void> {
    */
   let source = item.source;
   if (!inOutbox(source) || !new File(source).exists) {
+    /*
+     * Only an item that names a library asset can be read a second time.
+     *
+     * This repair re-derives the bytes from `item.id`, which works for every
+     * photograph chosen on the suggestion screen because that screen deals in
+     * library ids. The system picker deals in files and has no id to give, so
+     * its items carry one invented in `library.ts` — and handing that to
+     * `new Asset()` raised `AssetNotFoundException: Asset not found:
+     * 1790480378140-0` for every picked photograph, on its first attempt,
+     * before a byte moved. The queue read that as `SourceGone` and told
+     * somebody to add them again, which sent them through the same door.
+     *
+     * Picked items are copied into the outbox at the moment they are chosen,
+     * so reaching here means that copy is gone — which for them really is
+     * terminal, the picker's temporary file being long reclaimed too. Said
+     * plainly rather than as a native exception naming an id nobody has seen.
+     */
+    if (!isLibraryAsset(item.id)) {
+      throw new SourceGone('this phone no longer has a copy of the photo');
+    }
+
     try {
       source = (await sandboxCopy(item.id)).uri;
     } catch (err) {

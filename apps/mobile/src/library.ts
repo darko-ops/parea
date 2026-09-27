@@ -254,6 +254,52 @@ export function windowOf(photos: LibraryPhoto[]): Window | null {
 export const OUTBOX = 'outbox';
 
 /**
+ * The mark on an id this app invented rather than read off the library.
+ *
+ * The system picker hands back files, not assets: there is no library id to
+ * carry, so the queue item gets one made up here. That distinction has to
+ * survive into the queue, because `uploadItem` re-reads an item's id as a
+ * library id when it needs the bytes a second time — and handing
+ * `new Asset()` a number this file invented is what raised
+ *
+ *   AssetNotFoundException: Asset not found: 1790480378140-0
+ *
+ * on every single photograph added through the picker. A prefix no library id
+ * can have is what lets that path ask the question instead of assuming.
+ */
+export const PICKED = 'picked:';
+
+/** False for an id invented by `PICKED` — nothing in the library answers to it. */
+export function isLibraryAsset(id: string): boolean {
+  return !id.startsWith(PICKED);
+}
+
+/**
+ * The outbox, made if it is not there.
+ *
+ * Idempotent, and called per copy rather than once at startup, because
+ * `Paths.cache` is a directory iOS empties whenever it likes.
+ */
+function outboxDir(): Directory {
+  const dir = new Directory(Paths.cache, OUTBOX);
+  dir.create({ idempotent: true });
+  return dir;
+}
+
+/**
+ * Where one id's copy lives.
+ *
+ * Named by the id, not by the filename. Two photographs taken a second apart
+ * can share `IMG_0042.HEIC` across albums, and a collision here would upload
+ * one of them twice. The id is unique and is `ph://<uuid>/L0/001` on iOS, so
+ * its slashes and colons come out before it can be read as a path of its own.
+ */
+function outboxFile(id: string, filename: string): File {
+  const safe = id.replace(/[^A-Za-z0-9._-]/g, '_');
+  return new File(outboxDir(), `${safe}-${filename}`);
+}
+
+/**
  * Turns library ids into files the upload queue can send.
  *
  * ## Why this copies rather than handing over the asset's own path
@@ -277,28 +323,50 @@ export const OUTBOX = 'outbox';
 export async function sandboxCopy(
   assetId: string,
 ): Promise<{ uri: string; name: string; size: number }> {
-  const outbox = new Directory(Paths.cache, OUTBOX);
-  // Idempotent: this runs per upload, and the directory survives between them
-  // unless iOS has reclaimed it.
-  outbox.create({ idempotent: true });
-
   const asset = new Asset(assetId);
   const info = await asset.getInfo();
   const uri = await asset.getUri();
 
-  /*
-   * Named by the asset, not by its filename.
-   *
-   * Two photographs taken a second apart can share `IMG_0042.HEIC` across
-   * albums, and a collision here would upload one of them twice. The id is
-   * unique and is `ph://<uuid>/L0/001` on iOS, so its slashes and colons come
-   * out before it can be read as a path of its own.
-   */
-  const safe = assetId.replace(/[^A-Za-z0-9._-]/g, '_');
-  const copy = new File(outbox, `${safe}-${info.filename}`);
+  const copy = outboxFile(assetId, info.filename);
   if (!copy.exists) await new File(uri).copy(copy);
 
   return { uri: copy.uri, name: info.filename, size: copy.size ?? 0 };
+}
+
+/**
+ * The same copy, for a file that came from the system picker.
+ *
+ * ## Why the picker needs this at all
+ *
+ * `launchImageLibraryAsync` already returns a `file://` URL this app can read,
+ * which is why the picker path handed it straight to the queue. Two things
+ * were wrong with that, and both of them were fatal:
+ *
+ *   - **`uploadItem` does not trust a source outside the outbox**, and it is
+ *     right not to: a persisted queue can carry a path into the Photos
+ *     container that a background `URLSession` can never open. So it repaired
+ *     every picked file by re-reading `item.id` as a library id — and the
+ *     picker's items carry an invented one. Every photograph added this way
+ *     went stale on its first attempt with "17 could not be read — add them
+ *     again", and adding them again did the identical thing.
+ *   - **The picker's own file is temporary.** It lives in `tmp`, which iOS
+ *     reclaims without warning, so even the repair-free version was a race
+ *     against a directory the app does not own.
+ *
+ * Copying into the outbox answers both: the source is ours, it is what a
+ * background session can open, and it is the file the size is measured on
+ * rather than the picker's `fileSize`, which is optional and defaulted to `0`
+ * here — a number `/api/events/[id]/uploads` refuses outright.
+ */
+export async function adoptIntoOutbox(
+  id: string,
+  uri: string,
+  filename: string,
+): Promise<{ uri: string; name: string; size: number }> {
+  const copy = outboxFile(id, filename);
+  if (!copy.exists) await new File(uri).copy(copy);
+
+  return { uri: copy.uri, name: filename, size: copy.size ?? 0 };
 }
 
 /** True for a path this app owns, and therefore one a background session can read. */

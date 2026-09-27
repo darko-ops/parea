@@ -88,6 +88,8 @@ import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
 import { Waiting } from './src/Waiting';
 import {
+  PICKED,
+  adoptIntoOutbox,
   libraryAccess,
   requestLibraryAccess,
   resolveForUpload,
@@ -2623,16 +2625,73 @@ function EventScreen({
     // saw a suggestion" are the same reading.
     api.observe({ kind: 'picker_used', eventId: event.id });
 
-    await enqueue(
-      picked.assets.map((asset, index) => ({
-        id: `${Date.now()}-${index}`,
-        source: asset.uri,
-        name: asset.fileName ?? `photo-${index}.jpg`,
-        size: asset.fileSize ?? 0,
-        mime: asset.mimeType ?? 'image/jpeg',
-      })),
-    );
+    /*
+     * Copied into the outbox before anything is queued.
+     *
+     * The picker's `uri` was handed to the queue directly, which read as
+     * reasonable — it is a file this app can open — and was the reason no
+     * photograph added through the picker ever uploaded. `uploadItem` repairs
+     * any source outside the outbox by re-reading the item's id as a library
+     * id, these items carry an id invented here, and so every one of them died
+     * on its first attempt inside expo-media-library:
+     *
+     *   AssetNotFoundException: Asset not found: 1790480378140-0
+     *
+     * which reached the screen as "17 could not be read — add them again".
+     * Adding them again ran the identical path, so the picker — the fallback
+     * that is supposed to be the thing that always works, for somebody who has
+     * not given library access — could not put a photograph in an album at all.
+     *
+     * Three things come out of doing the copy here. The source is one this app
+     * owns, so `uploadItem` leaves it alone. It is one a background
+     * `URLSession` can open, unlike the picker's own file. And the size is
+     * measured on it, rather than taken from `fileSize` — optional, absent on
+     * Android often enough to matter, and defaulted to `0`, which
+     * `/api/events/[id]/uploads` refuses outright.
+     */
+    const stamp = Date.now();
+    const files: { id: string; source: string; name: string; size: number; mime: string }[] = [];
+    let unreadable = 0;
+    for (const [index, asset] of picked.assets.entries()) {
+      const name = asset.fileName ?? `photo-${index}.jpg`;
+      try {
+        /*
+         * An invented id, marked as invented.
+         *
+         * Deliberately not `asset.assetId`, which the picker sometimes has.
+         * This is the path taken by somebody who has *not* given library
+         * access, so a library id here is one `new Asset()` cannot read
+         * either — it would reintroduce this bug for exactly the people the
+         * picker exists to serve.
+         */
+        const id = `${PICKED}${stamp}-${index}`;
+        const copy = await adoptIntoOutbox(id, asset.uri, name);
+        files.push({
+          id,
+          source: copy.uri,
+          name: copy.name,
+          size: copy.size,
+          mime: asset.mimeType ?? 'image/jpeg',
+        });
+      } catch {
+        // iOS reclaimed the picker's temporary file between choosing it and
+        // reading it. Counted rather than thrown: the rest of the selection is
+        // still perfectly good, and losing all of it over one file would be a
+        // worse answer than saying which.
+        unreadable += 1;
+      }
+    }
 
+    await enqueue(files);
+
+    // Said after the queue has been handed its work, not before: `enqueue`
+    // starts a run, and the run writes the bar's line over anything set
+    // earlier. Last word wins, and this is the one nothing else will say.
+    if (unreadable > 0) {
+      setQueueStatus(
+        `${unreadable} of those could not be read — ${unreadable === 1 ? 'it was' : 'they were'} not added.`,
+      );
+    }
   }, [api, enqueue, event.id]);
 
   const addPhotos = useCallback(async () => {
