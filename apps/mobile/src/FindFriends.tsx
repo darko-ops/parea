@@ -49,6 +49,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -328,6 +329,50 @@ export function FindFriends({
                         disabled={busy || phone.trim().length < 7}
                         onPress={() => void sendCode()}
                       />
+                      {/*
+                        What pressing the button does, under the button.
+
+                        Five things have to be here and each is a sentence rather
+                        than a clause of boilerplate: who texts you, what
+                        arrives, how often, who pays, and where the rules are. It
+                        reads as ordinary honesty and it is also, precisely, what
+                        US carriers check when they ask for proof of consent — a
+                        verification campaign is approved or refused on whether
+                        the screen asking for the number tells somebody they are
+                        about to be texted.
+
+                        Under the control rather than over it, which is where the
+                        eye already is when reaching for it — and the same place
+                        the web's card puts it. Two clients wording one consent
+                        two ways is bad enough; two clients *placing* it
+                        differently is a screenshot of one that does not evidence
+                        the other, and one campaign covers both.
+
+                        The two links open a browser, the way Settings opens the
+                        safety page: these are the product's own published
+                        documents and there is no version of them in the app.
+                      */}
+                      <Text style={[styles.hint, { color: t.dim }]}>
+                        Tapping this sends you one text from Parea with a code in
+                        it. One message, not a subscription — we have nothing
+                        else to text you about, and there is nothing to
+                        unsubscribe from. Your carrier may charge you for it. See
+                        our{' '}
+                        <Text
+                          style={[styles.link, { color: t.accent }]}
+                          onPress={() => void Linking.openURL('https://parea.photos/terms')}
+                        >
+                          Terms
+                        </Text>
+                        {' '}and{' '}
+                        <Text
+                          style={[styles.link, { color: t.accent }]}
+                          onPress={() => void Linking.openURL('https://parea.photos/privacy')}
+                        >
+                          Privacy
+                        </Text>
+                        .
+                      </Text>
                     </>
                   ) : (
                     <>
@@ -514,6 +559,10 @@ const styles = StyleSheet.create({
      visible without counting. */
   code: { textAlign: 'center', letterSpacing: 6, fontSize: 20, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12.5, lineHeight: 18 },
+  /* Underlined as well as coloured: colour alone is not a link to somebody who
+     cannot see the difference, and these two are the only pressable words in a
+     paragraph rather than a row of their own. */
+  link: { textDecorationLine: 'underline' },
   small: { fontSize: 13, lineHeight: 18 },
   error: { fontSize: 13, lineHeight: 19 },
   standing: { fontSize: 12.5, lineHeight: 18 },

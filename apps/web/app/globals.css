@@ -4233,6 +4233,17 @@ img.you-face { object-fit: cover; }
 }
 .settings-switch input { flex: none; margin: 2px 0 0; width: 16px; height: 16px; }
 
+/* The line saying a text is about to be sent.
+
+   Ruled off above rather than merely spaced, because it is doing a different job
+   from the help text over it: that explains how to type a number, this is the
+   disclosure the press is made under. Same size and colour, so it reads as part
+   of the card rather than as small print somebody is meant to skip. */
+.sms-consent {
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px; margin-top: 12px;
+}
+
 /* A label doing a button's job, because the file input it belongs to is
    hidden — the default control reads "Choose File / no file selected", which
    is a sentence about a form rather than about a photograph of you. */

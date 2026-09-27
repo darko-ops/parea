@@ -292,6 +292,31 @@ export function FindFriendsView() {
                     local number belongs to, so a wrong guess would quietly find
                     nobody.
                   </p>
+                  {/*
+                    What pressing the button does, under the button.
+
+                    Five things have to be here and each is a sentence rather
+                    than a clause of boilerplate: who texts you, what arrives,
+                    how often, who pays, and where the rules are. It reads as
+                    ordinary honesty and it is also, precisely, what US carriers
+                    check when they ask for proof of consent — a verification
+                    campaign is approved or refused on whether the screen that
+                    asks for the number tells somebody they are about to be
+                    texted.
+
+                    Under the control rather than over it: that is where the eye
+                    already is when reaching for it, and the field's own hint has
+                    the line directly beneath it. The app places it identically —
+                    one campaign covers both clients, and a screenshot of one is
+                    submitted as evidence for the other.
+                  */}
+                  <p className="muted sms-consent">
+                    Tapping this sends you one text from Parea with a code in it.
+                    One message, not a subscription &mdash; we have nothing else
+                    to text you about, and there is nothing to unsubscribe from.
+                    Your carrier may charge you for it. See our{' '}
+                    <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.
+                  </p>
                 </>
               ) : (
                 <>

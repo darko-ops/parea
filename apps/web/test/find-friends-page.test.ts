@@ -25,6 +25,8 @@ const PAGE = read('../app/find/friends/page.tsx');
 const SWITCH = read('../app/components/Discoverability.tsx');
 const EDIT = read('../app/components/EditProfile.tsx');
 const PRIVACY = read('../app/privacy/page.tsx');
+/* The app's copy of the same card. One campaign covers both clients. */
+const APP_SCREEN = read('../../mobile/src/FindFriends.tsx');
 
 describe('the control in the corner of Find', () => {
   it('is there, and it is a link to the page', () => {
@@ -83,6 +85,58 @@ describe('the page', () => {
     // switch is worse than silence.
     expect(VIEW).toMatch(/People who have it can find you/);
     expect(VIEW).toMatch(/<a href="\/account">your account<\/a>/);
+  });
+
+  it('says a text is coming, before the button that sends it', () => {
+    /*
+     * Five things, and this is the one assertion in the file protecting something
+     * outside the product: a US A2P campaign is approved or refused on whether
+     * the screen asking for a number tells somebody they are about to be texted,
+     * and the screenshot of this paragraph is the evidence submitted for it.
+     *
+     * Checked in both clients, because the campaign covers both and a carrier
+     * reviewing one of them has no way to know the other differs.
+     */
+    for (const [name, source] of [['web', VIEW], ['app', APP_SCREEN]] as const) {
+      const said = source.replace(/\s+/g, ' ');
+      // Who texts you, and what arrives.
+      expect(said, name).toMatch(/sends you one text from Parea with a code in it/);
+      // How often — and that there is nothing to opt out of, which is the
+      // honest version of a STOP keyword for a single transactional message.
+      expect(said, name).toMatch(/One message, not a subscription/);
+      expect(said, name).toMatch(/nothing to unsubscribe from/);
+      // Who pays.
+      expect(said, name).toMatch(/carrier may charge you for it/);
+      // And where the rules are.
+      expect(said, name).toMatch(/Terms/);
+      expect(said, name).toMatch(/Privacy/);
+    }
+  });
+
+  it('places it the same way in both clients', () => {
+    /*
+     * Directly under the control in each, which is where the eye already is when
+     * reaching for it. The assertion is the *agreement* rather than the side:
+     * one A2P campaign covers both clients, the screenshot submitted as evidence
+     * is of one of them, and a carrier reviewing it has no way to know the other
+     * puts the disclosure somewhere else.
+     */
+    for (const [name, source, control] of [
+      ['web', VIEW, 'Send me a code'],
+      ['app', APP_SCREEN, 'label="Send me a code"'],
+    ] as const) {
+      const consent = source.indexOf('sends you one text from Parea');
+      expect(consent, name).toBeGreaterThan(-1);
+      expect(consent, name).toBeGreaterThan(source.indexOf(control));
+    }
+  });
+
+  it('shows it while the number is still being asked for', () => {
+    // Inside the unverified card, not somewhere further down the page: consent
+    // has to be on screen at the moment it is given, and the rest of this page
+    // does not exist yet for somebody who has no number on file.
+    const card = VIEW.slice(VIEW.indexOf('Add your phone number'), VIEW.indexOf('{verified && ('));
+    expect(card).toMatch(/sends you one text from Parea/);
   });
 
   it('never asks the server for the number back', () => {
