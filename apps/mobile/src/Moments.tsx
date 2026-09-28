@@ -36,6 +36,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useColorScheme,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
@@ -295,13 +296,15 @@ export function MomentsBar({
   /** Where to start: the first one new to you, else the first. */
   onOpen: (momentId: string) => void;
 }) {
+  const scheme = useColorScheme();
   if (moments.length === 0) return null;
   const fresh = moments.filter((m) => !m.seen && !m.mine);
   const start = (fresh[0] ?? moments[0])!.id;
   const news = fresh.length;
 
   /*
-   * A dark card with colour showing through it from one corner, as if lit
+   * In the dark scheme, a dark card; in the light one, a light card — dark
+   * glass on a white page reads as a slab. Either way the card with colour showing through it from one corner, as if lit
    * from behind frosted glass. The colour says there is activity and nothing
    * about what: it is the app icon's own field, not anybody's photograph.
    * Caught up, it is a faint glow that holds still; while something is new it
@@ -310,25 +313,30 @@ export function MomentsBar({
    * The status is on the right and is the thing to read; the chevron after it
    * is only a hint that this opens.
    */
+  const look = scheme === 'dark' ? BAR_DARK : BAR_LIGHT;
   return (
+    /*
+     * Two layers because of the shadow: a view that clips its corners (which
+     * the colour needs) also clips its own shadow on iOS. The outer one casts
+     * it; the inner one holds the colour inside the rounded card.
+     */
     <Pressable
       onPress={() => onOpen(start)}
       accessibilityRole="button"
       accessibilityLabel={news > 0 ? `Moments, ${news} new` : 'Moments'}
-      style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.75 : 1 }]}
+      style={({ pressed }) => [styles.barShadow, look.shadow, { opacity: pressed ? 0.75 : 1 }]}
     >
-      <Bloom lively={news > 0} />
-      <Text style={styles.barTitle}>Moments</Text>
-      <View style={styles.barEnd}>
-        {news > 0 && <Text style={styles.barNew}>{news} new</Text>}
-        <Text style={styles.barChevron}>›</Text>
+      <View style={[styles.bar, look.card]}>
+        <Bloom lively={news > 0} look={look} />
+        <Text style={[styles.barTitle, { color: look.ink }]}>Moments</Text>
+        <View style={styles.barEnd}>
+          {news > 0 && <Text style={[styles.barNew, { color: look.ink }]}>{news} new</Text>}
+          <Text style={[styles.barChevron, { color: look.quiet }]}>›</Text>
+        </View>
       </View>
     </Pressable>
   );
 }
-
-/** How much of the colour shows when there is nothing new. */
-const QUIET = 0.38;
 
 /** The drift's length, one way. Slow enough to be felt rather than watched. */
 const DRIFT_MS = 14_000;
@@ -342,7 +350,7 @@ const DRIFT_MS = 14_000;
  * loop anybody would notice as animation, and none at all for somebody who
  * has asked their phone to reduce motion.
  */
-function Bloom({ lively }: { lively: boolean }) {
+function Bloom({ lively, look }: { lively: boolean; look: BarLook }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const drift = useRef(new Animated.Value(0)).current;
 
@@ -387,7 +395,7 @@ function Bloom({ lively }: { lively: boolean }) {
           styles.bloom,
           {
             // Faint when caught up, bright when something is new.
-            opacity: lively ? 1 : QUIET,
+            opacity: lively ? 1 : look.quietGlow,
             transform: [
               { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [10, -18] }) },
               { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [4, -6] }) },
@@ -397,32 +405,84 @@ function Bloom({ lively }: { lively: boolean }) {
       >
         <Svg width="100%" height="100%">
           <Defs>
-            {BLOOM.map((b) => (
+            {look.bloom.map((b) => (
               <RadialGradient key={b.id} id={`${id}${b.id}`} cx={b.cx} cy={b.cy} r={b.r}>
                 <Stop offset="0" stopColor={b.colour} stopOpacity={b.opacity} />
                 <Stop offset="1" stopColor={b.colour} stopOpacity={0} />
               </RadialGradient>
             ))}
           </Defs>
-          {BLOOM.map((b) => (
+          {look.bloom.map((b) => (
             <Rect key={b.id} width="100%" height="100%" fill={`url(#${id}${b.id})`} />
           ))}
         </Svg>
       </Animated.View>
       {/* The frost. Over the colour and under the words, so the colour reads
           as behind the glass rather than painted on it. */}
-      <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, styles.frost]} />
+      <BlurView intensity={40} tint={look.tint} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: look.frost }]} />
     </View>
   );
 }
 
-/** Three of `IconField`'s colours — violet, pink and teal — and where they sit. */
-const BLOOM = [
-  { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '42%', cy: '70%', r: '46%' },
-  { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '68%', cy: '20%', r: '40%' },
-  { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '88%', cy: '85%', r: '42%' },
-] as const;
+type Bloom = { id: string; colour: string; opacity: number; cx: string; cy: string; r: string };
+
+type BarLook = {
+  card: ViewStyle;
+  shadow: ViewStyle;
+  ink: string;
+  quiet: string;
+  tint: 'dark' | 'light';
+  frost: string;
+  /** How much of the colour shows when there is nothing new. */
+  quietGlow: number;
+  bloom: readonly Bloom[];
+};
+
+/**
+ * Dark glass: three of `IconField`'s colours — violet, pink and teal —
+ * gathered at the right, glowing against a near-black card.
+ */
+const BAR_DARK: BarLook = {
+  card: { backgroundColor: '#15171c', borderColor: 'rgba(255,255,255,0.1)' },
+  shadow: {},
+  ink: '#ffffff',
+  quiet: 'rgba(255,255,255,0.45)',
+  tint: 'dark',
+  frost: 'rgba(21,23,28,0.35)',
+  quietGlow: 0.38,
+  bloom: [
+    { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '42%', cy: '70%', r: '46%' },
+    { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '68%', cy: '20%', r: '40%' },
+    { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '88%', cy: '85%', r: '42%' },
+  ],
+};
+
+/**
+ * Light glass: a near-white card, a soft edge and the faintest shadow, with
+ * an aurora of indigo, violet and teal inside it. Softer colours at lower
+ * strength than the dark card — on white, a little colour is already a lot.
+ */
+const BAR_LIGHT: BarLook = {
+  card: { backgroundColor: '#f7f7fa', borderColor: 'rgba(20,23,28,0.08)' },
+  shadow: {
+    shadowColor: '#28326e',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  ink: '#14171c',
+  quiet: 'rgba(20,23,28,0.35)',
+  tint: 'light',
+  frost: 'rgba(247,247,250,0.4)',
+  quietGlow: 0.45,
+  bloom: [
+    { id: 'indigo', colour: '#6F7CE0', opacity: 0.5, cx: '40%', cy: '72%', r: '46%' },
+    { id: 'violet', colour: '#A78BFA', opacity: 0.55, cx: '68%', cy: '22%', r: '42%' },
+    { id: 'teal', colour: '#5FD4C4', opacity: 0.5, cx: '90%', cy: '82%', r: '42%' },
+  ],
+};
 
 export function MomentsRow({
   moments,
@@ -867,6 +927,8 @@ const styles = StyleSheet.create({
    * pulled up against them like the strip it replaces: Home spaces every child
    * 26 apart, and this belongs to the list below it, so 12.
    */
+  /* Casts the shadow, and holds the spacing to the rolls. */
+  barShadow: { borderRadius: 14, marginBottom: -14 },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -875,23 +937,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.1)',
-    // Dark in both schemes: the colour needs a dark ground to glow against.
-    backgroundColor: '#15171c',
     overflow: 'hidden',
-    marginBottom: -14,
   },
   /* The colour's field: the right-hand end of the bar and past its edges, so
      the drift never shows where it stops. */
   bloom: { position: 'absolute', top: -30, bottom: -30, right: -40, width: '75%' },
-  /* A dark wash over the blur, so most of the surface stays dark and the
-     colour is concentrated rather than a tint over everything. */
-  frost: { backgroundColor: 'rgba(21,23,28,0.35)' },
-  barTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  barTitle: { fontSize: 16, fontWeight: '600' },
   barEnd: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  barNew: { color: '#fff', fontSize: 14.5, fontWeight: '600' },
+  barNew: { fontSize: 14.5, fontWeight: '600' },
   /* Secondary to the status: smaller and quieter. */
-  barChevron: { color: 'rgba(255,255,255,0.45)', fontSize: 18, lineHeight: 20 },
+  barChevron: { fontSize: 18, lineHeight: 20 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },

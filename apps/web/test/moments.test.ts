@@ -335,7 +335,9 @@ describe('on Home, one way in', () => {
     const rules = css.slice(css.indexOf('.moments-bar {'), css.indexOf('.moment-nav-wrap'));
     expect(rules).toMatch(/\.moments-bar::after \{[^}]*backdrop-filter: blur/);
     // Faint and still when caught up; bright and drifting when new.
-    expect(rules).toMatch(/\.moments-bar-bloom \{[^}]*opacity: 0\.38;/);
+    expect(rules).toMatch(/\.moments-bar-bloom \{[^}]*opacity: 0\.4;/);
+    // A light card on the white page, with dark text.
+    expect(rules).toMatch(/\.moments-bar \{[^}]*background: #f7f7fa; color: var\(--fg\)/);
     expect(rules).toMatch(/\.moments-bar-new \.moments-bar-bloom \{\s*opacity: 1;\s*animation: moments-drift/);
     // The drift is off for anybody who has asked for less motion.
     expect(rules).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.moments-bar-new \.moments-bar-bloom \{ animation: none; \}/);
