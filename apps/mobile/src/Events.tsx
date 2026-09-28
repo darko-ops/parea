@@ -933,6 +933,7 @@ export function HomeTab({
   onCreateMoment,
   onOpenPerson,
   Button,
+  top = 0,
 }: {
   api: Api;
   events: EventListing[];
@@ -978,8 +979,17 @@ export function HomeTab({
   /** The `+` sheet's Moment: its own screen, like a roll's first step. */
   onCreateMoment: () => void;
   Button: ButtonComponent;
+  /**
+   * Bumped when Home's tab is pressed while Home is already showing — the
+   * convention every phone app keeps: the tab you are on takes you to its top.
+   */
+  top?: number;
 }) {
   const [refreshing, setRefreshing] = useState(false);
+  const scroller = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (top > 0) scroller.current?.scrollTo({ y: 0, animated: true });
+  }, [top]);
   // One gesture refreshes both: pulling the list down and finding the count
   // above it stale would make the count the thing nobody trusts.
   const [pulled, setPulled] = useState(0);
@@ -1019,6 +1029,7 @@ export function HomeTab({
 
   return (
     <ScrollView
+      ref={scroller}
       contentContainerStyle={styles.scroll}
       refreshControl={
         <RefreshControl

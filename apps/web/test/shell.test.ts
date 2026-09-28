@@ -768,3 +768,13 @@ describe('the rail and the app point at the same product', () => {
     expect(ROWS.map((r) => r.page)).toEqual(['events', 'find', 'groups', 'invites', 'you']);
   });
 });
+
+describe('the row for the page you are on', () => {
+  it('takes you to the top of it instead of reloading it', () => {
+    const RAIL = read(join(APP, 'components/Rail.tsx'));
+    expect(RAIL).toMatch(/if \(current !== row\.page\) return;/);
+    expect(RAIL).toMatch(/window\.scrollTo\(\{ top: 0, behavior: 'smooth' \}\)/);
+    // A new-tab click is still the browser's.
+    expect(RAIL).toMatch(/event\.metaKey \|\| event\.ctrlKey \|\| event\.shiftKey \|\| event\.altKey/);
+  });
+});

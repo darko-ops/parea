@@ -169,4 +169,10 @@ describe('moments', () => {
     expect(read('src/Profile.tsx')).toMatch(/<AppearanceChoice t=\{t\} \/>/);
     expect(APP).toMatch(/void loadAppearance\(\);/);
   });
+
+  it('scrolls Home to the top when Home is pressed on Home', () => {
+    expect(APP).toMatch(/if \(id === 'home' && tab === 'home'\) setHomeTop\(\(n\) => n \+ 1\);\s*else setTab\(id\);/);
+    expect(APP).toMatch(/top=\{homeTop\}/);
+    expect(EVENTS).toMatch(/if \(top > 0\) scroller\.current\?\.scrollTo\(\{ y: 0, animated: true \}\);/);
+  });
 });

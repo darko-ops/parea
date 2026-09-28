@@ -370,6 +370,8 @@ export default function App() {
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
   const [tab, setTab] = useState<Tab>('home');
+  /** Pressing Home while on Home scrolls it to the top; see `HomeTab`'s `top`. */
+  const [homeTop, setHomeTop] = useState(0);
   /*
    * Which tabs have been opened, and therefore still exist.
    *
@@ -1774,6 +1776,7 @@ export default function App() {
                 // The join screen's only way in, now that the pill above the tab
                 // bar is gone: a link, a QR code or a spoken phrase.
                 Button={Button}
+                top={homeTop}
               />
             </Pane>
           )}
@@ -1886,7 +1889,17 @@ export default function App() {
             </Pane>
           )}
 
-          <TabBar tab={tab} t={t} dark={dark} chats={chats} onTab={setTab} />
+          <TabBar
+            tab={tab}
+            t={t}
+            dark={dark}
+            chats={chats}
+            onTab={(id) => {
+              // Home, pressed on Home: to the top of it, not nowhere.
+              if (id === 'home' && tab === 'home') setHomeTop((n) => n + 1);
+              else setTab(id);
+            }}
+          />
         </View>
       )}
 

@@ -282,6 +282,18 @@ export function Rail({ current }: { current: RailPage }) {
           // announces, and the styling can hang off the same attribute
           // instead of the two going out of step.
           aria-current={current === row.page ? 'page' : undefined}
+          /*
+            The row for the page you are on takes you to its top rather than
+            reloading it — what every app's tab bar does, and what somebody
+            pressing Home halfway down Home is asking for. A modified click
+            (new tab, new window) is left to the browser.
+          */
+          onClick={(event) => {
+            if (current !== row.page) return;
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         >
           {/* The glyph, then the word. Both, because a rail of five icons is a
               puzzle and a rail of five words is a list you have to read. */}
