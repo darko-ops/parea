@@ -481,6 +481,13 @@ export async function deleteEverything(db: Db, actorId: string): Promise<number>
   // One row each. A bulk deletion that leaves no trace is the case where
   // "where did all of these go" has no answer at all, and it is the largest
   // single removal the product can perform.
+  // Moments go with them. They are not in anybody's evening, so there is no
+  // one else's copy of anything to keep.
+  await db
+    .update(schema.moments)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(schema.moments.actorId, actorId), isNull(schema.moments.deletedAt)));
+
   for (const photo of removed) {
     await recordModeration(db, {
       photoId: photo.id,

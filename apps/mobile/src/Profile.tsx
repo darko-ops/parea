@@ -69,6 +69,7 @@ import { Glyph } from './Glyph';
 import { PageHead } from './PageHead';
 import { HangingTab, TAB_H } from './HangingTab';
 import { More, RoundButton } from './RoundButton';
+import { postMoment } from './Moments';
 import { StartSomething } from './StartSomething';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
@@ -675,6 +676,7 @@ export function ProfileScreen({
           onClose={() => setCreating(false)}
           onAlbum={onCreateEvent}
           onGroup={onCreateGroup}
+          onMoment={() => void postMoment(api)}
         />
       )}
 
@@ -737,7 +739,7 @@ export function ProfileScreen({
         </RoundButton>
       </View>
       <View style={[styles.corner, styles.cornerRight]}>
-        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New roll or group">
+        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New roll, group or moment">
           <Glyph name="plus" size={20} color={t.fg} />
         </RoundButton>
       </View>

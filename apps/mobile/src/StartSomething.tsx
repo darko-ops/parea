@@ -1,5 +1,5 @@
 /**
- * What the `+` makes: an album, or a group.
+ * What the `+` makes: a roll, a group, or a moment.
  *
  * Two tabs reach for this — Events and You — and they must offer the same two
  * things in the same words. Written twice it would be two sheets that agree
@@ -33,6 +33,7 @@ export function StartSomething({
   onClose,
   onAlbum,
   onGroup,
+  onMoment,
 }: {
   t: GroupTheme;
   Button: ButtonComponent;
@@ -47,48 +48,45 @@ export function StartSomething({
    * making a group rather than an empty room to fill.
    */
   onGroup: () => void;
+  /**
+   * One photograph off the camera roll, put up as a moment.
+   *
+   * The caller owns the picker and the upload, because it owns the row the
+   * moment lands in and has to refresh it.
+   */
+  onMoment: () => void;
 }) {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
           <View style={styles.inner}>
-            <Text style={[styles.title, { color: t.fg }]}>Start something</Text>
+            <Text style={[styles.title, { color: t.fg }]}>New</Text>
 
-            <Pressable
-              onPress={() => {
-                onClose();
-                onAlbum();
-              }}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.choice,
-                { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Text style={[styles.choiceName, { color: t.fg }]}>New roll</Text>
-              <Text style={[styles.choiceWhy, { color: t.dim }]}>
-                One evening, and a link for the people who were at it.
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                onClose();
-                onGroup();
-              }}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.choice,
-                { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
-              ]}
-            >
-              <Text style={[styles.choiceName, { color: t.fg }]}>New group</Text>
-              <Text style={[styles.choiceWhy, { color: t.dim }]}>
-                The people you keep ending up with, so the next roll has
-                somewhere to go.
-              </Text>
-            </Pressable>
+            {(
+              [
+                ['Roll', 'A shared place for photos with your people.', onAlbum],
+                ['Group', 'Your people, together for whatever comes next.', onGroup],
+                ['Moment', 'Put one photo front and center for your people.', onMoment],
+              ] as const
+            ).map(([name, why, go]) => (
+              <Pressable
+                key={name}
+                onPress={() => {
+                  onClose();
+                  go();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${name}. ${why}`}
+                style={({ pressed }) => [
+                  styles.choice,
+                  { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.choiceName, { color: t.fg }]}>{name}</Text>
+                <Text style={[styles.choiceWhy, { color: t.dim }]}>{why}</Text>
+              </Pressable>
+            ))}
 
             <Button label="Cancel" t={t} onPress={onClose} />
           </View>
@@ -103,7 +101,7 @@ const styles = StyleSheet.create({
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },
   title: { fontSize: 22, fontWeight: '700' },
-  /* One of the two lines: what it is, and what it is for. */
+  /* One of the choices: what it is, and what it is for. */
   choice: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 4 },
   choiceName: { fontSize: 16, fontWeight: '600' },
   choiceWhy: { fontSize: 13.5, lineHeight: 19 },

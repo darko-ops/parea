@@ -73,7 +73,7 @@ describe('the name', () => {
     const PROFILE = read('src/Profile.tsx');
     expect(PROFILE).not.toMatch(/<PageHead/);
     expect(PROFILE).toMatch(/accessibilityLabel="Settings"/);
-    expect(PROFILE).toMatch(/accessibilityLabel="New roll or group"/);
+    expect(PROFILE).toMatch(/accessibilityLabel="New roll, group or moment"/);
     // And neither of the two titles survives.
     expect(EVENTS).not.toMatch(/>Your Parea</);
     expect(EVENTS).not.toMatch(/\}\]}>Find</);

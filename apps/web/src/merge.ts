@@ -201,6 +201,8 @@ const OWNED: {
   // the same line, unhidden, because the key was filed under an actor nothing
   // points at.
   { table: 'hidden_activity', column: 'actor_id', uniqueWith: ['item_key'] },
+  // A moment is one person's photograph; the survivor is that person.
+  { table: 'moment', column: 'actor_id' },
 ];
 
 export const MERGED_TABLES = OWNED;

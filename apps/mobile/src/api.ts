@@ -101,6 +101,19 @@ export type PhotoTag = {
   mine: boolean;
 };
 
+/** `GET /api/moments`. See `apps/web/src/moments.ts`. */
+export type MomentsResponse = {
+  people: {
+    actorId: string;
+    handle: string | null;
+    name: string;
+    avatar: string | null;
+    mine: boolean;
+    /** Newest first. */
+    moments: { id: string; src: string; width: number; height: number; createdAt: string }[];
+  }[];
+};
+
 export type FeedPhoto = {
   id: string;
   /** 320px thumbnail. The fallback, and all there is before the deriver runs. */
@@ -1745,6 +1758,38 @@ export class Api {
     };
     if (this.token) headers.authorization = `Bearer ${this.token}`;
     return { url: `${this.baseUrl}/api/account/avatar`, headers };
+  }
+
+  // --- moments ----------------------------------------------------------
+
+  /**
+   * Everyone with a moment this person may see — theirs first, then the most
+   * recently posted. Each `src` is presigned for an hour.
+   */
+  moments(): Promise<MomentsResponse> {
+    return this.call('/api/moments');
+  }
+
+  /**
+   * Where a moment is sent. A target, like `avatarTarget`, and for its reason:
+   * the native uploader streams the file from disk as raw bytes, and the
+   * endpoint re-encodes whatever arrives.
+   */
+  momentTarget(): { url: string; headers: Record<string, string> } {
+    return { ...this.avatarTarget(), url: `${this.baseUrl}/api/moments` };
+  }
+
+  /** Taking one of your own back. */
+  deleteMoment(id: string): Promise<unknown> {
+    return this.call(`/api/moments/${id}`, { method: 'DELETE' });
+  }
+
+  /** Blocking whoever put this moment up. The same block a photo's `⋯` makes. */
+  blockMomentAuthor(momentId: string): Promise<unknown> {
+    return this.call('/api/blocks', {
+      method: 'POST',
+      body: JSON.stringify({ momentId }),
+    });
   }
 
   /** Back to the letter. The file goes with it. */

@@ -102,11 +102,11 @@ describe('the door', () => {
      * wrong place to be offered a new one. Its corner is the way to Find
      * Friends now — that is why this counts one tray above and one `+` here.
      */
-    expect(EVENTS.match(/accessibilityLabel="New roll or group"/g) ?? []).toHaveLength(1);
+    expect(EVENTS.match(/accessibilityLabel="New roll, group or moment"/g) ?? []).toHaveLength(1);
     const home = EVENTS.slice(EVENTS.indexOf('export function HomeTab'));
     const head = home.slice(home.indexOf('<PageHead'), home.indexOf('/>', home.indexOf('right={')));
     expect(head.indexOf('left={')).toBeLessThan(head.indexOf('right={'));
-    expect(head.indexOf('New roll or group')).toBeLessThan(head.indexOf('right={'));
+    expect(head.indexOf('New roll, group or moment')).toBeLessThan(head.indexOf('right={'));
 
     /*
      * And on Find the field is what leads the row, from the corner the `+` had

@@ -476,6 +476,7 @@ export function PhotoViewer({
   photos,
   index,
   onIndex,
+  plain = false,
 }: {
   api: Api;
   /** Which album, for posting a comment against this photograph. */
@@ -564,6 +565,15 @@ export function PhotoViewer({
   photos: FeedPhoto[];
   index: number;
   onIndex: (next: number) => void;
+  /**
+   * A moment rather than a roll's photograph.
+   *
+   * The same glass, the same pager, the same square at the top and the same
+   * way out — so a moment opens exactly the way a photograph in a roll does.
+   * What goes is what only a roll has: its thread (comments), the reactions
+   * that are rows in it, and the star, which is a shortlist of an album.
+   */
+  plain?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
 
@@ -627,12 +637,14 @@ export function PhotoViewer({
         width={width}
         height={height}
         onClose={onClose}
-        onTalk={() => setTalking(true)}
+        onTalk={() => {
+          if (!plain) setTalking(true);
+        }}
         onChrome={() => setChrome((on) => !on)}
         onZoomed={setZoomed}
       />
     ),
-    [height, onClose, width],
+    [height, onClose, plain, width],
   );
 
   const [pending, setPending] = useState<Map<string, boolean>>(new Map());
@@ -961,6 +973,7 @@ export function PhotoViewer({
               on the right" however many of them there are.
             */}
             <View style={styles.tools}>
+            {!plain && (
             <Pressable
               onPress={() => void keep(!kept)}
               hitSlop={14}
@@ -971,6 +984,7 @@ export function PhotoViewer({
             >
               <Glyph name="star" size={19} color="#fff" filled={kept} />
             </Pressable>
+            )}
 
             <Pressable
               onPress={onOptions}
@@ -1012,6 +1026,7 @@ export function PhotoViewer({
             summarised. Nothing moves when a reaction arrives except the list
             growing by one at the bottom.
           */}
+          {!plain && (
           <View style={styles.said} pointerEvents="box-none">
             <ScrollView
               style={styles.saidScroll}
@@ -1028,6 +1043,7 @@ export function PhotoViewer({
               ))}
             </ScrollView>
           </View>
+          )}
 
           {/*
             What has been said about this photograph, and a box to add to it.
@@ -1065,7 +1081,10 @@ export function PhotoViewer({
                 front of it. The frequent emoji are still one tap away — theirs
                 rather than ours.
               */}
-              {canReact ? (
+              {plain ? (
+                /* Holds the react disc's place, so the save stays in its corner. */
+                <View style={{ flex: 1 }} />
+              ) : canReact ? (
                 <Pressable
                   onPress={() => setPicking(true)}
                   accessibilityRole="button"
@@ -1078,7 +1097,7 @@ export function PhotoViewer({
                 <Text style={styles.why}>Sign in{'\n'}to react</Text>
               )}
 
-              {canPost && (
+              {!plain && canPost && (
                 <Pressable
                   onPress={() => setTalking(true)}
                   accessibilityRole="button"
@@ -1127,7 +1146,7 @@ export function PhotoViewer({
         </>
       )}
 
-      {talking && (
+      {talking && !plain && (
         <KeyboardAvoidingView
           style={styles.talk}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}

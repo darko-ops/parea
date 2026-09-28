@@ -196,7 +196,7 @@ describe('New group', () => {
      * one place and one thing in another, which nobody can learn. Wherever the
      * `+` asks, it asks the same question.
      */
-    expect(EVENTS).toMatch(/onPress=\{\(\) => setStarting\(true\)\}[\s\S]{0,120}New roll or group/);
+    expect(EVENTS).toMatch(/onPress=\{\(\) => setStarting\(true\)\}[\s\S]{0,120}New roll, group or moment/);
     const home = EVENTS.slice(
       EVENTS.indexOf('export function HomeTab'),
       EVENTS.indexOf('export function ChatsTab'),
@@ -222,7 +222,7 @@ describe('New group', () => {
       EVENTS.indexOf('export function AccountCard'),
     );
     expect(find).not.toMatch(/<StartSomething/);
-    expect(find).not.toMatch(/New roll or group/);
+    expect(find).not.toMatch(/New roll, group or moment/);
     // The way in that never used the button, still there.
     expect(find).toMatch(/if \(openCreate > 0\) onCreateGroup\(\)/);
   });

@@ -36,7 +36,7 @@
  * not in a confirmation afterwards.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Face } from './Faces';
 import { RailIcon } from './RailIcon';
@@ -372,6 +372,12 @@ export function NewGroupPanel({
   searching?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+
+  // Arriving from the `+` sheet's Group, which is a link here with `?new=1`
+  // rather than a second copy of this form somewhere else.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('new')) setOpen(true);
+  }, []);
 
   return (
     <>

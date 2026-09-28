@@ -29,12 +29,12 @@
 import { EventCard } from '@/../app/components/EventCard';
 import { HomeView } from '@/../app/components/HomeView';
 import { Shell } from '@/../app/components/Shell';
-import { avatarUrl, accountFor } from '@/accounts';
+import { accountFor } from '@/accounts';
 import { toCards } from '@/cards';
 import { getDb } from '@/db';
 import { eventsFor } from '@/events';
 import { greetingFor, partOfDay } from '@/greeting';
-import { peopleAround } from '@/people';
+import { momentsResponse } from '@/moments';
 import { searchable } from '@/search';
 import { currentActorId } from '@/session';
 import { readerZone } from '@/zone';
@@ -49,12 +49,12 @@ export const metadata = {
 export default async function EventsPage() {
   const db = getDb();
   const actorId = await currentActorId();
-  const [listings, account, nearby] = await Promise.all([
+  const [listings, account, moments] = await Promise.all([
     eventsFor(db, actorId),
     // For the greeting only. Null for a browser that has never signed in,
     // which is the case this page renders without a greeting at all.
     actorId ? accountFor(db, actorId) : Promise.resolve(null),
-    peopleAround(db, actorId),
+    momentsResponse(actorId),
   ]);
   const now = new Date();
   // The reader's clock, for the greeting — see `zone.ts`. Not the server's,
@@ -81,17 +81,16 @@ export default async function EventsPage() {
         <HomeView
           haystacks={haystacks}
           greeting={greetingFor(account?.displayName ?? null, now, zone)}
-          people={await Promise.all(
-            nearby.map(async (person) => ({
-              actorId: person.actorId,
-              handle: person.handle,
-              name: person.name,
-              // Presigned here, like every other avatar that crosses this
-              // boundary. The key does not cross it.
-              avatar: await avatarUrl(person.avatarKey),
-              eventIds: person.eventIds,
-            })),
-          )}
+          moments={moments.people.map((person) => ({
+            actorId: person.actorId,
+            name: person.name,
+            // Presigned already, like every other avatar that crosses this
+            // boundary. The key does not cross it.
+            avatar: person.avatar,
+            mine: person.mine,
+            first: person.moments[0]!.id,
+            count: person.moments.length,
+          }))}
         >
           {/*
             The id sits on a wrapper so `EventCard` stays a server component

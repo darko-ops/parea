@@ -33,20 +33,38 @@ export const runtime = 'nodejs';
  */
 async function resolveTarget(
   db: ReturnType<typeof getDb>,
-  photoId: unknown,
+  { photoId, momentId }: { photoId?: unknown; momentId?: unknown },
 ): Promise<string | null> {
+  /*
+   * Or by moment, which is the same argument with a different picture: a
+   * moment is a photograph somebody put in front of you, and it is the handle
+   * a viewer has on the person who did. It says whose it is and nothing else.
+   */
+  if (typeof momentId === 'string' && UUID.test(momentId)) {
+    const [row] = await db
+      .select({ actorId: schema.moments.actorId })
+      .from(schema.moments)
+      .where(eq(schema.moments.id, momentId))
+      .limit(1);
+    return row?.actorId ?? null;
+  }
   if (typeof photoId !== 'string') return null;
   const found = await findPhotoWithEvent(db, photoId);
   return found?.photo.uploaderId ?? null;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { photoId?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    photoId?: unknown;
+    momentId?: unknown;
+  };
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
-  const target = await resolveTarget(db, body.photoId);
+  const target = await resolveTarget(db, body);
   if (!target) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (target === actorId) {
     return NextResponse.json({ error: 'cannot_block_self' }, { status: 400 });
@@ -61,12 +79,15 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { photoId?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    photoId?: unknown;
+    momentId?: unknown;
+  };
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
-  const target = await resolveTarget(db, body.photoId);
+  const target = await resolveTarget(db, body);
   if (!target) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   await db

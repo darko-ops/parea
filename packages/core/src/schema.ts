@@ -1948,3 +1948,34 @@ export type Event = typeof events.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
 export type Actor = typeof actors.$inferSelect;
 export type Group = typeof groups.$inferSelect;
+
+// --- moments ---------------------------------------------------------------
+
+/**
+ * One photograph somebody put in front of their people.
+ *
+ * Not an event photo. A roll is an evening and everyone's pictures of it; a
+ * moment is one person, one picture, no evening — so it has no event to hang
+ * from, no contributors, no thread. It is stored the way a profile picture is
+ * (re-encoded on arrival, one rendition, see `/api/moments`) and read by the
+ * same people who would see that person's face in a roll: friends, and anybody
+ * they share a roll with.
+ *
+ * Soft-deleted, so taking one back is immediate for readers while the object
+ * is removed in the same request.
+ */
+export const moments = pgTable(
+  'moment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    createdAt: createdAt(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [index('moment_actor_created_idx').on(t.actorId, t.createdAt)],
+);

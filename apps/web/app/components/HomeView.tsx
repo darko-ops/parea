@@ -1,26 +1,29 @@
 'use client';
 
 /**
- * Home: your people, then your events.
+ * Home: your people's moments, then your rolls.
  *
  * The page used to be the word "Home" over a grid. It was accurate and it was
  * nobody's — the design's first complaint was that returning to it did not
  * feel like returning to your people, and the answer is that the people are
- * now the first thing on it. A row of faces above the events, and pressing one
- * narrows the grid to the evenings that person was at.
+ * now the first thing on it. A row of their faces above the rolls — one square
+ * per person who has put up a moment, and pressing one opens their moments.
  *
- * ## Everything here narrows; nothing here fetches
+ * The row was a filter once: the same faces, and pressing one narrowed the
+ * grid to the evenings that person was at. The shape was right and the verb
+ * was not. A face at the top of Home reads as "something from them", and what
+ * it did was hide things — so the shape stayed and the verb became the picture
+ * they chose to put in front of you.
  *
- * Both controls — the search field and the people row — filter a list the
- * server has already sent. No `?q=`, no round trip per keystroke, no request
- * when a face is pressed. That is the same reasoning the search field has
- * always had, and it is what makes the face filter worth having at all: it is
- * one click to ask "which of these was Priya at", and one to put it back.
+ * ## Search narrows; nothing here fetches
+ *
+ * The search field filters a list the server has already sent. No `?q=`, no
+ * round trip per keystroke.
  *
  * The cards stay server-rendered. They arrive as `children` and are filtered
  * by the id on each wrapper rather than rebuilt from data here — importing
  * `EventCard` into this file would pull the covers, the faces and the URL
- * signing into the browser bundle to implement two filters.
+ * signing into the browser bundle to implement a filter.
  *
  * ## Why the greeting
  *
@@ -35,46 +38,43 @@ import { Children, isValidElement, useState } from 'react';
 
 import { matches } from '@/search';
 
+import { CreateMenu } from './CreateMenu';
 import { Face } from './Faces';
-import { RailIcon } from './RailIcon';
 import { SearchControl } from './SearchControl';
 
-export type RowPerson = {
+/** One square in the row: a person, and where their newest moment is. */
+export type MomentTile = {
   actorId: string;
-  handle: string | null;
   name: string;
   avatar: string | null;
-  /** The viewer's events this person is in. */
-  eventIds: string[];
+  mine: boolean;
+  /** The moment the square opens on. Their newest. */
+  first: string;
+  count: number;
 };
 
 export function HomeView({
   haystacks,
   /** "Evening, Nadia" — worded on the server. Null for somebody with no name. */
   greeting,
-  people,
+  moments,
   children,
 }: {
   haystacks: Record<string, string>;
   greeting: string | null;
-  people: RowPerson[];
+  moments: MomentTile[];
   children: React.ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
 
   const searching = query.trim() !== '';
-  const person = people.find((p) => p.actorId === selected) ?? null;
-
-  const inFilter = person ? new Set(person.eventIds) : null;
 
   const shown = Children.toArray(children).filter((child) => {
     if (!isValidElement(child)) return true;
     const id = (child.props as { 'data-event'?: string })['data-event'];
-    // Not a card, so not the filters' business.
+    // Not a card, so not the filter's business.
     if (!id) return true;
-    if (inFilter && !inFilter.has(id)) return false;
     if (!searching) return true;
     return matches(haystacks[id] ?? '', query);
   });
@@ -125,9 +125,7 @@ export function HomeView({
             first — the trade taken knowingly, because a create button in six
             different corners is the thing that made the rail's one invisible.
           */}
-          <a href="/" className="round home-create" aria-label="Create a roll">
-            <RailIcon glyph="plus" />
-          </a>
+          <CreateMenu className="round home-create" />
 
           {/*
             A button that reveals a field, not a label for one — and the same
@@ -145,57 +143,34 @@ export function HomeView({
         </div>
       </div>
 
-      {people.length > 0 && (
-        <div className="people-row">
-          {people.map((p) => {
-            const on = p.actorId === selected;
-            return (
-              <button
-                key={p.actorId}
-                type="button"
-                className={`person${on ? ' person-on' : ''}`}
-                aria-pressed={on}
-                // The whole button is the label: a circle and a first name,
-                // where the circle is often a picture and the name is the only
-                // text. Pressing again clears, which is what pressing a
-                // selected thing does everywhere else here.
-                onClick={() => setSelected(on ? null : p.actorId)}
-              >
-                <Face
-                  src={p.avatar}
-                  size={56}
-                  className="person-face"
-                  fallback={
-                    <span aria-hidden="true">
-                      {(p.name.replace('@', '').trim() || '?').slice(0, 1).toUpperCase()}
-                    </span>
-                  }
-                />
-                <span className="person-name">{first(p.name)}</span>
-              </button>
-            );
-          })}
-
-          {/*
-            The last slot, and it is a door rather than a face: the row is the
-            people you already share events with, so the way to add to it is to
-            share one — which is what the friends screen is for.
-          */}
-          <a className="person person-invite" href="/friends">
-            <span className="person-face person-plus" aria-hidden="true">
-              ＋
-            </span>
-            <span className="person-name">Invite</span>
-          </a>
-
-          {person && (
-            <span className="people-filter">
-              Showing rolls with <b>{first(person.name)}</b> ·{' '}
-              <button type="button" className="link-button" onClick={() => setSelected(null)}>
-                clear
-              </button>
-            </span>
-          )}
+      {/*
+        Rounded squares rather than the circles they were: a square is what
+        every photograph in this product is drawn as, and each of these is a
+        door to one. The face on it is the person's, not the moment's — the
+        row says who, and pressing it shows what.
+      */}
+      {moments.length > 0 && (
+        <div className="people-row moments-row">
+          {moments.map((p) => (
+            <a
+              key={p.actorId}
+              className={`person moment-tile${p.mine ? ' moment-mine' : ''}`}
+              href={`/moments/${p.first}`}
+              aria-label={`${p.mine ? 'Your' : `${first(p.name)}’s`} ${p.count === 1 ? 'moment' : `${p.count} moments`}`}
+            >
+              <Face
+                src={p.avatar}
+                size={56}
+                className="person-face moment-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {(p.name.replace('@', '').trim() || '?').slice(0, 1).toUpperCase()}
+                  </span>
+                }
+              />
+              <span className="person-name">{p.mine ? 'You' : first(p.name)}</span>
+            </a>
+          ))}
         </div>
       )}
 
@@ -219,7 +194,7 @@ export function HomeView({
         head on both clients, and a second button for it at the foot of a
         scrolling grid is furniture rather than affordance.
       */}
-      {!searching && !person && shown.length === 0 && (
+      {!searching && shown.length === 0 && (
         <div className="blank">
           <p className="blank-note">No Rolls Yet. Create One Now.</p>
           <a className="blank-do" href="/" aria-label="Create a roll">
@@ -235,9 +210,6 @@ export function HomeView({
       */}
       {searching && shown.length === 0 && (
         <p className="muted empty">Nothing here matches “{query.trim()}”.</p>
-      )}
-      {!searching && person && shown.length === 0 && (
-        <p className="muted empty">Nothing here with {first(person.name)} in it.</p>
       )}
     </>
   );

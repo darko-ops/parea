@@ -63,6 +63,7 @@ import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
 import { Notifications, PageHead } from './PageHead';
 import { ROUND, RoundButton } from './RoundButton';
+import { MomentsRow, MomentsViewer, postMoment, useMoments } from './Moments';
 import { StartSomething } from './StartSomething';
 import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
@@ -1156,6 +1157,13 @@ export function HomeTab({
   /** The `+`'s two choices. Nothing is made until one of them is picked. */
   const [starting, setStarting] = useState(false);
   const now = useNow();
+  /*
+   * The row of moments above the rolls, and whose is open.
+   *
+   * Pulling the list refreshes it too — one gesture, everything on the page.
+   */
+  const moments = useMoments(api);
+  const [watching, setWatching] = useState<string | null>(null);
 
   /*
    * Albums with nothing in them are not on this page.
@@ -1190,7 +1198,7 @@ export function HomeTab({
           onRefresh={async () => {
             setRefreshing(true);
             setPulled((n) => n + 1);
-            await onRefresh();
+            await Promise.all([onRefresh(), moments.refresh()]);
             setRefreshing(false);
           }}
         />
@@ -1228,7 +1236,7 @@ export function HomeTab({
           <RoundButton
             t={t}
             onPress={() => setStarting(true)}
-            accessibilityLabel="New roll or group"
+            accessibilityLabel="New roll, group or moment"
           >
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
@@ -1243,6 +1251,21 @@ export function HomeTab({
           onClose={() => setStarting(false)}
           onAlbum={onCreate}
           onGroup={onCreateGroup}
+          onMoment={() => void postMoment(api)}
+        />
+      )}
+
+      <MomentsRow people={moments.people} t={t} onOpen={setWatching} />
+
+      {watching && (
+        <MomentsViewer
+          api={api}
+          people={moments.people}
+          start={watching}
+          t={t}
+          Button={Button}
+          onClose={() => setWatching(null)}
+          onOpenPerson={onOpenPerson}
         />
       )}
 

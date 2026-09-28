@@ -391,10 +391,10 @@ describe('an empty shelf', () => {
      * control in the head on both clients, and a second button for it at the
      * foot of a scrolling grid is furniture rather than affordance.
      *
-     * Not under a search or a person filter either: "create an album" is not
-     * an answer to "which of these has Priya in it".
+     * Not under a search either: "create a roll" is not an answer to a query
+     * that matched nothing.
      */
-    expect(HOME).toMatch(/\{!searching && !person && shown\.length === 0 && \(/);
+    expect(HOME).toMatch(/\{!searching && shown\.length === 0 && \(/);
     expect(ACCOUNT).toMatch(/\{lens !== 'joined' && shown\.length === 0 && \(/);
     // Gone, not hidden.
     expect(HOME).not.toMatch(/CreateCard/);
@@ -556,6 +556,7 @@ describe('the create button', () => {
   const RAIL = read(join(APP, 'components/Rail.tsx'));
   const HOME = read(join(APP, 'components/HomeView.tsx'));
   const SEARCH = read(join(APP, 'components/SearchControl.tsx'));
+  const CREATE = read(join(APP, 'components/CreateMenu.tsx'));
   const CSS = read(join(APP, 'globals.css'));
   /** The rules that only apply below tablet. */
   const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
@@ -580,7 +581,7 @@ describe('the create button', () => {
      * `.rail-foot` create is the regression this asserts against.
      */
     expect(HOME).toMatch(/className="round home-create"/);
-    expect(HOME).toMatch(/aria-label="Create a roll"/);
+    expect(HOME).toMatch(/<CreateMenu className="round home-create" \/>/);
     const foot = RAIL.slice(RAIL.indexOf('className="rail-foot"'));
     expect(foot, 'the rail foot is destinations only now').not.toMatch(/rail-create|"round/);
   });
@@ -589,12 +590,13 @@ describe('the create button', () => {
     // It draws a `+` and nothing else now, so the whole of its meaning is in
     // the label: without this a screen reader announces a link called "plus",
     // or the URL.
-    expect(RAIL).toMatch(/aria-label="Create a roll"/);
+    expect(RAIL).toMatch(/<CreateMenu className="round rail-create" \/>/);
+    expect(CREATE).toMatch(/aria-label="New roll, group or moment"/);
     // And the `+` is the drawn glyph rather than a typed character, which is
     // what stops it being the one shape in the rail at somebody else's stroke
     // weight. See `RailIcon`.
-    expect(RAIL).toMatch(/<RailIcon glyph="plus" \/>/);
-    expect(RAIL).not.toMatch(/aria-hidden="true">\+</);
+    expect(CREATE).toMatch(/<RailIcon glyph="plus" \/>/);
+    expect(CREATE).not.toMatch(/aria-hidden="true">\+</);
   });
 
   it('carries no fill, on either screen', () => {

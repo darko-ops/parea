@@ -488,7 +488,7 @@ describe('the heading row', () => {
      * album screen adds photographs with. Three tabs, one shape for "make
      * something here".
      */
-    expect(HOME).toMatch(/accessibilityLabel="New roll or group"/);
+    expect(HOME).toMatch(/accessibilityLabel="New roll, group or moment"/);
     // The product's one piece of round chrome, shared rather than restyled per
     // corner — see `RoundButton`.
     expect(HOME).toMatch(/<RoundButton/);

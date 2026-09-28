@@ -62,7 +62,7 @@ describe('the two corners', () => {
   it('draws the `+` as a stroke rather than a labelled button', () => {
     // The third `+` somebody meets in this app; the other two taught it.
     expect(SCREEN).toMatch(/<Glyph name="plus"/);
-    expect(SCREEN).toMatch(/accessibilityLabel="New roll or group"/);
+    expect(SCREEN).toMatch(/accessibilityLabel="New roll, group or moment"/);
   });
 });
 
@@ -168,20 +168,23 @@ describe('share profile', () => {
 });
 
 describe('what the `+` makes', () => {
-  it('offers both, and creates neither by itself', () => {
+  it('offers all three, and creates none of them by itself', () => {
     /*
      * The sheet itself lives in `StartSomething` now, because the Events tab's
-     * `+` opens the same two choices — written twice they would be two sheets
+     * `+` opens the same choices — written twice they would be two sheets
      * agreeing today and disagreeing the first time somebody rewrote a line.
      */
     const SHEET = read('src/StartSomething.tsx');
-    expect(SHEET).toMatch(/New roll/);
-    expect(SHEET).toMatch(/New group/);
-    expect(SHEET).toMatch(/onAlbum\(\);/);
-    expect(SHEET).toMatch(/onGroup\(\);/);
-    // And the profile hands it the two destinations rather than drawing it.
+    expect(SHEET).toMatch(/>New</);
+    expect(SHEET).toMatch(/'Roll', 'A shared place for photos with your people\.', onAlbum/);
+    expect(SHEET).toMatch(/'Group', 'Your people, together for whatever comes next\.', onGroup/);
+    expect(SHEET).toMatch(/'Moment', 'Put one photo front and center for your people\.', onMoment/);
+    // Each choice closes the sheet and hands off; the sheet makes nothing.
+    expect(SHEET).toMatch(/onClose\(\);\s*go\(\);/);
+    // And the profile hands it the destinations rather than drawing it.
     expect(SCREEN).toMatch(/onAlbum=\{onCreateEvent\}/);
     expect(SCREEN).toMatch(/onGroup=\{onCreateGroup\}/);
+    expect(SCREEN).toMatch(/onMoment=\{\(\) => void postMoment\(api\)\}/);
   });
 
   it('hands the roll off to the photographs, which come first now', () => {

@@ -215,6 +215,7 @@ describe('the closed list of what is collected', () => {
       actor: /identifier for your device/i,
       device: /notification token/i,
       photo: /Photos and videos you upload/,
+      moment: /A moment is one photo you share on its own/,
       observation: /[Ff]ive facts/,
       event: /That you made a roll/,
       event_participant: /records that you are in that roll/,

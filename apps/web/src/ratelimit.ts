@@ -313,6 +313,19 @@ export const AVATAR_LIMIT: Limit = {
 };
 
 /**
+ * Posting a moment, per source.
+ *
+ * The same shape and the same reason as the avatar's: it is a request handler
+ * decoding an image, reachable by anyone with an actor. A person puts up a
+ * handful in a day; sixty an hour is a script.
+ */
+export const MOMENT_LIMIT: Limit = {
+  name: 'moment',
+  max: 60,
+  windowSeconds: 3600,
+};
+
+/**
  * Searching for a person, per source.
  *
  * The only read in this product that walks the account table, which makes it

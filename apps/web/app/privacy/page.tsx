@@ -63,6 +63,15 @@ export default function PrivacyPage() {
             lists it during that window, but it is honest to say that it exists.
           </p>
 
+          <h3>Moments you share</h3>
+          <p className="muted">
+            A moment is one photo you share on its own, outside any roll. It is
+            stored as a fresh copy made from the picture&rsquo;s pixels, so
+            nothing else in the file &mdash; location, camera, the original
+            &mdash; is kept. It is shown to your friends and to people you are in
+            a roll with, and you can remove it at any time.
+          </p>
+
           <h3>An identifier for your device</h3>
           <p className="muted">
             A random identifier in a cookie, or in the app&rsquo;s keychain. It
