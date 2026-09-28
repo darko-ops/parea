@@ -125,13 +125,17 @@ describe('stainedGlass', () => {
     expect(stainedGlass('album-1')).not.toEqual(stainedGlass('album-2'));
   });
 
-  it('fills the frame with coloured panes', () => {
-    const glass = stainedGlass('album-1', 4, 3);
-    expect(glass.width).toBe(96);
-    expect(glass.height).toBe(72);
-    // Every cell is one or two panes.
-    expect(glass.panes.length).toBeGreaterThanOrEqual(12);
-    expect(glass.panes.length).toBeLessThanOrEqual(24);
-    for (const pane of glass.panes) expect(GLASS_COLOURS).toContain(pane.fill);
+  it('is a rose window, not a scatter of shards', () => {
+    const glass = stainedGlass('album-1', 160, 120);
+    expect(glass.width).toBe(160);
+    expect(glass.height).toBe(120);
+    // Curved leading: the rose, the foils and the boss are arcs, the petals curves.
+    expect(glass.panes.some((pane) => pane.d.includes(' A '))).toBe(true);
+    expect(glass.panes.some((pane) => pane.d.includes(' Q '))).toBe(true);
+    for (const pane of glass.panes) {
+      expect(GLASS_COLOURS[pane.colour]).toBeDefined();
+    }
+    // The boss, where the padlock sits, is drawn last so nothing covers it.
+    expect(glass.panes.at(-1)!.d).toMatch(/^M [\d.]+ 60\.00 A /);
   });
 });

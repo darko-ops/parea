@@ -5,20 +5,21 @@
  * id, so this and the web's `/u/<handle>` draw the same window for the same
  * album. See the note there for why it is glass and not a dashed empty tile.
  *
- * `slice` rather than stretching: the tile is wider than it is tall and the
- * panes should be cut by the frame, not squashed by it. The leading is a
- * non-scaling stroke so it is the same weight on every tile size.
+ * `slice` rather than stretching, so the rose is cut by the tile's edge rather
+ * than squashed into it. Each pane is filled with its colour's own radial
+ * gradient — pale at the heart, deep at the lead — which is the light coming
+ * through, and the thing that separates glass from a mosaic of flat tiles.
  */
 
-import { GLASS_LEAD, stainedGlass } from '@parea/cards';
+import { GLASS_LEAD, GLASS_TONES, stainedGlass } from '@parea/cards';
 import { useMemo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { Glyph } from './Glyph';
 
 export function StainedGlass({ seed, style }: { seed: string; style?: StyleProp<ViewStyle> }) {
-  const window = useMemo(() => stainedGlass(seed, 4, 3), [seed]);
+  const window = useMemo(() => stainedGlass(seed, 160, 120), [seed]);
   return (
     <View style={[style, styles.frame]}>
       <Svg
@@ -28,24 +29,29 @@ export function StainedGlass({ seed, style }: { seed: string; style?: StyleProp<
         preserveAspectRatio="xMidYMid slice"
       >
         <Defs>
-          {/* Light coming through from the upper left, fading out by the far corner. */}
+          {GLASS_TONES.map((tone, i) => (
+            <RadialGradient key={i} id={`pane-${i}`} cx="50%" cy="45%" r="65%">
+              <Stop offset="0" stopColor={tone.heart} />
+              <Stop offset="0.55" stopColor={tone.base} />
+              <Stop offset="1" stopColor={tone.edge} />
+            </RadialGradient>
+          ))}
+          {/* Light across the whole window from the upper left. */}
           <LinearGradient id="light" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#fff" stopOpacity={0.32} />
-            <Stop offset="0.55" stopColor="#fff" stopOpacity={0} />
-            <Stop offset="1" stopColor="#000" stopOpacity={0.18} />
+            <Stop offset="0" stopColor="#fff" stopOpacity={0.22} />
+            <Stop offset="0.5" stopColor="#fff" stopOpacity={0} />
+            <Stop offset="1" stopColor="#000" stopOpacity={0.2} />
           </LinearGradient>
         </Defs>
         <Rect x={0} y={0} width={window.width} height={window.height} fill={GLASS_LEAD} />
         {window.panes.map((pane, i) => (
-          <Polygon
+          <Path
             key={i}
-            points={pane.points}
-            fill={pane.fill}
-            fillOpacity={pane.opacity}
+            d={pane.d}
+            fill={`url(#pane-${pane.colour})`}
             stroke={GLASS_LEAD}
-            strokeWidth={2}
+            strokeWidth={2.4}
             strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
           />
         ))}
         <Rect x={0} y={0} width={window.width} height={window.height} fill="url(#light)" />
