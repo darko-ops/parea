@@ -922,6 +922,32 @@ export default function App() {
   );
 
   /**
+   * An album off somebody's profile, by id.
+   *
+   * The same exchange as `join` — a summary with the link token in it, then
+   * `open` — through the door the server keeps for albums the viewer may
+   * already see. No error screen of its own: the profile says it did not open.
+   */
+  const openAlbum = useCallback(
+    async (eventId: string) => {
+      try {
+        const summary = await api.join({ eventId });
+        await open({
+          id: summary.id,
+          name: summary.name,
+          linkToken: summary.linkToken,
+          startsAt: summary.startsAt,
+          endsAt: summary.endsAt,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [api, open],
+  );
+
+  /**
    * Cold start and warm start both deliver the URL, and on some platforms both
    * deliver the *same* one — `getInitialURL` returns what launched the app and
    * the listener can fire for it as well. Handling it twice means two joins and
@@ -1541,6 +1567,7 @@ export default function App() {
             /* The same landing the making screens get: into the conversation,
                with the tab behind it refreshed. See `openMadeRoom`. */
             onOpenChat={(id) => void openMadeRoom(id)}
+            onOpenAlbum={openAlbum}
             Button={Button}
           />
         </SwipeBack>

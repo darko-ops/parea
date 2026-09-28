@@ -1220,7 +1220,12 @@ export class Api {
    * door instead of the lie it used to tell ("couldn't find that", to somebody
    * holding the right link).
    */
-  join(input: { linkToken?: string; code?: string }): Promise<EventSummary> {
+  /**
+   * By `eventId` is the door from somebody's profile: no credential, so the
+   * server opens it only when the viewer could see the album anyway — public,
+   * or one they are already in — and does not write them into it.
+   */
+  join(input: { linkToken?: string; code?: string; eventId?: string }): Promise<EventSummary> {
     return this.call<EventSummary>('/api/join', {
       method: 'POST',
       body: JSON.stringify(input),

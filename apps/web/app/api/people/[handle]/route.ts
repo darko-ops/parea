@@ -19,7 +19,8 @@ import { NextResponse } from 'next/server';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { coverSrc, leadImage } from '@/cards';
+import { leadImage } from '@/cards';
+import { eventCover } from '@/groups';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -116,7 +117,7 @@ export async function GET(
           locked: album.locked,
           photoCount: album.photoCount,
           createdAt: album.createdAt,
-          thumb: await coverSrc(album.coverKey),
+          thumb: await eventCover(album),
         })),
     ),
   });

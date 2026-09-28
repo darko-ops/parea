@@ -747,7 +747,32 @@ describe('the native join route', () => {
     // while explaining why it is not used, and a test that cannot tell those
     // apart fails on its own documentation.
     expect(route).not.toMatch(/ensureActor\s*\(/);
-    expect(route).toMatch(/if \(actorId\) await recordParticipant/);
+    expect(route).toMatch(/if \(actorId && !byId\) await recordParticipant/);
+  });
+
+  /**
+   * The door from somebody's profile: an album by id, no credential.
+   *
+   * Public albums open to anyone by design — `authorize` says so — and the
+   * phone had no way to reach one it was not sent, so a public album on a
+   * profile drew as a tile that did nothing. The risk in adding it is the
+   * token: the route used to decide with the event's *own* link token, which
+   * was harmless when the event had been found by that token. Found by id, the
+   * same line would present a credential nobody presented and open every
+   * private album to anyone holding an id.
+   */
+  it('opens by id only on who the viewer is, never on the album’s own token', () => {
+    expect(route).toMatch(/findEventById\(db, body\.eventId\)/);
+    expect(route).toMatch(/linkToken: byId \? undefined : event\.linkToken/);
+  });
+
+  it('does not name a private album to somebody who only had its id', () => {
+    // The 403-with-a-name is for a real credential. By id, a refusal is 404.
+    expect(route).toMatch(/!byId &&\s*\n\s*!decision\.allow &&/);
+  });
+
+  it('looks rather than joins, like `/event/<id>` on the web', () => {
+    expect(route).toMatch(/if \(!byId\)\s*\n?\s*await observe\(db, \{\s*\n\s*kind: 'joined'/);
   });
 
   /**

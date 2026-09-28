@@ -13,17 +13,20 @@ import { isWellFormedLinkToken, normaliseCode, schema } from '@parea/core';
 import { and, eq, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { decide, findEventByLinkToken, recordParticipant } from '@/access';
+import { decide, findEventById, findEventByLinkToken, recordParticipant } from '@/access';
 import { getDb } from '@/db';
 import { clientOf, observe } from '@/observe';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     linkToken?: unknown;
     code?: unknown;
+    eventId?: unknown;
   };
 
   const db = getDb();
@@ -31,6 +34,8 @@ export async function POST(request: Request) {
 
   let event = null;
   let presentedCode: string | undefined;
+  /** Opened from somebody's profile, by id, with no credential in hand. */
+  let byId = false;
 
   if (typeof body.linkToken === 'string') {
     // Accepts a full URL as well as a bare token, because people paste links.
@@ -50,6 +55,17 @@ export async function POST(request: Request) {
       event = row?.event ?? null;
       presentedCode = words;
     }
+  } else if (typeof body.eventId === 'string' && UUID.test(body.eventId)) {
+    /*
+     * The third door: an album on somebody's profile, opened by somebody who
+     * was never sent anything — which `authorize` names as the whole point of
+     * `public`. No credential is presented, so the decision below is made on
+     * who the viewer is alone: a public album opens, and a private one opens
+     * only for somebody already in it. Everybody else gets the same 404 a bad
+     * token gets; the profile's own "ask to join" is their way in.
+     */
+    event = await findEventById(db, body.eventId);
+    byId = true;
   }
 
   // One answer for a bad token, an unknown code and a deleted event, so this
@@ -58,7 +74,9 @@ export async function POST(request: Request) {
 
   const decision = await decide(db, event, 'view', {
     actorId,
-    linkToken: event.linkToken,
+    // By id there is no credential, and presenting the event's own token on
+    // the caller's behalf would open every private album to anyone with an id.
+    linkToken: byId ? undefined : event.linkToken,
     code: presentedCode,
   });
 
@@ -83,6 +101,7 @@ export async function POST(request: Request) {
    * about, and it is not news to somebody who was sent the link.
    */
   if (
+    !byId &&
     !decision.allow &&
     (decision.reason === 'approval_required' || decision.reason === 'sign_in_required')
   ) {
@@ -117,17 +136,25 @@ export async function POST(request: Request) {
    * cookie and a keychain token for the same actor — and a row naming an actor
    * this client cannot prove it is would record nobody.
    */
-  if (actorId) await recordParticipant(db, event.id, actorId);
+  /*
+   * Not by id. Opening a public album from a profile is looking at it, the
+   * way `/event/<id>` is on the web, and neither writes you into it: being
+   * listed as in somebody's album is something you do, not something that
+   * happens because you glanced at their page.
+   */
+  if (actorId && !byId) await recordParticipant(db, event.id, actorId);
 
   // §18's install-conversion question: which client people actually arrive on,
   // and therefore whether the install wall is costing contribution. Recorded
   // after the decision, so a refused join is not counted as one.
-  await observe(db, {
-    kind: 'joined',
-    eventId: event.id,
-    actorId,
-    client: clientOf(request),
-  });
+  // Nor counted as a join, for the same reason.
+  if (!byId)
+    await observe(db, {
+      kind: 'joined',
+      eventId: event.id,
+      actorId,
+      client: clientOf(request),
+    });
 
   return NextResponse.json({
     id: event.id,

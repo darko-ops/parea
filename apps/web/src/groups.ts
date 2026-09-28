@@ -893,7 +893,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
  * strip and the event's own card should not disagree about which photograph
  * stands for it.
  */
-const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
+export const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
   select json_build_object(
     'storageKey', p.storage_key,
     'hash', encode(p.content_hash, 'hex')
@@ -1064,8 +1064,13 @@ export async function groupArchive(
   );
 }
 
-/** The cover the host chose, else the newest photograph, else nothing. */
-async function eventCover(row: {
+/**
+ * The cover the host chose, else the newest photograph, else nothing.
+ *
+ * Exported for the profile shelf, which drew only a chosen cover and so showed
+ * an album full of photographs as an empty outline.
+ */
+export async function eventCover(row: {
   id: string;
   capEpoch: number;
   coverKey: string | null;

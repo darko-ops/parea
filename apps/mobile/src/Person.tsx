@@ -87,6 +87,7 @@ export function PersonScreen({
   onBack,
   onOpenEvent,
   onOpenChat,
+  onOpenAlbum,
   Button,
 }: {
   api: Api;
@@ -111,6 +112,13 @@ export function PersonScreen({
    * is meant to be the same one.
    */
   onOpenChat: (groupId: string) => void;
+  /**
+   * Into an album of theirs you are not in, by its id — the open ones, which
+   * `albumsBy` sends unlocked. They are not in `events`, so there is no link
+   * token to hand to `onOpenEvent`; the server gives one back for an album the
+   * viewer may see. Resolves false when it would not open.
+   */
+  onOpenAlbum: (eventId: string) => Promise<boolean>;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -360,7 +368,18 @@ export function PersonScreen({
       photoCount: album.photoCount,
       at: album.createdAt,
       locked: album.locked,
-      open: null,
+      /*
+       * An open album of theirs opens, as it does on the web. It used to be
+       * `null` for every row from this list — right for the locked ones, whose
+       * tap is the ask below, and wrong for a public album, which drew as a
+       * tile that did nothing.
+       */
+      open: album.locked
+        ? null
+        : () =>
+            void onOpenAlbum(album.id).then((opened) => {
+              setError(opened ? null : 'Could not open that album. Try again in a moment.');
+            }),
       album,
     })),
   ];

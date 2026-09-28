@@ -164,6 +164,10 @@ describe('somebody else’s albums, on their page', () => {
      */
     expect(PERSON).toMatch(/\{item\.locked \? \(/);
     expect(PERSON).toMatch(/<FrostedGlass seed=\{item\.id\}/);
+    // And an open one of theirs opens, by id — it used to be a tile that did
+    // nothing, because this list carries no link token. See `/api/join`.
+    expect(PERSON).toMatch(/open: album\.locked\s*\n\s*\? null\s*\n\s*: \(\) =>\s*\n\s*void onOpenAlbum\(album\.id\)/);
+    expect(read('App.tsx')).toMatch(/api\.join\(\{ eventId \}\)/);
     const FROST = read('src/FrostedGlass.tsx');
     expect(FROST).toMatch(/frostedGlass\(seed\)/);
     expect(FROST).toMatch(/<Glyph name="locked"/);

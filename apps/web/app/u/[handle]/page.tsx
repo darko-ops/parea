@@ -23,7 +23,8 @@ import { PersonView } from '@/../app/components/PersonView';
 import { Shell } from '@/../app/components/Shell';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
-import { coverSrc, toCards } from '@/cards';
+import { toCards } from '@/cards';
+import { eventCover } from '@/groups';
 import { getDb } from '@/db';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
@@ -99,7 +100,7 @@ export default async function PersonPage({
         id: album.id,
         name: album.name,
         locked: album.locked,
-        cover: await coverSrc(album.coverKey),
+        cover: await eventCover(album),
         photoCount: album.photoCount,
         // When it was made, like every other shelf of albums.
         date: dateLabel(album.createdAt),

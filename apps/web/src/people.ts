@@ -47,6 +47,7 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { eventsFor, type EventListing } from './events';
+import { EVENT_SHOT } from './groups';
 
 /**
  * Where you and they stand.
@@ -336,6 +337,13 @@ export type ProfileAlbum = {
   /** Private, and the viewer is not in it. Decides everything below. */
   locked: boolean;
   coverKey: string | null;
+  /**
+   * The newest photograph, for when no cover was chosen. Null when locked, for
+   * the reason `coverKey` is: a stand-in picture is still a picture.
+   */
+  shot: { storageKey: string; hash: string | null } | null;
+  /** For signing `shot`; see `eventCover`. */
+  capEpoch: number;
   /** Null when locked. */
   photoCount: number | null;
   /**
@@ -380,6 +388,8 @@ export async function albumsBy(
       name: schema.events.name,
       accessPolicy: schema.events.accessPolicy,
       coverKey: schema.events.coverKey,
+      capEpoch: schema.events.capEpoch,
+      shot: EVENT_SHOT,
       createdAt: schema.events.createdAt,
       lastActiveAt: schema.events.lastActiveAt,
       /*
@@ -445,6 +455,8 @@ export async function albumsBy(
       name: row.name,
       locked,
       coverKey: locked ? null : row.coverKey,
+      shot: locked ? null : row.shot,
+      capEpoch: row.capEpoch,
       photoCount: locked ? null : row.photoCount,
       createdAt: row.createdAt.toISOString(),
       lastActiveAt: row.lastActiveAt.toISOString(),

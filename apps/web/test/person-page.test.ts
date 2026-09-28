@@ -558,6 +558,41 @@ describe('the albums on somebody’s page', () => {
     expect(album!.photoCount).toBe(2);
   });
 
+  it('stands the newest photograph in for a cover nobody chose', async () => {
+    /*
+     * An open album with photographs and no chosen cover drew as the empty
+     * outline — "Phone test", six photographs in it, looked like nothing was.
+     * The group shelf already had the rule, and this is the same one.
+     */
+    const me = await person('me');
+    const them = await person('wren');
+    const open = await event(them, 'Phone test', 'public');
+    await db.insert(schema.photos).values([
+      { eventId: open.id, storageKey: 'older', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg', uploadedAt: new Date('2026-09-01') },
+      { eventId: open.id, storageKey: 'newer', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg', uploadedAt: new Date('2026-09-02') },
+    ] as never);
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album).toMatchObject({ locked: false, coverKey: null });
+    expect(album!.shot?.storageKey).toBe('newer');
+  });
+
+  it('stands nothing in for a locked one', async () => {
+    // A stand-in picture is still a picture out of the album.
+    const me = await person('me');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await db.insert(schema.photos).values([
+      { eventId: shut.id, storageKey: 'inside', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+    ] as never);
+
+    const [album] = await albumsBy(db, me, them);
+    expect(album).toMatchObject({ locked: true, shot: null });
+  });
+
   it('lists only what they made, never what they are in', async () => {
     // Being in somebody else's album is that person's fact to disclose, and a
     // profile that listed it would publish it on their behalf.
