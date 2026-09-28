@@ -26,7 +26,15 @@ describe('moments', () => {
   });
 
   it('draws people as rounded squares, not circles', () => {
-    expect(MOMENTS).toMatch(/face: \{\s*width: 56,\s*height: 56,\s*borderRadius: 16/);
+    expect(MOMENTS).toMatch(/ring: \{\s*width: 66,\s*height: 66,\s*borderRadius: 20/);
+  });
+
+  it('rings each face in the app icon’s own field', () => {
+    expect(MOMENTS).toMatch(/<View style=\{styles\.ring\}>\s*<IconField \/>/);
+  });
+
+  it('sits close above the rolls rather than a card’s gap away', () => {
+    expect(MOMENTS).toMatch(/rowOuter: \{ flexGrow: 0, marginBottom: -16 \}/);
   });
 
   it('sits on Home, under the head', () => {

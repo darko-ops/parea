@@ -345,10 +345,9 @@ describe('the card the home list draws', () => {
      * is what this pins: six blooms over the icon's own base, in the icon's
      * order, and no colour in the tile that the icon does not have.
      */
-    const GLASS = EVENTS.slice(
-      EVENTS.indexOf('const GLASS_BASE'),
-      EVENTS.indexOf('function coverHeight'),
-    );
+    // Its own file now, because the moments row's rings wear it too.
+    const GLASS = read('src/IconField.tsx');
+    expect(EVENTS).toMatch(/<IconField \/>/);
     expect(GLASS).toContain("const GLASS_BASE = '#173EA8';");
     expect(ICON_SCRIPT).toContain("const FIELD_BASE = '#173EA8';");
 

@@ -38,6 +38,7 @@ import {
 
 import { ApiError, type Api, type FeedPhoto, type MomentsResponse } from './api';
 import type { GroupTheme } from './Groups';
+import { IconField } from './IconField';
 import { PhotoViewer } from './PhotoViewer';
 import { describeFile, putToStorage, saveToCameraRoll } from './platform';
 
@@ -270,19 +271,30 @@ export function MomentsRow({
           }
           style={({ pressed }) => [styles.person, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <View style={[styles.face, { borderColor: t.accent, backgroundColor: t.card }]}>
-            {person.avatar ? (
-              <ExpoImage
-                source={{ uri: person.avatar }}
-                style={styles.faceImage}
-                contentFit="cover"
-                transition={120}
-              />
-            ) : (
-              <Text style={[styles.initial, { color: t.fg }]}>
-                {(first(person.name) || '?').slice(0, 1).toUpperCase()}
-              </Text>
-            )}
+          {/*
+            The ring is the app icon's own field, cut to a rounded square and
+            showing only at the edge: a page-coloured gap inside it, then the
+            face. The gap is what keeps the ring a frame around somebody rather
+            than a colour bleeding into their picture.
+          */}
+          <View style={styles.ring}>
+            <IconField />
+            <View style={[styles.gap, { backgroundColor: t.bg }]}>
+              <View style={[styles.face, { backgroundColor: t.card }]}>
+                {person.avatar ? (
+                  <ExpoImage
+                    source={{ uri: person.avatar }}
+                    style={styles.faceImage}
+                    contentFit="cover"
+                    transition={120}
+                  />
+                ) : (
+                  <Text style={[styles.initial, { color: t.fg }]}>
+                    {(first(person.name) || '?').slice(0, 1).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
           <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
             {person.mine ? 'You' : first(person.name)}
@@ -470,22 +482,36 @@ export function MomentsViewer({
 }
 
 const styles = StyleSheet.create({
-  rowOuter: { flexGrow: 0, marginBottom: 12 },
-  row: { gap: 12, paddingHorizontal: 2, paddingVertical: 4 },
-  person: { width: 64, alignItems: 'center', gap: 6 },
-  /* A rounded square, not a disc — see the note at the top. */
+  /*
+   * Pulled up against the rolls. Home's scroll spaces every child 26 apart,
+   * which is right between two cards and far too much under a row of faces
+   * that belongs to the list below it — the negative margin brings that gap
+   * to 10 without the row learning what the page's gap is by any other means.
+   */
+  rowOuter: { flexGrow: 0, marginBottom: -16 },
+  row: { gap: 10, paddingHorizontal: 2, paddingVertical: 2 },
+  person: { width: 70, alignItems: 'center', gap: 5 },
+  /* Rounded squares, not discs — see the note at the top. Each radius is the
+     one inside it plus the padding between, so the three corners are
+     concentric rather than three unrelated curves. */
+  ring: {
+    width: 66,
+    height: 66,
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 3,
+  },
+  gap: { flex: 1, borderRadius: 17, padding: 2 },
   face: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    borderWidth: 2,
+    flex: 1,
+    borderRadius: 15,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   faceImage: { width: '100%', height: '100%' },
   initial: { fontSize: 20, fontWeight: '600' },
-  name: { fontSize: 12, maxWidth: 64 },
+  name: { fontSize: 12, maxWidth: 70 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },
