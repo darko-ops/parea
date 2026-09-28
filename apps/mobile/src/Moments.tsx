@@ -12,8 +12,9 @@
  *   opens exactly what pressing a photograph in a roll opens. All the people's
  *   moments are one list, so swiping past somebody's last carries on into the
  *   next person's.
- * - `postMoment`, the `+` sheet's third choice: one picture off the camera
- *   roll, sent as bytes the way a profile picture is.
+ * - `AddMoment`, the screen the `+` sheet's third choice opens: one picture
+ *   off the camera roll, shown, then sent as bytes the way a profile picture
+ *   is.
  *
  * The row and the sheet live on different tabs, so a posted moment is
  * announced through `onMomentsChanged` rather than by threading a refresh
@@ -23,7 +24,17 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import type { Api, FeedPhoto, MomentsResponse } from './api';
 import type { GroupTheme } from './Groups';
@@ -72,25 +83,124 @@ export function useMoments(api: Api) {
 }
 
 /**
- * One picture, off the camera roll, up as a moment.
+ * One picture off the camera roll, or null if they backed out.
  *
  * The system picker, for the avatar's reason: choosing one image needs no
  * library permission on iOS. No crop — a moment is somebody's whole
  * photograph, and the server keeps it whole.
  */
-export async function postMoment(api: Api): Promise<void> {
+async function pickOne(): Promise<string | null> {
   const picked = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
   });
-  if (picked.canceled || !picked.assets[0]) return;
-  try {
-    const target = api.momentTarget();
-    await uploadCover(target.url, target.headers, picked.assets[0].uri);
-    momentsChanged();
-  } catch {
-    Alert.alert('Could not share that moment', 'Try again in a moment.');
-  }
+  if (picked.canceled || !picked.assets[0]) return null;
+  return picked.assets[0].uri;
+}
+
+/**
+ * Adding a moment: its own screen, the way a roll's first step is.
+ *
+ * The `+` sheet's Moment used to launch the picker straight from the sheet,
+ * and on iOS that is a picker asked to present while the sheet it came from is
+ * still sliding away — which the system refuses without saying so. So the
+ * choice opens this instead: a screen that is fully on the glass before the
+ * picker is asked for, a frame showing what is about to go up, and a Share
+ * that is the only thing that sends it. Picking the wrong photo is a tap on
+ * the frame, not a moment somebody has to go and delete.
+ */
+export function AddMoment({
+  api,
+  onCancel,
+  onShared,
+}: {
+  api: Api;
+  onCancel: () => void;
+  onShared: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  const [uri, setUri] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  const choose = useCallback(async () => {
+    const next = await pickOne();
+    if (next) setUri(next);
+  }, []);
+
+  const share = useCallback(async () => {
+    if (!uri || sharing) return;
+    setSharing(true);
+    try {
+      const target = api.momentTarget();
+      await uploadCover(target.url, target.headers, uri);
+      momentsChanged();
+      onShared();
+    } catch {
+      setSharing(false);
+      Alert.alert('Could not share that moment', 'Try again in a moment.');
+    }
+  }, [api, onShared, sharing, uri]);
+
+  return (
+    <View style={[styles.addRoot, { backgroundColor: '#000' }]}>
+      <View style={styles.addBar}>
+        <Pressable onPress={onCancel} hitSlop={12} accessibilityRole="button" disabled={sharing}>
+          <Text style={styles.addCancel}>Cancel</Text>
+        </Pressable>
+        <Text style={styles.addTitle}>New moment</Text>
+        <Pressable
+          onPress={() => void share()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Share this moment"
+          disabled={!uri || sharing}
+        >
+          {sharing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={[styles.addShare, { opacity: uri ? 1 : 0.4 }]}>Share</Text>
+          )}
+        </Pressable>
+      </View>
+
+      {/* `contain`, as in the roll's picker: this frame is for judging a
+          photograph, and it is shared whole. */}
+      <Pressable
+        onPress={() => void choose()}
+        disabled={sharing}
+        accessibilityRole="button"
+        accessibilityLabel={uri ? 'Choose a different photo' : 'Choose a photo'}
+        style={[styles.addFrame, { height: width * 1.25 }]}
+      >
+        {uri ? (
+          <ExpoImage
+            source={{ uri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            transition={120}
+          />
+        ) : (
+          <View style={styles.addEmpty}>
+            <View style={[styles.addPlus, { borderColor: 'rgba(255,255,255,0.35)' }]}>
+              <Text style={styles.addPlusGlyph}>+</Text>
+            </View>
+            <Text style={styles.addWhy}>Choose a photo</Text>
+            <Text style={styles.addWhySmall}>
+              One photo, front and center for your people.
+            </Text>
+          </View>
+        )}
+      </Pressable>
+
+      {uri && !sharing && (
+        <Pressable onPress={() => void choose()} hitSlop={10} accessibilityRole="button">
+          <Text style={styles.addAgain}>
+            Choose a different photo
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
 }
 
 /** The first word of a name. The rows under the squares are narrow. */
@@ -344,4 +454,35 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },
+  addRoot: { flex: 1 },
+  /* The same status-bar allowance as the roll's picker. */
+  addBar: {
+    paddingTop: 60,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addCancel: { color: '#fff', fontSize: 15.5 },
+  addTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  addShare: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
+  addFrame: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  addEmpty: { alignItems: 'center', gap: 10, padding: 32 },
+  addPlus: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  addPlusGlyph: { color: '#fff', fontSize: 28, fontWeight: '300' },
+  addWhy: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  addWhySmall: { color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
+  /* The glass blue the photo viewer uses: the accent that reads on white is a
+     navy on black. */
+  addAgain: { color: '#6ea8fe', fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 18 },
 });

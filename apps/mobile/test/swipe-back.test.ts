@@ -107,8 +107,9 @@ describe('the screens it wraps', () => {
     // every screen pushed over the tabs that has an arrow in its corner — plus
     // the four below, which are the album flow's first step, the account gate
     // in front of it, and the two pages a room is made on: a group, which is
-    // asked for a name, and a chat, which is asked only who.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(11);
+    // asked for a name, and a chat, which is asked only who — and adding a
+    // moment, which holds a picture and nothing typed.
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(12);
   });
 
   it('is on the photographs and on the gate in front of them', () => {

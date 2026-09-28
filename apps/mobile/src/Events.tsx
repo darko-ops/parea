@@ -63,7 +63,7 @@ import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
 import { Notifications, PageHead } from './PageHead';
 import { ROUND, RoundButton } from './RoundButton';
-import { MomentsRow, MomentsViewer, postMoment, useMoments } from './Moments';
+import { MomentsRow, MomentsViewer, useMoments } from './Moments';
 import { StartSomething } from './StartSomething';
 import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
@@ -1104,6 +1104,7 @@ export function HomeTab({
   onOpenLately,
   onCreate,
   onCreateGroup,
+  onCreateMoment,
   onOpenPerson,
   Button,
 }: {
@@ -1148,6 +1149,8 @@ export function HomeTab({
    * that tab was written to avoid.
    */
   onCreateGroup: () => void;
+  /** The `+` sheet's Moment: its own screen, like a roll's first step. */
+  onCreateMoment: () => void;
   Button: ButtonComponent;
 }) {
   const [refreshing, setRefreshing] = useState(false);
@@ -1251,7 +1254,7 @@ export function HomeTab({
           onClose={() => setStarting(false)}
           onAlbum={onCreate}
           onGroup={onCreateGroup}
-          onMoment={() => void postMoment(api)}
+          onMoment={onCreateMoment}
         />
       )}
 

@@ -69,7 +69,6 @@ import { Glyph } from './Glyph';
 import { PageHead } from './PageHead';
 import { HangingTab, TAB_H } from './HangingTab';
 import { More, RoundButton } from './RoundButton';
-import { postMoment } from './Moments';
 import { StartSomething } from './StartSomething';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
@@ -100,6 +99,7 @@ export function ProfileScreen({
   onOpenPerson,
   onCreateEvent,
   onCreateGroup,
+  onCreateMoment,
   onSignedIn,
   onSignedOut,
   Button,
@@ -135,6 +135,8 @@ export function ProfileScreen({
    * empty-group problem the Groups tab was written to avoid.
    */
   onCreateGroup: () => void;
+  /** The `+` sheet's Moment: its own screen, like a roll's first step. */
+  onCreateMoment: () => void;
   onSignedIn: () => void;
   onSignedOut: () => void;
   Button: ButtonEl;
@@ -676,7 +678,7 @@ export function ProfileScreen({
           onClose={() => setCreating(false)}
           onAlbum={onCreateEvent}
           onGroup={onCreateGroup}
-          onMoment={() => void postMoment(api)}
+          onMoment={onCreateMoment}
         />
       )}
 

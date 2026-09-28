@@ -81,6 +81,7 @@ import { CoverGlass } from './src/CoverGlass';
 import { Lately } from './src/Lately';
 import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
+import { AddMoment } from './src/Moments';
 import { Back, More, RoundButton } from './src/RoundButton';
 import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
@@ -311,6 +312,8 @@ type Route =
    * cover, and the set to upload once the album exists.
    */
   | { screen: 'pick'; groupId?: string; groupName?: string }
+  /** Adding a moment: one photograph, chosen and shown before it is shared. */
+  | { screen: 'moment' }
   | {
       screen: 'create';
       groupId?: string;
@@ -1381,6 +1384,16 @@ export default function App() {
         It used to say "the card below", which was true of a card that only
         drew on the second step and therefore never drew at all.
       */}
+      {route.screen === 'moment' && (
+        <SwipeBack onBack={leaveToTabs}>
+          <AddMoment
+            api={api}
+            onCancel={leaveToTabs}
+            onShared={leaveToTabs}
+          />
+        </SwipeBack>
+      )}
+
       {route.screen === 'pick' && signedIn === true && (
         <SwipeBack onBack={leaveMaking}>
           <PickPhotos
@@ -1747,6 +1760,7 @@ export default function App() {
                 onOpen={openListing}
                 onRefresh={refreshEvents}
                 onCreate={() => setRoute({ screen: 'pick' })}
+                onCreateMoment={() => setRoute({ screen: 'moment' })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateGroup={() => {
                   setTab('search');
@@ -1837,6 +1851,7 @@ export default function App() {
                 onOpen={openListing}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateEvent={() => setRoute({ screen: 'pick' })}
+                onCreateMoment={() => setRoute({ screen: 'moment' })}
                 onCreateGroup={() => {
                   setTab('search');
                   setMakeGroup((n) => n + 1);

@@ -184,7 +184,7 @@ describe('what the `+` makes', () => {
     // And the profile hands it the destinations rather than drawing it.
     expect(SCREEN).toMatch(/onAlbum=\{onCreateEvent\}/);
     expect(SCREEN).toMatch(/onGroup=\{onCreateGroup\}/);
-    expect(SCREEN).toMatch(/onMoment=\{\(\) => void postMoment\(api\)\}/);
+    expect(SCREEN).toMatch(/onMoment=\{onCreateMoment\}/);
   });
 
   it('hands the roll off to the photographs, which come first now', () => {

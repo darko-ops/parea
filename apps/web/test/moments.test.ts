@@ -11,6 +11,7 @@ import { newLinkToken, schema } from '@parea/core';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -148,5 +149,20 @@ describe('taking one back', () => {
     expect(await removeMoment(db, them, id)).toBeNull();
     expect(await removeMoment(db, me, id)).not.toBeNull();
     expect(await who(me)).toEqual([]);
+  });
+});
+
+describe('adding one', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`../app/${path}`, import.meta.url)), 'utf8');
+
+  it('goes to its own page from the sheet, and only Share there sends', () => {
+    // The sheet used to fire a file dialog and upload whatever came back, with
+    // nothing on the screen between choosing and sharing.
+    expect(read('components/CreateMenu.tsx')).toMatch(/href="\/moments\/new"/);
+    expect(read('components/CreateMenu.tsx')).not.toMatch(/api\/moments/);
+    const add = read('components/AddMoment.tsx');
+    expect(add).toMatch(/disabled=\{!file \|\| busy\}/);
+    expect(add).toMatch(/fetch\('\/api\/moments', \{ method: 'POST', body: file \}\)/);
   });
 });
