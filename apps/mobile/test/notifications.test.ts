@@ -152,7 +152,7 @@ describe('against the payload the server actually sends', () => {
  * go and find it.
  */
 describe('a comment, and being tagged', () => {
-  it('opens the album, which is as close as the app can get', () => {
+  it('opens the roll, which is as close as the app can get', () => {
     /*
      * Not the photograph. There is no screen that is one photograph reachable
      * from cold: the viewer is something you get to *from* an album and it

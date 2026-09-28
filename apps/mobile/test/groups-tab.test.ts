@@ -48,7 +48,7 @@ describe('the tab', () => {
      */
     // The bar carries a glyph between the tab and its label now — the label
     // survives as the accessibility name, which is what these look for.
-    const events = APP.indexOf("['home', 'photos', 'Albums']");
+    const events = APP.indexOf("['home', 'photos', 'Rolls']");
     const chats = APP.indexOf("['chats', 'bubbles', 'Chats']");
     const find = APP.indexOf("['search', 'search', 'Find']");
     expect(chats).toBeGreaterThan(-1);
@@ -292,7 +292,7 @@ describe('what a group shows when you open it', () => {
     expect(ROUTE).toMatch(/invitesSeenAtFor\(db, actorId\)\) \?\? new Date\(0\)/);
   });
 
-  it('carries what opening an album needs, not only what drawing one does', () => {
+  it('carries what opening a roll needs, not only what drawing one does', () => {
     /*
      * The web navigates to a route by id. The native client cannot: opening an
      * album means handing the screen a summary, and the album then presents a
@@ -309,7 +309,7 @@ describe('what a group shows when you open it', () => {
     expect(GROUPS).toMatch(/startsAt: album\.startsAt,/);
   });
 
-  it('is shaped like an album: a head, three tabs, one pane', () => {
+  it('is shaped like a roll: a head, three tabs, one pane', () => {
     /*
      * An evening and a room are the same kind of object to somebody holding
      * the phone — a thing with pictures in it, a conversation about them, and
@@ -324,7 +324,7 @@ describe('what a group shows when you open it', () => {
     expect(GROUPS).toMatch(/head: \{ height: HEAD, borderBottomWidth: 1/);
     expect(GROUPS).toMatch(/page: \{ position: 'absolute', top: HEAD, left: 0, right: 0, bottom: 0 \}/);
     expect(GROUPS).toMatch(/export type GroupPane = 'albums' \| 'chat' \| 'people';/);
-    expect(GROUPS).toMatch(/\['albums', 'photos', 'Albums'\]/);
+    expect(GROUPS).toMatch(/\['albums', 'photos', 'Rolls'\]/);
     expect(GROUPS).toMatch(/\['chat', 'bubbles', 'Chat'\]/);
     expect(GROUPS).toMatch(/\['people', 'group', 'People'\]/);
 
@@ -336,7 +336,7 @@ describe('what a group shows when you open it', () => {
     expect(GROUPS).toMatch(/\{!group\.member \? \(/);
   });
 
-  it('shelves albums the way the profile does, two across', () => {
+  it('shelves rolls the way the profile does, two across', () => {
     /*
      * It was an archive: the newest full-bleed at 4:5, the rest as rows under
      * month and year rules. That reads well on its own and reads like a third
@@ -432,7 +432,7 @@ describe('what a group shows when you open it', () => {
     expect(SERVER).toMatch(/export async function attendedEvery/);
   });
 
-  it('adds an album from the tab row, where an album adds photographs', () => {
+  it('adds a roll from the tab row, where a roll adds photographs', () => {
     /*
      * It was a floating pill above the tab bubble, put there because the
      * control for adding sat at the foot of the one list somebody scrolls to
@@ -440,12 +440,12 @@ describe('what a group shows when you open it', () => {
      * second floating object — and it is the slot the album screen already
      * uses for the room's version of the same job.
      */
-    expect(GROUPS).toMatch(/accessibilityLabel="New album in this group"/);
+    expect(GROUPS).toMatch(/accessibilityLabel="New roll in this group"/);
     expect(GROUPS).toMatch(/addButton: \{/);
     expect(GROUPS).not.toMatch(/styles\.make\b/);
   });
 
-  it('puts leaving behind the same glyph an album’s settings sit behind', () => {
+  it('puts leaving behind the same glyph a roll’s settings sit behind', () => {
     /*
      * It was a red button at the foot of the archive, which put the screen's
      * one irreversible action at the end of the one list somebody scrolls to
@@ -457,7 +457,7 @@ describe('what a group shows when you open it', () => {
     expect(GROUPS).toMatch(/accessibilityLabel="Group settings"/);
     /* And the sentence is still at the foot of the albums, which is where
        somebody arrives having scrolled them. */
-    expect(GROUPS).toMatch(/Photos live in the albums, not in the group/);
+    expect(GROUPS).toMatch(/Photos live in the rolls, not in the group/);
   });
 
   it('keeps the room’s own face a letter, never a borrowed photograph', () => {

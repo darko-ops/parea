@@ -181,7 +181,7 @@ export function CoverFramer({
   coverId,
   initial = CENTRED,
   t,
-  stripLabel = 'IN THIS ALBUM',
+  stripLabel = 'IN THIS ROLL',
   onCancel,
   onConfirm,
 }: {

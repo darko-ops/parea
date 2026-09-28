@@ -407,7 +407,7 @@ export function PersonScreen({
         ? null
         : () =>
             void onOpenAlbum(album.id).then((opened) => {
-              setError(opened ? null : 'Could not open that album. Try again in a moment.');
+              setError(opened ? null : 'Could not open that roll. Try again in a moment.');
             }),
       album,
     })),
@@ -463,7 +463,7 @@ export function PersonScreen({
           out. See `ProfileCounts` on the server for what each one counts.
         */}
         <Text style={[styles.counts, { color: t.dim }]}>
-          {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'} ·{' '}
+          {person.counts.albums} {person.counts.albums === 1 ? 'roll' : 'rolls'} ·{' '}
           {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
           {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
         </Text>
@@ -667,7 +667,7 @@ export function PersonScreen({
             with nothing shared is told it is not there *yet*, which is a fact
             about the two of you and likely to change.
           */}
-          {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
+          {standing === 'friends' ? 'No rolls to show yet' : 'Nothing here yet'}
         </Text>
       ) : (
         <View style={[styles.grid, styles.gutter]}>

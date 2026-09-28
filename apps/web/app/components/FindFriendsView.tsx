@@ -85,8 +85,8 @@ export function reasonFor(person: Person): string {
   }
   if (person.albums > 0) {
     return person.albums === 1
-      ? 'In an album with you'
-      : `In ${person.albums} albums with you`;
+      ? 'In a roll with you'
+      : `In ${person.albums} rolls with you`;
   }
   if (person.groups > 0) {
     return person.groups === 1
@@ -413,7 +413,7 @@ export function FindFriendsView() {
                   fill it.
                 */
                 <p className="find-empty">
-                  Nobody new to suggest right now. Suggestions come from albums
+                  Nobody new to suggest right now. Suggestions come from rolls
                   you have both been in, groups you are both in, and friends you
                   have in common &mdash; so this fills up as you share evenings
                   with people. You can also find anybody by their handle on{' '}

@@ -253,7 +253,7 @@ describe('the shape of somebody else’s page', () => {
     expect(PERSON).toMatch(/@\{person\.handle\}/);
   });
 
-  it('draws their albums as one shelf of covers', () => {
+  it('draws their rolls as one shelf of covers', () => {
     /*
      * Two bordered cards of text rows became one wall of covers, which is the
      * point of the screen: what this person has is photographs, and a list of
@@ -293,7 +293,7 @@ describe('the shape of somebody else’s page', () => {
   });
 });
 
-describe('leaving an album opened from somebody’s page', () => {
+describe('leaving a roll opened from somebody’s page', () => {
   /*
    * Search for a person, open one of their albums, press Back — and you were
    * on Find with the person gone, because leaving an album always went to the

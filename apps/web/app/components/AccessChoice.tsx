@@ -38,7 +38,7 @@ export const ACCESS_OPTIONS: {
   {
     value: PRIVATE,
     label: 'Private',
-    help: 'Only the people in it. You add them, or they ask and you let them in — from the link, or from your profile, where the album is listed by name with nothing in it showing. A forwarded link opens nothing.',
+    help: 'Only the people in it. You add them, or they ask and you let them in — from the link, or from your profile, where the roll is listed by name with nothing in it showing. A forwarded link opens nothing.',
   },
 ];
 

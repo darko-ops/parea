@@ -129,7 +129,7 @@ describe('the cover the event already has', () => {
     for (const mount of mounts) expect(mount).toBe('\n              <CoverFramer');
   });
 
-  it('opens the frame on the album, not on the camera roll', () => {
+  it('opens the frame on the roll, not on the camera roll', () => {
     /*
      * The cover row used to open an alert whose first action opened the camera
      * roll — so "change the cover" meant "choose another picture", every time,
@@ -216,7 +216,7 @@ describe('the cover the event already has', () => {
     expect(APP).toMatch(/<View style=\{styles\.cover\}>\s*\{cover \? \(/);
   });
 
-  it('lets the album be renamed, under the picture it is named beside', () => {
+  it('lets the roll be renamed, under the picture it is named beside', () => {
     /*
      * The create screen asks for a name and nothing could touch it afterwards
      * — so it was the one thing you had to get right in the thirty seconds
@@ -230,7 +230,7 @@ describe('the cover the event already has', () => {
     expect(API).toMatch(/setName\(eventId: string, name: string\)/);
     expect(APP).toMatch(/function NameCard\(/);
     expect(APP).toMatch(/name=\{feed\?\.event\.name \?\? event\.name\}/);
-    const sheet = ROW.slice(ROW.indexOf('Album cover'));
+    const sheet = ROW.slice(ROW.indexOf('Roll cover'));
     expect(sheet.indexOf('<NameCard')).toBeGreaterThan(-1);
 
     /*
@@ -279,7 +279,7 @@ describe('the cover the event already has', () => {
      * described.
      */
     expect(ROW).not.toMatch(/What this event leads with|Leading with its newest/);
-    expect(ROW).toMatch(/Album cover/);
+    expect(ROW).toMatch(/Roll cover/);
   });
 });
 

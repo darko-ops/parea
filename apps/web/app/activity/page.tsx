@@ -165,7 +165,7 @@ export default async function ActivityPage() {
           */}
           {items.length === 0 && (
             <p className="activity-empty">
-              Nothing yet. When somebody adds photos to an album you are in,
+              Nothing yet. When somebody adds photos to a roll you are in,
               says something about yours, or opens one to you, it turns up
               here.
             </p>

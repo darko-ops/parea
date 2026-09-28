@@ -128,22 +128,22 @@ export function AddRefused({
         className="dialog-card"
         role="dialog"
         aria-modal="true"
-        aria-label={allowed ? 'You can add to this album' : 'You cannot add photos to this album'}
+        aria-label={allowed ? 'You can add to this roll' : 'You cannot add photos to this roll'}
         tabIndex={-1}
         ref={card}
       >
-        <h2>{allowed ? 'You can add to this album' : 'You cannot add photos to this album'}</h2>
+        <h2>{allowed ? 'You can add to this roll' : 'You cannot add photos to this roll'}</h2>
 
         <p className="muted">
           {allowed
-            ? 'You are one of this album’s hosts already. Close this and the button works.'
+            ? 'You are one of this roll’s hosts already. Close this and the button works.'
             : pending
-              ? 'You have asked, and whoever made the album has not answered yet. You can add photos once they have.'
+              ? 'You have asked, and whoever made the roll has not answered yet. You can add photos once they have.'
               : mayAsk
-                ? 'Hosts add the photographs here. You can ask to be one — whoever made the album decides, and nothing changes until they do.'
+                ? 'Hosts add the photographs here. You can ask to be one — whoever made the roll decides, and nothing changes until they do.'
                 : canAdminister
-                  ? 'This album is set so that nobody adds photographs to it, including you. Who can add is a setting, and it is yours.'
-                  : 'Adding is not open to you on this one. Whoever made the album decides who puts photographs in it, and they are the person to ask.'}
+                  ? 'This roll is set so that nobody adds photographs to it, including you. Who can add is a setting, and it is yours.'
+                  : 'Adding is not open to you on this one. Whoever made the roll decides who puts photographs in it, and they are the person to ask.'}
         </p>
 
         {pending && (

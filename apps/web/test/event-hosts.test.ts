@@ -56,7 +56,7 @@ function album(overrides: Partial<PolicyEvent> = {}): PolicyEvent {
 
 const guest = { id: GUEST, hasAccount: true };
 
-describe('who may add to an album', () => {
+describe('who may add to a roll', () => {
   it('lets a host add, and everybody else it does not', () => {
     const event = album();
     expect(
@@ -135,7 +135,7 @@ describe('asking to be one', () => {
   const ROUTE = read('app/api/events/[id]/host-requests/route.ts');
   const HOSTS = read('app/api/events/[id]/hosts/route.ts');
 
-  it('only from somebody already in, on an album where it means anything', () => {
+  it('only from somebody already in, on a roll where it means anything', () => {
     /*
      * `contribute` is the capability that already means "entitled to take
      * part", so a stranger with a guessed id gets the 404 a nonexistent album
@@ -168,7 +168,7 @@ describe('asking to be one', () => {
     );
   });
 
-  it('answers only from somebody who administers the album', () => {
+  it('answers only from somebody who administers the roll', () => {
     for (const source of [ROUTE, HOSTS]) {
       expect(source).toMatch(/decide\(db, event, 'administer', await requesterFor\(id\)\)/);
     }
@@ -208,7 +208,7 @@ describe('how the ask reaches a human', () => {
     expect(REQUESTS).toMatch(/eq\(schema\.events\.contributePolicy, CONTRIBUTE_HOST\)/);
   });
 
-  it('is counted into the album’s own badge', () => {
+  it('is counted into the roll’s own badge', () => {
     const FEED = read('app/api/events/[id]/photos/route.ts');
     expect(FEED).toMatch(/const waiting = \(waitingRows\[0\]\?\.n \?\? 0\) \+ \(hostWaitingRows\[0\]\?\.n \?\? 0\)/);
   });

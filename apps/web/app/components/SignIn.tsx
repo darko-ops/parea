@@ -321,7 +321,7 @@ export function SignIn({
       )}
 
       <p className="muted">
-        No password — a code goes to your inbox. Your albums follow you to
+        No password — a code goes to your inbox. Your rolls follow you to
         another browser or a new phone.
       </p>
 

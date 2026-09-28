@@ -380,7 +380,7 @@ describe('an empty shelf', () => {
       fileURLToPath(new URL('../../mobile/src/Events.tsx', import.meta.url)),
     );
     for (const source of [HOME, ACCOUNT, APP_EVENTS]) {
-      expect(source).toMatch(/No Albums Yet\. Create One Now\./);
+      expect(source).toMatch(/No Rolls Yet\. Create One Now\./);
     }
   });
 
@@ -580,7 +580,7 @@ describe('the create button', () => {
      * `.rail-foot` create is the regression this asserts against.
      */
     expect(HOME).toMatch(/className="round home-create"/);
-    expect(HOME).toMatch(/aria-label="Create an album"/);
+    expect(HOME).toMatch(/aria-label="Create a roll"/);
     const foot = RAIL.slice(RAIL.indexOf('className="rail-foot"'));
     expect(foot, 'the rail foot is destinations only now').not.toMatch(/rail-create|"round/);
   });
@@ -589,7 +589,7 @@ describe('the create button', () => {
     // It draws a `+` and nothing else now, so the whole of its meaning is in
     // the label: without this a screen reader announces a link called "plus",
     // or the URL.
-    expect(RAIL).toMatch(/aria-label="Create an album"/);
+    expect(RAIL).toMatch(/aria-label="Create a roll"/);
     // And the `+` is the drawn glyph rather than a typed character, which is
     // what stops it being the one shape in the rail at somebody else's stroke
     // weight. See `RailIcon`.

@@ -46,7 +46,7 @@ describe('asking to be a host', () => {
      * match here would pass the day the prop comes back under another name.
      */
     expect(APP).toMatch(/const refuseAdd = useCallback/);
-    expect(APP).toMatch(/You cannot add photos to this album/);
+    expect(APP).toMatch(/You cannot add photos to this roll/);
     expect(APP).toMatch(/text: 'Request access', onPress: \(\) => void askToHost\(\)/);
     expect(APP).toMatch(/\{ text: 'OK', style: 'cancel' \}/);
     // And the refusal is the server's answer about this reader, not a reading

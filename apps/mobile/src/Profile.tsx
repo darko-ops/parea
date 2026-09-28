@@ -333,7 +333,7 @@ export function ProfileScreen({
             link in prose, and this is a line of facts.
           */}
           <Text style={[styles.counts, { color: t.dim }]}>
-            {events.length} {events.length === 1 ? 'album' : 'albums'} · {photos}{' '}
+            {events.length} {events.length === 1 ? 'roll' : 'rolls'} · {photos}{' '}
             {photos === 1 ? 'photo' : 'photos'} ·{' '}
             <Text
               onPress={friends?.length ? () => setShowFriends(true) : undefined}
@@ -407,7 +407,7 @@ export function ProfileScreen({
         )}
         {account === null && (
           <Text style={[styles.bio, { color: t.dim }]}>
-            This device is not signed in. The albums below are the ones its
+            This device is not signed in. The rolls below are the ones its
             links reach; signing in is what makes them a new phone away.
           </Text>
         )}
@@ -497,9 +497,9 @@ export function ProfileScreen({
       {account && events.length === 0 && (
         <View style={[styles.noAlbums, styles.gutter]}>
           <Text style={[styles.noAlbumsText, { color: t.dim }]}>
-            No Albums Yet. Create One Now.
+            No Rolls Yet. Create One Now.
           </Text>
-          <RoundButton t={t} onPress={onCreateEvent} accessibilityLabel="Create an album">
+          <RoundButton t={t} onPress={onCreateEvent} accessibilityLabel="Create a roll">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         </View>
@@ -737,7 +737,7 @@ export function ProfileScreen({
         </RoundButton>
       </View>
       <View style={[styles.corner, styles.cornerRight]}>
-        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New album or group">
+        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New roll or group">
           <Glyph name="plus" size={20} color={t.fg} />
         </RoundButton>
       </View>

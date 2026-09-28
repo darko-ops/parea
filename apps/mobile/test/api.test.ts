@@ -406,8 +406,8 @@ describe('a person, on the wire', () => {
  * somebody holding exactly the right link. They check it, find it is right,
  * and try again.
  */
-describe('a private album, on the wire', () => {
-  it('carries the album along with the refusal, so a door can name it', async () => {
+describe('a private roll, on the wire', () => {
+  it('carries the roll along with the refusal, so a door can name it', async () => {
     vi.stubGlobal('fetch', async () =>
       new Response(
         JSON.stringify({
@@ -427,7 +427,7 @@ describe('a private album, on the wire', () => {
     expect(err.body.event).toEqual({ id: 'ev7', name: 'Quiet weekend' });
   });
 
-  it('asks by posting to the album, and sends nothing else', async () => {
+  it('asks by posting to the roll, and sends nothing else', async () => {
     // No body at all. Who is asking is the bearer token, and the server reads
     // it there — a name in the body would be a second answer to that.
     const calls = respondTo({ status: 'open' });

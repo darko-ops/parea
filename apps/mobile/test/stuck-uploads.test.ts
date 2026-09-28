@@ -36,7 +36,7 @@ const APP = read('App.tsx');
 const QUEUE = read('../../packages/upload/src/index.ts');
 
 describe('what the line counts', () => {
-  it('is this album’s stuck uploads, not the queue’s', () => {
+  it('is this roll’s stuck uploads, not the queue’s', () => {
     expect(APP).toMatch(/const failed = queue\.failedIn\(event\.id\)\.length;/);
     expect(APP).toMatch(/const stale = queue\.staleIn\(event\.id\)\.length;/);
     // The global counts are still there for a screen that is about the queue.
@@ -46,7 +46,7 @@ describe('what the line counts', () => {
     expect(run).not.toMatch(/queue\.staleItems/);
   });
 
-  it('asks the queue in a way that can answer per album', () => {
+  it('asks the queue in a way that can answer per roll', () => {
     expect(QUEUE).toMatch(/failedIn\(eventId: string\): QueueItem\[\]/);
     expect(QUEUE).toMatch(/staleIn\(eventId: string\): QueueItem\[\]/);
   });
@@ -78,7 +78,7 @@ describe('the way out', () => {
     expect(APP).toMatch(/stuck\.failed > 0 \? \([\s\S]{0,900}\) : \([\s\S]{0,200}stuck\.stale > 0 &&/);
   });
 
-  it('retries only this album’s failures', () => {
+  it('retries only this roll’s failures', () => {
     // Pressing "try again" under one album must not wake another's, which
     // would upload into a room the person is not looking at.
     expect(APP).toMatch(/queue\.retryFailed\(event\.id\)/);
@@ -103,8 +103,8 @@ describe('the way out', () => {
   });
 });
 
-describe('one album at a time', () => {
-  it('runs every album’s work, with each album’s own token', () => {
+describe('one roll at a time', () => {
+  it('runs every roll’s work, with each roll’s own token', () => {
     /*
      * This asserted the opposite, and the opposite is why an upload stopped
      * the moment somebody left the album.
@@ -142,20 +142,20 @@ describe('one album at a time', () => {
     expect(APP.slice(0, APP.indexOf('function EventScreen'))).toMatch(/AppState\.addEventListener/);
   });
 
-  it('does not start a run because another album has leftovers', () => {
+  it('does not start a run because another roll has leftovers', () => {
     expect(APP).toMatch(
       /if \(!state\.items\.some\(\(i\) => i\.eventId === event\.id\)\) return;/,
     );
   });
 
-  it('counts the bar off this album too', () => {
+  it('counts the bar off this roll too', () => {
     // Another evening's pending items in the total is a bar that cannot reach
     // the end, for photographs this screen is not sending and will never show.
     expect(APP).toMatch(/const done = queue\.doneIn\(event\.id\);/);
     expect(APP).toMatch(/const pending = queue\.pendingIn\(event\.id\);/);
   });
 
-  it('leaves the other album’s work in the saved state', () => {
+  it('leaves the other roll’s work in the saved state', () => {
     /*
      * The load-bearing half, and the reason this is scoped inside `run` rather
      * than by filtering the state on the way in: every run writes the whole

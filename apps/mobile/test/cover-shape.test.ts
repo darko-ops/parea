@@ -77,7 +77,7 @@ describe('what the card draws', () => {
 });
 
 describe('trying another photograph in the frame', () => {
-  it('offers the album on the crop screen too', () => {
+  it('offers the roll on the crop screen too', () => {
     /*
      * Which picture leads is a question you cannot answer from a grid of
      * thumbnails: the obvious choice there is often the wrong one once it is a
@@ -110,7 +110,7 @@ describe('trying another photograph in the frame', () => {
      * the two a thumb's width apart on a black screen is how somebody loses a
      * photograph while choosing a cover.
      */
-    const strip = FRAMER.slice(FRAMER.indexOf('IN THIS ALBUM'));
+    const strip = FRAMER.slice(FRAMER.indexOf('IN THIS ROLL'));
     expect(strip).not.toMatch(/removeMark|Remove photo/);
   });
 });

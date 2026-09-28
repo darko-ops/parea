@@ -393,7 +393,7 @@ export function Lately({
               <View style={styles.nothing}>
                 <Glyph name="tray" size={26} color={t.dim} />
                 <Text style={[styles.nothingText, { color: t.dim }]}>
-                  Nothing lately. When somebody asks you into an album, adds
+                  Nothing lately. When somebody asks you into a roll, adds
                   photographs to one you are in, or answers something you asked,
                   it turns up here.
                 </Text>

@@ -50,7 +50,7 @@ describe('the two policies, and nothing between them', () => {
   });
 });
 
-describe('the door of a private album', () => {
+describe('the door of a private roll', () => {
   it('is a screen, not a message on the join screen', () => {
     /*
      * A deep link can arrive when the join screen is not mounted — the app may
@@ -69,7 +69,7 @@ describe('the door of a private album', () => {
     expect(APP).toMatch(/Couldn't find that/);
   });
 
-  it('names the album from the refusal rather than fetching it', () => {
+  it('names the roll from the refusal rather than fetching it', () => {
     // The name comes down with the 403 because the link proved they may know
     // it. Asking the server again from this screen would be asking a question
     // it has already answered — and the endpoint that would answer it is the
@@ -81,7 +81,7 @@ describe('the door of a private album', () => {
   it('shows a name and nothing that is behind the door', () => {
     // Everything else — photographs, members, counts, the cover — is what is
     // being asked for, and this screen is the moment before the answer.
-    expect(DOOR).toMatch(/PRIVATE ALBUM/);
+    expect(DOOR).toMatch(/PRIVATE ROLL/);
     expect(DOOR).not.toMatch(/photoCount|contributors|coverUrl|thumb/);
   });
 
@@ -98,7 +98,7 @@ describe('the door of a private album', () => {
      * importing it across a workspace.
      */
     expect(DOOR).not.toMatch(/>\s*Declined/i);
-    expect(DOOR).toMatch(/Asked\. It is with whoever made the album/);
+    expect(DOOR).toMatch(/Asked\. It is with whoever made the roll/);
   });
 
   it('hands over rather than reporting a pending ask when it comes back approved', () => {
@@ -133,7 +133,7 @@ describe('who can see it, after the first thirty seconds', () => {
   });
 });
 
-describe('somebody else’s albums, on their page', () => {
+describe('somebody else’s rolls, on their page', () => {
   it('lists the locked ones with the only thing there is to do about them', () => {
     expect(PERSON).toMatch(/Ask to join/);
     expect(PERSON).toMatch(/api\.askToJoin\(album\.id\)/);
@@ -212,7 +212,7 @@ describe('somebody else’s albums, on their page', () => {
  * link, wait to be asked, answer. So an app-only account could make a private
  * album that nobody could get into except by knocking on it.
  */
-describe('adding people to an album', () => {
+describe('adding people to a roll', () => {
   const PICKER = read('src/InvitePeople.tsx');
 
   it('says that picking somebody asks them rather than adds them', () => {
@@ -222,7 +222,7 @@ describe('adding people to an album', () => {
      * access. A host who could add people outright would be writing their
      * guest list into somebody else's account.
      */
-    expect(PICKER).toMatch(/Nobody is put into an album by somebody else/);
+    expect(PICKER).toMatch(/Nobody is put into a roll by somebody else/);
     expect(PICKER).toMatch(/They are asked, and they answer/);
   });
 
@@ -289,7 +289,7 @@ describe('who can add photos', () => {
   const CHOICE = read('src/ContributeChoice.tsx');
   const CREATE = read('src/CreateEvent.tsx');
 
-  it('is asked when the album is made and again in its settings', () => {
+  it('is asked when the roll is made and again in its settings', () => {
     /*
      * It was asked in neither. Every album accepted everybody's photographs,
      * and the only lever was a switch on the web's manage screen that turned
@@ -317,7 +317,7 @@ describe('who can add photos', () => {
     }
     // And each says what happens rather than what the setting is called.
     expect(CHOICE).toMatch(/You add the photographs and everybody else comes to look/);
-    expect(CHOICE).toMatch(/Anybody else in the album can ask to be one/);
+    expect(CHOICE).toMatch(/Anybody else in the roll can ask to be one/);
   });
 
   it('asks the question in the words the other setting makes true', () => {

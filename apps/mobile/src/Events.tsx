@@ -1228,7 +1228,7 @@ export function HomeTab({
           <RoundButton
             t={t}
             onPress={() => setStarting(true)}
-            accessibilityLabel="New album or group"
+            accessibilityLabel="New roll or group"
           >
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
@@ -1278,9 +1278,9 @@ export function HomeTab({
       {!loading && filled.length === 0 && (
         <View style={styles.blank}>
           <Text style={[styles.blankNote, { color: t.dim }]}>
-            No Albums Yet. Create One Now.
+            No Rolls Yet. Create One Now.
           </Text>
-          <RoundButton t={t} onPress={onCreate} accessibilityLabel="Create an album">
+          <RoundButton t={t} onPress={onCreate} accessibilityLabel="Create a roll">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
         </View>
@@ -1651,7 +1651,7 @@ export function ChatsTab({
           <Text style={[styles.label, { color: t.fg }]}>No chats yet.</Text>
           <Text style={[styles.body, { color: t.dim }]}>
             Every group you are in has one. Comments on photographs live on the
-            album they belong to, and turn up in your tray when somebody
+            roll they belong to, and turn up in your tray when somebody
             answers you.
           </Text>
           {/*
@@ -1747,7 +1747,7 @@ export function ChatsTab({
           {looking !== '' && groupChats.length === 0 && (
             <Text style={[styles.body, { color: t.dim }]}>
               No chat of yours matches “{query.trim()}”. This searches your
-              groups — comments on photographs are on the album they belong to.
+              groups — comments on photographs are on the roll they belong to.
             </Text>
           )}
 
@@ -3117,7 +3117,7 @@ export function SearchTab({
       {scope === 'places' && places.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
           {events.length === 0 || unplaced === events.length
-            ? 'None of your albums say where they were yet. Whoever starts one can add a place, and it shows up here.'
+            ? 'None of your rolls say where they were yet. Whoever starts one can add a place, and it shows up here.'
             : 'No place of yours matches that.'}
         </Text>
       )}
@@ -3538,10 +3538,10 @@ export function AccountCard({
     Alert.alert(
       'Sign out?',
       waiting > 0
-        ? `This phone forgets you and the albums it is holding links to. ${waiting} ${
+        ? `This phone forgets you and the rolls it is holding links to. ${waiting} ${
             waiting === 1 ? 'photo' : 'photos'
           } waiting to upload will be dropped — they stay in your camera roll. Nothing else is deleted.`
-        : 'This phone forgets you and the albums it is holding links to. Nothing is deleted, and the same address signs back in.',
+        : 'This phone forgets you and the rolls it is holding links to. Nothing is deleted, and the same address signs back in.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -3566,7 +3566,7 @@ export function AccountCard({
     // first; the second is offered beside it rather than folded into it.
     Alert.alert(
       'Delete your account?',
-      'Your email address and this account are removed. The photos you added stay in their albums and stay yours to remove.',
+      'Your email address and this account are removed. The photos you added stay in their rolls and stay yours to remove.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -3645,7 +3645,7 @@ export function AccountCard({
         <Text style={[styles.label, { color: t.fg }]}>Signed in</Text>
         <Text style={[styles.body, { color: t.dim }]}>{account.email}</Text>
         <Text style={[styles.small, { color: t.dim }]}>
-          Your albums and groups follow you to a new phone. That is all an
+          Your rolls and groups follow you to a new phone. That is all an
           account does here.
         </Text>
         {/* Sign out above delete, and only one of them is permanent. Both are
@@ -3678,8 +3678,8 @@ export function AccountCard({
       </Text>
       <Text style={[styles.small, { color: t.dim }]}>
         {why
-          ? 'No password — a code goes to your inbox, and your albums follow you to another device.'
-          : 'Optional. Add an email and your albums and groups follow you to another device. No password — a code goes to your inbox.'}
+          ? 'No password — a code goes to your inbox, and your rolls follow you to another device.'
+          : 'Optional. Add an email and your rolls and groups follow you to another device. No password — a code goes to your inbox.'}
       </Text>
 
       {/*

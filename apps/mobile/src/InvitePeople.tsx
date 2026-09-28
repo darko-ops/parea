@@ -293,7 +293,7 @@ export function InvitePicker({
       <Text style={[styles.hint, { color: t.dim }]}>
         {picked.length >= MAX_PER_REQUEST
           ? `That is ${MAX_PER_REQUEST}, which is as many as one go takes.`
-          : 'Nobody is put into an album by somebody else. They are asked, and they answer in Lately.'}
+          : 'Nobody is put into a roll by somebody else. They are asked, and they answer in Lately.'}
       </Text>
     </View>
   );

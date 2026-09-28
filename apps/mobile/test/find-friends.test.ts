@@ -134,7 +134,7 @@ describe('the reason a row gives', () => {
   it('counts one properly, in all three', () => {
     const one = { actorId: 'a', handle: 'x', displayName: null, avatar: null };
     expect(reasonFor({ ...one, mutuals: 1 })).toBe('1 mutual friend');
-    expect(reasonFor({ ...one, mutuals: 0, albums: 1 })).toBe('In an album with you');
+    expect(reasonFor({ ...one, mutuals: 0, albums: 1 })).toBe('In a roll with you');
     expect(reasonFor({ ...one, mutuals: 0, albums: 0, groups: 1 })).toBe('In a group with you');
   });
 

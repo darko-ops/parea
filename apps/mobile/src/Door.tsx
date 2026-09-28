@@ -94,7 +94,7 @@ export function DoorScreen({
       </Pressable>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.kind, { color: t.dim }]}>PRIVATE ALBUM</Text>
+        <Text style={[styles.kind, { color: t.dim }]}>PRIVATE ROLL</Text>
         <Text style={[styles.name, { color: t.fg }]}>{name}</Text>
 
         {asked === 'none' ? (
@@ -116,7 +116,7 @@ export function DoorScreen({
               One sentence for sent and for a repeat, deliberately. See the
               header: a decline is not this screen's to announce.
             */}
-            Asked. It is with whoever made the album now — the photos turn up
+            Asked. It is with whoever made the roll now — the photos turn up
             under Events if they let you in.
           </Text>
         )}

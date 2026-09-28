@@ -30,7 +30,7 @@ const code = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('the picker', () => {
-  it('is where every way of making an album now begins', () => {
+  it('is where every way of making a roll now begins', () => {
     expect(APP).toMatch(/screen: 'pick'/);
     expect(APP).toMatch(/<PickPhotos/);
     // No entry point goes straight to the form: it has nothing to draw its
@@ -190,7 +190,7 @@ describe('the form, once the photographs have been chosen', () => {
     expect(form).toMatch(/<InvitePicker/);
   });
 
-  it('dates the album in local parts, not a UTC slice', () => {
+  it('dates the roll in local parts, not a UTC slice', () => {
     // A photograph taken at eleven at night is dated tomorrow in UTC, and "the
     // evening of the 14th" is exactly what the field is for.
     expect(form).toMatch(/function dayOf/);
@@ -432,7 +432,7 @@ describe('the two paths that still handed iOS a library file', () => {
     expect(APP).toMatch(/setQueueStatus\('Could not set the cover — use Change cover\.'\)/);
   });
 
-  it('keeps looking at the album while one is still owed', () => {
+  it('keeps looking at the roll while one is still owed', () => {
     // The sending is not the screen's job any more; not standing still while it
     // happens is, and so is redrawing when it lands.
     expect(APP).toMatch(
@@ -449,7 +449,7 @@ describe('the two paths that still handed iOS a library file', () => {
   });
 });
 
-describe('the bar, and when the album is actually full', () => {
+describe('the bar, and when the roll is actually full', () => {
   it('measures the whole journey, not just the bytes leaving', () => {
     /*
      * A photograph is not in the album when it has been uploaded — it is in the

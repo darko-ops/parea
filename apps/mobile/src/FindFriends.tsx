@@ -463,7 +463,7 @@ export function FindFriends({
                         Nobody new to suggest right now.
                       </Text>
                       <Text style={[styles.nothingText, { color: t.dim }]}>
-                        Suggestions come from albums you have both been in,
+                        Suggestions come from rolls you have both been in,
                         groups you are both in, and friends you have in common —
                         so this fills up as you share evenings with people. You
                         can also find anybody by their handle on Find.

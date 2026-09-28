@@ -345,7 +345,7 @@ describe('anything unread on the Chats tab', () => {
     expect((await badge(me)).chats).toBe(true);
   });
 
-  it('is never raised by an album’s thread, which that tab does not list', async () => {
+  it('is never raised by a roll’s thread, which that tab does not list', async () => {
     /*
      * The bug this half was shipped with, written down so it cannot come back.
      *

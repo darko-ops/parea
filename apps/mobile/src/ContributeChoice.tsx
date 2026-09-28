@@ -73,7 +73,7 @@ const PUBLIC_OPTIONS: ContributeOption[] = [
   {
     value: 'host',
     label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the album can ask to be one, and you decide — so the camera can be handed over without the album being.',
+    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
   },
 ];
 
@@ -86,12 +86,12 @@ const PRIVATE_OPTIONS: ContributeOption[] = [
   {
     value: 'everyone',
     label: 'Members',
-    help: 'Everybody in the album can add to it — the people you added and the people you let in, and nobody else. Adding names who added, so every photograph says who put it there.',
+    help: 'Everybody in the roll can add to it — the people you added and the people you let in, and nobody else. Adding names who added, so every photograph says who put it there.',
   },
   {
     value: 'host',
     label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the album can ask to be one, and you decide — so the camera can be handed over without the album being.',
+    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
   },
 ];
 

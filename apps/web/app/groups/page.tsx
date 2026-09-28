@@ -176,17 +176,17 @@ export default async function GroupsPage() {
             <p className="groups-none-lead">No chats yet.</p>
             <p>
               Every group you are in has one. Comments on a photograph live on
-              the album they belong to, and turn up in{' '}
+              the roll they belong to, and turn up in{' '}
               <a href="/activity">Notifications</a> when somebody answers you.
             </p>
             <p>
               The <strong>+</strong> above starts a group.{' '}
               <a href="/find">Search</a> offers to make one out of the people
-              you keep sharing albums with, which is the version with somebody
+              you keep sharing rolls with, which is the version with somebody
               already in it.
             </p>
             <a href="/events" className="button-like primary">
-              Your albums
+              Your rolls
             </a>
           </div>
           </ChatView>

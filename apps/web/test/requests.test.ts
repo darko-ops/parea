@@ -239,7 +239,7 @@ describe('the whole queue', () => {
  * in Notifications, on the list of everything else waiting. Neither is
  * somewhere a host goes on the chance that somebody is on the other end.
  */
-describe('an album answers its requests where the people are', () => {
+describe('a roll answers its requests where the people are', () => {
   const read = (path: string) =>
     readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
   const EVENT = read('../app/components/EventView.tsx');

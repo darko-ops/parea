@@ -25,7 +25,7 @@ const API = read('src/api.ts');
 const EVENTS = read('src/Events.tsx');
 
 describe('the grid', () => {
-  it('is albums, not photographs', () => {
+  it('is rolls, not photographs', () => {
     /*
      * The one place this departs from the shape it borrows. A square of
      * somebody's photographs is a wall of images with no way to tell one
@@ -40,7 +40,7 @@ describe('the grid', () => {
     expect(PROFILE).not.toMatch(/mosaic/);
   });
 
-  it('keeps an empty album on the shelf', () => {
+  it('keeps an empty roll on the shelf', () => {
     // Leaving it out would make the grid disagree with the Albums count above
     // it — and it is still one of the things this person is in.
     expect(PROFILE).toMatch(/tileEmpty/);
@@ -56,7 +56,7 @@ describe('what the numbers may say', () => {
      * and the photograph number is deliberately not a claim about authorship —
      * it is the size of the shelf.
      */
-    expect(PROFILE).toMatch(/\{events\.length\} \{events\.length === 1 \? 'album' : 'albums'\}/);
+    expect(PROFILE).toMatch(/\{events\.length\} \{events\.length === 1 \? 'roll' : 'rolls'\}/);
     expect(PROFILE).toMatch(/sum \+ event\.photoCount/);
     expect(PROFILE).toMatch(/api\s*\.friends\(\)|api\.friends\(\)/);
   });
@@ -293,7 +293,7 @@ describe('the counts and the clearance', () => {
       /\{friends === null \? '—' : friends\.length\}\{' '\} \{friends !== null && friends\.length === 1 \? 'friend' : 'friends'\}/,
     );
     // The other two, unchanged, so this stays a line of three matching facts.
-    expect(counts).toMatch(/events\.length === 1 \? 'album' : 'albums'/);
+    expect(counts).toMatch(/events\.length === 1 \? 'roll' : 'rolls'/);
     expect(counts).toMatch(/photos === 1 \? 'photo' : 'photos'/);
   });
 
@@ -305,7 +305,7 @@ describe('the counts and the clearance', () => {
     );
   });
 
-  it('leaves room under the last album for the bar that floats over it', () => {
+  it('leaves room under the last roll for the bar that floats over it', () => {
     /*
      * This screen ends in a wall of album covers with nothing after it, so
      * whatever it reserves is the only thing between the last row and the

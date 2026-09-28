@@ -534,7 +534,7 @@ export function Thread({
           </View>
         ) : (
           <Text style={[styles.error, { color: t.dim }]}>
-            Only people who can add photos can post. Everyone in the album can
+            Only people who can add photos can post. Everyone in the roll can
             read it.
           </Text>
         )}

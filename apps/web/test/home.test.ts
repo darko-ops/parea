@@ -102,7 +102,7 @@ describe('the order the list comes back in', () => {
   });
 });
 
-describe('an album somebody has just added to', () => {
+describe('a roll somebody has just added to', () => {
   const read = (path: string) =>
     readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 

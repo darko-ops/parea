@@ -539,7 +539,7 @@ const albumWith = (accessPolicy: string): PolicyEvent => ({
 const stillHolds = { capEpoch: 1, isParticipant: true, linkToken: REVOKED_LINK };
 
 describe('what a revoked credential can still reach', () => {
-  it('is refused a private album with only the capability cookie', () => {
+  it('is refused a private roll with only the capability cookie', () => {
     expect(authorize(null, 'view', { event: albumWith(PRIVATE) }, { capEpoch: 1 }).allow).toBe(
       false,
     );
@@ -566,7 +566,7 @@ describe('what a revoked credential can still reach', () => {
     });
   });
 
-  it('can still open a public album, which is the policy and not the cookie', () => {
+  it('can still open a public roll, which is the policy and not the cookie', () => {
     /*
      * Here rather than left unsaid, because anybody reading the four refusals
      * above will ask about the public case. A public album needs no credential

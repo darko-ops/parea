@@ -174,7 +174,7 @@ export function AccountView() {
     async (alsoPhotos: boolean) => {
       const message = alsoPhotos
         ? 'Delete your account and remove every photo you have added? The photos cannot be brought back.'
-        : 'Delete your account? Your email address is removed. The photos you added stay in their albums, and stay yours to remove.';
+        : 'Delete your account? Your email address is removed. The photos you added stay in their rolls, and stay yours to remove.';
       if (!confirm(message)) return;
 
       setBusy(true);
@@ -196,7 +196,7 @@ export function AccountView() {
       <LoginScreen>
         <SignIn
           title="Sign in"
-          why="Create an album, or add your photos to one."
+          why="Create a roll, or add your photos to one."
           onSignedIn={afterSignIn}
         />
       </LoginScreen>
@@ -288,7 +288,7 @@ export function AccountView() {
               Sign out
             </button>
             <p className="muted">
-              This browser forgets you and the albums you opened by link.
+              This browser forgets you and the rolls you opened by link.
               Nothing is deleted, and the same address signs back in.
             </p>
           </div>
@@ -353,7 +353,7 @@ export function AccountView() {
           <p className="muted">
             Removing your account removes your email address and the link
             between it and your devices. The photos you added stay in their
-            albums and stay yours to remove.
+            rolls and stay yours to remove.
           </p>
           <div className="row">
             <button className="secondary" onClick={() => remove(false)} disabled={busy}>
@@ -440,7 +440,7 @@ export function AccountView() {
           */}
           <p className="you-counts">
             <span>
-              {events.length} {events.length === 1 ? 'album' : 'albums'}
+              {events.length} {events.length === 1 ? 'roll' : 'rolls'}
             </span>
             <span>
               {photos} {photos === 1 ? 'photo' : 'photos'}
@@ -520,7 +520,7 @@ export function AccountView() {
           the only place it says it.
         */}
         <div className="you-events-head">
-          <h2>Your Albums</h2>
+          <h2>Your Rolls</h2>
           {/*
             Three ways of reading one list. The counts are on the buttons
             because the difference between them is the answer somebody wants —
@@ -612,15 +612,15 @@ export function AccountView() {
           */}
           {lens !== 'joined' && shown.length === 0 && (
             <div className="blank">
-              <p className="blank-note">No Albums Yet. Create One Now.</p>
-              <a className="blank-do" href="/" aria-label="Create an album">
+              <p className="blank-note">No Rolls Yet. Create One Now.</p>
+              <a className="blank-do" href="/" aria-label="Create a roll">
                 <span aria-hidden="true">+</span>
               </a>
             </div>
           )}
           {lens === 'joined' && shown.length === 0 && (
             <p className="field-help">
-              Nothing yet. Albums other people ask you into show up here.
+              Nothing yet. Rolls other people ask you into show up here.
             </p>
           )}
         </div>

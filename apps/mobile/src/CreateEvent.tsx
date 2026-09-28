@@ -398,7 +398,7 @@ export function CreateEvent({
         framing,
       );
     } catch {
-      setError('Could not make the album. Try again in a moment.');
+      setError('Could not make the roll. Try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -467,7 +467,7 @@ export function CreateEvent({
           <Text style={[styles.headerSide, { color: t.accent }]}>Cancel</Text>
         </Pressable>
         <Text style={[styles.headerTitle, { color: t.fg }]}>
-          {groupName ? `New in ${groupName}` : 'New album'}
+          {groupName ? `New in ${groupName}` : 'New roll'}
         </Text>
         <Pressable
           onPress={create}
@@ -576,7 +576,7 @@ export function CreateEvent({
       {photos.length > 0 && (
         <View style={styles.field}>
           <View style={styles.fieldHead}>
-            <Text style={[styles.fieldLabel, { color: t.dim }]}>IN THIS ALBUM</Text>
+            <Text style={[styles.fieldLabel, { color: t.dim }]}>IN THIS ROLL</Text>
             <Text style={[styles.small, { color: t.dim }]}>
               {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
             </Text>
@@ -846,7 +846,7 @@ export function CreateEvent({
               </Text>
               <Text style={[styles.small, { color: t.dim, marginBottom: 8 }]}>
                 You are one already. Anybody you add here can put photographs in
-                once they accept — nothing else about the album changes hands.
+                once they accept — nothing else about the roll changes hands.
               </Text>
               <InvitePicker
                 api={api}

@@ -125,7 +125,7 @@ export function HomeView({
             first — the trade taken knowingly, because a create button in six
             different corners is the thing that made the rail's one invisible.
           */}
-          <a href="/" className="round home-create" aria-label="Create an album">
+          <a href="/" className="round home-create" aria-label="Create a roll">
             <RailIcon glyph="plus" />
           </a>
 
@@ -136,7 +136,7 @@ export function HomeView({
             in one product. See `SearchControl`.
           */}
           <SearchControl
-            label="Search your albums"
+            label="Search your rolls"
             query={query}
             onQuery={setQuery}
             open={open}
@@ -190,7 +190,7 @@ export function HomeView({
 
           {person && (
             <span className="people-filter">
-              Showing albums with <b>{first(person.name)}</b> ·{' '}
+              Showing rolls with <b>{first(person.name)}</b> ·{' '}
               <button type="button" className="link-button" onClick={() => setSelected(null)}>
                 clear
               </button>
@@ -221,8 +221,8 @@ export function HomeView({
       */}
       {!searching && !person && shown.length === 0 && (
         <div className="blank">
-          <p className="blank-note">No Albums Yet. Create One Now.</p>
-          <a className="blank-do" href="/" aria-label="Create an album">
+          <p className="blank-note">No Rolls Yet. Create One Now.</p>
+          <a className="blank-do" href="/" aria-label="Create a roll">
             <span aria-hidden="true">+</span>
           </a>
         </div>

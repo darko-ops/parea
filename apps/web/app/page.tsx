@@ -322,14 +322,14 @@ export default function CreatePage() {
           <div className="create">
             <form className="create-form" onSubmit={(e) => e.preventDefault()}>
               <div>
-                <h1>Create Album</h1>
+                <h1>Create Roll</h1>
                 <p className="muted" style={{ margin: 0 }}>
                   Everyone who was there puts their photos in one place, and
                   everyone gets the full set.
                 </p>
               </div>
               <SignIn
-                why="Making an album needs an account, so the people you invite know whose album it is."
+                why="Making a roll needs an account, so the people you invite know whose roll it is."
                 onSignedIn={session.refresh}
               />
             </form>
@@ -346,7 +346,7 @@ export default function CreatePage() {
         <div className="create">
           <form className="create-form" onSubmit={create}>
             <div>
-              <h1>Create Album</h1>
+              <h1>Create Roll</h1>
               <p className="muted" style={{ margin: 0 }}>
                 {step === 'photos'
                   ? 'Start with the photos. The questions are easier to answer with them on the screen.'
@@ -378,7 +378,7 @@ export default function CreatePage() {
                   </label>
                   <p className="field-help" style={{ margin: 0 }}>
                     {picked.length === 0
-                      ? 'Everything you took. They go up at full quality once the album has a name.'
+                      ? 'Everything you took. They go up at full quality once the roll has a name.'
                       : `${picked.length} ${picked.length === 1 ? 'photo' : 'photos'} ready.`}
                   </p>
                 </div>
@@ -402,7 +402,7 @@ export default function CreatePage() {
                   </button>
                   {picked.length === 0 && (
                     <span className="field-help">
-                      You can add them afterwards, but an empty album stays empty.
+                      You can add them afterwards, but an empty roll stays empty.
                     </span>
                   )}
                 </div>
@@ -481,7 +481,7 @@ export default function CreatePage() {
                   */}
                   <PlaceField value={place} onChange={setPlace} />
                   <p className="field-help">
-                    Only ever shown to people already in the album.
+                    Only ever shown to people already in the roll.
                   </p>
                 </div>
 
@@ -628,7 +628,7 @@ export default function CreatePage() {
                         onChange={setCoHosts}
                         placeholder="Search friends, or anyone by handle"
                         label="Search for people to make co-hosts"
-                        hint="Whoever you pick is asked into the album as a co-host, and can add photographs once they accept. You can add or remove co-hosts later, under Manage."
+                        hint="Whoever you pick is asked into the roll as a co-host, and can add photographs once they accept. You can add or remove co-hosts later, under Manage."
                         /*
                           Not somebody already being asked in as a member. The
                           two lists are one guest list, and a name in both is
@@ -646,7 +646,7 @@ export default function CreatePage() {
                     className="create-go"
                     disabled={busy || !name.trim()}
                   >
-                    {busy ? 'Creating…' : 'Create album'}
+                    {busy ? 'Creating…' : 'Create roll'}
                   </button>
                   <button
                     type="button"
@@ -760,8 +760,8 @@ function CoverPicker({
       </ul>
       <p className="field-help">
         {cover
-          ? 'This one leads, wherever the album is shown.'
-          : 'Optional. Without one the album leads with its newest photo.'}
+          ? 'This one leads, wherever the roll is shown.'
+          : 'Optional. Without one the roll leads with its newest photo.'}
       </p>
     </>
   );
@@ -840,9 +840,9 @@ async function explain(res: Response): Promise<string> {
     case 'not_configured':
       return 'This deployment is not finished — it has no database yet. Check /api/health.';
     case 'sign_in_required':
-      return 'Sign in first — an album belongs to an account.';
+      return 'Sign in first — a roll belongs to an account.';
     case 'too_many_requests':
-      return 'That is a lot of albums at once. Wait a moment and try again.';
+      return 'That is a lot of rolls at once. Wait a moment and try again.';
   }
   if (res.status >= 500) {
     return `The server failed (${res.status}). Check /api/health for what is missing.`;
@@ -862,6 +862,6 @@ async function explain(res: Response): Promise<string> {
    * they are rather than translated into a friendlier nothing.
    */
   return body.error
-    ? `Could not create the album (${res.status}: ${body.error}).`
-    : `Could not create the album (${res.status}).`;
+    ? `Could not create the roll (${res.status}: ${body.error}).`
+    : `Could not create the roll (${res.status}).`;
 }

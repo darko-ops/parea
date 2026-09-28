@@ -614,7 +614,7 @@ describe('authorize, on group facts alone', () => {
  * The one fact about a room that a count of heads does not give: whether this
  * is a group where everybody turns up, or one with a core and a fringe.
  */
-describe('who has been to every album', () => {
+describe('who has been to every roll', () => {
   async function joins(eventId: string, actorId: string) {
     await db.insert(schema.eventParticipants).values({ eventId, actorId });
   }
@@ -636,7 +636,7 @@ describe('who has been to every album', () => {
     expect(await attendedEvery(db, house.id)).toBe(1);
   });
 
-  it('says nothing about a group with no albums', async () => {
+  it('says nothing about a group with no rolls', async () => {
     /*
      * Everybody has trivially been to all nought of them, and "two of you have
      * been to every one" over an empty archive is the screen being clever at

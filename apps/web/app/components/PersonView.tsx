@@ -406,7 +406,7 @@ export function PersonView({
           */}
           <p className="you-counts">
             <span>
-              {person.counts.albums} {person.counts.albums === 1 ? 'album' : 'albums'}
+              {person.counts.albums} {person.counts.albums === 1 ? 'roll' : 'rolls'}
             </span>
             <span>
               {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'}
@@ -552,7 +552,7 @@ export function PersonView({
       {events.length > 0 && (
         <section className="you-events">
           <div className="you-events-head">
-            <h2>Albums</h2>
+            <h2>Rolls</h2>
           </div>
           <div className="cards">
             {events.map((event) => (
@@ -565,7 +565,7 @@ export function PersonView({
       {albums.length > 0 && (
         <section className="you-events">
           <div className="you-events-head">
-            <h2>{events.length > 0 ? 'Their other albums' : 'Albums'}</h2>
+            <h2>{events.length > 0 ? 'Their other rolls' : 'Rolls'}</h2>
           </div>
           {/*
             What the padlocks are for, said once above them rather than per
@@ -696,7 +696,7 @@ export function PersonView({
         */
         <section className="you-events">
           <p className="muted person-empty">
-            {standing === 'friends' ? 'No albums to show yet' : 'Nothing here yet'}
+            {standing === 'friends' ? 'No rolls to show yet' : 'Nothing here yet'}
           </p>
         </section>
       )}

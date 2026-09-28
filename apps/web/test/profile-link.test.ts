@@ -197,7 +197,7 @@ describe('the profile at two widths', () => {
     expect(WIDE).toMatch(/\.you-ribbon \{[^}]*margin-top: 4px; border-radius: 20px/);
   });
 
-  it('gives the albums the column the home page gives them', () => {
+  it('gives the rolls the column the home page gives them', () => {
     /*
      * The same container, not merely a wider one. Both draw the identical
      * `.cards` grid, so anything less is the profile answering "how many fit
@@ -311,7 +311,7 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.you-link a \{ color: var\(--accent\)/);
   });
 
-  it('lays their albums out in the grid every other shelf uses', () => {
+  it('lays their rolls out in the grid every other shelf uses', () => {
     /*
      * There is no rule for this at the wide breakpoint any more, and that is
      * the change. `.album-list` was a column of 52px rows that the laptop
@@ -330,7 +330,7 @@ describe('the profile at two widths', () => {
     );
   });
 
-  it('puts two albums across a phone, on a profile and nowhere else', () => {
+  it('puts two rolls across a phone, on a profile and nowhere else', () => {
     /*
      * One album per screenful is right on the home page, where the card is
      * what somebody came to look at. A profile is a different question —
@@ -359,7 +359,7 @@ describe('the profile at two widths', () => {
     expect(read('../app/components/PersonView.tsx')).toMatch(/className="you-events"/);
   });
 
-  it('draws a shut album as shut rather than as empty', () => {
+  it('draws a shut roll as shut rather than as empty', () => {
     /*
      * The one thing rows were better at. A locked album has no photograph to
      * show, and a card with nothing in it reads as a picture that failed to

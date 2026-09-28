@@ -274,7 +274,7 @@ describe('what the page looks like', () => {
      * left is the honest one: they have not made anything.
      */
     expect(VIEW).toMatch(
-      /standing === 'friends' \? 'No albums to show yet' : 'Nothing here yet'/,
+      /standing === 'friends' \? 'No rolls to show yet' : 'Nothing here yet'/,
     );
     expect(VIEW).not.toMatch(/Account Private/);
   });
@@ -354,7 +354,7 @@ describe('what the page looks like', () => {
       ),
     );
     expect(NATIVE).toMatch(
-      /standing === 'friends' \? 'No albums to show yet' : 'Nothing here yet'/,
+      /standing === 'friends' \? 'No rolls to show yet' : 'Nothing here yet'/,
     );
   });
 });
@@ -429,7 +429,7 @@ describe('the events on somebody’s page', () => {
  * assertions are not that it lists things, they are about how little a locked
  * row is allowed to carry.
  */
-describe('the albums on somebody’s page', () => {
+describe('the rolls on somebody’s page', () => {
   it('lists what they made, public and private both', async () => {
     const me = await person('me');
     const them = await person('wren');
@@ -458,7 +458,7 @@ describe('the albums on somebody’s page', () => {
     expect(album).toMatchObject({ locked: true, coverKey: null, photoCount: null });
   });
 
-  it('unlocks the same album for somebody who is in it', async () => {
+  it('unlocks the same roll for somebody who is in it', async () => {
     const me = await person('me');
     const them = await person('wren');
     const shut = await event(them, 'Quiet weekend', 'private');
@@ -538,7 +538,7 @@ describe('the albums on somebody’s page', () => {
     expect(album!.locked).toBe(false);
   });
 
-  it('counts the photographs in an album it does unlock', async () => {
+  it('counts the photographs in a roll it does unlock', async () => {
     /*
      * The same hazard, one line up, where it was a wrong number rather than a
      * disclosure: `p.event_id = ${schema.events.id}` rendered as `p.event_id =
@@ -629,7 +629,7 @@ describe('the albums on somebody’s page', () => {
     expect(await albumsBy(db, me, them)).toEqual([]);
   });
 
-  it('drops a deleted album', async () => {
+  it('drops a deleted roll', async () => {
     const me = await person('me');
     const them = await person('wren');
     const gone = await event(them, 'Gone', 'public');

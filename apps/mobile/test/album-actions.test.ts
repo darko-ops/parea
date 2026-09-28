@@ -47,9 +47,9 @@ describe('the row of three', () => {
 
   it('is copy, download, and the way out', () => {
     expect(SHEET).toMatch(/icon="share"[\s\S]{0,400}'Copy link'/);
-    expect(SHEET).toMatch(/icon="download"[\s\S]{0,120}label=\{saving \?\? 'Download Album'\}/);
-    expect(SHEET).toMatch(/icon="trash" label="Delete Album"/);
-    expect(SHEET).toMatch(/icon="door" label="Leave Album"/);
+    expect(SHEET).toMatch(/icon="download"[\s\S]{0,120}label=\{saving \?\? 'Download Roll'\}/);
+    expect(SHEET).toMatch(/icon="trash" label="Delete Roll"/);
+    expect(SHEET).toMatch(/icon="door" label="Leave Roll"/);
   });
 
   it('offers exactly one of Delete and Leave, on `host`', () => {
@@ -59,7 +59,7 @@ describe('the row of three', () => {
      * the button is drawn on the permission rather than on a guess about it.
      */
     expect(SHEET).toMatch(
-      /host \? \([\s\S]{0,200}Delete Album[\s\S]{0,200}\) : \([\s\S]{0,200}Leave Album/,
+      /host \? \([\s\S]{0,200}Delete Roll[\s\S]{0,200}\) : \([\s\S]{0,200}Leave Roll/,
     );
     expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
   });
@@ -96,8 +96,8 @@ describe('the row of three', () => {
     // Not a colour picked at the call site: `warn` exists so the two actions
     // that take something away are the same red in both themes, and so that
     // nothing else quietly becomes red later.
-    expect(SHEET).toMatch(/label="Delete Album" onPress=\{onDelete\} danger/);
-    expect(SHEET).toMatch(/label="Leave Album" onPress=\{onLeave\} danger/);
+    expect(SHEET).toMatch(/label="Delete Roll" onPress=\{onDelete\} danger/);
+    expect(SHEET).toMatch(/label="Leave Roll" onPress=\{onLeave\} danger/);
     expect(APP).toMatch(/danger \? t\.warn : t\.fg/);
     expect(APP).toMatch(/warn: '#ff7b70'/);
     expect(APP).toMatch(/warn: '#c23127'/);
@@ -115,7 +115,7 @@ describe('deleting', () => {
 
   it('asks first, and says what it costs', () => {
     expect(call).toMatch(/Alert\.alert\(\s*`Delete \$\{event\.name\}\?`/);
-    expect(call).toMatch(/takes the album and its \$\{count\}/);
+    expect(call).toMatch(/takes the roll and its \$\{count\}/);
     expect(call).toMatch(/It cannot be undone\./);
     // The cancel is the one that needs no thought, and it is not called
     // "Cancel" — it says what keeping it means.
@@ -149,7 +149,7 @@ describe('leaving', () => {
     expect(call).toMatch(/text: 'Stay', style: 'cancel'/);
   });
 
-  it('says when the album is staying anyway', () => {
+  it('says when the roll is staying anyway', () => {
     /*
      * An album inside a group reaches the home screen through the membership,
      * not the participant row — so leaving is real and the album is still
@@ -196,7 +196,7 @@ describe('the sheet as a surface', () => {
 });
 
 describe('the way out of the sheet', () => {
-  it('is the album’s own back button, above it', () => {
+  it('is the roll’s own back button, above it', () => {
     /*
      * It was a Done button under everything, so closing a sheet you had
      * scrolled to the bottom of was easy and closing one you had not meant

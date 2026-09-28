@@ -203,7 +203,7 @@ export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }
       {looking !== '' && shown.length === 0 && (
         <p className="chat-none">
           No chat of yours matches “{query.trim()}”. This searches your groups —
-          comments on photographs are on the album they belong to.
+          comments on photographs are on the roll they belong to.
         </p>
       )}
     </>

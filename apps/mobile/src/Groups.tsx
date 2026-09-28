@@ -244,7 +244,7 @@ export function GroupScreen({
   );
 
   const leave = useCallback(() => {
-    Alert.alert('Leave this group?', 'You keep any album links you already have.', [
+    Alert.alert('Leave this group?', 'You keep any roll links you already have.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
@@ -384,7 +384,7 @@ export function GroupScreen({
             */}
             {group.member && (
               <Text style={[styles.measured, { color: t.dim }]} numberOfLines={1}>
-                {`${plural(group.events.length, 'album')} · since ${sinceOf(group.createdAt)}`}
+                {`${plural(group.events.length, 'roll')} · since ${sinceOf(group.createdAt)}`}
               </Text>
             )}
           </View>
@@ -405,7 +405,7 @@ export function GroupScreen({
           <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
             <Text style={[styles.body, { color: t.fg }]}>
               {group.canJoinDirectly
-                ? 'You were at one of this group’s albums, so you can join without asking.'
+                ? 'You were at one of this group’s rolls, so you can join without asking.'
                 : 'Ask to join, and an admin will decide. Nothing here is visible until then.'}
             </Text>
             <Button
@@ -435,7 +435,7 @@ export function GroupScreen({
             <Pressable
               onPress={() => onCreateEvent(group.name)}
               accessibilityRole="button"
-              accessibilityLabel="New album in this group"
+              accessibilityLabel="New roll in this group"
               style={({ pressed }) => [
                 styles.addButton,
                 { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
@@ -450,7 +450,7 @@ export function GroupScreen({
               {group.events.length === 0 ? (
                 <View style={[styles.card, styles.gutter, { backgroundColor: t.card, borderColor: t.line }]}>
                   <Text style={[styles.body, { color: t.dim }]}>
-                    Nothing yet. The next album anybody makes in this group shows
+                    Nothing yet. The next roll anybody makes in this group shows
                     up here, and everyone gets told.
                   </Text>
                 </View>
@@ -490,8 +490,8 @@ export function GroupScreen({
                 occurs to you.
               */}
               <Text style={[styles.footnote, styles.gutter, { color: t.dim, borderTopColor: t.line }]}>
-                Photos live in the albums, not in the group. Leaving stops the
-                next one reaching you — it takes nothing away from the albums
+                Photos live in the rolls, not in the group. Leaving stops the
+                next one reaching you — it takes nothing away from the rolls
                 you were in.
               </Text>
             </ScrollView>
@@ -654,7 +654,7 @@ function Tabs({
   waiting: number;
 }) {
   const items: [GroupPane, GlyphName, string][] = [
-    ['albums', 'photos', 'Albums'],
+    ['albums', 'photos', 'Rolls'],
     ['chat', 'bubbles', 'Chat'],
     ['people', 'group', 'People'],
   ];
@@ -875,8 +875,8 @@ function GroupMore({
 
           <Text style={[styles.label, { color: t.fg }]}>This group</Text>
           <Text style={[styles.small, { color: t.dim }]}>
-            Leaving stops the next album reaching you. It takes nothing away
-            from the albums you were already in.
+            Leaving stops the next roll reaching you. It takes nothing away
+            from the rolls you were already in.
           </Text>
           <Button
             label="Leave this group"

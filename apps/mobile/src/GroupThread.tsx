@@ -286,7 +286,7 @@ export function GroupThread({
               <Text style={[styles.meta, { color: t.dim }]} numberOfLines={1}>
                 {group.memberCount} {group.memberCount === 1 ? 'person' : 'people'}
                 {group.eventCount > 0 &&
-                  ` · ${group.eventCount} ${group.eventCount === 1 ? 'album' : 'albums'}`}
+                  ` · ${group.eventCount} ${group.eventCount === 1 ? 'roll' : 'rolls'}`}
               </Text>
             </View>
           </Pressable>

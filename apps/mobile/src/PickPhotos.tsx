@@ -150,7 +150,7 @@ export function PickPhotos({
         </Text>
         <Text style={[styles.whySmall, { color: t.dim }]}>
           Allow access in Settings to choose from your library — or carry on and
-          make the album now, and add photographs to it afterwards.
+          make the roll now, and add photographs to it afterwards.
         </Text>
         <View style={styles.denied}>
           <Button label="Carry on without" t={t} primary onPress={() => onNext([])} />
@@ -170,7 +170,7 @@ export function PickPhotos({
         <Pressable onPress={onCancel} hitSlop={12} accessibilityRole="button">
           <Text style={styles.barCancel}>Cancel</Text>
         </Pressable>
-        <Text style={styles.barTitle}>New album</Text>
+        <Text style={styles.barTitle}>New roll</Text>
         <Pressable
           onPress={() => onNext(chosen)}
           hitSlop={12}

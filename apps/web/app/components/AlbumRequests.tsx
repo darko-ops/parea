@@ -186,7 +186,7 @@ export function AlbumRequests({
         'host-requests',
         hosts,
         `${hosts.length} asking to add photographs`,
-        'They are already in this album. Approving lets them add to it, which on an album set to hosts only is what they are asking for.',
+        'They are already in this roll. Approving lets them add to it, which on a roll set to hosts only is what they are asking for.',
         'Allow',
       )}
     </>

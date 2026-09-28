@@ -57,7 +57,7 @@ describe('the tabs need an account', () => {
     );
   });
 
-  it('leaves a link to an album alone', () => {
+  it('leaves a link to a roll alone', () => {
     /*
      * The one thing the old rule was protecting, and the reason the gate is on
      * the tabs rather than on the app. An event is its own route, reached from
@@ -126,7 +126,7 @@ describe('the tabs need an account', () => {
 
 describe('a shelf with nothing on it', () => {
   it('says so, and offers the one thing that answers it', () => {
-    expect(PROFILE).toMatch(/No Albums Yet\. Create One Now\./);
+    expect(PROFILE).toMatch(/No Rolls Yet\. Create One Now\./);
     const empty = PROFILE.slice(PROFILE.indexOf('styles.noAlbums'));
     expect(empty.slice(0, empty.indexOf('</View>'))).toMatch(/onPress=\{onCreateEvent\}/);
   });
@@ -192,8 +192,8 @@ describe('an empty page says so the same way everywhere', () => {
 
   it('says the same words about the same absence', () => {
     // Home and the profile are both a shelf with no albums on it.
-    expect(EVENTS).toMatch(/No Albums Yet\. Create One Now\./);
-    expect(PROFILE).toMatch(/No Albums Yet\. Create One Now\./);
+    expect(EVENTS).toMatch(/No Rolls Yet\. Create One Now\./);
+    expect(PROFILE).toMatch(/No Rolls Yet\. Create One Now\./);
     // Chats has a heading of its own above the button, so the note under it
     // is the half the heading has not already said.
     expect(CHATS).toMatch(/>Create One Now\.</);

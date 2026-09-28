@@ -66,7 +66,7 @@ export function StartSomething({
                 { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
               ]}
             >
-              <Text style={[styles.choiceName, { color: t.fg }]}>New album</Text>
+              <Text style={[styles.choiceName, { color: t.fg }]}>New roll</Text>
               <Text style={[styles.choiceWhy, { color: t.dim }]}>
                 One evening, and a link for the people who were at it.
               </Text>
@@ -85,7 +85,7 @@ export function StartSomething({
             >
               <Text style={[styles.choiceName, { color: t.fg }]}>New group</Text>
               <Text style={[styles.choiceWhy, { color: t.dim }]}>
-                The people you keep ending up with, so the next album has
+                The people you keep ending up with, so the next roll has
                 somewhere to go.
               </Text>
             </Pressable>

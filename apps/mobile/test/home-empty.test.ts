@@ -118,7 +118,7 @@ describe('the card the home list draws', () => {
     expect(byline).not.toMatch(/\{about\b/);
   });
 
-  it('marks a live album in the corner of its cover, not beside the handle', () => {
+  it('marks a live roll in the corner of its cover, not beside the handle', () => {
     /*
      * It was `· added to 2 minutes ago` hung off the name, then the far end of
      * the same row. Both were a line away from the thing they are about, and
@@ -210,7 +210,7 @@ describe('the card the home list draws', () => {
     expect(EVENTS).toMatch(/faces: \{ flexDirection: 'row', marginTop: -13, marginLeft: -4/);
   });
 
-  it('leads with the album’s name, above the byline and below the rule', () => {
+  it('leads with the roll’s name, above the byline and below the rule', () => {
     /*
      * The name has been in three places and this is the second time in this
      * one.
@@ -255,7 +255,7 @@ describe('the card the home list draws', () => {
     expect(EVENTS).toMatch(/eventName: \{ fontSize: 18, fontWeight: '700' \}/);
   });
 
-  it('dates and measures the album on a rule above the title', () => {
+  it('dates and measures the roll on a rule above the title', () => {
     /*
      * Two numbers and a date — the label on the outside of the box — set in
      * the one monospaced face in the product, with a hairline running from
@@ -488,7 +488,7 @@ describe('the heading row', () => {
      * album screen adds photographs with. Three tabs, one shape for "make
      * something here".
      */
-    expect(HOME).toMatch(/accessibilityLabel="New album or group"/);
+    expect(HOME).toMatch(/accessibilityLabel="New roll or group"/);
     // The product's one piece of round chrome, shared rather than restyled per
     // corner — see `RoundButton`.
     expect(HOME).toMatch(/<RoundButton/);
@@ -549,7 +549,7 @@ describe('the home list', () => {
     expect(GROUPS).not.toMatch(/photoCount > 0/);
   });
 
-  it('still lands you inside an album you have just made', () => {
+  it('still lands you inside a roll you have just made', () => {
     /*
      * This hides your own empty albums too, so the create flow must not depend
      * on the list: `onCreated` opens the event rather than returning to it —
@@ -629,7 +629,7 @@ describe('pressing a byline', () => {
  * therefore drew that picture twice — large as the cover, and again as the
  * only thumbnail three rows down.
  */
-describe('an album of one photograph', () => {
+describe('a roll of one photograph', () => {
   it('draws nothing in the strip, whatever the cover bookkeeping says', () => {
     /*
      * A floor rather than a refinement of the slice. The server drops the
@@ -663,13 +663,13 @@ describe('an album of one photograph', () => {
  * card saying yesterday. That does not read as a date being wrong; it reads as
  * the list being out of order.
  */
-describe('what a card dates an album by', () => {
+describe('what a card dates a roll by', () => {
   it('leads with when it was posted', () => {
     expect(EVENTS).toMatch(/const date = dateLabel\(event\.createdAt\);/);
     expect(EVENTS).not.toMatch(/dateLabel\(event\.eventDate \?\? event\.startsAt/);
   });
 
-  it('dates every shelf of albums the same way', () => {
+  it('dates every shelf of rolls the same way', () => {
     /*
      * The profile's shelf used to answer a different question — "when was
      * this evening" rather than "when did this arrive" — on the argument that
@@ -744,7 +744,7 @@ describe('the line under the strip', () => {
     expect(EVENTS).toMatch(/styles\.sayerFace, styles\.replyFace/);
   });
 
-  it('counts the whole album, not the rest of it', () => {
+  it('counts the whole roll, not the rest of it', () => {
     /*
      * It used to subtract the comment on screen and read `+ 3 comments` — a
      * footnote to the quote above it. The ledger is not about the quote: it
@@ -895,7 +895,7 @@ describe('what the bubble became', () => {
     expect(EVENTS).not.toMatch(/talkLine|talkWho|talkMore/);
   });
 
-  it('opens the conversation rather than the album, all the way down', () => {
+  it('opens the conversation rather than the roll, all the way down', () => {
     /*
      * A comment on a card is a pointer at a thread; landing at the top of the
      * album leaves the reader to find the tab.
@@ -921,7 +921,7 @@ describe('what the bubble became', () => {
     expect(APP2).toMatch(/useState<Pane>\(initialPane \?\? 'photos'\)/);
   });
 
-  it('leaves the card opening the album, as it always did', () => {
+  it('leaves the card opening the roll, as it always did', () => {
     // Nested inside the `Pressable` that was already there: the inner one
     // takes the touch on the bubble, the outer one takes everything else.
     const card = EVENTS.slice(EVENTS.indexOf('function EventCard'), EVENTS.indexOf('function emptyLine'));
@@ -963,7 +963,7 @@ describe('a photograph with something new on it', () => {
   });
 });
 
-describe('an album somebody has just added to', () => {
+describe('a roll somebody has just added to', () => {
   it('is fetched again when the upload queue goes quiet, not when a screen closes', () => {
     /*
      * `/api/events` comes back most-recently-added-to first, and adding a

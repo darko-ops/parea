@@ -912,7 +912,7 @@ export default function App() {
         if (err instanceof ApiError && err.code === 'approval_required') {
           const door = err.body.event as { id?: string; name?: string } | undefined;
           if (door?.id) {
-            setRoute({ screen: 'door', eventId: door.id, name: door.name ?? 'This album' });
+            setRoute({ screen: 'door', eventId: door.id, name: door.name ?? 'This roll' });
             setJoinError(null);
             return true;
           }
@@ -1361,7 +1361,7 @@ export default function App() {
                 t={t}
                 Button={Button}
                 gate
-                why="Making an album needs an account, so the people you invite know whose album it is."
+                why="Making a roll needs an account, so the people you invite know whose roll it is."
                 onSignedIn={() => {
                   void refreshAccount();
                   void refreshEvents();
@@ -1974,7 +1974,7 @@ function JoinScreen({
         a link; the host making one is the rarer case, and putting creation
         first would make the app look like a thing you have to set up.
       */}
-      <Button label="Create album" onPress={onCreateEvent} t={t} />
+      <Button label="Create roll" onPress={onCreateEvent} t={t} />
 
       {/*
         Groups first, and above the recent events, because they are the thing
@@ -3125,7 +3125,7 @@ function EventScreen({
   const removeCover = useCallback(() => {
     Alert.alert(
       'Remove the cover?',
-      'The album goes back to leading with its first photograph.',
+      'The roll goes back to leading with its first photograph.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -3423,8 +3423,8 @@ function EventScreen({
     Alert.alert(
       `Delete ${event.name}?`,
       count > 0
-        ? `This takes the album and its ${count} ${count === 1 ? 'photo' : 'photos'} away from everybody in it. It cannot be undone.`
-        : 'This takes the album away from everybody in it. It cannot be undone.',
+        ? `This takes the roll and its ${count} ${count === 1 ? 'photo' : 'photos'} away from everybody in it. It cannot be undone.`
+        : 'This takes the roll away from everybody in it. It cannot be undone.',
       [
         { text: 'Keep it', style: 'cancel' },
         {
@@ -3544,16 +3544,16 @@ function EventScreen({
     const mine = (feed?.event.canAdminister ?? false) && !mayAsk && !pending && standing !== 'approved';
 
     Alert.alert(
-      'You cannot add photos to this album',
+      'You cannot add photos to this roll',
       pending
-        ? 'You have asked, and whoever made the album has not answered yet. You can add photos once they have. Nothing arrives by email — this button starts working the moment they say yes.'
+        ? 'You have asked, and whoever made the roll has not answered yet. You can add photos once they have. Nothing arrives by email — this button starts working the moment they say yes.'
         : standing === 'approved'
-          ? 'You are one of this album’s hosts already. The button works from here.'
+          ? 'You are one of this roll’s hosts already. The button works from here.'
           : mayAsk
-            ? 'Hosts add the photographs here. You can ask to be one — whoever made the album decides, and nothing changes until they do.'
+            ? 'Hosts add the photographs here. You can ask to be one — whoever made the roll decides, and nothing changes until they do.'
             : mine
-              ? 'This album is set so that nobody adds photographs to it, including you. Who can add is a setting, and it is yours.'
-              : 'Adding is not open to you on this one. Whoever made the album decides who puts photographs in it, and they are the person to ask.',
+              ? 'This roll is set so that nobody adds photographs to it, including you. Who can add is a setting, and it is yours.'
+              : 'Adding is not open to you on this one. Whoever made the roll decides who puts photographs in it, and they are the person to ask.',
       mayAsk
         ? [
             { text: 'Request access', onPress: () => void askToHost() },
@@ -4044,7 +4044,7 @@ function EventScreen({
       <RoundButton
         t={t}
         onPress={onBack}
-        accessibilityLabel="Back to your albums"
+        accessibilityLabel="Back to your rolls"
         style={styles.coverBack}
       >
         <Back color={t.fg} />
@@ -4063,7 +4063,7 @@ function EventScreen({
       <RoundButton
         t={t}
         onPress={() => setSheetOpen(true)}
-        accessibilityLabel="Album options"
+        accessibilityLabel="Roll options"
         style={styles.coverMore}
       >
         <More color={t.fg} />
@@ -4177,7 +4177,7 @@ function EventScreen({
                     hitSlop={8}
                     disabled={askingToHost}
                     accessibilityRole="button"
-                    accessibilityLabel="Ask to be a host of this album"
+                    accessibilityLabel="Ask to be a host of this roll"
                   >
                     <Text
                       style={[styles.queueDo, { color: t.accent, opacity: askingToHost ? 0.5 : 1 }]}
@@ -4618,7 +4618,7 @@ function EventScreen({
                 */
                 coverId={feed?.event.coverPhotoId ?? coverChoices[0]!.id}
                 initial={feed?.event.coverFraming ?? undefined}
-                stripLabel="IN THIS ALBUM"
+                stripLabel="IN THIS ROLL"
                 t={t}
                 onCancel={() => setFramingAlbum(false)}
                 onConfirm={(id, framing) => {
@@ -5005,7 +5005,7 @@ function TabBar({
         */}
         {(
           [
-            ['home', 'photos', 'Albums'],
+            ['home', 'photos', 'Rolls'],
             ['chats', 'bubbles', 'Chats'],
             ['search', 'search', 'Find'],
             ['profile', 'profile', 'You'],
@@ -5464,7 +5464,7 @@ function HostSheet({
               <Action
                 t={t}
                 icon="download"
-                label={saving ?? 'Download Album'}
+                label={saving ?? 'Download Roll'}
                 onPress={onSaveAll}
                 /* Nothing to download from an empty album, and a live button
                    that can only apologise is worse than one that is plainly
@@ -5481,9 +5481,9 @@ function HostSheet({
               {!known ? (
                 <View style={styles.action} />
               ) : host ? (
-                <Action t={t} icon="trash" label="Delete Album" onPress={onDelete} danger />
+                <Action t={t} icon="trash" label="Delete Roll" onPress={onDelete} danger />
               ) : (
-                <Action t={t} icon="door" label="Leave Album" onPress={onLeave} danger />
+                <Action t={t} icon="door" label="Leave Roll" onPress={onLeave} danger />
               )}
             </View>
 
@@ -5524,7 +5524,7 @@ function HostSheet({
                   { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={cover ? 'Change the album cover' : 'Choose an album cover'}
+                accessibilityLabel={cover ? 'Change the roll cover' : 'Choose a roll cover'}
               >
                 {cover ? (
                   <Image source={{ uri: cover }} style={styles.coverShot} resizeMode="cover" />
@@ -5534,7 +5534,7 @@ function HostSheet({
                   <View style={[styles.coverEmpty, { borderColor: t.line }]} />
                 )}
                 <View style={styles.coverWords}>
-                  <Text style={[styles.coverTitleText, { color: t.fg }]}>Album cover</Text>
+                  <Text style={[styles.coverTitleText, { color: t.fg }]}>Roll cover</Text>
                   {/*
                     What the row does, which it never said.
 
@@ -5566,7 +5566,7 @@ function HostSheet({
                 onPress={onRemoveCover}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Remove the album cover"
+                accessibilityLabel="Remove the roll cover"
                 style={({ pressed }) => [styles.coverOff, { opacity: pressed ? 0.6 : 1 }]}
               >
                 <Text style={[styles.coverOffText, { color: t.warn }]}>Remove cover</Text>
@@ -5780,7 +5780,7 @@ function HostSheet({
                     ) : (
                       <Text style={[styles.small, { color: t.dim }]}>
                         Only you, so far. Anybody you add here can put
-                        photographs in; nothing else about the album changes
+                        photographs in; nothing else about the roll changes
                         hands.
                       </Text>
                     )}
@@ -5847,7 +5847,7 @@ function HostSheet({
                       property that makes the setting safe to offer at all.
                     */}
                     <Text style={[styles.small, { color: t.dim }]}>
-                      A co-host adds photographs. They cannot rename the album,
+                      A co-host adds photographs. They cannot rename the roll,
                       change these settings, let anybody in, or make anybody else
                       a co-host.
                     </Text>
@@ -5869,7 +5869,7 @@ function HostSheet({
                     */}
                     {feed?.event.groupId && (
                       <Text style={[styles.small, { color: t.dim }]}>
-                        This album is in a group, so the group’s admins can add
+                        This roll is in a group, so the group’s admins can add
                         photographs too. That comes with being an admin, and is
                         changed in the group rather than here.
                       </Text>
@@ -5887,7 +5887,7 @@ function HostSheet({
             */}
             {visible === 'private' && !host && (
               <Text style={[styles.small, { color: t.dim }]}>
-                Private — the link lets somebody ask. Whoever made this album decides.
+                Private — the link lets somebody ask. Whoever made this roll decides.
               </Text>
             )}
 
@@ -5929,11 +5929,11 @@ function HostSheet({
                 ) : (
                   <>
                     <Text style={[styles.body, { color: t.fg }]}>
-                      Do this often with these people? A group keeps the albums
+                      Do this often with these people? A group keeps the rolls
                       together, so you only send the link once.
                     </Text>
                     <Button
-                      label="Create group from this album"
+                      label="Create group from this roll"
                       onPress={() => setNaming(true)}
                       t={t}
                     />
@@ -5945,7 +5945,7 @@ function HostSheet({
             {feed?.event.groupId && (
               <Row
                 label={`in ${feed.event.groupName}`}
-                note="Open the group this album is in."
+                note="Open the group this roll is in."
                 onPress={() => {
                   onClose();
                   onOpenGroup(feed.event.groupId!);
@@ -6141,7 +6141,7 @@ function PhotoActions({
   const confirmBlock = () =>
     Alert.alert(
       'Block this person?',
-      'Their photographs disappear from every album you share, here and anywhere else. They are not told, and nobody else is affected.',
+      'Their photographs disappear from every roll you share, here and anywhere else. They are not told, and nobody else is affected.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -6341,7 +6341,7 @@ function PhotoActions({
                     {offerable.length === 0 ? (
                       <Text style={[styles.small, { color: t.dim }]}>
                         {members.length === 0
-                          ? 'Nobody else is in this album yet.'
+                          ? 'Nobody else is in this roll yet.'
                           : 'Everybody here is already tagged.'}
                       </Text>
                     ) : (
@@ -6389,7 +6389,7 @@ function PhotoActions({
             <>
               <Row
                 label="That's me — take it down"
-                note="Asks whoever made the album, without saying who asked. Hidden automatically if they do not answer."
+                note="Asks whoever made the roll, without saying who asked. Hidden automatically if they do not answer."
                 t={t}
                 disabled={busy}
                 onPress={() =>
@@ -6498,7 +6498,7 @@ function NameCard({
 
   return (
     <View style={[styles.sheetRow, { backgroundColor: t.card, borderColor: t.line }]}>
-      <Text style={[styles.label, { color: t.fg }]}>Album name</Text>
+      <Text style={[styles.label, { color: t.fg }]}>Roll name</Text>
       {/*
         Where it shows up, rather than what the field is called. "Name" alone
         is a label; this says what renaming actually moves, which is the thing
@@ -6519,7 +6519,7 @@ function NameCard({
         returnKeyType="done"
         onSubmitEditing={() => dirty && void save()}
         style={[styles.input, styles.nameField, { borderColor: t.line, color: t.fg, backgroundColor: t.bg }]}
-        accessibilityLabel="The album's name"
+        accessibilityLabel="The roll's name"
       />
       {/*
         Only once there is a change worth saving. A button that is always there

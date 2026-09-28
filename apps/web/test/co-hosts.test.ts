@@ -214,7 +214,7 @@ describe('answering an invitation to co-host', () => {
 });
 
 describe('the creator', () => {
-  it('is a host of their own album without a row saying so', async () => {
+  it('is a host of their own roll without a row saying so', async () => {
     // `authorize` reads `createdBy` directly. A second place storing the same
     // fact is a pair that disagrees eventually, and the wrong one wins silently.
     const owner = await person('Wren');
@@ -271,7 +271,7 @@ describe('the routes that write all this', () => {
     expect(route).toContain('creator_is_host');
   });
 
-  it('keeps the co-host list to whoever administers the album', () => {
+  it('keeps the co-host list to whoever administers the roll', () => {
     /*
      * The People tab already shows everybody who may add, to everybody in the
      * album, and that is the right disclosure for a room. This list has open
@@ -406,12 +406,12 @@ describe('what both clients say', () => {
     expect(source).toContain('contributeNote(feed.event.contributePolicy)');
   });
 
-  it('says a co-host cannot administer the album', () => {
+  it('says a co-host cannot administer the roll', () => {
     // The property the setting rests on: the set of people who can add cannot
     // grow without the album's owner. Said on both screens that offer it.
     for (const file of ['app/components/ManageView.tsx', '../mobile/App.tsx']) {
       const source = stripComments(read(file));
-      expect(source).toMatch(/cannot rename the album/);
+      expect(source).toMatch(/cannot rename the roll/);
     }
   });
 });

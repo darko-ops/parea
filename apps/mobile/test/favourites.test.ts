@@ -77,7 +77,7 @@ describe('what the server keeps', () => {
     const MERGE = read('../../apps/web/src/merge.ts');
     expect(MERGE).toMatch(/table: 'photo_favourite'/);
     const PRIVACY = read('../../apps/web/app/privacy/page.tsx');
-    expect(PRIVACY).toMatch(/shortlist of an album that is/);
+    expect(PRIVACY).toMatch(/shortlist of a roll that is/);
   });
 });
 
@@ -144,7 +144,7 @@ describe('the second shelf', () => {
     expect(pager.indexOf('data={feed?.photos ?? []}')).toBeLessThan(pager.indexOf('data={kept}'));
   });
 
-  it('says what an empty shortlist is, which is not an empty album', () => {
+  it('says what an empty shortlist is, which is not an empty roll', () => {
     expect(APP).toMatch(/Nothing kept yet\./);
     // And that nobody else is looking at it.
     expect(APP).toMatch(/Only you see this\./);
@@ -207,7 +207,7 @@ describe('the two shelves stay two', () => {
     expect(APP).toMatch(/const byId = new Map\(all\.map\(\(photo\) => \[photo\.id, photo\]\)\)/);
   });
 
-  it('still opens an album photograph into the whole album', () => {
+  it('still opens a roll photograph into the whole roll', () => {
     // `scope` is null before the first press and for anything opened from
     // somewhere that is not a shelf.
     expect(APP).toMatch(/: all;/);

@@ -35,7 +35,7 @@ const SCREEN = code(
 );
 
 describe('the two corners', () => {
-  it('puts settings behind the same glyph an album uses', () => {
+  it('puts settings behind the same glyph a roll uses', () => {
     /*
      * The two discs are the same controls in the same corners; what has gone
      * is the row that used to hold them. `PageHead` draws the wordmark
@@ -62,7 +62,7 @@ describe('the two corners', () => {
   it('draws the `+` as a stroke rather than a labelled button', () => {
     // The third `+` somebody meets in this app; the other two taught it.
     expect(SCREEN).toMatch(/<Glyph name="plus"/);
-    expect(SCREEN).toMatch(/accessibilityLabel="New album or group"/);
+    expect(SCREEN).toMatch(/accessibilityLabel="New roll or group"/);
   });
 });
 
@@ -175,7 +175,7 @@ describe('what the `+` makes', () => {
      * agreeing today and disagreeing the first time somebody rewrote a line.
      */
     const SHEET = read('src/StartSomething.tsx');
-    expect(SHEET).toMatch(/New album/);
+    expect(SHEET).toMatch(/New roll/);
     expect(SHEET).toMatch(/New group/);
     expect(SHEET).toMatch(/onAlbum\(\);/);
     expect(SHEET).toMatch(/onGroup\(\);/);
@@ -184,7 +184,7 @@ describe('what the `+` makes', () => {
     expect(SCREEN).toMatch(/onGroup=\{onCreateGroup\}/);
   });
 
-  it('hands the album off to the photographs, which come first now', () => {
+  it('hands the roll off to the photographs, which come first now', () => {
     /*
      * `pick` rather than `create`: making an album begins with choosing the
      * pictures, and the form is the second step. Every entry point goes to the

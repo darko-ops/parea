@@ -276,7 +276,7 @@ type Scope = 'all' | 'people' | 'events' | 'groups';
 const SCOPES = [
   ['all', 'All'],
   ['people', 'People'],
-  ['events', 'Albums'],
+  ['events', 'Rolls'],
   ['groups', 'Groups'],
 ] as const;
 
@@ -615,7 +615,7 @@ export function FindView({
       <div className="find-box">
         <SearchIcon size={20} />
         <label htmlFor="q" className="visually-hidden">
-          Search people, albums and groups
+          Search people, rolls and groups
         </label>
         {/*
           Two moments are worth remembering and neither of them is a keystroke.
@@ -633,7 +633,7 @@ export function FindView({
           onKeyDown={(e) => {
             if (e.key === 'Enter') rememberTerm(query);
           }}
-          placeholder="A person, an album, a group"
+          placeholder="A person, a roll, a group"
           autoComplete="off"
           autoFocus
         />
@@ -753,7 +753,7 @@ export function FindView({
       )}
 
       {wantsEvents && foundEvents.length > 0 && (
-        <Answers title="Albums">
+        <Answers title="Rolls">
           {foundEvents.map((event) => (
             <EventRow key={event.id} event={event} onOpen={() => rememberTerm(query)} />
           ))}
@@ -786,7 +786,7 @@ export function FindView({
 
       {nothing && (
         <p className="find-empty">
-          Nothing by that name. Albums are only yours to find — if somebody
+          Nothing by that name. Rolls are only yours to find — if somebody
           has not sent you the link, there is nothing here to type at.
         </p>
       )}
@@ -814,8 +814,8 @@ export function FindView({
         <section className="find-section">
           <h2 className="find-head">The same people keep turning up</h2>
           <p className="find-sub">
-            You have shared several albums with these people. Keep everyone
-            together for next time — the next album includes all of them
+            You have shared several rolls with these people. Keep everyone
+            together for next time — the next roll includes all of them
             without a single invite.
           </p>
           <div className="cluster-list">
@@ -960,8 +960,8 @@ export function FindView({
       {!asking && scope === 'events' && (
         <p className="find-empty">
           {events.length === 0
-            ? 'No albums yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
-            : 'Albums are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
+            ? 'No rolls yet. Make one, or open a link somebody sent you, and it will be findable here by name or by place.'
+            : 'Rolls are matched here rather than listed — the home screen is where they all are. Type a name or a place and the ones that match come back.'}
         </p>
       )}
 
@@ -985,16 +985,16 @@ export function FindView({
         <details className="how">
           <summary>How search works</summary>
           <p className="field-help">
-            Your albums and your friends are matched here on this page, over
+            Your rolls and your friends are matched here on this page, over
             what you can already see — nothing is looked up. Handles are
             searched by prefix, so somebody is findable enough to be asked and
             no further, and groups return a name and a member count and never
             what is inside. Photos are never searched, and the only way into
-            somebody else’s album is a link they sent you.
+            somebody else’s roll is a link they sent you.
           </p>
         </details>
         <span className="find-foot-note">
-          Albums are never recommended — only ones you have the link to are here
+          Rolls are never recommended — only ones you have the link to are here
           at all.
         </span>
       </div>

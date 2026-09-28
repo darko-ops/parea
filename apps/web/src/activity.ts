@@ -1004,7 +1004,7 @@ export async function activityFor(
       at: (arrived ?? new Date()).toISOString(),
       who: PAREA_NAME,
       what:
-        'welcomed you. When somebody adds photos to an album you are in, says ' +
+        'welcomed you. When somebody adds photos to a roll you are in, says ' +
         'something about yours, or opens one to you, it turns up here.',
       href: `/u/${PAREA_HANDLE}`,
       image: await avatarUrl(face?.avatarKey ?? null),

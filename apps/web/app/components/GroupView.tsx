@@ -98,7 +98,7 @@ export type GroupTab = 'albums' | 'chat' | 'people';
  * to each other, against the single `bubble` an album's comments carry.
  */
 const TABS: [GroupTab, string, RailGlyph][] = [
-  ['albums', 'Albums', 'photos'],
+  ['albums', 'Rolls', 'photos'],
   ['chat', 'Chat', 'bubbles'],
   ['people', 'People', 'groups'],
 ];
@@ -325,7 +325,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           */}
           {group.member && (
             <p className="group-head-meta">
-              {group.events.length} {group.events.length === 1 ? 'album' : 'albums'}
+              {group.events.length} {group.events.length === 1 ? 'roll' : 'rolls'}
               {group.since && ` · since ${group.since}`}
             </p>
           )}
@@ -421,7 +421,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             type="button"
             className="round group-new"
             aria-expanded={creating}
-            aria-label="New album in this group"
+            aria-label="New roll in this group"
             onClick={() => setCreating((was) => !was)}
           >
             <RailIcon glyph="plus" />
@@ -524,7 +524,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             ))}
           </ul>
           <p className="join-queue-note">
-            Approving puts them in the room: they see every album in it, and the
+            Approving puts them in the room: they see every roll in it, and the
             next one reaches them. Declining tells them nothing — they can ask
             again.
           </p>
@@ -628,7 +628,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           */
           <div className="group-empty">
             <p>
-              Nothing yet. The next album anybody makes in this group shows up
+              Nothing yet. The next roll anybody makes in this group shows up
               here, and everyone gets told.
             </p>
           </div>
@@ -685,8 +685,8 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       */}
       {tab === 'albums' && (
       <p className="group-note">
-        Photos live in the albums, not in the group. Leaving stops the next one
-        reaching you — it takes nothing away from the albums you were in.
+        Photos live in the rolls, not in the group. Leaving stops the next one
+        reaching you — it takes nothing away from the rolls you were in.
       </p>
       )}
 

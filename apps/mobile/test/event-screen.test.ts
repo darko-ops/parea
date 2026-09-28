@@ -219,7 +219,7 @@ describe('what is above the first photograph', () => {
     expect(cover.indexOf('styles.coverFoot')).toBeGreaterThan(cover.indexOf('<LinearGradient'));
   });
 
-  it('puts no glass over an album with no photograph', () => {
+  it('puts no glass over a roll with no photograph', () => {
     // There is nothing behind a flat lens colour to obscure, and blurring one
     // is work that changes no pixel.
     expect(APP).toMatch(
@@ -236,13 +236,13 @@ describe('what is above the first photograph', () => {
     for (const gone of [
       // The sheet's three actions run across the top as icons now — this is
       // the label under the second one.
-      'Download Album',
+      'Download Roll',
       'Who can see it',
       // The cover's row, not its handler: `editCover` still lives on the
       // screen, because the sheet calls it and the screen owns the refresh.
       'styles.coverRow',
       '<InviteCard',
-      'Create group from this album',
+      'Create group from this roll',
     ]) {
       expect(SCREEN).not.toContain(gone);
       expect(SHEET).toContain(gone);
@@ -327,7 +327,7 @@ describe('the account', () => {
  * Saving one was the same gap from the other side: the only route was Download
  * Album, which is the whole evening and a question about megabytes first.
  */
-describe('a photograph in an album', () => {
+describe('a photograph in a roll', () => {
   it('says whose it is, by the key the photo carries', () => {
     /*
      * Never by an actor id. `by` is an opaque per-event digest and `Feed.people`
@@ -493,7 +493,7 @@ describe('a photograph in an album', () => {
     expect(VIEWER).toMatch(/styles\.said\b/);
   });
 
-  it('no longer counts comments per photograph on the album screen', () => {
+  it('no longer counts comments per photograph on the roll screen', () => {
     // The map existed for the column's caption and had no other reader. The
     // viewer is handed the album's thread filtered to one photograph, which
     // is the same rows read from the other end and needs no tally.
@@ -522,7 +522,7 @@ describe('a photograph in an album', () => {
     expect(APP).toMatch(/<View pointerEvents="none" style=\{styles\.gridBy\}>/);
   });
 
-  it('no longer dates each photograph on the album screen', () => {
+  it('no longer dates each photograph on the roll screen', () => {
     /*
      * "added today" sat in a column row's top-right corner and told you which
      * pictures were new to you. It went with the row, and nothing on the grid
@@ -532,7 +532,7 @@ describe('a photograph in an album', () => {
     expect(APP).not.toMatch(/const added = shortDate\(item\.addedAt\)/);
   });
 
-  it('keeps the album’s own dates, which were never the column’s', () => {
+  it('keeps the roll’s own dates, which were never the column’s', () => {
     // `dateLabel` on a card is a different thing from a photograph's "added
     // today" and is unaffected by the column going.
     const EVENTS = read('src/Events.tsx');
@@ -631,7 +631,7 @@ describe('a comment about one photograph', () => {
     expect(THREAD).not.toMatch(/api\./);
   });
 
-  it('looks the photograph up in a map, not by scanning the album', () => {
+  it('looks the photograph up in a map, not by scanning the roll', () => {
     /*
      * One `find` per row over the album's photographs is fine at four and
      * visible at four hundred — the board is one list and the album is

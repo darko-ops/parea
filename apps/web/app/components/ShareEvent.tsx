@@ -45,12 +45,12 @@ import { createPortal } from 'react-dom';
  */
 export function promise(accessPolicy: string | undefined, joinsOpen: boolean): string {
   if (!joinsOpen) {
-    return 'The link is off for this album — only the people you add can get in.';
+    return 'The link is off for this roll — only the people you add can get in.';
   }
   if (accessPolicy === PRIVATE) {
     return 'Whoever you send this to can ask to come in. You let them in, under Members.';
   }
-  return 'Anybody with this can open the album and add their photos.';
+  return 'Anybody with this can open the roll and add their photos.';
 }
 
 export function ShareEvent({
@@ -123,11 +123,11 @@ export function ShareEvent({
         className="dialog-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Share this album"
+        aria-label="Share this roll"
         tabIndex={-1}
         ref={card}
       >
-        <h2>Share this album</h2>
+        <h2>Share this roll</h2>
 
         <div className="aside-row">
           <span className="aside-link">{url}</span>

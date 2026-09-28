@@ -229,7 +229,7 @@ describe('where a row goes', () => {
 });
 
 describe('a group’s own thread', () => {
-  it('reuses the album’s thread rather than drawing a second one', () => {
+  it('reuses the roll’s thread rather than drawing a second one', () => {
     // Same composer, same tombstones, same mention rules.
     expect(GROUP_THREAD).toMatch(/import \{ Thread \} from '\.\/Thread'/);
     expect(THREAD).toMatch(/export type ThreadActions/);
@@ -413,7 +413,7 @@ describe('finding one', () => {
     // And where the other kind of conversation is. Taking the list away
     // without saying where it went is how somebody concludes their comments
     // have been deleted.
-    expect(flat(TAB)).toMatch(/comments on photographs are on the album they belong to/);
+    expect(flat(TAB)).toMatch(/comments on photographs are on the roll they belong to/);
   });
 
   it('does not offer a search where there is nothing to search', () => {
@@ -540,7 +540,7 @@ describe('finding one', () => {
  * the list seemed necessary.
  */
 describe('one list, of rooms', () => {
-  it('holds no album comments', () => {
+  it('holds no roll comments', () => {
     expect(TAB).not.toMatch(/albumChats/);
     expect(TAB).not.toMatch(/onOpenEventThread/);
     expect(TAB).not.toMatch(/ALBUM COMMENTS/);
@@ -564,8 +564,8 @@ describe('one list, of rooms', () => {
      * away without saying where it went is how somebody concludes their
      * comments have been deleted.
      */
-    expect(flat(TAB)).toMatch(/Comments on photographs live on the album they belong to/);
-    expect(flat(TAB)).toMatch(/comments on photographs are on the album they belong to/);
+    expect(flat(TAB)).toMatch(/Comments on photographs live on the roll they belong to/);
+    expect(flat(TAB)).toMatch(/comments on photographs are on the roll they belong to/);
     // And it names the tray, which is the route back to one.
     expect(flat(TAB)).toMatch(/turn up in your tray when somebody answers you/);
   });

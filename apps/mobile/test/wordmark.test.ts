@@ -73,7 +73,7 @@ describe('the name', () => {
     const PROFILE = read('src/Profile.tsx');
     expect(PROFILE).not.toMatch(/<PageHead/);
     expect(PROFILE).toMatch(/accessibilityLabel="Settings"/);
-    expect(PROFILE).toMatch(/accessibilityLabel="New album or group"/);
+    expect(PROFILE).toMatch(/accessibilityLabel="New roll or group"/);
     // And neither of the two titles survives.
     expect(EVENTS).not.toMatch(/>Your Parea</);
     expect(EVENTS).not.toMatch(/\}\]}>Find</);
@@ -275,8 +275,8 @@ function copy(source: string, word: RegExp): string[] {
   return [...strings, ...nodes];
 }
 
-describe('what the product calls an album', () => {
-  it('says album in every word a person reads', () => {
+describe('what the product calls a roll', () => {
+  it('says roll in every word a person reads', () => {
     /*
      * Text a person reads comes in two shapes and this used to check one.
      *
@@ -325,7 +325,7 @@ describe('what the product calls an album', () => {
   });
 
   it('says it on the tab bar, and wherever a screen names the things', () => {
-    expect(read('App.tsx')).toMatch(/\['home', 'photos', 'Albums'\]/);
+    expect(read('App.tsx')).toMatch(/\['home', 'photos', 'Rolls'\]/);
     /*
      * `Person.tsx` lost its `Albums` heading with its bordered cards: the
      * shelf is a wall of covers now, the way the viewer's own profile draws
@@ -333,8 +333,8 @@ describe('what the product calls an album', () => {
      * The word still has to be the one people read.
      */
     const PERSON = read('src/Person.tsx');
-    expect(PERSON).toMatch(/'album' : 'albums'/);
-    expect(PERSON).toMatch(/No albums to show yet/);
+    expect(PERSON).toMatch(/'roll' : 'rolls'/);
+    expect(PERSON).toMatch(/No rolls to show yet/);
     expect(PERSON).not.toMatch(/>\s*Events?\s*</);
     /*
      * `Groups.tsx` lost its `Albums` heading when the room's archive stopped
@@ -343,7 +343,7 @@ describe('what the product calls an album', () => {
      * The word still has to be the one people read.
      */
     const GROUPS = read('src/Groups.tsx');
-    expect(GROUPS).toMatch(/New album in this group/);
+    expect(GROUPS).toMatch(/New roll in this group/);
     /*
      * Said through `plural` now rather than a ternary per call site. The group
      * screen counts albums, photographs and people in five places, and five
@@ -351,7 +351,7 @@ describe('what the product calls an album', () => {
      * to read "1 albums".
      */
     expect(GROUPS).toMatch(/const plural = \(n: number, one: string, many = `\$\{one\}s`\)/);
-    expect(GROUPS).toMatch(/plural\([^)]*, 'album'\)/);
+    expect(GROUPS).toMatch(/plural\([^)]*, 'roll'\)/);
     /*
      * And never the schema's word where somebody reads it.
      *
@@ -407,7 +407,7 @@ describe('what the product calls a conversation', () => {
     }
   });
 
-  it('keeps chat for a group and comments for an album', () => {
+  it('keeps chat for a group and comments for a roll', () => {
     const EVENTS_SOURCE = read('src/Events.tsx');
     // The Chats tab holds chats. Comments are on the album they belong to,
     // and the album's own pane is what calls them comments.
@@ -420,7 +420,7 @@ describe('what the product calls a conversation', () => {
     expect(read('src/Groups.tsx')).toContain("['chat', 'bubbles', 'Chat']");
   });
 
-  it('gives the album one bubble and the Chats tab two', () => {
+  it('gives the roll one bubble and the Chats tab two', () => {
     /*
      * Two ideas, two pictures, and the difference between them is the count.
      * One bubble is a remark about a thing — an album's comments, which mostly

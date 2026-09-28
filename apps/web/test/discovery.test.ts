@@ -435,7 +435,7 @@ describe('people you may know', () => {
     ]);
   });
 
-  it('counts albums you were both in', async () => {
+  it('counts rolls you were both in', async () => {
     const me = await person('me');
     const them = await person('them');
     const a = await event('Naxos', me);
@@ -448,7 +448,7 @@ describe('people you may know', () => {
     ]);
   });
 
-  it('forgets an album that was deleted', async () => {
+  it('forgets a roll that was deleted', async () => {
     // A deleted album is not a room anybody was in any more, and it is the only
     // record this would otherwise still be reading.
     const me = await person('me');
@@ -473,7 +473,7 @@ describe('people you may know', () => {
     ]);
   });
 
-  it('puts mutual friends above albums, and albums above groups', async () => {
+  it('puts mutual friends above rolls, and rolls above groups', async () => {
     /*
      * The order is the argument. A mutual friend is other people having already
      * vouched; an album is "we were in the same room"; a group is only "we are
@@ -651,7 +651,7 @@ describe('no address book', () => {
     expect(manifest).not.toMatch(/CONTACTS|Contacts|expo-contacts/);
   });
 
-  it('builds recommendations out of albums, groups and friendships only', () => {
+  it('builds recommendations out of rolls, groups and friendships only', () => {
     // The tables named in the statement are the whole of what this reads. A
     // fourth source would be a new kind of claim about how the product knows
     // two people are connected, and it should not arrive quietly.

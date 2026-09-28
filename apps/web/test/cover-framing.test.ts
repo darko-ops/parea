@@ -483,7 +483,7 @@ describe('the setting that says who may add', () => {
     }
   });
 
-  it('answers whether this reader may add, rather than whether the album is open', () => {
+  it('answers whether this reader may add, rather than whether the roll is open', () => {
     /*
      * Both clients drew their add button off `uploadsOpen`, which is a fact
      * about the album and was the same for everybody. On a host-only album

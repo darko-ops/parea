@@ -100,7 +100,7 @@ describe('resolving credentials from the database', () => {
     expect(decision).toEqual({ allow: true });
   });
 
-  it('refuses the same stranger without it, on a private album', async () => {
+  it('refuses the same stranger without it, on a private roll', async () => {
     const event = await makePrivateEvent();
     const decision = await decide(db, event, 'view', { actorId: null });
     expect(decision).toEqual({ allow: false, reason: 'no_credential' });
@@ -531,7 +531,7 @@ describe('a door that does not write anything down evicts people later', () => {
   });
 });
 
-describe('a private album where the creator decides', () => {
+describe('a private roll where the creator decides', () => {
   const privateEvent = () => makeEvent({ accessPolicy: 'private' });
 
   it('stops a signed-in link holder at the door', async () => {
@@ -761,12 +761,12 @@ describe('the native join route', () => {
    * same line would present a credential nobody presented and open every
    * private album to anyone holding an id.
    */
-  it('opens by id only on who the viewer is, never on the album’s own token', () => {
+  it('opens by id only on who the viewer is, never on the roll’s own token', () => {
     expect(route).toMatch(/findEventById\(db, body\.eventId\)/);
     expect(route).toMatch(/linkToken: byId \? undefined : event\.linkToken/);
   });
 
-  it('does not name a private album to somebody who only had its id', () => {
+  it('does not name a private roll to somebody who only had its id', () => {
     // The 403-with-a-name is for a real credential. By id, a refusal is 404.
     expect(route).toMatch(/!byId &&\s*\n\s*!decision\.allow &&/);
   });
@@ -782,7 +782,7 @@ describe('the native join route', () => {
    * to hand it, so the refusal itself has to be the door: 403, the reason, and
    * the album's name for the screen to put at the top.
    */
-  it('tells a private album apart from a link that resolves to nothing', async () => {
+  it('tells a private roll apart from a link that resolves to nothing', async () => {
     const creator = await makeSignedInActor();
     const event = await makeEvent({ accessPolicy: 'private', createdBy: creator });
     const asking = await makeSignedInActor();
@@ -850,7 +850,7 @@ describe('the link exchange', () => {
   });
 });
 
-describe('the album page, for somebody with nothing to present', () => {
+describe('the roll page, for somebody with nothing to present', () => {
   const page = readFileSync(
     fileURLToPath(new URL('../app/event/[id]/page.tsx', import.meta.url)),
     'utf8',
@@ -883,10 +883,10 @@ describe('the album page, for somebody with nothing to present', () => {
     const missing = page.indexOf('if (!event || !decision) notFound();');
     expect(redirected).toBeGreaterThan(-1);
     expect(missing).toBeGreaterThan(-1);
-    expect(redirected, 'the sign-in step must answer for a missing album too').toBeLessThan(missing);
+    expect(redirected, 'the sign-in step must answer for a missing roll too').toBeLessThan(missing);
   });
 
-  it('leaves a public album readable signed out', () => {
+  it('leaves a public roll readable signed out', () => {
     // Only a denial is redirected. A public album allows a visitor with no
     // account at all, so nothing that could be read signed out has been put
     // behind a sign-in — see the `isPublic` branch in `authorize`.

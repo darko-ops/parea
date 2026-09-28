@@ -37,7 +37,7 @@ const read = (name: string) =>
 const APP = read('App.tsx');
 const AUTO = read('src/AutoSelect.tsx');
 
-describe('adding photos to an album', () => {
+describe('adding photos to a roll', () => {
   it('keeps the system picker reachable once the library is granted', () => {
     /*
      * The picker is its own function rather than the tail of `addPhotos`,

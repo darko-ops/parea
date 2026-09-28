@@ -49,7 +49,7 @@ describe('what a card says now that the photograph is the card', () => {
     expect(meta).not.toMatch(/event\.live/);
   });
 
-  it('marks a live album in the corner of its cover, not in a line below it', () => {
+  it('marks a live roll in the corner of its cover, not in a line below it', () => {
     /*
      * Five places in five passes, each nearer the thing it is about: the
      * caption, where it stood in place of the date; the host row; the title's

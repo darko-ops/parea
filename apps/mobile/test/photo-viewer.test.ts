@@ -96,7 +96,7 @@ describe('the gesture', () => {
 describe('the sheet of comments over a photograph', () => {
   const THREAD = read('src/Thread.tsx');
 
-  it('draws the album’s own row rather than a second kind of comment', () => {
+  it('draws the roll’s own row rather than a second kind of comment', () => {
     /*
      * It was a list of its own — a name over a sentence, no face, no time,
      * nothing to press — so the same comment was drawn two ways depending on
@@ -371,7 +371,7 @@ describe('what a finger means at fit', () => {
 });
 
 describe('what is said about one photograph', () => {
-  it('is the album’s own thread, not a second kind of message', () => {
+  it('is the roll’s own thread, not a second kind of message', () => {
     /*
      * `event_message` has carried a `photo_id` since the web let somebody reply
      * to a picture. A comment here is a line in the album's conversation that
@@ -591,7 +591,7 @@ describe('the photo options', () => {
     }
   });
 
-  it('tags from the album’s own people, not from everybody', () => {
+  it('tags from the roll’s own people, not from everybody', () => {
     /*
      * The server refuses a tag on somebody who is not in the event — tagging is
      * not a way to point at a person who cannot open the album and so cannot

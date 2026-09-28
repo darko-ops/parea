@@ -361,7 +361,7 @@ describe('leaving an event', () => {
     expect(left[0]!.uploaderId).toBe(person);
   });
 
-  it('says so when the album is in a group they are in', async () => {
+  it('says so when the roll is in a group they are in', async () => {
     /*
      * The participant row was never what put this on their home screen. The
      * group membership was, and it still does — so deleting the row and

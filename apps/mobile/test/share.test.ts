@@ -104,7 +104,7 @@ describe('the create screen no longer shares at all', () => {
     expect(create).not.toMatch(/webBase/);
   });
 
-  it('goes to the album as soon as the album exists', () => {
+  it('goes to the roll as soon as the roll exists', () => {
     /*
      * The fix for the photographs, and the reason this is the same test: the
      * only path that sent them was the sheet's link, so the sheet going away is

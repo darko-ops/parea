@@ -319,7 +319,7 @@ describe('what a row shows', () => {
     expect(CHAT_PAGE).toMatch(/if \(!membership\) notFound\(\);/);
   });
 
-  it('asks a room\u2019s question in a room, not an album\u2019s', () => {
+  it('asks a room\u2019s question in a room, not a roll\u2019s', () => {
     /*
      * An empty board sits under a wall of photographs somebody has just
      * scrolled, and the thing to say is about those. A group's chat has no
@@ -404,7 +404,7 @@ describe('what a non-member is handed', () => {
 });
 
 describe('inside a group', () => {
-  it('measures the room in albums and age, not in members', () => {
+  it('measures the room in rolls and age, not in members', () => {
     /*
      * The app's own line, and the two halves of it are a decision each. The
      * member count was the first half: eleven faces with names under them is
@@ -440,10 +440,10 @@ describe('inside a group', () => {
     const row = GROUP.slice(GROUP.indexOf('group-tabrow'), GROUP.indexOf('group-create'));
     expect(row).not.toBe('');
     expect(row).toMatch(/className="round group-new"/);
-    expect(row).toMatch(/aria-label="New album in this group"/);
+    expect(row).toMatch(/aria-label="New roll in this group"/);
     // The word is gone from the button and nowhere else in the page picked it
     // up — two create controls with different labels is the drift this stops.
-    expect(GROUP).not.toContain('New album here');
+    expect(GROUP).not.toContain('New roll here');
     const head = GROUP.slice(GROUP.indexOf('<header className="group-head">'), GROUP.indexOf('group-tabrow'));
     expect(head).not.toMatch(/group-new/);
   });
@@ -459,7 +459,7 @@ describe('inside a group', () => {
      */
     const empty = GROUP.slice(GROUP.indexOf('className="group-empty"'), GROUP.indexOf('group-shelf'));
     expect(empty).not.toBe('');
-    expect(empty).toMatch(/The next album anybody makes in this group shows up/);
+    expect(empty).toMatch(/The next roll anybody makes in this group shows up/);
     expect(empty).not.toMatch(/<button/);
   });
 
@@ -550,7 +550,7 @@ describe('inside a group', () => {
   });
 
   it('says what leaving costs, which is what makes hiding it safe', () => {
-    expect(GROUP).toContain('Photos live in the albums, not in the group.');
+    expect(GROUP).toContain('Photos live in the rolls, not in the group.');
   });
 
   it('words its dates on the server', () => {
@@ -567,7 +567,7 @@ describe('inside a group', () => {
     expect(GROUP).not.toMatch(/toLocaleDateString|new Intl\.DateTimeFormat/);
   });
 
-  it('is shaped like an album: three tabs, and the URL says which', async () => {
+  it('is shaped like a roll: three tabs, and the URL says which', async () => {
     /*
      * A room and an evening are the same kind of object to somebody reading —
      * a thing with pictures in it, a conversation about them, and the people
@@ -576,7 +576,7 @@ describe('inside a group', () => {
      * and Back is the way out of it.
      */
     expect(GROUP).toMatch(/const TABS: \[GroupTab, string, RailGlyph\]\[\] = \[/);
-    expect(GROUP).toMatch(/\['albums', 'Albums', 'photos'\]/);
+    expect(GROUP).toMatch(/\['albums', 'Rolls', 'photos'\]/);
     expect(GROUP).toMatch(/\['chat', 'Chat', 'bubbles'\]/);
     expect(GROUP).toMatch(/\['people', 'People', 'groups'\]/);
     /*
@@ -601,7 +601,7 @@ describe('inside a group', () => {
     expect(GROUP_PAGE).toMatch(/searchParams: Promise<\{ tab\?: string \}>;/);
   });
 
-  it('shelves albums two across rather than as a month-by-month archive', () => {
+  it('shelves rolls two across rather than as a month-by-month archive', () => {
     /*
      * A row per album with a 180px cover, name, date, faces and counts, under
      * month headings, was a third way of drawing the same object — next to
@@ -640,7 +640,7 @@ describe('inside a group', () => {
     expect(GROUP).not.toMatch(/event\.eventDate/);
   });
 
-  it('dates an album by when it was made', async () => {
+  it('dates a roll by when it was made', async () => {
     /*
      * `groupArchive` dated one by the host's own event date, falling back to
      * when it was last added to — and said explicitly "never `created_at`,

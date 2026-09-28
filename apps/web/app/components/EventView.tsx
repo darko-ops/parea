@@ -567,7 +567,7 @@ export function EventView({
           {/* The way back, as a glyph and a hit area rather than a word: it is
               the one control here that is about the page rather than about the
               event. */}
-          <a href="/events" className="event-back" aria-label="Back to your albums">
+          <a href="/events" className="event-back" aria-label="Back to your rolls">
             {'\u2039'}
           </a>
 
@@ -669,7 +669,7 @@ export function EventView({
               The product's round chrome, like the `+` beside it and like every
               corner control on a phone.
             */}
-            <Menu label="This album" glyph="···" tone="round">
+            <Menu label="This roll" glyph="···" tone="round">
               {(close) => (
                 <>
                   {/*
@@ -723,7 +723,7 @@ export function EventView({
                   )}
                   {feed.event.canAdminister ? (
                     <a href={`/event/${eventId}/manage`} onClick={close}>
-                      Manage album
+                      Manage roll
                     </a>
                   ) : (
                     <a href="/safety" onClick={close}>
@@ -746,7 +746,7 @@ export function EventView({
           send and Back is the way out of it.
         */}
         <div className="event-tabrow">
-          <nav className="event-tabs" aria-label="This album">
+          <nav className="event-tabs" aria-label="This roll">
             {TABS.map(([id, label, glyph]) => (
               <a
                 key={id}
@@ -1370,7 +1370,7 @@ function People({
             {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
           </h2>
           <p className="muted">
-            Invite everyone who was there so the album has every perspective.
+            Invite everyone who was there so the roll has every perspective.
           </p>
         </div>
         <button type="button" onClick={onInvite}>
@@ -1548,7 +1548,7 @@ function contributeNote(contributePolicy: string): string {
     case CONTRIBUTE_HOST:
       // Not "you and your co-hosts": a co-host reads this too, and the album is
       // not theirs to speak of that way.
-      return 'You and the album’s other hosts can add.';
+      return 'You and the roll’s other hosts can add.';
     default:
       return 'Everyone here can contribute.';
   }

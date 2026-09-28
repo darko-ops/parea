@@ -77,7 +77,7 @@ export function reasonFor(person: Recommendation): string {
     return `${mutuals} mutual ${mutuals === 1 ? 'friend' : 'friends'}`;
   }
   if (albums > 0) {
-    return albums === 1 ? 'In an album with you' : `In ${albums} albums with you`;
+    return albums === 1 ? 'In a roll with you' : `In ${albums} rolls with you`;
   }
   if (groups > 0) {
     return groups === 1 ? 'In a group with you' : `In ${groups} groups with you`;
