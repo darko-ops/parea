@@ -100,6 +100,7 @@ export default async function PersonPage({
         id: album.id,
         name: album.name,
         locked: album.locked,
+        asked: album.asked,
         cover: await eventCover(album),
         photoCount: album.photoCount,
         // When it was made, like every other shelf of albums.

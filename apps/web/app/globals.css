@@ -1470,6 +1470,8 @@ button.secondary {
    list, because it is the list's own caption rather than a note about the
    page. */
 .person-locked-note { margin: -4px 0 12px; font-size: 13.5px; }
+/* And a locked card is not a link, so it does not light up like one. */
+.album-shelf div.card:hover .card-name { color: var(--fg); }
 
 /* Somebody's albums, on their profile.
 
@@ -1509,11 +1511,17 @@ button.secondary {
 /* A shut album: colour behind frosted glass, with the padlock in a clearer
    patch of the same glass. The colour is the album's own, seeded by its id,
    and the same in both themes — it stands where a photograph would, and a
-   photograph does not change with the theme either. See `FrostedGlass.tsx`. */
+   photograph does not change with the theme either. See `FrostedGlass.tsx`.
+
+   It is a button, because the cover is how you ask in — see `LockedCover` —
+   so the page-wide button look is taken back off it. */
 .album-shut {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 0; background: none;
+  font: inherit; color: inherit; cursor: pointer;
 }
+.album-shut:disabled { opacity: 1; cursor: default; }
 .album-frost { position: absolute; inset: 0; }
 /* The frost: a milky sheen over the lights, and a hairline of light at the
    edge so it reads as a pane rather than paint. */
@@ -1524,11 +1532,29 @@ button.secondary {
   );
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45);
 }
+/* The padlock's roundel, which runs out into a pill with the words in it on
+   the first click. Width is what moves; the padlock and the words sit in the
+   same cell and trade opacity, the words a beat behind so they arrive into a
+   pill that already has room for them. */
 .album-lock {
-  position: relative; box-sizing: content-box;
-  width: 22px; height: 22px; padding: 13px; border-radius: 50%;
+  position: relative; display: grid; place-items: center;
+  width: 48px; height: 48px; border-radius: 24px; overflow: hidden;
   color: #fff; background: rgba(255, 255, 255, .28);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7);
+  transition: width 220ms ease;
+}
+.album-lock.is-open { width: 132px; }
+.album-lock > * { grid-area: 1 / 1; transition: opacity 140ms ease; }
+.album-lock-icon { width: 22px; height: 22px; }
+.album-lock-note {
+  opacity: 0; font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.album-lock.is-open .album-lock-icon { opacity: 0; }
+.album-lock.is-open .album-lock-note { opacity: 1; transition-delay: 90ms; }
+.album-shut:not(:disabled):hover .album-lock { background: rgba(255, 255, 255, .36); }
+.album-shut:focus-visible .album-lock { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .album-lock, .album-lock > * { transition: none; }
 }
 
 /* A name that leads to the person.

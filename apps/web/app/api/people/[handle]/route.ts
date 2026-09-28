@@ -115,6 +115,8 @@ export async function GET(
           id: album.id,
           name: album.name,
           locked: album.locked,
+          // Your own ask, so the button says "Requested" when you come back.
+          asked: album.asked,
           photoCount: album.photoCount,
           createdAt: album.createdAt,
           thumb: await eventCover(album),

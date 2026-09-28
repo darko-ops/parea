@@ -134,6 +134,25 @@ export function PersonScreen({
   const [albums, setAlbums] = useState<ProfileAlbum[]>([]);
   /** Album id → what the server said the last ask left standing. */
   const [asked, setAsked] = useState<Record<string, string>>({});
+  /**
+   * The locked album whose padlock has turned into "Ask to join" — the first
+   * of the two taps. One at a time: arming another puts this one back.
+   */
+  const [armed, setArmed] = useState<string | null>(null);
+  /**
+   * Which album the touch now under way started on.
+   *
+   * Anywhere else puts the padlock back: the first tap is only a question, and
+   * a touch anywhere but that same album is the answer no. Touches bubble, so
+   * the tile's `onTouchStart` runs before the screen's and leaves its id here;
+   * the screen's then disarms unless it was the armed one. A second tap on a
+   * different locked album therefore disarms the first and arms itself.
+   */
+  const touchedAlbum = useRef<string | null>(null);
+  const touchAnywhere = useCallback(() => {
+    if (armed && touchedAlbum.current !== armed) setArmed(null);
+    touchedAlbum.current = null;
+  }, [armed]);
   const [standing, setStanding] = useState<Standing>('none');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -148,6 +167,15 @@ export function PersonScreen({
         setStanding(body.person.standing);
         setShared(body.shared);
         setAlbums(body.albums ?? []);
+        // Where each ask already stands, so a request made last week still
+        // reads "Requested" rather than offering itself again.
+        setAsked(
+          Object.fromEntries(
+            (body.albums ?? [])
+              .filter((album) => album.asked)
+              .map((album) => [album.id, album.asked!]),
+          ),
+        );
         setError(null);
       })
       .catch(() => {
@@ -247,6 +275,7 @@ export function PersonScreen({
       } catch {
         setError('Could not ask just now. Try again in a moment.');
       } finally {
+        setArmed(null);
         setBusy(false);
       }
     },
@@ -385,7 +414,7 @@ export function PersonScreen({
   ];
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} onTouchStart={touchAnywhere}>
     <ScrollView
       contentContainerStyle={styles.scroll}
       // Drives the tab's retract. 16ms is one frame; less is work nobody sees.
@@ -646,18 +675,47 @@ export function PersonScreen({
             const status = item.album ? asked[item.album.id] : undefined;
             const when = dateLabel(item.at);
             return (
-              <View key={item.id} style={{ width: tile }}>
+              <View
+                key={item.id}
+                style={{ width: tile }}
+                onTouchStart={() => {
+                  touchedAlbum.current = item.id;
+                }}
+              >
+                {/*
+                  An open album opens. A locked one asks in two taps: the first
+                  turns its padlock into "Ask to join", the second sends it. One
+                  tap used to send it outright, which put a request in
+                  somebody's inbox on a tap nobody meant as one — and a button
+                  under every tile to prevent that was a wall of buttons.
+                */}
                 <Pressable
                   onPress={
                     item.open ??
                     (item.locked && item.album && !status
-                      ? () => void askToJoin(item.album!)
+                      ? () => {
+                          if (armed === item.id) void askToJoin(item.album!);
+                          else setArmed(item.id);
+                        }
                       : undefined)
                   }
-                  disabled={!item.open && !(item.locked && item.album && !status)}
+                  disabled={busy || (!item.open && !(item.locked && item.album && !status))}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    item.locked ? `${item.name}, private. Ask to join` : item.name
+                    item.locked
+                      ? status
+                        ? `${item.name}, private, ${status === 'declined' ? 'declined' : 'requested'}`
+                        : armed === item.id
+                          ? `Ask to join ${item.name}`
+                          : `${item.name}, private`
+                      : item.name
+                  }
+                  accessibilityHint={
+                    item.locked && !status
+                      ? armed === item.id
+                        ? 'Sends the request'
+                        : 'Tap twice to ask to join'
+                      : undefined
                   }
                 >
                   {item.locked ? (
@@ -666,7 +724,29 @@ export function PersonScreen({
                       glass, seeded by the album, with the padlock an album's
                       own header wears. See `FrostedGlass`.
                     */
-                    <FrostedGlass seed={item.id} style={styles.tile} />
+                    <FrostedGlass
+                      seed={item.id}
+                      /*
+                        "Requested" holds until the host answers: the server
+                        sends your own ask back with the album, so it survives
+                        leaving and coming back. An approval makes you a
+                        participant and the next load draws the album open; a
+                        decline says so rather than reading "Requested" over an
+                        answer that has already come.
+                      */
+                      note={
+                        status === 'approved'
+                          ? 'Let in'
+                          : status === 'declined'
+                            ? 'Declined'
+                            : status
+                              ? 'Requested'
+                              : armed === item.id
+                                ? 'Ask to join'
+                                : null
+                      }
+                      style={styles.tile}
+                    />
                   ) : item.cover ? (
                     <Image
                       source={{ uri: item.cover }}
@@ -687,11 +767,9 @@ export function PersonScreen({
                 </Text>
                 <Text style={[styles.tileMeta, { color: t.dim }]} numberOfLines={1}>
                   {item.locked
-                    ? status
-                      ? status === 'approved'
-                        ? 'Let in'
-                        : 'Asked'
-                      : 'Private · ask to join'
+                    ? // A date, like every album beside it — it is safe on a
+                      // locked one, and the ask lives on the picture now.
+                      (when ?? '')
                     : item.photoCount === null || item.photoCount === 0
                       ? 'Nothing in it yet'
                       : when

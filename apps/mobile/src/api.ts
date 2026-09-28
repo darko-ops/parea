@@ -955,6 +955,12 @@ export type ProfileAlbum = {
   /** When it was made, ISO — what a shelf of albums is dated by. */
   createdAt: string;
   thumb: string | null;
+  /**
+   * Your own ask to be let into a locked one — `open`, `approved`, `declined` —
+   * or null when you have not asked. Optional because a server from before it
+   * sends nothing, which reads the same as not having asked.
+   */
+  asked?: string | null;
 };
 
 /**

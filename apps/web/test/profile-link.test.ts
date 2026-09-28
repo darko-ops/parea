@@ -372,10 +372,29 @@ describe('the profile at two widths', () => {
      * something untrue.
      */
     const PERSON = read('../app/components/PersonView.tsx');
-    expect(PERSON).toMatch(/album\.locked && \(\s*<span className="album-shut"/);
-    expect(PERSON).toMatch(/<FrostedGlass seed=\{album\.id\} \/>/);
-    expect(PERSON).toMatch(/className="album-lock"/);
+    expect(PERSON).toMatch(/album\.locked && \(\s*<LockedCover/);
+    expect(PERSON).toMatch(/<FrostedGlass seed=\{eventId\} \/>/);
+    expect(PERSON).toMatch(/'album-lock is-open' : 'album-lock'/);
     expect(CSS).toMatch(/\.album-shut \{[^}]*position: absolute; inset: 0;/);
+    /*
+     * And the cover is how you ask in, in two clicks: the first turns the
+     * padlock into "Ask to join", the second POSTs where the door page does.
+     * Under it is the date, like every album beside it — no hint line.
+     */
+    expect(PERSON).not.toMatch(/'Private · ask to join'/);
+    expect(PERSON).toMatch(/const Card = album\.locked \? 'div' : 'a';/);
+    expect(PERSON).toMatch(/if \(!armed\) \{\s*\n\s*setFailed\(false\);\s*\n\s*onArm\(eventId\);\s*\n\s*return;/);
+    expect(PERSON).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/access-requests`, \{ method: 'POST' \}\)/);
+    expect(PERSON).toMatch(/\{album\.locked\s*\n\s*\? album\.date/);
+    // A press anywhere but the armed cover, or Escape, puts the padlock back.
+    expect(PERSON).toMatch(/document\.addEventListener\('pointerdown', away\)/);
+    expect(PERSON).toMatch(/if \(door\?\.getAttribute\('data-album-door'\) !== armed\) setArmed\(null\);/);
+    expect(PERSON).toMatch(/if \(event\.key === 'Escape'\) setArmed\(null\);/);
+    // "Requested" until the host answers, and a decline says so.
+    expect(PERSON).toMatch(/status === 'declined'\s*\n\s*\? 'Declined'/);
+    // The padlock morphs: the roundel's width runs out to the pill's.
+    expect(CSS).toMatch(/\.album-lock \{[^}]*transition: width/);
+    expect(CSS).toMatch(/\.album-lock\.is-open \{ width: 132px; \}/);
     expect(CSS).toMatch(/\.album-frost \{[^}]*position: absolute; inset: 0;/);
     const FROST = read('../app/components/FrostedGlass.tsx');
     expect(FROST).toMatch(/frostedGlass\(seed\)/);

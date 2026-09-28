@@ -593,6 +593,30 @@ describe('the albums on somebody’s page', () => {
     expect(album).toMatchObject({ locked: true, shot: null });
   });
 
+  it('says where your own ask stands, and only on a locked one', async () => {
+    /*
+     * The button under a locked album reads "Requested" on the next visit
+     * because of this. It is the viewer's own row and nobody else's: whether
+     * somebody *else* asked is theirs and the host's business.
+     */
+    const me = await person('me');
+    const other = await person('rook');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await db.insert(schema.eventAccessRequests).values([
+      { eventId: shut.id, actorId: other, status: 'open' },
+    ] as never);
+
+    let [album] = await albumsBy(db, me, them);
+    expect(album).toMatchObject({ locked: true, asked: null });
+
+    await db.insert(schema.eventAccessRequests).values([
+      { eventId: shut.id, actorId: me, status: 'declined' },
+    ] as never);
+    [album] = await albumsBy(db, me, them);
+    expect(album!.asked).toBe('declined');
+  });
+
   it('lists only what they made, never what they are in', async () => {
     // Being in somebody else's album is that person's fact to disclose, and a
     // profile that listed it would publish it on their behalf.

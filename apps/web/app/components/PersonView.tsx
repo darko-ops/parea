@@ -51,7 +51,7 @@
  * over, every time they visited the page.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { CardEvent } from '@/cards';
 import type { Standing } from '@/people';
@@ -70,7 +70,120 @@ export type ProfileAlbumCard = {
   /** Null on a locked album. */
   photoCount: number | null;
   date: string | null;
+  /** The viewer's own ask on a locked one: `open`, `approved`, `declined`, or null. */
+  asked: string | null;
 };
+
+/**
+ * A locked album's cover, which is also how you ask to be let in.
+ *
+ * Two clicks. The first turns the padlock into "Ask to join" — the roundel
+ * runs out into a pill in the same frosted glass, so it reads as the lock
+ * answering rather than a label arriving — and the second sends it. One click
+ * used to take you off to a separate door page, and a button under every
+ * locked album to ask from here was a wall of buttons; this keeps the shelf a
+ * shelf, with a date under each album like any other.
+ *
+ * It POSTs to the route the door page uses, which is where the decision lives:
+ * a blocked asker gets that route's 404 and is told nothing more here. What
+ * comes back is shown as it came back, for the reason `AskToJoin` gives — a
+ * declined ask stays "Requested" rather than offering itself again.
+ */
+function LockedCover({
+  eventId,
+  name,
+  initial,
+  armed,
+  onArm,
+}: {
+  eventId: string;
+  name: string;
+  initial: string | null;
+  /** Whether this one's padlock is showing "Ask to join". One at a time. */
+  armed: boolean;
+  onArm: (eventId: string | null) => void;
+}) {
+  const [status, setStatus] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const press = useCallback(async () => {
+    if (!armed) {
+      setFailed(false);
+      onArm(eventId);
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/access-requests`, { method: 'POST' });
+      if (!res.ok) throw new Error(String(res.status));
+      const body = (await res.json()) as { status?: string };
+      setStatus(body.status ?? 'open');
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+      onArm(null);
+    }
+  }, [armed, eventId, onArm]);
+
+  /*
+   * "Requested" holds until the host answers — the server sends the viewer's
+   * own ask back with the album, so it survives a reload too. An approval
+   * makes them a participant, and the next load draws the album open; a
+   * decline says so, as the door page does, rather than reading "Requested"
+   * over an answer that has already come.
+   */
+  const note =
+    status === 'approved'
+      ? 'Let in'
+      : status === 'declined'
+        ? 'Declined'
+        : status
+          ? 'Requested'
+          : armed
+            ? 'Ask to join'
+            : null;
+  // The last words shown, so they stay in the pill while it folds back up.
+  const [shown, setShown] = useState(note);
+  if (note && note !== shown) setShown(note);
+
+  return (
+    <button
+      type="button"
+      className="album-shut"
+      data-album-door={eventId}
+      onClick={press}
+      disabled={busy || status !== null}
+      aria-label={
+        status
+          ? `${name}, private, ${note!.toLowerCase()}`
+          : armed
+            ? `Ask to join ${name}`
+            : `${name}, private`
+      }
+      title={failed ? 'Could not ask just now. Try again.' : undefined}
+    >
+      <FrostedGlass seed={eventId} />
+      <span className={note ? 'album-lock is-open' : 'album-lock'} aria-hidden="true">
+        <svg
+          className="album-lock-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          focusable="false"
+        >
+          <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+          <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+        </svg>
+        <span className="album-lock-note">{shown}</span>
+      </span>
+    </button>
+  );
+}
 
 type Person = {
   actorId: string;
@@ -99,6 +212,31 @@ export function PersonView({
 }) {
   const [standing, setStanding] = useState<Standing>(person.standing);
   const [busy, setBusy] = useState(false);
+  /** The locked album showing "Ask to join", if any. See `LockedCover`. */
+  const [armed, setArmed] = useState<string | null>(null);
+  /*
+   * Anywhere else puts the padlock back. The first click is only a question —
+   * "ask to join?" — and a press anywhere but on that same cover is the answer
+   * no, so it should not sit there armed waiting for a stray second click.
+   * `pointerdown` rather than `click` so it is back before the press lands on
+   * whatever else was pressed; Escape for a keyboard.
+   */
+  useEffect(() => {
+    if (!armed) return;
+    const away = (event: PointerEvent) => {
+      const door = (event.target as Element | null)?.closest?.('[data-album-door]');
+      if (door?.getAttribute('data-album-door') !== armed) setArmed(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setArmed(null);
+    };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [armed]);
   const [error, setError] = useState<string | null>(null);
 
   /*
@@ -462,91 +600,86 @@ export function PersonView({
             is the same shelf wherever somebody meets it.
           */}
           <ul className="cards album-shelf">
-            {albums.map((album) => (
-              <li key={album.id}>
-                {/*
-                  A locked album goes to its door rather than to itself. Both
-                  hrefs are plain links: the page on the other end decides, and
-                  a button that POSTed from here would be a second copy of that
-                  decision in a place that cannot see the block.
-                */}
-                <a
-                  className="card"
-                  href={album.locked ? `/event/${album.id}/request` : `/event/${album.id}`}
-                >
-                  <div className="card-cover">
-                    {/*
-                      `CoverImage` rather than a bare `<img>`, for the reason
-                      the cards above use it: a cover is presigned for an hour,
-                      so a tab left open long enough is holding a URL that has
-                      expired, and the browser's answer to that is the
-                      broken-image glyph in the middle of every card. It
-                      removes itself instead and leaves the cover's own flat
-                      rectangle.
-
-                      One source and no `sources`: a cover object is a JPEG,
-                      and there is nothing for a browser to choose between.
-                    */}
-                    {album.cover && <CoverImage src={album.cover} sources={[]} />}
-                    {/*
-                      A shut album is not an empty one.
-
-                      Colour behind frosted glass, seeded by the album, with
-                      the padlock an album's own header wears — the same pane
-                      the phone draws — so a card with no photograph in it
-                      reads as something lit that you cannot see into rather
-                      than as a photograph that failed to arrive. An unlocked
-                      album with no cover yet keeps the flat rectangle: nothing
-                      is being withheld there.
-                    */}
-                    {album.locked && (
-                      <span className="album-shut" aria-hidden="true">
-                        <FrostedGlass seed={album.id} />
-                        <svg
-                          className="album-lock"
-                          width="30"
-                          height="30"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          focusable="false"
-                        >
-                          <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
-                          <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
-                        </svg>
-                      </span>
-                    )}
-                  </div>
+            {albums.map((album) => {
+              // A locked album is not a link — see the note below.
+              const Card = album.locked ? 'div' : 'a';
+              return (
+                <li key={album.id}>
                   {/*
-                    The two lines an event card carries, in the same place and
-                    at the same size — the name, and one line of fact under it.
-                    No faces row: who is in somebody's album is that album's to
-                    disclose, and on the locked ones there is nothing to
-                    disclose it from.
+                    An open album is a link to itself. A locked one is not a link
+                    at all: its one action is the button under it, and a picture
+                    that also asked — or went somewhere else to ask — was two
+                    ways of doing one thing, one of them by accident.
                   */}
-                  <div className="card-under">
-                    <div className="card-name">{album.name}</div>
-                    <div className="card-meta">
-                      {album.locked
-                        ? 'Private · ask to join'
-                        : [
-                            album.date,
-                            album.photoCount === null
-                              ? null
-                              : `${album.photoCount} ${
-                                  album.photoCount === 1 ? 'photo' : 'photos'
-                                }`,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
+                  <Card
+                    className="card"
+                    {...(album.locked ? {} : { href: `/event/${album.id}` })}
+                  >
+                    <div className="card-cover">
+                      {/*
+                        `CoverImage` rather than a bare `<img>`, for the reason
+                        the cards above use it: a cover is presigned for an hour,
+                        so a tab left open long enough is holding a URL that has
+                        expired, and the browser's answer to that is the
+                        broken-image glyph in the middle of every card. It
+                        removes itself instead and leaves the cover's own flat
+                        rectangle.
+
+                        One source and no `sources`: a cover object is a JPEG,
+                        and there is nothing for a browser to choose between.
+                      */}
+                      {album.cover && <CoverImage src={album.cover} sources={[]} />}
+                      {/*
+                        A shut album is not an empty one.
+
+                        Colour behind frosted glass, seeded by the album, with
+                        the padlock an album's own header wears — the same pane
+                        the phone draws — so a card with no photograph in it
+                        reads as something lit that you cannot see into rather
+                        than as a photograph that failed to arrive. An unlocked
+                        album with no cover yet keeps the flat rectangle: nothing
+                        is being withheld there.
+                      */}
+                      {album.locked && (
+                        <LockedCover
+                          eventId={album.id}
+                          name={album.name}
+                          initial={album.asked}
+                          armed={armed === album.id}
+                          onArm={setArmed}
+                        />
+                      )}
                     </div>
-                  </div>
-                </a>
-              </li>
-            ))}
+                    {/*
+                      The two lines an event card carries, in the same place and
+                      at the same size — the name, and one line of fact under it.
+                      No faces row: who is in somebody's album is that album's to
+                      disclose, and on the locked ones there is nothing to
+                      disclose it from.
+                    */}
+                    <div className="card-under">
+                      <div className="card-name">{album.name}</div>
+                      <div className="card-meta">
+                        {/*
+                          A date on a locked one too, like every album beside
+                          it — it is safe, and the ask lives on the cover now.
+                        */}
+                        {album.locked
+                          ? album.date
+                          : [
+                              album.date,
+                              album.photoCount === null
+                                ? null
+                                : `${album.photoCount} ${album.photoCount === 1 ? 'photo' : 'photos'}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

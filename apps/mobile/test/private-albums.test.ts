@@ -152,8 +152,24 @@ describe('somebody else’s albums, on their page', () => {
      */
     expect(PERSON).toMatch(/styles\.tile, styles\.tileEmpty/);
     expect(PERSON).toMatch(/tileEmpty: \{\s*\n\s*borderWidth: 1,\s*\n\s*borderStyle: 'dashed',/);
-    expect(PERSON).toMatch(/item\.locked\s*\n?\s*\? status/);
-    expect(PERSON).toMatch(/'Private · ask to join'/);
+    /*
+     * Two taps on the picture ask: the first turns the padlock into "Ask to
+     * join", the second sends it. One tap used to send it outright. Under the
+     * picture is the date, like every other album — no hint line, no button.
+     */
+    expect(PERSON).not.toMatch(/'Private · ask to join'/);
+    expect(PERSON).toMatch(/if \(armed === item\.id\) void askToJoin\(item\.album!\);\s*\n\s*else setArmed\(item\.id\);/);
+    expect(PERSON).toMatch(/: armed === item\.id\s*\n\s*\? 'Ask to join'/);
+    expect(PERSON).toMatch(/\(when \?\? ''\)/);
+    // A touch anywhere but the armed album puts the padlock back.
+    expect(PERSON).toMatch(/<View style=\{styles\.screen\} onTouchStart=\{touchAnywhere\}>/);
+    expect(PERSON).toMatch(/if \(armed && touchedAlbum\.current !== armed\) setArmed\(null\);/);
+    // "Requested" until the host answers, and a decline says so.
+    expect(PERSON).toMatch(/status === 'declined'\s*\n\s*\? 'Declined'/);
+    const GLASS = read('src/FrostedGlass.tsx');
+    // The padlock morphs into the note rather than being swapped for it.
+    expect(GLASS).toMatch(/outputRange: \[ROUND, PILL\]/);
+    expect(PERSON).toMatch(/\.filter\(\(album\) => album\.asked\)/);
     /*
      * A locked album is colour behind frosted glass, not an empty frame:
      * something lit that you cannot see into. It is decided by `item.locked`
@@ -163,7 +179,7 @@ describe('somebody else’s albums, on their page', () => {
      * clients, and it carries the padlock an album's own header wears.
      */
     expect(PERSON).toMatch(/\{item\.locked \? \(/);
-    expect(PERSON).toMatch(/<FrostedGlass seed=\{item\.id\}/);
+    expect(PERSON).toMatch(/<FrostedGlass\s*\n?\s*seed=\{item\.id\}/);
     // And an open one of theirs opens, by id — it used to be a tile that did
     // nothing, because this list carries no link token. See `/api/join`.
     expect(PERSON).toMatch(/open: album\.locked\s*\n\s*\? null\s*\n\s*: \(\) =>\s*\n\s*void onOpenAlbum\(album\.id\)/);

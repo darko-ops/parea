@@ -10,20 +10,53 @@
  * no blur view, because there is nothing behind the tile to blur. `none` for
  * the aspect ratio: a soft light stretched a little is still a soft light,
  * and it means the pane fills whatever tile it is given.
+ *
+ * ## The note
+ *
+ * Asking in is two taps, and the first is the padlock turning into what the
+ * second one will do. `note` is that: null draws the padlock, a string draws
+ * the same frosted roundel stretched into a pill with the words in it. The
+ * roundel morphs rather than swaps — its width runs out to the pill's while
+ * the padlock fades and the words come up — so it reads as the lock itself
+ * answering, not as a label appearing over it.
  */
 
 import { frostedGlass } from '@parea/cards';
-import { useMemo } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { Glyph } from './Glyph';
 
 const W = 160;
 const H = 120;
+/** The roundel's edge, and the pill it runs out to. Wide enough for "Ask to join". */
+const ROUND = 38;
+const PILL = 112;
 
-export function FrostedGlass({ seed, style }: { seed: string; style?: StyleProp<ViewStyle> }) {
+export function FrostedGlass({
+  seed,
+  note = null,
+  style,
+}: {
+  seed: string;
+  /** Words in place of the padlock, or null for the padlock. See above. */
+  note?: string | null;
+  style?: StyleProp<ViewStyle>;
+}) {
   const pane = useMemo(() => frostedGlass(seed), [seed]);
+  const open = useRef(new Animated.Value(note ? 1 : 0)).current;
+  // The last words shown, so they stay put while the pill folds back up.
+  const shown = useRef(note);
+  if (note) shown.current = note;
+  useEffect(() => {
+    // Not the native driver: width is a layout property, which it cannot run.
+    Animated.timing(open, {
+      toValue: note ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [note, open]);
   const reach = Math.max(W, H);
   return (
     <View style={[style, styles.frame, { backgroundColor: pane.ground }]}>
@@ -56,9 +89,30 @@ export function FrostedGlass({ seed, style }: { seed: string; style?: StyleProp<
         <Rect width={W} height={H} fill="url(#frost)" />
       </Svg>
       <View style={styles.center} pointerEvents="none">
-        <View style={styles.roundel}>
-          <Glyph name="locked" size={18} color="#fff" />
-        </View>
+        <Animated.View
+          style={[
+            styles.roundel,
+            { width: open.interpolate({ inputRange: [0, 1], outputRange: [ROUND, PILL] }) },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.layer,
+              { opacity: open.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }) },
+            ]}
+          >
+            <Glyph name="locked" size={18} color="#fff" />
+          </Animated.View>
+          <Animated.Text
+            numberOfLines={1}
+            style={[
+              styles.note,
+              { opacity: open.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: 'clamp' }) },
+            ]}
+          >
+            {shown.current}
+          </Animated.Text>
+        </Animated.View>
       </View>
     </View>
   );
@@ -82,13 +136,25 @@ const styles = StyleSheet.create({
   },
   /* Frosted too: the padlock sits in a clearer patch of the same glass. */
   roundel: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: ROUND,
+    height: ROUND,
+    borderRadius: ROUND / 2,
+    overflow: 'hidden',
     backgroundColor: 'rgba(255, 255, 255, 0.28)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* The padlock and the words sit in the same place and trade opacity. */
+  layer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  note: { color: '#fff', fontSize: 13.5, fontWeight: '600' },
 });

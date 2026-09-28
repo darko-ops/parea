@@ -344,6 +344,13 @@ export type ProfileAlbum = {
   shot: { storageKey: string; hash: string | null } | null;
   /** For signing `shot`; see `eventCover`. */
   capEpoch: number;
+  /**
+   * Where the viewer's own ask to be let in stands — `open`, `approved` or
+   * `declined` — or null when they have not asked. Only ever on a locked row,
+   * and only ever the viewer's own, so the button under it can say
+   * "Requested" on the next visit rather than offering the ask again.
+   */
+  asked: string | null;
   /** Null when locked. */
   photoCount: number | null;
   /**
@@ -432,6 +439,11 @@ export async function albumsBy(
        * unrelated group — because a test constructed from the intent would not
        * have caught it either.
        */
+      // `"event".id` spelt out, for the reason given on `photoCount`.
+      asked: sql<string | null>`(
+        select ar.status from "event_access_request" ar
+        where ar.event_id = "event".id and ar.actor_id = ${viewerId}
+      )`,
       joined: sql<boolean>`(
         exists (
           select 1 from "event_participant" ep
@@ -457,6 +469,7 @@ export async function albumsBy(
       coverKey: locked ? null : row.coverKey,
       shot: locked ? null : row.shot,
       capEpoch: row.capEpoch,
+      asked: locked ? row.asked : null,
       photoCount: locked ? null : row.photoCount,
       createdAt: row.createdAt.toISOString(),
       lastActiveAt: row.lastActiveAt.toISOString(),
