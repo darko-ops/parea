@@ -33,9 +33,6 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Thread } from './Thread';
 
-/** Where the page begins, under the header. See `PAGE_TOP` in `App.tsx`. */
-const HEAD = 112;
-
 /**
  * The conversation itself, without a screen around it.
  *
@@ -55,7 +52,16 @@ export function GroupChat({
   /** Its id to fetch by. The name belongs to whatever draws the header. */
   group: { id: string };
   t: GroupTheme;
-  /** How far down the screen this pane starts. See `Thread`'s own note. */
+  /**
+   * How far down the screen this pane's *parent* starts. See `Thread`'s note.
+   *
+   * The parent rather than the pane: what needs correcting is that the pane
+   * measures itself against a container that may not begin at the top of the
+   * screen, and a pane laid out in the normal flow under a header measures that
+   * header already. The group's page keeps its panes in an absolutely
+   * positioned box under the crest and so has something to say here; the screen
+   * below passes 0.
+   */
   keyboardOffset: number;
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
@@ -287,7 +293,22 @@ export function GroupThread({
         </View>
       </View>
 
-      <GroupChat api={api} group={group} t={t} keyboardOffset={HEAD} />
+      {/*
+        No offset, because there is nothing to offset.
+
+        This passed the header's height — 112, copied from the group page's
+        `HEAD` — on the reasoning that the conversation starts below the bar.
+        It does, and the pane's own `onLayout` says so: the bar and this are
+        siblings in one flowing column, so the frame the lift is computed from
+        already begins under it. Adding 112 on top lifted the composer a
+        header's height clear of the keyboard, which is the gap you could see
+        the room through, and the same 112 came off the top of the conversation.
+
+        The group page's Chat tab does need it — its panes sit in an absolutely
+        positioned box that starts under the crest, so the pane's frame begins
+        at 0 while the pane begins at `HEAD`.
+      */}
+      <GroupChat api={api} group={group} t={t} keyboardOffset={0} />
     </View>
   );
 }

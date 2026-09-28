@@ -386,7 +386,17 @@ describe('what a group shows when you open it', () => {
     const THREAD = read('src/GroupThread.tsx');
     expect(THREAD).toMatch(/export function GroupChat\(/);
     expect(THREAD).toMatch(/export function GroupThread\(/);
-    expect(THREAD).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{HEAD\} \/>/);
+    /*
+     * And the two places hand over different offsets, because the offset is
+     * about the pane's parent rather than the pane. The group page keeps its
+     * panes in an absolutely positioned box under the crest, so the frame the
+     * lift is computed from begins at 0 while the pane begins at `HEAD`; the
+     * standalone screen flows the conversation under its own header, so that
+     * header is in the frame already. Passing `HEAD` there too lifted the
+     * composer a header's height clear of the keyboard.
+     */
+    expect(THREAD).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{0\} \/>/);
+    expect(THREAD).not.toMatch(/const HEAD = /);
     expect(GROUPS).toMatch(/import \{ GroupChat \} from '\.\/GroupThread';/);
     expect(GROUPS).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{HEAD\} \/>/);
     // The prop that used to send somebody away is gone from both ends.

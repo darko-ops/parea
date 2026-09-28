@@ -51,6 +51,7 @@ import type { Api, FeedPhoto, Message } from './api';
 import { EmojiPicker } from './Emoji';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
+import { useKeyboardUp } from './keyboard';
 import { ThreadRow } from './Thread';
 
 /**
@@ -109,6 +110,19 @@ const VISIBLE_REACTIONS = 4;
 /** One row: a 22pt face and the gap under it. */
 const SAID_ROW = 22;
 const SAID_GAP = 6;
+
+/**
+ * The comment sheet's foot, without a keyboard and with one.
+ *
+ * 28 is the home indicator's strip, which is what the bottom edge of a sheet
+ * owes while it is the bottom of the screen. It is owed to nothing once the
+ * keyboard is up — the keys cover the indicator, and the panel is lifted by
+ * their whole height, so the strip becomes a band of sheet between the box and
+ * the keyboard. The album's composer makes the same correction with the same
+ * reasoning: see `FOOT` in `Thread.tsx`.
+ */
+const TALK_FOOT = 28;
+const TALK_FOOT_TYPING = 12;
 
 /**
  * How far a one-finger drag has to go before it means something.
@@ -579,6 +593,8 @@ export function PhotoViewer({
    * remark about nothing. It covers the lower half and the picture stays above.
    */
   const [talking, setTalking] = useState(false);
+  /* What the foot of the comment sheet is worth right now. See `talkPanel`. */
+  const typing = useKeyboardUp();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   /** The full picker, over the row of six. */
@@ -1122,7 +1138,10 @@ export function PhotoViewer({
           */}
           <Pressable style={styles.talkAway} onPress={() => setTalking(false)} />
 
-          <View style={styles.talkPanel}>
+          {/* Its foot, which the keyboard's arrival changes. See `TALK_FOOT`. */}
+          <View
+            style={[styles.talkPanel, { paddingBottom: typing ? TALK_FOOT_TYPING : TALK_FOOT }]}
+          >
             <View style={styles.talkGrip} />
 
             {/*
@@ -1335,7 +1354,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(12,14,18,0.94)',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    paddingBottom: 28,
+    /* Overridden while somebody is typing, because the keyboard takes the
+       indicator this strip is for with it. See `TALK_FOOT`. */
+    paddingBottom: TALK_FOOT,
   },
   /* The handle a sheet has, so it reads as something that came up and can go
      back down. */

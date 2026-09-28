@@ -489,6 +489,57 @@ describe('two rooms, one drawing', () => {
     expect(composer.match(/styles\.post,/g)).toHaveLength(1);
   });
 
+  it('sits the box on the keyboard rather than a strip above it', () => {
+    /*
+     * The composer owes the home indicator 30 points, and the keyboard covers
+     * the home indicator. `KeyboardAvoidingView` pads the pane by the
+     * keyboard's *whole* height, so those 30 stopped being an allowance for
+     * hardware and became 30 points of page between the box somebody is typing
+     * in and the keys they are typing on — in the group's room, on the album's
+     * Comments tab, and in the photograph's sheet, which owed 28 and did the
+     * same thing with them.
+     *
+     * So the foot is a question rather than a number. 12 with the keys up,
+     * which is the 12 the card already has above it.
+     */
+    expect(VIEWER).toMatch(/const FOOT = 30;/);
+    expect(VIEWER).toMatch(/const FOOT_TYPING = 12;/);
+    expect(VIEWER).toMatch(/paddingBottom: typing \? FOOT_TYPING : FOOT/);
+    // The number in the stylesheet is the constant, so the two cannot drift.
+    expect(VIEWER).toMatch(/composer: \{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: FOOT, gap: 8 \}/);
+    /*
+     * Asked of the keyboard itself rather than of the field's focus: a focused
+     * field is not a raised keyboard — a hardware one leaves it down, and iOS
+     * keeps focus through a dismiss — and the strip is owed to whether the keys
+     * are there. One subscription, shared, because the photograph's sheet has
+     * the same question and a second copy of the listeners would be a second
+     * place to get `will` against `did` wrong.
+     */
+    expect(VIEWER).toMatch(/import \{ useKeyboardUp \} from '\.\/keyboard';/);
+    expect(VIEWER).toMatch(/const typing = useKeyboardUp\(\);/);
+    const KEYBOARD = read('src/keyboard.ts');
+    expect(KEYBOARD).toMatch(/export function useKeyboardUp\(\): boolean/);
+    // Asked once at mount, so a sheet that opens with `autoFocus` — the
+    // photograph's does — is not drawn one frame with the full strip.
+    expect(KEYBOARD).toMatch(/useState\(\(\) => Keyboard\.isVisible\(\)\)/);
+    // `will` on iOS so the strip closes inside the keyboard's own animation;
+    // Android only emits `did`.
+    expect(KEYBOARD).toMatch(/Platform\.OS === 'ios' \? 'keyboardWillShow' : 'keyboardDidShow'/);
+    expect(KEYBOARD).toMatch(/Platform\.OS === 'ios' \? 'keyboardWillHide' : 'keyboardDidHide'/);
+    // And taken off again: a listener per mounted thread that outlives it is a
+    // `setState` on a component that has gone.
+    expect(KEYBOARD).toMatch(/shown\.remove\(\);\s*hidden\.remove\(\);/);
+
+    /*
+     * The photograph's sheet, which is the same correction with its own 28.
+     */
+    const PHOTOS = read('src/PhotoViewer.tsx');
+    expect(PHOTOS).toMatch(/const TALK_FOOT = 28;/);
+    expect(PHOTOS).toMatch(/const TALK_FOOT_TYPING = 12;/);
+    expect(PHOTOS).toMatch(/paddingBottom: typing \? TALK_FOOT_TYPING : TALK_FOOT/);
+    expect(PHOTOS).toMatch(/import \{ useKeyboardUp \} from '\.\/keyboard';/);
+  });
+
   it('names the subject when a board is empty', () => {
     // An empty chat is a room with nobody in it and the nudge is social; an
     // empty comment section sits under a wall of photographs somebody has

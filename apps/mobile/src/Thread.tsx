@@ -95,8 +95,21 @@ import { ago } from '@parea/cards';
 import { ApiError, REACTIONS, type Message, type Roster } from './api';
 import { EmojiPicker } from './Emoji';
 import type { GroupTheme } from './Groups';
+import { useKeyboardUp } from './keyboard';
 import { initialOf, lensFor } from './lens';
 import { Waiting } from './Waiting';
+
+/**
+ * The strip under the composer, with a keyboard and without one.
+ *
+ * 30 is the home indicator's room, which is what the foot of a pinned box owes
+ * when the bottom of the screen is the bottom of the screen. 12 is what it owes
+ * when a keyboard is there instead — the same 12 the card already has above it,
+ * so the box sits in the gap it has at its other edge. See `useKeyboardUp` for
+ * why the number has to change at all rather than being left at 30.
+ */
+const FOOT = 30;
+const FOOT_TYPING = 12;
 
 /** Somebody the mention list may offer: a contributor to this event. */
 export type Mentionable = { key: string; name: string; mine: boolean };
@@ -189,13 +202,20 @@ export function Thread({
   people: Mentionable[];
   t: GroupTheme;
   /**
-   * How far down the screen this pane starts.
+   * How far down the screen this pane's *parent* starts. 0 where it is the top.
    *
    * `KeyboardAvoidingView` measures its own frame from `onLayout`, which is
    * relative to its parent — and this one's parent is the album's page, which
    * is pinned below the cover rather than at the top of the screen. Without
    * the offset the composer is lifted by that much too little and ends up
    * behind the keyboard by exactly the height of the header.
+   *
+   * The parent, though, and not the pane: `onLayout` reports where the pane
+   * sits *inside* that parent, so anything between the two — a row of tabs, a
+   * header the pane flows under — is already counted. Handing over the pane's
+   * own distance down the screen double-counts it, and the composer floats
+   * that much above the keyboard instead of hiding that much behind it. Both
+   * mistakes have shipped; `GroupThread` has the note on the second.
    */
   keyboardOffset?: number;
   /** Re-reads the feed, which is where the thread lives. */
@@ -204,6 +224,8 @@ export function Thread({
   onSeen: () => void;
 }) {
   const board = shape === 'board';
+  /* What the foot of the composer is worth right now. See `FOOT`. */
+  const typing = useKeyboardUp();
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -431,7 +453,12 @@ export function Thread({
         of furniture to say something the content already says is how an app
         ends up with two of everything.
       */}
-      <View style={[styles.composer, { backgroundColor: t.bg }]}>
+      <View
+        style={[
+          styles.composer,
+          { backgroundColor: t.bg, paddingBottom: typing ? FOOT_TYPING : FOOT },
+        ]}
+      >
         {canPost ? (
           /*
             The site's card, point for point: a 1-point border at 14, the
@@ -1462,10 +1489,15 @@ const styles = StyleSheet.create({
   mention: { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },
   mentionText: { fontSize: 13, fontWeight: '600' },
   /* Pinned, with the home indicator's strip inside the padding rather than
-     under the field. No hairline across the screen any more, in either room:
-     the card has its own edge, and a rule behind it is the strip the card is
-     there instead of. */
-  composer: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 30, gap: 8 },
+     under the field — and `FOOT` rather than 30 written here, because that
+     strip is owed to hardware the keyboard covers: the pane is lifted by the
+     keyboard's whole height, so leaving it at 30 with the keys up is 30 points
+     of page between the box and the keyboard. The foot is overridden at the
+     call site for exactly that reason; see `FOOT` and `useKeyboardUp`.
+
+     No hairline across the screen any more, in either room: the card has its
+     own edge, and a rule behind it is the strip the card is there instead of. */
+  composer: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: FOOT, gap: 8 },
   /*
    * The site's composer, point for point: `.thread-composer` is a 1-point
    * border at radius 14 with 13 and 15 of padding and 8 between the field and
