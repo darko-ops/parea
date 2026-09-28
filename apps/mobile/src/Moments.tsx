@@ -481,29 +481,49 @@ export function MomentsViewer({
   );
 }
 
+/** The ring's outer edge, and what the row around it measures. */
+const RING = 66;
+const NAME_GAP = 5;
+const NAME_LINE = 16;
+const ROW_PAD = 4;
+const ROW_HEIGHT = ROW_PAD * 2 + RING + NAME_GAP + NAME_LINE;
+
 const styles = StyleSheet.create({
   /*
    * Pulled up against the rolls. Home's scroll spaces every child 26 apart,
    * which is right between two cards and far too much under a row of faces
    * that belongs to the list below it — the negative margin brings that gap
    * to 10 without the row learning what the page's gap is by any other means.
+   *
+   * Its height is stated, and it neither shrinks nor clips. A horizontal
+   * scroll view is `flexShrink: 1` by default and clips to its own bounds, so
+   * a row measured a few points short of its tiles cut the rings' corners off
+   * flat — the rounded square drawn in a box too small for it.
    */
-  rowOuter: { flexGrow: 0, marginBottom: -16 },
-  row: { gap: 10, paddingHorizontal: 2, paddingVertical: 2 },
-  person: { width: 70, alignItems: 'center', gap: 5 },
+  rowOuter: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: ROW_HEIGHT,
+    marginBottom: -16,
+    overflow: 'visible',
+  },
+  row: { gap: 10, paddingHorizontal: 2, paddingVertical: ROW_PAD, alignItems: 'flex-start' },
+  person: { width: 70, alignItems: 'center', gap: NAME_GAP },
   /* Rounded squares, not discs — see the note at the top. Each radius is the
      one inside it plus the padding between, so the three corners are
-     concentric rather than three unrelated curves. */
+     concentric rather than three unrelated curves. Every size is a number
+     rather than a stretch, so nothing about the row can make one smaller. */
   ring: {
-    width: 66,
-    height: 66,
+    width: RING,
+    height: RING,
     borderRadius: 20,
     overflow: 'hidden',
     padding: 3,
   },
-  gap: { flex: 1, borderRadius: 17, padding: 2 },
+  gap: { width: RING - 6, height: RING - 6, borderRadius: 17, padding: 2 },
   face: {
-    flex: 1,
+    width: RING - 10,
+    height: RING - 10,
     borderRadius: 15,
     overflow: 'hidden',
     alignItems: 'center',
@@ -511,7 +531,7 @@ const styles = StyleSheet.create({
   },
   faceImage: { width: '100%', height: '100%' },
   initial: { fontSize: 20, fontWeight: '600' },
-  name: { fontSize: 12, maxWidth: 70 },
+  name: { fontSize: 12, lineHeight: NAME_LINE, maxWidth: 70 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },

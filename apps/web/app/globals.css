@@ -996,12 +996,28 @@ button.secondary {
 .person:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
 
 /* Moments: the same row, in rounded squares. A square is what every
-   photograph here is drawn as, and each of these is a door to one. The ring
-   is two, the inner one the page's own colour, so it reads as a mark around
-   the tile rather than a border drawn on somebody's face. */
+   photograph here is drawn as, and each of these is a door to one. */
+/* The ring around a moment: the app icon's own field, the same six blooms
+   over the same blue as `IconField.tsx` on the phone — stop for stop, and
+   pinned to it by a test. Listed top layer first, which is the reverse of the
+   order the phone paints them in. A page-coloured gap sits between the ring
+   and the face, so the colour frames somebody rather than bleeding into
+   their picture. */
+.moment-ring {
+  display: block; width: 66px; height: 66px; padding: 3px; box-sizing: border-box;
+  border-radius: 20px; flex: none;
+  background:
+    /* teal */ radial-gradient(56% 56% at 106% 78%, rgba(102, 231, 198, 0.95) 0%, rgba(70, 216, 193, 0.84) 34%, rgba(57, 205, 189, 0.34) 70%, rgba(57, 205, 189, 0) 100%),
+    /* seam */ radial-gradient(50% 50% at 102% 28%, rgba(125, 55, 204, 0.62) 0%, rgba(125, 55, 204, 0.5) 45%, rgba(125, 55, 204, 0) 86%),
+    /* aqua */ radial-gradient(44% 44% at 52% 106%, rgba(37, 188, 230, 0.92) 0%, rgba(33, 174, 221, 0.68) 38%, rgba(30, 159, 213, 0.18) 72%, rgba(30, 159, 213, 0) 100%),
+    /* blue */ radial-gradient(66% 66% at 4% 82%, rgba(19, 55, 183, 1) 0%, rgba(25, 69, 198, 0.96) 36%, rgba(29, 73, 201, 0.42) 70%, rgba(29, 73, 201, 0) 100%),
+    /* violet */ radial-gradient(50% 50% at 8% 12%, rgba(143, 70, 218, 0.78) 0%, rgba(123, 57, 200, 0.5) 36%, rgba(110, 53, 190, 0.12) 72%, rgba(110, 53, 190, 0) 100%),
+    /* pink */ radial-gradient(62% 62% at 74% 2%, rgba(247, 154, 182, 1) 0%, rgba(235, 120, 160, 0.92) 34%, rgba(216, 97, 150, 0.42) 68%, rgba(216, 97, 150, 0) 100%),
+    #173EA8;
+}
 .moment-face {
-  border-radius: 16px;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  width: 60px; height: 60px; box-sizing: border-box;
+  border: 2px solid var(--bg); border-radius: 17px;
 }
 .moment-mine .person-name { color: var(--fg); font-weight: 600; }
 

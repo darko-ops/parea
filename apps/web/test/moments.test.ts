@@ -169,3 +169,33 @@ describe('adding one', () => {
     expect(add).toMatch(/JSON\.stringify\(\{ key \}\)/);
   });
 });
+
+describe('the ring', () => {
+  it('is the app icon’s field, stop for stop with the phone’s', () => {
+    /*
+     * Every colour and opacity in the web ring's gradients has to be one of
+     * `IconField`'s, and all of them have to be there — the phone and the page
+     * are one product, and two copies of a palette drift the first time
+     * somebody edits one of them.
+     */
+    const phone = readFileSync(
+      fileURLToPath(new URL('../../mobile/src/IconField.tsx', import.meta.url)),
+      'utf8',
+    );
+    const css = readFileSync(
+      fileURLToPath(new URL('../app/globals.css', import.meta.url)),
+      'utf8',
+    );
+    const ring = css.slice(css.indexOf('.moment-ring {'), css.indexOf('.moment-face {'));
+    const hex = (h: string) =>
+      [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ');
+    const stops = [...phone.matchAll(/\[([\d.]+), '(#[0-9A-F]{6})', ([\d.]+)\]/g)];
+    expect(stops).toHaveLength(23);
+    for (const [, , colour, opacity] of stops) {
+      expect(ring).toContain(`rgba(${hex(colour!)}, ${Number(opacity)})`);
+    }
+    expect(ring).toContain("#173EA8");
+    expect(phone).toContain("const GLASS_BASE = '#173EA8';");
+  });
+});
+

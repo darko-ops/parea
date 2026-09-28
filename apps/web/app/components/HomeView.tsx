@@ -158,16 +158,21 @@ export function HomeView({
               href={`/moments/${p.first}`}
               aria-label={`${p.mine ? 'Your' : `${first(p.name)}’s`} ${p.count === 1 ? 'moment' : `${p.count} moments`}`}
             >
-              <Face
-                src={p.avatar}
-                size={56}
-                className="person-face moment-face"
-                fallback={
-                  <span aria-hidden="true">
-                    {(p.name.replace('@', '').trim() || '?').slice(0, 1).toUpperCase()}
-                  </span>
-                }
-              />
+              {/* The app icon's field as the ring — see `.moment-ring`. */}
+              <span className="moment-ring">
+                <Face
+                  src={p.avatar}
+                  // The face and the page-coloured gap round it: 56 inside a
+                  // 2px border, so the ring's 66 holds it exactly.
+                  size={60}
+                  className="person-face moment-face"
+                  fallback={
+                    <span aria-hidden="true">
+                      {(p.name.replace('@', '').trim() || '?').slice(0, 1).toUpperCase()}
+                    </span>
+                  }
+                />
+              </span>
               <span className="person-name">{p.mine ? 'You' : first(p.name)}</span>
             </a>
           ))}

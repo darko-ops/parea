@@ -26,7 +26,8 @@ describe('moments', () => {
   });
 
   it('draws people as rounded squares, not circles', () => {
-    expect(MOMENTS).toMatch(/ring: \{\s*width: 66,\s*height: 66,\s*borderRadius: 20/);
+    expect(MOMENTS).toMatch(/const RING = 66;/);
+    expect(MOMENTS).toMatch(/ring: \{\s*width: RING,\s*height: RING,\s*borderRadius: 20/);
   });
 
   it('rings each face in the app icon’s own field', () => {
@@ -34,7 +35,15 @@ describe('moments', () => {
   });
 
   it('sits close above the rolls rather than a card’s gap away', () => {
-    expect(MOMENTS).toMatch(/rowOuter: \{ flexGrow: 0, marginBottom: -16 \}/);
+    expect(MOMENTS).toMatch(/marginBottom: -16,/);
+  });
+
+  it('gives the row the height of its tiles, and never clips them', () => {
+    // A horizontal scroll view shrinks and clips by default; a row a few
+    // points short cut the rounded squares off flat.
+    expect(MOMENTS).toMatch(/const ROW_HEIGHT = ROW_PAD \* 2 \+ RING \+ NAME_GAP \+ NAME_LINE;/);
+    expect(MOMENTS).toMatch(/flexShrink: 0,\s*height: ROW_HEIGHT,/);
+    expect(MOMENTS).toMatch(/overflow: 'visible',/);
   });
 
   it('sits on Home, under the head', () => {
