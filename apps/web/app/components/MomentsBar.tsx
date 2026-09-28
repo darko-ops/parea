@@ -7,9 +7,11 @@
  * many are new to you. Who shared what is for once you are inside, where the
  * tiles come back as the viewer's own map of the stream.
  *
- * New is marked the quiet way: a dot and a brighter edge, not the icon's
- * colours. The ring means "new" inside the viewer, on a picture; out here,
- * on a bar of text among the rolls, it would be the loudest thing on the page.
+ * A dark card, and — only while something is new — the icon's colours
+ * showing through it from one corner, as if lit from behind frosted glass,
+ * drifting very slowly. The colour says there is activity and nothing about
+ * what. All caught up, it goes and the bar is monochrome. The status on the
+ * right is the thing to read; the chevron after it only says this opens.
  *
  * Opens on the first moment you have not seen, in the stream's own order —
  * which is where the server already put the new ones.
@@ -31,15 +33,13 @@ export function MomentsBar({ moments, at }: { moments: WireMoment[]; at: string 
       href={href}
       aria-label={fresh ? `Moments, ${unseen.length} new` : 'Moments'}
     >
+      {fresh && <span className="moments-bar-bloom" aria-hidden="true" />}
       <span className="moments-bar-name">Moments</span>
-      {fresh && (
-        <span className="moments-bar-count">
-          <span className="moments-bar-dot" aria-hidden="true" />
-          {unseen.length} new
+      <span className="moments-bar-end">
+        {fresh && <span className="moments-bar-count">{unseen.length} new</span>}
+        <span className="moments-bar-go" aria-hidden="true">
+          ›
         </span>
-      )}
-      <span className="moments-bar-go" aria-hidden="true">
-        ›
       </span>
     </a>
   );

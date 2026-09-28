@@ -38,9 +38,14 @@ describe('moments', () => {
       MOMENTS.indexOf('export function MomentsRow'),
     );
     expect(BAR).not.toMatch(/author|thumb|ExpoImage|IconRing|MomentTile/);
-    expect(BAR).toMatch(/\{news\} new/);
-    // New is the accent — a dot and a brighter edge — never the icon's ring.
-    expect(BAR).toMatch(/borderColor: news > 0 \? t\.accent : t\.line/);
+    // The status on the right, and the chevron after it.
+    expect(BAR).toMatch(/\{news > 0 && <Text style=\{styles\.barNew\}>\{news\} new<\/Text>\}\s*<Text style=\{styles\.barChevron\}>›<\/Text>/);
+    // New is colour through frosted glass — and only while there is something
+    // new. Caught up, the bar is monochrome.
+    expect(BAR).toMatch(/\{news > 0 && <Bloom \/>\}/);
+    expect(BAR).toMatch(/<BlurView intensity=\{40\} tint="dark"/);
+    // The drift is off for anybody who has asked for less motion.
+    expect(BAR).toMatch(/isReduceMotionEnabled\(\)\.then\(\(still\) => \{\s*if \(still \|\| cancelled\) return;/);
     // And it opens on the first one new to you, in the stream's order.
     expect(BAR).toMatch(/const fresh = moments\.filter\(\(m\) => !m\.seen && !m\.mine\);/);
     expect(BAR).toMatch(/\(fresh\[0\] \?\? moments\[0\]\)!\.id/);

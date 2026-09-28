@@ -325,11 +325,17 @@ describe('on Home, one way in', () => {
     expect(bar).toMatch(/const start = unseen\[0\] \?\? moments\[0\]!/);
   });
 
-  it('marks new with a dot and an edge, not the icon ring', () => {
+  it('shows colour through frosted glass only while something is new', () => {
+    const bar = stripComments(read('components/MomentsBar.tsx'));
+    expect(bar).toMatch(/\{fresh && <span className="moments-bar-bloom" aria-hidden="true" \/>\}/);
+    // The status on the right, and the chevron after it.
+    expect(bar).toMatch(/moments-bar-count">\{unseen\.length\} new<\/span>\}\s*<span className="moments-bar-go"/);
+
     const css = readFileSync(fileURLToPath(new URL('../app/globals.css', import.meta.url)), 'utf8');
-    const bar = css.slice(css.indexOf('.moments-bar {'), css.indexOf('.moment-nav-wrap'));
-    expect(bar).toMatch(/\.moments-bar-dot/);
-    expect(bar).not.toMatch(/radial-gradient/);
+    const rules = css.slice(css.indexOf('.moments-bar {'), css.indexOf('.moment-nav-wrap'));
+    expect(rules).toMatch(/\.moments-bar-new::after \{[^}]*backdrop-filter: blur/);
+    // The drift is off for anybody who has asked for less motion.
+    expect(rules).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.moments-bar-bloom \{ animation: none; \}/);
   });
 
   it('puts the tiles inside the viewer, as its map', () => {

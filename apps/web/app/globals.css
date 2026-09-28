@@ -1060,24 +1060,48 @@ button.secondary {
 .add-moment-small { font-size: 14px; color: var(--dim); }
 .add-moment-again { align-self: center; font-size: 14px; color: var(--accent); }
 
-/* Moments on Home: one bar, above the rolls. New is a dot and a brighter
-   edge — the icon's colours are for the viewer, where they sit on a picture. */
+/* Moments on Home: one bar above the rolls. A dark card in either scheme —
+   the colour needs a dark ground to glow against — and while something is
+   new, the icon's colours bleed through it from the right-hand end as if lit
+   from behind frosted glass. Caught up, monochrome. */
 .moments-bar {
+  position: relative; isolation: isolate; overflow: hidden;
   display: flex; align-items: center; gap: 10px;
-  margin: 4px 0 18px; padding: 14px 16px;
-  border: 1px solid var(--line); border-radius: 14px;
-  background: var(--card); color: var(--fg); text-decoration: none;
+  margin: 4px 0 18px; padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;
+  background: #15171c; color: #fff; text-decoration: none;
 }
-.moments-bar:hover { border-color: var(--dim-soft); }
+.moments-bar:hover { border-color: rgba(255, 255, 255, 0.18); }
 .moments-bar:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.moments-bar-new { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-.moments-bar-name { font-size: 15px; font-weight: 600; }
-.moments-bar-count {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13.5px; color: var(--accent-ink);
+/* The colour, under the frost: three of the icon's blooms gathered at the
+   right, drifting a few pixels over fourteen seconds and back. */
+.moments-bar-bloom {
+  position: absolute; z-index: -2; top: -40%; bottom: -40%; right: -12%; width: 72%;
+  background:
+    radial-gradient(42% 46% at 88% 82%, rgba(102, 231, 198, 0.75), rgba(102, 231, 198, 0) 100%),
+    radial-gradient(40% 44% at 66% 22%, rgba(247, 154, 182, 0.8), rgba(247, 154, 182, 0) 100%),
+    radial-gradient(46% 52% at 40% 68%, rgba(143, 70, 218, 0.9), rgba(143, 70, 218, 0) 100%);
+  animation: moments-drift 28s ease-in-out infinite alternate;
 }
-.moments-bar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-.moments-bar-go { margin-left: auto; color: var(--dim-soft); font-size: 20px; line-height: 1; }
+/* The frost: a blur over the colour and a dark wash, so most of the surface
+   stays dark and the colour reads as behind the glass, not painted on it. */
+.moments-bar-new::after {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: rgba(21, 23, 28, 0.35);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+@keyframes moments-drift {
+  from { transform: translate(10px, 4px); }
+  to { transform: translate(-18px, -6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moments-bar-bloom { animation: none; }
+}
+.moments-bar-name { font-size: 15px; font-weight: 600; }
+.moments-bar-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.moments-bar-count { font-size: 14px; font-weight: 600; color: #fff; }
+/* Secondary to the status: smaller and quieter. */
+.moments-bar-go { color: rgba(255, 255, 255, 0.45); font-size: 18px; line-height: 1; }
 
 /* Inside the viewer the tiles are its map: where you are, what you have
    seen, what is left. The one you are on is at full strength with a bar

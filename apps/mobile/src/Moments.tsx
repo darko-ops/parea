@@ -22,10 +22,14 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BlurView } from 'expo-blur';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -36,6 +40,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
@@ -282,11 +287,11 @@ function first(name: string): string {
  */
 export function MomentsBar({
   moments,
-  t,
   onOpen,
 }: {
   moments: Moment[];
-  t: GroupTheme;
+  /** Kept for the callers' sake; the bar is dark in both schemes. */
+  t?: GroupTheme;
   /** Where to start: the first one new to you, else the first. */
   onOpen: (momentId: string) => void;
 }) {
@@ -295,33 +300,119 @@ export function MomentsBar({
   const start = (fresh[0] ?? moments[0])!.id;
   const news = fresh.length;
 
+  /*
+   * A dark card, and — only while something is new — colour showing through
+   * it from one corner, as if lit from behind frosted glass. The colour says
+   * there is activity and nothing about what: it is the app icon's own field,
+   * not anybody's photograph. All caught up, the colour goes and the bar is
+   * monochrome.
+   *
+   * The status is on the right and is the thing to read; the chevron after it
+   * is only a hint that this opens.
+   */
   return (
     <Pressable
       onPress={() => onOpen(start)}
       accessibilityRole="button"
       accessibilityLabel={news > 0 ? `Moments, ${news} new` : 'Moments'}
-      style={({ pressed }) => [
-        styles.bar,
-        {
-          backgroundColor: t.card,
-          borderColor: news > 0 ? t.accent : t.line,
-          opacity: pressed ? 0.6 : 1,
-        },
-      ]}
+      style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.75 : 1 }]}
     >
-      <Text style={[styles.barTitle, { color: t.fg }]}>Moments</Text>
+      {news > 0 && <Bloom />}
+      <Text style={styles.barTitle}>Moments</Text>
       <View style={styles.barEnd}>
-        {news > 0 && (
-          <>
-            <View style={[styles.barDot, { backgroundColor: t.accent }]} />
-            <Text style={[styles.barNew, { color: t.accent }]}>{news} new</Text>
-          </>
-        )}
-        <Text style={[styles.barChevron, { color: t.dim }]}>›</Text>
+        {news > 0 && <Text style={styles.barNew}>{news} new</Text>}
+        <Text style={styles.barChevron}>›</Text>
       </View>
     </Pressable>
   );
 }
+
+/** The drift's length, one way. Slow enough to be felt rather than watched. */
+const DRIFT_MS = 14_000;
+
+/**
+ * The colour under the glass: three of the icon's blooms gathered at the
+ * right-hand end, then frosted over.
+ *
+ * It moves, very slowly — a few points one way over fourteen seconds and back
+ * — so the surface feels faintly alive while there is something new. Not a
+ * loop anybody would notice as animation, and none at all for somebody who
+ * has asked their phone to reduce motion.
+ */
+function Bloom() {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const drift = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+    let cancelled = false;
+    void AccessibilityInfo.isReduceMotionEnabled().then((still) => {
+      if (still || cancelled) return;
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(drift, {
+            toValue: 1,
+            duration: DRIFT_MS,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(drift, {
+            toValue: 0,
+            duration: DRIFT_MS,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      loop.start();
+    });
+    return () => {
+      cancelled = true;
+      loop?.stop();
+    };
+  }, [drift]);
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Animated.View
+        style={[
+          styles.bloom,
+          {
+            transform: [
+              { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [10, -18] }) },
+              { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [4, -6] }) },
+            ],
+          },
+        ]}
+      >
+        <Svg width="100%" height="100%">
+          <Defs>
+            {BLOOM.map((b) => (
+              <RadialGradient key={b.id} id={`${id}${b.id}`} cx={b.cx} cy={b.cy} r={b.r}>
+                <Stop offset="0" stopColor={b.colour} stopOpacity={b.opacity} />
+                <Stop offset="1" stopColor={b.colour} stopOpacity={0} />
+              </RadialGradient>
+            ))}
+          </Defs>
+          {BLOOM.map((b) => (
+            <Rect key={b.id} width="100%" height="100%" fill={`url(#${id}${b.id})`} />
+          ))}
+        </Svg>
+      </Animated.View>
+      {/* The frost. Over the colour and under the words, so the colour reads
+          as behind the glass rather than painted on it. */}
+      <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, styles.frost]} />
+    </View>
+  );
+}
+
+/** Three of `IconField`'s colours — violet, pink and teal — and where they sit. */
+const BLOOM = [
+  { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '42%', cy: '70%', r: '46%' },
+  { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '68%', cy: '20%', r: '40%' },
+  { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '88%', cy: '85%', r: '42%' },
+] as const;
 
 export function MomentsRow({
   moments,
@@ -770,17 +861,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 16,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.1)',
+    // Dark in both schemes: the colour needs a dark ground to glow against.
+    backgroundColor: '#15171c',
+    overflow: 'hidden',
     marginBottom: -14,
   },
-  barTitle: { fontSize: 16, fontWeight: '600' },
-  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  barDot: { width: 8, height: 8, borderRadius: 4 },
-  barNew: { fontSize: 14, fontWeight: '600' },
-  barChevron: { fontSize: 20, lineHeight: 22 },
+  /* The colour's field: the right-hand end of the bar and past its edges, so
+     the drift never shows where it stops. */
+  bloom: { position: 'absolute', top: -30, bottom: -30, right: -40, width: '75%' },
+  /* A dark wash over the blur, so most of the surface stays dark and the
+     colour is concentrated rather than a tint over everything. */
+  frost: { backgroundColor: 'rgba(21,23,28,0.35)' },
+  barTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  barNew: { color: '#fff', fontSize: 14.5, fontWeight: '600' },
+  /* Secondary to the status: smaller and quieter. */
+  barChevron: { color: 'rgba(255,255,255,0.45)', fontSize: 18, lineHeight: 20 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },
