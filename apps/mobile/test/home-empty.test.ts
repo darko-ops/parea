@@ -915,7 +915,7 @@ describe('what the bubble became', () => {
     );
     expect(EVENTS).toMatch(/onOpen=\{\(photo, pane\) => onOpen\(event, photo, pane\)\}/);
     const APP2 = read('App.tsx');
-    expect(APP2).toMatch(/\(event: EventListing, photo\?: string, pane\?: Pane\)/);
+    expect(APP2).toMatch(/\(event: EventListing, photo\?: string, pane\?: Pane(, back\?: Route)?\)/);
     // And the far end: the route's pane is what the album screen starts on.
     expect(APP2).toMatch(/initialPane=\{route\.pane\}/);
     expect(APP2).toMatch(/useState<Pane>\(initialPane \?\? 'photos'\)/);

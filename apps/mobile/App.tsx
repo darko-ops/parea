@@ -221,6 +221,16 @@ type Route =
        * a selection.
        */
       upload?: string[];
+      /**
+       * Where Back goes, when it is not the tabs.
+       *
+       * Leaving an album always went to the tabs, which is right for the home
+       * screen and wrong for somebody's profile: search for a person, open one
+       * of their albums, press Back, and you were on Find with the person gone.
+       * A screen that opens an album from inside a push names itself here so
+       * Back returns to it. Absent means the tabs, as before.
+       */
+      back?: Route;
     }
   /**
    * The door of a private album — a real link to one that has not let this
@@ -445,9 +455,9 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const open = useCallback(
-    async (event: SavedEvent, pane?: Pane, upload?: string[], photo?: string) => {
+    async (event: SavedEvent, pane?: Pane, upload?: string[], photo?: string, back?: Route) => {
       setRemembered(await rememberEvent(event));
-      setRoute({ screen: 'event', event, pane, upload, photo });
+      setRoute({ screen: 'event', event, pane, upload, photo, back });
     },
     [],
   );
@@ -851,7 +861,7 @@ export default function App() {
   }, [pending, refreshEvents]);
 
   const openListing = useCallback(
-    (event: EventListing, photo?: string, pane?: Pane) =>
+    (event: EventListing, photo?: string, pane?: Pane, back?: Route) =>
       open(
         {
           id: event.id,
@@ -863,6 +873,7 @@ export default function App() {
         pane,
         undefined,
         photo,
+        back,
       ),
     [open],
   );
@@ -929,16 +940,22 @@ export default function App() {
    * already see. No error screen of its own: the profile says it did not open.
    */
   const openAlbum = useCallback(
-    async (eventId: string) => {
+    async (eventId: string, back?: Route) => {
       try {
         const summary = await api.join({ eventId });
-        await open({
-          id: summary.id,
-          name: summary.name,
-          linkToken: summary.linkToken,
-          startsAt: summary.startsAt,
-          endsAt: summary.endsAt,
-        });
+        await open(
+          {
+            id: summary.id,
+            name: summary.name,
+            linkToken: summary.linkToken,
+            startsAt: summary.startsAt,
+            endsAt: summary.endsAt,
+          },
+          undefined,
+          undefined,
+          undefined,
+          back,
+        );
         return true;
       } catch {
         return false;
@@ -1046,7 +1063,8 @@ export default function App() {
    */
   const leaveEvent = useCallback(() => {
     void refreshEvents();
-    setRoute({ screen: 'tabs' });
+    // Back to whoever opened it, if they said — see `back` on the route.
+    setRoute((was) => (was.screen === 'event' && was.back ? was.back : { screen: 'tabs' }));
   }, [refreshEvents]);
 
   const leaveGroup = useCallback(() => {
@@ -1563,11 +1581,18 @@ export default function App() {
             events={events}
             t={t}
             onBack={leaveToTabs}
-            onOpenEvent={openListing}
+            /* Albums opened from here come back here: `back` names this
+               profile, so Back from the album is not Back to Find. */
+            onOpenEvent={(listing) =>
+              void openListing(listing, undefined, undefined, {
+                screen: 'person',
+                handle: route.handle,
+              })
+            }
             /* The same landing the making screens get: into the conversation,
                with the tab behind it refreshed. See `openMadeRoom`. */
             onOpenChat={(id) => void openMadeRoom(id)}
-            onOpenAlbum={openAlbum}
+            onOpenAlbum={(id) => openAlbum(id, { screen: 'person', handle: route.handle })}
             Button={Button}
           />
         </SwipeBack>

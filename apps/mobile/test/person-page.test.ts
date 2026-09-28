@@ -292,3 +292,24 @@ describe('the shape of somebody else’s page', () => {
     }
   });
 });
+
+describe('leaving an album opened from somebody’s page', () => {
+  /*
+   * Search for a person, open one of their albums, press Back — and you were
+   * on Find with the person gone, because leaving an album always went to the
+   * tabs. The profile names itself as where Back goes now.
+   */
+  const APP = read('App.tsx');
+
+  it('comes back to the profile it was opened from', () => {
+    expect(APP).toMatch(/back\?: Route;/);
+    expect(APP).toMatch(
+      /setRoute\(\(was\) => \(was\.screen === 'event' && was\.back \? was\.back : \{ screen: 'tabs' \}\)\)/,
+    );
+  });
+
+  it('is told so by both ways the profile opens one', () => {
+    expect(APP).toMatch(/openListing\(listing, undefined, undefined, \{\s*\n\s*screen: 'person',\s*\n\s*handle: route\.handle,/);
+    expect(APP).toMatch(/openAlbum\(id, \{ screen: 'person', handle: route\.handle \}\)/);
+  });
+});
