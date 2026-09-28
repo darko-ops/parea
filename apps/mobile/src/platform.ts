@@ -521,6 +521,45 @@ export async function uploadCover(
   }
 }
 
+/**
+ * A picked photograph's size and type, before anything is asked of the server.
+ *
+ * The size is signed into the storage URL it will be PUT to, so it has to be
+ * the file's own and not a guess.
+ */
+export function describeFile(uri: string): { byteSize: number; exists: boolean } {
+  const file = new File(uri);
+  return { exists: file.exists, byteSize: file.exists ? file.size : 0 };
+}
+
+/**
+ * One file, PUT to a presigned storage URL.
+ *
+ * `uploadCover`'s shape with the other verb: a moment's original goes
+ * straight to storage because the server cannot take a request body that
+ * large. Foreground, because somebody is watching a spinner for it.
+ */
+export async function putToStorage(
+  url: string,
+  headers: Record<string, string>,
+  uri: string,
+): Promise<void> {
+  const file = new File(uri);
+  if (!file.exists) throw new Error(`source is not readable: ${uri}`);
+
+  const task = new UploadTask(file, url, {
+    httpMethod: 'PUT',
+    uploadType: UploadType.BINARY_CONTENT,
+    headers,
+    mimeType: headers['content-type'] ?? 'application/octet-stream',
+    sessionType: 'foreground',
+  });
+  const result = await task.uploadAsync();
+  if (!result || result.status < 200 || result.status >= 300) {
+    throw new Error(`storage put failed: ${result?.status ?? 'no response'}`);
+  }
+}
+
 export const BACKGROUND_UPLOAD_SUPPORTED = Platform.OS === 'ios';
 
 // --- push --------------------------------------------------------------------

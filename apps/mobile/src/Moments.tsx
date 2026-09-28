@@ -36,10 +36,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import type { Api, FeedPhoto, MomentsResponse } from './api';
+import { ApiError, type Api, type FeedPhoto, type MomentsResponse } from './api';
 import type { GroupTheme } from './Groups';
 import { PhotoViewer } from './PhotoViewer';
-import { saveToCameraRoll, uploadCover } from './platform';
+import { describeFile, putToStorage, saveToCameraRoll } from './platform';
 
 type MomentPerson = MomentsResponse['people'][number];
 
@@ -89,7 +89,7 @@ export function useMoments(api: Api) {
  * library permission on iOS. No crop — a moment is somebody's whole
  * photograph, and the server keeps it whole.
  */
-async function pickOne(): Promise<string | null> {
+async function pickOne(): Promise<{ uri: string; mimeType: string } | null> {
   const picked = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
@@ -106,8 +106,9 @@ async function pickOne(): Promise<string | null> {
     preferredAssetRepresentationMode:
       ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
   });
-  if (picked.canceled || !picked.assets[0]) return null;
-  return picked.assets[0].uri;
+  const asset = picked.assets?.[0];
+  if (picked.canceled || !asset) return null;
+  return { uri: asset.uri, mimeType: asset.mimeType ?? 'image/jpeg' };
 }
 
 /**
@@ -131,27 +132,39 @@ export function AddMoment({
   onShared: () => void;
 }) {
   const { width } = useWindowDimensions();
-  const [uri, setUri] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ uri: string; mimeType: string } | null>(null);
+  const uri = picked?.uri ?? null;
   const [sharing, setSharing] = useState(false);
 
   const choose = useCallback(async () => {
     const next = await pickOne();
-    if (next) setUri(next);
+    if (next) setPicked(next);
   }, []);
 
+  /*
+   * To storage, then the key to the server.
+   *
+   * It was one POST of the file to the server, the avatar's way, and that
+   * cannot work for a photograph: the server refuses a request body over about
+   * 4.5MB and a picture off this phone is larger, so every Share came back 413.
+   * The bytes go phone → storage now, like a roll's photographs.
+   */
   const share = useCallback(async () => {
-    if (!uri || sharing) return;
+    if (!picked || sharing) return;
     setSharing(true);
     try {
-      const target = api.momentTarget();
-      await uploadCover(target.url, target.headers, uri);
+      const { exists, byteSize } = describeFile(picked.uri);
+      if (!exists || byteSize === 0) throw new Error('unreadable');
+      const slot = await api.momentUpload(byteSize, picked.mimeType);
+      await putToStorage(slot.url, slot.headers, picked.uri);
+      await api.finishMoment(slot.key);
       momentsChanged();
       onShared();
-    } catch {
+    } catch (err) {
       setSharing(false);
-      Alert.alert('Could not share that moment', 'Try again in a moment.');
+      Alert.alert('Could not share that moment', shareFailure(err));
     }
-  }, [api, onShared, sharing, uri]);
+  }, [api, onShared, picked, sharing]);
 
   return (
     <View style={[styles.addRoot, { backgroundColor: '#000' }]}>
@@ -213,6 +226,16 @@ export function AddMoment({
       )}
     </View>
   );
+}
+
+/** What went wrong, in a sentence somebody can act on. */
+function shareFailure(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 413) return 'That photo is too large to share.';
+    if (err.status === 415) return 'That photo is in a format we cannot read.';
+    if (err.status === 429) return 'You have shared a lot just now. Try again later.';
+  }
+  return 'Try again in a moment.';
 }
 
 /** The first word of a name. The rows under the squares are narrow. */

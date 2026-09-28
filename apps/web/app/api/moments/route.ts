@@ -19,7 +19,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
-import { momentsResponse } from '@/moments';
+import { MOMENT_MAX_BYTES, incomingPrefix, momentsResponse } from '@/moments';
 import { MOMENT_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId } from '@/session';
 import { getStorage } from '@/storage';
@@ -28,22 +28,78 @@ export const runtime = 'nodejs';
 
 /** The long edge, stored. The full rendition of a roll photograph is 2560. */
 const EDGE = 2048;
-const MAX_BYTES = 25 * 1024 * 1024;
 
 export async function GET() {
   const actorId = await currentActorId();
   return NextResponse.json(await momentsResponse(actorId));
 }
 
+/**
+ * Two ways in, one moment out.
+ *
+ * `{ key }` as JSON is the usual one: the picture was PUT straight to storage
+ * against a URL from `/api/moments/uploads`, and this reads it back once to
+ * re-encode it. That exists because a request body here is capped by the
+ * platform at about 4.5MB, and a photograph off a current phone is larger —
+ * every Share from an iPhone was answered 413 before a line of this ran.
+ *
+ * Raw bytes as the body is the original way, kept for a client that has not
+ * updated: it still works for anything under the platform's cap.
+ *
+ * Reading the upload back is not the egress the storage interface is built to
+ * prevent. That rule is about serving photographs *out* through this origin,
+ * where one album can be gigabytes times every guest; this is one inbound
+ * picture, read once, the same bytes the raw-body path already carried.
+ */
 export async function POST(request: Request) {
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
-  if (!(await withinLimit(getDb(), MOMENT_LIMIT, process.env.SESSION_SECRET))) {
-    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  const json = (request.headers.get('content-type') ?? '').includes('application/json');
+
+  let incoming: Buffer;
+  let staged: string | null = null;
+  if (json) {
+    const body = (await request.json().catch(() => ({}))) as { key?: unknown };
+    if (typeof body.key !== 'string' || !body.key.startsWith(incomingPrefix(actorId))) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    }
+    staged = body.key;
+    const read = await readStaged(staged);
+    if (!read.ok) {
+      console.warn('moment refused', { error: read.error });
+      return NextResponse.json({ error: read.error }, { status: read.status });
+    }
+    incoming = read.bytes;
+  } else {
+    // The upload route is where the limit is spent on the staged path.
+    if (!(await withinLimit(getDb(), MOMENT_LIMIT, process.env.SESSION_SECRET))) {
+      return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+    }
+    incoming = Buffer.from(await request.arrayBuffer());
   }
 
-  const admitted = admit(Buffer.from(await request.arrayBuffer()), MAX_BYTES);
+  const made = await makeMoment(actorId, incoming);
+  // The staged original goes whether or not it became a moment: it is either
+  // copied, or refused, and in neither case read again.
+  if (staged) await getStorage().delete(staged).catch(() => {});
+  return made;
+}
+
+async function readStaged(
+  key: string,
+): Promise<{ ok: true; bytes: Buffer } | { ok: false; error: string; status: number }> {
+  const storage = getStorage();
+  const head = await storage.head(key).catch(() => null);
+  if (!head) return { ok: false, error: 'not_uploaded', status: 404 };
+  if (head.size > MOMENT_MAX_BYTES) return { ok: false, error: 'too_large', status: 413 };
+  const res = await fetch(await storage.presignGet(key, 60)).catch(() => null);
+  if (!res?.ok) return { ok: false, error: 'storage_failed', status: 502 };
+  return { ok: true, bytes: Buffer.from(await res.arrayBuffer()) };
+}
+
+async function makeMoment(actorId: string, incoming: Buffer): Promise<NextResponse> {
+  const admitted = admit(incoming, MOMENT_MAX_BYTES);
   if (!admitted.ok) {
     console.warn('moment refused', { error: admitted.error });
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });

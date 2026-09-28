@@ -47,8 +47,13 @@ describe('moments', () => {
     expect(MOMENTS).not.toMatch(/export async function postMoment/);
   });
 
-  it('posts raw bytes like an avatar, and blocks by moment', () => {
-    expect(API).toMatch(/url: `\$\{this\.baseUrl\}\/api\/moments`/);
+  it('puts the original straight to storage, and blocks by moment', () => {
+    // A request body to the server is capped at about 4.5MB; a phone
+    // photograph is larger, so the bytes never go through it.
+    expect(API).toMatch(/this\.call\('\/api\/moments\/uploads'/);
+    expect(API).toMatch(/JSON\.stringify\(\{ key \}\)/);
+    expect(MOMENTS).toMatch(/await putToStorage\(slot\.url, slot\.headers, picked\.uri\)/);
+    expect(MOMENTS).not.toMatch(/uploadCover/);
     expect(API).toMatch(/JSON\.stringify\(\{ momentId \}\)/);
   });
 });

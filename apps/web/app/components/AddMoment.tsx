@@ -37,7 +37,7 @@ export function AddMoment() {
     if (!file || busy) return;
     setBusy(true);
     setError(null);
-    const res = await fetch('/api/moments', { method: 'POST', body: file }).catch(() => null);
+    const res = await upload(file).catch(() => null);
     if (res?.ok) {
       // Home, where it is now the first square in the row.
       location.assign('/events');
@@ -130,4 +130,34 @@ export function AddMoment() {
       </div>
     </main>
   );
+}
+
+/**
+ * The file to storage, then its key to us.
+ *
+ * Three requests rather than one POST of the bytes: this origin cannot take a
+ * body over about 4.5MB, and a photograph from a phone is often more. Answers
+ * with whichever response says how it went, so the page reads one status.
+ */
+async function upload(file: File): Promise<Response> {
+  const slot = await fetch('/api/moments/uploads', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ byteSize: file.size, contentType: file.type }),
+  });
+  if (!slot.ok) return slot;
+  const { key, url, headers } = (await slot.json()) as {
+    key: string;
+    url: string;
+    headers: Record<string, string>;
+  };
+
+  const put = await fetch(url, { method: 'PUT', headers, body: file });
+  if (!put.ok) return put;
+
+  return fetch('/api/moments', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key }),
+  });
 }

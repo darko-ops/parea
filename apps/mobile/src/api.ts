@@ -1771,12 +1771,28 @@ export class Api {
   }
 
   /**
-   * Where a moment is sent. A target, like `avatarTarget`, and for its reason:
-   * the native uploader streams the file from disk as raw bytes, and the
-   * endpoint re-encodes whatever arrives.
+   * Somewhere in storage to PUT a moment's original.
+   *
+   * The usual way in now: the server cannot take a request body over about
+   * 4.5MB, and a photograph off this phone is larger. The size is signed into
+   * the URL, so it must be the file's own.
    */
-  momentTarget(): { url: string; headers: Record<string, string> } {
-    return { ...this.avatarTarget(), url: `${this.baseUrl}/api/moments` };
+  momentUpload(
+    byteSize: number,
+    contentType: string,
+  ): Promise<{ key: string; url: string; headers: Record<string, string> }> {
+    return this.call('/api/moments/uploads', {
+      method: 'POST',
+      body: JSON.stringify({ byteSize, contentType }),
+    });
+  }
+
+  /** The original is in storage; make it a moment. */
+  finishMoment(key: string): Promise<{ id: string }> {
+    return this.call('/api/moments', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    });
   }
 
   /** Taking one of your own back. */

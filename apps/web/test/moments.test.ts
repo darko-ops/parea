@@ -163,6 +163,9 @@ describe('adding one', () => {
     expect(read('components/CreateMenu.tsx')).not.toMatch(/api\/moments/);
     const add = read('components/AddMoment.tsx');
     expect(add).toMatch(/disabled=\{!file \|\| busy\}/);
-    expect(add).toMatch(/fetch\('\/api\/moments', \{ method: 'POST', body: file \}\)/);
+    // Straight to storage, then the key: the origin cannot take a phone
+    // photograph as a request body.
+    expect(add).toMatch(/fetch\('\/api\/moments\/uploads'/);
+    expect(add).toMatch(/JSON\.stringify\(\{ key \}\)/);
   });
 });

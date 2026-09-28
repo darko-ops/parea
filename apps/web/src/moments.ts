@@ -31,6 +31,18 @@ import { getStorage } from './storage';
 /** How long a moment stays in the row. */
 export const MOMENT_DAYS = 30;
 
+/** The largest original accepted. A generous phone photograph. */
+export const MOMENT_MAX_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Where an original waits between the phone's PUT and `/api/moments` reading
+ * it. Per actor, so the key a client hands back can be checked as theirs by
+ * its prefix alone.
+ */
+export function incomingPrefix(actorId: string): string {
+  return `moments/incoming/${actorId}/`;
+}
+
 /** How many people the row holds, and how many moments each. */
 export const MOMENT_PEOPLE_LIMIT = 30;
 export const MOMENTS_PER_PERSON = 12;
