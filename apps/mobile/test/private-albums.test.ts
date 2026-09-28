@@ -155,18 +155,18 @@ describe('somebody else’s albums, on their page', () => {
     expect(PERSON).toMatch(/item\.locked\s*\n?\s*\? status/);
     expect(PERSON).toMatch(/'Private · ask to join'/);
     /*
-     * A locked album is a window of stained glass, not an empty frame: shut,
-     * and lit from the other side. It is decided by `item.locked` rather than
-     * by the missing cover it shares with an open album that has none yet —
-     * that one keeps the bare frame, since nothing is withheld there. The
-     * glass is seeded by the album id so the same album is the same window on
-     * both clients, and it carries the padlock an album's own header wears.
+     * A locked album is colour behind frosted glass, not an empty frame:
+     * something lit that you cannot see into. It is decided by `item.locked`
+     * rather than by the missing cover it shares with an open album that has
+     * none yet — that one keeps the bare frame, since nothing is withheld
+     * there. Seeded by the album id so the same album is the same pane on both
+     * clients, and it carries the padlock an album's own header wears.
      */
     expect(PERSON).toMatch(/\{item\.locked \? \(/);
-    expect(PERSON).toMatch(/<StainedGlass seed=\{item\.id\}/);
-    const GLASS = read('src/StainedGlass.tsx');
-    expect(GLASS).toMatch(/stainedGlass\(seed/);
-    expect(GLASS).toMatch(/<Glyph name="locked"/);
+    expect(PERSON).toMatch(/<FrostedGlass seed=\{item\.id\}/);
+    const FROST = read('src/FrostedGlass.tsx');
+    expect(FROST).toMatch(/frostedGlass\(seed\)/);
+    expect(FROST).toMatch(/<Glyph name="locked"/);
     // And what the padlocks are for, said once above the shelf rather than
     // per tile — a wall of shut doors with no sentence is a refusal.
     expect(PERSON).toMatch(/Become friends to see what&rsquo;s inside\./);

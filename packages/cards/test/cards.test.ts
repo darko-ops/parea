@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { GLASS_COLOURS, ago, metaFor, mosaicLayout, stainedGlass } from '../src';
+import { FROST_COLOURS, ago, frostedGlass, metaFor, mosaicLayout } from '../src';
 
 const NOW = new Date('2026-08-11T21:00:00Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
@@ -119,23 +119,23 @@ describe('the mosaic shape', () => {
   });
 });
 
-describe('stainedGlass', () => {
-  it('is the same window for the same album, and a different one for another', () => {
-    expect(stainedGlass('album-1')).toEqual(stainedGlass('album-1'));
-    expect(stainedGlass('album-1')).not.toEqual(stainedGlass('album-2'));
+describe('frostedGlass', () => {
+  it('is the same pane for the same album, and a different one for another', () => {
+    expect(frostedGlass('album-1')).toEqual(frostedGlass('album-1'));
+    expect(frostedGlass('album-1')).not.toEqual(frostedGlass('album-2'));
   });
 
-  it('is a rose window, not a scatter of shards', () => {
-    const glass = stainedGlass('album-1', 160, 120);
-    expect(glass.width).toBe(160);
-    expect(glass.height).toBe(120);
-    // Curved leading: the rose, the foils and the boss are arcs, the petals curves.
-    expect(glass.panes.some((pane) => pane.d.includes(' A '))).toBe(true);
-    expect(glass.panes.some((pane) => pane.d.includes(' Q '))).toBe(true);
-    for (const pane of glass.panes) {
-      expect(GLASS_COLOURS[pane.colour]).toBeDefined();
+  it('is soft colour and nothing else — no shapes to read', () => {
+    const pane = frostedGlass('album-1');
+    expect(FROST_COLOURS).toContain(pane.ground);
+    expect(pane.lights.length).toBeGreaterThanOrEqual(3);
+    const colours = [pane.ground, ...pane.lights.map((light) => light.colour)];
+    // Every light a different colour from the ground and from each other.
+    expect(new Set(colours).size).toBe(colours.length);
+    for (const light of pane.lights) {
+      expect(light.x).toBeGreaterThanOrEqual(0);
+      expect(light.x).toBeLessThanOrEqual(1);
+      expect(light.r).toBeGreaterThan(0.5);
     }
-    // The boss, where the padlock sits, is drawn last so nothing covers it.
-    expect(glass.panes.at(-1)!.d).toMatch(/^M [\d.]+ 60\.00 A /);
   });
 });

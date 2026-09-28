@@ -207,11 +207,4 @@ export function metaFor(
   return `${people} · ${second}`;
 }
 
-export {
-  GLASS_COLOURS,
-  GLASS_LEAD,
-  GLASS_TONES,
-  stainedGlass,
-  type GlassPane,
-  type GlassWindow,
-} from './glass';
+export { FROST_COLOURS, frostedGlass, type FrostLight, type FrostedPane } from './frost';

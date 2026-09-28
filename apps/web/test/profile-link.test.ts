@@ -365,20 +365,20 @@ describe('the profile at two widths', () => {
      * show, and a card with nothing in it reads as a picture that failed to
      * arrive — which was the whole argument for a list of 52px rows.
      *
-     * So it is not empty, it is a window of stained glass seeded by the
-     * album — the same window the phone draws — with the padlock an album's
-     * own header wears on a roundel of lead. An unlocked album with no cover
-     * yet keeps the flat rectangle: nothing is being withheld there, and glass
-     * over it would say something untrue.
+     * So it is not empty, it is colour behind frosted glass seeded by the
+     * album — the same pane the phone draws — with the padlock an album's own
+     * header wears. An unlocked album with no cover yet keeps the flat
+     * rectangle: nothing is being withheld there, and frost over it would say
+     * something untrue.
      */
     const PERSON = read('../app/components/PersonView.tsx');
     expect(PERSON).toMatch(/album\.locked && \(\s*<span className="album-shut"/);
-    expect(PERSON).toMatch(/<StainedGlass seed=\{album\.id\} \/>/);
+    expect(PERSON).toMatch(/<FrostedGlass seed=\{album\.id\} \/>/);
     expect(PERSON).toMatch(/className="album-lock"/);
     expect(CSS).toMatch(/\.album-shut \{[^}]*position: absolute; inset: 0;/);
-    expect(CSS).toMatch(/\.album-glass \{[^}]*position: absolute; inset: 0;/);
-    const GLASS = read('../app/components/StainedGlass.tsx');
-    expect(GLASS).toMatch(/stainedGlass\(seed/);
+    expect(CSS).toMatch(/\.album-frost \{[^}]*position: absolute; inset: 0;/);
+    const FROST = read('../app/components/FrostedGlass.tsx');
+    expect(FROST).toMatch(/frostedGlass\(seed\)/);
     // The cover itself is the same component the cards above use, so an
     // expired URL leaves a flat rectangle rather than a broken-image glyph.
     expect(PERSON).toMatch(/<CoverImage src=\{album\.cover\} sources=\{\[\]\} \/>/);

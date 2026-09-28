@@ -59,7 +59,7 @@ import type { Standing } from '@/people';
 import { Avatar } from './Avatar';
 import { CoverImage } from './CoverImage';
 import { EventCard } from './EventCard';
-import { StainedGlass } from './StainedGlass';
+import { FrostedGlass } from './FrostedGlass';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -491,17 +491,17 @@ export function PersonView({
                     {/*
                       A shut album is not an empty one.
 
-                      A window of coloured glass seeded by the album, with the
-                      padlock an album's own header wears on a roundel of lead
-                      — the same window the phone draws — so a card with no
-                      photograph in it reads as lit from the other side rather
+                      Colour behind frosted glass, seeded by the album, with
+                      the padlock an album's own header wears — the same pane
+                      the phone draws — so a card with no photograph in it
+                      reads as something lit that you cannot see into rather
                       than as a photograph that failed to arrive. An unlocked
                       album with no cover yet keeps the flat rectangle: nothing
                       is being withheld there.
                     */}
                     {album.locked && (
                       <span className="album-shut" aria-hidden="true">
-                        <StainedGlass seed={album.id} />
+                        <FrostedGlass seed={album.id} />
                         <svg
                           className="album-lock"
                           width="30"

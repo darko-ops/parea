@@ -56,7 +56,7 @@ import {
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import { HangingTab, TAB_H } from './HangingTab';
 import { Back, RoundButton } from './RoundButton';
-import { StainedGlass } from './StainedGlass';
+import { FrostedGlass } from './FrostedGlass';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -643,11 +643,11 @@ export function PersonScreen({
                 >
                   {item.locked ? (
                     /*
-                      Shut, and lit from the other side: a window of coloured
-                      glass seeded by the album, with the padlock an album's
-                      own header wears. See `StainedGlass`.
+                      Shut, and lit from the other side: colour behind frosted
+                      glass, seeded by the album, with the padlock an album's
+                      own header wears. See `FrostedGlass`.
                     */
-                    <StainedGlass seed={item.id} style={styles.tile} />
+                    <FrostedGlass seed={item.id} style={styles.tile} />
                   ) : item.cover ? (
                     <Image
                       source={{ uri: item.cover }}
