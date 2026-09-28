@@ -45,7 +45,19 @@ export async function POST(request: Request) {
 
   const admitted = admit(Buffer.from(await request.arrayBuffer()), MAX_BYTES);
   if (!admitted.ok) {
+    console.warn('moment refused', { error: admitted.error });
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });
+  }
+  /*
+   * HEIC and AVIF pass the sniff — they are accepted *event* photos, which the
+   * deriver decodes — but this tier's libvips has no HEVC or AV1 decoder, so
+   * sharp would refuse them below as "not an image". Said as what it is
+   * instead: a well-formed photo in a format this route cannot read, which a
+   * client can turn into a sentence.
+   */
+  if (admitted.mime === 'image/heic' || admitted.mime === 'image/avif') {
+    console.warn('moment refused', { error: 'unsupported_type', mime: admitted.mime });
+    return NextResponse.json({ error: 'unsupported_type' }, { status: 415 });
   }
 
   let out: { data: Buffer; info: { width: number; height: number } };
@@ -56,7 +68,13 @@ export async function POST(request: Request) {
       .resize({ width: EDGE, height: EDGE, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 84, mozjpeg: true })
       .toBuffer({ resolveWithObject: true });
-  } catch {
+  } catch (err) {
+    console.warn('moment refused', {
+      error: 'not_an_image',
+      mime: admitted.mime,
+      bytes: admitted.bytes.byteLength,
+      reason: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: 'not_an_image' }, { status: 400 });
   }
 

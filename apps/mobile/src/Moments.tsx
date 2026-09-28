@@ -93,6 +93,18 @@ async function pickOne(): Promise<string | null> {
   const picked = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
+    /*
+     * A JPEG, not the HEIC the camera wrote.
+     *
+     * Without this the picker hands back the original file, which on an
+     * iPhone is HEIC — and the server's decoder cannot read HEIC, so every
+     * moment came back "not an image". The avatar never met this because its
+     * crop re-encodes as JPEG on the way out. `Compatible` asks the system for
+     * its most compatible representation, which is the same photograph
+     * transcoded before it leaves the phone.
+     */
+    preferredAssetRepresentationMode:
+      ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
   });
   if (picked.canceled || !picked.assets[0]) return null;
   return picked.assets[0].uri;

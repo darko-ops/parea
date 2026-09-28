@@ -48,7 +48,7 @@ export function AddMoment() {
       res?.status === 413
         ? 'That photo is too large.'
         : res?.status === 415
-          ? 'That is not a photo we can read.'
+          ? 'That photo is in a format we cannot read. Try a JPEG or PNG.'
           : 'Could not share it. Try again.',
     );
   }
