@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
      than shared, like every other pair of numbers these screens hold in
      common — there is no stylesheet between two React Native files, and
      `groups-tab.test.ts` is what keeps the two honest. */
-  tile: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' },
+  tile: { width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' },
   tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
   tileMeta: { fontSize: 12.5 },

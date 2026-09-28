@@ -29,7 +29,7 @@ import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-nat
 import { Glyph } from './Glyph';
 
 const W = 160;
-const H = 120;
+const H = 150;
 /** The roundel's edge, and the pill it runs out to. Wide enough for "Ask to join". */
 const ROUND = 38;
 const PILL = 112;

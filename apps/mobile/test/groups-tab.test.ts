@@ -354,7 +354,7 @@ describe('what a group shows when you open it', () => {
     expect(PROFILE).toMatch(/const COLUMNS = 2;/);
     // And the tile itself, number for number.
     for (const rule of [
-      /tile: \{ width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' \}/,
+      /tile: \{ width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' \}/,
       /tileName: \{ fontSize: 14, fontWeight: '600', marginTop: 6 \}/,
       /tileMeta: \{ fontSize: 12\.5 \}/,
     ]) {

@@ -1255,7 +1255,7 @@ const styles = StyleSheet.create({
   /* Two across with gutters: these are cards of separate evenings, not one
      object the way a wall of photographs would be. */
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  tile: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' },
+  tile: { width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' },
   tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
   /* Under the picture rather than over it. A scrim block across the bottom of
      every tile makes a shelf read as captioned stock photography, and there is

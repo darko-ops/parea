@@ -279,7 +279,7 @@ describe('the shape of somebody else’s page', () => {
       expect(source).toMatch(/const COLUMNS = 2;/);
       expect(source).toMatch(/contentFit="cover"/);
       expect(source).toMatch(
-        /tile: \{ width: '100%', height: 120, borderRadius: 12, backgroundColor: '#8881' \}/,
+        /tile: \{ width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' \}/,
       );
       expect(source).toMatch(/tileMeta: \{ fontSize: 12\.5 \}/);
     }
