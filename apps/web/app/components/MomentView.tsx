@@ -38,6 +38,9 @@ export type MomentSubject = {
 
 const HOME = '/events';
 
+/** How long each moment is on screen before the next one comes. */
+const MOMENT_SECONDS = 20;
+
 export function MomentView({
   moment,
   query,
@@ -114,6 +117,37 @@ export function MomentView({
 
   const { ref, failed, onError } = useImageFailure(moment.src);
 
+  /*
+   * Each moment has `MOMENT_SECONDS`, then the next one comes; after the
+   * last, back to where the viewer was opened from. The line at the foot
+   * fills as the time goes.
+   *
+   * Counted in frames rather than set as one timer, so the clock can hold:
+   * while the ⋯ menu is open — somebody deciding what to do about a picture
+   * should not have it taken away mid-decision — and while the tab is not
+   * being looked at, which is time nobody spent on this moment.
+   */
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    let spent = 0;
+    let last = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const held = document.hidden || document.querySelector('[role="menu"]') !== null;
+      if (!held) spent += now - last;
+      last = now;
+      const done = Math.min(1, spent / (MOMENT_SECONDS * 1000));
+      setElapsed(done);
+      if (done >= 1) {
+        location.assign(next ? href(next.id) : home);
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [moment.id, next, href, home]);
+
   return (
     <main className="photo-page moment-page">
       <header className="photo-head">
@@ -133,16 +167,6 @@ export function MomentView({
         <Step href={previous ? href(previous.id) : null} glyph={'←'} label="Previous moment" />
         <Step href={next ? href(next.id) : null} glyph={'→'} label="Next moment" />
       </header>
-
-      <div className="moment-nav-wrap">
-        <MomentStrip
-          moments={stream.moments}
-          at={stream.at}
-          by={stream.by}
-          current={moment.id}
-          label="Moments"
-        />
-      </div>
 
       <div className="photo-body">
         <div className="photo-main">
@@ -216,6 +240,25 @@ export function MomentView({
             </span>
           </div>
         </div>
+      </div>
+
+      {/*
+        At the foot of the page: how much of this moment's time has gone, and
+        the stream to step through. The picture keeps the top.
+      */}
+      <div className="moment-nav-wrap">
+        <div className="moment-time" aria-hidden="true">
+          <div className="moment-time-fill" style={{ width: `${Math.round(elapsed * 1000) / 10}%` }} />
+        </div>
+        {stream.moments.length > 1 && (
+          <MomentStrip
+            moments={stream.moments}
+            at={stream.at}
+            by={stream.by}
+            current={moment.id}
+            label="Moments"
+          />
+        )}
       </div>
     </main>
   );

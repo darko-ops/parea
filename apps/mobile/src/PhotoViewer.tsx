@@ -1328,7 +1328,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   shot: { width: '100%', height: '100%' },
   /* Under the top row: its 58 plus the 34 of a disc and a gap. */
-  tiles: { position: 'absolute', top: 58 + 34 + 10, left: 0, right: 0 },
+  /* At the foot of the screen, over the row the save button sits on — the
+     picture keeps the top, and the way through the stream is where the thumb
+     already is. */
+  tiles: { position: 'absolute', bottom: 34 + 44 + 14, left: 0, right: 0 },
   top: {
     position: 'absolute',
     top: 58,

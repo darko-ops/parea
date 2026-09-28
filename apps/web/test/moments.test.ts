@@ -350,3 +350,21 @@ describe('on Home, one way in', () => {
     expect(read('components/AccountView.tsx')).toMatch(/<MomentStrip/);
   });
 });
+
+describe('the viewer', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`../app/${path}`, import.meta.url)), 'utf8');
+
+  it('gives each moment twenty seconds, shows the time going, and walks on', () => {
+    const view = stripComments(read('components/MomentView.tsx'));
+    expect(view).toMatch(/const MOMENT_SECONDS = 20;/);
+    // Held while the ⋯ menu is open or the tab is hidden.
+    expect(view).toMatch(/const held = document\.hidden \|\| document\.querySelector\('\[role="menu"\]'\) !== null;/);
+    // Then the next one, or back where it was opened from after the last.
+    expect(view).toMatch(/location\.assign\(next \? href\(next\.id\) : home\);/);
+    // The line and the strip are at the foot, after the picture.
+    expect(view.indexOf('className="photo-body"')).toBeLessThan(view.indexOf('className="moment-nav-wrap"'));
+    expect(view).toMatch(/className="moment-time-fill"/);
+  });
+});
+

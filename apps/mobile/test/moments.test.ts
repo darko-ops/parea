@@ -175,4 +175,17 @@ describe('moments', () => {
     expect(APP).toMatch(/top=\{homeTop\}/);
     expect(EVENTS).toMatch(/if \(top > 0\) scroller\.current\?\.scrollTo\(\{ y: 0, animated: true \}\);/);
   });
+
+  it('gives each moment twenty seconds, shows the time going, and walks on', () => {
+    expect(MOMENTS).toMatch(/export const MOMENT_SECONDS = 20;/);
+    // The line fills from empty to full over the moment's time...
+    expect(MOMENTS).toMatch(/outputRange: \['0%', '100%'\]/);
+    // ...then the next one comes, and after the last the viewer closes.
+    expect(MOMENTS).toMatch(/if \(at < last\) setIndex\(at \+ 1\);\s*else onClose\(\);/);
+    // Each new moment starts its own clock; the sheet holds it.
+    expect(MOMENTS).toMatch(/progress\.setValue\(0\);\s*\}, \[progress, showing\]\);/);
+    expect(MOMENTS).toMatch(/if \(!showing \|\| options\) \{\s*progress\.stopAnimation\(\);/);
+    // The strip and the line are at the foot of the screen.
+    expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: 34 \+ 44 \+ 14, left: 0, right: 0 \}/);
+  });
 });

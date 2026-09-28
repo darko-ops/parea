@@ -339,6 +339,9 @@ export function MomentsBar({
   );
 }
 
+/** How long each moment is on screen before the next one comes. */
+export const MOMENT_SECONDS = 20;
+
 /** The drift's length, one way. Slow enough to be felt rather than watched. */
 const DRIFT_MS = 14_000;
 
@@ -798,6 +801,45 @@ export function MomentsViewer({
     });
   }, [api, onSeen, seenId]);
 
+  /*
+   * Each moment has `MOMENT_SECONDS` on screen, then the next one comes; after
+   * the last, the viewer closes. The line above the tiles fills as the time
+   * goes, so how long is left is something you can see rather than guess.
+   *
+   * A new moment — swiped to, tapped in the strip, or arrived at — starts its
+   * own clock from empty. The clock holds while the ⋯ sheet is open, since
+   * somebody deciding what to do about a picture should not have it taken
+   * away mid-decision, and carries on from where it was when the sheet shuts.
+   */
+  const progress = useRef(new Animated.Value(0)).current;
+  const showing = moment?.id ?? null;
+  const last = moments.length - 1;
+  useEffect(() => {
+    progress.setValue(0);
+  }, [progress, showing]);
+  useEffect(() => {
+    if (!showing || options) {
+      progress.stopAnimation();
+      return;
+    }
+    let left = MOMENT_SECONDS * 1000;
+    progress.stopAnimation((value) => {
+      left = Math.max(0, (1 - value) * MOMENT_SECONDS * 1000);
+    });
+    const run = Animated.timing(progress, {
+      toValue: 1,
+      duration: left,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
+    run.start(({ finished }) => {
+      if (!finished) return;
+      if (at < last) setIndex(at + 1);
+      else onClose();
+    });
+    return () => run.stop();
+  }, [at, last, onClose, options, progress, showing]);
+
   if (!photo || !moment) return null;
   const owner = moment.author;
 
@@ -853,9 +895,25 @@ export function MomentsViewer({
         index={at}
         onIndex={setIndex}
         strip={
-          moments.length > 1 ? (
-            <MomentsNav moments={moments} at={at} t={t} onJump={setIndex} />
-          ) : undefined
+          <View>
+            {/* How much of this moment's time has gone. */}
+            <View style={styles.timeTrack}>
+              <Animated.View
+                style={[
+                  styles.timeFill,
+                  {
+                    width: progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]}
+              />
+            </View>
+            {moments.length > 1 && (
+              <MomentsNav moments={moments} at={at} t={t} onJump={setIndex} />
+            )}
+          </View>
         }
       />
 
@@ -978,6 +1036,17 @@ const styles = StyleSheet.create({
    */
   /* Casts the shadow, and holds the spacing to the rolls. */
   barShadow: { borderRadius: 14, marginBottom: -14 },
+  /* The viewer's clock: a hairline track, and white filling it as the time
+     goes. Over the tiles, at the foot of the screen. */
+  timeTrack: {
+    height: 2.5,
+    marginHorizontal: 16,
+    marginBottom: 2,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  timeFill: { height: '100%', backgroundColor: '#fff' },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',

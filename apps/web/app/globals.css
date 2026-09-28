@@ -1128,6 +1128,12 @@ button.secondary {
 .moment-nav-wrap { padding: 0 28px; }
 @media (max-width: 720px) { .moment-nav-wrap { padding: 0 16px; } }
 .moment-nav { padding: 6px 0 12px; }
+/* The moment's clock: a hairline track, filling as its time goes. */
+.moment-time {
+  height: 3px; border-radius: 2px; overflow: hidden;
+  margin: 2px 0 10px; background: var(--line);
+}
+.moment-time-fill { height: 100%; background: var(--accent); }
 .moment-nav .moment-tile { opacity: 0.62; transition: opacity 120ms; }
 .moment-nav .moment-tile:hover { opacity: 0.9; }
 .moment-nav .moment-current { opacity: 1; }
