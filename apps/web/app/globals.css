@@ -1076,13 +1076,22 @@ button.secondary {
 }
 .moments-bar:hover { border-color: rgba(20, 23, 28, 0.14); }
 .moments-bar:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-/* The colour, under the frost: three soft blooms at the right-hand end. */
+/* The colour, under the frost: three soft blooms towards the right.
+
+   The layer spans the whole card — past its edges, so the drift never shows
+   where it stops — and is masked to nothing towards the left. It used to be
+   a block covering the right-hand part only, and on a wide desktop card its
+   left edge showed as a hard vertical line where the colour met the white:
+   the gradients inside it had not finished fading when the block ended. A
+   mask cannot end in an edge, at any width. */
 .moments-bar-bloom {
-  position: absolute; z-index: -2; top: -40%; bottom: -40%; right: -12%; width: 72%;
+  position: absolute; z-index: -2; inset: -40% -6%;
   background:
-    radial-gradient(42% 46% at 90% 82%, rgba(95, 212, 196, 0.62), rgba(95, 212, 196, 0) 100%),
-    radial-gradient(42% 46% at 68% 22%, rgba(167, 139, 250, 0.66), rgba(167, 139, 250, 0) 100%),
-    radial-gradient(46% 52% at 40% 72%, rgba(111, 124, 224, 0.6), rgba(111, 124, 224, 0) 100%);
+    radial-gradient(28% 70% at 92% 72%, rgba(95, 212, 196, 0.62), rgba(95, 212, 196, 0) 100%),
+    radial-gradient(30% 75% at 76% 28%, rgba(167, 139, 250, 0.66), rgba(167, 139, 250, 0) 100%),
+    radial-gradient(34% 80% at 60% 70%, rgba(111, 124, 224, 0.6), rgba(111, 124, 224, 0) 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 25%, #000 65%);
+  mask-image: linear-gradient(to right, transparent 25%, #000 65%);
   /* Caught up: a faint glow that holds still. */
   opacity: 0.4;
   transition: opacity 400ms;
