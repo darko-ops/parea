@@ -206,3 +206,5 @@ export function metaFor(
   const second = options.newest ? recency : (event.place ?? recency);
   return `${people} · ${second}`;
 }
+
+export { GLASS_COLOURS, GLASS_LEAD, stainedGlass, type GlassPane, type GlassWindow } from './glass';

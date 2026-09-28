@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ago, metaFor, mosaicLayout } from '../src';
+import { GLASS_COLOURS, ago, metaFor, mosaicLayout, stainedGlass } from '../src';
 
 const NOW = new Date('2026-08-11T21:00:00Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
@@ -116,5 +116,22 @@ describe('the mosaic shape', () => {
     // type system says so, and a negative or absurd length must not throw.
     expect(mosaicLayout(-1)).toEqual([]);
     expect(mosaicLayout(400)).toHaveLength(2);
+  });
+});
+
+describe('stainedGlass', () => {
+  it('is the same window for the same album, and a different one for another', () => {
+    expect(stainedGlass('album-1')).toEqual(stainedGlass('album-1'));
+    expect(stainedGlass('album-1')).not.toEqual(stainedGlass('album-2'));
+  });
+
+  it('fills the frame with coloured panes', () => {
+    const glass = stainedGlass('album-1', 4, 3);
+    expect(glass.width).toBe(96);
+    expect(glass.height).toBe(72);
+    // Every cell is one or two panes.
+    expect(glass.panes.length).toBeGreaterThanOrEqual(12);
+    expect(glass.panes.length).toBeLessThanOrEqual(24);
+    for (const pane of glass.panes) expect(GLASS_COLOURS).toContain(pane.fill);
   });
 });

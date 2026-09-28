@@ -54,9 +54,9 @@ import {
 } from 'react-native';
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
-import { Glyph } from './Glyph';
 import { HangingTab, TAB_H } from './HangingTab';
 import { Back, RoundButton } from './RoundButton';
+import { StainedGlass } from './StainedGlass';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -641,7 +641,14 @@ export function PersonScreen({
                     item.locked ? `${item.name}, private. Ask to join` : item.name
                   }
                 >
-                  {item.cover ? (
+                  {item.locked ? (
+                    /*
+                      Shut, and lit from the other side: a window of coloured
+                      glass seeded by the album, with the padlock an album's
+                      own header wears. See `StainedGlass`.
+                    */
+                    <StainedGlass seed={item.id} style={styles.tile} />
+                  ) : item.cover ? (
                     <Image
                       source={{ uri: item.cover }}
                       style={styles.tile}
@@ -650,20 +657,10 @@ export function PersonScreen({
                     />
                   ) : (
                     /*
-                      A locked album has no thumbnail to draw and it is not a
-                      picture that failed: a dashed empty tile, which is what is
-                      actually being said. The same tile stands in for an
-                      unlocked one that simply has no cover yet.
-
-                      The padlock tells the two apart, and it is the same glyph
-                      an album's own header wears to mean private — so the
-                      thing that means "shut" means it in one shape across the
-                      app. An empty unlocked album keeps the bare frame: there
-                      is nothing being withheld from anybody there.
+                      An open album with no cover yet: the bare dashed frame,
+                      because nothing is being withheld from anybody there.
                     */
-                    <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]}>
-                      {item.locked && <Glyph name="locked" size={22} color={t.dim} />}
-                    </View>
+                    <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]} />
                   )}
                 </Pressable>
                 <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
