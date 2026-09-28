@@ -18,7 +18,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Face } from './Faces';
-import { Filmstrip, Step } from './PhotoView';
+import type { WireMoment } from '@/moments';
+
+import { MomentStrip } from './MomentStrip';
+import { Step } from './PhotoView';
 import { Menu } from './Menu';
 import { useImageFailure } from './useImageFailure';
 
@@ -42,7 +45,7 @@ export function MomentView({
   position,
   previous,
   next,
-  strip,
+  stream,
 }: {
   moment: MomentSubject;
   /** Carried from step to step: whose moments, and the order held still. */
@@ -52,7 +55,13 @@ export function MomentView({
   position: { index: number; total: number };
   previous: { id: string; src: string } | null;
   next: { id: string; src: string } | null;
-  strip: { id: string; src: string }[];
+  /**
+   * The whole stream, as the tiles Home used to draw — here they are the map:
+   * where you are, what you have opened, what is left, and a way to any of
+   * them. `seen` is as of now, so the one you just left is already a
+   * hairline.
+   */
+  stream: { moments: WireMoment[]; at: string; by: string | null };
 }) {
   const href = useCallback((id: string) => `/moments/${id}?${query}`, [query]);
   const home = back?.href ?? HOME;
@@ -125,6 +134,16 @@ export function MomentView({
         <Step href={next ? href(next.id) : null} glyph={'→'} label="Next moment" />
       </header>
 
+      <div className="moment-nav-wrap">
+        <MomentStrip
+          moments={stream.moments}
+          at={stream.at}
+          by={stream.by}
+          current={moment.id}
+          label="Moments"
+        />
+      </div>
+
       <div className="photo-body">
         <div className="photo-main">
           <div
@@ -196,8 +215,6 @@ export function MomentView({
               </span>
             </span>
           </div>
-
-          <Filmstrip strip={strip} current={moment.id} href={href} other="Another moment" />
         </div>
       </div>
     </main>

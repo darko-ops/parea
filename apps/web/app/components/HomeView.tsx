@@ -6,8 +6,8 @@
  * The page used to be the word "Home" over a grid. It was accurate and it was
  * nobody's — the design's first complaint was that returning to it did not
  * feel like returning to your people, and the answer is that the people are
- * now the first thing on it: one strip of their moments above the rolls, all
- * of them in one stream rather than a square per person to open in turn.
+ * now the first thing on it: one way into their moments above the rolls,
+ * saying how many are new and nothing about whose they are.
  *
  * The row was a filter once: the same faces, and pressing one narrowed the
  * grid to the evenings that person was at. The shape was right and the verb
@@ -41,7 +41,7 @@ import { matches } from '@/search';
 import type { WireMoment } from '@/moments';
 
 import { CreateMenu } from './CreateMenu';
-import { MomentStrip } from './MomentStrip';
+import { MomentsBar } from './MomentsBar';
 import { SearchControl } from './SearchControl';
 
 
@@ -139,10 +139,10 @@ export function HomeView({
       </div>
 
       {/*
-        One stream of everybody's moments, in the server's order — see
-        `MomentStrip` for the tile and `orderStream` for why this order.
+        One way into everybody's moments, with nobody's name on it — see
+        `MomentsBar`. The tiles are inside the viewer now, as its map.
       */}
-      <MomentStrip moments={moments} at={momentsAt} label="Moments from your people" />
+      <MomentsBar moments={moments} at={momentsAt} />
 
       <div className="cards">{shown}</div>
 

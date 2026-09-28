@@ -28,10 +28,39 @@ describe('moments', () => {
     expect(VIEWER).toMatch(/\{talking && !plain && \(/);
   });
 
-  it('is one stream on Home, one tile per moment, in the server’s order', () => {
-    // Not a square per person: the strip maps the stream as it arrives and
-    // never sorts it — the order is `orderStream` on the server.
-    expect(EVENTS).toMatch(/<MomentsRow moments=\{moments\.moments\}/);
+  it('is one bar on Home: no names, no faces, no pictures', () => {
+    // Moments are one collective stream, so Home says only that there are
+    // moments and how many are new; who posted what is found out inside.
+    expect(EVENTS).toMatch(/<MomentsBar moments=\{moments\.moments\}/);
+    expect(EVENTS).not.toMatch(/<MomentsRow/);
+    const BAR = MOMENTS.slice(
+      MOMENTS.indexOf('export function MomentsBar'),
+      MOMENTS.indexOf('export function MomentsRow'),
+    );
+    expect(BAR).not.toMatch(/author|thumb|ExpoImage|IconRing|MomentTile/);
+    expect(BAR).toMatch(/\{news\} new/);
+    // New is the accent — a dot and a brighter edge — never the icon's ring.
+    expect(BAR).toMatch(/borderColor: news > 0 \? t\.accent : t\.line/);
+    // And it opens on the first one new to you, in the stream's order.
+    expect(BAR).toMatch(/const fresh = moments\.filter\(\(m\) => !m\.seen && !m\.mine\);/);
+    expect(BAR).toMatch(/\(fresh\[0\] \?\? moments\[0\]\)!\.id/);
+    expect(BAR).toMatch(/if \(moments\.length === 0\) return null;/);
+  });
+
+  it('walks the stream inside the viewer with the tiles across the top', () => {
+    // The same tiles, as a position: the one on screen marked, pressing one
+    // jumps there, and the pager follows an index it did not set itself.
+    expect(MOMENTS).toMatch(/<MomentsNav moments=\{moments\} at=\{at\} t=\{t\} onJump=\{setIndex\} \/>/);
+    expect(MOMENTS).toMatch(/active=\{i === at\}/);
+    expect(MOMENTS).toMatch(/onPress=\{\(\) => onJump\(i\)\}/);
+    expect(MOMENTS).toMatch(/opacity: pressed \? 0\.5 : faded \? 0\.55 : 1/);
+    expect(VIEWER).toMatch(/strip\?: React\.ReactNode;/);
+    expect(VIEWER).toMatch(/pager\.current\?\.scrollToOffset\(\{ offset: index \* width, animated: false \}\)/);
+  });
+
+  it('keeps one tile per moment, in the server’s order, wherever tiles are drawn', () => {
+    // The strip maps the stream as it arrives and never sorts it — the order
+    // is `orderStream` on the server.
     expect(EVENTS).toMatch(/onMoment=\{onCreateMoment\}/);
     expect(MOMENTS).toMatch(/\{moments\.map\(\(moment\) => \(\s*<MomentTile key=\{moment\.id\}/);
     expect(MOMENTS).not.toMatch(/\.sort\(/);
@@ -46,7 +75,7 @@ describe('moments', () => {
 
   it('rings the unseen in the app icon’s field, and the seen in a hairline', () => {
     expect(MOMENTS).toMatch(
-      /moment\.seen \? \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{SEEN_LINE\} color=\{t\.line\} \/>\s*\) : \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{RING_LINE\} \/>/,
+      /moment\.seen \? \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{SEEN_LINE\} color=\{hairline\} \/>\s*\) : \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{RING_LINE\} \/>/,
     );
   });
 

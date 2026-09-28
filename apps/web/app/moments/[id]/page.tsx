@@ -13,7 +13,7 @@
  */
 
 import { schema } from '@parea/core';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { MomentView } from '@/../app/components/MomentView';
@@ -63,6 +63,28 @@ export default async function MomentPage({
   const here = all[index]!;
   await markSeen(getDb(), actorId, here.id);
 
+  /*
+   * The order is held at `at`, but the map is drawn as of now: a moment
+   * opened a step ago is a hairline already, so the strip says what is left.
+   */
+  const opened = new Set(
+    (
+      await getDb()
+        .select({ id: schema.momentViews.momentId })
+        .from(schema.momentViews)
+        .where(
+          and(
+            eq(schema.momentViews.actorId, actorId),
+            inArray(
+              schema.momentViews.momentId,
+              all.map((m) => m.id),
+            ),
+          ),
+        )
+    ).map((row) => row.id),
+  );
+  const mapped = all.map((m) => ({ ...m, seen: m.seen || opened.has(m.id) }));
+
   const zone = await readerZone();
   const exact = new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
@@ -97,7 +119,7 @@ export default async function MomentPage({
         position={{ index, total: all.length }}
         previous={step(all[index - 1])}
         next={step(all[index + 1])}
-        strip={all.map((m) => ({ id: m.id, src: m.thumb }))}
+        stream={{ moments: mapped, at: held, by: by ?? null }}
       />
     </Shell>
   );

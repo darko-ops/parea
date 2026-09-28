@@ -477,6 +477,7 @@ export function PhotoViewer({
   index,
   onIndex,
   plain = false,
+  strip,
 }: {
   api: Api;
   /** Which album, for posting a comment against this photograph. */
@@ -574,6 +575,14 @@ export function PhotoViewer({
    * that are rows in it, and the star, which is a shortlist of an album.
    */
   plain?: boolean;
+  /**
+   * Something to draw under the top chrome, shown and hidden with it.
+   *
+   * Moments put their row of tiles here, as the way through the stream: where
+   * you are, what you have seen, what is left. A roll has its filmstrip in the
+   * grid behind this screen and passes nothing.
+   */
+  strip?: React.ReactNode;
 }) {
   const { width, height } = useWindowDimensions();
 
@@ -617,13 +626,29 @@ export function PhotoViewer({
    * what the chrome and the comment box are about, and changing those under a
    * finger that is still moving is worse than changing them a moment late.
    */
+  const pager = useRef<FlatList<FeedPhoto>>(null);
+  /** Where the pager itself last came to rest — as opposed to being sent. */
+  const settled = useRef(index);
+
   const onSettled = useCallback(
     (offset: number) => {
       const at = Math.round(offset / width);
+      settled.current = at;
       if (at !== index && at >= 0 && at < photos.length) onIndex(at);
     },
     [index, onIndex, photos.length, width],
   );
+
+  /*
+   * An index that changed without the pager moving — somebody pressed a tile
+   * in `strip` — is followed by moving the pager there. One the pager reported
+   * itself is already where it is, and scrolling to it again would be a jolt.
+   */
+  useEffect(() => {
+    if (index === settled.current) return;
+    settled.current = index;
+    pager.current?.scrollToOffset({ offset: index * width, animated: false });
+  }, [index, width]);
 
   const layout = useCallback(
     (_: unknown, at: number) => ({ length: width, offset: width * at, index: at }),
@@ -845,6 +870,7 @@ export function PhotoViewer({
         everything before it.
       */}
       <FlatList
+        ref={pager}
         data={photos}
         horizontal
         pagingEnabled
@@ -997,6 +1023,12 @@ export function PhotoViewer({
             </Pressable>
             </View>
           </View>
+
+          {strip && (
+            <View style={styles.tiles} pointerEvents="box-none">
+              {strip}
+            </View>
+          )}
 
           {/*
             Who said something, bottom left. What you could say, bottom right.
@@ -1295,6 +1327,8 @@ const styles = StyleSheet.create({
      around it, and a light grey surround changes what the picture looks like. */
   root: { flex: 1, backgroundColor: '#000' },
   shot: { width: '100%', height: '100%' },
+  /* Under the top row: its 58 plus the 34 of a disc and a gap. */
+  tiles: { position: 'absolute', top: 58 + 34 + 10, left: 0, right: 0 },
   top: {
     position: 'absolute',
     top: 58,

@@ -27,6 +27,8 @@ import {
   removeMoment,
 } from '@/moments';
 
+import { stripComments } from './support/source';
+
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
 );
@@ -303,3 +305,38 @@ describe('the ring', () => {
   });
 });
 
+
+describe('on Home, one way in', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`../app/${path}`, import.meta.url)), 'utf8');
+
+  it('is a single bar with a count, and no names or pictures', () => {
+    const home = read('components/HomeView.tsx');
+    expect(home).toMatch(/<MomentsBar moments=\{moments\} at=\{momentsAt\} \/>/);
+    expect(home).not.toMatch(/<MomentStrip/);
+
+    const bar = stripComments(read('components/MomentsBar.tsx'));
+    expect(bar).toMatch(/\{unseen\.length\} new/);
+    // Nobody's identity and no preview: the bar never touches an author or a
+    // picture, and never draws one element per moment.
+    expect(bar).not.toMatch(/author|avatar|thumb|src=|<img|Face/);
+    expect(bar).not.toMatch(/moments\.map\(/);
+    // It opens on the first one you have not seen.
+    expect(bar).toMatch(/const start = unseen\[0\] \?\? moments\[0\]!/);
+  });
+
+  it('marks new with a dot and an edge, not the icon ring', () => {
+    const css = readFileSync(fileURLToPath(new URL('../app/globals.css', import.meta.url)), 'utf8');
+    const bar = css.slice(css.indexOf('.moments-bar {'), css.indexOf('.moment-nav-wrap'));
+    expect(bar).toMatch(/\.moments-bar-dot/);
+    expect(bar).not.toMatch(/radial-gradient/);
+  });
+
+  it('puts the tiles inside the viewer, as its map', () => {
+    const view = read('components/MomentView.tsx');
+    expect(view).toMatch(/<MomentStrip[\s\S]*?current=\{moment\.id\}/);
+    // Profiles keep their strip as it was.
+    expect(read('components/PersonView.tsx')).toMatch(/<MomentStrip/);
+    expect(read('components/AccountView.tsx')).toMatch(/<MomentStrip/);
+  });
+});

@@ -1060,6 +1060,42 @@ button.secondary {
 .add-moment-small { font-size: 14px; color: var(--dim); }
 .add-moment-again { align-self: center; font-size: 14px; color: var(--accent); }
 
+/* Moments on Home: one bar, above the rolls. New is a dot and a brighter
+   edge — the icon's colours are for the viewer, where they sit on a picture. */
+.moments-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 18px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: var(--card); color: var(--fg); text-decoration: none;
+}
+.moments-bar:hover { border-color: var(--dim-soft); }
+.moments-bar:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.moments-bar-new { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.moments-bar-name { font-size: 15px; font-weight: 600; }
+.moments-bar-count {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; color: var(--accent-ink);
+}
+.moments-bar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.moments-bar-go { margin-left: auto; color: var(--dim-soft); font-size: 20px; line-height: 1; }
+
+/* Inside the viewer the tiles are its map: where you are, what you have
+   seen, what is left. The one you are on is at full strength with a bar
+   under it; the rest step back a little. */
+.moment-nav-wrap { padding: 0 28px; }
+@media (max-width: 720px) { .moment-nav-wrap { padding: 0 16px; } }
+.moment-nav { padding: 6px 0 12px; }
+.moment-nav .moment-tile { opacity: 0.62; transition: opacity 120ms; }
+.moment-nav .moment-tile:hover { opacity: 0.9; }
+.moment-nav .moment-current { opacity: 1; }
+.moment-nav .moment-current .person-name { color: var(--fg); font-weight: 600; }
+/* Every tile keeps the bar's room so the row does not jump as it moves. */
+.moment-nav .moment-tile::after {
+  content: ''; width: 18px; height: 3px; border-radius: 2px; margin-top: -3px;
+  background: transparent;
+}
+.moment-nav .moment-current::after { background: var(--accent); }
+
 /* The `+` sheet: New, three choices, Cancel. The app's, drawn on a page. */
 .new-sheet-back {
   position: fixed; inset: 0; z-index: 60;

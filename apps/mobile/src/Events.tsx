@@ -62,7 +62,7 @@ import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
 import { Notifications, PageHead } from './PageHead';
 import { ROUND, RoundButton } from './RoundButton';
-import { MomentsRow, MomentsViewer, useMoments } from './Moments';
+import { MomentsBar, MomentsViewer, useMoments } from './Moments';
 import { IconField } from './IconField';
 import { StartSomething } from './StartSomething';
 import { Wordmark } from './Wordmark';
@@ -1084,7 +1084,11 @@ export function HomeTab({
         />
       )}
 
-      <MomentsRow moments={moments.moments} t={t} onOpen={setWatching} />
+      {/*
+        One bar, not the tiles: Home says there are moments and how many are
+        new, and who posted what is found out inside. See `MomentsBar`.
+      */}
+      <MomentsBar moments={moments.moments} t={t} onOpen={setWatching} />
 
       {watching && (
         <MomentsViewer

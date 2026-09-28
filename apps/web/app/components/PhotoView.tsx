@@ -410,17 +410,14 @@ function Subject({ photo }: { photo: PhotoSubject }) {
  * scrollable ancestor to suit itself — on this page that means the window
  * jumping down to the strip on arrival, past the photograph somebody opened.
  */
-export function Filmstrip({
+function Filmstrip({
   strip,
   current,
   href,
-  other = 'Another photo in this roll',
 }: {
   strip: { id: string; src: string }[];
   current: string;
   href: (id: string) => string;
-  /** What a step to one of the others is called. A moment is not in a roll. */
-  other?: string;
 }) {
   const rail = useRef<HTMLDivElement>(null);
 
@@ -442,7 +439,7 @@ export function Filmstrip({
           data-current={one.id === current}
           className={`photo-strip-one${one.id === current ? ' photo-strip-on' : ''}`}
           aria-current={one.id === current ? 'true' : undefined}
-          aria-label={one.id === current ? 'This photo' : other}
+          aria-label={one.id === current ? 'This photo' : 'Another photo in this roll'}
         >
           {/* Decorative: the strip is a position, and eight alt texts reading
               "another photo" is eight things read out before the one that

@@ -267,6 +267,62 @@ function first(name: string): string {
   return name.replace('@', '').trim().split(/\s+/)[0] || name;
 }
 
+/**
+ * Home's way into Moments: one bar, not a row of them.
+ *
+ * Moments are one collective stream, and a row of tiles on Home — each with a
+ * face and a name on it — read as a shelf of individual people's stories,
+ * which is the thing they are not. So Home says only that there are moments
+ * and how many are new to you. No names, no faces, no pictures: who posted
+ * what is something you find out inside, one moment at a time.
+ *
+ * New is said with the accent — a dot, the count, a brighter edge — and not
+ * with the icon's ring, which belongs to the tiles inside. Nothing to open is
+ * nothing drawn.
+ */
+export function MomentsBar({
+  moments,
+  t,
+  onOpen,
+}: {
+  moments: Moment[];
+  t: GroupTheme;
+  /** Where to start: the first one new to you, else the first. */
+  onOpen: (momentId: string) => void;
+}) {
+  if (moments.length === 0) return null;
+  const fresh = moments.filter((m) => !m.seen && !m.mine);
+  const start = (fresh[0] ?? moments[0])!.id;
+  const news = fresh.length;
+
+  return (
+    <Pressable
+      onPress={() => onOpen(start)}
+      accessibilityRole="button"
+      accessibilityLabel={news > 0 ? `Moments, ${news} new` : 'Moments'}
+      style={({ pressed }) => [
+        styles.bar,
+        {
+          backgroundColor: t.card,
+          borderColor: news > 0 ? t.accent : t.line,
+          opacity: pressed ? 0.6 : 1,
+        },
+      ]}
+    >
+      <Text style={[styles.barTitle, { color: t.fg }]}>Moments</Text>
+      <View style={styles.barEnd}>
+        {news > 0 && (
+          <>
+            <View style={[styles.barDot, { backgroundColor: t.accent }]} />
+            <Text style={[styles.barNew, { color: t.accent }]}>{news} new</Text>
+          </>
+        )}
+        <Text style={[styles.barChevron, { color: t.dim }]}>›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function MomentsRow({
   moments,
   t,
@@ -318,22 +374,46 @@ function MomentTile({
   moment,
   t,
   onPress,
+  dark = false,
+  active,
 }: {
   moment: Moment;
   t: GroupTheme;
   onPress: () => void;
+  /** On the viewer's black glass rather than the page. */
+  dark?: boolean;
+  /**
+   * In the viewer's strip: whether this is the one on screen. Undefined
+   * anywhere a tile is not a position in something.
+   */
+  active?: boolean;
 }) {
   const who = moment.mine ? 'You' : first(moment.author.name);
+  // The page's colours, or the glass's: a hairline and a gap that are the
+  // page's white would be a white box drawn on somebody's photograph.
+  const ground = dark ? '#000' : t.bg;
+  const ink = dark ? '#fff' : t.fg;
+  const hairline = dark ? 'rgba(255,255,255,0.35)' : t.line;
+  /*
+   * Where you are in the stream: the one on screen at full strength with a
+   * short bar under it, the rest stepped back. Quiet on purpose — the
+   * photograph behind the strip is what this screen is about.
+   */
+  const faded = active === false;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityState={active === undefined ? undefined : { selected: active }}
       accessibilityLabel={`${moment.mine ? 'Your' : `${who}'s`} moment${moment.seen ? '' : ', new'}`}
-      style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [
+        styles.tile,
+        { opacity: pressed ? 0.5 : faded ? 0.55 : 1 },
+      ]}
     >
       <View style={styles.frame}>
         {moment.seen ? (
-          <IconRing size={RING} radius={RING_RADIUS} thickness={SEEN_LINE} color={t.line} />
+          <IconRing size={RING} radius={RING_RADIUS} thickness={SEEN_LINE} color={hairline} />
         ) : (
           <IconRing size={RING} radius={RING_RADIUS} thickness={RING_LINE} />
         )}
@@ -345,7 +425,7 @@ function MomentTile({
         />
         {/* Whose, on the corner: a face, ringed in the page's colour so it
             reads as sitting on the photograph rather than being part of it. */}
-        <View style={[styles.badge, { borderColor: t.bg, backgroundColor: t.card }]}>
+        <View style={[styles.badge, { borderColor: ground, backgroundColor: t.card }]}>
           {moment.author.avatar ? (
             <ExpoImage
               source={{ uri: moment.author.avatar }}
@@ -360,15 +440,68 @@ function MomentTile({
           )}
         </View>
       </View>
-      <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
+      <Text style={[styles.name, { color: ink }]} numberOfLines={1}>
         {who}
       </Text>
+      {active !== undefined && (
+        <View style={[styles.here, { backgroundColor: active ? ink : 'transparent' }]} />
+      )}
     </Pressable>
   );
 }
 
 /**
- * Moments, opened from the row: the roll's own viewer, over everything.
+ * The stream's tiles, across the top of the viewer: the way through it.
+ *
+ * The same tiles as a profile's strip, doing a different job — they are a
+ * position here. Seen ones wear the hairline, the rest the icon's ring, the
+ * one on screen is at full strength with a bar under it, and pressing any of
+ * them goes there. Kept scrolled so the one on screen is in the middle.
+ */
+function MomentsNav({
+  moments,
+  at,
+  t,
+  onJump,
+}: {
+  moments: Moment[];
+  at: number;
+  t: GroupTheme;
+  onJump: (index: number) => void;
+}) {
+  const { width } = useWindowDimensions();
+  const scroller = useRef<ScrollView>(null);
+  const step = RING + BADGE_HANG + NAV_GAP;
+
+  useEffect(() => {
+    const offset = ROW_PAD + at * step - (width / 2 - (RING + BADGE_HANG) / 2);
+    scroller.current?.scrollTo({ x: Math.max(0, offset), animated: true });
+  }, [at, step, width]);
+
+  return (
+    <ScrollView
+      ref={scroller}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={[styles.row, styles.nav]}
+    >
+      {moments.map((moment, i) => (
+        <MomentTile
+          key={moment.id}
+          moment={moment}
+          t={t}
+          dark
+          active={i === at}
+          onPress={() => onJump(i)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+/**
+ * Moments, opened from Home's bar or a profile's strip: the roll's own
+ * viewer, over everything, with the stream's tiles across the top.
  */
 export function MomentsViewer({
   api,
@@ -509,6 +642,11 @@ export function MomentsViewer({
         photos={photos}
         index={at}
         onIndex={setIndex}
+        strip={
+          moments.length > 1 ? (
+            <MomentsNav moments={moments} at={at} t={t} onJump={setIndex} />
+          ) : undefined
+        }
       />
 
       {/*
@@ -579,6 +717,8 @@ const BADGE_HANG = 5;
  * corner, so no part of a tile ever meets the edge the scroll view clips at.
  */
 const ROW_PAD = BADGE_HANG + 3;
+/** Between tiles in the viewer's strip, which is also the step it scrolls by. */
+const NAV_GAP = 12;
 
 const styles = StyleSheet.create({
   /*
@@ -617,6 +757,30 @@ const styles = StyleSheet.create({
   badgeImage: { width: '100%', height: '100%' },
   badgeLetter: { fontSize: 10, fontWeight: '700' },
   name: { fontSize: 12, lineHeight: 16, width: RING, textAlign: 'center' },
+  /* The bar under the one on screen. Every tile in the viewer's strip has the
+     slot, so the row does not jump by three points when it moves. */
+  here: { width: 18, height: 3, borderRadius: 2, alignSelf: 'center', marginRight: BADGE_HANG },
+  nav: { gap: NAV_GAP },
+  /*
+   * Home's bar. The card's surface and hairline, the rolls' own radius, and
+   * pulled up against them like the strip it replaces: Home spaces every child
+   * 26 apart, and this belongs to the list below it, so 12.
+   */
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: -14,
+  },
+  barTitle: { fontSize: 16, fontWeight: '600' },
+  barEnd: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  barDot: { width: 8, height: 8, borderRadius: 4 },
+  barNew: { fontSize: 14, fontWeight: '600' },
+  barChevron: { fontSize: 20, lineHeight: 22 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },

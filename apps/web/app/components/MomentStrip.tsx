@@ -14,6 +14,8 @@
  * about what comes first.
  */
 
+import { useEffect, useRef } from 'react';
+
 import type { WireMoment } from '@/moments';
 
 import { Face } from './Faces';
@@ -24,6 +26,7 @@ export function MomentStrip({
   at,
   by,
   label,
+  current,
 }: {
   moments: WireMoment[];
   /** When the server worked this order out. See `seenBefore`. */
@@ -31,20 +34,47 @@ export function MomentStrip({
   /** One person's page: the viewer then steps through only theirs. */
   by?: string | null;
   label: string;
+  /**
+   * The moment on screen, when this strip is the viewer's map of the stream
+   * rather than a way in. Marked, and kept in view.
+   */
+  current?: string;
 }) {
+  const rail = useRef<HTMLDivElement>(null);
+
+  /*
+   * The one you are on, centred by arithmetic rather than `scrollIntoView` —
+   * which scrolls every scrollable ancestor to suit itself, and on the viewer
+   * that is the window jumping down past the photograph. See `Filmstrip`.
+   */
+  useEffect(() => {
+    const box = rail.current;
+    const here = box?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!box || !here) return;
+    box.scrollLeft = here.offsetLeft - box.clientWidth / 2 + here.clientWidth / 2;
+  }, [current]);
+
   if (moments.length === 0) return null;
   const query = `?${new URLSearchParams({ ...(by ? { by } : {}), at }).toString()}`;
 
   return (
-    <div className="people-row moments-row" role="list" aria-label={label}>
+    <div
+      ref={rail}
+      className={`people-row moments-row${current ? ' moment-nav' : ''}`}
+      role="list"
+      aria-label={label}
+    >
       {moments.map((m) => {
         const who = m.mine ? 'You' : first(m.author.name);
         return (
           <a
             key={m.id}
             role="listitem"
-            className={`person moment-tile${m.seen ? ' moment-seen' : ''}`}
+            className={`person moment-tile${m.seen ? ' moment-seen' : ''}${
+              m.id === current ? ' moment-current' : ''
+            }`}
             href={`/moments/${m.id}${query}`}
+            aria-current={current ? m.id === current : undefined}
             aria-label={`${m.mine ? 'Your' : `${who}’s`} moment${m.seen ? '' : ', new'}`}
           >
             <span className="moment-ring">
