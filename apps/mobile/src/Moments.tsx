@@ -36,12 +36,11 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
@@ -291,20 +290,19 @@ export function MomentsBar({
   onOpen,
 }: {
   moments: Moment[];
-  /** Kept for the callers' sake; the bar is dark in both schemes. */
+  /** Kept for the callers' sake; the bar is the same light card in both schemes. */
   t?: GroupTheme;
   /** Where to start: the first one new to you, else the first. */
   onOpen: (momentId: string) => void;
 }) {
-  const scheme = useColorScheme();
   if (moments.length === 0) return null;
   const fresh = moments.filter((m) => !m.seen && !m.mine);
   const start = (fresh[0] ?? moments[0])!.id;
   const news = fresh.length;
 
   /*
-   * In the dark scheme, a dark card; in the light one, a light card — dark
-   * glass on a white page reads as a slab. Either way the card with colour showing through it from one corner, as if lit
+   * The web's bar, exactly: near-white glass in either scheme — the same card
+   * on every surface, so Moments looks like one thing wherever it is. The card with colour showing through it from one corner, as if lit
    * from behind frosted glass. The colour says there is activity and nothing
    * about what: it is the app icon's own field, not anybody's photograph.
    * Caught up, it is a faint glow that holds still; while something is new it
@@ -313,7 +311,7 @@ export function MomentsBar({
    * The status is on the right and is the thing to read; the chevron after it
    * is only a hint that this opens.
    */
-  const look = scheme === 'dark' ? BAR_DARK : BAR_LIGHT;
+  const look = BAR_LIGHT;
   return (
     /*
      * Two layers because of the shadow: a view that clips its corners (which
@@ -403,18 +401,39 @@ function Bloom({ lively, look }: { lively: boolean; look: BarLook }) {
           },
         ]}
       >
+        {/*
+          Masked to nothing towards the left, as the web's is: the colour
+          fades into the card rather than ending at the edge of a block,
+          which on a wide bar showed as a hard vertical line.
+        */}
         <Svg width="100%" height="100%">
           <Defs>
             {look.bloom.map((b) => (
-              <RadialGradient key={b.id} id={`${id}${b.id}`} cx={b.cx} cy={b.cy} r={b.r}>
+              <RadialGradient
+                key={b.id}
+                id={`${id}${b.id}`}
+                cx={b.cx}
+                cy={b.cy}
+                rx={b.rx}
+                ry={b.ry}
+              >
                 <Stop offset="0" stopColor={b.colour} stopOpacity={b.opacity} />
                 <Stop offset="1" stopColor={b.colour} stopOpacity={0} />
               </RadialGradient>
             ))}
+            <LinearGradient id={`${id}fade`} x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0.25" stopColor="#fff" stopOpacity={0} />
+              <Stop offset="0.65" stopColor="#fff" stopOpacity={1} />
+            </LinearGradient>
+            <Mask id={`${id}mask`}>
+              <Rect width="100%" height="100%" fill={`url(#${id}fade)`} />
+            </Mask>
           </Defs>
-          {look.bloom.map((b) => (
-            <Rect key={b.id} width="100%" height="100%" fill={`url(#${id}${b.id})`} />
-          ))}
+          <G mask={`url(#${id}mask)`}>
+            {look.bloom.map((b) => (
+              <Rect key={b.id} width="100%" height="100%" fill={`url(#${id}${b.id})`} />
+            ))}
+          </G>
         </Svg>
       </Animated.View>
       {/* The frost. Over the colour and under the words, so the colour reads
@@ -425,7 +444,16 @@ function Bloom({ lively, look }: { lively: boolean; look: BarLook }) {
   );
 }
 
-type Bloom = { id: string; colour: string; opacity: number; cx: string; cy: string; r: string };
+type Bloom = {
+  id: string;
+  colour: string;
+  opacity: number;
+  cx: string;
+  cy: string;
+  /** Radii, as the web's `radial-gradient(rx ry at cx cy)` has them. */
+  rx: string;
+  ry: string;
+};
 
 type BarLook = {
   card: ViewStyle;
@@ -437,25 +465,6 @@ type BarLook = {
   /** How much of the colour shows when there is nothing new. */
   quietGlow: number;
   bloom: readonly Bloom[];
-};
-
-/**
- * Dark glass: three of `IconField`'s colours — violet, pink and teal —
- * gathered at the right, glowing against a near-black card.
- */
-const BAR_DARK: BarLook = {
-  card: { backgroundColor: '#15171c', borderColor: 'rgba(255,255,255,0.1)' },
-  shadow: {},
-  ink: '#ffffff',
-  quiet: 'rgba(255,255,255,0.45)',
-  tint: 'dark',
-  frost: 'rgba(21,23,28,0.35)',
-  quietGlow: 0.38,
-  bloom: [
-    { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '42%', cy: '70%', r: '46%' },
-    { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '68%', cy: '20%', r: '40%' },
-    { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '88%', cy: '85%', r: '42%' },
-  ],
 };
 
 /**
@@ -476,11 +485,12 @@ const BAR_LIGHT: BarLook = {
   quiet: 'rgba(20,23,28,0.35)',
   tint: 'light',
   frost: 'rgba(247,247,250,0.4)',
-  quietGlow: 0.45,
+  quietGlow: 0.4,
   bloom: [
-    { id: 'indigo', colour: '#6F7CE0', opacity: 0.5, cx: '40%', cy: '72%', r: '46%' },
-    { id: 'violet', colour: '#A78BFA', opacity: 0.55, cx: '68%', cy: '22%', r: '42%' },
-    { id: 'teal', colour: '#5FD4C4', opacity: 0.5, cx: '90%', cy: '82%', r: '42%' },
+    // The web's three, stop for stop and place for place — see `.moments-bar-bloom`.
+    { id: 'indigo', colour: '#6F7CE0', opacity: 0.6, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
+    { id: 'violet', colour: '#A78BFA', opacity: 0.66, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
+    { id: 'teal', colour: '#5FD4C4', opacity: 0.62, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
   ],
 };
 
@@ -939,9 +949,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  /* The colour's field: the right-hand end of the bar and past its edges, so
-     the drift never shows where it stops. */
-  bloom: { position: 'absolute', top: -30, bottom: -30, right: -40, width: '75%' },
+  /* The colour's field: the whole bar and past its edges, so the drift never
+     shows where it stops. The mask inside does the fading. */
+  bloom: { position: 'absolute', top: '-40%', bottom: '-40%', left: '-6%', right: '-6%' },
   barTitle: { fontSize: 16, fontWeight: '600' },
   barEnd: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   barNew: { fontSize: 14.5, fontWeight: '600' },

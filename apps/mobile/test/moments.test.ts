@@ -40,8 +40,11 @@ describe('moments', () => {
     expect(BAR).not.toMatch(/author|thumb|ExpoImage|IconRing|MomentTile/);
     // The status on the right, and the chevron after it.
     expect(BAR).toMatch(/\{news\} new<\/Text>\}\s*<Text style=\{\[styles\.barChevron, \{ color: look\.quiet \}\]\}>›<\/Text>/);
-    // A light card in the light scheme, dark glass in the dark one.
-    expect(BAR).toMatch(/const look = scheme === 'dark' \? BAR_DARK : BAR_LIGHT;/);
+    // The web's light card, in either scheme.
+    expect(BAR).toMatch(/const look = BAR_LIGHT;/);
+    // Faded out towards the left by a mask, never ending in a hard edge.
+    expect(MOMENTS).toMatch(/<G mask=\{`url\(#\$\{id\}mask\)`\}>/);
+    expect(MOMENTS).toMatch(/<Stop offset="0\.25" stopColor="#fff" stopOpacity=\{0\} \/>\s*<Stop offset="0\.65" stopColor="#fff" stopOpacity=\{1\} \/>/);
     // Colour through frosted glass always: faint and still when caught up,
     // brighter and drifting while something is new.
     expect(BAR).toMatch(/<Bloom lively=\{news > 0\} look=\{look\} \/>/);
