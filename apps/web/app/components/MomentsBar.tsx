@@ -7,10 +7,10 @@
  * many are new to you. Who shared what is for once you are inside, where the
  * tiles come back as the viewer's own map of the stream.
  *
- * A dark card, and — only while something is new — the icon's colours
- * showing through it from one corner, as if lit from behind frosted glass,
- * drifting very slowly. The colour says there is activity and nothing about
- * what. All caught up, it goes and the bar is monochrome. The status on the
+ * A dark card with the icon's colours showing through it from one corner, as
+ * if lit from behind frosted glass. The colour says there is activity and
+ * nothing about what. Caught up, it is a faint glow that holds still; while
+ * something is new it is brighter and drifts very slowly. The status on the
  * right is the thing to read; the chevron after it only says this opens.
  *
  * Opens on the first moment you have not seen, in the stream's own order —
@@ -33,7 +33,7 @@ export function MomentsBar({ moments, at }: { moments: WireMoment[]; at: string 
       href={href}
       aria-label={fresh ? `Moments, ${unseen.length} new` : 'Moments'}
     >
-      {fresh && <span className="moments-bar-bloom" aria-hidden="true" />}
+      <span className="moments-bar-bloom" aria-hidden="true" />
       <span className="moments-bar-name">Moments</span>
       <span className="moments-bar-end">
         {fresh && <span className="moments-bar-count">{unseen.length} new</span>}

@@ -325,17 +325,20 @@ describe('on Home, one way in', () => {
     expect(bar).toMatch(/const start = unseen\[0\] \?\? moments\[0\]!/);
   });
 
-  it('shows colour through frosted glass only while something is new', () => {
+  it('shows colour through frosted glass, brighter while something is new', () => {
     const bar = stripComments(read('components/MomentsBar.tsx'));
-    expect(bar).toMatch(/\{fresh && <span className="moments-bar-bloom" aria-hidden="true" \/>\}/);
+    expect(bar).toMatch(/<span className="moments-bar-bloom" aria-hidden="true" \/>/);
     // The status on the right, and the chevron after it.
     expect(bar).toMatch(/moments-bar-count">\{unseen\.length\} new<\/span>\}\s*<span className="moments-bar-go"/);
 
     const css = readFileSync(fileURLToPath(new URL('../app/globals.css', import.meta.url)), 'utf8');
     const rules = css.slice(css.indexOf('.moments-bar {'), css.indexOf('.moment-nav-wrap'));
-    expect(rules).toMatch(/\.moments-bar-new::after \{[^}]*backdrop-filter: blur/);
+    expect(rules).toMatch(/\.moments-bar::after \{[^}]*backdrop-filter: blur/);
+    // Faint and still when caught up; bright and drifting when new.
+    expect(rules).toMatch(/\.moments-bar-bloom \{[^}]*opacity: 0\.38;/);
+    expect(rules).toMatch(/\.moments-bar-new \.moments-bar-bloom \{\s*opacity: 1;\s*animation: moments-drift/);
     // The drift is off for anybody who has asked for less motion.
-    expect(rules).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.moments-bar-bloom \{ animation: none; \}/);
+    expect(rules).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.moments-bar-new \.moments-bar-bloom \{ animation: none; \}/);
   });
 
   it('puts the tiles inside the viewer, as its map', () => {

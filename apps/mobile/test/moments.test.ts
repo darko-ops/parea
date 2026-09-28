@@ -40,9 +40,11 @@ describe('moments', () => {
     expect(BAR).not.toMatch(/author|thumb|ExpoImage|IconRing|MomentTile/);
     // The status on the right, and the chevron after it.
     expect(BAR).toMatch(/\{news > 0 && <Text style=\{styles\.barNew\}>\{news\} new<\/Text>\}\s*<Text style=\{styles\.barChevron\}>›<\/Text>/);
-    // New is colour through frosted glass — and only while there is something
-    // new. Caught up, the bar is monochrome.
-    expect(BAR).toMatch(/\{news > 0 && <Bloom \/>\}/);
+    // Colour through frosted glass always: faint and still when caught up,
+    // brighter and drifting while something is new.
+    expect(BAR).toMatch(/<Bloom lively=\{news > 0\} \/>/);
+    expect(BAR).toMatch(/opacity: lively \? 1 : QUIET,/);
+    expect(BAR).toMatch(/if \(!lively\) \{\s*drift\.setValue\(0\);\s*return;/);
     expect(BAR).toMatch(/<BlurView intensity=\{40\} tint="dark"/);
     // The drift is off for anybody who has asked for less motion.
     expect(BAR).toMatch(/isReduceMotionEnabled\(\)\.then\(\(still\) => \{\s*if \(still \|\| cancelled\) return;/);

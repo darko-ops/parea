@@ -301,11 +301,11 @@ export function MomentsBar({
   const news = fresh.length;
 
   /*
-   * A dark card, and — only while something is new — colour showing through
-   * it from one corner, as if lit from behind frosted glass. The colour says
-   * there is activity and nothing about what: it is the app icon's own field,
-   * not anybody's photograph. All caught up, the colour goes and the bar is
-   * monochrome.
+   * A dark card with colour showing through it from one corner, as if lit
+   * from behind frosted glass. The colour says there is activity and nothing
+   * about what: it is the app icon's own field, not anybody's photograph.
+   * Caught up, it is a faint glow that holds still; while something is new it
+   * is brighter and drifts.
    *
    * The status is on the right and is the thing to read; the chevron after it
    * is only a hint that this opens.
@@ -317,7 +317,7 @@ export function MomentsBar({
       accessibilityLabel={news > 0 ? `Moments, ${news} new` : 'Moments'}
       style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.75 : 1 }]}
     >
-      {news > 0 && <Bloom />}
+      <Bloom lively={news > 0} />
       <Text style={styles.barTitle}>Moments</Text>
       <View style={styles.barEnd}>
         {news > 0 && <Text style={styles.barNew}>{news} new</Text>}
@@ -326,6 +326,9 @@ export function MomentsBar({
     </Pressable>
   );
 }
+
+/** How much of the colour shows when there is nothing new. */
+const QUIET = 0.38;
 
 /** The drift's length, one way. Slow enough to be felt rather than watched. */
 const DRIFT_MS = 14_000;
@@ -339,13 +342,18 @@ const DRIFT_MS = 14_000;
  * loop anybody would notice as animation, and none at all for somebody who
  * has asked their phone to reduce motion.
  */
-function Bloom() {
+function Bloom({ lively }: { lively: boolean }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const drift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
     let cancelled = false;
+    // Only something new moves. Caught up, the glow holds still.
+    if (!lively) {
+      drift.setValue(0);
+      return;
+    }
     void AccessibilityInfo.isReduceMotionEnabled().then((still) => {
       if (still || cancelled) return;
       loop = Animated.loop(
@@ -370,7 +378,7 @@ function Bloom() {
       cancelled = true;
       loop?.stop();
     };
-  }, [drift]);
+  }, [drift, lively]);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -378,6 +386,8 @@ function Bloom() {
         style={[
           styles.bloom,
           {
+            // Faint when caught up, bright when something is new.
+            opacity: lively ? 1 : QUIET,
             transform: [
               { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [10, -18] }) },
               { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [4, -6] }) },

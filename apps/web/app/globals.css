@@ -1081,11 +1081,18 @@ button.secondary {
     radial-gradient(42% 46% at 88% 82%, rgba(102, 231, 198, 0.75), rgba(102, 231, 198, 0) 100%),
     radial-gradient(40% 44% at 66% 22%, rgba(247, 154, 182, 0.8), rgba(247, 154, 182, 0) 100%),
     radial-gradient(46% 52% at 40% 68%, rgba(143, 70, 218, 0.9), rgba(143, 70, 218, 0) 100%);
+  /* Caught up: a faint glow that holds still. */
+  opacity: 0.38;
+  transition: opacity 400ms;
+}
+/* Something new: brighter, and drifting. */
+.moments-bar-new .moments-bar-bloom {
+  opacity: 1;
   animation: moments-drift 28s ease-in-out infinite alternate;
 }
 /* The frost: a blur over the colour and a dark wash, so most of the surface
    stays dark and the colour reads as behind the glass, not painted on it. */
-.moments-bar-new::after {
+.moments-bar::after {
   content: ''; position: absolute; inset: 0; z-index: -1;
   background: rgba(21, 23, 28, 0.35);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -1095,7 +1102,7 @@ button.secondary {
   to { transform: translate(-18px, -6px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .moments-bar-bloom { animation: none; }
+  .moments-bar-new .moments-bar-bloom { animation: none; }
 }
 .moments-bar-name { font-size: 15px; font-weight: 600; }
 .moments-bar-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
