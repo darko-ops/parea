@@ -14,7 +14,7 @@
  */
 
 import { schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
@@ -29,9 +29,25 @@ export const runtime = 'nodejs';
 /** The long edge, stored. The full rendition of a roll photograph is 2560. */
 const EDGE = 2048;
 
-export async function GET() {
+/** The strip's copy: a tile is about 70 points, so 360 covers a 3x screen. */
+const THUMB_EDGE = 360;
+
+/**
+ * The stream on Home, or — with `?by=<handle>` — one person's moments, which
+ * is what their page draws. Either way only what this viewer may see.
+ */
+export async function GET(request: Request) {
   const actorId = await currentActorId();
-  return NextResponse.json(await momentsResponse(actorId));
+  const handle = new URL(request.url).searchParams.get('by');
+  if (handle === null) return NextResponse.json(await momentsResponse(actorId));
+
+  const [person] = await getDb()
+    .select({ id: schema.actors.id })
+    .from(schema.actors)
+    .where(eq(sql`lower(${schema.actors.handle})`, handle.replace(/^@/, '').toLowerCase()))
+    .limit(1);
+  if (!person) return NextResponse.json({ moments: [] });
+  return NextResponse.json(await momentsResponse(actorId, { by: person.id }));
 }
 
 /**
@@ -117,6 +133,7 @@ async function makeMoment(actorId: string, incoming: Buffer): Promise<NextRespon
   }
 
   let out: { data: Buffer; info: { width: number; height: number } };
+  let thumb: Buffer;
   try {
     out = await decode(admitted.bytes)
       .rotate()
@@ -124,6 +141,12 @@ async function makeMoment(actorId: string, incoming: Buffer): Promise<NextRespon
       .resize({ width: EDGE, height: EDGE, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 84, mozjpeg: true })
       .toBuffer({ resolveWithObject: true });
+    // Square, because the strip is squares — cut from the re-encoded copy,
+    // so nothing but pixels reaches this one either.
+    thumb = await decode(out.data)
+      .resize({ width: THUMB_EDGE, height: THUMB_EDGE, fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 78, mozjpeg: true })
+      .toBuffer();
   } catch (err) {
     console.warn('moment refused', {
       error: 'not_an_image',
@@ -147,13 +170,20 @@ async function makeMoment(actorId: string, incoming: Buffer): Promise<NextRespon
     .returning({ id: schema.moments.id });
 
   const key = `moments/${actorId}/${row!.id}.jpg`;
+  const thumbKey = `moments/${actorId}/${row!.id}-t.jpg`;
   try {
-    await getStorage().putSmall(key, out.data, 'image/jpeg');
+    await Promise.all([
+      getStorage().putSmall(key, out.data, 'image/jpeg'),
+      getStorage().putSmall(thumbKey, thumb, 'image/jpeg'),
+    ]);
   } catch {
     await db.delete(schema.moments).where(eq(schema.moments.id, row!.id));
     return NextResponse.json({ error: 'storage_failed' }, { status: 502 });
   }
-  await db.update(schema.moments).set({ key }).where(eq(schema.moments.id, row!.id));
+  await db
+    .update(schema.moments)
+    .set({ key, thumbKey })
+    .where(eq(schema.moments.id, row!.id));
 
   return NextResponse.json({ id: row!.id });
 }

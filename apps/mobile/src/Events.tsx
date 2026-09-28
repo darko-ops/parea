@@ -1084,13 +1084,14 @@ export function HomeTab({
         />
       )}
 
-      <MomentsRow people={moments.people} t={t} onOpen={setWatching} />
+      <MomentsRow moments={moments.moments} t={t} onOpen={setWatching} />
 
       {watching && (
         <MomentsViewer
           api={api}
-          people={moments.people}
+          moments={moments.moments}
           start={watching}
+          onSeen={moments.markSeen}
           t={t}
           Button={Button}
           onClose={() => setWatching(null)}

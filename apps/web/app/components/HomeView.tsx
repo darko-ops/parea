@@ -6,8 +6,8 @@
  * The page used to be the word "Home" over a grid. It was accurate and it was
  * nobody's — the design's first complaint was that returning to it did not
  * feel like returning to your people, and the answer is that the people are
- * now the first thing on it. A row of their faces above the rolls — one square
- * per person who has put up a moment, and pressing one opens their moments.
+ * now the first thing on it: one strip of their moments above the rolls, all
+ * of them in one stream rather than a square per person to open in turn.
  *
  * The row was a filter once: the same faces, and pressing one narrowed the
  * grid to the evenings that person was at. The shape was right and the verb
@@ -38,31 +38,26 @@ import { Children, isValidElement, useState } from 'react';
 
 import { matches } from '@/search';
 
+import type { WireMoment } from '@/moments';
+
 import { CreateMenu } from './CreateMenu';
-import { Face } from './Faces';
+import { MomentStrip } from './MomentStrip';
 import { SearchControl } from './SearchControl';
 
-/** One square in the row: a person, and where their newest moment is. */
-export type MomentTile = {
-  actorId: string;
-  name: string;
-  avatar: string | null;
-  mine: boolean;
-  /** The moment the square opens on. Their newest. */
-  first: string;
-  count: number;
-};
+
 
 export function HomeView({
   haystacks,
   /** "Evening, Nadia" — worded on the server. Null for somebody with no name. */
   greeting,
   moments,
+  momentsAt,
   children,
 }: {
   haystacks: Record<string, string>;
   greeting: string | null;
-  moments: MomentTile[];
+  moments: WireMoment[];
+  momentsAt: string;
   children: React.ReactNode;
 }) {
   const [query, setQuery] = useState('');
@@ -144,40 +139,10 @@ export function HomeView({
       </div>
 
       {/*
-        Rounded squares rather than the circles they were: a square is what
-        every photograph in this product is drawn as, and each of these is a
-        door to one. The face on it is the person's, not the moment's — the
-        row says who, and pressing it shows what.
+        One stream of everybody's moments, in the server's order — see
+        `MomentStrip` for the tile and `orderStream` for why this order.
       */}
-      {moments.length > 0 && (
-        <div className="people-row moments-row">
-          {moments.map((p) => (
-            <a
-              key={p.actorId}
-              className={`person moment-tile${p.mine ? ' moment-mine' : ''}`}
-              href={`/moments/${p.first}`}
-              aria-label={`${p.mine ? 'Your' : `${first(p.name)}’s`} ${p.count === 1 ? 'moment' : `${p.count} moments`}`}
-            >
-              {/* The app icon's field as the ring — see `.moment-ring`. */}
-              <span className="moment-ring">
-                <Face
-                  src={p.avatar}
-                  // The face and the page-coloured gap round it: 56 inside a
-                  // 2px border, so the ring's 66 holds it exactly.
-                  size={60}
-                  className="person-face moment-face"
-                  fallback={
-                    <span aria-hidden="true">
-                      {(p.name.replace('@', '').trim() || '?').slice(0, 1).toUpperCase()}
-                    </span>
-                  }
-                />
-              </span>
-              <span className="person-name">{p.mine ? 'You' : first(p.name)}</span>
-            </a>
-          ))}
-        </div>
-      )}
+      <MomentStrip moments={moments} at={momentsAt} label="Moments from your people" />
 
       <div className="cards">{shown}</div>
 
@@ -218,15 +183,4 @@ export function HomeView({
       )}
     </>
   );
-}
-
-/**
- * The name under a face: the first word of it.
- *
- * A row of 76px columns cannot hold "Priya Raghunathan", and the alternative
- * to shortening is ellipsising every second name into a stub. First names are
- * what people call each other, and the full one is a click away on their page.
- */
-function first(name: string): string {
-  return name.replace('@', '').trim().split(/\s+/)[0] ?? name;
 }

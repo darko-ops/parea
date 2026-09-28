@@ -41,7 +41,7 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -75,6 +75,7 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
+import { MomentsRow, MomentsViewer, useMoments } from './Moments';
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -192,6 +193,15 @@ export function ProfileScreen({
   useEffect(() => {
     if (active) void load();
   }, [active, load]);
+
+  /*
+   * Your own moments, out of the same stream Home reads rather than a second
+   * request: they are in it already, and somebody without a handle yet still
+   * has moments.
+   */
+  const stream = useMoments(api);
+  const mine = useMemo(() => stream.moments.filter((m) => m.mine), [stream.moments]);
+  const [watching, setWatching] = useState<string | null>(null);
 
   const photos = events.reduce((sum, event) => sum + event.photoCount, 0);
   const name = account?.displayName?.trim() || null;
@@ -467,6 +477,21 @@ export function ProfileScreen({
             <Text style={[styles.actionText, { color: t.fg }]}>Share profile</Text>
           </Pressable>
         </View>
+      )}
+
+      {/* Your moments, above your rolls — the strip Home draws, only yours. */}
+      <MomentsRow moments={mine} t={t} onOpen={setWatching} style={styles.moments} />
+      {watching && (
+        <MomentsViewer
+          api={api}
+          moments={mine}
+          start={watching}
+          onSeen={stream.markSeen}
+          t={t}
+          Button={Button}
+          onClose={() => setWatching(null)}
+          onOpenPerson={() => setWatching(null)}
+        />
       )}
 
       {/* Not signed in: the card that asks is the screen, because there is no
@@ -1173,6 +1198,9 @@ const styles = StyleSheet.create({
   /* What every row keeps. Named rather than repeated, so "the gutter" stays
      one number. */
   gutter: { paddingHorizontal: 20 },
+  /* The strip pads itself for the badge on each tile; 12 more is the page's
+     20 gutter for the tiles. */
+  moments: { marginHorizontal: 12, marginTop: 4, marginBottom: 0 },
   /*
    * A centred column, not a row with a picture on the end.
    *

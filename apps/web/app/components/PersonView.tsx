@@ -54,12 +54,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { CardEvent } from '@/cards';
+import type { MomentsResponse } from '@/moments';
 import type { Standing } from '@/people';
 
 import { Avatar } from './Avatar';
 import { CoverImage } from './CoverImage';
 import { EventCard } from './EventCard';
 import { FrostedGlass } from './FrostedGlass';
+import { MomentStrip } from './MomentStrip';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -203,8 +205,11 @@ export function PersonView({
   person,
   events,
   albums,
+  moments,
 }: {
   person: Person;
+  /** Their moments this viewer may see, newest first. Empty for a stranger. */
+  moments: MomentsResponse;
   /** Events the viewer can see that this person is also in. */
   events: CardEvent[];
   /** Everything this person made, minus the ones already drawn above. */
@@ -548,6 +553,15 @@ export function PersonView({
       </header>
 
       {error && <p className="panel-note">{error}</p>}
+
+      {/* Theirs, newest first — the same tiles as Home's stream, and pressing
+          one steps through only this person's. */}
+      <MomentStrip
+        moments={moments.moments}
+        at={moments.at}
+        by={person.handle}
+        label={`Moments from ${name}`}
+      />
 
       {events.length > 0 && (
         <section className="you-events">

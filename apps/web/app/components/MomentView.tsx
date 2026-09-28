@@ -37,18 +37,26 @@ const HOME = '/events';
 
 export function MomentView({
   moment,
+  query,
+  back,
   position,
   previous,
   next,
   strip,
 }: {
   moment: MomentSubject;
+  /** Carried from step to step: whose moments, and the order held still. */
+  query: string;
+  /** Somebody's page, when that is where this was opened from. Else Home. */
+  back: { href: string; name: string } | null;
   position: { index: number; total: number };
   previous: { id: string; src: string } | null;
   next: { id: string; src: string } | null;
   strip: { id: string; src: string }[];
 }) {
-  const href = useCallback((id: string) => `/moments/${id}`, []);
+  const href = useCallback((id: string) => `/moments/${id}?${query}`, [query]);
+  const home = back?.href ?? HOME;
+  const homeName = back?.name ?? 'Home';
   const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,12 +80,12 @@ export function MomentView({
       else if (e.key === 'ArrowRight' && next) location.assign(href(next.id));
       else if (e.key === 'Escape') {
         if (document.querySelector('[role="menu"]')) return;
-        location.assign(HOME);
+        location.assign(home);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [previous, next, href]);
+  }, [previous, next, href, home]);
 
   const touch = useRef<{ x: number; y: number } | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
@@ -100,13 +108,13 @@ export function MomentView({
   return (
     <main className="photo-page moment-page">
       <header className="photo-head">
-        <a href={HOME} className="photo-back" aria-label="Back to Home">
+        <a href={home} className="photo-back" aria-label={`Back to ${homeName}`}>
           {'‹'}
         </a>
         <span className="photo-back-text">
           Back to{' '}
-          <a href={HOME} className="photo-back-name">
-            Home
+          <a href={home} className="photo-back-name">
+            {homeName}
           </a>
         </span>
 
@@ -155,7 +163,7 @@ export function MomentView({
                 momentId={moment.id}
                 mine={moment.mine}
                 onGone={() =>
-                  location.assign(next ? href(next.id) : previous ? href(previous.id) : HOME)
+                  location.assign(next ? href(next.id) : previous ? href(previous.id) : home)
                 }
               />
             </span>

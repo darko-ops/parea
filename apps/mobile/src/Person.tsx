@@ -60,6 +60,7 @@ import { FrostedGlass } from './FrostedGlass';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
+import { MomentsRow, MomentsViewer, useMoments } from './Moments';
 import { Waiting } from './Waiting';
 
 /** The shelf's shape, matching the one the viewer's own profile draws. */
@@ -156,6 +157,9 @@ export function PersonScreen({
   const [standing, setStanding] = useState<Standing>('none');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Their moments, newest first, and which one is open. */
+  const moments = useMoments(api, handle);
+  const [watching, setWatching] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -640,6 +644,31 @@ export function PersonScreen({
       {error && <Text style={[styles.small, styles.gutter, { color: t.dim }]}>{error}</Text>}
 
       {/*
+        Their moments, above their rolls: the same strip Home draws, scoped to
+        this one person. Nothing when there are none — an empty strip is a
+        heading over nothing.
+      */}
+      <MomentsRow
+        moments={moments.moments}
+        t={t}
+        onOpen={setWatching}
+        style={styles.moments}
+      />
+      {watching && (
+        <MomentsViewer
+          api={api}
+          moments={moments.moments}
+          start={watching}
+          onSeen={moments.markSeen}
+          t={t}
+          Button={Button}
+          onClose={() => setWatching(null)}
+          // Their face in the viewer leads here, where it already is.
+          onOpenPerson={() => setWatching(null)}
+        />
+      )}
+
+      {/*
         The shelf, in the grid their own profile uses.
 
         Two cards of text rows became one wall of covers, which is the point of
@@ -826,6 +855,9 @@ const styles = StyleSheet.create({
   /* A page with nobody on it keeps no room for a picture of them. */
   absent: { paddingTop: 110, paddingBottom: BELOW_TABS, gap: 14 },
   gutter: { paddingHorizontal: 20 },
+  /* The strip's own padding makes room for the badge on each tile; the page's
+     20 less that padding is the gutter the tiles line up to. */
+  moments: { marginHorizontal: 12, marginTop: 4, marginBottom: 0 },
   /* Above the tab, and fixed: it does not scroll and is not part of it. The
      same corner, at the same height, as the profile's `⋯`. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },

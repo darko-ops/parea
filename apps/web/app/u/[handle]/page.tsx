@@ -26,6 +26,7 @@ import { avatarUrl } from '@/accounts';
 import { toCards } from '@/cards';
 import { eventCover } from '@/groups';
 import { getDb } from '@/db';
+import { momentsResponse } from '@/moments';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -81,9 +82,12 @@ export default async function PersonPage({
    */
   if (person.standing === 'self') redirect('/account');
 
-  const [shared, albums] = await Promise.all([
+  const [shared, albums, moments] = await Promise.all([
     eventsWithBoth(db, actorId, person.actorId),
     albumsBy(db, actorId, person.actorId),
+    // Only what the viewer may see: the stream's own audience rule, narrowed
+    // to this person. Nothing here for somebody they are not connected to.
+    momentsResponse(actorId, { by: person.actorId }),
   ]);
 
   /*
@@ -132,6 +136,7 @@ export default async function PersonPage({
           // thing depending on which page it is on.
           events={await toCards(shared)}
           albums={albumCards}
+          moments={moments}
         />
       </main>
     </Shell>

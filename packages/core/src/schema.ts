@@ -1972,10 +1972,37 @@ export const moments = pgTable(
       .notNull()
       .references(() => actors.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
+    /**
+     * A small copy for the strip on Home, which draws the photograph itself
+     * now rather than its author's face. Null for a moment from before there
+     * was one; the strip draws the full rendition instead.
+     */
+    thumbKey: text('thumb_key'),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
     createdAt: createdAt(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => [index('moment_actor_created_idx').on(t.actorId, t.createdAt)],
+);
+
+/**
+ * That somebody has opened a moment.
+ *
+ * What lets the ones you have not seen come first: the stream on Home is
+ * chronological, and a moment already looked at falls behind the ones that
+ * are new to you. Nothing else reads it — not the author, not a count.
+ */
+export const momentViews = pgTable(
+  'moment_view',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    momentId: uuid('moment_id')
+      .notNull()
+      .references(() => moments.id, { onDelete: 'cascade' }),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.momentId] })],
 );

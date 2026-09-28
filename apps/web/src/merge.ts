@@ -203,6 +203,9 @@ const OWNED: {
   { table: 'hidden_activity', column: 'actor_id', uniqueWith: ['item_key'] },
   // A moment is one person's photograph; the survivor is that person.
   { table: 'moment', column: 'actor_id' },
+  // Which moments they have opened. Two devices that both opened one are one
+  // person who has seen it once.
+  { table: 'moment_view', column: 'actor_id', uniqueWith: ['moment_id'] },
 ];
 
 export const MERGED_TABLES = OWNED;

@@ -102,17 +102,29 @@ export type PhotoTag = {
 };
 
 /** `GET /api/moments`. See `apps/web/src/moments.ts`. */
-export type MomentsResponse = {
-  people: {
-    actorId: string;
-    handle: string | null;
-    name: string;
-    avatar: string | null;
-    mine: boolean;
-    /** Newest first. */
-    moments: { id: string; src: string; width: number; height: number; createdAt: string }[];
-  }[];
+/**
+ * One moment, as the stream sends it. The server's `WireMoment`.
+ *
+ * The stream arrives already in its order — fresh and unseen first, then what
+ * has been seen, then older — so this client draws it as given and never
+ * sorts it. See `orderStream` on the server.
+ */
+export type Moment = {
+  id: string;
+  /** 2048 on the long edge. What the viewer draws. */
+  src: string;
+  /** A 360 square, for the strip. */
+  thumb: string;
+  width: number;
+  height: number;
+  createdAt: string;
+  /** Opened by this viewer, or theirs. Decides the ring. */
+  seen: boolean;
+  mine: boolean;
+  author: { actorId: string; handle: string | null; name: string; avatar: string | null };
 };
+
+export type MomentsResponse = { moments: Moment[] };
 
 export type FeedPhoto = {
   id: string;
@@ -1763,11 +1775,21 @@ export class Api {
   // --- moments ----------------------------------------------------------
 
   /**
-   * Everyone with a moment this person may see — theirs first, then the most
-   * recently posted. Each `src` is presigned for an hour.
+   * The stream: every moment this person may see, in the server's order.
+   * Each `src` and `thumb` is presigned for an hour.
    */
   moments(): Promise<MomentsResponse> {
     return this.call('/api/moments');
+  }
+
+  /** One person's moments, newest first — what their page shows. */
+  momentsBy(handle: string): Promise<MomentsResponse> {
+    return this.call(`/api/moments?by=${encodeURIComponent(handle)}`);
+  }
+
+  /** That this person has opened one, so it falls behind the unseen. */
+  markMomentSeen(id: string): Promise<unknown> {
+    return this.call(`/api/moments/${id}/seen`, { method: 'POST' });
   }
 
   /**

@@ -81,16 +81,8 @@ export default async function EventsPage() {
         <HomeView
           haystacks={haystacks}
           greeting={greetingFor(account?.displayName ?? null, now, zone)}
-          moments={moments.people.map((person) => ({
-            actorId: person.actorId,
-            name: person.name,
-            // Presigned already, like every other avatar that crosses this
-            // boundary. The key does not cross it.
-            avatar: person.avatar,
-            mine: person.mine,
-            first: person.moments[0]!.id,
-            count: person.moments.length,
-          }))}
+          moments={moments.moments}
+          momentsAt={moments.at}
         >
           {/*
             The id sits on a wrapper so `EventCard` stays a server component

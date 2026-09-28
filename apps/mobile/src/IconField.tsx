@@ -10,7 +10,7 @@
 
 import { useId } from 'react';
 import { StyleSheet } from 'react-native';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 /**
  * The wash behind the "+N" on the end of a card's strip: the app icon's field.
@@ -185,3 +185,79 @@ export function IconField() {
     </Svg>
   );
 }
+
+/** A rounded rectangle as a path, clockwise, starting at the top edge. */
+function roundedRect(x: number, y: number, w: number, h: number, r: number): string {
+  return (
+    `M${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + r} ` +
+    `V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} ` +
+    `H${x + r} A${r},${r} 0 0 1 ${x},${y + h - r} ` +
+    `V${y + r} A${r},${r} 0 0 1 ${x + r},${y} Z`
+  );
+}
+
+/**
+ * The icon's field as a rounded-square ring, drawn as its own shape.
+ *
+ * Not the field cut down by its parent's `overflow: hidden` and
+ * `borderRadius` — which is how the moments strip first wore it, and why its
+ * corners came out cut: an SVG is its own native view, and whether a parent's
+ * rounded clip reaches into it is up to the platform and the renderer rather
+ * than to us. Here the ring is a path — the outer rounded square with the inner
+ * one taken out by the even-odd rule — so the corners are in the geometry and
+ * nothing has to clip anything.
+ *
+ * The blooms are the same gradients over the same bounding box, because a
+ * path's bounding box is the outer square: the colours land exactly where the
+ * full field would put them.
+ */
+export function IconRing({
+  size,
+  radius,
+  thickness,
+  color,
+}: {
+  size: number;
+  radius: number;
+  thickness: number;
+  /** A flat colour instead of the field — the ring of something already seen. */
+  color?: string;
+}) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const d =
+    roundedRect(0, 0, size, size, radius) +
+    ' ' +
+    roundedRect(thickness, thickness, size - thickness * 2, size - thickness * 2, radius - thickness);
+  return (
+    <Svg width={size} height={size} style={StyleSheet.absoluteFill} pointerEvents="none">
+      {!color && (
+        <Defs>
+          {GLASS_BLOOMS.map((bloom) => (
+            <RadialGradient
+              key={bloom.id}
+              id={`${id}${bloom.id}`}
+              cx={`${bloom.cx * 100}%`}
+              cy={`${bloom.cy * 100}%`}
+              r={`${bloom.r * 100}%`}
+            >
+              {bloom.stops.map(([offset, colour, opacity]) => (
+                <Stop
+                  key={offset}
+                  offset={`${offset * 100}%`}
+                  stopColor={colour}
+                  stopOpacity={opacity}
+                />
+              ))}
+            </RadialGradient>
+          ))}
+        </Defs>
+      )}
+      <Path d={d} fillRule="evenodd" fill={color ?? GLASS_BASE} />
+      {!color &&
+        GLASS_BLOOMS.map((bloom) => (
+          <Path key={bloom.id} d={d} fillRule="evenodd" fill={`url(#${id}${bloom.id})`} />
+        ))}
+    </Svg>
+  );
+}
+

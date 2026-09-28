@@ -3,27 +3,26 @@
  *
  * Three pieces, kept together because they are one feature:
  *
- * - `MomentsRow`, the row of squares at the top of Home — one per person, each
- *   wearing that person's face, yours first. The web's people row is the shape
- *   it borrows, with corners: every picture of a person in this product is a
- *   square (see the uploader square in `PhotoViewer`), and a moment is a
- *   picture before it is a person.
+ * - `MomentsRow`, the strip at the top of Home — one stream of everybody's
+ *   moments, one tile per moment, in the order the server sends (fresh and
+ *   unseen first; see `orderStream` there). A tile is the photograph, ringed
+ *   in the app icon's field until it has been opened, with its author's face
+ *   as a badge on the corner. The same strip, scoped to one person, is on
+ *   their page.
  * - `MomentsViewer`, which is `PhotoViewer` itself, `plain`. Pressing a moment
- *   opens exactly what pressing a photograph in a roll opens. All the people's
- *   moments are one list, so swiping past somebody's last carries on into the
- *   next person's.
+ *   opens exactly what pressing a photograph in a roll opens, and swiping walks
+ *   the strip in its own order. Each one that comes on screen is marked seen.
  * - `AddMoment`, the screen the `+` sheet's third choice opens: one picture
- *   off the camera roll, shown, then sent as bytes the way a profile picture
- *   is.
+ *   off the camera roll, shown, then put straight to storage.
  *
- * The row and the sheet live on different tabs, so a posted moment is
- * announced through `onMomentsChanged` rather than by threading a refresh
+ * The strip and the sheet live on different tabs, so a posted moment is
+ * announced through `momentsChanged` rather than by threading a refresh
  * callback from one tab through `App` into the other.
  */
 
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -34,15 +33,15 @@ import {
   Text,
   View,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
-import { ApiError, type Api, type FeedPhoto, type MomentsResponse } from './api';
+import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
-import { IconField } from './IconField';
+import { IconRing } from './IconField';
 import { PhotoViewer } from './PhotoViewer';
 import { describeFile, putToStorage, saveToCameraRoll } from './platform';
-
-type MomentPerson = MomentsResponse['people'][number];
 
 type ButtonComponent = (props: {
   label: string;
@@ -59,18 +58,30 @@ function momentsChanged() {
   for (const listener of listeners) listener();
 }
 
-/** The moments this person may see, re-read whenever one is posted or removed. */
-export function useMoments(api: Api) {
-  const [people, setPeople] = useState<MomentPerson[]>([]);
+/**
+ * The stream this person may see — or, given a handle, that person's moments —
+ * re-read whenever one is posted, removed or blocked on any screen.
+ *
+ * `seen` is here too: the viewer marks a moment opened the moment it is on
+ * screen, and the strip's ring has to change then rather than on the next
+ * fetch. A local set laid over the server's answer, cleared by the refresh
+ * that makes it true.
+ */
+export function useMoments(api: Api, handle?: string | null) {
+  const [moments, setMoments] = useState<Moment[]>([]);
+  const [opened, setOpened] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
+    // A page with no handle yet has nothing to ask for.
+    if (handle === null) return;
     try {
-      const { people } = await api.moments();
-      setPeople(people.filter((p) => p.moments.length > 0));
+      const { moments } = await (handle ? api.momentsBy(handle) : api.moments());
+      setMoments(moments);
+      setOpened(new Set());
     } catch {
-      // The row is an extra. Failing to fetch it leaves it as it was.
+      // The strip is an extra. Failing to fetch it leaves it as it was.
     }
-  }, [api]);
+  }, [api, handle]);
 
   useEffect(() => {
     void refresh();
@@ -80,7 +91,19 @@ export function useMoments(api: Api) {
     };
   }, [refresh]);
 
-  return { people, refresh };
+  const drawn = useMemo(
+    () =>
+      opened.size === 0
+        ? moments
+        : moments.map((m) => (opened.has(m.id) ? { ...m, seen: true } : m)),
+    [moments, opened],
+  );
+
+  const markSeen = useCallback((id: string) => {
+    setOpened((was) => (was.has(id) ? was : new Set(was).add(id)));
+  }, []);
+
+  return { moments: drawn, refresh, markSeen };
 }
 
 /**
@@ -245,63 +268,102 @@ function first(name: string): string {
 }
 
 export function MomentsRow({
-  people,
+  moments,
   t,
   onOpen,
+  style,
 }: {
-  people: MomentPerson[];
+  moments: Moment[];
   t: GroupTheme;
-  onOpen: (actorId: string) => void;
+  onOpen: (momentId: string) => void;
+  /** Where it sits on a page that is not Home, whose spacing it assumes. */
+  style?: StyleProp<ViewStyle>;
 }) {
-  if (people.length === 0) return null;
+  if (moments.length === 0) return null;
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.rowOuter}
+    /*
+     * The row's own box, sized from its tiles, around the scroll.
+     *
+     * Why the rounded squares came out cut: the ring was the icon's field as a
+     * square SVG, rounded only by its parent's `overflow: hidden` and radius —
+     * and an SVG is its own native view, so whether that clip reached into it
+     * was the renderer's decision, not the layout's. The ring is a path now
+     * (`IconRing`), with the corners in its geometry. And a horizontal scroll
+     * view clips to its own bounds whatever `overflow` says, so the tiles sit
+     * inside padding wide enough for the ring *and* the face badge that hangs
+     * off each tile's corner, rather than flush against the edge that clips.
+     */
+    <View style={[styles.rowOuter, style]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+      >
+        {moments.map((moment) => (
+          <MomentTile key={moment.id} moment={moment} t={t} onPress={() => onOpen(moment.id)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * One moment in the strip: the photograph, its ring, and whose it is.
+ *
+ * Ringed in the icon's field until opened, then in a hairline — the ring is
+ * the only thing that says "new to you", so it is colour or nothing. The same
+ * geometry either way, so a tile does not change size when it is seen.
+ */
+function MomentTile({
+  moment,
+  t,
+  onPress,
+}: {
+  moment: Moment;
+  t: GroupTheme;
+  onPress: () => void;
+}) {
+  const who = moment.mine ? 'You' : first(moment.author.name);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${moment.mine ? 'Your' : `${who}'s`} moment${moment.seen ? '' : ', new'}`}
+      style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
     >
-      {people.map((person) => (
-        <Pressable
-          key={person.actorId}
-          onPress={() => onOpen(person.actorId)}
-          accessibilityRole="button"
-          accessibilityLabel={
-            person.mine ? 'Your moments' : `${first(person.name)}'s moments`
-          }
-          style={({ pressed }) => [styles.person, { opacity: pressed ? 0.6 : 1 }]}
-        >
-          {/*
-            The ring is the app icon's own field, cut to a rounded square and
-            showing only at the edge: a page-coloured gap inside it, then the
-            face. The gap is what keeps the ring a frame around somebody rather
-            than a colour bleeding into their picture.
-          */}
-          <View style={styles.ring}>
-            <IconField />
-            <View style={[styles.gap, { backgroundColor: t.bg }]}>
-              <View style={[styles.face, { backgroundColor: t.card }]}>
-                {person.avatar ? (
-                  <ExpoImage
-                    source={{ uri: person.avatar }}
-                    style={styles.faceImage}
-                    contentFit="cover"
-                    transition={120}
-                  />
-                ) : (
-                  <Text style={[styles.initial, { color: t.fg }]}>
-                    {(first(person.name) || '?').slice(0, 1).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-          <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
-            {person.mine ? 'You' : first(person.name)}
-          </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
+      <View style={styles.frame}>
+        {moment.seen ? (
+          <IconRing size={RING} radius={RING_RADIUS} thickness={SEEN_LINE} color={t.line} />
+        ) : (
+          <IconRing size={RING} radius={RING_RADIUS} thickness={RING_LINE} />
+        )}
+        <ExpoImage
+          source={{ uri: moment.thumb }}
+          style={[styles.shot, { backgroundColor: t.card }]}
+          contentFit="cover"
+          transition={120}
+        />
+        {/* Whose, on the corner: a face, ringed in the page's colour so it
+            reads as sitting on the photograph rather than being part of it. */}
+        <View style={[styles.badge, { borderColor: t.bg, backgroundColor: t.card }]}>
+          {moment.author.avatar ? (
+            <ExpoImage
+              source={{ uri: moment.author.avatar }}
+              style={styles.badgeImage}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <Text style={[styles.badgeLetter, { color: t.fg }]}>
+              {(first(moment.author.name) || '?').slice(0, 1).toUpperCase()}
+            </Text>
+          )}
+        </View>
+      </View>
+      <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
+        {who}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -310,36 +372,37 @@ export function MomentsRow({
  */
 export function MomentsViewer({
   api,
-  people,
+  moments,
   start,
   t,
   Button,
   onClose,
   onOpenPerson,
+  onSeen,
 }: {
   api: Api;
-  people: MomentPerson[];
-  /** Whose square was pressed. The viewer opens on their newest. */
+  /** The strip it was opened from, in the strip's order. */
+  moments: Moment[];
+  /** The moment that was pressed. */
   start: string;
   t: GroupTheme;
   Button: ButtonComponent;
   onClose: () => void;
   onOpenPerson: (handle: string) => void;
+  /** This one is on screen: draw it seen now. The server is told here. */
+  onSeen: (id: string) => void;
 }) {
   /*
-   * Every moment in the row as one list, in the row's order, and who each
-   * belongs to. Flattened into the viewer's own photograph shape so the viewer
-   * does not learn a second one: a moment has one rendition, so every size is
-   * that one, and it has none of a roll's social rows.
+   * The strip in the viewer's own photograph shape, so the viewer does not
+   * learn a second one: a moment has one rendition, so every size is that one,
+   * and it has none of a roll's social rows.
    */
-  const { photos, owners } = useMemo(() => {
-    const photos: FeedPhoto[] = [];
-    const owners: MomentPerson[] = [];
-    for (const person of people) {
-      for (const moment of person.moments) {
-        photos.push({
+  const photos = useMemo(
+    () =>
+      moments.map(
+        (moment): FeedPhoto => ({
           id: moment.id,
-          src: moment.src,
+          src: moment.thumb,
           card: moment.src,
           grid: moment.src,
           full: moment.src,
@@ -349,20 +412,18 @@ export function MomentsViewer({
           takenAt: moment.createdAt,
           addedAt: moment.createdAt,
           tags: [],
-          mine: person.mine,
-          by: person.actorId,
+          mine: moment.mine,
+          by: moment.author.actorId,
           reactions: [],
           favourite: false,
           unseen: false,
-        });
-        owners.push(person);
-      }
-    }
-    return { photos, owners };
-  }, [people]);
+        }),
+      ),
+    [moments],
+  );
 
   const [index, setIndex] = useState(() =>
-    Math.max(0, owners.findIndex((p) => p.actorId === start)),
+    Math.max(0, moments.findIndex((m) => m.id === start)),
   );
   const [options, setOptions] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -371,13 +432,31 @@ export function MomentsViewer({
   // A removal can shorten the list under the index.
   const at = Math.min(index, photos.length - 1);
   const photo = photos[at];
-  const owner = owners[at];
+  const moment = moments[at];
 
   useEffect(() => {
     if (photos.length === 0) onClose();
   }, [onClose, photos.length]);
 
-  if (!photo || !owner) return null;
+  /*
+   * Seen when it is on screen — the one that was pressed, and each one swiped
+   * to. Once per moment: the server keeps the first opening anyway, and a
+   * request per settle of the pager would be one per swipe back and forth.
+   */
+  const told = useRef<Set<string>>(new Set());
+  const seenId = moment && !moment.seen && !moment.mine ? moment.id : null;
+  useEffect(() => {
+    if (!seenId || told.current.has(seenId)) return;
+    told.current.add(seenId);
+    onSeen(seenId);
+    api.markMomentSeen(seenId).catch(() => {
+      // Nothing to say: the ring comes back on the next fetch, which is the
+      // whole cost of this not landing.
+    });
+  }, [api, onSeen, seenId]);
+
+  if (!photo || !moment) return null;
+  const owner = moment.author;
 
   const closeOptions = () => {
     setOptions(false);
@@ -417,7 +496,11 @@ export function MomentsViewer({
           }
         }}
         downloading={saving === photo.id}
-        uploader={{ name: owner.name, handle: owner.handle, avatarUrl: owner.avatar }}
+        uploader={{
+          name: moment.mine ? 'You' : owner.name,
+          handle: owner.handle,
+          avatarUrl: owner.avatar,
+        }}
         onOpenPerson={(handle) => {
           onClose();
           onOpenPerson(handle);
@@ -437,7 +520,7 @@ export function MomentsViewer({
           <Pressable style={styles.backdrop} onPress={closeOptions}>
             <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
               <View style={styles.inner}>
-                {owner.mine ? (
+                {moment.mine ? (
                   <Button
                     t={t}
                     label="Remove my moment"
@@ -481,57 +564,59 @@ export function MomentsViewer({
   );
 }
 
-/** The ring's outer edge, and what the row around it measures. */
+/** The tile's outer edge, the ring's widths, and the photograph inside. */
 const RING = 66;
-const NAME_GAP = 5;
-const NAME_LINE = 16;
-const ROW_PAD = 4;
-const ROW_HEIGHT = ROW_PAD * 2 + RING + NAME_GAP + NAME_LINE;
+const RING_RADIUS = 20;
+const RING_LINE = 3;
+const SEEN_LINE = 1.5;
+/** Ring, then a page-coloured gap of 2, then the photograph. */
+const SHOT_INSET = RING_LINE + 2;
+/** How far the author's face hangs off the tile's corner. */
+const BADGE = 24;
+const BADGE_HANG = 5;
+/**
+ * The strip's padding: enough on every side for the badge that hangs off the
+ * corner, so no part of a tile ever meets the edge the scroll view clips at.
+ */
+const ROW_PAD = BADGE_HANG + 3;
 
 const styles = StyleSheet.create({
   /*
    * Pulled up against the rolls. Home's scroll spaces every child 26 apart,
-   * which is right between two cards and far too much under a row of faces
-   * that belongs to the list below it — the negative margin brings that gap
-   * to 10 without the row learning what the page's gap is by any other means.
-   *
-   * Its height is stated, and it neither shrinks nor clips. A horizontal
-   * scroll view is `flexShrink: 1` by default and clips to its own bounds, so
-   * a row measured a few points short of its tiles cut the rings' corners off
-   * flat — the rounded square drawn in a box too small for it.
+   * which is right between two cards and far too much under a strip that
+   * belongs to the list below it — the negative margin brings that gap to
+   * about 10 without the strip learning what the page's gap is any other way.
+   * The row's own padding is part of that 10, which is why it is less than 16.
    */
-  rowOuter: {
-    flexGrow: 0,
-    flexShrink: 0,
-    height: ROW_HEIGHT,
-    marginBottom: -16,
-    overflow: 'visible',
+  rowOuter: { flexShrink: 0, marginTop: -ROW_PAD, marginBottom: -24, marginHorizontal: -ROW_PAD },
+  row: { gap: 12, padding: ROW_PAD },
+  tile: { width: RING + BADGE_HANG, alignItems: 'flex-start', gap: 6 },
+  frame: { width: RING, height: RING },
+  shot: {
+    position: 'absolute',
+    top: SHOT_INSET,
+    left: SHOT_INSET,
+    width: RING - SHOT_INSET * 2,
+    height: RING - SHOT_INSET * 2,
+    // The radius inside the ring's, less the inset, so the corners are
+    // concentric. On the image itself, which clips its own pixels.
+    borderRadius: RING_RADIUS - SHOT_INSET,
   },
-  row: { gap: 10, paddingHorizontal: 2, paddingVertical: ROW_PAD, alignItems: 'flex-start' },
-  person: { width: 70, alignItems: 'center', gap: NAME_GAP },
-  /* Rounded squares, not discs — see the note at the top. Each radius is the
-     one inside it plus the padding between, so the three corners are
-     concentric rather than three unrelated curves. Every size is a number
-     rather than a stretch, so nothing about the row can make one smaller. */
-  ring: {
-    width: RING,
-    height: RING,
-    borderRadius: 20,
-    overflow: 'hidden',
-    padding: 3,
-  },
-  gap: { width: RING - 6, height: RING - 6, borderRadius: 17, padding: 2 },
-  face: {
-    width: RING - 10,
-    height: RING - 10,
-    borderRadius: 15,
+  badge: {
+    position: 'absolute',
+    right: -BADGE_HANG,
+    bottom: -BADGE_HANG,
+    width: BADGE,
+    height: BADGE,
+    borderRadius: 8,
+    borderWidth: 2,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  faceImage: { width: '100%', height: '100%' },
-  initial: { fontSize: 20, fontWeight: '600' },
-  name: { fontSize: 12, lineHeight: NAME_LINE, maxWidth: 70 },
+  badgeImage: { width: '100%', height: '100%' },
+  badgeLetter: { fontSize: 10, fontWeight: '700' },
+  name: { fontSize: 12, lineHeight: 16, width: RING, textAlign: 'center' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },
   panel: { borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   inner: { padding: 16, paddingBottom: 40, gap: 12 },

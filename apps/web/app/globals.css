@@ -1004,6 +1004,7 @@ button.secondary {
    and the face, so the colour frames somebody rather than bleeding into
    their picture. */
 .moment-ring {
+  position: relative;
   display: block; width: 66px; height: 66px; padding: 3px; box-sizing: border-box;
   border-radius: 20px; flex: none;
   background:
@@ -1015,11 +1016,27 @@ button.secondary {
     /* pink */ radial-gradient(62% 62% at 74% 2%, rgba(247, 154, 182, 1) 0%, rgba(235, 120, 160, 0.92) 34%, rgba(216, 97, 150, 0.42) 68%, rgba(216, 97, 150, 0) 100%),
     #173EA8;
 }
-.moment-face {
-  width: 60px; height: 60px; box-sizing: border-box;
-  border: 2px solid var(--bg); border-radius: 17px;
+.moment-shot {
+  display: block; width: 60px; height: 60px; box-sizing: border-box; overflow: hidden;
+  border: 2px solid var(--bg); border-radius: 17px; background: var(--track);
 }
-.moment-mine .person-name { color: var(--fg); font-weight: 600; }
+.moment-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Opened: the colour was only ever saying "new to you", so it goes and a
+   hairline holds the shape. */
+.moment-seen .moment-ring { background: var(--line); }
+/* Whose it is, on the corner — ringed in the page's colour so it reads as
+   sitting on the photograph rather than as part of it. */
+.moment-badge {
+  position: absolute; right: -5px; bottom: -5px;
+  width: 24px; height: 24px; box-sizing: border-box; overflow: hidden;
+  border: 2px solid var(--bg); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 11px; font-weight: 700;
+}
+.moment-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Room for the badge that hangs off each tile's corner. */
+.moments-row { padding-top: 6px; }
 
 /* Adding a moment: the photo page's own frame, empty until a photo is
    chosen, and Share in the corner where the steps would be. */

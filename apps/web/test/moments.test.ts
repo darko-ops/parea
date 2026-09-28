@@ -17,7 +17,15 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
 import { befriend } from '@/friends';
-import { MOMENT_DAYS, momentsFor, removeMoment } from '@/moments';
+import {
+  BOOST_CAP_MINUTES,
+  FRESH_HOURS,
+  MOMENT_DAYS,
+  markSeen,
+  momentStream,
+  orderStream,
+  removeMoment,
+} from '@/moments';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -32,7 +40,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await db.execute(sql`
-    truncate "account", "actor", "block", "friendship", "event", "moment"
+    truncate "account", "actor", "block", "friendship", "event", "moment", "groups"
     restart identity cascade
   `);
 });
@@ -64,21 +72,40 @@ async function rollWith(...actors: string[]) {
   return event!.id;
 }
 
-const who = async (viewer: string) => (await momentsFor(db, viewer)).map((p) => p.handle);
+async function groupWith(...actors: string[]) {
+  const [group] = await db
+    .insert(schema.groups)
+    .values({ name: 'Crew', slug: `crew-${Math.random().toString(36).slice(2)}` })
+    .returning();
+  await db
+    .insert(schema.groupMembers)
+    .values(actors.map((actorId) => ({ groupId: group!.id, actorId })));
+}
+
+/** Whose moments the viewer's stream holds, in stream order. */
+const who = async (viewer: string) =>
+  (await momentStream(db, viewer)).map((m) => m.author.handle);
+
+const MINUTE = 60_000;
+const ago = (minutes: number) => new Date(Date.now() - minutes * MINUTE);
+
 
 describe('who sees a moment', () => {
-  it('shows friends and people you are in a roll with, and not strangers', async () => {
+  it('shows friends, roll-mates and group-mates, and not strangers', async () => {
     const me = await person('me');
     const friend = await person('friend');
     const rollmate = await person('rollmate');
+    const groupmate = await person('groupmate');
     const stranger = await person('stranger');
     await befriend(db, me, friend);
     await rollWith(me, rollmate);
+    await groupWith(me, groupmate);
     await moment(friend);
     await moment(rollmate);
+    await moment(groupmate);
     await moment(stranger);
 
-    expect((await who(me)).sort()).toEqual(['friend', 'rollmate']);
+    expect((await who(me)).sort()).toEqual(['friend', 'groupmate', 'rollmate']);
   });
 
   it('stops showing a roll-mate once the roll is deleted', async () => {
@@ -104,32 +131,7 @@ describe('who sees a moment', () => {
   });
 
   it('shows nothing to somebody with no actor', async () => {
-    expect(await momentsFor(db, null)).toEqual([]);
-  });
-});
-
-describe('the row', () => {
-  it('puts your own first, then whoever posted most recently', async () => {
-    const me = await person('me');
-    const a = await person('a');
-    const b = await person('b');
-    await befriend(db, me, a);
-    await befriend(db, me, b);
-    const minute = 60_000;
-    await moment(me, new Date(Date.now() - 10 * minute));
-    await moment(a, new Date(Date.now() - 5 * minute));
-    await moment(b, new Date(Date.now() - 1 * minute));
-
-    expect(await who(me)).toEqual(['me', 'b', 'a']);
-  });
-
-  it('groups each person’s moments newest first', async () => {
-    const me = await person('me');
-    const older = await moment(me, new Date(Date.now() - 60_000));
-    const newer = await moment(me);
-
-    const [mine] = await momentsFor(db, me);
-    expect(mine!.moments.map((m) => m.id)).toEqual([newer, older]);
+    expect(await momentStream(db, null)).toEqual([]);
   });
 
   it(`drops a moment older than ${MOMENT_DAYS} days`, async () => {
@@ -137,6 +139,108 @@ describe('the row', () => {
     await moment(me, new Date(Date.now() - (MOMENT_DAYS + 1) * 86_400_000));
 
     expect(await who(me)).toEqual([]);
+  });
+});
+
+describe('the stream', () => {
+  it('is one list of everybody’s moments, not one entry per person', async () => {
+    const me = await person('me');
+    const a = await person('a');
+    await befriend(db, me, a);
+    await moment(a, ago(3));
+    await moment(a, ago(2));
+    await moment(me, ago(1));
+
+    // Yours counts as seen, so it follows the two you have not opened.
+    expect(await who(me)).toEqual(['a', 'a', 'me']);
+  });
+
+  it('lets an opened moment fall behind the ones you have not seen', async () => {
+    const me = await person('me');
+    const a = await person('a');
+    await befriend(db, me, a);
+    const older = await moment(a, ago(5));
+    const newer = await moment(a, ago(1));
+    await markSeen(db, me, newer);
+
+    const order = (await momentStream(db, me)).map((m) => m.id);
+    expect(order).toEqual([older, newer]);
+  });
+
+  it('holds the order still for openings after `seenBefore`', async () => {
+    // The web steps through a page at a time and marks each as it goes.
+    const me = await person('me');
+    const a = await person('a');
+    await befriend(db, me, a);
+    const older = await moment(a, ago(5));
+    const newer = await moment(a, ago(1));
+    const before = new Date(Date.now() - 1000);
+    await markSeen(db, me, newer);
+
+    const order = (await momentStream(db, me, { seenBefore: before })).map((m) => m.id);
+    expect(order).toEqual([newer, older]);
+  });
+
+  it('narrows to one person, newest first, for their page', async () => {
+    const me = await person('me');
+    const a = await person('a');
+    const b = await person('b');
+    await befriend(db, me, a);
+    await befriend(db, me, b);
+    const first = await moment(a, ago(9));
+    await moment(b, ago(5));
+    const second = await moment(a, ago(1));
+
+    const theirs = (await momentStream(db, me, { by: a })).map((m) => m.id);
+    expect(theirs).toEqual([second, first]);
+  });
+});
+
+describe('the order', () => {
+  const now = new Date('2026-09-28T12:00:00Z');
+  const at = (minutes: number) => new Date(now.getTime() - minutes * MINUTE);
+  const none = { friend: false, roll: false, group: false };
+  const close = { friend: true, roll: true, group: true };
+  const item = (name: string, minutes: number, extra: Partial<{ seen: boolean; close: typeof none }> = {}) => ({
+    name,
+    createdAt: at(minutes),
+    seen: extra.seen ?? false,
+    close: extra.close ?? none,
+  });
+  const names = (list: { name: string }[]) => list.map((m) => m.name);
+
+  it('is newest first when nobody is closer than anybody else', () => {
+    expect(names(orderStream([item('old', 30), item('new', 2), item('mid', 10)], now))).toEqual([
+      'new',
+      'mid',
+      'old',
+    ]);
+  });
+
+  it('lets closeness settle a near tie, and no more than that', () => {
+    // A close friend's moment from 8 minutes ago beats a stranger's from 2 —
+    // the lift is capped at ten minutes of apparent recency.
+    expect(
+      names(orderStream([item('stranger', 2), item('friend', 8, { close })], now)),
+    ).toEqual(['friend', 'stranger']);
+    // It never lifts something older than the cap above something new.
+    expect(
+      names(
+        orderStream([item('stranger', 2), item('friend', 2 + BOOST_CAP_MINUTES + 1, { close })], now),
+      ),
+    ).toEqual(['stranger', 'friend']);
+  });
+
+  it('puts fresh unseen, then fresh seen, then everything older', () => {
+    const old = FRESH_HOURS * 60 + 5;
+    expect(
+      names(
+        orderStream(
+          [item('old unseen', old), item('seen', 1, { seen: true }), item('unseen', 20)],
+          now,
+        ),
+      ),
+    ).toEqual(['unseen', 'seen', 'old unseen']);
   });
 });
 
@@ -186,7 +290,7 @@ describe('the ring', () => {
       fileURLToPath(new URL('../app/globals.css', import.meta.url)),
       'utf8',
     );
-    const ring = css.slice(css.indexOf('.moment-ring {'), css.indexOf('.moment-face {'));
+    const ring = css.slice(css.indexOf('.moment-ring {'), css.indexOf('.moment-shot {'));
     const hex = (h: string) =>
       [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ');
     const stops = [...phone.matchAll(/\[([\d.]+), '(#[0-9A-F]{6})', ([\d.]+)\]/g)];

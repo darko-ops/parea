@@ -71,6 +71,11 @@ export default function PrivacyPage() {
             &mdash; is kept. It is shown to your friends and to people you are in
             a roll with, and you can remove it at any time.
           </p>
+          <p className="muted">
+            Which moments you have opened is recorded too, so the ones you have
+            not seen yet come first. Nobody else sees it &mdash; not the person
+            who shared the moment, and not as a count.
+          </p>
 
           <h3>An identifier for your device</h3>
           <p className="muted">

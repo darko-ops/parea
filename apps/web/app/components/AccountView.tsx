@@ -19,12 +19,15 @@
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
+import type { MomentsResponse } from '@/moments';
+
 import { Avatar } from './Avatar';
 import { Devices } from './Devices';
 import { Discoverability } from './Discoverability';
 import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
+import { MomentStrip } from './MomentStrip';
 import { Shell } from './Shell';
 import { ShareProfile } from './ShareProfile';
 import { SignIn } from './SignIn';
@@ -123,6 +126,8 @@ export function AccountView() {
   const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /** Your own moments, newest first, for the strip under the header. */
+  const [moments, setMoments] = useState<MomentsResponse | null>(null);
 
   const load = useCallback(async () => {
     const [session, mine, mates] = await Promise.all([
@@ -134,6 +139,15 @@ export function AccountView() {
     setEvents(mine.events ?? []);
     setFriends(mates.friends?.length ?? 0);
     setStage(session.account ? 'in' : 'email');
+    // Yours, by your handle, so pressing one steps through only yours.
+    const handle = session.account?.handle as string | undefined;
+    setMoments(
+      handle
+        ? await fetch(`/api/moments?by=${encodeURIComponent(handle)}`)
+            .then((r) => r.json())
+            .catch(() => null)
+        : null,
+    );
   }, []);
 
   useEffect(() => {
@@ -496,6 +510,15 @@ export function AccountView() {
       </header>
 
       {note && <p className="muted">{note}</p>}
+
+      {moments && (
+        <MomentStrip
+          moments={moments.moments}
+          at={moments.at}
+          by={account?.handle ?? null}
+          label="Your moments"
+        />
+      )}
 
       {/*
         The same cards as Events, from the same data.

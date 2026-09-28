@@ -28,5 +28,6 @@ export async function DELETE(
 
   // The object goes too: an unreferenced one is never read again.
   await getStorage().delete(removed.key).catch(() => {});
+  if (removed.thumbKey) await getStorage().delete(removed.thumbKey).catch(() => {});
   return NextResponse.json({ ok: true });
 }
