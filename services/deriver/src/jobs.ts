@@ -17,6 +17,8 @@
 
 import {
   codeWordTriples,
+  MOMENT_GRACE_HOURS,
+  MOMENT_HOURS,
   recordModeration,
   REASON,
   schema,
@@ -175,6 +177,42 @@ export async function purge(
     purged++;
   }
   return purged;
+}
+
+/**
+ * Deletes moments that have had their day, and ones their author took back.
+ *
+ * A moment lasts `MOMENT_HOURS`; the web stops showing it then, and this is
+ * what makes that true of storage as well — the picture, its thumbnail and
+ * the row, which takes its `moment_view` rows with it. An hour's grace past
+ * the day, for anybody still holding a signed link to it (see
+ * `MOMENT_GRACE_HOURS`).
+ *
+ * Taken-back moments come here too. Their route deletes the objects at once
+ * and keeps the row soft-deleted; this is where the row finally goes, and
+ * deleting the objects again costs nothing if they are already gone.
+ *
+ * Objects first, then the row, for the reason `purge` gives: the other order
+ * leaves bytes in the bucket with nothing pointing at them.
+ */
+export async function expireMoments(
+  database: ReturnType<typeof db>,
+  objects: ObjectStore,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - (MOMENT_HOURS + MOMENT_GRACE_HOURS) * 3600_000);
+  const rows = await database
+    .select({ id: schema.moments.id, key: schema.moments.key, thumbKey: schema.moments.thumbKey })
+    .from(schema.moments)
+    .where(or(lt(schema.moments.createdAt, cutoff), isNotNull(schema.moments.deletedAt)))
+    .limit(500);
+
+  for (const row of rows) {
+    for (const key of [row.key, row.thumbKey]) {
+      if (key) await objects.delete(key).catch(() => {});
+    }
+    await database.delete(schema.moments).where(eq(schema.moments.id, row.id));
+  }
+  return rows.length;
 }
 
 /**
@@ -491,6 +529,7 @@ async function main(): Promise<void> {
   await run('auto-hide', () => autoHide(database));
   await run('nudge', () => nudge(database));
   await run('purge', () => purge(database, objects));
+  await run('expire-moments', () => expireMoments(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
   await run('expire-rate-limits', () => expireRateLimits(database));
   await run('expire-observations', () => expireObservations(database));

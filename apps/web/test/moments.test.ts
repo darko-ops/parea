@@ -19,8 +19,7 @@ import type { Db } from '@/db';
 import { befriend } from '@/friends';
 import {
   BOOST_CAP_MINUTES,
-  FRESH_HOURS,
-  MOMENT_DAYS,
+  MOMENT_HOURS,
   markSeen,
   momentStream,
   orderStream,
@@ -136,11 +135,17 @@ describe('who sees a moment', () => {
     expect(await momentStream(db, null)).toEqual([]);
   });
 
-  it(`drops a moment older than ${MOMENT_DAYS} days`, async () => {
+  it(`lasts ${MOMENT_HOURS} hours and no longer`, async () => {
     const me = await person('me');
-    await moment(me, new Date(Date.now() - (MOMENT_DAYS + 1) * 86_400_000));
+    const a = await person('a');
+    await befriend(db, me, a);
+    await moment(a, ago(MOMENT_HOURS * 60 - 5));
+    await moment(a, ago(MOMENT_HOURS * 60 + 5));
 
-    expect(await who(me)).toEqual([]);
+    // The one posted just inside the day is shown; the one just past it is
+    // gone — from the stream and from the person's page alike.
+    expect(await who(me)).toEqual(['a']);
+    expect(await momentStream(db, me, { by: a })).toHaveLength(1);
   });
 });
 
@@ -212,7 +217,7 @@ describe('the order', () => {
   const names = (list: { name: string }[]) => list.map((m) => m.name);
 
   it('is newest first when nobody is closer than anybody else', () => {
-    expect(names(orderStream([item('old', 30), item('new', 2), item('mid', 10)], now))).toEqual([
+    expect(names(orderStream([item('old', 30), item('new', 2), item('mid', 10)]))).toEqual([
       'new',
       'mid',
       'old',
@@ -223,26 +228,20 @@ describe('the order', () => {
     // A close friend's moment from 8 minutes ago beats a stranger's from 2 —
     // the lift is capped at ten minutes of apparent recency.
     expect(
-      names(orderStream([item('stranger', 2), item('friend', 8, { close })], now)),
+      names(orderStream([item('stranger', 2), item('friend', 8, { close })])),
     ).toEqual(['friend', 'stranger']);
     // It never lifts something older than the cap above something new.
     expect(
       names(
-        orderStream([item('stranger', 2), item('friend', 2 + BOOST_CAP_MINUTES + 1, { close })], now),
+        orderStream([item('stranger', 2), item('friend', 2 + BOOST_CAP_MINUTES + 1, { close })]),
       ),
     ).toEqual(['stranger', 'friend']);
   });
 
-  it('puts fresh unseen, then fresh seen, then everything older', () => {
-    const old = FRESH_HOURS * 60 + 5;
+  it('puts what you have not opened before what you have', () => {
     expect(
-      names(
-        orderStream(
-          [item('old unseen', old), item('seen', 1, { seen: true }), item('unseen', 20)],
-          now,
-        ),
-      ),
-    ).toEqual(['unseen', 'seen', 'old unseen']);
+      names(orderStream([item('seen', 1, { seen: true }), item('unseen', 20)])),
+    ).toEqual(['unseen', 'seen']);
   });
 });
 

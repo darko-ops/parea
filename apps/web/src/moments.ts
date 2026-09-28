@@ -19,33 +19,35 @@
  *
  * Chronological, and meant to feel it: what your people are sharing now is
  * the point, and an order that decides what matters is the thing this is not.
- * `orderStream` is the whole rule, and it has three parts.
+ * `orderStream` is the whole rule, and it has two parts.
  *
- * - **Fresh and unseen first.** Anything from the last `FRESH_HOURS` you have
- *   not opened, newest first — with a small lift for the people you are
- *   closest to. The lift is minutes, capped at `BOOST_CAP_MINUTES`, so it only
- *   ever settles which of two moments posted close together comes first. It
- *   can never put something old above something posted a few minutes ago.
- * - **Then fresh and seen.** Opening a moment lets it fall behind the ones
- *   you have not. Your own count as seen: you do not need to be shown them.
- * - **Then everything older**, newest first, until `MOMENT_DAYS`.
+ * - **Unseen first.** Anything you have not opened, newest first — with a
+ *   small lift for the people you are closest to. The lift is minutes, capped
+ *   at `BOOST_CAP_MINUTES`, so it only ever settles which of two moments
+ *   posted close together comes first. It can never put something old above
+ *   something posted a few minutes ago.
+ * - **Then seen.** Opening a moment lets it fall behind the ones you have
+ *   not. Your own count as seen: you do not need to be shown them.
+ *
+ * ## How long
+ *
+ * `MOMENT_HOURS`: a day. A moment is what your people are sharing now, and
+ * after a day it is not now. It stops being shown to anybody — Home, the
+ * viewer, the person's page, and a link straight to it — at that point.
  *
  * Reactions play no part, and never should: ranking by them is how a stream
  * of your people becomes a popularity contest.
  */
 
-import { schema } from '@parea/core';
+import { MOMENT_HOURS, schema } from '@parea/core';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { type Db, getDb } from './db';
 import { getStorage } from './storage';
 
-/** How long a moment stays in the stream. */
-export const MOMENT_DAYS = 30;
-
-/** What counts as fresh: the window where unseen comes first. */
-export const FRESH_HOURS = 24;
+/** How long a moment is shown for. Shared with the deriver's clean-up. */
+export { MOMENT_HOURS };
 
 /**
  * The lift closeness buys, in minutes of apparent recency.
@@ -98,9 +100,7 @@ export type StreamMoment = {
  */
 export function orderStream<T extends Pick<StreamMoment, 'createdAt' | 'seen' | 'close'>>(
   moments: T[],
-  now: Date,
 ): T[] {
-  const fresh = now.getTime() - FRESH_HOURS * 3_600_000;
   const lifted = (m: T) => {
     const minutes = Math.min(
       BOOST_CAP_MINUTES,
@@ -112,15 +112,10 @@ export function orderStream<T extends Pick<StreamMoment, 'createdAt' | 'seen' | 
   };
   const newest = (a: T, b: T) => b.createdAt.getTime() - a.createdAt.getTime();
 
-  const unseen = moments.filter((m) => m.createdAt.getTime() > fresh && !m.seen);
-  const seen = moments.filter((m) => m.createdAt.getTime() > fresh && m.seen);
-  const older = moments.filter((m) => m.createdAt.getTime() <= fresh);
+  const unseen = moments.filter((m) => !m.seen);
+  const seen = moments.filter((m) => m.seen);
 
-  return [
-    ...unseen.sort((a, b) => lifted(b) - lifted(a)),
-    ...seen.sort(newest),
-    ...older.sort(newest),
-  ];
+  return [...unseen.sort((a, b) => lifted(b) - lifted(a)), ...seen.sort(newest)];
 }
 
 /**
@@ -132,7 +127,6 @@ export async function momentStream(
   viewer: string | null,
   options: {
     by?: string;
-    now?: Date;
     /**
      * Openings after this are not counted as seen. The web steps through the
      * stream one page at a time and marks each as it goes; without this the
@@ -143,8 +137,7 @@ export async function momentStream(
   } = {},
 ): Promise<StreamMoment[]> {
   if (!viewer) return [];
-  const now = options.now ?? new Date();
-  const cutoff = options.seenBefore ?? now;
+  const cutoff = options.seenBefore ?? new Date();
 
   /*
    * Who the viewer is connected to, and how: one row per person with the
@@ -190,7 +183,7 @@ export async function momentStream(
       left join "moment_view" v on v.moment_id = m.id and v.actor_id = ${viewer}
                                 and v.viewed_at <= ${cutoff.toISOString()}
      where m.deleted_at is null
-       and m.created_at > now() - make_interval(days => ${MOMENT_DAYS})
+       and m.created_at > now() - make_interval(hours => ${MOMENT_HOURS})
        ${options.by ? sql`and m.actor_id = ${options.by}` : sql``}
        and not exists (
          select 1 from "block" b
@@ -238,7 +231,7 @@ export async function momentStream(
   }));
 
   // One person's page is simply their moments, newest first.
-  return options.by ? moments : orderStream(moments, now);
+  return options.by ? moments : orderStream(moments);
 }
 
 /** That the viewer has opened one. Idempotent; the first opening is kept. */

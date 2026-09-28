@@ -42,7 +42,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 
@@ -82,6 +81,7 @@ import { Lately } from './src/Lately';
 import { NewGroup } from './src/NewGroup';
 import { PickPhotos } from './src/PickPhotos';
 import { AddMoment } from './src/Moments';
+import { loadAppearance, useAppearance } from './src/appearance';
 import { Back, More, RoundButton } from './src/RoundButton';
 import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
@@ -353,7 +353,12 @@ const COVER_LOOK_MS = 5_000;
 const COVER_LOOKS = 60;
 
 export default function App() {
-  const dark = useColorScheme() === 'dark';
+  // Dark unless this phone chose light in Settings — the app's own choice,
+  // not the system's. See `appearance.ts`.
+  useEffect(() => {
+    void loadAppearance();
+  }, []);
+  const dark = useAppearance() === 'dark';
   const t = useMemo(() => theme(dark), [dark]);
   const api = useMemo(
     () => new Api(API_BASE, null, RNPlatform.OS === 'android' ? 'android' : 'ios'),

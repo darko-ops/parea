@@ -30,10 +30,10 @@ import {
   Animated,
   Easing,
   StyleSheet,
-  useColorScheme,
   View,
 } from 'react-native';
 
+import { useAppearance } from './appearance';
 import { Mark } from './Mark';
 
 /**
@@ -76,7 +76,7 @@ export function Waiting({
    * theme, it is the same one. The alternative is threading a theme through
    * eleven call sites to colour a spinner.
    */
-  const dark = useColorScheme() === 'dark';
+  const dark = useAppearance() === 'dark';
 
   useEffect(() => {
     let live = true;

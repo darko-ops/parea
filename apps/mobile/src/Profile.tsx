@@ -76,6 +76,7 @@ import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
 import { MomentsRow, MomentsViewer, useMoments } from './Moments';
+import { setAppearance, useAppearance } from './appearance';
 
 /** Two across: at this width a cover is a photograph rather than a swatch. */
 const COLUMNS = 2;
@@ -936,6 +937,8 @@ function Settings({
 
               {account && <Discoverability api={api} t={t} account={account} onChanged={onChanged} />}
 
+              <AppearanceChoice t={t} />
+
               <Button
                 label="Safety, reporting and contact"
                 t={t}
@@ -947,6 +950,38 @@ function Settings({
         </Pressable>
       </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+/**
+ * Dark or light, for the whole app. Dark unless somebody picks light — see
+ * `appearance.ts`. Two choices side by side rather than a switch, because
+ * neither is "off": a switch reads as dark mode being a thing you turn on.
+ */
+function AppearanceChoice({ t }: { t: GroupTheme }) {
+  const look = useAppearance();
+  return (
+    <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+      <Text style={[styles.switchLabel, { color: t.fg }]}>Appearance</Text>
+      <View style={[styles.segments, { borderColor: t.line }]} accessibilityRole="radiogroup">
+        {(['dark', 'light'] as const).map((option) => {
+          const on = look === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => void setAppearance(option)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              style={[styles.segment, on && { backgroundColor: t.accent }]}
+            >
+              <Text style={[styles.segmentText, { color: on ? t.onAccent : t.fg }]}>
+                {option === 'dark' ? 'Dark' : 'Light'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -1301,6 +1336,10 @@ const styles = StyleSheet.create({
   panel: { maxHeight: '90%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   panelScroll: { padding: 16, paddingBottom: 40, gap: 12 },
   panelTitle: { fontSize: 22, fontWeight: '700' },
+  /* Appearance: two halves of one pill. */
+  segments: { flexDirection: 'row', borderWidth: 1, borderRadius: 11, padding: 3, gap: 3 },
+  segment: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+  segmentText: { fontSize: 15, fontWeight: '600' },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   fieldLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
   input: { borderWidth: 1, borderRadius: 11, paddingVertical: 12, paddingHorizontal: 15, fontSize: 16 },

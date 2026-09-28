@@ -849,7 +849,7 @@ describe('the line under the strip', () => {
     expect(EVENTS).toMatch(
       /pressed && \{ backgroundColor: dark \? '#ffffff14' : 'rgba\(20,23,28,0\.06\)' \}/,
     );
-    expect(EVENTS).toMatch(/const dark = useColorScheme\(\) === 'dark';/);
+    expect(EVENTS).toMatch(/const dark = useAppearance\(\) === 'dark';/);
   });
 
   it('is not a hook, because the empty-album return is above it', () => {

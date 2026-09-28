@@ -235,7 +235,7 @@ describe('the spinner is one colour', () => {
      * two are the `fg` of each palette in `App.tsx`.
      */
     const WAITING = read('src/Waiting.tsx');
-    expect(WAITING).toMatch(/const dark = useColorScheme\(\) === 'dark';/);
+    expect(WAITING).toMatch(/const dark = useAppearance\(\) === 'dark';/);
     expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#14171c'\}/);
     const APP = read('App.tsx');
     expect(APP).toMatch(/fg: '#f2f4f7'/);

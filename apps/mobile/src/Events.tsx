@@ -41,10 +41,10 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
 
+import { useAppearance } from './appearance';
 import { ApiError } from './api';
 import type {
   Api,
@@ -258,7 +258,7 @@ function EventCard({
    * the theme does not carry: `t` has the six it paints with, and this is a
    * translucent film over whatever it lands on rather than one of them.
    */
-  const dark = useColorScheme() === 'dark';
+  const dark = useAppearance() === 'dark';
 
   if (event.photoCount === 0) {
     return (

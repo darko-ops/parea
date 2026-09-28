@@ -40,6 +40,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useAppearance } from './appearance';
 import Svg, { Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
@@ -290,19 +291,21 @@ export function MomentsBar({
   onOpen,
 }: {
   moments: Moment[];
-  /** Kept for the callers' sake; the bar is the same light card in both schemes. */
+  /** Kept for the callers' sake; the bar follows the app's look itself. */
   t?: GroupTheme;
   /** Where to start: the first one new to you, else the first. */
   onOpen: (momentId: string) => void;
 }) {
+  const scheme = useAppearance();
   if (moments.length === 0) return null;
   const fresh = moments.filter((m) => !m.seen && !m.mine);
   const start = (fresh[0] ?? moments[0])!.id;
   const news = fresh.length;
 
   /*
-   * The web's bar, exactly: near-white glass in either scheme — the same card
-   * on every surface, so Moments looks like one thing wherever it is. The card with colour showing through it from one corner, as if lit
+   * Follows the app's look (Settings → Appearance, dark by default): dark
+   * glass on dark, and on light the web's bar exactly — near-white glass, a
+   * white card on a white page rather than a slab. Either way the card with colour showing through it from one corner, as if lit
    * from behind frosted glass. The colour says there is activity and nothing
    * about what: it is the app icon's own field, not anybody's photograph.
    * Caught up, it is a faint glow that holds still; while something is new it
@@ -311,7 +314,7 @@ export function MomentsBar({
    * The status is on the right and is the thing to read; the chevron after it
    * is only a hint that this opens.
    */
-  const look = BAR_LIGHT;
+  const look = scheme === 'light' ? BAR_LIGHT : BAR_DARK;
   return (
     /*
      * Two layers because of the shadow: a view that clips its corners (which
@@ -468,6 +471,25 @@ type BarLook = {
 };
 
 /**
+ * Dark glass: three of `IconField`'s colours — violet, pink and teal — in
+ * the light card's places, glowing against a near-black card.
+ */
+const BAR_DARK: BarLook = {
+  card: { backgroundColor: '#15171c', borderColor: 'rgba(255,255,255,0.1)' },
+  shadow: {},
+  ink: '#ffffff',
+  quiet: 'rgba(255,255,255,0.45)',
+  tint: 'dark',
+  frost: 'rgba(21,23,28,0.35)',
+  quietGlow: 0.38,
+  bloom: [
+    { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
+    { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
+    { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
+  ],
+};
+
+/**
  * Light glass: a near-white card, a soft edge and the faintest shadow, with
  * an aurora of indigo, violet and teal inside it. Softer colours at lower
  * strength than the dark card — on white, a little colour is already a lot.
@@ -527,7 +549,13 @@ export function MomentsRow({
         contentContainerStyle={styles.row}
       >
         {moments.map((moment) => (
-          <MomentTile key={moment.id} moment={moment} t={t} onPress={() => onOpen(moment.id)} />
+          <MomentTile
+            key={moment.id}
+            moment={moment}
+            t={t}
+            onPress={() => onOpen(moment.id)}
+            plain
+          />
         ))}
       </ScrollView>
     </View>
@@ -547,10 +575,17 @@ function MomentTile({
   onPress,
   dark = false,
   active,
+  plain = false,
 }: {
   moment: Moment;
   t: GroupTheme;
   onPress: () => void;
+  /**
+   * On somebody's page: every tile there is theirs, and the page already says
+   * whose — so no face on the corner and no name underneath, only the
+   * photograph. The viewer's strip is where those still say who.
+   */
+  plain?: boolean;
   /** On the viewer's black glass rather than the page. */
   dark?: boolean;
   /**
@@ -596,24 +631,28 @@ function MomentTile({
         />
         {/* Whose, on the corner: a face, ringed in the page's colour so it
             reads as sitting on the photograph rather than being part of it. */}
-        <View style={[styles.badge, { borderColor: ground, backgroundColor: t.card }]}>
-          {moment.author.avatar ? (
-            <ExpoImage
-              source={{ uri: moment.author.avatar }}
-              style={styles.badgeImage}
-              contentFit="cover"
-              transition={120}
-            />
-          ) : (
-            <Text style={[styles.badgeLetter, { color: t.fg }]}>
-              {(first(moment.author.name) || '?').slice(0, 1).toUpperCase()}
-            </Text>
-          )}
-        </View>
+        {!plain && (
+          <View style={[styles.badge, { borderColor: ground, backgroundColor: t.card }]}>
+            {moment.author.avatar ? (
+              <ExpoImage
+                source={{ uri: moment.author.avatar }}
+                style={styles.badgeImage}
+                contentFit="cover"
+                transition={120}
+              />
+            ) : (
+              <Text style={[styles.badgeLetter, { color: t.fg }]}>
+                {(first(moment.author.name) || '?').slice(0, 1).toUpperCase()}
+              </Text>
+            )}
+          </View>
+        )}
       </View>
-      <Text style={[styles.name, { color: ink }]} numberOfLines={1}>
-        {who}
-      </Text>
+      {!plain && (
+        <Text style={[styles.name, { color: ink }]} numberOfLines={1}>
+          {who}
+        </Text>
+      )}
       {active !== undefined && (
         <View style={[styles.here, { backgroundColor: active ? ink : 'transparent' }]} />
       )}
