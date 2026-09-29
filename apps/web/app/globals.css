@@ -4993,11 +4993,17 @@ button.link {
    rule for that is in the phone block below. */
 .rail-mark .wordmark { display: none; }
 .rail-glyph { display: flex; color: var(--fg); line-height: 0; }
+/* The same glyph in the same ink wherever else the product signs its name —
+   the sign-in card, an empty thread, the foot of an event's people. It was
+   the coloured mark there, which made the rail and the rest of the product
+   two different logos. */
+.brand-glyph { display: inline-flex; color: var(--fg); line-height: 0; }
 /* On the light page, a dark grey rather than the page's black ink: the
    glyph is the brand at rest in the corner, and full black there was the
    heaviest thing on a white screen — but the lighter grey it had before
    read as disabled. White on dark, as it is on the icon. */
-:root[data-theme="light"] .rail-glyph { color: #3d424a; }
+:root[data-theme="light"] .rail-glyph,
+:root[data-theme="light"] .brand-glyph { color: #3d424a; }
 
 .home-head > .page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
 .home-head > .page-mark { grid-column: 2; grid-row: 1; }

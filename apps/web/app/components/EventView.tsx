@@ -40,7 +40,7 @@ import { PhotoTile } from './PhotoTile';
 import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
-import { Mark } from './Mark';
+import { IconGlyph } from './IconGlyph';
 import { AlbumRequests } from './AlbumRequests';
 import { AddRefused } from './AddRefused';
 import { RailIcon } from './RailIcon';
@@ -1537,7 +1537,9 @@ function People({
         decided and wants the thing to paste.
       */}
       <div className="people-foot">
-        <Mark size={26} />
+        <span className="brand-glyph">
+          <IconGlyph size={17} />
+        </span>
         {/*
           The sentence has to match the policy — both of them.
 

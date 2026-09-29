@@ -236,11 +236,14 @@ describe('the head of the shell', () => {
     expect(RAIL).not.toMatch(/import \{ Mark \}/);
     /*
      * And still the mark everywhere it is the only thing saying what this is:
-     * the icon on a home screen, the face of the sign-in card, the figure
-     * over an empty thread.
+     * the face of the sign-in card, the figure over an empty thread — the
+     * rail's own glyph in the rail's own ink, not the coloured drawing.
      */
-    expect(read(join(APP, 'components/LoginScreen.tsx'))).toMatch(/<Mark size=\{72\}/);
-    expect(read(join(APP, 'components/Thread.tsx'))).toMatch(/<Mark size=\{48\}/);
+    expect(read(join(APP, 'components/LoginScreen.tsx'))).toMatch(/<IconGlyph size=\{46\}/);
+    expect(read(join(APP, 'components/Thread.tsx'))).toMatch(/<IconGlyph size=\{30\}/);
+    for (const file of ['LoginScreen.tsx', 'Thread.tsx', 'EventView.tsx']) {
+      expect(read(join(APP, 'components', file))).not.toMatch(/<Mark\b/);
+    }
   });
 
   it('centres it, on the rail and in the bar', () => {

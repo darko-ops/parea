@@ -31,7 +31,7 @@ import type { Message } from '@/messages';
 import { REACTIONS } from '@/reactions';
 
 import { Face } from './Faces';
-import { Mark } from './Mark';
+import { IconGlyph } from './IconGlyph';
 import { Menu } from './Menu';
 import { SignIn, useSession } from './SignIn';
 import { useImageFailure } from './useImageFailure';
@@ -249,7 +249,9 @@ export function Thread({
             a first message.
           */
           <div className="thread-empty">
-            <Mark size={48} />
+            <span className="brand-glyph">
+              <IconGlyph size={30} />
+            </span>
             {/*
               One line, where it was a heading and a paragraph explaining what
               a conversation is for. Nobody needs telling; what an empty room

@@ -15,7 +15,7 @@
 
 import type { ReactNode } from 'react';
 
-import { Mark } from './Mark';
+import { IconGlyph } from './IconGlyph';
 import { SearchIcon } from './SearchIcon';
 import { SiteFooter } from './SiteFooter';
 
@@ -33,7 +33,9 @@ export function LoginScreen({ children }: { children: ReactNode }) {
 
       <div className="auth-card">
         <div className="auth-brand">
-          <Mark size={72} />
+          <span className="brand-glyph">
+            <IconGlyph size={46} />
+          </span>
           <span className="wordmark auth-wordmark">Parea</span>
         </div>
         {children}
