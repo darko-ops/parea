@@ -16,7 +16,7 @@ const NOINDEX = 'noindex, nofollow, noarchive, noimageindex';
  * Report-only to begin with, because enforcing a wrong policy is a blank page
  * and this one cannot be fully verified from a build. Next inlines its
  * bootstrap script, and the honest way to tighten `script-src` is nonces
- * through middleware — which this app deliberately does not have. So the
+ * through the proxy (`proxy.ts`), which runs on `/api` only and sets none. So the
  * first version allows what Next needs, reports what it sees, and the console
  * is the evidence for narrowing it later.
  *
