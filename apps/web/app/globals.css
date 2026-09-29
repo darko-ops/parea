@@ -4949,6 +4949,12 @@ button.link {
   display: flex; align-items: center; justify-content: center; line-height: 1;
   color: var(--fg);
 }
+/* The name in the page header: larger than the rail's 20 — it is the title
+   of the page here, not a label on a column — and lifted a touch, because
+   Garet's lowercase sits low in its line box and centred by the box it reads
+   as sitting under the discs beside it. */
+.page-mark .wordmark { font-size: 26px; transform: translateY(-3px); }
+
 /* The rail's head on a laptop is the icon's glyph; the word is in the page
    header instead (see `PageMark`). On a phone the bar keeps the word — the
    rule for that is in the phone block below. */
