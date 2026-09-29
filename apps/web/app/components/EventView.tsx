@@ -947,13 +947,13 @@ export function EventView({
           )}
 
           {/*
-            The gallery, with the contribute tile first.
+            The gallery, with the contribute tile first while it is empty.
 
-            First even when the event is full: it is the affordance, not a
-            result, and an event that fills up is exactly the one whose next
-            photograph is easiest to forget to add. It is the same control as
-            the header button — a label over the same input — so there is one
-            file dialog and one disabled state.
+            Only while it is empty: once there are photographs the tile is a
+            dashed box in among them, repeating the `+` at the end of the tab
+            row, which is where adding more lives. It is the same control as
+            that button — a label over the same input — so there is one file
+            dialog and one disabled state.
           */}
           <Masonry
             photos={fresh.length > 0 ? earlier : visible}
@@ -962,7 +962,7 @@ export function EventView({
             onPick={togglePick}
             people={feed.people}
             lead={
-              feed.canAdd && session.account && !picked ? (
+              feed.canAdd && session.account && !picked && visible.length === 0 ? (
                 <label htmlFor="add-photos" className="tile-add">
                   <span className="tile-add-lenses" aria-hidden="true">
                     <span />
