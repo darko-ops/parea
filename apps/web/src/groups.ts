@@ -63,29 +63,73 @@ export async function memberCount(db: Db, groupId: string): Promise<number> {
 }
 
 /**
- * Whether this actor took part in an event belonging to this group.
+ * Whether this actor took part in one of this group's albums — enough to join
+ * the group without asking.
  *
- * The qualification for joining without approval. Deliberately checks
- * participation rather than mere possession of a link: someone forwarded a
- * link and never used it has no standing, while someone who contributed does.
+ * It said "took part" and checked presence. The note promised that somebody
+ * forwarded a link and never used it has no standing, "while someone who
+ * contributed does" — but the check read `event_participant`, and that row is
+ * written for *opening* an album link, guests included. So anyone handed one
+ * public album in a group could open it, read the group's id off the response,
+ * and join the whole group: its chat, its member list, and every private album
+ * in it, which group membership opens.
+ *
+ * Now it means what it said. An account, and in one of the group's albums one
+ * of the things that is actually taking part:
+ *
+ * - made the album
+ * - added a photograph to it that is still there
+ * - said something in it
+ * - was made one of its hosts
+ * - was let in by name — an accepted invitation or an approved request
+ *
+ * Looking is not on the list. Somebody who has only looked asks, and a group
+ * admin answers.
  */
 export async function participatedInGroup(
   db: Db,
   groupId: string,
   actorId: string,
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ one: schema.eventParticipants.actorId })
-    .from(schema.eventParticipants)
-    .innerJoin(schema.events, eq(schema.eventParticipants.eventId, schema.events.id))
-    .where(
-      and(
-        eq(schema.events.groupId, groupId),
-        eq(schema.eventParticipants.actorId, actorId),
-      ),
-    )
-    .limit(1);
-  return row !== undefined;
+  const rows = (await db.execute(sql`
+    select 1 as ok
+    from "actor" a
+    where a.id = ${actorId}
+      and a.account_id is not null
+      and exists (
+        select 1 from "event" e
+        where e.group_id = ${groupId}
+          and e.deleted_at is null
+          and (
+            e.created_by = ${actorId}
+            or exists (
+              select 1 from "photo" p
+              where p.event_id = e.id and p.uploader_id = ${actorId}
+                and p.deleted_at is null and p.status = 'ready'
+            )
+            or exists (
+              select 1 from "event_message" m
+              where m.event_id = e.id and m.author_actor_id = ${actorId}
+                and m.deleted_at is null
+            )
+            or exists (
+              select 1 from "event_participant" ep
+              where ep.event_id = e.id and ep.actor_id = ${actorId} and ep.role = 'host'
+            )
+            or exists (
+              select 1 from "event_invite" i
+              where i.event_id = e.id and i.actor_id = ${actorId} and i.status = 'accepted'
+            )
+            or exists (
+              select 1 from "event_access_request" r
+              where r.event_id = e.id and r.actor_id = ${actorId} and r.status = 'approved'
+            )
+          )
+      )
+    limit 1
+  `)) as unknown as { ok: number }[] | { rows: { ok: number }[] };
+  const list = Array.isArray(rows) ? rows : rows.rows;
+  return list.length > 0;
 }
 
 export async function addMember(

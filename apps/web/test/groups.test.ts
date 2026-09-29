@@ -133,17 +133,79 @@ describe('search returns a door, not a room', () => {
 });
 
 describe('joining', () => {
-  it('lets someone who took part in an event join without approval', async () => {
+  it('gives no standing for only having looked at an album', async () => {
+    /*
+     * Opening an album link writes a participant row — guests included — and
+     * that row used to be the whole test. So one public album in a group was a
+     * key to the group, its chat and every private album in it.
+     */
+    const house = await group('The Flat');
+    const host = await actor();
+    const looker = await signedInActor();
+    const event = await eventIn(house.id, host);
+    await db.insert(schema.eventParticipants).values({ eventId: event.id, actorId: looker });
+
+    expect(await participatedInGroup(db, house.id, looker)).toBe(false);
+  });
+
+  it('lets someone who added a photo join without approval', async () => {
     // They already had those photos. Joining only says "keep me in the loop".
     const house = await group('The Flat');
     const host = await actor();
-    const guest = await actor();
+    const guest = await signedInActor();
     const event = await eventIn(house.id, host);
-    await db
-      .insert(schema.eventParticipants)
-      .values({ eventId: event.id, actorId: guest });
+    await db.insert(schema.eventParticipants).values({ eventId: event.id, actorId: guest });
+    await db.insert(schema.photos).values({
+      eventId: event.id,
+      uploaderId: guest,
+      storageKey: `ev/${event.id}/x`,
+      byteSize: 10,
+      mime: 'image/jpeg',
+      status: 'ready',
+    });
 
     expect(await participatedInGroup(db, house.id, guest)).toBe(true);
+  });
+
+  it('counts saying something, and being let in by name', async () => {
+    const house = await group('The Flat');
+    const host = await actor();
+    const event = await eventIn(house.id, host);
+
+    const talker = await signedInActor();
+    await db.insert(schema.eventMessages).values({ eventId: event.id, authorActorId: talker, body: 'hi' });
+    expect(await participatedInGroup(db, house.id, talker)).toBe(true);
+
+    const invited = await signedInActor();
+    await db.insert(schema.eventInvites).values({
+      eventId: event.id,
+      actorId: invited,
+      invitedByActorId: host,
+      status: 'accepted',
+    });
+    expect(await participatedInGroup(db, house.id, invited)).toBe(true);
+  });
+
+  it('does not count a photo that was taken down, or a guest with no account', async () => {
+    const house = await group('The Flat');
+    const host = await actor();
+    const event = await eventIn(house.id, host);
+
+    const removed = await signedInActor();
+    await db.insert(schema.photos).values({
+      eventId: event.id,
+      uploaderId: removed,
+      storageKey: `ev/${event.id}/y`,
+      byteSize: 10,
+      mime: 'image/jpeg',
+      status: 'ready',
+      deletedAt: new Date(),
+    });
+    expect(await participatedInGroup(db, house.id, removed)).toBe(false);
+
+    const guest = await actor();
+    await db.insert(schema.eventMessages).values({ eventId: event.id, authorActorId: guest, body: 'hi' });
+    expect(await participatedInGroup(db, house.id, guest)).toBe(false);
   });
 
   it('gives no standing to someone who only holds a link', async () => {
