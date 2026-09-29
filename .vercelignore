@@ -34,3 +34,26 @@ design
 
 # Next's own output, rebuilt on the other side.
 apps/web/.next
+
+# Secrets, which the CLI would otherwise upload — it reads this file instead of
+# `.gitignore`, so everything git keeps out has to be listed again here.
+#
+# It was not listed, and every laptop deploy uploaded the iOS distribution
+# certificate, its private key and the .p12's password into Vercel's build
+# source. `.easignore` and `.dockerignore` had them; this file did not.
+apps/mobile/credentials
+apps/mobile/credentials.json
+**/.env
+**/.env.*
+!**/.env.example
+**/*.p12
+**/*.p8
+**/*.pem
+**/*.key
+**/*.mobileprovision
+**/.p12pass
+
+# Local agent and tool state: settings, transcripts, Worker dev caches.
+.claude
+.agents
+**/.wrangler
