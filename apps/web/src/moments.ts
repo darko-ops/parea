@@ -297,6 +297,16 @@ export async function toggleMomentReaction(
   return 'added';
 }
 
+/** Who shared a moment, for telling them somebody answered it. */
+export async function authorOf(db: Db, momentId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ actorId: schema.moments.actorId })
+    .from(schema.moments)
+    .where(eq(schema.moments.id, momentId))
+    .limit(1);
+  return row?.actorId ?? null;
+}
+
 /** A reaction as a client draws it: who, and with what. Newest first. */
 export type MomentReaction = { emoji: string; name: string; mine: boolean };
 

@@ -9,7 +9,8 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { COMMENT_MAX, canSeeMoment, commentOnMoment } from '@/moments';
+import { COMMENT_MAX, authorOf, canSeeMoment, commentOnMoment } from '@/moments';
+import { nameOf, notifyMomentComment } from '@/notify';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -36,5 +37,15 @@ export async function POST(
   if (!(await canSeeMoment(db, actorId, id))) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  return NextResponse.json({ id: await commentOnMoment(db, actorId, id, text) });
+  const commentId = await commentOnMoment(db, actorId, id, text);
+
+  // Its author hears about it — unless they are the one who said it. Not
+  // awaited: a slow push service must not hold up the comment appearing.
+  const author = await authorOf(db, id);
+  if (author && author !== actorId) {
+    void nameOf(db, actorId).then((who) =>
+      notifyMomentComment(db, { toActorId: author, momentId: id, who, said: text }),
+    );
+  }
+  return NextResponse.json({ id: commentId });
 }

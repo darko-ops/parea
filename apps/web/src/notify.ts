@@ -395,3 +395,43 @@ export async function notifyGroupAdded(
     /* see the module header */
   }
 }
+
+/**
+ * Somebody said something under a moment you shared, or reacted to it.
+ *
+ * Only the author, and never about their own remark or reaction — the routes
+ * decide that before calling, since they are the ones that know who acted.
+ * A reaction is told when it is put on, not when it is taken off: a push
+ * saying somebody changed their mind is noise.
+ */
+export async function notifyMomentComment(
+  db: Db,
+  input: { toActorId: string; momentId: string; who: string; said: string },
+): Promise<void> {
+  try {
+    await deliver(db, [input.toActorId], {
+      kind: 'moment_comment',
+      momentId: input.momentId,
+      who: input.who,
+      said: input.said,
+    });
+  } catch {
+    /* see the module header */
+  }
+}
+
+export async function notifyMomentReaction(
+  db: Db,
+  input: { toActorId: string; momentId: string; who: string; emoji: string },
+): Promise<void> {
+  try {
+    await deliver(db, [input.toActorId], {
+      kind: 'moment_reaction',
+      momentId: input.momentId,
+      who: input.who,
+      emoji: input.emoji,
+    });
+  } catch {
+    /* see the module header */
+  }
+}

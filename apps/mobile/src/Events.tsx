@@ -934,6 +934,7 @@ export function HomeTab({
   onOpenPerson,
   Button,
   top = 0,
+  openMoment = null,
 }: {
   api: Api;
   events: EventListing[];
@@ -984,6 +985,12 @@ export function HomeTab({
    * convention every phone app keeps: the tab you are on takes you to its top.
    */
   top?: number;
+  /**
+   * A moment somebody asked for from outside — a notification, a line in
+   * Lately. Opened in the viewer once the stream holds it; `n` makes asking
+   * for the same one twice a new ask.
+   */
+  openMoment?: { id: string; n: number } | null;
 }) {
   const [refreshing, setRefreshing] = useState(false);
   const scroller = useRef<ScrollView>(null);
@@ -1003,6 +1010,13 @@ export function HomeTab({
    */
   const moments = useMoments(api);
   const [watching, setWatching] = useState<string | null>(null);
+  const answered = useRef(0);
+  useEffect(() => {
+    if (!openMoment || openMoment.n === answered.current) return;
+    if (!moments.moments.some((m) => m.id === openMoment.id)) return;
+    answered.current = openMoment.n;
+    setWatching(openMoment.id);
+  }, [moments.moments, openMoment]);
 
   /*
    * Albums with nothing in them are not on this page.

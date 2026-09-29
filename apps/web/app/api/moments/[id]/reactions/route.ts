@@ -7,7 +7,8 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { canSeeMoment, toggleMomentReaction } from '@/moments';
+import { authorOf, canSeeMoment, toggleMomentReaction } from '@/moments';
+import { nameOf, notifyMomentReaction } from '@/notify';
 import { isEmoji } from '@/reactions';
 import { currentActorId } from '@/session';
 
@@ -33,5 +34,17 @@ export async function POST(
   if (!(await canSeeMoment(db, actorId, id))) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  return NextResponse.json({ state: await toggleMomentReaction(db, actorId, id, body.emoji) });
+  const emoji = body.emoji;
+  const state = await toggleMomentReaction(db, actorId, id, emoji);
+
+  // Told when one is put on, not when it comes off; never about your own.
+  if (state === 'added') {
+    const author = await authorOf(db, id);
+    if (author && author !== actorId) {
+      void nameOf(db, actorId).then((who) =>
+        notifyMomentReaction(db, { toActorId: author, momentId: id, who, emoji }),
+      );
+    }
+  }
+  return NextResponse.json({ state });
 }

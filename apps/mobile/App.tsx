@@ -1215,6 +1215,18 @@ export default function App() {
    * whatever screen it was already showing, which spends that one interruption
    * on nothing.
    */
+  /**
+   * A moment, opened from outside Home — a notification, or a line in Lately.
+   * Home's viewer does the opening: this takes the app there and hands it the
+   * id, and the counter makes asking for the same moment twice a fresh ask.
+   */
+  const [momentAsk, setMomentAsk] = useState<{ id: string; n: number } | null>(null);
+  const openMoment = useCallback((id: string) => {
+    setRoute({ screen: 'tabs' });
+    setTab('home');
+    setMomentAsk((was) => ({ id, n: (was?.n ?? 0) + 1 }));
+  }, []);
+
   const follow = useCallback(
     async (data: Record<string, unknown> | null) => {
       const target = notificationTarget(data);
@@ -1223,13 +1235,17 @@ export default function App() {
         setRoute({ screen: 'group', id: target.groupId });
         return;
       }
+      if (target.screen === 'moment') {
+        openMoment(target.momentId);
+        return;
+      }
       // A nudge is about an event this person already joined, so the token is
       // on the device. If it is not — a reinstall — there is nothing to open
       // with, and dropping them on the home screen beats a broken event.
       const saved = (await loadEvents()).find((e) => e.id === target.eventId);
       if (saved) void open(saved);
     },
-    [open],
+    [open, openMoment],
   );
 
   useEffect(() => {
@@ -1567,6 +1583,7 @@ export default function App() {
               if (listing) openListing(listing);
             }}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+            onOpenMoment={openMoment}
           />
         </SwipeBack>
       )}
@@ -1777,6 +1794,7 @@ export default function App() {
                 // bar is gone: a link, a QR code or a spoken phrase.
                 Button={Button}
                 top={homeTop}
+                openMoment={momentAsk}
               />
             </Pane>
           )}

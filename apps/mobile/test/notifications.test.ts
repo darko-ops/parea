@@ -176,3 +176,17 @@ describe('a comment, and being tagged', () => {
     expect(notificationTarget({ kind: 'photo_tagged' })).toBeNull();
   });
 });
+
+describe('an answer to your moment', () => {
+  it('opens that moment, for a comment and for a reaction', () => {
+    const MOMENT = '6f1c1e7a-2b3c-4d5e-8f90-123456789abc';
+    expect(
+      notificationTarget({ kind: 'moment_comment', momentId: MOMENT, who: 'Ana', said: 'hi' }),
+    ).toEqual({ screen: 'moment', momentId: MOMENT });
+    expect(
+      notificationTarget({ kind: 'moment_reaction', momentId: MOMENT, who: 'Ana', emoji: '🔥' }),
+    ).toEqual({ screen: 'moment', momentId: MOMENT });
+    expect(notificationTarget({ kind: 'moment_comment' })).toBeNull();
+  });
+});
+

@@ -82,7 +82,14 @@ export type Notification =
    * asks, because a notification that says "asked you" beside no Accept button
    * is a notification about a control that is not there.
    */
-  | { kind: 'group_added'; groupId: string; groupName: string; who: string };
+  | { kind: 'group_added'; groupId: string; groupName: string; who: string }
+  /**
+   * Somebody said something under your moment, or reacted to it. Only ever
+   * to its author, and never about their own. The moment is in the payload
+   * because there is a screen that is one moment: the viewer opens on it.
+   */
+  | { kind: 'moment_comment'; momentId: string; who: string; said: string }
+  | { kind: 'moment_reaction'; momentId: string; who: string; emoji: string };
 
 /**
  * The set, enumerable at runtime.
@@ -105,6 +112,8 @@ const KINDS: Record<Notification['kind'], true> = {
   event_invited: true,
   group_invited: true,
   group_added: true,
+  moment_comment: true,
+  moment_reaction: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -220,6 +229,21 @@ export function render(notification: Notification): { title: string; body: strin
             ? `${notification.said.slice(0, 80).trimEnd()}…`
             : notification.said
         }`,
+      };
+    case 'moment_comment':
+      return {
+        title: 'Your moment',
+        // The remark itself, trimmed the way a photo comment is.
+        body: `${notification.who}: ${
+          notification.said.length > 80
+            ? `${notification.said.slice(0, 80).trimEnd()}…`
+            : notification.said
+        }`,
+      };
+    case 'moment_reaction':
+      return {
+        title: 'Your moment',
+        body: `${notification.who} reacted ${notification.emoji}`,
       };
     case 'photo_tagged':
       return {

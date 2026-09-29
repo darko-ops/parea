@@ -415,3 +415,16 @@ describe('the viewer', () => {
   });
 });
 
+describe('telling the author', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`../app/${path}`, import.meta.url)), 'utf8');
+
+  it('only the author, never about their own, and only when a reaction goes on', () => {
+    const comments = stripComments(read('api/moments/[id]/comments/route.ts'));
+    expect(comments).toMatch(/if \(author && author !== actorId\) \{[\s\S]*?notifyMomentComment/);
+
+    const reactions = stripComments(read('api/moments/[id]/reactions/route.ts'));
+    expect(reactions).toMatch(/if \(state === 'added'\) \{[\s\S]*?if \(author && author !== actorId\) \{[\s\S]*?notifyMomentReaction/);
+  });
+});
+

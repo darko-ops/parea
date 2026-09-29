@@ -116,6 +116,8 @@ describe('what can be sent', () => {
       { kind: 'event_invited', eventId: 'e', eventName: 'Party', who: 'Ana' },
       { kind: 'group_invited', groupId: 'g', groupName: 'Flat', who: 'Ana' },
       { kind: 'group_added', groupId: 'g', groupName: 'Flat', who: 'Ana' },
+      { kind: 'moment_comment', momentId: 'm', who: 'Ana', said: 'hi' },
+      { kind: 'moment_reaction', momentId: 'm', who: 'Ana', emoji: '🔥' },
     ];
     // One per kind, so a kind added without one fails here rather than going
     // silent on somebody's phone.
