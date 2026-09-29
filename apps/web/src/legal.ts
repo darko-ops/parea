@@ -49,6 +49,8 @@ export const LEGAL_UPDATED = '29 September 2026';
  * way again. The deriver reads its own copy of these on Fly — both have to be
  * set for every image to be covered.
  */
-export function hashMatchingLive(env: NodeJS.ProcessEnv = process.env): boolean {
+export function hashMatchingLive(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   return Boolean(env.CSAM_SCANNER_URL && env.CSAM_SCANNER_KEY);
 }
