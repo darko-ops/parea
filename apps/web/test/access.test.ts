@@ -763,7 +763,42 @@ describe('the native join route', () => {
    */
   it('opens by id only on who the viewer is, never on the roll’s own token', () => {
     expect(route).toMatch(/findEventById\(db, body\.eventId\)/);
-    expect(route).toMatch(/linkToken: byId \? undefined : event\.linkToken/);
+    expect(route).toMatch(/linkToken: presentedCode \|\| byId \? undefined : event\.linkToken/);
+  });
+
+  /*
+   * A spoken code is not a link.
+   *
+   * The route used to present the album's own token whenever a code matched,
+   * which skipped the rule that a code only counts in a signed-in hand and
+   * returned the full link to anybody who guessed a code — with no limit on
+   * guessing, over a pool small enough to sweep.
+   */
+  it('asks a signed-out caller to sign in before it looks a code up', () => {
+    const signedIn = route.indexOf('if (!(await isSignedIn(db, actorId)))');
+    expect(signedIn).toBeGreaterThan(-1);
+    expect(signedIn).toBeLessThan(route.indexOf('normaliseCode(body.code)'));
+    // The same answer for a live code, a dead one and nonsense.
+    expect(route.slice(signedIn, signedIn + 200)).toMatch(/error: 'sign_in_required' \}, \{ status: 403 \}/);
+  });
+
+  it('limits code attempts per source and per account', () => {
+    expect(route).toMatch(/withinLimit\(db, JOIN_CODE_LIMIT, secret\)/);
+    expect(route).toMatch(/withinLimitFor\(db, JOIN_CODE_LIMIT, secret, actorId!\)/);
+    expect(route.indexOf('JOIN_CODE_LIMIT, secret)')).toBeLessThan(route.indexOf('normaliseCode(body.code)'));
+  });
+
+  it('lets a code through a private roll only as far as its door', async () => {
+    // Without the token standing in, a signed-in stranger with the right code
+    // reaches the request screen, and a guest reaches nothing.
+    const event = await makePrivateEvent();
+    await db.insert(schema.codes).values({ words: 'copper-heron', eventId: event.id, claimedAt: new Date() });
+    const stranger = await makeSignedInActor();
+    expect(await decide(db, event, 'view', { actorId: stranger, code: 'copper-heron' }))
+      .toEqual({ allow: false, reason: 'approval_required' });
+    const guest = await makeActor();
+    expect(await decide(db, event, 'view', { actorId: guest, code: 'copper-heron' }))
+      .toEqual({ allow: false, reason: 'sign_in_required' });
   });
 
   it('does not name a private roll to somebody who only had its id', () => {

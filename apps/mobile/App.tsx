@@ -931,12 +931,21 @@ export default function App() {
             return true;
           }
         }
-        // A code needs an account, and saying "couldn't find that" would send
-        // someone off to check a code that was correct.
+        /*
+         * A code needs an account, and saying "couldn't find that" would send
+         * someone off to check a code that may be right.
+         *
+         * Not "that worked": signed out, the server answers this before it
+         * looks the code up — the same answer for a live code and a mistyped
+         * one, so the route is not a way to find out which codes exist. What
+         * the person needs to hear is the step, not a verdict on the code.
+         */
         setJoinError(
           err instanceof ApiError && err.code === 'sign_in_required'
-            ? 'That worked, but you need an account first. Open You and sign in, then try again.'
-            : "Couldn't find that. Check the link or the code and try again.",
+            ? 'Codes work once you have an account. Open You and sign in, then try the code again.'
+            : err instanceof ApiError && err.code === 'too_many_requests'
+              ? 'That is a lot of codes in a short time. Wait a while and try again.'
+              : "Couldn't find that. Check the link or the code and try again.",
         );
         return false;
       } finally {

@@ -13,9 +13,10 @@ import { isWellFormedLinkToken, normaliseCode, schema } from '@parea/core';
 import { and, eq, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { decide, findEventById, findEventByLinkToken, recordParticipant } from '@/access';
+import { decide, findEventById, findEventByLinkToken, isSignedIn, recordParticipant } from '@/access';
 import { getDb } from '@/db';
 import { clientOf, observe } from '@/observe';
+import { JOIN_CODE_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -44,6 +45,31 @@ export async function POST(request: Request) {
       event = await findEventByLinkToken(db, token);
     }
   } else if (typeof body.code === 'string') {
+    /*
+     * A spoken code is for somebody signed in, and it is checked as that.
+     *
+     * This route used to present the album's own link token on the caller's
+     * behalf whenever a code matched — which made the code a link, skipped the
+     * rule that a code only counts in a signed-in hand, and returned the full
+     * token to anybody who guessed one. With no limit on guessing and a pool
+     * of about a hundred and seventeen thousand codes, that was every album
+     * with a code, its name and its link, to anyone with a script.
+     *
+     * Signed out, the answer is "sign in" before anything is looked up — the
+     * same answer for a live code, a dead one and nonsense, so it is not a way
+     * to find out which codes exist. Signed in, attempts are limited per
+     * source and per account.
+     */
+    if (!(await isSignedIn(db, actorId))) {
+      return NextResponse.json({ error: 'sign_in_required' }, { status: 403 });
+    }
+    const secret = process.env.SESSION_SECRET;
+    if (
+      !(await withinLimit(db, JOIN_CODE_LIMIT, secret)) ||
+      !(await withinLimitFor(db, JOIN_CODE_LIMIT, secret, actorId!))
+    ) {
+      return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+    }
     const words = normaliseCode(body.code);
     if (words) {
       const [row] = await db
@@ -74,9 +100,14 @@ export async function POST(request: Request) {
 
   const decision = await decide(db, event, 'view', {
     actorId,
-    // By id there is no credential, and presenting the event's own token on
-    // the caller's behalf would open every private album to anyone with an id.
-    linkToken: byId ? undefined : event.linkToken,
+    /*
+     * The event's own token stands in for the caller's only when the caller
+     * presented the link: they had it, and `findEventByLinkToken` is how the
+     * event was found. By id there is no credential, and by code the code is
+     * the credential — presenting the token for either would open the album
+     * to anyone who could name it, which is what a code used to do.
+     */
+    linkToken: presentedCode || byId ? undefined : event.linkToken,
     code: presentedCode,
   });
 

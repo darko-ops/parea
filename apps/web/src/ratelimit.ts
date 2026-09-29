@@ -359,6 +359,25 @@ export const MOMENT_LIMIT: Limit = {
  * need — the space is three words out of a hundred thousand, so a bounded
  * trickle gets nowhere.
  */
+/**
+ * Trying a spoken code, per source and per account.
+ *
+ * A code is three short words, and the pool is about a hundred and seventeen
+ * thousand of them — small enough to sweep. `/api/join` had no limit at all,
+ * and until it stopped doing so it handed the album's full link to whoever
+ * guessed a live code. Codes now only work for someone signed in, and this is
+ * what keeps a signed-in account from walking the pool.
+ *
+ * Twenty an hour is far past anybody typing codes read out across a room —
+ * mistyping one twice is three tries — and makes a sweep take years. A full
+ * link token is not limited here: 131 random bits is not something to guess.
+ */
+export const JOIN_CODE_LIMIT: Limit = {
+  name: 'join-code',
+  max: 20,
+  windowSeconds: 3600,
+};
+
 export const PEOPLE_SEARCH_LIMIT: Limit = {
   name: 'people-search',
   max: 60,
