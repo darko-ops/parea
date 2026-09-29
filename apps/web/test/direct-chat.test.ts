@@ -99,19 +99,63 @@ async function rooms() {
 }
 
 describe('chatting to somebody from their profile', () => {
-  it('makes a room with the two of you in it', async () => {
+  it('asks a stranger in rather than putting them there', async () => {
+    /*
+     * Being in a room is not nothing: it is the chat, the other person's
+     * moments in front of you and yours in front of them, and a notification.
+     * Anybody could find somebody by handle and do all of that to them. Now
+     * somebody who is not a friend is invited, and is in the room only once
+     * they say yes.
+     */
     const me = await person('Demetri');
     const them = await person('Ana');
+
+    const made = await chat(me, them);
+    expect(made.status).toBe(201);
+    expect(made.body.invited).toBe(1);
+
+    const members = await db.select().from(schema.groupMembers);
+    expect(members.map((m) => m.actorId)).toEqual([me]);
+    const [invite] = await db.select().from(schema.groupInvites);
+    expect(invite).toMatchObject({ actorId: them, status: 'open' });
+    // Still titled for who it is with, not "Just you".
+    expect(made.body.name).toBeNull();
+    expect(made.body.title).toBe('Ana');
+  });
+
+  it('makes a room with the two of you in it when you are friends', async () => {
+    // A friendship is consent both ways already.
+    const me = await person('Demetri');
+    const them = await person('Ana');
+    await db.insert(schema.friendships).values([
+      { actorId: me, friendActorId: them },
+      { actorId: them, friendActorId: me },
+    ]);
 
     const made = await chat(me, them);
     expect(made.status).toBe(201);
 
     const members = await db.select().from(schema.groupMembers);
     expect(members.map((m) => m.actorId).sort()).toEqual([me, them].sort());
-    // Nameless, which is what makes it a chat rather than a group: the title
-    // comes from who is in it, so it reads as the other person.
     expect(made.body.name).toBeNull();
     expect(made.body.title).toBe('Ana');
+  });
+
+  it('refuses a room made of more than fifty people', async () => {
+    const me = await person('Demetri');
+    as(me);
+    const response = await POST(
+      new Request('https://parea.test/api/groups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Everyone',
+          memberIds: Array.from({ length: 51 }, () => crypto.randomUUID()),
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await rooms()).toHaveLength(0);
   });
 
   it('is the same room the second time it is pressed', async () => {
@@ -142,6 +186,11 @@ describe('chatting to somebody from their profile', () => {
 
     expect(theirs.body.id).toBe(mine.body.id);
     expect(await rooms()).toHaveLength(1);
+    // Pressing it back is saying yes: they are in, and the invitation is answered.
+    const members = await db.select().from(schema.groupMembers);
+    expect(members.map((m) => m.actorId).sort()).toEqual([me, them].sort());
+    const [invite] = await db.select().from(schema.groupInvites);
+    expect(invite!.status).toBe('accepted');
   });
 
   it('leaves a named room alone, even with the same two people in it', async () => {

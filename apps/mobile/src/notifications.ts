@@ -30,7 +30,8 @@
 export type NotificationTarget =
   | { screen: 'event'; eventId: string }
   | { screen: 'group'; groupId: string }
-  | { screen: 'chat'; groupId: string; name: string };
+  | { screen: 'chat'; groupId: string; name: string }
+  | { screen: 'lately' };
 
 /**
  * Reads the target out of a push payload.
@@ -92,17 +93,16 @@ export function notificationTarget(
       return null;
     case 'group_invited':
       /*
-       * An admin asked them into a group they have never seen.
+       * Somebody asked them into a group, or into a chat — a chat with
+       * somebody who is not a friend now starts as exactly this invitation.
        *
-       * The group screen, which for somebody not yet in it is the door: the
-       * name, the size, and a way in. That is the right landing — the whole
-       * of what was offered is "this room exists and you may come in", and
-       * the door says exactly that.
-       *
-       * Not the tab bar. Unlike `friend_requested`, there *is* a screen for
-       * this one, and it is reachable with only the id the payload carries.
+       * Lately, where the invitation is, with Accept and Decline on it. This
+       * used to open the group screen as a door, and for a group nobody can
+       * find by name the server answers that screen with "not found" to
+       * anyone outside it — so the tap landed on nothing, and the only way
+       * to say yes was somewhere else entirely.
        */
-      return groupId ? { screen: 'group', groupId } : null;
+      return { screen: 'lately' };
     case 'group_added':
       /*
        * The same destination as an invitation, for a different reason.

@@ -645,9 +645,39 @@ export async function othersInGroups(
       asc(schema.groupMembers.joinedAt),
     );
 
-  for (const row of rows) {
+  /*
+   * And the people asked in who have not answered, after the members.
+   *
+   * A chat with somebody who is not a friend starts as an invitation, so
+   * until they say yes the room holds only the person who asked — and a room
+   * titled from its members alone would call itself "Just you" on the one
+   * screen where the point is who it is with. The one who asked already knows
+   * who they asked, so naming them here tells nobody anything new; and the
+   * person asked is not in the room, so they never read this list for it.
+   */
+  const pending = await db
+    .select({
+      groupId: schema.groupInvites.groupId,
+      actorId: schema.actors.id,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+    })
+    .from(schema.groupInvites)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.groupInvites.actorId))
+    .where(
+      and(
+        inArray(schema.groupInvites.groupId, groupIds),
+        eq(schema.groupInvites.status, 'open'),
+      ),
+    )
+    .orderBy(asc(schema.groupInvites.createdAt));
+
+  for (const row of [...rows, ...pending]) {
     if (row.actorId === viewerId) continue;
-    found.get(row.groupId)?.push({
+    const list = found.get(row.groupId);
+    if (!list || list.some((other) => other.actorId === row.actorId)) continue;
+    list.push({
       actorId: row.actorId,
       name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
       avatarKey: row.avatarKey,
@@ -789,15 +819,29 @@ export async function directChatWith(
           select 1 from "group_member" m
           where m.group_id = "groups".id and m.actor_id = ${actorId}
         )`,
-        sql`exists (
-          select 1 from "group_member" m
-          where m.group_id = "groups".id and m.actor_id = ${otherId}
-        )`,
-        // And nobody else. Without this, a three-person room the two of you
-        // are both in would answer a request for the two of you.
+        /*
+         * The other person is in it, or has been asked in and not answered.
+         *
+         * A chat with somebody who is not a friend starts as an invitation
+         * (see `fromPeople`), so until they accept the room holds only the
+         * one who asked. Without the second half, pressing Chat again made a
+         * second room and a second invitation for the same conversation.
+         */
         sql`(
-          select count(*) from "group_member" m where m.group_id = "groups".id
-        ) = 2`,
+          (
+            exists (
+              select 1 from "group_member" m
+              where m.group_id = "groups".id and m.actor_id = ${otherId}
+            )
+            and (select count(*) from "group_member" m where m.group_id = "groups".id) = 2
+          ) or (
+            exists (
+              select 1 from "group_invite" i
+              where i.group_id = "groups".id and i.actor_id = ${otherId} and i.status = 'open'
+            )
+            and (select count(*) from "group_member" m where m.group_id = "groups".id) = 1
+          )
+        )`,
       ),
     )
     .orderBy(asc(schema.groups.createdAt))
@@ -1384,6 +1428,42 @@ export async function inviteToGroup(
   }
 
   return invited;
+}
+
+/**
+ * A chat the other person has already asked you into, if there is one.
+ *
+ * Their room with you invited and nobody else: what pressing Chat on their
+ * profile should open, by accepting, rather than start a second conversation
+ * that would ask them the same thing back. Returns the invitation's id so the
+ * caller answers it through `answerGroupInvite`, the one place invitations
+ * are answered.
+ */
+export async function directChatOffer(
+  db: Db,
+  actorId: string,
+  otherId: string,
+): Promise<{ inviteId: string; group: GroupRow } | null> {
+  const [row] = await db
+    .select({ inviteId: schema.groupInvites.id, group: schema.groups })
+    .from(schema.groupInvites)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupInvites.groupId))
+    .where(
+      and(
+        eq(schema.groupInvites.actorId, actorId),
+        eq(schema.groupInvites.status, 'open'),
+        isNull(schema.groups.name),
+        isNull(schema.groups.deletedAt),
+        sql`exists (
+          select 1 from "group_member" m
+          where m.group_id = "groups".id and m.actor_id = ${otherId}
+        )`,
+        sql`(select count(*) from "group_member" m where m.group_id = "groups".id) = 1`,
+      ),
+    )
+    .orderBy(asc(schema.groupInvites.createdAt))
+    .limit(1);
+  return row ?? null;
 }
 
 /**

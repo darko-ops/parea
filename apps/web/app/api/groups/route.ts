@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, isSignedIn, toResponse } from '@/access';
 import { accountFor, avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { invitable } from '@/friends';
+import { areFriends, invitable } from '@/friends';
 import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
 import {
   addMember,
@@ -26,8 +26,12 @@ import {
   myGroups,
   othersInGroups,
   titleOf,
+  inviteToGroup,
+  answerGroupInvite,
+  directChatOffer,
 } from '@/groups';
-import { notifyGroupAdded } from '@/notify';
+import { notifyGroupAdded, notifyGroupInvite } from '@/notify';
+import { CREATE_GROUP_LIMIT, withinLimitFor } from '@/ratelimit';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -157,6 +161,15 @@ async function fromPeople(
     return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
   }
 
+  // A guest list, not a broadcast: the same ceiling an admin's invitations
+  // have. Every name here is a notification on somebody's phone.
+  if (memberIds.length > MAX_PEOPLE) {
+    return NextResponse.json({ error: 'too_many_people' }, { status: 400 });
+  }
+  if (!(await withinLimitFor(db, CREATE_GROUP_LIMIT, process.env.SESSION_SECRET, actorId))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+
   /*
    * Who may actually be put in, decided before anything is written.
    *
@@ -172,6 +185,28 @@ async function fromPeople(
     if (id === actorId) continue;
     if (!(await invitable(db, actorId, id))) continue;
     targets.push(id);
+  }
+
+  /*
+   * Friends are added. Everybody else is asked.
+   *
+   * Everybody used to be added, on the maker's say-so alone — and being in a
+   * group is not nothing. It puts you in its chat, puts your moments in front
+   * of everyone in it and theirs in front of you, and sends you a
+   * notification. With no cap and no consent, anyone could find somebody by
+   * handle, put them in a room, and read their last day of moments; or put a
+   * thousand people in a room and ping every one of them.
+   *
+   * A friendship is consent both ways already, so a friend is added exactly as
+   * before. Anybody else gets an invitation, the same one an admin sends, and
+   * is in the room — and its audience — only when they accept it. A chat with
+   * a stranger is therefore a request until it is answered.
+   */
+  const added: string[] = [];
+  const asked: string[] = [];
+  for (const id of targets) {
+    if (await areFriends(db, actorId, id)) added.push(id);
+    else asked.push(id);
   }
 
   /*
@@ -196,6 +231,16 @@ async function fromPeople(
    * already exists.
    */
   if (!name && targets.length === 1) {
+    // They asked first. Pressing Chat on their profile is saying yes.
+    const offer = await directChatOffer(db, actorId, targets[0]!);
+    if (offer && (await answerGroupInvite(db, offer.inviteId, actorId, true))) {
+      return NextResponse.json({
+        id: offer.group.id,
+        name: offer.group.name,
+        title: await titleOf(db, offer.group, actorId),
+        findable: offer.group.findable,
+      });
+    }
     const existing = await directChatWith(db, actorId, targets[0]!);
     if (existing) {
       return NextResponse.json({
@@ -245,7 +290,8 @@ async function fromPeople(
     .returning();
 
   await addMember(db, group!.id, actorId, 'admin');
-  for (const id of targets) await addMember(db, group!.id, id);
+  for (const id of added) await addMember(db, group!.id, id);
+  const invited = asked.length > 0 ? await inviteToGroup(db, group!.id, actorId, asked) : [];
 
   /*
    * Told after the writing, never before.
@@ -256,9 +302,17 @@ async function fromPeople(
    * round: a notification about a group that was not created cannot be undone.
    */
   const me = await accountFor(db, actorId);
-  if (targets.length > 0) {
+  if (invited.length > 0) {
+    await notifyGroupInvite(db, {
+      actorIds: invited,
+      groupId: group!.id,
+      groupName: group!.name,
+      who: me?.displayName?.trim() || 'Somebody',
+    });
+  }
+  if (added.length > 0) {
     await notifyGroupAdded(db, {
-      actorIds: targets,
+      actorIds: added,
       groupId: group!.id,
       // Null passes straight through: `notifyGroupAdded` titles an unnamed
       // room from the other members, per recipient. See `byTitle` in
@@ -276,10 +330,16 @@ async function fromPeople(
       // just made out of people is the people.
       title: await titleOf(db, group!, actorId),
       findable: group!.findable,
+      // Who is waiting to say yes, so the maker's screen can say so rather
+      // than show a room that looks empty.
+      invited: invited.length,
     },
     { status: 201 },
   );
 }
+
+/** How many people one group may be made from. The invitations route's own ceiling. */
+const MAX_PEOPLE = 50;
 
 /**
  * Make a group — two ways, and they are not the same act.

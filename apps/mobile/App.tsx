@@ -1244,6 +1244,10 @@ export default function App() {
     async (data: Record<string, unknown> | null) => {
       const target = notificationTarget(data);
       if (!target) return;
+      if (target.screen === 'lately') {
+        setRoute({ screen: 'lately' });
+        return;
+      }
       if (target.screen === 'group') {
         setRoute({ screen: 'group', id: target.groupId });
         return;

@@ -189,3 +189,12 @@ describe('an answer to your moment', () => {
     expect(notificationTarget({ kind: 'moment_comment', momentId: 'm' })).toBeNull();
   });
 });
+
+describe('an invitation into a group or a chat', () => {
+  it('opens Lately, where the invitation can be answered', () => {
+    // The group screen answers "not found" to somebody outside a group nobody
+    // can find by name — which is every chat — so the tap used to land on
+    // nothing. A chat with a stranger now starts as exactly this invitation.
+    expect(notificationTarget({ kind: 'group_invited', groupId: 'g1' })).toEqual({ screen: 'lately' });
+  });
+});

@@ -372,6 +372,19 @@ export const MOMENT_LIMIT: Limit = {
  * mistyping one twice is three tries — and makes a sweep take years. A full
  * link token is not limited here: 131 random bits is not something to guess.
  */
+/**
+ * Making a group out of people, per account.
+ *
+ * Each one notifies everybody named in it, so an unbounded route was a way to
+ * push a message onto any number of phones. Thirty an hour is far past anyone
+ * starting conversations by hand.
+ */
+export const CREATE_GROUP_LIMIT: Limit = {
+  name: 'create-group',
+  max: 30,
+  windowSeconds: 3600,
+};
+
 export const JOIN_CODE_LIMIT: Limit = {
   name: 'join-code',
   max: 20,
