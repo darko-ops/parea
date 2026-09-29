@@ -40,13 +40,14 @@
      photographs are the only colour on it. */
   --line: #dcdce2;
   --fg: #14171c; --dim: #5b6472;
-  /* A muted relative of the logo blue, not the full-strength one it was
-     (#1a5fd0). At full strength every button and every active row shouted the
-     same note, and a product about other people's evenings was reading as a
-     utility. 5.4:1 on white, which passes AA for the 15px button label. */
-  --accent: #4e63a8;
+  /* Grey, not blue: the glyph's own dark grey, so a button is the same ink as
+     the mark in the rail. It was a muted relative of the logo blue (#4e63a8,
+     and #1a5fd0 before that), and even muted it put a second colour on every
+     screen of a product whose only colour should be the photographs. 10:1 on
+     white. */
+  --accent: #3d424a;
   /* Selected pill fill, and the active nav row in the rail. */
-  --accent-soft: #eceffb;
+  --accent-soft: #ececef;
   /* Arriving, and only arriving: the badge in the rail, the dot beside Chat,
      the unread count on a conversation. Not the accent, which is what a
      button is — they were one colour, and the one mark that says *something
@@ -65,7 +66,7 @@
   --news-ink: #07272e;
   /* Accent text on white or on the soft fill, where the accent itself is a
      shade too light to be read comfortably at 15px. */
-  --accent-ink: #3f5498;
+  --accent-ink: #3d424a;
   /* The row you are on, in the rail — and the menu button while its panel is
      open, which is the same claim about the same control.
 
@@ -125,9 +126,9 @@
   --track: #f4f6f8;
   /* The second stripe of the moving upload bar. Near enough to the accent
      that the bar reads as one colour in motion rather than as a barber pole. */
-  --accent-2: #3d7ade;
+  --accent-2: #6b7079;
   /* Words on the accent — white on light, near-black on dark, where the
-     accent is a light blue and white on it would not read. The app's
+     accent is a light grey and white on it would not read. The app's
      `onAccent`. */
   --on-accent: #fff;
   /* The product's one red, for errors and the destructive button. */
@@ -164,10 +165,10 @@
   --bg: #0d0f12; --card: #171a1f;
   --line: #272b33;
   --fg: #f2f4f7; --dim: #9aa3af;
-  --accent: #6ea8fe;
-  --accent-soft: #1b2638;
+  --accent: #e3e6ea;
+  --accent-soft: #24282f;
   --news-ink: #07272e;
-  --accent-ink: #9cc2ff;
+  --accent-ink: #e3e6ea;
   --selected: rgba(255, 255, 255, .08);
   --dim-soft: #7d8591;
   --page: #111317;
@@ -179,7 +180,7 @@
   --scrim-deep: linear-gradient(180deg, rgba(13, 15, 18, .62), rgba(13, 15, 18, .9));
   --hairline: #22262d;
   --track: #1c1f25;
-  --accent-2: #6ea8fe;
+  --accent-2: #9aa3af;
   --on-accent: #0d0f12;
   --warn: #ff7b70;
   --wash: rgba(255, 255, 255, .05);

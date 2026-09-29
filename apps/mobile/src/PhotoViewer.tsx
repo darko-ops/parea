@@ -63,10 +63,10 @@ import { ThreadRow } from './Thread';
  * over somebody's picture, where `fg` is white and a hairline is a little
  * light rather than a little dark.
  *
- * `accent` is the blue the rest of this screen already uses on glass, which
- * is a lighter cut than the product's own — the accent that reads on a white
- * page is a navy on this panel, and a mention set in it would be a word you
- * cannot see. `onAccent` goes dark to answer it.
+ * `accent` is the dark theme's light grey, not the light theme's dark one —
+ * the accent that reads on a white page is near-black on this panel, and a
+ * mention set in it would be a word you cannot see. `onAccent` goes dark to
+ * answer it.
  */
 const GLASS: GroupTheme = {
   bg: 'rgba(12,14,18,0.94)',
@@ -74,7 +74,7 @@ const GLASS: GroupTheme = {
   dim: 'rgba(255,255,255,0.55)',
   card: 'rgba(255,255,255,0.08)',
   line: 'rgba(255,255,255,0.18)',
-  accent: '#6ea8fe',
+  accent: '#e3e6ea',
   onAccent: '#0b1220',
   /* The unread aqua, as everywhere else — see `theme` in `App.tsx`. Nothing on
      this panel draws an unread mark today; the palette is complete because the

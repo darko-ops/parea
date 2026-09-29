@@ -6748,11 +6748,11 @@ function theme(dark: boolean) {
    */
   return dark
     ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
-        fg: '#f2f4f7', dim: '#9aa3af', accent: '#6ea8fe', onAccent: '#0d0f12',
+        fg: '#f2f4f7', dim: '#9aa3af', accent: '#e3e6ea', onAccent: '#0d0f12',
         news: NEWS, onNews: ON_NEWS,
         warn: '#ff7b70' }
     : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
-        fg: '#14171c', dim: '#5b6472', accent: '#1a5fd0', onAccent: '#ffffff',
+        fg: '#14171c', dim: '#5b6472', accent: '#3d424a', onAccent: '#ffffff',
         news: NEWS, onNews: ON_NEWS,
         warn: '#c23127' };
 }

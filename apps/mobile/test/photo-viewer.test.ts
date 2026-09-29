@@ -117,13 +117,13 @@ describe('the sheet of comments over a photograph', () => {
     /*
      * The same component on a dark panel over somebody's picture, where `fg`
      * is white and a hairline is a little light rather than a little dark.
-     * The accent is the lighter blue this screen already uses on glass — the
-     * one that reads on a white page is a navy here, and a mention set in it
-     * would be a word you cannot see.
+     * The accent is the dark theme's light grey — the one that reads on a
+     * white page is near-black here, and a mention set in it would be a word
+     * you cannot see.
      */
     expect(GESTURE).toMatch(/const GLASS: GroupTheme = \{/);
     expect(GESTURE).toMatch(/fg: '#ffffff'/);
-    expect(GESTURE).toMatch(/accent: '#6ea8fe'/);
+    expect(GESTURE).toMatch(/accent: '#e3e6ea'/);
     expect(GESTURE).toMatch(/t=\{GLASS\}/);
   });
 

@@ -1126,5 +1126,5 @@ const styles = StyleSheet.create({
   addWhySmall: { color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
   /* The glass blue the photo viewer uses: the accent that reads on white is a
      navy on black. */
-  addAgain: { color: '#6ea8fe', fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 18 },
+  addAgain: { color: '#e3e6ea', fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 18 },
 });
