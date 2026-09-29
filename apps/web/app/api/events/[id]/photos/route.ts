@@ -12,7 +12,7 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, asc, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, countDistinct, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
@@ -60,9 +60,9 @@ export async function GET(
     // One shared predicate for deleted / removed / hidden / blocked — see
     // @parea/core's visibility module for why those are four states.
     .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
-    .orderBy(
-      asc(sql`coalesce(${schema.photos.capturedAt}, ${schema.photos.uploadedAt})`),
-    );
+    // A stack: the latest addition first, and within it the last one picked.
+    // See `addedSeq`.
+    .orderBy(desc(schema.photos.addedSeq));
 
   const viewerId = await currentActorId();
   const photoIds = rows.map((row) => row.id);

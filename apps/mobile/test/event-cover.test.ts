@@ -200,16 +200,20 @@ describe('the cover the event already has', () => {
      * this was, made by an upload's timestamp".
      *
      * The objection was about *which* photograph, and it has been answered: the
-     * picker fixes the order now, so the one leading the grid is the one
-     * somebody put first rather than whichever phone finished uploading first.
+     * picker fixes the order now, so the first one in is the one
+     * somebody put first rather than whichever phone finished uploading first —
+     * at the bottom of the stack now, which is where the first addition sits.
      * Borrowing it reads a decision instead of inventing one — and the album it
      * replaces was a coloured letter on a screen full of photographs.
      *
      * `card` before `src` because the header is the width of the screen, and
      * the 320 is only what exists before the deriver has run.
      */
+    // The last in the feed, since a roll is a stack with its latest addition
+    // on top — the first photograph anybody put in is at the bottom of it.
+    expect(APP).toMatch(/const first = feed\?\.photos\[feed\.photos\.length - 1\];/);
     expect(APP).toMatch(
-      /const cover = chosenCover \?\? feed\?\.photos\[0\]\?\.card \?\? feed\?\.photos\[0\]\?\.src \?\? null;/,
+      /const cover = chosenCover \?\? first\?\.card \?\? first\?\.src \?\? null;/,
     );
     // And the header draws that one, so the sheet's row and the screen behind
     // it can never disagree about what the album leads with.

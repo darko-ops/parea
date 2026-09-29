@@ -19,7 +19,7 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { avatarUrl } from '@/accounts';
@@ -118,7 +118,7 @@ export default async function PhotoPage({
     .select()
     .from(schema.photos)
     .where(visiblePhotos(event.id, await viewerContext(db, viewerId)))
-    .orderBy(asc(sql`coalesce(${schema.photos.capturedAt}, ${schema.photos.uploadedAt})`));
+    .orderBy(desc(schema.photos.addedSeq));
 
   const index = rows.findIndex((row) => row.id === photoId);
   // Not in the visible list is the same answer as not existing, and it has to

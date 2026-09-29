@@ -155,29 +155,45 @@ export async function POST(
   }
 
   const storage = getStorage();
-  const uploads = await Promise.all(
-    files.map(async (file) => {
-      // A random discriminator, not a content hash: the client cannot be asked
-      // to hash 200 files on a phone, and the deriver rewrites the key to a
-      // content-addressed one once it has actually read the bytes.
-      const key = objectKey(event.id, `${crypto.randomUUID()}`);
-      const [photo] = await db
-        .insert(schema.photos)
-        .values({
-          eventId: event.id,
-          uploaderId: actorId,
-          storageKey: key,
-          byteSize: file.size,
-          mime: file.type,
-          status: 'pending',
-        })
-        .returning();
 
+  /*
+   * One insert for the whole batch, in the order the files were picked.
+   *
+   * A roll is drawn as a stack — each addition on top, and the first pick of
+   * one lowest in it — and `addedSeq` is what says that. Its values are taken
+   * row by row down this list, so writing the rows together keeps the order
+   * the list arrived in; writing them one at a time in parallel, as this used
+   * to, numbered them in whatever order the inserts happened to finish.
+   *
+   * A random discriminator in the key, not a content hash: the client cannot
+   * be asked to hash 200 files on a phone, and the deriver rewrites the key to
+   * a content-addressed one once it has actually read the bytes.
+   */
+  const keys = files.map(() => objectKey(event.id, `${crypto.randomUUID()}`));
+  const rows = await db
+    .insert(schema.photos)
+    .values(
+      files.map((file, i) => ({
+        eventId: event.id,
+        uploaderId: actorId,
+        storageKey: keys[i]!,
+        byteSize: file.size,
+        mime: file.type,
+        status: 'pending' as const,
+      })),
+    )
+    .returning({ id: schema.photos.id, storageKey: schema.photos.storageKey });
+  // Matched on the key rather than trusted to come back in the order sent.
+  const idFor = new Map(rows.map((row) => [row.storageKey, row.id]));
+
+  const uploads = await Promise.all(
+    files.map(async (file, i) => {
+      const key = keys[i]!;
       // The declared size goes into the signature, so the body has to match
       // the number this row's quota was charged against. See `presignPut`.
       const presigned = await storage.presignPut(key, file.type, file.size);
       return {
-        photoId: photo!.id,
+        photoId: idFor.get(key)!,
         name: file.name,
         url: presigned.url,
         method: presigned.method,

@@ -236,7 +236,7 @@ export type EventTab = (typeof TABS)[number][0];
  */
 function metaLine(feed: Feed): string {
   const parts: string[] = [];
-  const day = feed.event.startsAt ?? feed.photos[0]?.takenAt ?? null;
+  const day = feed.event.startsAt ?? earliestTaken(feed.photos);
   if (day) {
     parts.push(
       new Intl.DateTimeFormat('en-GB', {
@@ -1790,11 +1790,27 @@ function stateOf(status: string): string {
 
 /** "Maya, a minute ago" — who added the newest of these, and when. */
 function freshCaption(photos: Photo[], people: Person[]): string | null {
-  const newest = photos[photos.length - 1];
+  // First, now that a roll is a stack with its latest addition on top.
+  const newest = photos[0];
   if (!newest) return null;
   const who = people.find((person) => person.key === newest.by);
   const when = ago(new Date(newest.takenAt), new Date());
   return who ? `${who.mine ? 'You' : who.name}, ${when}` : when;
+}
+
+/**
+ * The first photograph's time, by when it was taken.
+ *
+ * Looked for rather than read off the front of the list: a roll is ordered by
+ * when things were added to it, so the front is the latest addition, and an
+ * addition can be of pictures from any night.
+ */
+function earliestTaken(photos: Photo[]): string | null {
+  let first: string | null = null;
+  for (const photo of photos) {
+    if (photo.takenAt && (first === null || photo.takenAt < first)) first = photo.takenAt;
+  }
+  return first;
 }
 
 /**
@@ -1806,7 +1822,7 @@ function freshCaption(photos: Photo[], people: Person[]): string | null {
  * time and iOS Safari strips EXIF on upload (design §8).
  */
 function earlierCaption(startsAt: string | null, photos: Photo[]): string | null {
-  const from = startsAt ?? photos[0]?.takenAt ?? null;
+  const from = startsAt ?? earliestTaken(photos);
   if (!from) return null;
   const date = new Date(from);
   if (Number.isNaN(date.getTime())) return null;

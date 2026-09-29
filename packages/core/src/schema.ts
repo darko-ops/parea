@@ -13,6 +13,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
   bigint,
+  bigserial,
   boolean,
   customType,
   date,
@@ -989,6 +990,16 @@ export const photos = pgTable(
       .notNull()
       .defaultNow(),
     /**
+     * The order photographs were added to their roll, across everybody.
+     *
+     * A roll is a stack: each addition lands on top, and within one the photo
+     * picked first is lowest. `uploadedAt` cannot say that — a batch's rows
+     * are written together and their timestamps land in whatever order the
+     * inserts finished — so the presign route writes a batch as one insert,
+     * in the order the files were picked, and this counts them.
+     */
+    addedSeq: bigserial('added_seq', { mode: 'number' }).notNull(),
+    /**
      * When storage was confirmed to hold the object, written by
      * `/api/uploads/<id>/complete`.
      *
@@ -1031,6 +1042,7 @@ export const photos = pgTable(
       t.eventId,
       sql`coalesce(${t.capturedAt}, ${t.uploadedAt})`,
     ),
+    index('photo_event_added_idx').on(t.eventId, t.addedSeq),
   ],
 );
 

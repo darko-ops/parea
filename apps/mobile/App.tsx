@@ -2721,6 +2721,10 @@ function EventScreen({
         // failing silently twenty minutes later.
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
+        // In the order they were tapped, which is the order a roll stacks
+        // them in: the first tap lowest, the last on top. iOS numbers the
+        // picks as they are made, so the order is visible while choosing.
+        orderedSelection: true,
         quality: 1,
         exif: false,
       });
@@ -2921,7 +2925,10 @@ function EventScreen({
    * "Remove it" only where there is something to remove, and if this fed it the
    * borrowed picture it would offer to remove a cover nobody set.
    */
-  const cover = chosenCover ?? feed?.photos[0]?.card ?? feed?.photos[0]?.src ?? null;
+  // The last in the feed: a roll is a stack with its latest addition on top,
+  // so the first photograph anybody put in is at the bottom.
+  const first = feed?.photos[feed.photos.length - 1];
+  const cover = chosenCover ?? first?.card ?? first?.src ?? null;
 
   /**
    * Who each photograph belongs to, by the key each one carries.
