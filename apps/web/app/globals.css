@@ -4945,7 +4945,10 @@ button.link {
    quietly becomes two lines.
    --------------------------------------------------------------------------- */
 .page-greet { padding-left: 48px; text-align: left; pointer-events: none; }
-.page-mark { display: flex; align-items: center; justify-content: center; line-height: 0; }
+.page-mark {
+  display: flex; align-items: center; justify-content: center; line-height: 0;
+  color: var(--fg);
+}
 
 .home-head > .page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
 .home-head > .page-mark { grid-column: 2; grid-row: 1; }
