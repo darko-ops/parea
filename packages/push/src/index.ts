@@ -85,11 +85,12 @@ export type Notification =
   | { kind: 'group_added'; groupId: string; groupName: string; who: string }
   /**
    * Somebody said something under your moment, or reacted to it. Only ever
-   * to its author, and never about their own. The moment is in the payload
-   * because there is a screen that is one moment: the viewer opens on it.
+   * to its author, and never about their own. The answer is a message in the
+   * two people's chat, so the payload carries that chat (`groupId`) and the
+   * tap opens it; the moment rides along for a client that wants it.
    */
-  | { kind: 'moment_comment'; momentId: string; who: string; said: string }
-  | { kind: 'moment_reaction'; momentId: string; who: string; emoji: string };
+  | { kind: 'moment_comment'; groupId: string; momentId: string; who: string; said: string }
+  | { kind: 'moment_reaction'; groupId: string; momentId: string; who: string; emoji: string };
 
 /**
  * The set, enumerable at runtime.

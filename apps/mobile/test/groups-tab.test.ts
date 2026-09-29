@@ -395,7 +395,7 @@ describe('what a group shows when you open it', () => {
      * header is in the frame already. Passing `HEAD` there too lifted the
      * composer a header's height clear of the keyboard.
      */
-    expect(THREAD).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{0\} \/>/);
+    expect(THREAD).toMatch(/<GroupChat\s+api=\{api\}\s+group=\{group\}\s+t=\{t\}\s+keyboardOffset=\{0\}/);
     expect(THREAD).not.toMatch(/const HEAD = /);
     expect(GROUPS).toMatch(/import \{ GroupChat \} from '\.\/GroupThread';/);
     expect(GROUPS).toMatch(/<GroupChat api=\{api\} group=\{group\} t=\{t\} keyboardOffset=\{HEAD\} \/>/);

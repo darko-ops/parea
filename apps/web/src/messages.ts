@@ -71,6 +71,13 @@ export type Message = {
    * web's did not, which is why the column drew them as empty bubbles.
    */
   emoji?: string;
+  /**
+   * Set when this message answers a moment — a comment on it or a reaction to
+   * it, sent into the two people's chat. `thumb` while the moment is live and
+   * null once it has had its day; `emoji` for a reaction; `mine` when the
+   * moment is the reader's own, which decides "your moment" or "their moment".
+   */
+  moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
 };
 
 /**

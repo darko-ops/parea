@@ -1216,7 +1216,7 @@ export default function App() {
    * on nothing.
    */
   /**
-   * A moment, opened from outside Home — a notification, or a line in Lately.
+   * A moment, opened from outside Home — a reply to one, in a chat.
    * Home's viewer does the opening: this takes the app there and hands it the
    * id, and the counter makes asking for the same moment twice a fresh ask.
    */
@@ -1235,8 +1235,13 @@ export default function App() {
         setRoute({ screen: 'group', id: target.groupId });
         return;
       }
-      if (target.screen === 'moment') {
-        openMoment(target.momentId);
+      if (target.screen === 'chat') {
+        // A reply to a moment: the chat it was said in. Two people, and
+        // nothing yet known about shared evenings — the bar draws from this.
+        setRoute({
+          screen: 'groupThread',
+          group: { id: target.groupId, name: target.name, memberCount: 2, eventCount: 0 },
+        });
         return;
       }
       // A nudge is about an event this person already joined, so the token is
@@ -1245,7 +1250,7 @@ export default function App() {
       const saved = (await loadEvents()).find((e) => e.id === target.eventId);
       if (saved) void open(saved);
     },
-    [open, openMoment],
+    [open],
   );
 
   useEffect(() => {
@@ -1497,6 +1502,7 @@ export default function App() {
             dark={dark}
             onBack={leaveThread}
             onOpenGroup={() => setRoute({ screen: 'group', id: route.group.id })}
+            onOpenMoment={openMoment}
           />
         </SwipeBack>
       )}
@@ -1583,7 +1589,6 @@ export default function App() {
               if (listing) openListing(listing);
             }}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
-            onOpenMoment={openMoment}
           />
         </SwipeBack>
       )}

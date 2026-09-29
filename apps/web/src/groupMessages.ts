@@ -34,12 +34,13 @@
  * the same way or the same conversation reads differently in two places.
  */
 
-import { schema } from '@parea/core';
+import { MOMENT_HOURS, schema } from '@parea/core';
 import { and, asc, eq, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { contributorKey } from './contributors';
 import type { Db } from './db';
+import { getStorage } from './storage';
 import { MAX_BODY, type Message } from './messages';
 
 export { MAX_BODY };
@@ -112,9 +113,17 @@ export async function groupMessagesFor(
       displayName: schema.actors.displayName,
       handle: schema.actors.handle,
       avatarKey: schema.actors.avatarKey,
+      momentId: schema.groupMessages.momentId,
+      momentEmoji: schema.groupMessages.momentEmoji,
+      momentOwner: schema.moments.actorId,
+      momentKey: sql<string | null>`coalesce(${schema.moments.thumbKey}, ${schema.moments.key})`,
+      // Live: not taken back, and still inside its day.
+      momentLive: sql<boolean>`(${schema.moments.deletedAt} is null
+        and ${schema.moments.createdAt} > now() - make_interval(hours => ${MOMENT_HOURS}))`,
     })
     .from(schema.groupMessages)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.groupMessages.authorActorId))
+    .leftJoin(schema.moments, eq(schema.moments.id, schema.groupMessages.momentId))
     .where(
       and(
         eq(schema.groupMessages.groupId, groupId),
@@ -158,9 +167,31 @@ export async function groupMessagesFor(
     faces.set(row.authorId, await avatarUrl(row.avatarKey));
   }
 
+  // The moment beside an answer to it, signed once each, while it lives.
+  const thumbs = new Map<string, string | null>();
+  for (const row of rows) {
+    if (!row.momentId || thumbs.has(row.momentId)) continue;
+    thumbs.set(
+      row.momentId,
+      row.momentLive && row.momentKey
+        ? await getStorage().presignGet(row.momentKey, 3600).catch(() => null)
+        : null,
+    );
+  }
+
   return rows.map((row) => {
     const deleted = row.deletedAt != null;
     return {
+      ...(row.momentId
+        ? {
+            moment: {
+              id: row.momentId,
+              thumb: thumbs.get(row.momentId) ?? null,
+              emoji: row.momentEmoji,
+              mine: viewerId != null && row.momentOwner === viewerId,
+            },
+          }
+        : {}),
       id: row.id,
       body: deleted ? '' : row.body,
       createdAt: row.createdAt.toISOString(),

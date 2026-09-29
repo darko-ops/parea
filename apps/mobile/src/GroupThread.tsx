@@ -47,6 +47,7 @@ export function GroupChat({
   group,
   t,
   keyboardOffset,
+  onOpenMoment,
 }: {
   api: Api;
   /** Its id to fetch by. The name belongs to whatever draws the header. */
@@ -63,6 +64,8 @@ export function GroupChat({
    * below passes 0.
    */
   keyboardOffset: number;
+  /** A moment somebody's reply is about, opened in Home's viewer. */
+  onOpenMoment?: (momentId: string) => void;
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +180,7 @@ export function GroupChat({
     </View>
   ) : (
     <Thread
+      onOpenMoment={onOpenMoment}
       /*
         Null while the first request is out, which `Thread` draws as a wait
         rather than as an empty room. It used to be handled a level up — the
@@ -229,6 +233,7 @@ export function GroupThread({
   dark,
   onBack,
   onOpenGroup,
+  onOpenMoment,
 }: {
   api: Api;
   /**
@@ -247,6 +252,8 @@ export function GroupThread({
   onBack: () => void;
   /** The room itself — its people and its evenings — which is not this screen. */
   onOpenGroup: () => void;
+  /** A moment somebody's reply is about, opened in Home's viewer. */
+  onOpenMoment?: (momentId: string) => void;
 }) {
   const lens = lensFor(group.id);
 
@@ -308,7 +315,13 @@ export function GroupThread({
         positioned box that starts under the crest, so the pane's frame begins
         at 0 while the pane begins at `HEAD`.
       */}
-      <GroupChat api={api} group={group} t={t} keyboardOffset={0} />
+      <GroupChat
+        api={api}
+        group={group}
+        t={t}
+        keyboardOffset={0}
+        onOpenMoment={onOpenMoment}
+      />
     </View>
   );
 }

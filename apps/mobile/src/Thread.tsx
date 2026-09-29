@@ -160,6 +160,7 @@ export function Thread({
   onSeen,
   photoOf,
   onOpenPhoto,
+  onOpenMoment,
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
@@ -183,6 +184,8 @@ export function Thread({
   photoOf?: (photoId: string) => { id: string; src: string } | null;
   /** Opens that photograph. Absent where there is nowhere to open it. */
   onOpenPhoto?: (photoId: string) => void;
+  /** Where a reply to a moment opens the moment it answered. A chat's only. */
+  onOpenMoment?: (momentId: string) => void;
   /**
    * The conversation, or null while nobody knows yet.
    *
@@ -421,6 +424,7 @@ export function Thread({
               onEdit={(body) => void actions.edit(item.id, body).then(onChanged)}
               about={item.photoId ? (photoOf?.(item.photoId) ?? null) : null}
               onOpenPhoto={onOpenPhoto}
+              onOpenMoment={onOpenMoment}
               /* Only where there is something to take back: your own
                  reaction, on a photograph, in a room that can reach it. */
               onUnreact={
@@ -544,6 +548,52 @@ export function Thread({
 }
 
 /**
+ * "Replied to your moment", with the moment beside it — or, once it has had
+ * its day, the words alone. See the note where `ThreadRow` draws it.
+ */
+function MomentReference({
+  moment,
+  sided,
+  t,
+  onOpen,
+}: {
+  moment: NonNullable<Message['moment']>;
+  sided: boolean;
+  t: GroupTheme;
+  onOpen?: (momentId: string) => void;
+}) {
+  const verb = moment.emoji ? 'Reacted' : 'Replied';
+  const whose = moment.thumb ? (moment.mine ? 'your moment' : 'their moment') : 'a moment that has ended';
+  const live = moment.thumb !== null && onOpen !== undefined;
+  return (
+    <View style={[styles.momentRef, sided && styles.momentRefMine]}>
+      {moment.thumb && (
+        <Pressable
+          onPress={live ? () => onOpen!(moment.id) : undefined}
+          disabled={!live}
+          accessibilityRole={live ? 'button' : 'image'}
+          accessibilityLabel={`${verb} to ${whose}${live ? '. Open it' : ''}`}
+          style={({ pressed }) => [
+            styles.momentShot,
+            { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Image
+            source={{ uri: moment.thumb }}
+            style={styles.momentShotImage}
+            contentFit="cover"
+            transition={120}
+          />
+        </Pressable>
+      )}
+      <Text style={[styles.momentCaption, { color: t.dim }]} numberOfLines={1}>
+        {verb} to {whose}
+      </Text>
+    </View>
+  );
+}
+
+/**
  * One line of a thread: a comment, a reaction, or the gap a delete left.
  *
  * Exported for the photo viewer, which draws the same rows in a sheet over a
@@ -564,6 +614,7 @@ export function ThreadRow({
   onUnreact,
   about,
   onOpenPhoto,
+  onOpenMoment,
 }: {
   message: Message;
   canPost: boolean;
@@ -587,6 +638,8 @@ export function ThreadRow({
   /** The photograph this comment is about, where it is about one. */
   about?: { id: string; src: string } | null;
   onOpenPhoto?: (photoId: string) => void;
+  /** Opens the moment a reply answered, while it lives. */
+  onOpenMoment?: (momentId: string) => void;
 }) {
   const [held, setHeld] = useState(false);
   const [more, setMore] = useState(false);
@@ -878,6 +931,26 @@ export function ThreadRow({
               * and a thumbnail large enough to look at would make the board a
               * second copy of the album.
               */}
+            {/*
+              The moment this answers, where it answers one.
+              *
+              * A comment on somebody's moment, or a reaction to it, is said to
+              * them — it arrives here, in the two people's chat, rather than as
+              * a line on a notifications page. What it is about goes above the
+              * words the way the photograph does on a board: small, and the
+              * subject of the sentence under it. While the moment lives it is
+              * the picture and a tap opens it; after its day there is nothing
+              * to open, and the caption says so rather than leaving a hole.
+              */}
+            {message.moment && (
+              <MomentReference
+                moment={message.moment}
+                sided={sided}
+                t={t}
+                onOpen={onOpenMoment}
+              />
+            )}
+
             {about && (
               <Pressable
                 onPress={() => onOpenPhoto?.(about.id)}
@@ -915,9 +988,17 @@ export function ThreadRow({
               message rather than being marked by weight inside a fill it can
               no longer be coloured against.
             */}
-            <Text style={[styles.bodyText, { color: t.fg }]}>
-              {withMentions(message.body, { color: t.accent })}
-            </Text>
+            {message.moment?.emoji ? (
+              /* A reaction to a moment is the emoji and nothing else, so it
+                 is drawn at the size an emoji said on its own is. */
+              <Text style={[styles.bodyEmoji, sided && styles.bodyEmojiMine]}>
+                {message.moment.emoji}
+              </Text>
+            ) : (
+              <Text style={[styles.bodyText, { color: t.fg }]}>
+                {withMentions(message.body, { color: t.accent })}
+              </Text>
+            )}
           </Pressable>
         )}
 
@@ -1379,6 +1460,16 @@ const styles = StyleSheet.create({
   about: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
   aboutMine: { alignSelf: 'flex-end' },
   aboutShot: { width: 52, height: 52 },
+  /* A moment a reply answers: a small rounded square and a quiet caption,
+     on the same side as the message. */
+  momentRef: { alignSelf: 'flex-start', alignItems: 'flex-start', gap: 4, marginBottom: 4 },
+  momentRefMine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+  momentShot: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  momentShotImage: { width: 64, height: 64 },
+  momentCaption: { fontSize: 12.5 },
+  /* An emoji said on its own, at the size of one. */
+  bodyEmoji: { fontSize: 38, lineHeight: 46 },
+  bodyEmojiMine: { alignSelf: 'flex-end' },
   /*
    * The block hangs from the right; its lines do not turn round with it.
    *

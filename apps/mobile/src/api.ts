@@ -476,6 +476,13 @@ export type Message = {
    * carries an emoji and no body.
    */
   emoji?: string;
+  /**
+   * Set when this message answers a moment — somebody's comment on it or
+   * their reaction to it, sent into the two people's chat. `thumb` while the
+   * moment lives and null once it has had its day; `emoji` for a reaction;
+   * `mine` when the moment is the reader's own.
+   */
+  moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
 };
 
 /**

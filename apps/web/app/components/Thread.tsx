@@ -489,6 +489,7 @@ function Row({
    * feed no longer holds the photograph.
    */
   const shot = useImageFailure(about?.src ?? '');
+  const momentShot = useImageFailure(message.moment?.thumb ?? '');
 
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
@@ -593,6 +594,33 @@ function Row({
           </a>
         )}
 
+        {/*
+          The moment this answers, where it answers one — a comment on it or a
+          reaction to it, sent here because replying to somebody's picture is
+          saying something to them. The picture while it lives, and a link to
+          it; once it has had its day, only the words saying what it was.
+        */}
+        {message.moment && !editing && (
+          <div className="message-moment">
+            {message.moment.thumb && !momentShot.failed && (
+              <a
+                href={`/moments/${message.moment.id}`}
+                className="message-moment-shot"
+                aria-label="Open the moment"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={momentShot.ref}
+                  src={message.moment.thumb}
+                  alt=""
+                  onError={momentShot.onError}
+                />
+              </a>
+            )}
+            <span className="message-moment-said">{momentLine(message)}</span>
+          </div>
+        )}
+
         {editing ? (
           <div className="message-edit">
             <textarea
@@ -610,7 +638,9 @@ function Row({
             </div>
           </div>
         ) : (
-          <p className="message-text">{withMentions(message.body)}</p>
+          <p className={`message-text${message.moment?.emoji ? ' message-emoji' : ''}`}>
+            {withMentions(message.body)}
+          </p>
         )}
 
         {(message.reactions.length > 0 || canPost) && (
@@ -724,3 +754,15 @@ async function explain(res: Response): Promise<string> {
       return 'Could not post that.';
   }
 }
+
+/**
+ * What a message says about the moment it answers: whose, what kind of
+ * answer, and whether the moment is still there to look at.
+ */
+function momentLine(message: Message): string {
+  const moment = message.moment!;
+  const verb = moment.emoji ? 'Reacted to' : 'Replied to';
+  if (!moment.thumb) return `${verb} a moment that has ended`;
+  return `${verb} ${moment.mine ? 'your' : 'their'} moment`;
+}
+

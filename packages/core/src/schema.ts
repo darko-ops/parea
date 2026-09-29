@@ -1535,6 +1535,18 @@ export const groupMessages = pgTable(
       .notNull()
       .references(() => actors.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
+    /**
+     * Set when this message is an answer to a moment — somebody's comment on
+     * it, or their reaction — sent into the two people's own chat, the way a
+     * reply to somebody's picture is a message to them rather than a line on
+     * a notifications page. The chat draws the moment beside it while the
+     * moment lives; after that the reference clears and the words remain.
+     */
+    momentId: uuid('moment_id').references((): AnyPgColumn => moments.id, {
+      onDelete: 'set null',
+    }),
+    /** The emoji, when the answer was a reaction rather than words. */
+    momentEmoji: text('moment_emoji'),
     createdAt: createdAt(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),

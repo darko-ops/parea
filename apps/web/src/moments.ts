@@ -44,6 +44,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { type Db, getDb } from './db';
+import { addMember, directChatWith } from './groups';
 import { getStorage } from './storage';
 
 /** How long a moment is shown for. Shared with the deriver's clean-up. */
@@ -305,6 +306,48 @@ export async function authorOf(db: Db, momentId: string): Promise<string | null>
     .where(eq(schema.moments.id, momentId))
     .limit(1);
   return row?.actorId ?? null;
+}
+
+/**
+ * An answer to a moment, as a message in the two people's own chat.
+ *
+ * Replying to somebody's picture is saying something to *them*, so a comment
+ * on a moment or a reaction to it lands in the one-to-one chat between the
+ * person answering and the person who shared it — made on the spot if the
+ * two have never talked — rather than as a line on a notifications page. The
+ * message carries the moment, which the chat draws beside it while it lives.
+ *
+ * Returns the chat and who it is with, for the push; null when there is no
+ * one to tell — the author answering their own moment.
+ */
+export async function replyInChat(
+  db: Db,
+  fromActorId: string,
+  momentId: string,
+  answer: { body: string; emoji?: string },
+): Promise<{ groupId: string; toActorId: string } | null> {
+  const author = await authorOf(db, momentId);
+  if (!author || author === fromActorId) return null;
+
+  let chat = await directChatWith(db, fromActorId, author);
+  if (!chat) {
+    const [made] = await db
+      .insert(schema.groups)
+      .values({ name: null, slug: null, findable: false })
+      .returning();
+    await addMember(db, made!.id, fromActorId, 'admin');
+    await addMember(db, made!.id, author);
+    chat = made!;
+  }
+
+  await db.insert(schema.groupMessages).values({
+    groupId: chat.id,
+    authorActorId: fromActorId,
+    body: answer.body,
+    momentId,
+    momentEmoji: answer.emoji ?? null,
+  });
+  return { groupId: chat.id, toActorId: author };
 }
 
 /** A reaction as a client draws it: who, and with what. Newest first. */

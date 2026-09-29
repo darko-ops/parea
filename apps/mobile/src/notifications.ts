@@ -30,7 +30,7 @@
 export type NotificationTarget =
   | { screen: 'event'; eventId: string }
   | { screen: 'group'; groupId: string }
-  | { screen: 'moment'; momentId: string };
+  | { screen: 'chat'; groupId: string; name: string };
 
 /**
  * Reads the target out of a push payload.
@@ -49,17 +49,18 @@ export function notificationTarget(
   const kind = typeof data.kind === 'string' ? data.kind : null;
   const eventId = typeof data.eventId === 'string' ? data.eventId : null;
   const groupId = typeof data.groupId === 'string' ? data.groupId : null;
-  const momentId = typeof data.momentId === 'string' ? data.momentId : null;
+  const who = typeof data.who === 'string' ? data.who : null;
 
   switch (kind) {
     /*
-     * Somebody answered a moment you shared. Unlike a roll's photograph there
-     * is a screen that is one moment — the viewer, from Home — so the tap goes
-     * straight there, onto the moment the comment or reaction is on.
+     * Somebody answered a moment you shared — which is a message to you, in
+     * your chat with them, with the moment beside it. So the tap opens that
+     * chat, titled with their name: a chat of two is called what the other
+     * person is called.
      */
     case 'moment_comment':
     case 'moment_reaction':
-      return momentId ? { screen: 'moment', momentId } : null;
+      return groupId ? { screen: 'chat', groupId, name: who ?? 'Chat' } : null;
     case 'group_event':
       // The event is new and this device holds no token for it. The group
       // does list it, with one.

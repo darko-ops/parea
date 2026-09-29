@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { authorOf, canSeeMoment, toggleMomentReaction } from '@/moments';
+import { canSeeMoment, replyInChat, toggleMomentReaction } from '@/moments';
 import { nameOf, notifyMomentReaction } from '@/notify';
 import { isEmoji } from '@/reactions';
 import { currentActorId } from '@/session';
@@ -37,12 +37,17 @@ export async function POST(
   const emoji = body.emoji;
   const state = await toggleMomentReaction(db, actorId, id, emoji);
 
-  // Told when one is put on, not when it comes off; never about your own.
+  /*
+   * Put on, it is also said to the author — the emoji as a message in the two
+   * people's chat, with the moment beside it — and the push points there.
+   * Taken off, nothing: a message saying somebody changed their mind is
+   * noise. Never for the author reacting to their own.
+   */
   if (state === 'added') {
-    const author = await authorOf(db, id);
-    if (author && author !== actorId) {
+    const reply = await replyInChat(db, actorId, id, { body: emoji, emoji });
+    if (reply) {
       void nameOf(db, actorId).then((who) =>
-        notifyMomentReaction(db, { toActorId: author, momentId: id, who, emoji }),
+        notifyMomentReaction(db, { toActorId: reply.toActorId, groupId: reply.groupId, momentId: id, who, emoji }),
       );
     }
   }

@@ -29,7 +29,7 @@
  * row — it is four tables read at once.
  */
 
-import { MOMENT_HOURS, schema } from '@parea/core';
+import { schema } from '@parea/core';
 import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
@@ -41,7 +41,6 @@ import {
 } from './parea';
 import type { Db } from './db';
 import { imageSrc } from './images';
-import { getStorage } from './storage';
 
 /*
  * A friend request appears here answered, never open.
@@ -122,9 +121,7 @@ export type ActivityKind =
   | 'photos_added'
   | 'request_answered'
   | 'friend_accepted'
-  | 'joined_yours'
-  | 'moment_comment'
-  | 'moment_reaction';
+  | 'joined_yours';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -276,7 +273,6 @@ export async function activityFor(
     answered,
     befriended,
     arrivals,
-    momentTalk,
   ] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
@@ -714,37 +710,6 @@ export async function activityFor(
       )
       .orderBy(desc(schema.eventParticipants.firstSeenAt))
       .limit(LIMIT),
-    /*
-     * What people said under, and left on, moments you shared — both in one
-     * query, as the same kind of news about the same kind of thing. Only
-     * moments still live: a line that opens a moment which has had its day
-     * would open onto nothing.
-     */
-    db.execute(sql`
-      select 'comment' as kind, c.id::text as id, c.moment_id as "momentId",
-             c.body as said, null as emoji, c.created_at as at,
-             coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone') as who,
-             a.avatar_key as "avatarKey", m.thumb_key as "thumbKey", m.key as key
-        from "moment_comment" c
-        join "moment" m on m.id = c.moment_id
-        join "actor" a on a.id = c.actor_id
-       where m.actor_id = ${actorId} and c.actor_id <> ${actorId}
-         and m.deleted_at is null
-         and m.created_at > now() - make_interval(hours => ${MOMENT_HOURS})
-      union all
-      select 'reaction', r.moment_id::text || ':' || r.actor_id::text || ':' || r.emoji,
-             r.moment_id, null, r.emoji, r.created_at,
-             coalesce(nullif(btrim(a.display_name), ''), '@' || a.handle, 'Someone'),
-             a.avatar_key, m.thumb_key, m.key
-        from "moment_reaction" r
-        join "moment" m on m.id = r.moment_id
-        join "actor" a on a.id = r.actor_id
-       where m.actor_id = ${actorId} and r.actor_id <> ${actorId}
-         and m.deleted_at is null
-         and m.created_at > now() - make_interval(hours => ${MOMENT_HOURS})
-      order by at desc
-      limit ${LIMIT}
-    `),
   ]);
 
   /*
@@ -988,35 +953,6 @@ export async function activityFor(
       image: await cover(a),
       images: [],
     })),
-    ...rowsOf<{
-      kind: 'comment' | 'reaction';
-      id: string;
-      momentId: string;
-      said: string | null;
-      emoji: string | null;
-      at: Date | string;
-      who: string;
-      avatarKey: string | null;
-      thumbKey: string | null;
-      key: string;
-    }>(momentTalk).map(async (m) => ({
-      id: `moment${m.kind}:${m.id}`,
-      kind: m.kind === 'comment' ? ('moment_comment' as const) : ('moment_reaction' as const),
-      at: new Date(m.at).toISOString(),
-      who: m.who,
-      what:
-        m.kind === 'comment'
-          ? `said “${(m.said ?? '').length > 60 ? `${m.said!.slice(0, 60).trimEnd()}…` : m.said}” on your moment`
-          : `reacted ${m.emoji}\u00a0 to your moment`,
-      href: `/moments/${m.momentId}`,
-      image: await avatarUrl(m.avatarKey),
-      // Which moment — the line's whole content, as with a photo reaction.
-      images: [
-        await getStorage()
-          .presignGet(m.thumbKey ?? m.key, 3600)
-          .catch(() => null),
-      ].filter((src): src is string => src !== null),
-    })),
   ]);
 
   // Newest first, and bounded again after the merge — four queries of fifty is
@@ -1075,9 +1011,4 @@ export async function activityFor(
       images: [],
     },
   ];
-}
-
-/** PGlite answers `{rows}` and postgres.js answers an array. */
-function rowsOf<T>(result: unknown): T[] {
-  return (Array.isArray(result) ? result : (result as { rows: unknown[] }).rows) as T[];
 }

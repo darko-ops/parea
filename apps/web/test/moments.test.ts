@@ -8,7 +8,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { readFileSync } from 'node:fs';
@@ -28,6 +28,7 @@ import {
   momentStream,
   orderStream,
   removeMoment,
+  replyInChat,
 } from '@/moments';
 
 import { stripComments } from './support/source';
@@ -45,7 +46,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await db.execute(sql`
-    truncate "account", "actor", "block", "friendship", "event", "moment", "groups"
+    truncate "account", "actor", "block", "friendship", "event", "moment", "groups",
+      "group_message"
     restart identity cascade
   `);
 });
@@ -419,12 +421,60 @@ describe('telling the author', () => {
   const read = (path: string) =>
     readFileSync(fileURLToPath(new URL(`../app/${path}`, import.meta.url)), 'utf8');
 
-  it('only the author, never about their own, and only when a reaction goes on', () => {
+  it('says it in their chat — only when a reaction goes on — and the push points there', () => {
     const comments = stripComments(read('api/moments/[id]/comments/route.ts'));
-    expect(comments).toMatch(/if \(author && author !== actorId\) \{[\s\S]*?notifyMomentComment/);
+    expect(comments).toMatch(/const reply = await replyInChat\(db, actorId, id, \{ body: text \}\);/);
+    expect(comments).toMatch(/if \(reply\) \{[\s\S]*?notifyMomentComment\(db, \{ toActorId: reply\.toActorId, groupId: reply\.groupId/);
 
     const reactions = stripComments(read('api/moments/[id]/reactions/route.ts'));
-    expect(reactions).toMatch(/if \(state === 'added'\) \{[\s\S]*?if \(author && author !== actorId\) \{[\s\S]*?notifyMomentReaction/);
+    expect(reactions).toMatch(/if \(state === 'added'\) \{[\s\S]*?replyInChat\(db, actorId, id, \{ body: emoji, emoji \}\)/);
   });
 });
 
+describe('an answer in the chat', () => {
+  it('lands in the two people’s chat, made once and used after', async () => {
+    const me = await person('me');
+    const friend = await person('friend');
+    await befriend(db, me, friend);
+    const id = await moment(me);
+
+    const first = await replyInChat(db, friend, id, { body: 'love it' });
+    const second = await replyInChat(db, friend, id, { body: '🔥', emoji: '🔥' });
+    expect(first?.toActorId).toBe(me);
+    expect(second?.groupId).toBe(first?.groupId);
+
+    const members = await db
+      .select()
+      .from(schema.groupMembers)
+      .where(eq(schema.groupMembers.groupId, first!.groupId));
+    expect(members.map((m) => m.actorId).sort()).toEqual([me, friend].sort());
+
+    const said = await db
+      .select()
+      .from(schema.groupMessages)
+      .where(eq(schema.groupMessages.groupId, first!.groupId));
+    expect(said.map((m) => [m.body, m.momentId, m.momentEmoji])).toEqual([
+      ['love it', id, null],
+      ['🔥', id, '🔥'],
+    ]);
+  });
+
+  it('is nothing when the author answers their own moment', async () => {
+    const me = await person('me');
+    const id = await moment(me);
+    expect(await replyInChat(db, me, id, { body: 'mine' })).toBeNull();
+  });
+});
+
+
+describe('in the chat', () => {
+  it('draws the moment beside its answer, and says when it has ended', () => {
+    const thread = readFileSync(
+      fileURLToPath(new URL('../app/components/Thread.tsx', import.meta.url)),
+      'utf8',
+    );
+    expect(thread).toMatch(/href=\{`\/moments\/\$\{message\.moment\.id\}`\}/);
+    expect(thread).toMatch(/if \(!moment\.thumb\) return `\$\{verb\} a moment that has ended`;/);
+    expect(thread).toMatch(/return `\$\{verb\} \$\{moment\.mine \? 'your' : 'their'\} moment`;/);
+  });
+});

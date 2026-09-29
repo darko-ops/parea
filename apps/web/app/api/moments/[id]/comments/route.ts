@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { COMMENT_MAX, authorOf, canSeeMoment, commentOnMoment } from '@/moments';
+import { COMMENT_MAX, canSeeMoment, commentOnMoment, replyInChat } from '@/moments';
 import { nameOf, notifyMomentComment } from '@/notify';
 import { currentActorId } from '@/session';
 
@@ -39,12 +39,15 @@ export async function POST(
   }
   const commentId = await commentOnMoment(db, actorId, id, text);
 
-  // Its author hears about it — unless they are the one who said it. Not
-  // awaited: a slow push service must not hold up the comment appearing.
-  const author = await authorOf(db, id);
-  if (author && author !== actorId) {
+  /*
+   * And it is said to its author: the same words, as a message in the two
+   * people's chat, with the moment beside it. The push points there. Nothing
+   * for the author commenting on their own.
+   */
+  const reply = await replyInChat(db, actorId, id, { body: text });
+  if (reply) {
     void nameOf(db, actorId).then((who) =>
-      notifyMomentComment(db, { toActorId: author, momentId: id, who, said: text }),
+      notifyMomentComment(db, { toActorId: reply.toActorId, groupId: reply.groupId, momentId: id, who, said: text }),
     );
   }
   return NextResponse.json({ id: commentId });

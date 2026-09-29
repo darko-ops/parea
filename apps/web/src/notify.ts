@@ -397,7 +397,8 @@ export async function notifyGroupAdded(
 }
 
 /**
- * Somebody said something under a moment you shared, or reacted to it.
+ * Somebody said something under a moment you shared, or reacted to it —
+ * which is now a message in your chat with them, and the push opens that.
  *
  * Only the author, and never about their own remark or reaction — the routes
  * decide that before calling, since they are the ones that know who acted.
@@ -406,11 +407,12 @@ export async function notifyGroupAdded(
  */
 export async function notifyMomentComment(
   db: Db,
-  input: { toActorId: string; momentId: string; who: string; said: string },
+  input: { toActorId: string; groupId: string; momentId: string; who: string; said: string },
 ): Promise<void> {
   try {
     await deliver(db, [input.toActorId], {
       kind: 'moment_comment',
+      groupId: input.groupId,
       momentId: input.momentId,
       who: input.who,
       said: input.said,
@@ -422,11 +424,12 @@ export async function notifyMomentComment(
 
 export async function notifyMomentReaction(
   db: Db,
-  input: { toActorId: string; momentId: string; who: string; emoji: string },
+  input: { toActorId: string; groupId: string; momentId: string; who: string; emoji: string },
 ): Promise<void> {
   try {
     await deliver(db, [input.toActorId], {
       kind: 'moment_reaction',
+      groupId: input.groupId,
       momentId: input.momentId,
       who: input.who,
       emoji: input.emoji,

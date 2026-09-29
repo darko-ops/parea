@@ -204,4 +204,17 @@ describe('moments', () => {
       MOMENTS.indexOf('<View style={styles.timeTrack}>'),
     );
   });
+
+  it('draws a reply to a moment in the chat, with the moment beside it', () => {
+    const THREAD = read('src/Thread.tsx');
+    expect(THREAD).toMatch(/\{message\.moment && \(\s*<MomentReference/);
+    expect(THREAD).toMatch(/const verb = moment\.emoji \? 'Reacted' : 'Replied';/);
+    expect(THREAD).toMatch(/moment\.thumb \? \(moment\.mine \? 'your moment' : 'their moment'\) : 'a moment that has ended'/);
+    // A reaction is the emoji, at an emoji's size.
+    expect(THREAD).toMatch(/\{message\.moment\?\.emoji \? \(/);
+    // Its thumbnail opens the moment in Home's viewer.
+    expect(APP).toMatch(/onOpenMoment=\{openMoment\}/);
+    // And the push for one opens that chat.
+    expect(APP).toMatch(/if \(target\.screen === 'chat'\) \{/);
+  });
 });

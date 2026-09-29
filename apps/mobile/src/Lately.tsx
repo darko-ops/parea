@@ -123,7 +123,6 @@ export function Lately({
   onAnswered,
   onOpenEvent,
   onOpenPerson,
-  onOpenMoment,
 }: {
   api: Api;
   t: GroupTheme;
@@ -139,8 +138,6 @@ export function Lately({
   onAnswered: () => void;
   onOpenEvent: (eventId: string) => void;
   onOpenPerson: (handle: string) => void;
-  /** A line about one of your moments: opens it in Home's viewer. */
-  onOpenMoment: (momentId: string) => void;
 }) {
   const [waiting, setWaiting] = useState<PendingRequest[]>([]);
   const [items, setItems] = useState<ActivityRow[] | null>(null);
@@ -215,10 +212,8 @@ export function Lately({
       if (event) return onOpenEvent(event[1]!);
       const person = row.href?.match(/^\/u\/([^/]+)$/);
       if (person) return onOpenPerson(decodeURIComponent(person[1]!));
-      const moment = row.href?.match(/^\/moments\/([0-9a-f-]{36})$/i);
-      if (moment) return onOpenMoment(moment[1]!);
     },
-    [onOpenEvent, onOpenMoment, onOpenPerson],
+    [onOpenEvent, onOpenPerson],
   );
 
   return (

@@ -56,7 +56,7 @@ beforeEach(async () => {
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
       "friend_request", "photo", "photo_tag", "photo_reaction",
-      "hidden_activity", "moment"
+      "hidden_activity"
     restart identity cascade
   `);
 });
@@ -928,50 +928,5 @@ describe('the welcome', () => {
     expect(await activityFor(db, me)).toHaveLength(1);
     await hide(me, 'welcome');
     expect(await activityFor(db, me)).toHaveLength(0);
-  });
-});
-
-describe('answers to your moments', () => {
-  async function moment(actorId: string, hoursAgo = 0) {
-    const [row] = await db
-      .insert(schema.moments)
-      .values({
-        actorId,
-        key: `moments/${actorId}/m.jpg`,
-        thumbKey: `moments/${actorId}/m-t.jpg`,
-        width: 10,
-        height: 10,
-        createdAt: new Date(Date.now() - hoursAgo * 3_600_000),
-      })
-      .returning();
-    return row!.id;
-  }
-
-  it('says who commented or reacted, and opens the moment', async () => {
-    const me = await actor('me');
-    const friend = await actor('friend');
-    const id = await moment(me);
-    await db.insert(schema.momentComments).values({ momentId: id, actorId: friend, body: 'lovely' });
-    await db.insert(schema.momentReactions).values({ momentId: id, actorId: friend, emoji: '🔥' });
-
-    const items = await did(db, me);
-    const comment = items.find((i) => i.kind === 'moment_comment');
-    const reaction = items.find((i) => i.kind === 'moment_reaction');
-    expect(comment?.what).toBe('said “lovely” on your moment');
-    expect(reaction?.what).toBe('reacted 🔥  to your moment');
-    expect(comment?.href).toBe(`/moments/${id}`);
-    expect(reaction?.images).toHaveLength(1);
-  });
-
-  it('is not news about your own, and not about a moment that has had its day', async () => {
-    const me = await actor('me');
-    const friend = await actor('friend');
-    const mine = await moment(me);
-    const old = await moment(me, 30);
-    await db.insert(schema.momentComments).values({ momentId: mine, actorId: me, body: 'me' });
-    await db.insert(schema.momentComments).values({ momentId: old, actorId: friend, body: 'late' });
-
-    const kinds = (await did(db, me)).map((i) => i.kind);
-    expect(kinds).not.toContain('moment_comment');
   });
 });
