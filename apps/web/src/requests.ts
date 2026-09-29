@@ -410,6 +410,7 @@ async function coversFor(db: Db, eventIds: string[]): Promise<Map<string, string
         inArray(schema.photos.eventId, eventIds),
         eq(schema.photos.status, 'ready'),
         isNull(schema.photos.deletedAt),
+        isNull(schema.photos.hiddenAt),
       ),
     )
     .orderBy(schema.photos.eventId, desc(schema.photos.uploadedAt));

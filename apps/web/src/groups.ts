@@ -1014,7 +1014,7 @@ export const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null
   )
   from "photo" p
   where p.event_id = "event".id
-    and p.status = 'ready' and p.deleted_at is null
+    and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
   order by p.uploaded_at desc
   limit 1
 )`;
@@ -1041,7 +1041,7 @@ export const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null
 const FRESH = (actorId: string, since: Date) => sql<number>`(
   select count(*)::int from "photo" p
   where p.event_id = "event".id
-    and p.status = 'ready' and p.deleted_at is null
+    and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
     and p.uploader_id is distinct from ${actorId}
     -- Bound as text and cast, not as a Date. The driver hands a Date straight
     -- to its binary encoder here and it arrives at a path expecting a string,
@@ -1114,7 +1114,7 @@ export async function groupArchive(
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       people: sql<number>`(
         select count(*)::int from "event_participant" ep

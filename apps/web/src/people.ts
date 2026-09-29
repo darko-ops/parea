@@ -140,7 +140,7 @@ async function countsFor(db: Db, theirActorId: string): Promise<ProfileCounts> {
         select count(*)::int from "photo" p
         join "event" e on e.id = p.event_id
         where e.created_by = ${theirActorId} and e.deleted_at is null
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       friends: sql<number>`(
         select count(*)::int from "friendship" f
@@ -416,7 +416,7 @@ export async function albumsBy(
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       /*
        * Whether the viewer is already in. A participant row, or membership of

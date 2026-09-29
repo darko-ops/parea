@@ -233,6 +233,7 @@ export async function reactionLines(
         eq(schema.photos.eventId, eventId),
         eq(schema.photos.status, 'ready'),
         isNull(schema.photos.deletedAt),
+        isNull(schema.photos.hiddenAt),
         viewerId
           ? not(
               sql`exists (

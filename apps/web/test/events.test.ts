@@ -526,3 +526,53 @@ describe('the feed says which photographs were kept', () => {
     expect(ROUTE).toMatch(/inArray\(schema\.photoFavourites\.photoId, photoIds\)/);
   });
 });
+
+describe('what a card shows', () => {
+  async function photo(eventId: string, uploaderId: string, minutesAgo: number, hidden = false) {
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: `ev/${eventId}/${crypto.randomUUID()}`,
+        byteSize: 10,
+        mime: 'image/jpeg',
+        status: 'ready',
+        contentHash: Buffer.alloc(32, minutesAgo),
+        uploadedAt: new Date(Date.now() - minutesAgo * 60_000),
+        hiddenAt: hidden ? new Date() : null,
+      })
+      .returning();
+    return row!.id;
+  }
+
+  it('leaves a hidden photo out of the mosaic and the count', async () => {
+    /*
+     * A photo hidden after a removal request is out of the album, and it
+     * used to go on leading the album's card — newest first, so the photo
+     * somebody had just asked to come down was the one on the front.
+     */
+    const person = await actor();
+    const id = await event(person);
+    await participates(id, person);
+    const shown = await photo(id, person, 10);
+    await photo(id, person, 1, true);
+
+    const [card] = await eventsFor(db, person);
+    expect(card!.mosaic.map((p) => p.id)).toEqual([shown]);
+    expect(card!.photoCount).toBe(1);
+  });
+
+  it('leaves out the photos of somebody the viewer blocked', async () => {
+    const person = await actor();
+    const blocked = await actor();
+    const id = await event(person);
+    await participates(id, person);
+    const shown = await photo(id, person, 10);
+    await photo(id, blocked, 1);
+    await db.insert(schema.blocks).values({ blockerActorId: person, blockedActorId: blocked });
+
+    const [card] = await eventsFor(db, person);
+    expect(card!.mosaic.map((p) => p.id)).toEqual([shown]);
+  });
+});

@@ -194,7 +194,7 @@ const COVER = sql<{ storageKey: string; hash: string | null } | null>`(
   )
   from "photo" p
   where p.event_id = ${schema.events.id}
-    and p.status = 'ready' and p.deleted_at is null
+    and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
   order by p.uploaded_at desc
   limit 1
 )`;
@@ -572,9 +572,16 @@ export async function activityFor(
         and(
           eq(schema.photos.status, 'ready'),
           isNull(schema.photos.deletedAt),
+          isNull(schema.photos.hiddenAt),
           isNull(schema.events.deletedAt),
           // Your own photographs are not news to you.
           ne(schema.photos.uploaderId, actorId),
+          // Nor are the photographs of somebody you blocked, which the album
+          // itself no longer shows you.
+          sql`not exists (
+            select 1 from "block" b
+            where b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.photos.uploaderId}
+          )`,
           sql`${schema.photos.uploadedAt} > now() - interval '30 days'`,
         ),
       )

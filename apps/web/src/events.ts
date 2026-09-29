@@ -218,7 +218,13 @@ export async function eventsFor(
                  encode(p.content_hash, 'hex') as hash
           from "photo" p
           where p.event_id = "event".id
-            and p.status = 'ready' and p.deleted_at is null
+            and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
+            -- The same photographs the album shows this viewer: none from
+            -- somebody they blocked.
+            and not exists (
+              select 1 from "block" b
+              where b.blocker_actor_id = ${actorId} and b.blocked_actor_id = p.uploader_id
+            )
           order by p.uploaded_at desc
           limit ${MOSAIC_TILES}
         ) t
@@ -264,7 +270,7 @@ export async function eventsFor(
       firstPhotoAt: sql<Date | null>`(
         select min(coalesce(p.captured_at, p.uploaded_at)) from "photo" p
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       // Counted in the query rather than per row: a home screen that issues
       // two round trips per event is a home screen that is slow at exactly
@@ -276,12 +282,12 @@ export async function eventsFor(
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       contributorCount: sql<number>`(
         select count(distinct p.uploader_id)::int from "photo" p
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       // 'pending' is the state between the bytes landing and the deriver
       // finishing. Anything else — failed, removed, quarantined — is not
@@ -317,7 +323,7 @@ export async function eventsFor(
         select count(*)::int from "photo_reaction" r
         join "photo" p on p.id = r.photo_id
         where p.event_id = "event".id
-          and p.status = 'ready' and p.deleted_at is null
+          and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
       )`,
       creatorName: schema.actors.displayName,
       creatorHandle: schema.actors.handle,
