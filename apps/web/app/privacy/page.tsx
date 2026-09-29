@@ -15,7 +15,7 @@
  * and so does anyone deciding whether to upload.
  */
 
-import { LEGAL_ENTITY, LEGAL_UPDATED, SAFETY_CONTACT } from '@/legal';
+import { LEGAL_ENTITY, LEGAL_UPDATED, SAFETY_CONTACT, hashMatchingLive } from '@/legal';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { Shell } from '@/../app/components/Shell';
 
@@ -519,12 +519,27 @@ export default function PrivacyPage() {
 
         <section className="panel">
           <h2>Child safety scanning</h2>
-          <p className="muted">
-            Every uploaded image is checked for child sexual abuse material
-            before it is shown to anyone. This is not optional and there is no
-            way to turn it off. If the check cannot run, the photo is not
-            published &mdash; the system fails towards showing nothing.
-          </p>
+          {hashMatchingLive() ? (
+            <p className="muted">
+              Every uploaded image &mdash; photos, moments, profile and group
+              pictures, and covers &mdash; is checked against known child sexual
+              abuse material before it is shown to anyone. This is not optional
+              and there is no way to turn it off. If the check cannot run, the
+              image is not published &mdash; the system fails towards showing
+              nothing.
+            </p>
+          ) : (
+            <p className="muted">
+              Automatic matching against known child sexual abuse material is
+              not running yet. Parea is waiting to be approved by a matching
+              provider, and until then images are published without that check.
+              Anyone can report a photo, and a report of child abuse hides it
+              from everyone immediately while a person reviews it. When
+              matching is switched on, it will cover every image &mdash; photos,
+              moments, profile and group pictures, and covers &mdash; before
+              anyone sees it, and this page will say so.
+            </p>
+          )}
           <p className="muted">
             A confirmed detection is reported to the National Center for Missing
             &amp; Exploited Children as United States law requires, and the file

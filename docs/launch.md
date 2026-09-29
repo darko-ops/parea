@@ -153,9 +153,10 @@ thumbnail 404s, or every download does.
 
 ## 7. Private soak
 
-Everything stood up, nobody else invited, no scanning:
-`CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED=private-deployment`. The
-deriver prints a banner on every boot saying uploads are going out unchecked.
+Everything stood up, nobody else invited, no hash matching configured — the
+supported way to run until a provider approves Parea. The privacy page and
+terms say matching is not running, because they read the same settings the
+scanner does.
 
 Anyone with a link can upload, so "private" means not sharing a link. There is
 no auth wall doing it for you.
@@ -170,8 +171,8 @@ The two items in it that no test can cover:
 
 ## 8. Before anyone else can reach it
 
-- [ ] `fly secrets unset PAREA_ALLOW_UNSCANNED CSAM_SCANNER`, real provider set.
-      The deriver refusing to start without one is the check.
+- [ ] A real hash-matching provider set on the deriver *and* Vercel, and the
+      privacy page saying matching is running.
 - [ ] Everything in [`csam-runbook.md`](csam-runbook.md): credentials before the
       first detection, counsel briefed, a named human who receives alerts, and
       a synthetic alert proven to reach them.

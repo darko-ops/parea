@@ -64,6 +64,28 @@ export async function POST(
   // Scoped to the uploader: completing someone else's upload is not a thing.
   if (!photo) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
+  /*
+   * Only an upload that is still waiting can be completed.
+   *
+   * This queued the photo for deriving whatever state it was in, and the
+   * deriver used to process anything that was not already `ready`. So a photo
+   * the child-safety scanner had quarantined could be overwritten through its
+   * still-valid upload URL and sent round again — and a failed one re-run as
+   * often as someone liked, on the one machine that derives everything.
+   *
+   * A finished photo answers as finished, because a client retrying a
+   * `complete` whose answer it never got is ordinary. Everything else is
+   * refused without saying which state it is in: the uploader of a
+   * quarantined photo learns nothing from this that they could not already
+   * see, which is that it never appeared.
+   */
+  if (photo.status === 'ready') {
+    return NextResponse.json({ id: photo.id, status: 'ready', size: photo.byteSize });
+  }
+  if (photo.status !== 'pending' || photo.deletedAt || photo.hiddenAt) {
+    return NextResponse.json({ error: 'not_pending' }, { status: 409 });
+  }
+
   const event = await findEventById(db, photo.eventId);
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 

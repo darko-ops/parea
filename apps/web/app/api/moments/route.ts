@@ -21,6 +21,7 @@ import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
 import { MOMENT_MAX_BYTES, incomingPrefix, momentsResponse } from '@/moments';
 import { MOMENT_LIMIT, withinLimit } from '@/ratelimit';
+import { screenUpload } from '@/safety';
 import { currentActorId } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -127,6 +128,12 @@ async function makeMoment(actorId: string, incoming: Buffer): Promise<NextRespon
    * instead: a well-formed photo in a format this route cannot read, which a
    * client can turn into a sentence.
    */
+  // Checked against the child-safety provider before anything is made of it.
+  // A moment is on everybody's Home, and this route stores it itself rather
+  // than through the deriver — see `@/safety`.
+  const refused = await screenUpload(admitted.bytes, admitted.mime, { kind: 'moment' }, actorId);
+  if (refused) return refused;
+
   if (admitted.mime === 'image/heic' || admitted.mime === 'image/avif') {
     console.warn('moment refused', { error: 'unsupported_type', mime: admitted.mime });
     return NextResponse.json({ error: 'unsupported_type' }, { status: 415 });

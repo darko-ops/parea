@@ -23,11 +23,16 @@ served. A scanner that is *not configured at all* is a different thing and no
 longer stops ingest: see [The two slots](#the-two-slots).
 
 **Quarantines a match.** Status becomes `quarantined`, which no surface serves.
-The object stays exactly where it is: not moved to a content-addressed key, not
-re-encoded, not deleted, no derivatives built. A `safety_incident` row records
-the provider, its classification and reference, the object key, the content
-hash, the event, and the uploading actor — everything a reviewer needs months
-later, copied onto the row so it survives the photo being purged.
+The object is not moved to a content-addressed key, not re-encoded, not
+deleted, and no derivatives are built. The original bytes are also copied, as
+they arrived, to `preserved/photo/<photoId>`: the upload's presigned PUT stays
+valid for fifteen minutes and scanning takes seconds, so the upload key alone
+could be overwritten by the uploader before anyone looked. A `safety_incident`
+row records the provider, its classification and reference, the preserved
+key, the content hash, the event, and the uploading actor — everything a
+reviewer needs months later, copied onto the row so it survives the photo
+being purged. A quarantined photo can never be processed again: the deriver
+only processes `pending` rows, and `complete` refuses anything else.
 
 **Protects the evidence from routine cleanup.** The purge job skips anything
 under an open hold. This is the interaction most likely to fail silently: a
@@ -57,15 +62,20 @@ the incident.
 
 **It does not ban anyone automatically.** A human decides.
 
-**It does not see two kinds of image at all.** The scanner is reached from the
-deriver's pipeline, which runs on photographs. Two small images are written
-outside it, both re-encoded through sharp on the way in and neither ever
-derived: a profile picture (`avatars/<actorId>.jpg`) and an event cover
-(`ev/<eventId>/cover.jpg`). A cover is almost always one of the event's own
-photographs sent twice — once here, once up the ordinary path, where it *is*
-scanned — so what this really leaves open is a cover whose photograph was
-later quarantined, and which is still the event's face on somebody's home
-screen. Step 2 below closes it by hand.
+**It sees every kind of image, once a provider is configured on both sides.**
+Roll photographs are scanned in the deriver. Four kinds of image are stored by
+the web app itself and never reach the deriver: moments, group pictures,
+profile pictures and roll covers. Those are scanned in their own routes, with
+the same client (`scannerFromEnv` in `@parea/core`), before anything is
+stored — `apps/web/src/safety.ts`. A match there stores nothing visible: the
+original goes to `preserved/<kind>/<id>`, an incident is written with its
+`subject`, and the responder is alerted. An outage refuses the upload (503).
+The web app reads its own copy of the `CSAM_SCANNER_*` settings from Vercel,
+so they have to be set in both places for everything to be covered.
+
+What is still open is a cover whose photograph was later quarantined through a
+report, which remains the event's face on somebody's home screen. Step 2 below
+closes it by hand.
 
 ## The review SLA
 
@@ -186,7 +196,7 @@ would be an unexplained disappearance, and a test refuses one.
 | `MODERATOR_NAME` | Recorded on flags. |
 | `MODERATOR_THRESHOLD` | Score at or above which a photo is flagged. Default 80. |
 | `PAREA_MODERATION` | `automated` or `manual`. Required — a watcher refuses to start without it. |
-| `CSAM_SCANNER_SEND_BYTES` | Almost certainly `true` — read [What the hash-only path cannot do](#what-the-hash-only-path-cannot-do) before setting it to `false`. |
+| `CSAM_SCANNER_SEND_BYTES` | Defaults to sending the image. Read [What the hash-only path cannot do](#what-the-hash-only-path-cannot-do) before setting it to `false`. |
 | `SAFETY_ALERT_WEBHOOK` | Where alerts go, for a team with a chat client. |
 | `SAFETY_ALERT_EMAIL` | Where alerts go, for one person. Either is enough; both is fine. |
 

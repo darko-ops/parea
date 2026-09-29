@@ -36,4 +36,19 @@ export const SAFETY_CONTACT = placeholder(
  * updated itself would say the terms changed every time anything deployed,
  * and a date that never moved would be a lie the first time they did.
  */
-export const LEGAL_UPDATED = '11 August 2026';
+export const LEGAL_UPDATED = '29 September 2026';
+
+/**
+ * Whether this deployment checks images against known child-abuse material.
+ *
+ * Read from the same configuration the scanner itself reads
+ * (`scannerFromEnv` in @parea/core), so the privacy page and the terms say
+ * what is actually happening rather than what is planned. They promised
+ * "every image is checked" while no provider was configured anywhere; a page
+ * that states the posture from the configuration cannot drift from it that
+ * way again. The deriver reads its own copy of these on Fly — both have to be
+ * set for every image to be covered.
+ */
+export function hashMatchingLive(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.CSAM_SCANNER_URL && env.CSAM_SCANNER_KEY);
+}

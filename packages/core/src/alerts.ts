@@ -14,7 +14,10 @@
 
 export type QuarantineAlert = {
   incidentId: string;
-  eventId: string;
+  /** Null for an image that was not going into a roll. See `subject`. */
+  eventId: string | null;
+  /** photo, moment, group_photo, avatar or cover. Absent means a roll photo. */
+  subject?: string;
   /** What found it: a scanner's name, or `user_report` when a person did. */
   provider: string;
   classification: string;
@@ -84,10 +87,13 @@ async function viaEmail(to: string, summary: QuarantineAlert): Promise<void> {
       // screen and searchable later without opening anything.
       subject: `Parea safety: quarantine ${summary.incidentId}`,
       text: [
-        'A photo has been quarantined and is no longer served anywhere.',
+        summary.subject && summary.subject !== 'photo'
+          ? `An upload (${summary.subject}) matched and was refused. The original is preserved.`
+          : 'A photo has been quarantined and is no longer served anywhere.',
         '',
         `incident:       ${summary.incidentId}`,
-        `event:          ${summary.eventId}`,
+        `kind:           ${summary.subject ?? 'photo'}`,
+        `event:          ${summary.eventId ?? '(none)'}`,
         `found by:       ${summary.provider}`,
         `classification: ${summary.classification}`,
         '',

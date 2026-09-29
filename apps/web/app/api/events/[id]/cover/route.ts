@@ -34,7 +34,8 @@ import { findEventById, guard, toResponse } from '@/access';
 import { coverAspect, coverSize, framingOf, orientedSize, regionFor } from '@/cover';
 import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
-import { requesterFor } from '@/session';
+import { screenUpload } from '@/safety';
+import { currentActorId, requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -96,6 +97,16 @@ export async function POST(
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
   const incoming = admitted.bytes;
+
+  // Checked against the child-safety provider before it is stored. A cover is
+  // the first thing anyone opening the roll sees. See `@/safety`.
+  const refused = await screenUpload(
+    incoming,
+    admitted.mime,
+    { kind: 'cover', eventId: event.id },
+    (await currentActorId())!,
+  );
+  if (refused) return refused;
 
   const url = new URL(request.url);
   const framing = framingOf(url);

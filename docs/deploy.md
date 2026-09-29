@@ -34,23 +34,24 @@ never appears, with nothing logged to say why.
 
 ## Two kinds of deployment
 
-**Private soak** — everything stood up, only you can reach it, no scanning.
-Worth doing first: infrastructure fails in ways tests cannot predict, and it is
-better to find that out before anyone else is involved. Set
-`CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED=private-deployment` on the
-deriver; it starts, and prints a banner on every boot saying uploads are going
-out unchecked.
+**Without hash matching** — everything stood up, no child-safety provider
+configured. This is how Parea runs until a provider approves it. Photos are
+published without being matched against known material; the privacy page and
+the terms say so, because they read the same `CSAM_SCANNER_*` settings the
+scanner does (`hashMatchingLive` in `apps/web/src/legal.ts`). What still runs:
+a report of child abuse quarantines the photo at once and alerts the
+responder, and `PAREA_MODERATION` must be declared — the watcher refuses to
+start without it.
 
-The flag is named rather than quiet so it shows up in `fly secrets list`, in
-`grep`, and in the logs. The rule attached to it is simple: **the moment anyone
-but you can reach the deployment, it has to go.** Anyone with a link can
-upload, so "nobody else can reach it" means not sharing a link — there is no
-auth wall doing that for you.
+`CSAM_SCANNER=disabled` and `PAREA_ALLOW_UNSCANNED` no longer exist. They are
+described in the runbook's history; nothing reads them.
 
-**Launch** — work through [`csam-runbook.md`](csam-runbook.md) first: a
+**With hash matching** — work through [`csam-runbook.md`](csam-runbook.md): a
 provider onboarded, credentials before the first detection, counsel briefed, a
-named human on alerts. Without a scanner and without the flag, ingest fails
-closed: uploads stall at `pending` and are never served. Safe, and broken.
+named human on alerts. Set `CSAM_SCANNER_URL` and `CSAM_SCANNER_KEY` on **both**
+the deriver (roll photos) and Vercel (moments, group pictures, profile
+pictures and covers). From then on an unreachable provider stalls or refuses
+the upload rather than letting it through.
 
 ## The short way
 
@@ -414,10 +415,10 @@ Generate with `openssl rand -base64 32`.
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key. Also what Android passkeys are verified against |
 | `PASSKEY_RP_ID` | ● | | leave unset; derived from the request host. Only for a domain the code does not know — and a passkey is bound to its RP ID for life |
-| `CSAM_SCANNER_URL` | | ● | ingest stalls without it |
-| `CSAM_SCANNER_KEY` | | ● | |
-| `CSAM_SCANNER` | | ● | `disabled`, private soak only |
-| `PAREA_ALLOW_UNSCANNED` | | ● | `private-deployment`; remove before launch |
+| `CSAM_SCANNER_URL` | ● | ● | the hash-matching provider. Unset means no matching, and the privacy page says so. Needed on both: the deriver scans roll photos, the web app scans everything else |
+| `CSAM_SCANNER_KEY` | ● | ● | |
+| `CSAM_SCANNER_NAME` | ● | ● | recorded on incidents |
+| `CSAM_SCANNER_SEND_BYTES` | ● | ● | defaults to sending the image; `false` only for a provider that takes perceptual hashes |
 | `SAFETY_ALERT_WEBHOOK` | | ● | a quarantine nobody sees is no scanning |
 | `EXPO_ACCESS_TOKEN` | ● | ● | optional; Expo accepts pushes without one |
 
@@ -451,8 +452,9 @@ Generate with `openssl rand -base64 32`.
 
 ## Before it stops being private
 
-- [ ] `fly secrets unset PAREA_ALLOW_UNSCANNED CSAM_SCANNER`, and set a real
-      provider. The deriver refuses to start without one, which is the check.
+- [ ] Set a real hash-matching provider (`CSAM_SCANNER_URL`, `CSAM_SCANNER_KEY`)
+      on the deriver *and* on Vercel, then check the privacy page says
+      matching is running.
 - [ ] Everything in [`csam-runbook.md`](csam-runbook.md).
 
 ## Known gaps

@@ -1178,14 +1178,33 @@ export const safetyIncidents = pgTable(
      * pointer going null costs nothing.
      */
     photoId: uuid('photo_id').references(() => photos.id, { onDelete: 'set null' }),
-    eventId: uuid('event_id').notNull(),
+    /**
+     * What kind of image this was, and which one.
+     *
+     * Every incident was a roll photograph until the web app's own image
+     * routes started scanning too: a moment, a group's picture, a profile
+     * picture, a roll's cover. Those have no photo row, and three of them have
+     * no event, so `event_id` is nullable and `subject` says where the image
+     * was going. `subject_id` is the moment, group or event it was for — the
+     * uploader is always `uploader_actor_id`, so a profile picture needs none.
+     */
+    subject: text('subject').notNull().default('photo'),
+    subjectId: uuid('subject_id'),
+    eventId: uuid('event_id'),
     uploaderActorId: uuid('uploader_actor_id').notNull(),
     /** Which scanner, and what it called it. Both matter to a reviewer. */
     provider: text('provider').notNull(),
     classification: text('classification').notNull(),
     /** Provider-side identifier, for corroboration without re-sending content. */
     providerReference: text('provider_reference'),
-    /** The object, kept exactly where it was. Never re-encoded, never moved. */
+    /**
+     * The evidence object. Never re-encoded.
+     *
+     * For a roll photo this is a copy under `preserved/`, made at detection.
+     * The upload key itself stays writable for the life of its presigned URL,
+     * so an uploader who saw their photo vanish could otherwise overwrite the
+     * original with something innocuous inside that window.
+     */
     storageKey: text('storage_key').notNull(),
     contentHash: bytea('content_hash'),
     detectedAt: createdAt(),

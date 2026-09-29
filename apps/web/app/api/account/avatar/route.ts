@@ -28,6 +28,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
 import { AVATAR_LIMIT, withinLimit } from '@/ratelimit';
+import { screenUpload } from '@/safety';
 import { currentActorId } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -69,6 +70,10 @@ export async function POST(request: Request) {
   if (!admitted.ok) {
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
+
+  // Checked against the child-safety provider before it is stored. See `@/safety`.
+  const refused = await screenUpload(admitted.bytes, admitted.mime, { kind: 'avatar' }, actorId);
+  if (refused) return refused;
 
   let jpeg: Buffer;
   try {

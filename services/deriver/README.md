@@ -98,10 +98,11 @@ closed**: no scanner configured or reachable means nothing is published, rather
 than everything being published unchecked. `deriver probe` treats a missing
 scanner as fatal.
 
-A match quarantines the photo, keeps the object exactly where it is, records an
+A match quarantines the photo, copies the original to `preserved/`, records an
 incident, and wakes a human. It does not report, delete, ban, or notify anyone
 else — see [`docs/csam-runbook.md`](../../docs/csam-runbook.md), which also
 lists the non-code items that gate launch.
 
-`CSAM_SCANNER=disabled` runs ingest without scanning in development. It refuses
-to load in production.
+With no `CSAM_SCANNER_URL`/`CSAM_SCANNER_KEY` there is no hash matching, in
+development or anywhere else; `PAREA_MODERATION` still has to be declared. The
+old `CSAM_SCANNER=disabled` flag is gone.

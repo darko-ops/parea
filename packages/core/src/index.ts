@@ -97,6 +97,14 @@ export {
 } from './sessions';
 export { alertResponder, type QuarantineAlert } from './alerts';
 export {
+  type CsamScanner,
+  HttpHashScanner,
+  type ScanInput,
+  ScanUnavailable,
+  type ScanVerdict,
+  scannerFromEnv,
+} from './scanner';
+export {
   recordModeration,
   REASON,
   type ModerationAction,

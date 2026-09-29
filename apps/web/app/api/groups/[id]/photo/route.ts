@@ -27,6 +27,7 @@ import { getDb } from '@/db';
 import { findGroup, memberCount, membershipOf } from '@/groups';
 import { admit, decode } from '@/imaging';
 import { AVATAR_LIMIT, withinLimit } from '@/ratelimit';
+import { screenUpload } from '@/safety';
 import { currentActorId } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -45,7 +46,7 @@ async function editable(id: string) {
   if (!(await membershipOf(db, group.id, actorId))) {
     return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
   }
-  return { db, group };
+  return { db, group, actorId };
 }
 
 export async function POST(
@@ -55,7 +56,7 @@ export async function POST(
   const { id } = await params;
   const found = await editable(id);
   if ('error' in found) return found.error;
-  const { db, group } = found;
+  const { db, group, actorId } = found;
 
   if ((await memberCount(db, group.id)) < 3) {
     return NextResponse.json({ error: 'chat_not_nameable' }, { status: 409 });
@@ -69,6 +70,15 @@ export async function POST(
   if (!admitted.ok) {
     return NextResponse.json({ error: admitted.error }, { status: admitted.status });
   }
+
+  // Checked against the child-safety provider before it is stored. See `@/safety`.
+  const refused = await screenUpload(
+    admitted.bytes,
+    admitted.mime,
+    { kind: 'group_photo', groupId: group.id },
+    actorId,
+  );
+  if (refused) return refused;
 
   let jpeg: Buffer;
   try {

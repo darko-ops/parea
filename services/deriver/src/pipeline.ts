@@ -84,6 +84,20 @@ export async function processPhoto(
       derivatives: 0,
     };
   }
+  /*
+   * Only a photo still waiting to be processed is processed.
+   *
+   * This refused only `ready`, so a quarantined, removed or failed row ran the
+   * whole pipeline again when asked — and asking was one call to `complete`,
+   * which its uploader can make. A photo the scanner had quarantined could be
+   * overwritten through its still-valid upload URL and re-derived into
+   * `ready`, deleting the object the incident pointed at on the way. A hidden
+   * or tombstoned row is the same question from the other side. Nothing is
+   * written here: the row already says what happened to it.
+   */
+  if (photo.status !== 'pending' || photo.deletedAt || photo.hiddenAt) {
+    return { status: 'failed', photoId, reason: `not_pending:${photo.status}` };
+  }
 
   // Terminal, and only safe to be terminal because of the gate in
   // `pendingPhotoIds`: nothing reaches here until storage has confirmed the
@@ -173,7 +187,7 @@ export async function processPhoto(
         ? await scanner.scan({ bytes: stripped, contentHash, mime: photo.mime })
         : { match: false as const };
       if (verdict.match && scanner) {
-        return quarantine(db, objects, photo, contentHash, {
+        return quarantine(db, objects, photo, original, contentHash, {
           provider: scanner.name,
           classification: verdict.classification,
           providerReference: verdict.providerReference,
@@ -366,11 +380,16 @@ export async function pendingPhotoIds(
 /**
  * Block it, keep it, tell a human — and nothing else.
  *
- * The object stays exactly where it is, unmoved and unmodified: no
- * content-addressed rename, no derivatives, no deletion. Destroying it would
+ * The object is never re-encoded, renamed or deleted: destroying it would
  * destroy evidence subject to a preservation duty, and re-encoding it would
  * destroy its provenance. The photo row goes to `quarantined`, which no
  * listing, download or image URL will serve.
+ *
+ * And the bytes are copied, exactly as they arrived, to `preserved/`. The
+ * upload key alone was not enough: its presigned PUT stays valid for fifteen
+ * minutes, and scanning takes seconds, so the uploader could replace the only
+ * copy with something innocuous of the same length before anyone looked. The
+ * incident points at the copy, which nothing ever presigns.
  *
  * No report is filed from here. See docs/csam-runbook.md for why that is a
  * person's job.
@@ -379,6 +398,7 @@ async function quarantine(
   db: any,
   objects: ObjectStore,
   photo: any,
+  original: Buffer,
   contentHash: Buffer,
   detection: {
     provider: string;
@@ -391,6 +411,9 @@ async function quarantine(
     .set({ status: 'quarantined', hiddenAt: new Date() })
     .where(eq(schema.photos.id, photo.id));
 
+  const preservedKey = `preserved/photo/${photo.id}`;
+  await objects.put(preservedKey, original, photo.mime ?? 'application/octet-stream');
+
   const [incident] = await db
     .insert(schema.safetyIncidents)
     .values({
@@ -400,7 +423,7 @@ async function quarantine(
       provider: detection.provider,
       classification: detection.classification,
       providerReference: detection.providerReference ?? null,
-      storageKey: photo.storageKey,
+      storageKey: preservedKey,
       contentHash,
       // Open-ended until someone files: the purge job skips a null hold.
       preservationEndsAt: null,

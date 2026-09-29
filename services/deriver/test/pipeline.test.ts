@@ -603,10 +603,47 @@ describe('child-safety scanning', () => {
     expect(incident.provider).toBe('test-matcher');
     expect(incident.classification).toBe('A1');
     expect(incident.providerReference).toBe('ref-123');
-    expect(incident.storageKey).toBe(photo.storageKey);
+    // The evidence is a copy, byte for byte, under a key nothing presigns.
+    expect(incident.storageKey).toBe(`preserved/photo/${photo.id}`);
     // Nothing has been filed, so the hold is open-ended and purge must skip it.
     expect(incident.reportedAt).toBeNull();
     expect(incident.preservationEndsAt).toBeNull();
+  });
+
+  it('keeps the evidence even if the upload is overwritten afterwards', async () => {
+    /*
+     * The upload's presigned PUT outlives the scan by minutes. An uploader
+     * who saw their photo vanish could replace the object at the upload key
+     * with something innocuous — which used to be the only copy there was.
+     */
+    const bytes = await geotaggedJpeg(26);
+    const { photo, key } = await seedPhoto(bytes);
+    const outcome = await processPhoto({ db, objects, scanner: matching }, photo.id);
+    if (outcome.status !== 'quarantined') throw new Error('expected quarantine');
+
+    await objects.put(key, Buffer.from('an innocuous replacement'));
+
+    const [incident] = await db
+      .select()
+      .from(schema.safetyIncidents)
+      .where(eq(schema.safetyIncidents.id, outcome.incidentId));
+    const kept = await objects.get(incident.storageKey);
+    expect(kept && Buffer.compare(kept, bytes)).toBe(0);
+  });
+
+  it('will not process a quarantined photo again', async () => {
+    /*
+     * `complete` is the uploader's to call, and it asks for this photo to be
+     * processed. Only a pending row may be: re-running a quarantined one used
+     * to derive it into `ready` and delete the object its incident named.
+     */
+    const { photo } = await seedPhoto(await geotaggedJpeg(27));
+    await processPhoto({ db, objects, scanner: matching }, photo.id);
+
+    const again = await processPhoto({ db, objects, scanner }, photo.id);
+    expect(again).toMatchObject({ status: 'failed', reason: 'not_pending:quarantined' });
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    expect(row.status).toBe('quarantined');
   });
 
   it('never publishes a photo the scanner could not check', async () => {

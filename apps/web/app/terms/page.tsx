@@ -18,7 +18,7 @@
  * whether to accept it.
  */
 
-import { LEGAL_ENTITY, LEGAL_JURISDICTION, LEGAL_UPDATED, SAFETY_CONTACT } from '@/legal';
+import { LEGAL_ENTITY, LEGAL_JURISDICTION, LEGAL_UPDATED, SAFETY_CONTACT, hashMatchingLive } from '@/legal';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { Shell } from '@/../app/components/Shell';
 
@@ -65,9 +65,12 @@ export default function TermsPage() {
           <p className="muted">Do not upload, or ask anyone else to upload:</p>
           <ul className="plain muted">
             <li>
-              Anything sexual involving a child, in any form. Every image is
-              checked for this before anyone sees it, detections are reported to
-              the authorities as the law requires, and the account is finished.
+              Anything sexual involving a child, in any form.{' '}
+              {hashMatchingLive()
+                ? 'Every image is checked for this before anyone sees it, detections'
+                : 'Reports of it hide the photo immediately, detections'}{' '}
+              are reported to the authorities as the law requires, and the
+              account is finished.
             </li>
             <li>
               Intimate or sexual images of anyone who has not agreed to them
