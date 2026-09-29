@@ -75,6 +75,11 @@ export default function PrivacyPage() {
             time.
           </p>
           <p className="muted">
+            Comments and reactions left on a moment are kept with it, seen by
+            the same people, and deleted when it is. You can delete your own
+            comments whenever you like.
+          </p>
+          <p className="muted">
             Which moments you have opened is recorded too, so the ones you have
             not seen yet come first. Nobody else sees it &mdash; not the person
             who shared the moment, and not as a count.

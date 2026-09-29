@@ -1128,6 +1128,29 @@ button.secondary {
 .moment-nav-wrap { padding: 0 28px; }
 @media (max-width: 720px) { .moment-nav-wrap { padding: 0 16px; } }
 .moment-nav { padding: 6px 0 12px; }
+/* A moment's conversation: its own, under the picture. */
+.moment-comments { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.moment-comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.moment-comment { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 20px; }
+.moment-comment-face {
+  width: 28px; height: 28px; border-radius: 9px; overflow: hidden; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 700;
+}
+.moment-comment-face img { width: 100%; height: 100%; object-fit: cover; }
+.moment-comment-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.moment-comment-remove { font-size: 12.5px; color: var(--dim); }
+.moment-composer { display: flex; gap: 8px; }
+.moment-composer-input {
+  flex: 1; min-width: 0; padding: 10px 14px; font: inherit; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg);
+}
+.moment-composer-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.moment-composer-post {
+  padding: 0 16px; border: 0; border-radius: 999px; font: inherit; font-weight: 600;
+  background: var(--accent); color: #fff; cursor: pointer;
+}
+.moment-composer-post:disabled { opacity: 0.45; cursor: default; }
 /* The moment's clock: a hairline track, filling as its time goes. */
 .moment-time {
   height: 3px; border-radius: 2px; overflow: hidden;

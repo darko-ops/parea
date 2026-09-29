@@ -160,7 +160,8 @@ describe('the sheet of comments over a photograph', () => {
     // The same rows, so the same ids and the same endpoints; each refreshes
     // the feed, which is where both ends of the thread read from.
     expect(GESTURE).toMatch(/api\.editMessage\(id, body\)\.then\(onChanged\)/);
-    expect(GESTURE).toMatch(/api\.deleteMessage\(id\)\.then\(onChanged\)/);
+    // A moment's comments go through its own routes; a roll's, the board's.
+    expect(GESTURE).toMatch(/\(talk \? talk\.remove\(photo\.id, id\) : api\.deleteMessage\(id\)\)\.then\(onChanged\)/);
     expect(GESTURE).toMatch(/api\.react\(id, emoji\)\.then\(onChanged\)/);
     // `post` is the one that differs, because it carries the photograph.
     expect(GESTURE).toMatch(/api\.postMessage\(eventId, body, photo\.id\)/);

@@ -19,13 +19,23 @@ const PERSON = read('src/Person.tsx');
 const PROFILE = read('src/Profile.tsx');
 
 describe('moments', () => {
-  it('opens in the same viewer a roll photograph opens in, without the roll', () => {
-    expect(MOMENTS).toMatch(/<PhotoViewer\s+plain/);
-    expect(VIEWER).toMatch(/plain = false/);
-    // The star, the reactions and the comments are a roll's, not a moment's.
-    expect(VIEWER).toMatch(/\{!plain && \(\s*<Pressable\s+onPress=\{\(\) => void keep/);
-    expect(VIEWER).toMatch(/\{!plain && \(\s*<View style=\{styles\.said\}/);
-    expect(VIEWER).toMatch(/\{talking && !plain && \(/);
+  it('opens in the same viewer a roll photograph opens in, reactions and comments too', () => {
+    // The same reactions, comment bar and sheet — through the moment's own
+    // routes, handed in as `talk`.
+    expect(MOMENTS).toMatch(/<PhotoViewer\s+talk=\{talk\}\s+onEngaged=\{setEngaged\}/);
+    expect(MOMENTS).toMatch(/comments=\{moment\.comments\}/);
+    expect(MOMENTS).toMatch(/reactions: moment\.reactions,/);
+    expect(MOMENTS).toMatch(/api\.commentOnMoment\(momentId, body\)/);
+    expect(MOMENTS).toMatch(/api\.deleteMomentComment\(momentId, commentId\)/);
+    expect(MOMENTS).toMatch(/api\.reactToMoment\(momentId, emoji\)/);
+    expect(VIEWER).toMatch(/if \(talk\) await talk\.post\(photo\.id, body\);/);
+    expect(VIEWER).toMatch(/if \(talk\) await talk\.react\(photo\.id, emoji\);/);
+    // What a moment does not have: the star, editing a comment, reacting to one.
+    expect(VIEWER).toMatch(/\{!moment && \(\s*<Pressable\s+onPress=\{\(\) => void keep/);
+    expect(VIEWER).toMatch(/onEdit=\{moment \? undefined : /);
+    expect(VIEWER).toMatch(/canReact=\{canPost && !moment\}/);
+    // The reactions list sits above the strip at the foot, not under it.
+    expect(VIEWER).toMatch(/bottom: TILES_BOTTOM \+ stripHeight \+ 8/);
   });
 
   it('is one bar on Home: no names, no faces, no pictures', () => {
@@ -176,16 +186,22 @@ describe('moments', () => {
     expect(EVENTS).toMatch(/if \(top > 0\) scroller\.current\?\.scrollTo\(\{ y: 0, animated: true \}\);/);
   });
 
-  it('gives each moment twenty seconds, shows the time going, and walks on', () => {
-    expect(MOMENTS).toMatch(/export const MOMENT_SECONDS = 20;/);
+  it('gives each moment fifteen seconds, shows the time going, and walks on', () => {
+    expect(MOMENTS).toMatch(/export const MOMENT_SECONDS = 15;/);
     // The line fills from empty to full over the moment's time...
     expect(MOMENTS).toMatch(/outputRange: \['0%', '100%'\]/);
     // ...then the next one comes, and after the last the viewer closes.
     expect(MOMENTS).toMatch(/if \(at < last\) setIndex\(at \+ 1\);\s*else onClose\(\);/);
-    // Each new moment starts its own clock; the sheet holds it.
+    // Each new moment starts its own clock; the ⋯ sheet, the comment sheet
+    // and the emoji picker all hold it.
     expect(MOMENTS).toMatch(/progress\.setValue\(0\);\s*\}, \[progress, showing\]\);/);
-    expect(MOMENTS).toMatch(/if \(!showing \|\| options\) \{\s*progress\.stopAnimation\(\);/);
-    // The strip and the line are at the foot of the screen.
-    expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: 34 \+ 44 \+ 14, left: 0, right: 0 \}/);
+    expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged\) \{\s*progress\.stopAnimation\(\);/);
+    expect(VIEWER).toMatch(/onEngaged\?\.\(talking \|\| picking\);/);
+    // At the foot: the tiles, then the line, then the reaction and comment bar.
+    expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 \}/);
+    expect(VIEWER).toMatch(/const TILES_BOTTOM = 34 \+ 44 \+ 12;/);
+    expect(MOMENTS.indexOf('<MomentsNav moments={moments} at={at}')).toBeLessThan(
+      MOMENTS.indexOf('<View style={styles.timeTrack}>'),
+    );
   });
 });

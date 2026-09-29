@@ -476,7 +476,8 @@ export function PhotoViewer({
   photos,
   index,
   onIndex,
-  plain = false,
+  talk,
+  onEngaged,
   strip,
 }: {
   api: Api;
@@ -567,14 +568,23 @@ export function PhotoViewer({
   index: number;
   onIndex: (next: number) => void;
   /**
-   * A moment rather than a roll's photograph.
+   * A moment rather than a roll's photograph: where its comments and
+   * reactions go.
    *
-   * The same glass, the same pager, the same square at the top and the same
-   * way out — so a moment opens exactly the way a photograph in a roll does.
-   * What goes is what only a roll has: its thread (comments), the reactions
-   * that are rows in it, and the star, which is a shortlist of an album.
+   * The same glass, the same pager, the same square at the top, the same
+   * reactions, comment bar and sheet — so a moment opens exactly the way a
+   * photograph in a roll does. What is different is where the words go: a
+   * roll's comments are lines in its thread, and a moment's are its own, so
+   * the three things that write are handed in rather than reached through a
+   * roll's routes. What a moment does not have goes: the star (a shortlist
+   * of an album), editing a comment, and reacting to one.
    */
-  plain?: boolean;
+  talk?: MomentTalk;
+  /**
+   * The comment sheet or the emoji picker opened, or closed. A moment's clock
+   * holds while somebody is saying something about it.
+   */
+  onEngaged?: (engaged: boolean) => void;
   /**
    * Something to draw under the top chrome, shown and hidden with it.
    *
@@ -618,6 +628,16 @@ export function PhotoViewer({
   const [sending, setSending] = useState(false);
   /** The full picker, over the row of six. */
   const [picking, setPicking] = useState(false);
+  const moment = talk != null;
+  useEffect(() => {
+    onEngaged?.(talking || picking);
+  }, [onEngaged, picking, talking]);
+  /*
+   * How tall the caller's strip is, so the reactions list sits above it
+   * rather than under it. A moment's tiles and clock are at the foot of the
+   * screen, where the list would otherwise be drawn.
+   */
+  const [stripHeight, setStripHeight] = useState(0);
 
   /*
    * Where the pager lands, reported once it has stopped.
@@ -662,14 +682,12 @@ export function PhotoViewer({
         width={width}
         height={height}
         onClose={onClose}
-        onTalk={() => {
-          if (!plain) setTalking(true);
-        }}
+        onTalk={() => setTalking(true)}
         onChrome={() => setChrome((on) => !on)}
         onZoomed={setZoomed}
       />
     ),
-    [height, onClose, plain, width],
+    [height, onClose, width],
   );
 
   const [pending, setPending] = useState<Map<string, boolean>>(new Map());
@@ -781,7 +799,8 @@ export function PhotoViewer({
     if (!body || sending) return;
     setSending(true);
     try {
-      await api.postMessage(eventId, body, photo.id);
+      if (talk) await talk.post(photo.id, body);
+      else await api.postMessage(eventId, body, photo.id);
       setDraft('');
       await onChanged();
     } catch {
@@ -790,7 +809,7 @@ export function PhotoViewer({
     } finally {
       setSending(false);
     }
-  }, [api, draft, eventId, onChanged, photo.id, sending]);
+  }, [api, draft, eventId, onChanged, photo.id, sending, talk]);
 
   /**
    * What a comment in this sheet can have done to it.
@@ -807,7 +826,8 @@ export function PhotoViewer({
   const say = useMemo(
     () => ({
       edit: (id: string, body: string) => api.editMessage(id, body).then(onChanged),
-      remove: (id: string) => api.deleteMessage(id).then(onChanged),
+      remove: (id: string) =>
+        (talk ? talk.remove(photo.id, id) : api.deleteMessage(id)).then(onChanged),
       react: (id: string, emoji: string) => api.react(id, emoji).then(onChanged),
       /*
        * And taking back one of the reaction lines in the sheet, which are
@@ -817,7 +837,7 @@ export function PhotoViewer({
        */
       unreact: (emoji: string) => api.reactToPhoto(photo.id, emoji).then(onChanged),
     }),
-    [api, onChanged, photo.id],
+    [api, onChanged, photo.id, talk],
   );
 
   const react = useCallback(
@@ -826,7 +846,8 @@ export function PhotoViewer({
       // Drawn now. Nothing below this line is waited on by the interface.
       setPending((was) => new Map(was).set(emoji, on));
       try {
-        await api.reactToPhoto(photo.id, emoji);
+        if (talk) await talk.react(photo.id, emoji);
+        else await api.reactToPhoto(photo.id, emoji);
       } catch {
         // Silent, and deliberately without a rollback: the refresh below is
         // the correction, and an alert over a photograph for a tap that did
@@ -845,7 +866,7 @@ export function PhotoViewer({
         return next;
       });
     },
-    [api, mine, onChanged, photo.id],
+    [api, mine, onChanged, photo.id, talk],
   );
 
   return (
@@ -999,7 +1020,7 @@ export function PhotoViewer({
               on the right" however many of them there are.
             */}
             <View style={styles.tools}>
-            {!plain && (
+            {!moment && (
             <Pressable
               onPress={() => void keep(!kept)}
               hitSlop={14}
@@ -1025,7 +1046,11 @@ export function PhotoViewer({
           </View>
 
           {strip && (
-            <View style={styles.tiles} pointerEvents="box-none">
+            <View
+              style={styles.tiles}
+              pointerEvents="box-none"
+              onLayout={(e) => setStripHeight(e.nativeEvent.layout.height)}
+            >
               {strip}
             </View>
           )}
@@ -1058,8 +1083,10 @@ export function PhotoViewer({
             summarised. Nothing moves when a reaction arrives except the list
             growing by one at the bottom.
           */}
-          {!plain && (
-          <View style={styles.said} pointerEvents="box-none">
+          <View
+            style={[styles.said, strip ? { bottom: TILES_BOTTOM + stripHeight + 8 } : null]}
+            pointerEvents="box-none"
+          >
             <ScrollView
               style={styles.saidScroll}
               contentContainerStyle={styles.saidInner}
@@ -1075,7 +1102,6 @@ export function PhotoViewer({
               ))}
             </ScrollView>
           </View>
-          )}
 
           {/*
             What has been said about this photograph, and a box to add to it.
@@ -1113,10 +1139,7 @@ export function PhotoViewer({
                 front of it. The frequent emoji are still one tap away — theirs
                 rather than ours.
               */}
-              {plain ? (
-                /* Holds the react disc's place, so the save stays in its corner. */
-                <View style={{ flex: 1 }} />
-              ) : canReact ? (
+              {canReact ? (
                 <Pressable
                   onPress={() => setPicking(true)}
                   accessibilityRole="button"
@@ -1129,7 +1152,7 @@ export function PhotoViewer({
                 <Text style={styles.why}>Sign in{'\n'}to react</Text>
               )}
 
-              {!plain && canPost && (
+              {canPost && (
                 <Pressable
                   onPress={() => setTalking(true)}
                   accessibilityRole="button"
@@ -1178,7 +1201,7 @@ export function PhotoViewer({
         </>
       )}
 
-      {talking && !plain && (
+      {talking && (
         <KeyboardAvoidingView
           style={styles.talk}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1233,12 +1256,12 @@ export function PhotoViewer({
                     canPost={canPost}
                     t={GLASS}
                     shape="board"
-                    canReact={canPost}
+                    canReact={canPost && !moment}
                     onReact={(emoji) => void say.react(message.id, emoji)}
                     onDelete={() => void say.remove(message.id)}
-                    onEdit={(body) => void say.edit(message.id, body)}
+                    onEdit={moment ? undefined : (body) => void say.edit(message.id, body)}
                     onUnreact={
-                      message.emoji && message.author.mine
+                      !moment && message.emoji && message.author.mine
                         ? () => void say.unreact(message.emoji!)
                         : undefined
                     }
@@ -1322,6 +1345,19 @@ export function PhotoViewer({
   );
 }
 
+/**
+ * Where the caller's strip sits: just above the row of discs and the comment
+ * bar, which is 44 tall at 34 from the foot.
+ */
+const TILES_BOTTOM = 34 + 44 + 12;
+
+/** A moment's comments and reactions, reached through its own routes. */
+export type MomentTalk = {
+  post: (momentId: string, body: string) => Promise<void>;
+  remove: (momentId: string, commentId: string) => Promise<void>;
+  react: (momentId: string, emoji: string) => Promise<void>;
+};
+
 const styles = StyleSheet.create({
   /* Black, not the theme's background. A photograph is judged against what is
      around it, and a light grey surround changes what the picture looks like. */
@@ -1331,7 +1367,7 @@ const styles = StyleSheet.create({
   /* At the foot of the screen, over the row the save button sits on — the
      picture keeps the top, and the way through the stream is where the thumb
      already is. */
-  tiles: { position: 'absolute', bottom: 34 + 44 + 14, left: 0, right: 0 },
+  tiles: { position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 },
   top: {
     position: 'absolute',
     top: 58,

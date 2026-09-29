@@ -122,6 +122,13 @@ export type Moment = {
   seen: boolean;
   mine: boolean;
   author: { actorId: string; handle: string | null; name: string; avatar: string | null };
+  /** Who reacted, and with what. Newest first — a roll photograph's shape. */
+  reactions: { emoji: string; name: string; mine: boolean }[];
+  /**
+   * What has been said under it, oldest first. A `Message` exactly, so the
+   * viewer's comment sheet draws it with the row it already has.
+   */
+  comments: Message[];
 };
 
 export type MomentsResponse = { moments: Moment[] };
@@ -1790,6 +1797,27 @@ export class Api {
   /** That this person has opened one, so it falls behind the unseen. */
   markMomentSeen(id: string): Promise<unknown> {
     return this.call(`/api/moments/${id}/seen`, { method: 'POST' });
+  }
+
+  /** Saying something under a moment. */
+  commentOnMoment(momentId: string, body: string): Promise<{ id: string }> {
+    return this.call(`/api/moments/${momentId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  /** Taking back something you said under one. */
+  deleteMomentComment(momentId: string, commentId: string): Promise<unknown> {
+    return this.call(`/api/moments/${momentId}/comments/${commentId}`, { method: 'DELETE' });
+  }
+
+  /** A reaction on a moment: on if it was off, off if it was on. */
+  reactToMoment(momentId: string, emoji: string): Promise<{ state: 'added' | 'removed' }> {
+    return this.call(`/api/moments/${momentId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
   }
 
   /**

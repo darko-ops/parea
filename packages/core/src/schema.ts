@@ -2006,3 +2006,43 @@ export const momentViews = pgTable(
   },
   (t) => [primaryKey({ columns: [t.actorId, t.momentId] })],
 );
+
+/**
+ * Something said under a moment. The moment's own, not a roll thread's: a
+ * moment has no roll, so its comments hang from it directly and go with it
+ * when it expires or is taken back.
+ */
+export const momentComments = pgTable(
+  'moment_comment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    momentId: uuid('moment_id')
+      .notNull()
+      .references(() => moments.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('moment_comment_moment_idx').on(t.momentId, t.createdAt)],
+);
+
+/**
+ * One person, one emoji, on one moment — a row per pair, as on a roll's
+ * photographs, so the viewer can say who as well as how many.
+ */
+export const momentReactions = pgTable(
+  'moment_reaction',
+  {
+    momentId: uuid('moment_id')
+      .notNull()
+      .references(() => moments.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.momentId, t.actorId, t.emoji] })],
+);

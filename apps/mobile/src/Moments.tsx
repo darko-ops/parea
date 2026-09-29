@@ -57,11 +57,15 @@ type ButtonComponent = (props: {
   disabled?: boolean;
 }) => React.ReactElement;
 
-const listeners = new Set<() => void>();
+const listeners = new Set<() => Promise<void>>();
 
-/** Somebody posted or removed a moment; every row on screen re-reads. */
-function momentsChanged() {
-  for (const listener of listeners) listener();
+/**
+ * Somebody posted or removed a moment, or said something under one; every
+ * row on screen re-reads. Resolves once they have, so a caller holding an
+ * optimistic overlay can drop it in the same tick the fresh answer lands.
+ */
+async function momentsChanged(): Promise<void> {
+  await Promise.all([...listeners].map((listener) => listener()));
 }
 
 /**
@@ -340,7 +344,7 @@ export function MomentsBar({
 }
 
 /** How long each moment is on screen before the next one comes. */
-export const MOMENT_SECONDS = 20;
+export const MOMENT_SECONDS = 15;
 
 /** The drift's length, one way. Slow enough to be felt rather than watched. */
 const DRIFT_MS = 14_000;
@@ -741,7 +745,7 @@ export function MomentsViewer({
   /*
    * The strip in the viewer's own photograph shape, so the viewer does not
    * learn a second one: a moment has one rendition, so every size is that one,
-   * and it has none of a roll's social rows.
+   * and its reactions are already in a roll photograph's shape.
    */
   const photos = useMemo(
     () =>
@@ -760,7 +764,7 @@ export function MomentsViewer({
           tags: [],
           mine: moment.mine,
           by: moment.author.actorId,
-          reactions: [],
+          reactions: moment.reactions,
           favourite: false,
           unseen: false,
         }),
@@ -772,7 +776,28 @@ export function MomentsViewer({
     Math.max(0, moments.findIndex((m) => m.id === start)),
   );
   const [options, setOptions] = useState(false);
+  /** The comment sheet or the emoji picker is open. See `onEngaged`. */
+  const [engaged, setEngaged] = useState(false);
   const [confirming, setConfirming] = useState(false);
+
+  /*
+   * Comments and reactions, through the moment's own routes. Each re-reads
+   * the stream afterwards, which is where the viewer's copy comes from.
+   */
+  const talk = useMemo(
+    () => ({
+      post: async (momentId: string, body: string) => {
+        await api.commentOnMoment(momentId, body);
+      },
+      remove: async (momentId: string, commentId: string) => {
+        await api.deleteMomentComment(momentId, commentId);
+      },
+      react: async (momentId: string, emoji: string) => {
+        await api.reactToMoment(momentId, emoji);
+      },
+    }),
+    [api],
+  );
   const [saving, setSaving] = useState<string | null>(null);
 
   // A removal can shorten the list under the index.
@@ -807,9 +832,10 @@ export function MomentsViewer({
    * goes, so how long is left is something you can see rather than guess.
    *
    * A new moment — swiped to, tapped in the strip, or arrived at — starts its
-   * own clock from empty. The clock holds while the ⋯ sheet is open, since
-   * somebody deciding what to do about a picture should not have it taken
-   * away mid-decision, and carries on from where it was when the sheet shuts.
+   * own clock from empty. The clock holds while the ⋯ sheet, the comment
+   * sheet or the emoji picker is open — somebody deciding what to do about a
+   * picture, or saying something about it, should not have it taken away
+   * mid-sentence — and carries on from where it was when they shut.
    */
   const progress = useRef(new Animated.Value(0)).current;
   const showing = moment?.id ?? null;
@@ -818,7 +844,7 @@ export function MomentsViewer({
     progress.setValue(0);
   }, [progress, showing]);
   useEffect(() => {
-    if (!showing || options) {
+    if (!showing || options || engaged) {
       progress.stopAnimation();
       return;
     }
@@ -838,7 +864,7 @@ export function MomentsViewer({
       else onClose();
     });
     return () => run.stop();
-  }, [at, last, onClose, options, progress, showing]);
+  }, [at, engaged, last, onClose, options, progress, showing]);
 
   if (!photo || !moment) return null;
   const owner = moment.author;
@@ -851,15 +877,16 @@ export function MomentsViewer({
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
       <PhotoViewer
-        plain
+        talk={talk}
+        onEngaged={setEngaged}
         api={api}
         eventId=""
-        comments={[]}
+        comments={moment.comments}
         t={t}
-        canReact={false}
-        canPost={false}
+        canReact
+        canPost
         onClose={onClose}
-        onChanged={async () => momentsChanged()}
+        onChanged={momentsChanged}
         onOptions={() => setOptions(true)}
         onDownload={async () => {
           setSaving(photo.id);
@@ -896,7 +923,11 @@ export function MomentsViewer({
         onIndex={setIndex}
         strip={
           <View>
-            {/* How much of this moment's time has gone. */}
+            {moments.length > 1 && (
+              <MomentsNav moments={moments} at={at} t={t} onJump={setIndex} />
+            )}
+            {/* How much of this moment's time has gone: under the tiles, over
+                the reaction and comment bar. */}
             <View style={styles.timeTrack}>
               <Animated.View
                 style={[
@@ -910,9 +941,6 @@ export function MomentsViewer({
                 ]}
               />
             </View>
-            {moments.length > 1 && (
-              <MomentsNav moments={moments} at={at} t={t} onJump={setIndex} />
-            )}
           </View>
         }
       />
@@ -1037,11 +1065,11 @@ const styles = StyleSheet.create({
   /* Casts the shadow, and holds the spacing to the rolls. */
   barShadow: { borderRadius: 14, marginBottom: -14 },
   /* The viewer's clock: a hairline track, and white filling it as the time
-     goes. Over the tiles, at the foot of the screen. */
+     goes. Under the tiles, over the reaction and comment bar. */
   timeTrack: {
     height: 2.5,
     marginHorizontal: 16,
-    marginBottom: 2,
+    marginTop: 4,
     borderRadius: 2,
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.25)',

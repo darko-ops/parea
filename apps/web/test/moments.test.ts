@@ -20,6 +20,10 @@ import { befriend } from '@/friends';
 import {
   BOOST_CAP_MINUTES,
   MOMENT_HOURS,
+  canSeeMoment,
+  commentOnMoment,
+  removeMomentComment,
+  toggleMomentReaction,
   markSeen,
   momentStream,
   orderStream,
@@ -245,6 +249,39 @@ describe('the order', () => {
   });
 });
 
+describe('reacting and commenting', () => {
+  it('is for people who can see the moment, and comes back with the stream', async () => {
+    const me = await person('me');
+    const friend = await person('friend');
+    const stranger = await person('stranger');
+    await befriend(db, me, friend);
+    const id = await moment(me);
+
+    expect(await canSeeMoment(db, friend, id)).toBe(true);
+    expect(await canSeeMoment(db, stranger, id)).toBe(false);
+
+    await commentOnMoment(db, friend, id, 'love this');
+    expect(await toggleMomentReaction(db, friend, id, '🔥')).toBe('added');
+
+    const [mine] = (await momentStream(db, me)).filter((m) => m.id === id);
+    expect(mine).toBeTruthy();
+  });
+
+  it('toggles a reaction off again, and lets only the author delete a comment', async () => {
+    const me = await person('me');
+    const friend = await person('friend');
+    await befriend(db, me, friend);
+    const id = await moment(me);
+
+    expect(await toggleMomentReaction(db, friend, id, '❤️')).toBe('added');
+    expect(await toggleMomentReaction(db, friend, id, '❤️')).toBe('removed');
+
+    const comment = await commentOnMoment(db, friend, id, 'hi');
+    expect(await removeMomentComment(db, me, comment)).toBe(false);
+    expect(await removeMomentComment(db, friend, comment)).toBe(true);
+  });
+});
+
 describe('taking one back', () => {
   it('is its author’s alone', async () => {
     const me = await person('me');
@@ -357,14 +394,24 @@ describe('the viewer', () => {
 
   it('gives each moment twenty seconds, shows the time going, and walks on', () => {
     const view = stripComments(read('components/MomentView.tsx'));
-    expect(view).toMatch(/const MOMENT_SECONDS = 20;/);
-    // Held while the ⋯ menu is open or the tab is hidden.
-    expect(view).toMatch(/const held = document\.hidden \|\| document\.querySelector\('\[role="menu"\]'\) !== null;/);
+    expect(view).toMatch(/const MOMENT_SECONDS = 15;/);
+    // Held while the ⋯ menu, the reaction picker or a comment is in use, or
+    // the tab is hidden.
+    expect(view).toMatch(/document\.hidden \|\| document\.querySelector\('\[role="menu"\], \[data-holding\]'\) !== null;/);
     // Then the next one, or back where it was opened from after the last.
     expect(view).toMatch(/location\.assign\(next \? href\(next\.id\) : home\);/);
     // The line and the strip are at the foot, after the picture.
     expect(view.indexOf('className="photo-body"')).toBeLessThan(view.indexOf('className="moment-nav-wrap"'));
     expect(view).toMatch(/className="moment-time-fill"/);
+    // At the foot: the strip, then the line, then the buttons, then comments.
+    const strip = view.indexOf('<MomentStrip');
+    const line = view.indexOf('className="moment-time"');
+    const verbs = view.indexOf('className="photo-verbs"');
+    const talk = view.indexOf('<MomentComments');
+    expect(strip).toBeLessThan(line);
+    expect(line).toBeLessThan(verbs);
+    expect(verbs).toBeLessThan(talk);
+    expect(view).toMatch(/endpoint=\{`\/api\/moments\/\$\{moment\.id\}\/reactions`\}/);
   });
 });
 

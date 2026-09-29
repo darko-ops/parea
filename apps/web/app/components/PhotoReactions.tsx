@@ -35,11 +35,16 @@ export function PhotoReactions({
   photoId,
   reactions,
   canReact,
+  endpoint = `/api/photos/${photoId}/reactions`,
+  label = 'React to this photo',
 }: {
   photoId: string;
   reactions: PhotoReaction[];
   /** `contribute` and an account, which is the rule the route enforces. */
   canReact: boolean;
+  /** Where a tap goes. A moment's reactions are the same control, elsewhere. */
+  endpoint?: string;
+  label?: string;
 }) {
   /*
    * Drawn from state rather than from the prop, because a tap has to land
@@ -79,7 +84,7 @@ export function PhotoReactions({
           : [{ emoji, name: 'you', mine: true }, ...list],
       );
       setPicking(false);
-      const res = await fetch(`/api/photos/${photoId}/reactions`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ emoji }),
@@ -88,7 +93,7 @@ export function PhotoReactions({
       // leave — the row going back is the whole of what it is told.
       if (!res?.ok) setList(was);
     },
-    [canReact, list, photoId],
+    [canReact, endpoint, list],
   );
 
   // Nothing at all rather than an empty affordance: a signed-out reader is
@@ -96,7 +101,9 @@ export function PhotoReactions({
   if (!canReact && tally.length === 0) return null;
 
   return (
-    <div className="reactions photo-reactions" ref={picker}>
+    // `data-holding` while the picker is open, which a moment's clock reads as
+    // "somebody is in the middle of something" and waits for.
+    <div className="reactions photo-reactions" ref={picker} data-holding={picking || undefined}>
       {tally.map(([emoji, row]) => (
         <button
           key={emoji}
@@ -133,7 +140,7 @@ export function PhotoReactions({
             type="button"
             className="reaction-add"
             aria-expanded={false}
-            aria-label="React to this photo"
+            aria-label={label}
             onClick={() => setPicking(true)}
           >
             {'＋'}

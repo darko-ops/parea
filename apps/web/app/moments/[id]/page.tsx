@@ -106,6 +106,8 @@ export default async function MomentPage({
       <MomentView
         moment={{
           id: here.id,
+          reactions: here.reactions,
+          comments: here.comments,
           src: here.src,
           mine: here.mine,
           by: here.mine ? 'You' : here.author.name,

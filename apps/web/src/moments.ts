@@ -40,7 +40,7 @@
  */
 
 import { MOMENT_HOURS, schema } from '@parea/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { type Db, getDb } from './db';
@@ -127,6 +127,8 @@ export async function momentStream(
   viewer: string | null,
   options: {
     by?: string;
+    /** Just this one — for checking a viewer may see it before acting on it. */
+    id?: string;
     /**
      * Openings after this are not counted as seen. The web steps through the
      * stream one page at a time and marks each as it goes; without this the
@@ -185,6 +187,7 @@ export async function momentStream(
      where m.deleted_at is null
        and m.created_at > now() - make_interval(hours => ${MOMENT_HOURS})
        ${options.by ? sql`and m.actor_id = ${options.by}` : sql``}
+       ${options.id ? sql`and m.id = ${options.id}` : sql``}
        and not exists (
          select 1 from "block" b
           where (b.blocker_actor_id = ${viewer} and b.blocked_actor_id = m.actor_id)
@@ -234,6 +237,154 @@ export async function momentStream(
   return options.by ? moments : orderStream(moments);
 }
 
+/** Whether this viewer may see — and so react to and comment on — a moment. */
+export async function canSeeMoment(db: Db, viewer: string, momentId: string): Promise<boolean> {
+  return (await momentStream(db, viewer, { id: momentId })).length > 0;
+}
+
+/** The longest comment. A sentence or three, not an essay under a picture. */
+export const COMMENT_MAX = 1000;
+
+/** Adds a comment. The caller has checked the viewer may see the moment. */
+export async function commentOnMoment(
+  db: Db,
+  actorId: string,
+  momentId: string,
+  body: string,
+): Promise<string> {
+  const [row] = await db
+    .insert(schema.momentComments)
+    .values({ momentId, actorId, body })
+    .returning({ id: schema.momentComments.id });
+  return row!.id;
+}
+
+/** Takes back one of your own comments. Anybody else's answers `false`. */
+export async function removeMomentComment(
+  db: Db,
+  actorId: string,
+  commentId: string,
+): Promise<boolean> {
+  const gone = await db
+    .delete(schema.momentComments)
+    .where(and(eq(schema.momentComments.id, commentId), eq(schema.momentComments.actorId, actorId)))
+    .returning({ id: schema.momentComments.id });
+  return gone.length > 0;
+}
+
+/** Puts a reaction on, or takes it off if it was there. Returns which. */
+export async function toggleMomentReaction(
+  db: Db,
+  actorId: string,
+  momentId: string,
+  emoji: string,
+): Promise<'added' | 'removed'> {
+  const gone = await db
+    .delete(schema.momentReactions)
+    .where(
+      and(
+        eq(schema.momentReactions.momentId, momentId),
+        eq(schema.momentReactions.actorId, actorId),
+        eq(schema.momentReactions.emoji, emoji),
+      ),
+    )
+    .returning({ emoji: schema.momentReactions.emoji });
+  if (gone.length > 0) return 'removed';
+  await db
+    .insert(schema.momentReactions)
+    .values({ momentId, actorId, emoji })
+    .onConflictDoNothing();
+  return 'added';
+}
+
+/** A reaction as a client draws it: who, and with what. Newest first. */
+export type MomentReaction = { emoji: string; name: string; mine: boolean };
+
+/**
+ * A comment as a client draws it — the same shape as a roll thread's
+ * message, so the phone's comment sheet draws it with the row it already has.
+ */
+export type MomentComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  edited: false;
+  deleted: false;
+  author: { key: string; name: string; mine: boolean; avatarUrl: string | null };
+  photoId: null;
+  reactions: [];
+};
+
+/** Everything said and left on these moments, keyed by moment. */
+async function talkFor(
+  db: Db,
+  viewer: string,
+  momentIds: string[],
+  avatar: (key: string | null) => Promise<string | null>,
+): Promise<{
+  reactions: Map<string, MomentReaction[]>;
+  comments: Map<string, MomentComment[]>;
+}> {
+  const reactions = new Map<string, MomentReaction[]>();
+  const comments = new Map<string, MomentComment[]>();
+  if (momentIds.length === 0) return { reactions, comments };
+
+  const name = sql<string>`coalesce(${schema.actors.handle}, nullif(btrim(${schema.actors.displayName}), ''), 'Someone')`;
+  const [reactionRows, commentRows] = await Promise.all([
+    db
+      .select({
+        momentId: schema.momentReactions.momentId,
+        emoji: schema.momentReactions.emoji,
+        actorId: schema.momentReactions.actorId,
+        name,
+      })
+      .from(schema.momentReactions)
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.momentReactions.actorId))
+      .where(inArray(schema.momentReactions.momentId, momentIds))
+      .orderBy(desc(schema.momentReactions.createdAt)),
+    db
+      .select({
+        id: schema.momentComments.id,
+        momentId: schema.momentComments.momentId,
+        body: schema.momentComments.body,
+        createdAt: schema.momentComments.createdAt,
+        actorId: schema.momentComments.actorId,
+        name,
+        avatarKey: schema.actors.avatarKey,
+      })
+      .from(schema.momentComments)
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.momentComments.actorId))
+      .where(inArray(schema.momentComments.momentId, momentIds))
+      .orderBy(asc(schema.momentComments.createdAt)),
+  ]);
+
+  for (const row of reactionRows) {
+    const list = reactions.get(row.momentId) ?? [];
+    list.push({ emoji: row.emoji, name: row.name, mine: row.actorId === viewer });
+    reactions.set(row.momentId, list);
+  }
+  for (const row of commentRows) {
+    const list = comments.get(row.momentId) ?? [];
+    list.push({
+      id: row.id,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+      edited: false,
+      deleted: false,
+      author: {
+        key: row.actorId,
+        name: row.name,
+        mine: row.actorId === viewer,
+        avatarUrl: await avatar(row.avatarKey),
+      },
+      photoId: null,
+      reactions: [],
+    });
+    comments.set(row.momentId, list);
+  }
+  return { reactions, comments };
+}
+
 /** That the viewer has opened one. Idempotent; the first opening is kept. */
 export async function markSeen(db: Db, viewer: string, momentId: string): Promise<void> {
   await db
@@ -280,6 +431,10 @@ export type WireMoment = {
     name: string;
     avatar: string | null;
   };
+  /** Who reacted, and with what. Newest first. */
+  reactions: MomentReaction[];
+  /** What has been said under it. Oldest first, as a conversation reads. */
+  comments: MomentComment[];
 };
 
 export type MomentsResponse = {
@@ -310,6 +465,10 @@ export async function momentsResponse(
     return avatars.get(key)!;
   };
 
+  const talk = actorId
+    ? await talkFor(getDb(), actorId, stream.map((m) => m.id), avatar)
+    : { reactions: new Map(), comments: new Map() };
+
   const out = await Promise.all(
     stream.map(async (m): Promise<WireMoment | null> => {
       const [src, thumb, face] = await Promise.all([
@@ -333,6 +492,8 @@ export async function momentsResponse(
           name: m.author.name,
           avatar: face,
         },
+        reactions: talk.reactions.get(m.id) ?? [],
+        comments: talk.comments.get(m.id) ?? [],
       };
     }),
   );

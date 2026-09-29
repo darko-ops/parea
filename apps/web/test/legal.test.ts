@@ -217,6 +217,8 @@ describe('the closed list of what is collected', () => {
       photo: /Photos and videos you upload/,
       moment: /A moment is one photo you share on its own/,
       moment_view: /Which moments you have opened is recorded/,
+      moment_comment: /Comments and reactions left on a moment are kept with it/,
+      moment_reaction: /Comments and reactions left on a moment are kept with it/,
       observation: /[Ff]ive facts/,
       event: /That you made a roll/,
       event_participant: /records that you are in that roll/,

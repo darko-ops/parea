@@ -18,15 +18,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Face } from './Faces';
-import type { WireMoment } from '@/moments';
+import type { MomentComment, WireMoment } from '@/moments';
+import type { PhotoReaction } from '@/photoReactions';
 
+import { MomentComments } from './MomentComments';
 import { MomentStrip } from './MomentStrip';
+import { PhotoReactions } from './PhotoReactions';
 import { Step } from './PhotoView';
 import { Menu } from './Menu';
 import { useImageFailure } from './useImageFailure';
 
 export type MomentSubject = {
   id: string;
+  reactions: PhotoReaction[];
+  comments: MomentComment[];
   src: string;
   mine: boolean;
   by: string;
@@ -39,7 +44,7 @@ export type MomentSubject = {
 const HOME = '/events';
 
 /** How long each moment is on screen before the next one comes. */
-const MOMENT_SECONDS = 20;
+const MOMENT_SECONDS = 15;
 
 export function MomentView({
   moment,
@@ -88,6 +93,14 @@ export function MomentView({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Somebody typing a comment is moving a caret, not the stream.
+      const on = document.activeElement;
+      if (
+        on instanceof HTMLElement &&
+        (on.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(on.tagName))
+      ) {
+        return;
+      }
       if (e.key === 'ArrowLeft' && previous) location.assign(href(previous.id));
       else if (e.key === 'ArrowRight' && next) location.assign(href(next.id));
       else if (e.key === 'Escape') {
@@ -123,9 +136,9 @@ export function MomentView({
    * fills as the time goes.
    *
    * Counted in frames rather than set as one timer, so the clock can hold:
-   * while the ⋯ menu is open — somebody deciding what to do about a picture
-   * should not have it taken away mid-decision — and while the tab is not
-   * being looked at, which is time nobody spent on this moment.
+   * while somebody is doing something about the picture — the ⋯ menu, the
+   * reaction picker, a comment half-written — and while the tab is not being
+   * looked at, which is time nobody spent on this moment.
    */
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -133,7 +146,10 @@ export function MomentView({
     let last = performance.now();
     let frame = 0;
     const tick = (now: number) => {
-      const held = document.hidden || document.querySelector('[role="menu"]') !== null;
+      // Held while somebody is doing something about this moment: the ⋯ menu
+      // open, the reaction picker open, or a comment being written.
+      const held =
+        document.hidden || document.querySelector('[role="menu"], [data-holding]') !== null;
       if (!held) spent += now - last;
       last = now;
       const done = Math.min(1, spent / (MOMENT_SECONDS * 1000));
@@ -185,33 +201,6 @@ export function MomentView({
             )}
           </div>
 
-          <div className="photo-verbs">
-            <span />
-            <span className="photo-verbs-do">
-              <a
-                className="photo-icon"
-                href={moment.src}
-                download
-                aria-label="Download this photo"
-                title="Download"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 3.5v11" />
-                  <path d="M8.5 11 12 14.5 15.5 11" />
-                  <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
-                </svg>
-              </a>
-
-              <MomentActions
-                momentId={moment.id}
-                mine={moment.mine}
-                onGone={() =>
-                  location.assign(next ? href(next.id) : previous ? href(previous.id) : home)
-                }
-              />
-            </span>
-          </div>
-
           <div className="photo-by">
             <Face
               src={moment.byAvatar}
@@ -243,13 +232,11 @@ export function MomentView({
       </div>
 
       {/*
-        At the foot of the page: how much of this moment's time has gone, and
-        the stream to step through. The picture keeps the top.
+        At the foot of the page, in this order: the stream to step through,
+        how much of this moment's time has gone, then what you can do with it
+        — react, save, the ⋯ — and what people have said.
       */}
       <div className="moment-nav-wrap">
-        <div className="moment-time" aria-hidden="true">
-          <div className="moment-time-fill" style={{ width: `${Math.round(elapsed * 1000) / 10}%` }} />
-        </div>
         {stream.moments.length > 1 && (
           <MomentStrip
             moments={stream.moments}
@@ -259,6 +246,42 @@ export function MomentView({
             label="Moments"
           />
         )}
+        <div className="moment-time" aria-hidden="true">
+          <div className="moment-time-fill" style={{ width: `${Math.round(elapsed * 1000) / 10}%` }} />
+        </div>
+        <div className="photo-verbs">
+          <PhotoReactions
+            photoId={moment.id}
+            reactions={moment.reactions}
+            canReact
+            endpoint={`/api/moments/${moment.id}/reactions`}
+            label="React to this moment"
+          />
+          <span className="photo-verbs-do">
+            <a
+              className="photo-icon"
+              href={moment.src}
+              download
+              aria-label="Download this photo"
+              title="Download"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.5v11" />
+                <path d="M8.5 11 12 14.5 15.5 11" />
+                <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+              </svg>
+            </a>
+
+            <MomentActions
+              momentId={moment.id}
+              mine={moment.mine}
+              onGone={() =>
+                location.assign(next ? href(next.id) : previous ? href(previous.id) : home)
+              }
+            />
+          </span>
+        </div>
+        <MomentComments key={moment.id} momentId={moment.id} comments={moment.comments} />
       </div>
     </main>
   );

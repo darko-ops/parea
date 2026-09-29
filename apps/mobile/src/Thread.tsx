@@ -573,7 +573,8 @@ export function ThreadRow({
   canReact: boolean;
   onReact: (emoji: string) => void;
   onDelete: () => void;
-  onEdit: (body: string) => void;
+  /** Absent where a comment cannot be edited — a moment's, for one. */
+  onEdit?: (body: string) => void;
   /**
    * Taking back your own reaction, where this row is one.
    *
@@ -817,7 +818,7 @@ export function ThreadRow({
               <Pressable
                 onPress={() => {
                   const body = editing.trim();
-                  if (body) onEdit(body);
+                  if (body) onEdit?.(body);
                   setEditing(null);
                 }}
               >
@@ -976,7 +977,7 @@ export function ThreadRow({
             setHeld(false);
             setMore(true);
           }}
-          onEdit={mine ? () => setEditing(message.body) : null}
+          onEdit={mine && onEdit ? () => setEditing(message.body) : null}
           onDelete={mine ? onDelete : null}
           deleteLabel="Delete this comment"
           deleteNote="It leaves a gap saying it was deleted."

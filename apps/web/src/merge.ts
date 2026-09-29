@@ -206,6 +206,10 @@ const OWNED: {
   // Which moments they have opened. Two devices that both opened one are one
   // person who has seen it once.
   { table: 'moment_view', column: 'actor_id', uniqueWith: ['moment_id'] },
+  // What they said under moments, and the reactions they left — the same
+  // person's, so they move; a reaction both devices left is one.
+  { table: 'moment_comment', column: 'actor_id' },
+  { table: 'moment_reaction', column: 'actor_id', uniqueWith: ['moment_id', 'emoji'] },
 ];
 
 export const MERGED_TABLES = OWNED;
