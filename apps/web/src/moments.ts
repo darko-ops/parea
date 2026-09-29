@@ -143,25 +143,25 @@ export async function momentStream(
   const cutoff = options.seenBefore ?? new Date();
 
   /*
-   * Who the viewer is connected to, and how: one row per person with the
-   * three reasons as flags. The audience is their union; the flags are the
-   * lift. The viewer is in it too, so their own moments are in their stream.
+   * Who may see a moment: the author's friends, and the author.
+   *
+   * It used to be anyone connected to the viewer three ways — friends, people
+   * in a group with them, and people in a roll with them — and the last two
+   * were far wider than they looked. A roll's participant row is written for
+   * *opening* its link, so one forwarded public album put a stranger in front
+   * of the day of everyone who had been in it; and a group could be made out
+   * of anyone found by handle. A moment is a photograph put in front of your
+   * people, and a friendship is the one connection both people chose.
+   *
+   * Friends only, then. The `roll` and `group` flags stay in the result as
+   * `false` rather than being taken out of the shape, because `orderStream`
+   * and every client read them, and a field that is always false costs
+   * nothing while a field that vanishes breaks an app older than this deploy.
    */
   const rows = await db.execute(sql`
     with links as (
       select f.friend_actor_id as id, 'friend' as why
         from "friendship" f where f.actor_id = ${viewer}
-      union all
-      select theirs.actor_id, 'roll'
-        from "event_participant" mine
-        join "event" e on e.id = mine.event_id and e.deleted_at is null
-        join "event_participant" theirs on theirs.event_id = e.id
-       where mine.actor_id = ${viewer}
-      union all
-      select theirs.actor_id, 'group'
-        from "group_member" mine
-        join "group_member" theirs on theirs.group_id = mine.group_id
-       where mine.actor_id = ${viewer}
       union all
       select ${viewer}::uuid, 'self'
     ),

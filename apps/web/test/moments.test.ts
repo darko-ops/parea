@@ -3,7 +3,7 @@
  *
  * The audience is the part worth pinning. A moment has no link and no page a
  * stranger can reach, so the one query that decides who sees it is the whole
- * of its privacy — friends, people you are in a roll with, and nobody else.
+ * of its privacy — friends, and nobody else.
  */
 
 import { PGlite } from '@electric-sql/pglite';
@@ -98,7 +98,13 @@ const ago = (minutes: number) => new Date(Date.now() - minutes * MINUTE);
 
 
 describe('who sees a moment', () => {
-  it('shows friends, roll-mates and group-mates, and not strangers', async () => {
+  it('shows friends, and nobody else', async () => {
+    /*
+     * Roll-mates and group-mates used to see moments too. A roll's participant
+     * row is written for opening its link, so one forwarded public album put a
+     * stranger in front of everyone's day; a friendship is the one connection
+     * both people chose.
+     */
     const me = await person('me');
     const friend = await person('friend');
     const rollmate = await person('rollmate');
@@ -112,17 +118,22 @@ describe('who sees a moment', () => {
     await moment(groupmate);
     await moment(stranger);
 
-    expect((await who(me)).sort()).toEqual(['friend', 'groupmate', 'rollmate']);
+    expect(await who(me)).toEqual(['friend']);
+    // And the other way: the roll-mate and group-mate do not see mine.
+    await moment(me);
+    expect(await who(rollmate)).toEqual(['rollmate']);
+    expect(await who(groupmate)).toEqual(['groupmate']);
   });
 
-  it('stops showing a roll-mate once the roll is deleted', async () => {
+  it('shows a friend whatever else the two of you share', async () => {
     const me = await person('me');
     const them = await person('them');
-    const roll = await rollWith(me, them);
+    await befriend(db, me, them);
+    await rollWith(me, them);
+    await groupWith(me, them);
     await moment(them);
-    await db.execute(sql`update "event" set deleted_at = now() where id = ${roll}`);
 
-    expect(await who(me)).toEqual([]);
+    expect(await who(me)).toEqual(['them']);
   });
 
   it('hides it in both directions once either has blocked the other', async () => {

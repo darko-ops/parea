@@ -68,8 +68,9 @@ export default function PrivacyPage() {
             A moment is one photo you share on its own, outside any roll. It is
             stored as a fresh copy made from the picture&rsquo;s pixels, so
             nothing else in the file &mdash; location, camera, the original
-            &mdash; is kept. It is shown to your friends, to people you are in a
-            roll with and to people in your groups, for 24 hours. After that it
+            &mdash; is kept. It is shown to your friends and nobody else, for 24
+            hours &mdash; not to people you share a roll or a group with unless
+            they are also your friends. After that it
             is no longer shown to anybody, and within about an hour more the
             photo and its record are deleted. You can remove it sooner at any
             time.
