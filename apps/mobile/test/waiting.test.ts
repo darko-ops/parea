@@ -231,15 +231,15 @@ describe('the spinner is one colour', () => {
   it('takes the theme’s own ink, so it is there in both', () => {
     /*
      * White was the first answer and it is half of one: the light theme's
-     * background is `#f7f8fa`, where a white mark is not there at all. These
-     * two are the `fg` of each palette in `App.tsx`.
+     * background is `#f7f8fa`, where a white mark is not there at all. Dark
+     * is the `fg` of that palette in `App.tsx`; light is the grey the web
+     * draws its glyph in, so the mark is one colour on both clients.
      */
     const WAITING = read('src/Waiting.tsx');
     expect(WAITING).toMatch(/const dark = useAppearance\(\) === 'dark';/);
-    expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#14171c'\}/);
-    const APP = read('App.tsx');
-    expect(APP).toMatch(/fg: '#f2f4f7'/);
-    expect(APP).toMatch(/fg: '#14171c'/);
+    expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#3d424a'\}/);
+    expect(read('App.tsx')).toMatch(/fg: '#f2f4f7'/);
+    expect(read('../web/app/globals.css')).toMatch(/\.brand-glyph \{ color: #3d424a; \}/);
   });
 
   it('still tells the seven regions apart, or it would not read as turning', () => {

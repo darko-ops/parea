@@ -181,13 +181,15 @@ export function Waiting({
           silhouette is unchanged by a third of a turn, and a flat one would
           not read as turning at all. See `MARK_MONO`.
 
-          The theme's own `fg`, taken from the scheme rather than from a prop.
-          White was the first answer and it is half of one — the light theme's
-          background is `#f7f8fa`, where a white mark is not there at all.
+          The theme's own `fg` on dark, taken from the scheme rather than from
+          a prop. White was the first answer and it is half of one — the light
+          theme's background is `#f7f8fa`, where a white mark is not there at
+          all. On light it is the web's glyph grey rather than the page's black
+          ink, so the mark is one colour wherever the product draws it.
           Reading the scheme here costs one import; a theme threaded through
           eleven call sites for a spinner would cost eleven.
         */}
-        <Mark size={size} tint={dark ? '#f2f4f7' : '#14171c'} />
+        <Mark size={size} tint={dark ? '#f2f4f7' : '#3d424a'} />
       </Animated.View>
     </View>
   );
