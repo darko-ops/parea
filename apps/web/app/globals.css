@@ -4329,6 +4329,19 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   .dots-body .narrow-only { display: block; }
   .event-actions .button-like, .event-invite { padding: 10px 14px; font-size: 14px; }
   .event-tabs { margin-top: 14px; gap: 20px; }
+  /* A roll's tabs are glyphs alone on a phone, and they hold still: four
+     slots sharing the row, so there is nothing past the edge to drag to. The
+     word stays in the markup, clipped, as each tab's accessible name. */
+  .event-tabrow .event-tabs { gap: 0; overflow: hidden; touch-action: manipulation; }
+  .event-tabrow .event-tab {
+    flex: 1; justify-content: center; position: relative;
+    padding: 0 0 11px; gap: 4px;
+  }
+  .event-tabrow .event-tab .rail-icon { width: 22px; height: 22px; }
+  .event-tab-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
 }
 @media (max-width: 720px) {
   .group-page { padding: 22px 16px 28px; }

@@ -189,10 +189,10 @@ const TABS = [
    * rather than fetches — and it stays right the instant a star is pressed on
    * a photograph's own page, because coming back here re-reads the feed.
    *
-   * Favourites, where the phone says Kept. The two clients differ here on
+   * Favorites, where the phone says Kept. The two clients differ here on
    * purpose and it is the third place they do: a phone's is a glyph on a
    * two-segment switch with the word only in its accessible name, and this is
-   * a word in a row of four that a reader actually reads. Favourites is what
+   * a word in a row of four that a reader actually reads. Favorites is what
    * a browser has taught them a starred shortlist is called.
    *
    * The id is `favourites` as well, unlike the rail's rows and the thread's
@@ -201,7 +201,7 @@ const TABS = [
    * URL, the route and the label can all be the one word the schema already
    * uses, which is `photo_favourite`.
    */
-  ['favourites', 'Favourites', 'star'],
+  ['favourites', 'Favorites', 'star'],
   /*
    * "Thread", and the route is still `?tab=conversation`.
    *
@@ -755,7 +755,12 @@ export function EventView({
                 aria-current={tab === id ? 'page' : undefined}
               >
                 <RailIcon glyph={glyph} weight={tab === id ? 2.5 : 2} />
-                {label}
+                {/*
+                  Its own element so a phone can draw the row as glyphs alone
+                  — four words and a disc do not fit across one — while the
+                  word stays the tab's accessible name.
+                */}
+                <span className="event-tab-label">{label}</span>
                 {id === 'conversation' && unread > 0 && (
                   <span className="event-tab-count">{unread}</span>
                 )}
@@ -1079,7 +1084,7 @@ export function EventView({
           */}
           {favourites.length === 0 ? (
             <p className="muted empty">
-              No favourites yet. Open a photograph and press the star, and it
+              No favorites yet. Open a photograph and press the star, and it
               turns up here. Only you see this.
             </p>
           ) : (

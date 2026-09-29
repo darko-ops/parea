@@ -269,7 +269,7 @@ describe('the star', () => {
     // where a screen reader looks for it. Putting the state in the name makes
     // the button announce the same thing twice and neither of them an action.
     expect(STAR).toMatch(
-      /aria-label=\{on \? 'Remove from your favourites' : 'Add to your favourites'\}/,
+      /aria-label=\{on \? 'Remove from your favorites' : 'Add to your favorites'\}/,
     );
     expect(STAR).toMatch(/aria-pressed=\{on\}/);
   });
@@ -306,7 +306,7 @@ describe('the star', () => {
     const mark = TILE.slice(TILE.indexOf('photo.favourite && ('), TILE.indexOf('</span>', TILE.indexOf('photo.favourite && (')));
     expect(mark).toMatch(/aria-hidden="true"/);
     expect(mark).not.toMatch(/<button|onClick|count/);
-    expect(TILE).toMatch(/'Open photo — in your favourites'/);
+    expect(TILE).toMatch(/'Open photo — in your favorites'/);
   });
 
   it('counts nobody', () => {
@@ -333,7 +333,7 @@ describe('the Favourites tab', () => {
     expect(EVENT).toMatch(
       /const favourites = visible\.filter\(\(photo\) => photo\.favourite\)/,
     );
-    expect(EVENT).toMatch(/\['favourites', 'Favourites', 'star'\]/);
+    expect(EVENT).toMatch(/\['favourites', 'Favorites', 'star'\]/);
   });
 
   it('sits beside the photographs it is a shortlist of', () => {
@@ -367,7 +367,7 @@ describe('the Favourites tab', () => {
     // Not a failure and not an empty album: somebody with no favourites has
     // simply not starred anything yet, and the sentence says where the control
     // is rather than that something is wrong.
-    expect(EVENT).toMatch(/No favourites yet\. Open a photograph and press the star/);
+    expect(EVENT).toMatch(/No favorites yet\. Open a photograph and press the star/);
     expect(EVENT).toMatch(/Only you see this\./);
   });
 });

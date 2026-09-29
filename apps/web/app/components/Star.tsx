@@ -79,9 +79,9 @@ export function Star({
       // What it will do, not what it is: a control's name is the verb. The
       // state is on `aria-pressed`, which is where a screen reader looks for
       // it, so the two are not saying the same thing twice.
-      aria-label={on ? 'Remove from your favourites' : 'Add to your favourites'}
+      aria-label={on ? 'Remove from your favorites' : 'Add to your favorites'}
       aria-pressed={on}
-      title={on ? 'A favourite — only you see this' : 'Add to your favourites'}
+      title={on ? 'A favorite — only you see this' : 'Add to your favorites'}
       disabled={busy}
       onClick={() => void toggle()}
     >

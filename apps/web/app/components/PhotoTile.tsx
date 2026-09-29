@@ -115,7 +115,7 @@ export function PhotoTile({
             : failed
               ? 'Photo could not be loaded — open for options'
               : photo.favourite
-                ? 'Open photo — in your favourites'
+                ? 'Open photo — in your favorites'
                 : 'Open photo'
         }
         style={{ aspectRatio: `1 / ${failed ? 0.667 : ratio}` }}
