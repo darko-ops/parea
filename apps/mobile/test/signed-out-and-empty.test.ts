@@ -230,17 +230,18 @@ describe('the profile, with no picture on it', () => {
     expect(PROFILE).not.toMatch(/avatarBlank/);
   });
 
-  it('gives both halves of the row the same outline', () => {
+  it('gives both halves of the row the panel a viewed profile wears', () => {
     /*
-     * `Share profile` was a hairline over `card`, which beside an ink-bordered
-     * `Edit profile` reads as the row's disabled half rather than its second
-     * control. Neither is the screen's primary action, so neither is filled.
+     * The same hairline over `card` as the Chat button on somebody else's
+     * page, so your own row and theirs are the same kind of control. The ink
+     * outline this replaced read as a white frame on the dark theme.
      */
     const row = PROFILE.slice(
       PROFILE.indexOf('<View style={[styles.actions, styles.gutter]}>'),
       PROFILE.indexOf('Not signed in: the card that asks'),
     );
-    expect(row.match(/borderColor: t\.fg/g) ?? []).toHaveLength(2);
-    expect(row).not.toMatch(/backgroundColor: t\.card/);
+    expect(row.match(/borderColor: t\.line/g) ?? []).toHaveLength(2);
+    expect(row.match(/backgroundColor: t\.card/g) ?? []).toHaveLength(2);
+    expect(row).not.toMatch(/borderColor: t\.fg/);
   });
 });

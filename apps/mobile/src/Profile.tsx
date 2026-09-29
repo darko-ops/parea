@@ -430,8 +430,10 @@ export function ProfileScreen({
 
       {/*
         Two halves of one row, and neither is the screen's primary action —
-        which is opening an album. `Edit profile` carries the ink border
-        because it is the one of the two that changes what other people see.
+        which is opening an album. Both wear the panel a viewed profile's Chat
+        button wears — a hairline over `card` — so your own row and the row
+        somebody else's page shows you are the same kind of control. The ink
+        outline they had read as a white frame on the dark theme.
 
         The second half was `Settings`, which is in the corner now. What stands
         here instead is the thing somebody actually opens their own profile to
@@ -446,7 +448,7 @@ export function ProfileScreen({
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.action,
-              { borderColor: t.fg, opacity: pressed ? 0.6 : 1 },
+              { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
             ]}
           >
             <Text style={[styles.actionText, { color: t.fg }]}>Edit profile</Text>
@@ -459,16 +461,9 @@ export function ProfileScreen({
             style={({ pressed }) => [
               styles.action,
               {
-                /*
-                 * The same ink border as `Edit profile`, and no fill.
-                 *
-                 * It was a hairline over `card`, which at a glance is not a
-                 * button at all — a filled rectangle beside an outlined one
-                 * reads as the row's disabled half rather than as its second
-                 * control. They are two halves of one row and neither is the
-                 * screen's primary action, so they take the same outline.
-                 */
-                borderColor: t.fg,
+                // The same panel as `Edit profile` beside it.
+                borderColor: t.line,
+                backgroundColor: t.card,
                 // Nothing to hand out until there is a handle to put in the
                 // link. Dimmed rather than gone: see `shareProfile`.
                 opacity: !account.handle ? 0.4 : pressed ? 0.6 : 1,
