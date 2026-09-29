@@ -126,6 +126,14 @@
   /* The second stripe of the moving upload bar. Near enough to the accent
      that the bar reads as one colour in motion rather than as a barber pole. */
   --accent-2: #3d7ade;
+  /* Words on the accent — white on light, near-black on dark, where the
+     accent is a light blue and white on it would not read. The app's
+     `onAccent`. */
+  --on-accent: #fff;
+  /* The product's one red, for errors and the destructive button. */
+  --warn: #b3261e;
+  /* A row lifting under the pointer: a pale wash on a light page. */
+  --wash: rgba(255, 255, 255, .55);
   /* The event page's sticky head, as a number rather than as whatever it
      happens to measure. The thread column sticks *under* it and is exactly the
      rest of the viewport tall, and both of those need the same figure — so the
@@ -139,13 +147,43 @@
      footer's height puts it just under. */
   --footer-h: 38px;
 }
-/* No dark scheme. The product is a white page with photographs on it, and a
-   dark one was inverting the surface those photographs are judged against —
-   the same picture reads warmer on white and colder on near-black, which is a
-   difference the person who took it did not choose. `color-scheme` is
-   declared so form controls and scrollbars come from the light set too,
-   rather than the browser drawing dark widgets onto a white page. */
+/* Light, above; dark, here — chosen on the account page and dark unless
+   somebody picks light, the same as the app. The attribute is written on the
+   server from the reader's cookie (see `app/layout.tsx`), so the first paint
+   is already the right one.
+
+   The dark set is the app's own palette — `theme(true)` in `App.tsx` — so a
+   person moving between phone and laptop is looking at one product. Every
+   token is redefined rather than a filter laid over the page: photographs
+   must never be inverted or tinted, and a filter cannot tell a surface from
+   a picture. `color-scheme` follows, so form controls and scrollbars come
+   from the same set as the page they sit on. */
 :root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0f12; --card: #171a1f;
+  --line: #272b33;
+  --fg: #f2f4f7; --dim: #9aa3af;
+  --accent: #6ea8fe;
+  --accent-soft: #1b2638;
+  --news-ink: #07272e;
+  --accent-ink: #9cc2ff;
+  --selected: rgba(255, 255, 255, .08);
+  --dim-soft: #7d8591;
+  --page: #111317;
+  --photo-bed: #1a1d22;
+  --unread: rgba(13, 15, 18, .7);
+  --row-line: #1e2127;
+  --line-dashed: #3a3f48;
+  --scrim: linear-gradient(180deg, rgba(13, 15, 18, .34), rgba(13, 15, 18, .78));
+  --scrim-deep: linear-gradient(180deg, rgba(13, 15, 18, .62), rgba(13, 15, 18, .9));
+  --hairline: #22262d;
+  --track: #1c1f25;
+  --accent-2: #6ea8fe;
+  --on-accent: #0d0f12;
+  --warn: #ff7b70;
+  --wash: rgba(255, 255, 255, .05);
+}
 
 * { box-sizing: border-box; }
 body {
@@ -255,7 +293,7 @@ textarea:focus-visible {
 }
 button {
   padding: 13px 18px; font-size: 16px; font-weight: 600; border-radius: 10px;
-  border: 0; background: var(--accent); color: #fff; cursor: pointer;
+  border: 0; background: var(--accent); color: var(--on-accent); cursor: pointer;
 }
 button:disabled { opacity: .6; cursor: default; }
 code {
@@ -276,7 +314,7 @@ button.secondary {
 .footer { margin-top: 48px; font-size: 14px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .switch { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-.danger { background: #b3261e; }
+.danger { background: var(--warn); color: var(--on-accent); }
 .pending { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; }
 .pending img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; }
 /* The same row without the photograph. A takedown request is about a picture
@@ -691,7 +729,7 @@ button.secondary {
 .section-count { font-size: 12.5px; color: var(--dim-soft); font-variant-numeric: tabular-nums; }
 
 .waiting { margin-top: 22px; }
-.waiting-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
+.waiting-error { margin: 0 0 10px; font-size: 13px; color: var(--warn); }
 .waiting-list { display: flex; flex-direction: column; gap: 10px; }
 /* A hairline on white over the page, and no shadow. These are the only
    boxes on the page and the border is enough to lift them — a shadow under
@@ -722,7 +760,7 @@ button.secondary {
 .waiting-yes, .waiting-no {
   padding: 9px 15px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
 }
-.waiting-yes { border: 0; background: var(--accent); color: #fff; }
+.waiting-yes { border: 0; background: var(--accent); color: var(--on-accent); }
 /* Outlined rather than a second filled button. Both answers are legitimate and
    neither is a warning, so the difference between them is emphasis and not
    colour — a red Decline would make saying no to an invitation feel like
@@ -762,12 +800,12 @@ button.secondary {
 .pip-open { background: var(--accent-soft); color: var(--accent-ink); }
 /* Grey rather than red. A host who said no has not done something wrong, and
    an alarm colour beside their event's name reads as one. */
-.pip-declined { background: #eef0f3; color: var(--dim); }
+.pip-declined { background: var(--track); color: var(--dim); }
 
 /* The feed. */
 .feed { margin-top: 30px; }
 .activity-empty { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); max-width: 460px; }
-.activity-error { margin: 0 0 10px; font-size: 13px; color: #b3261e; }
+.activity-error { margin: 0 0 10px; font-size: 13px; color: var(--warn); }
 .activity-day + .activity-day { margin-top: 20px; }
 /* The day, and a rule filling whatever is left of the line. The rule is what
    makes it a divider rather than a heading: it separates without taking a line
@@ -811,7 +849,7 @@ button.secondary {
 .activity-row .dots-go {
   flex: none; width: 24px; height: 58px;
   display: flex; align-items: center; justify-content: center;
-  color: #c9c3b8; opacity: 0; transition: opacity 120ms;
+  color: var(--dim-soft); opacity: 0; transition: opacity 120ms;
 }
 /* Shown on hover, and always on a touch screen — where there is no hover, an
    opacity-gated control is a control that does not exist. Focus-within so it
@@ -832,7 +870,7 @@ button.secondary {
    part of the list is new" is the honest amount of signal. The fill is on the
    row rather than the link so it reaches under the menu beside it. */
 .activity-new { background: var(--unread); }
-.activity-row:hover { background: rgba(255, 255, 255, .55); }
+.activity-row:hover { background: var(--wash); }
 .activity-new:hover { background: var(--unread); }
 .activity a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* A rounded square rather than a circle: half of these are events, and an
@@ -1043,7 +1081,7 @@ button.secondary {
 .add-moment-title { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
 .add-moment-share {
   padding: 8px 16px; border: 0; border-radius: 999px;
-  background: var(--accent); color: #fff; font: inherit; font-weight: 600;
+  background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 600;
   cursor: pointer;
 }
 .add-moment-share:disabled { opacity: 0.45; cursor: default; }
@@ -1128,6 +1166,17 @@ button.secondary {
 .moment-nav-wrap { padding: 0 28px; }
 @media (max-width: 720px) { .moment-nav-wrap { padding: 0 16px; } }
 .moment-nav { padding: 6px 0 12px; }
+/* In a chat: the moment a message answers, above the words. */
+.message-moment { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; }
+.message-moment-shot {
+  width: 44px; height: 44px; border-radius: 10px; overflow: hidden; flex: none;
+  background: var(--track);
+}
+.message-moment-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.message-moment-said { font-size: 12.5px; color: var(--dim); }
+/* A reaction sent as a message is only its emoji — drawn large. */
+.message-emoji { font-size: 30px; line-height: 1.2; }
+
 /* A moment's conversation: its own, under the picture. */
 .moment-comments { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
 .moment-comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -1148,7 +1197,7 @@ button.secondary {
 .moment-composer-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .moment-composer-post {
   padding: 0 16px; border: 0; border-radius: 999px; font: inherit; font-weight: 600;
-  background: var(--accent); color: #fff; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); cursor: pointer;
 }
 .moment-composer-post:disabled { opacity: 0.45; cursor: default; }
 /* The moment's clock: a hairline track, filling as its time goes. */
@@ -1327,7 +1376,7 @@ button.secondary {
    than the card growing. No border to change and no shadow to add — the only
    thing there is to respond with is the photograph. */
 .card:hover .card-cover img { transform: scale(1.02); }
-.card:hover .card-name { color: #000; }
+.card:hover .card-name { color: var(--fg); }
 @media (prefers-reduced-motion: reduce) {
   .card-cover img, .card:hover .card-cover img { transition: none; transform: none; }
 }
@@ -1462,7 +1511,7 @@ button.secondary {
 }
 .card-empty-go {
   display: block; text-align: center; padding: 12px 0; border-radius: 12px;
-  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+  background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 600;
 }
 
 /* One circle per contributor, in the mark's colours, overlapped the way the
@@ -2188,7 +2237,7 @@ button.secondary {
   background: var(--accent-soft); color: var(--accent);
   font-size: 13px; font-weight: 600;
 }
-.member-chips button:hover { background: #dbe6fa; }
+.member-chips button:hover { background: var(--accent-soft); }
 /* Bounded, because a friends list is as long as somebody's friends list and
    this sits in the middle of a form with a button under it. */
 .members .people { max-height: 236px; overflow-y: auto; margin: 0; }
@@ -2216,7 +2265,7 @@ button.secondary {
 .toggle-help { font-size: 13px; line-height: 1.45; color: var(--dim); }
 .toggle-switch {
   flex: none; width: 46px; height: 28px; padding: 0;
-  border-radius: 999px; background: #d5dae1; border: 0;
+  border-radius: 999px; background: var(--line); border: 0;
   transition: background-color 140ms ease;
   display: flex; align-items: center;
 }
@@ -2301,7 +2350,7 @@ button.secondary {
 .cover-badge {
   position: absolute; left: 6px; bottom: 6px;
   padding: 3px 8px; border-radius: 999px;
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--on-accent);
   font-size: 11px; font-weight: 600; letter-spacing: .02em;
 }
 
@@ -2558,7 +2607,7 @@ button.secondary {
 .tile-chips { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
 .tile-chip {
   width: 30px; height: 30px; border-radius: 8px; border: 0;
-  background: rgba(255, 255, 255, .92); color: var(--fg);
+  background: rgba(255, 255, 255, .92); color: #14171c;
   display: flex; align-items: center; justify-content: center;
   font-size: 14px; text-decoration: none; cursor: pointer;
 }
@@ -2583,7 +2632,7 @@ button.secondary {
    is the one whose next photograph is easiest to forget to add. */
 .tile-add {
   height: 210px; border-radius: 14px;
-  border: 1px dashed var(--line-dashed); background: rgba(255, 255, 255, .5);
+  border: 1px dashed var(--line-dashed); background: var(--wash);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; cursor: pointer; text-align: center; padding: 20px;
 }
@@ -2606,7 +2655,7 @@ button.secondary {
 .tile-add-lenses { display: inline-flex; }
 .tile-add-lenses > * {
   width: 24px; height: 24px; border-radius: 50%; display: block;
-  background: rgba(20, 23, 28, .13);
+  background: var(--line);
 }
 .tile-add-lenses > :nth-child(2),
 .tile-add-lenses > :nth-child(3) { margin-left: -8px; }
@@ -2676,7 +2725,7 @@ button.secondary {
 .people-foot {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-top: 18px; padding: 16px 18px; border-radius: 14px;
-  background: rgba(255, 255, 255, .66);
+  background: var(--wash);
 }
 .people-foot p { margin: 0; flex: 1; min-width: 200px; font-size: 13.5px; color: var(--dim); }
 
@@ -2972,7 +3021,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   position: absolute; top: -5px; right: -5px;
   min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--on-accent);
   font-size: 10px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -2982,7 +3031,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    screen's, and anything that grows one later. On the event page nothing does:
    the words carry it. */
 .dots-primary {
-  background: var(--accent); color: #fff; border-radius: 10px;
+  background: var(--accent); color: var(--on-accent); border-radius: 10px;
   padding: 10px 14px; font-weight: 600;
 }
 /* The download menu's popover, reused. */
@@ -3001,7 +3050,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .dots-body label { margin: 0; cursor: pointer; }
 /* The danger colour on the text, not a filled red slab: this is one item in a
    two-item menu, and it is still only a message. */
-.dots-body .menu-danger { color: #b3261e; }
+.dots-body .menu-danger { color: var(--warn); }
 /* A sentence inside a menu, above the item it is about. Leaving a group reads
    as though it might take the photographs with it, and somebody who believes
    that will either never press it or press it and be frightened. */
@@ -3286,7 +3335,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-dead {
   margin: 0; padding: 20px; max-width: 380px; text-align: center;
   font-size: 15px; color: var(--dim);
-  border: 1px dashed var(--line-dashed); border-radius: 12px; background: #f1f1f4;
+  border: 1px dashed var(--line-dashed); border-radius: 12px; background: var(--track);
 }
 
 /* The two verbs, at the two ends of the picture.
@@ -3683,7 +3732,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   padding: 14px 8px; border-radius: 12px;
   color: inherit; text-decoration: none;
 }
-.group-row:hover { background: rgba(255, 255, 255, .6); }
+.group-row:hover { background: var(--wash); }
 .group-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* A letter in a lens colour, never a photograph — on every screen a group
    appears on, which is now three.
@@ -3780,8 +3829,8 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border: 1px solid var(--accent); background: transparent; color: var(--accent-ink);
 }
 .cluster-make:hover { background: var(--accent-soft); }
-.cluster-make-primary { background: var(--accent); color: #fff; }
-.cluster-make-primary:hover { background: #45588f; }
+.cluster-make-primary { background: var(--accent); color: var(--on-accent); }
+.cluster-make-primary:hover { filter: brightness(1.08); }
 
 /* The create form, opened from `New group` in the header. Sits directly
    beneath it and above whatever the page's main content is, full width, so
@@ -3829,16 +3878,16 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 }
 .cluster-create {
   padding: 12px 20px; border-radius: 10px; border: 0; cursor: pointer;
-  background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+  background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 600;
 }
-.cluster-create:hover { background: #45588f; }
+.cluster-create:hover { filter: brightness(1.08); }
 .cluster-create:disabled { opacity: .5; cursor: default; }
 .cluster-cancel {
   background: none; border: 0; padding: 0; cursor: pointer;
   font-size: 14.5px; color: var(--dim);
 }
 .cluster-live { margin-left: auto; font-size: 12.5px; color: var(--dim-warm); }
-.cluster-error { flex-basis: 100%; margin: 0; font-size: 13px; color: #b3261e; }
+.cluster-error { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--warn); }
 
 /* Demoted, below a list that already has rooms in it. */
 .clusters-also { margin-top: 26px; }
@@ -4011,7 +4060,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .group-create input { flex: 1; min-width: 200px; margin: 0; }
 .group-create button { flex: none; padding: 10px 16px; border-radius: 10px; font-size: 14.5px; }
 .group-create-note { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--dim-soft); }
-.group-error { margin: 10px 0 0; font-size: 13px; color: #b3261e; }
+.group-error { margin: 10px 0 0; font-size: 13px; color: var(--warn); }
 
 /* The premise, said once, where the count used to be. */
 .people-strip {
@@ -4611,9 +4660,9 @@ img.you-face { object-fit: cover; }
 /* The one on the event page is the point of the page, so it is the filled
    button rather than the outlined one. */
 .button-like.primary {
-  background: var(--accent); border-color: var(--accent); color: #fff;
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
 }
-.button-like.primary:hover { filter: brightness(1.06); color: #fff; }
+.button-like.primary:hover { filter: brightness(1.06); color: var(--on-accent); }
 .button-like[aria-disabled='true'] { opacity: .55; cursor: default; filter: none; }
 /* The input a `.button-like` names is visually hidden, so tabbing to it puts
    focus on something with no pixels. The ring is moved to the label instead.
@@ -4833,3 +4882,48 @@ button.link {
   white-space: nowrap;
   align-self: center;
 }
+
+/* ---------------------------------------------------------------------------
+   Dark: the few things drawn in fixed colours rather than tokens.
+
+   The pills below are tinted — a warm one for whoever made the roll, violet
+   for co-hosts, green for contributors and for what is arriving — and their
+   pale grounds and dark inks are right on white and glare on near-black. Each
+   keeps its hue as a deep ground and a light ink here.
+
+   The Moments bar is dark glass on a dark page, as on the phone: a near-black
+   card with the icon's violet, pink and teal glowing through from the right.
+   --------------------------------------------------------------------------- */
+:root[data-theme="dark"] .role-creator { background: #3a2a1c; color: #f0c9a4; }
+:root[data-theme="dark"] .role-cohost { background: #2c2440; color: #cdbdf0; }
+:root[data-theme="dark"] .role-contributor,
+:root[data-theme="dark"] .arriving { background: #17332a; color: #a5dcc6; }
+:root[data-theme="dark"] .role-viewer { background: var(--track); color: var(--dim); }
+:root[data-theme="dark"] .role-invited { background: #3a2f1c; color: #f0d4a4; }
+
+:root[data-theme="dark"] .moments-bar {
+  background: #15171c; color: #fff;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+:root[data-theme="dark"] .moments-bar:hover { border-color: rgba(255, 255, 255, 0.18); }
+:root[data-theme="dark"] .moments-bar-bloom {
+  background:
+    radial-gradient(28% 70% at 92% 72%, rgba(102, 231, 198, 0.75), rgba(102, 231, 198, 0) 100%),
+    radial-gradient(30% 75% at 76% 28%, rgba(247, 154, 182, 0.8), rgba(247, 154, 182, 0) 100%),
+    radial-gradient(34% 80% at 60% 70%, rgba(143, 70, 218, 0.9), rgba(143, 70, 218, 0) 100%);
+  opacity: 0.38;
+}
+:root[data-theme="dark"] .moments-bar-new .moments-bar-bloom { opacity: 1; }
+:root[data-theme="dark"] .moments-bar::after { background: rgba(21, 23, 28, 0.35); }
+:root[data-theme="dark"] .moments-bar-count { color: #fff; }
+:root[data-theme="dark"] .moments-bar-go { color: rgba(255, 255, 255, 0.45); }
+
+/* The account page's Dark / Light choice: two halves of one pill. */
+.appearance { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 11px; }
+.appearance button {
+  padding: 7px 18px; border: 0; border-radius: 8px; font: inherit; font-weight: 600;
+  background: transparent; color: var(--fg); cursor: pointer;
+}
+.appearance button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); }
+

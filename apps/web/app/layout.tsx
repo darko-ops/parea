@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+
+import { THEME_COOKIE } from '@/theme';
 import './globals.css';
 
 /**
@@ -67,9 +69,25 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Dark unless the reader chose light on the account page — the app's default
+ * too.
+ *
+ * The page is served dark, and a line of script in the head — before the body
+ * is parsed, so before anything is painted — turns it light for somebody who
+ * chose that. Reading the cookie on the server instead would have made every
+ * page, the static ones included, render per request to decide one attribute.
+ * `suppressHydrationWarning` because that script changes the attribute React
+ * rendered, on purpose.
+ */
+const CHOOSE = `try{if(document.cookie.split('; ').indexOf('${THEME_COOKIE}=light')>-1)document.documentElement.dataset.theme='light'}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: CHOOSE }} />
+      </head>
       <body>{children}</body>
     </html>
   );

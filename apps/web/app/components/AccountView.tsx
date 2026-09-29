@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { MomentsResponse } from '@/moments';
 
+import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
 import { Devices } from './Devices';
 import { Discoverability } from './Discoverability';
@@ -307,6 +308,8 @@ export function AccountView() {
             </p>
           </div>
         </section>
+
+        <Appearance />
 
         {/*
           The one privacy switch in this product, above the devices and below the
