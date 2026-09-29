@@ -47,7 +47,7 @@ import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
 import { IconRing } from './IconField';
 import { PhotoViewer } from './PhotoViewer';
-import { describeFile, putToStorage, saveToCameraRoll } from './platform';
+import { describeFile, fetchForMoment, putToStorage, saveToCameraRoll } from './platform';
 
 type ButtonComponent = (props: {
   label: string;
@@ -160,15 +160,44 @@ export function AddMoment({
   api,
   onCancel,
   onShared,
+  seed,
 }: {
   api: Api;
   onCancel: () => void;
   onShared: () => void;
+  /**
+   * A photograph already chosen — the ripple in a roll's viewer.
+   *
+   * Its original is fetched to this phone first, because a moment's bytes go
+   * phone → storage and the upload reads a local file. The frame waits on a
+   * spinner meanwhile; somebody can still pick something else instead.
+   */
+  seed?: { id: string; url: string; mime: string };
 }) {
   const { width } = useWindowDimensions();
   const [picked, setPicked] = useState<{ uri: string; mimeType: string } | null>(null);
   const uri = picked?.uri ?? null;
   const [sharing, setSharing] = useState(false);
+  const [fetching, setFetching] = useState(Boolean(seed));
+
+  useEffect(() => {
+    if (!seed) return;
+    let live = true;
+    fetchForMoment(seed.url, seed.id, seed.mime)
+      .then((local) => {
+        // Only if nothing was chosen off the camera roll while it came down.
+        if (live) setPicked((was) => was ?? { uri: local, mimeType: seed.mime });
+      })
+      .catch(() => {
+        if (live) Alert.alert('Could not load that photo', 'Try again in a moment.');
+      })
+      .finally(() => {
+        if (live) setFetching(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [seed]);
 
   const choose = useCallback(async () => {
     const next = await pickOne();
@@ -231,7 +260,9 @@ export function AddMoment({
         accessibilityLabel={uri ? 'Choose a different photo' : 'Choose a photo'}
         style={[styles.addFrame, { height: width * 1.25 }]}
       >
-        {uri ? (
+        {!uri && fetching ? (
+          <ActivityIndicator color="#fff" />
+        ) : uri ? (
           <ExpoImage
             source={{ uri }}
             style={StyleSheet.absoluteFill}

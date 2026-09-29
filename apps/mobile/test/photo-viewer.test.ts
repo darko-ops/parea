@@ -45,7 +45,7 @@ describe('the picture', () => {
   it('is a screen rather than a card with buttons under it', () => {
     // The five slabs are behind the `⋯`, and the sheet no longer draws its
     // own copy of the photograph.
-    expect(APP).toMatch(/<Modal visible animationType="fade"/);
+    expect(APP).toMatch(/<Modal\s+visible\s+animationType="fade"/);
     expect(APP).not.toMatch(/<Image source=\{\{ uri: photo\.full \}\} style=\{styles\.sheetImage\}/);
     expect(GESTURE).toMatch(/accessibilityLabel="Photo options"/);
   });
@@ -206,24 +206,31 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).toMatch(/styles\.disc\b/);
   });
 
-  it('puts the two verbs at the two ends of the bar', () => {
+  it('keeps the saying on the left and the doing on the right', () => {
     /*
-     * Reacting on the left and saving on the right, with what you can say
-     * between them. Both are one-tap verbs about the picture, so they belong
-     * at the ends where a thumb reaches without crossing it — and the box
-     * between them grows into whatever is left, which is what a composer
-     * should do anyway.
-     *
-     * The reaction disc was alone on the right and `smiley` was its style: a
-     * name that describes the picture inside a shape is a name the second
-     * thing in that shape cannot use.
+     * React and comment on the left; ripple and save on the right, the
+     * ripple beside the save. Every control is the same disc — the comment
+     * pill that grew across the bar was a lot of glass for a door.
      */
     expect(GESTURE).not.toMatch(/styles\.smiley/);
+    expect(GESTURE).not.toMatch(/composerHint/);
     const bar = GESTURE.slice(GESTURE.indexOf('styles.bar'), GESTURE.indexOf('{talking &&'));
-    expect(bar.indexOf('React to this photo')).toBeLessThan(bar.indexOf('styles.composerHint'));
-    expect(bar.indexOf('styles.composerHint')).toBeLessThan(bar.indexOf('Save this photo'));
+    const order = ['React to this photo', "'Add a comment'", 'Share this photo as a moment', 'Save this photo'];
+    const at = order.map((label) => bar.indexOf(label));
+    expect(at.every((i) => i > -1)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(bar).toMatch(/<Glyph name="bubble"/);
+    expect(bar).toMatch(/<Glyph name="ripple"/);
     // Still one row, so the list above it has a single edge to sit over.
     expect(GESTURE).toMatch(/bar: \{[\s\S]{0,160}flexDirection: 'row'/);
+  });
+
+  it('prepares a moment rather than posting one', () => {
+    // The ripple opens the moment screen with the photograph in the frame;
+    // Share there is still somebody's own press.
+    expect(GESTURE).toMatch(/\{onRipple && \(/);
+    expect(APP).toMatch(/seed=\{rippling\}/);
+    expect(APP).toMatch(/url: selected\.original, mime: selected\.mime/);
   });
 
   it('prints the handle, without an `@`, and never an actor id', () => {
@@ -383,14 +390,11 @@ describe('what is said about one photograph', () => {
     expect(VIEWER).toMatch(/api\.postMessage\(eventId, body, photo\.id\)/);
   });
 
-  it('keeps the box on the glass rather than inside the panel', () => {
-    // It is the thing somebody came here to do, and a comment box you have to
-    // open a panel to find is a comment box nobody uses.
+  it('keeps the way in on the glass, the size of the other discs', () => {
+    // The box itself is in the sheet; the door to it stays on the photograph.
     expect(VIEWER).toMatch(/bar: \{\s*position: 'absolute'/);
     expect(VIEWER).toMatch(/\{!talking && \(/);
-    // The box and the face share one line, so the list above has a single edge
-    // to sit over rather than two controls at different heights.
-    expect(VIEWER).toMatch(/composerHint: \{\s*flex: 1,/);
+    expect(VIEWER).toMatch(/onPress=\{\(\) => setTalking\(true\)\}/);
   });
 
   it('keeps the photograph in view behind it', () => {

@@ -50,6 +50,7 @@ export type GlyphName =
   | 'grid'
   | 'portrait'
   | 'star'
+  | 'ripple'
   | 'chevron';
 
 /**
@@ -404,6 +405,22 @@ function paths(name: GlyphName, weight: number) {
      */
     case 'star':
       return <Path d={STAR} />;
+    /*
+     * A ripple: a drop and the rings it sends out.
+     *
+     * The verb for turning a photograph in a roll into a moment — it leaves
+     * the album and spreads out to your people. The outer ring is drawn at the
+     * light weight the photo stack uses for its inner strokes, so the three
+     * read as one fading motion rather than as a target.
+     */
+    case 'ripple':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={1.6} />
+          <Circle cx={12} cy={12} r={5.4} />
+          <Circle cx={12} cy={12} r={9.2} strokeWidth={light} strokeOpacity={0.6} />
+        </>
+      );
     /*
      * A chevron, and the only glyph here that is not a picture of a thing.
      *

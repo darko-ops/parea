@@ -488,6 +488,19 @@ export async function fetchForCover(url: string, id: string): Promise<File> {
   return target;
 }
 
+/**
+ * A roll's photograph, brought down to this phone to be posted as a moment.
+ *
+ * `fetchForCover`'s shape, with the file's own extension: the moment is its
+ * original, and the storage slot is signed for that file's size and type.
+ */
+export async function fetchForMoment(url: string, id: string, mime: string): Promise<string> {
+  const target = new File(Paths.cache, `parea-moment-${id}${extensionFor(mime)}`);
+  if (target.exists) target.delete();
+  await File.downloadFileAsync(url, target);
+  return target.uri;
+}
+
 export async function uploadCover(
   url: string,
   headers: Record<string, string>,

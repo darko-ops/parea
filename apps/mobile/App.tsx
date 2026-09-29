@@ -2284,6 +2284,17 @@ function EventScreen({
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
+  /**
+   * The photograph being made a moment, from the viewer's ripple.
+   *
+   * Held as the seed `AddMoment` fetches, and set once per press, so the
+   * screen's effect sees one object rather than a new one every render.
+   */
+  const [rippling, setRippling] = useState<{ id: string; url: string; mime: string } | null>(null);
+  // Goes with the viewer: nothing to make a moment of once it has closed.
+  useEffect(() => {
+    if (!selected) setRippling(null);
+  }, [selected]);
 
   /**
    * The set the viewer pages through, fixed when it opens.
@@ -4790,7 +4801,12 @@ function EventScreen({
         instead. What it is here for is the frame and the zoom.
       */}
       {selected && (
-        <Modal visible animationType="fade" onRequestClose={() => setSelected(null)}>
+        <Modal
+          visible
+          animationType="fade"
+          // Back steps out of the moment screen first, then out of the photo.
+          onRequestClose={() => (rippling ? setRippling(null) : setSelected(null))}
+        >
           <PhotoViewer
             api={api}
             eventId={event.id}
@@ -4935,6 +4951,16 @@ function EventScreen({
             */
             onDownload={() => void saveOne(selected)}
             downloading={savingOne === selected.id}
+            /*
+              Only for somebody who could post one — the same account a
+              comment needs. The original, because a moment is the whole
+              photograph and not a rendition of it.
+            */
+            onRipple={
+              feed?.canPost
+                ? () => setRippling({ id: selected.id, url: selected.original, mime: selected.mime })
+                : undefined
+            }
           />
 
           {/*
@@ -4983,6 +5009,25 @@ function EventScreen({
                 setSelected(null);
               }}
             />
+          )}
+
+          {/*
+            The moment screen, over the photograph it was opened from.
+
+            In the viewer's modal for the reason the sheet above is: anything
+            drawn in the album's own tree would be underneath it. Cancel and
+            Share both come back to the photograph, which is where somebody
+            was.
+          */}
+          {rippling && (
+            <View style={StyleSheet.absoluteFill}>
+              <AddMoment
+                api={api}
+                seed={rippling}
+                onCancel={() => setRippling(null)}
+                onShared={() => setRippling(null)}
+              />
+            </View>
           )}
         </Modal>
       )}

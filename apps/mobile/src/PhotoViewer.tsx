@@ -470,6 +470,7 @@ export function PhotoViewer({
   onOptions,
   onDownload,
   downloading,
+  onRipple,
   uploader,
   onOpenPerson,
   onFavourite,
@@ -517,6 +518,14 @@ export function PhotoViewer({
   onDownload: () => void;
   /** Whether this one is on its way there. Draws the disc as working. */
   downloading: boolean;
+  /**
+   * Make this photograph a moment: the ripple, left of the save.
+   *
+   * Absent where it would mean nothing — a moment is already one, and the
+   * viewer that walks the strip does not pass it — so the disc is simply not
+   * drawn there.
+   */
+  onRipple?: () => void;
   /**
    * Whose photograph this is, for the square at the top.
    *
@@ -1104,25 +1113,12 @@ export function PhotoViewer({
           </View>
 
           {/*
-            What has been said about this photograph, and a box to add to it.
-
-            The composer is on the glass rather than inside the panel, because it
-            is the thing somebody came to do and a comment box you have to open
-            a panel to find is a comment box nobody uses. Pulling down opens the
-            list above it; the box itself is always there.
+            One row of discs: reacting and commenting on the left, sharing it
+            on as a moment and saving it on the right. Each is one tap about
+            the picture, and at the size of a disc they cover as little of it
+            as a control can.
           */}
           {!talking && (
-            /*
-              Three things on one line: what you can say, and the two things
-              you can do without saying anything.
-
-              Reacting sits on the left and saving on the right, which is the
-              arrangement asked for and a better one than the reaction disc
-              alone on the right. Both are one-tap verbs about the picture, so
-              they belong at the two ends where a thumb reaches without
-              crossing it — and the box between them grows into whatever is
-              left, which is what a composer should do anyway.
-            */
             <View style={styles.bar} pointerEvents="box-none">
               {/*
                 One face, and the whole keyboard behind it.
@@ -1131,13 +1127,8 @@ export function PhotoViewer({
                 because a reaction should be one tap. The trouble is that six is
                 not the set anybody wants: it is the set we guessed, and the
                 seventh emoji somebody reaches for is the one they actually
-                mean. A column of six guesses takes the right-hand side of
-                somebody's photograph to save a press that only sometimes lands.
-
-                So: one control, always the same shape, and the picker behind it
-                is the one on their own phone with their own recents at the
-                front of it. The frequent emoji are still one tap away — theirs
-                rather than ours.
+                mean. So: one control, always the same shape, and the picker
+                behind it has their own recents at the front of it.
               */}
               {canReact ? (
                 <Pressable
@@ -1152,6 +1143,16 @@ export function PhotoViewer({
                 <Text style={styles.why}>Sign in{'\n'}to react</Text>
               )}
 
+              {/*
+                Comments, as one more disc rather than a bar.
+
+                It was a pill that grew into everything the two end discs left,
+                reading "3 comments — add yours" across the bottom of somebody's
+                photograph. That is a lot of glass for a door. The bubble is the
+                same door at the size of the others, the count rides on its
+                corner when there is one, and pressing it opens the sheet —
+                list and box — exactly as the pill did.
+              */}
               {canPost && (
                 <Pressable
                   onPress={() => setTalking(true)}
@@ -1161,24 +1162,46 @@ export function PhotoViewer({
                       ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}, add yours`
                       : 'Add a comment'
                   }
-                  style={styles.composerHint}
+                  style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.55 : 1 }]}
                 >
-                  <Text style={styles.composerHintText} numberOfLines={1}>
-                    {comments.length > 0
-                      ? `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} — add yours`
-                      : 'Add a comment'}
-                  </Text>
+                  <Glyph name="bubble" size={21} color="#fff" />
+                  {comments.length > 0 && (
+                    <View style={styles.count} pointerEvents="none">
+                      <Text style={styles.countText}>
+                        {comments.length > 99 ? '99+' : comments.length}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
+              {/* The saying on the left, the doing on the right. */}
+              <View style={{ flex: 1 }} />
+
+              {/*
+                Share it as a moment: the ripple, beside the save.
+
+                It does not post anything. It opens the moment screen with this
+                photograph already in the frame, so the last step — Share — is
+                still somebody's own, looking at what their people will see.
+              */}
+              {onRipple && (
+                <Pressable
+                  onPress={onRipple}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share this photo as a moment"
+                  style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.55 : 1 }]}
+                >
+                  <Glyph name="ripple" size={22} color="#fff" />
                 </Pressable>
               )}
 
               {/*
                 And the camera's own file, in the opposite corner.
 
-                The glyph rather than a word, because it is one of three
-                controls on a row over somebody's photograph and the other two
-                are glyphs. A spinner in place of it while it is working:
-                saving takes a download and a write, and a button that looks
-                idle for four seconds is a button somebody presses twice.
+                A spinner in place of it while it is working: saving takes a
+                download and a write, and a button that looks idle for four
+                seconds is a button somebody presses twice.
               */}
               <Pressable
                 onPress={onDownload}
@@ -1346,8 +1369,8 @@ export function PhotoViewer({
 }
 
 /**
- * Where the caller's strip sits: just above the row of discs and the comment
- * bar, which is 44 tall at 34 from the foot.
+ * Where the caller's strip sits: just above the row of discs, which is 44
+ * tall at 34 from the foot.
  */
 const TILES_BOTTOM = 34 + 44 + 12;
 
@@ -1430,14 +1453,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  composerHint: {
-    flex: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(20,23,28,0.55)',
+  /* How many comments, on the bubble's corner. Light on dark, like the disc
+     it sits on, so it reads as part of the control rather than as an alert. */
+  count: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  composerHintText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  countText: { color: '#0b1220', fontSize: 11, fontWeight: '700' },
   /* The panel covers the lower half; the photograph stays above it. */
   talk: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   talkAway: { flex: 1 },
