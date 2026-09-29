@@ -55,6 +55,8 @@ export type ChatRow = {
    */
   kind: 'named' | 'direct' | 'unnamed';
   deck: Deck;
+  /** The room's own picture, if a member gave it one. See `RoomMark`. */
+  photoUrl?: string | null;
   /**
    * The last thing said in the room, or null for one nobody has spoken in.
    *
@@ -134,6 +136,7 @@ export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }
                 title={chat.name}
                 kind={chat.kind}
                 deck={chat.deck}
+                photoUrl={chat.photoUrl}
                 lens={chat.lens}
                 size={40}
                 className="chat-tile"

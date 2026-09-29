@@ -28,9 +28,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
-import type { Api, Message } from './api';
+import type { Api, GroupKind, Message } from './api';
+import { RoomMark } from './Events';
 import type { GroupTheme } from './Groups';
-import { initialOf, lensFor } from './lens';
 import { Thread } from './Thread';
 
 /**
@@ -246,7 +246,16 @@ export function GroupThread({
    * than a summary. Asking for what is used lets both hand over what they have
    * without either inventing the rest.
    */
-  group: { id: string; name: string; memberCount: number; eventCount: number };
+  group: {
+    id: string;
+    name: string;
+    memberCount: number;
+    eventCount: number;
+    /** The room's icon, as its row in the list drew it. See `RoomMark`. */
+    kind?: GroupKind;
+    deck?: { name: string; avatarUrl: string | null }[];
+    photoUrl?: string | null;
+  };
   t: GroupTheme;
   dark: boolean;
   onBack: () => void;
@@ -255,7 +264,6 @@ export function GroupThread({
   /** A moment somebody's reply is about, opened in Home's viewer. */
   onOpenMoment?: (momentId: string) => void;
 }) {
-  const lens = lensFor(group.id);
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
@@ -281,11 +289,7 @@ export function GroupThread({
             accessibilityLabel={`Open ${group.name}`}
             style={styles.headWho}
           >
-            <View style={[styles.tile, { backgroundColor: lens.fill }]}>
-              <Text style={[styles.tileInitial, { color: lens.ink }]}>
-                {initialOf(group.name)}
-              </Text>
-            </View>
+            <RoomMark room={{ ...group, title: group.name }} size={38} t={t} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.name, { color: t.fg }]} numberOfLines={1}>
                 {group.name}
@@ -333,8 +337,6 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headWho: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { fontSize: 28, lineHeight: 30 },
-  tile: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  tileInitial: { fontSize: 16, fontWeight: '700' },
   name: { fontSize: 18, fontWeight: '700' },
   meta: { fontSize: 12.5 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },

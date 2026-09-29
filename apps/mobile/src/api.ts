@@ -573,6 +573,8 @@ export type MyGroupDetail = ThreadLine & {
   /** What to draw: the name, or who is in it. Always a string. */
   title: string;
   kind: GroupKind;
+  /** The picture a member gave the room. Null wears the deck. */
+  photoUrl: string | null;
   /**
    * The members' own pictures with the viewer taken out, which is what a room
    * with no name wears instead of a letter on a colour — one face for a chat
@@ -795,6 +797,9 @@ export type GroupRoom = {
    */
   named: string | null;
   kind: GroupKind;
+  /** The room's own picture, and the faces it wears without one. */
+  photoUrl: string | null;
+  deck: { name: string; avatarUrl: string | null }[];
   memberCount: number;
   member: true;
   role: 'member' | 'admin';
@@ -1143,13 +1148,22 @@ export type Discovery = {
  * spelled four times is three chances to spell it differently, and the one
  * that gets missed is the one that crashes.
  */
-function titled<T extends { name: string | null; title?: string; kind?: GroupKind; deck?: unknown }>(
+function titled<
+  T extends { name: string | null; title?: string; kind?: GroupKind; deck?: unknown; photoUrl?: unknown },
+>(
   room: T,
-): T & { title: string; kind: GroupKind; deck: { name: string; avatarUrl: string | null }[] } {
+): T & {
+  title: string;
+  kind: GroupKind;
+  deck: { name: string; avatarUrl: string | null }[];
+  photoUrl: string | null;
+} {
   return {
     ...room,
     title: room.title ?? room.name ?? 'Untitled',
     kind: room.kind ?? 'named',
+    // A room's own picture is newer still; absent is a room without one.
+    photoUrl: typeof room.photoUrl === 'string' ? room.photoUrl : null,
     deck: Array.isArray(room.deck) ? (room.deck as { name: string; avatarUrl: string | null }[]) : [],
   };
 }
@@ -2433,7 +2447,13 @@ export class Api {
     // from the same server this app may be older than. Absent means nobody
     // has the feature, which is a room that was named — see `titled`.
     return view.member
-      ? { ...view, named: view.named ?? view.name, kind: view.kind ?? 'named' }
+      ? {
+          ...view,
+          named: view.named ?? view.name,
+          kind: view.kind ?? 'named',
+          photoUrl: view.photoUrl ?? null,
+          deck: Array.isArray(view.deck) ? view.deck : [],
+        }
       : view;
   }
 
@@ -2541,6 +2561,25 @@ export class Api {
       `/api/groups/${encodeURIComponent(groupId)}`,
       { method: 'PATCH', body: JSON.stringify({ name }) },
     );
+  }
+
+  /**
+   * Where a group's picture is sent: `avatarTarget`'s shape, for a room.
+   *
+   * Refused, like a name, on a chat between two people. See the route.
+   */
+  groupPhotoTarget(groupId: string): { url: string; headers: Record<string, string> } {
+    const headers: Record<string, string> = {
+      'content-type': 'image/jpeg',
+      'x-parea-client': this.client,
+    };
+    if (this.token) headers.authorization = `Bearer ${this.token}`;
+    return { url: `${this.baseUrl}/api/groups/${encodeURIComponent(groupId)}/photo`, headers };
+  }
+
+  /** Back to the faces. The file goes with it. */
+  removeGroupPhoto(groupId: string): Promise<unknown> {
+    return this.call(`/api/groups/${encodeURIComponent(groupId)}/photo`, { method: 'DELETE' });
   }
 
   // --- instrumentation ---------------------------------------------------

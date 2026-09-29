@@ -265,6 +265,10 @@ type Route =
         name: string;
         memberCount: number;
         eventCount: number;
+        /* The room's icon, which both ways in carry too. See `RoomMark`. */
+        kind?: GroupKind;
+        deck?: { name: string; avatarUrl: string | null }[];
+        photoUrl?: string | null;
       };
     }
   | { screen: 'person'; handle: string }

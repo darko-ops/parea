@@ -275,8 +275,10 @@ describe('a group’s own thread', () => {
     expect(APP).toMatch(/screen: 'groupThread';[\s\S]{0,600}?eventCount: number;/);
     expect(APP).toMatch(/name: group\.title/);
     expect(GROUP_THREAD).toMatch(
-      /group: \{ id: string; name: string; memberCount: number; eventCount: number \};/,
+      /group: \{\s*id: string;\s*name: string;\s*memberCount: number;\s*eventCount: number;/,
     );
+    // The bar wears the room's own mark, as its row in the list did.
+    expect(GROUP_THREAD).toMatch(/<RoomMark room=\{\{ \.\.\.group, title: group\.name \}\} size=\{38\} t=\{t\} \/>/);
     /*
      * And the room holds the conversation itself now rather than sending
      * anybody to this screen: `GroupChat` is this file's body, lifted out so

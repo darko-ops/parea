@@ -365,12 +365,17 @@ describe('a room with no name', () => {
     expect(EVENTS).toMatch(/\(mine \?\? \[\]\)\.filter\(\(group\) => group\.kind !== 'direct'\)/);
   });
 
-  it('wears the people in it where a named room wears a letter', () => {
+  it('wears its own picture, else the people in it — named or not', () => {
     const mark = EVENTS.slice(
       EVENTS.indexOf('function RoomMark'),
       EVENTS.indexOf('function ConversationLine'),
     );
-    expect(mark).toMatch(/room\.kind === 'named' \|\| deck\.length === 0/);
+    // Naming a room used to swap its faces for a letter. It does not now: the
+    // picture a member gave it comes first, then the people, and the letter
+    // only for a room with nobody else's face to show.
+    expect(mark).not.toMatch(/room\.kind === 'named'/);
+    expect(mark.indexOf('if (room.photoUrl)')).toBeGreaterThan(-1);
+    expect(mark.indexOf('if (room.photoUrl)')).toBeLessThan(mark.indexOf('if (deck.length === 0)'));
     // Squares, because it stands exactly where the lens tile stood and a
     // circle there would make the unnamed rooms read as a different kind of
     // row rather than the same row drawn from what it has.
@@ -421,7 +426,10 @@ describe('a room from a server that has not caught up', () => {
     expect(API).toMatch(/deck: Array\.isArray\(room\.deck\)/);
     // Both lists of rooms, and the one room the group page opens.
     expect(API.match(/\.map\(titled\)/g) ?? []).toHaveLength(2);
-    expect(API).toMatch(/named: view\.named \?\? view\.name, kind: view\.kind \?\? 'named'/);
+    expect(API).toMatch(/named: view\.named \?\? view\.name,\s*kind: view\.kind \?\? 'named',/);
+    // And the room's own picture, absent from a server that predates it.
+    expect(API).toMatch(/photoUrl: typeof room\.photoUrl === 'string' \? room\.photoUrl : null,/);
+    expect(API).toMatch(/photoUrl: view\.photoUrl \?\? null,/);
   });
 
   it('cannot lose the tab to it even so', () => {

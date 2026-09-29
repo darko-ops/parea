@@ -142,7 +142,7 @@ describe('what the screen may do', () => {
     expect(flat(EVENTS)).not.toMatch(/Groups are for the people who keep turning up/);
   });
 
-  it('draws the door as a letter, never as a photograph', () => {
+  it('draws the door from the room itself, never from a photograph inside it', () => {
     /*
      * The rule is about *the door*, and it is the whole of the shelf now:
      * three across with the name underneath, and nothing about a group ever
@@ -161,7 +161,9 @@ describe('what the screen may do', () => {
     const mark = between(EVENTS, 'function RoomMark', 'function ConversationLine');
     expect(mark).toMatch(/lensFor\(room\.id\)/);
     expect(mark).toMatch(/initialOf\(room\.title\)/);
-    expect(mark).toMatch(/room\.kind === 'named' \|\| deck\.length === 0/);
+    // Its own picture, else its people, else its letter — named or not.
+    expect(mark).toMatch(/if \(room\.photoUrl\)/);
+    expect(mark).toMatch(/if \(deck\.length === 0\)/);
     expect(EVENTS).toMatch(/const GROUP_COLUMNS = 3;/);
     expect(EVENTS).toMatch(/doors: \{ flexDirection: 'row', flexWrap: 'wrap', gap: GROUP_GAP \}/);
     expect(EVENTS).toMatch(/\(width - 40 - GROUP_GAP \* \(GROUP_COLUMNS - 1\)\) \/ GROUP_COLUMNS/);
@@ -460,14 +462,26 @@ describe('what a group shows when you open it', () => {
     expect(GROUPS).toMatch(/Photos live in the rolls, not in the group/);
   });
 
-  it('keeps the room’s own face a letter, never a borrowed photograph', () => {
+  it('wears the room’s own mark, never a borrowed photograph', () => {
     /*
      * Older than this screen and unchanged by it: a picture from one evening
      * standing for the room says that evening is the room. The albums below
-     * carry the photographs; the crest is the group's letter on its lens.
+     * carry the photographs. The crest is the room's own mark — the picture a
+     * member chose for it, else its people, else its letter — which is the
+     * same mark its row in the list wears.
      */
     const identity = GROUPS.slice(GROUPS.indexOf('styles.identity'), GROUPS.indexOf('!group.member'));
-    expect(identity).toMatch(/styles\.crest/);
-    expect(identity).not.toMatch(/cover|Image/);
+    expect(identity).toMatch(/<RoomMark room=\{\{ \.\.\.group, title: group\.name \}\} size=\{56\} t=\{t\} \/>/);
+    expect(identity).not.toMatch(/cover/);
+  });
+
+  it('offers a group photo under the name, and only where a name is offered', () => {
+    const more = GROUPS.slice(GROUPS.indexOf('function GroupMore'), GROUPS.indexOf('export function GroupSearch'));
+    const nameable = more.slice(more.indexOf('{nameable && ('), more.indexOf('This group</Text>'));
+    expect(nameable.indexOf('Group name')).toBeLessThan(nameable.indexOf('Group photo'));
+    expect(nameable).toMatch(/photoUrl \? 'Change photo' : 'Add a group photo'/);
+    expect(nameable).toMatch(/label="Remove photo"/);
+    expect(GROUPS).toMatch(/api\.groupPhotoTarget\(groupId\)/);
+    expect(GROUPS).toMatch(/aspect: \[1, 1\]/);
   });
 });

@@ -192,7 +192,7 @@ describe('where a group comes from', () => {
 });
 
 describe('what a row shows', () => {
-  it('draws the tile as a letter, never a photograph out of the room', () => {
+  it('draws the tile from the room itself, never a photograph out of it', () => {
     /*
      * This assertion has narrowed twice, and each time to its actual reason.
      *
@@ -214,13 +214,17 @@ describe('what a row shows', () => {
      */
     expect(CHATS).toMatch(/<RoomMark/);
     expect(CHATS).not.toMatch(/cover/i);
-    // A named room still wears its letter, and that branch is `RoomMark`'s.
-    expect(MARK).toMatch(/kind === 'named' \|\| cards\.length === 0/);
+    // Its own picture, else its people — named or not — else its letter.
+    expect(MARK).not.toMatch(/kind === 'named'/);
+    expect(MARK.indexOf('if (photoUrl)')).toBeGreaterThan(-1);
+    expect(MARK.indexOf('if (photoUrl)')).toBeLessThan(MARK.indexOf('if (cards.length === 0)'));
     expect(MARK).toMatch(/className=\{`group-tile \$\{className\}`\.trim\(\)\}/);
     expect(MARK).toMatch(/initialOf\(title\)/);
     // And the pictures it may draw are the members', never an album's.
     expect(MARK).toMatch(/person\.avatarUrl/);
-    expect(MARK).not.toMatch(/cover|event/i);
+    // `objectFit: 'cover'` is how the room's own picture fills its square,
+    // not an album cover; anything else by that name is.
+    expect(MARK.replace(/objectFit: 'cover'/g, '')).not.toMatch(/cover|event/i);
     // The group's own screen is untouched: it is a letter there as before.
     const headTile = GROUP.match(/className="group-tile group-head-tile"[\s\S]*?<\/span>/)?.[0] ?? '';
     expect(headTile).not.toBe('');

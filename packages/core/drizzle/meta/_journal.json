@@ -330,6 +330,13 @@
       "when": 1790650429212,
       "tag": "0046_photo_added_order",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790655915708,
+      "tag": "0047_group_photo",
+      "breakpoints": true
     }
   ]
 }

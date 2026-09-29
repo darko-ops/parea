@@ -19,6 +19,8 @@ import {
   memberCount,
   membershipOf,
   participatedInGroup,
+  GROUP_FACES,
+  groupPhotoUrl,
   titleFor,
   titleOf,
 } from '@/groups';
@@ -115,6 +117,16 @@ export async function GET(
      */
     named: group.name,
     kind: identity.kind,
+    /*
+     * What the room wears at the top of its own page: its picture if a member
+     * gave it one, else the other members' faces — the same deck its row in
+     * the list wears, so opening a room does not swap its icon for a letter.
+     */
+    photoUrl: await groupPhotoUrl(group.photoKey),
+    deck: people
+      .filter((person) => person.actorId !== actorId)
+      .slice(0, GROUP_FACES)
+      .map((person) => ({ name: person.name, avatarUrl: person.avatarUrl })),
     memberCount: await memberCount(db, group.id),
     member: true,
     role: membership.role,

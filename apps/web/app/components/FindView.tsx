@@ -106,6 +106,8 @@ type Membership = {
   kind: 'named' | 'direct' | 'unnamed';
   /** The members' own pictures, for a room with no letter to wear. */
   deck: Deck;
+  /** The room's own picture, if a member gave it one. See `RoomMark`. */
+  photoUrl?: string | null;
 };
 
 /** A friend of yours who is in a group you are not in. */
@@ -921,6 +923,7 @@ export function FindView({
                   title={group.name}
                   kind={group.kind}
                   deck={group.deck}
+                  photoUrl={group.photoUrl}
                   lens={tintFor(group.id)}
                   size={64}
                   className="room-door-mark"

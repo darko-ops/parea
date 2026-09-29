@@ -157,6 +157,7 @@ export async function groupsFor(
     .select({
       id: schema.groups.id,
       name: schema.groups.name,
+      photoKey: schema.groups.photoKey,
       role: schema.groupMembers.role,
       joinedAt: schema.groupMembers.joinedAt,
     })
@@ -183,18 +184,21 @@ export async function groupsFor(
    */
   const others = await othersInGroups(db, rows.map((row) => row.id), actorId);
   if (!opts.deck) {
-    return rows.map((row) => ({
+    return rows.map(({ photoKey: _photoKey, ...row }) => ({
       ...row,
       ...titleFor(row.name, others.get(row.id) ?? []),
+      // Unsigned, like the deck: the launch call draws no marks.
+      photoUrl: null as string | null,
       deck: [] as { name: string; avatarUrl: string | null }[],
       deckMore: 0,
     }));
   }
 
   return Promise.all(
-    rows.map(async (row) => ({
+    rows.map(async ({ photoKey, ...row }) => ({
       ...row,
       ...titleFor(row.name, others.get(row.id) ?? []),
+      photoUrl: await groupPhotoUrl(photoKey),
       ...(await deckFor(others.get(row.id) ?? [])),
     })),
   );
@@ -412,6 +416,8 @@ export type MyGroup = {
   title: string;
   /** Which of the three ways the title above was arrived at. */
   kind: GroupKind;
+  /** The picture a member gave the room, signed. Null wears the deck. */
+  photoUrl: string | null;
   role: 'member' | 'admin';
   memberCount: number;
   eventCount: number;
@@ -675,17 +681,33 @@ export async function titleOf(
  */
 export async function roomOf(
   db: Db,
-  group: { id: string; name: string | null },
+  group: { id: string; name: string | null; photoKey?: string | null },
   viewerId: string | null,
 ): Promise<{
   title: string;
   kind: GroupKind;
+  photoUrl: string | null;
   deck: { name: string; avatarUrl: string | null }[];
   deckMore: number;
 }> {
   const others = othersInGroups(db, [group.id], viewerId);
   const people = (await others).get(group.id) ?? [];
-  return { ...titleFor(group.name, people), ...(await deckFor(people)) };
+  return {
+    ...titleFor(group.name, people),
+    photoUrl: await groupPhotoUrl(group.photoKey ?? null),
+    ...(await deckFor(people)),
+  };
+}
+
+/**
+ * A room's own picture, signed — the same signer and lifetime as a face.
+ *
+ * Only ever built for somebody in the room: every caller here is a list of
+ * the reader's own groups or a screen they were let into, so a door to a
+ * group somebody is not in still carries a name and a count and nothing else.
+ */
+export async function groupPhotoUrl(key: string | null): Promise<string | null> {
+  return avatarUrl(key);
 }
 
 /**
@@ -839,6 +861,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
     .select({
       id: schema.groups.id,
       name: schema.groups.name,
+      photoKey: schema.groups.photoKey,
       role: schema.groupMembers.role,
       /*
        * Correlated subselects rather than joins.
@@ -871,12 +894,15 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
   // without costing a round trip per row. See `othersInGroups`.
   const others = await othersInGroups(db, rows.map((row) => row.id), actorId);
 
-  return rows
-    .map((row) => ({
+  const titled = await Promise.all(
+    rows.map(async ({ photoKey, ...row }) => ({
       ...row,
       ...titleFor(row.name, others.get(row.id) ?? []),
+      photoUrl: await groupPhotoUrl(photoKey),
       lastActiveAt: row.lastActiveAt ? new Date(row.lastActiveAt).toISOString() : null,
-    }))
+    })),
+  );
+  return titled
     /*
      * Newest activity first, and a group with nothing in it last rather than
      * first. Sorting nulls naively puts the empty group at the top, which is

@@ -133,7 +133,7 @@ describe('groups on the wire', () => {
       ],
     });
     expect(await new Api('https://api.test').myGroups()).toEqual([
-      { id: 'g1', name: 'Climbing', title: 'Climbing', kind: 'named', deck: [], role: 'admin' },
+      { id: 'g1', name: 'Climbing', title: 'Climbing', kind: 'named', deck: [], photoUrl: null, role: 'admin' },
     ]);
   });
 
@@ -142,12 +142,12 @@ describe('groups on the wire', () => {
      * The three fields a room is titled and drawn from arrived after this app
      * did, and a build on a phone outlives any number of deploys. Absent, they
      * have to mean what was true before they existed — a room called by its
-     * name, named, with no deck — or the Chats tab is lost to a field that has
+     * name, named, with no deck and no picture of its own — or the Chats tab is lost to a field that has
      * not shipped yet. It was, once: `room.deck.length` on undefined.
      */
     respond({ groups: [{ id: 'g1', name: 'Climbing', role: 'admin' }] });
     expect(await new Api('https://api.test').myGroups()).toEqual([
-      { id: 'g1', name: 'Climbing', title: 'Climbing', kind: 'named', deck: [], role: 'admin' },
+      { id: 'g1', name: 'Climbing', title: 'Climbing', kind: 'named', deck: [], photoUrl: null, role: 'admin' },
     ]);
   });
 

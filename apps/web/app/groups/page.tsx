@@ -135,6 +135,7 @@ export default async function GroupsPage() {
               // one nobody has named wears the people. See `RoomMark`.
               kind: group.kind,
               deck: group.deck,
+              photoUrl: group.photoUrl,
               last: group.lastMessage && {
                 author: group.lastMessage.author,
                 body: group.lastMessage.body,

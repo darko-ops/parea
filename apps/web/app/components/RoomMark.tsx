@@ -95,8 +95,9 @@ function Card({
 
 export function RoomMark({
   title,
-  kind,
+  kind: _kind,
   deck,
+  photoUrl,
   lens,
   size,
   className = '',
@@ -114,6 +115,8 @@ export function RoomMark({
    * client newer than the deploy it was talking to.
    */
   deck?: Deck;
+  /** The room's own picture, which a member gave it. Wins over the deck. */
+  photoUrl?: string | null;
   lens: { fill: string; ink: string };
   size: number;
   className?: string;
@@ -137,7 +140,28 @@ export function RoomMark({
    */
   const radius = Math.round(size * 0.25);
 
-  if (kind === 'named' || cards.length === 0) {
+  /*
+   * The room's own picture, if a member gave it one.
+   *
+   * Otherwise the people — and that is so for a *named* room as much as an
+   * unnamed one. Naming a room used to swap its faces for the first letter of
+   * the new name, which read as the icon being taken away by typing a title.
+   * The letter is what is left for a room with nobody else's face to show.
+   */
+  if (photoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        className={`group-tile ${className}`.trim()}
+        src={photoUrl}
+        alt=""
+        aria-hidden="true"
+        style={{ width: size, height: size, borderRadius: radius, objectFit: 'cover' }}
+      />
+    );
+  }
+
+  if (cards.length === 0) {
     return (
       <span
         className={`group-tile ${className}`.trim()}

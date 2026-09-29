@@ -182,6 +182,7 @@ export default async function FindPage() {
               // the people in it rather than a letter. See `RoomMark`.
               kind: g.kind,
               deck: g.deck,
+              photoUrl: g.photoUrl,
             }))}
             clusters={clusters}
             also={also}

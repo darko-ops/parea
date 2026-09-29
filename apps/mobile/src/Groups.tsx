@@ -62,7 +62,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
+
 import type { Api, GroupAlbum, GroupView, JoinRequest } from './api';
+import { RoomMark } from './Events';
+import { uploadCover } from './platform';
 import { Glyph, type GlyphName } from './Glyph';
 import { GroupChat } from './GroupThread';
 import { initialOf, lensFor } from './lens';
@@ -225,9 +230,8 @@ export function GroupScreen({
    * Naming the room, or clearing the name back off it.
    *
    * The whole view is read again rather than the name being patched into the
-   * one in hand, because naming changes more than the heading: the crest
-   * stops being the people and becomes a letter, and the room appears on
-   * Find's shelf it was not on. The route answers with the new title, and
+   * one in hand, because naming changes more than the heading: the room
+   * appears on Find's shelf it was not on. The route answers with the new title, and
    * taking that alone would leave the screen agreeing with itself and wrong
    * about everything the title implies.
    *
@@ -242,6 +246,38 @@ export function GroupScreen({
     },
     [api, groupId],
   );
+
+  /**
+   * The room's own picture: chosen, cropped square, sent.
+   *
+   * The profile picture's path exactly — the picker's square crop, the file
+   * streamed from disk, and the server re-encoding it as a JPEG, which is also
+   * what makes an iPhone's HEIC something every client can draw. Answers
+   * whether it landed so the sheet can stay open on a failure.
+   */
+  const choosePhoto = useCallback(async (): Promise<boolean> => {
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.9,
+    });
+    if (picked.canceled || !picked.assets[0]) return false;
+    try {
+      const target = api.groupPhotoTarget(groupId);
+      await uploadCover(target.url, target.headers, picked.assets[0].uri);
+    } catch {
+      Alert.alert('Could not set that photo', 'Try again in a moment.');
+      return false;
+    }
+    setGroup(await api.group(groupId).catch(() => null));
+    return true;
+  }, [api, groupId]);
+
+  const removePhoto = useCallback(async () => {
+    await api.removeGroupPhoto(groupId).catch(() => null);
+    setGroup(await api.group(groupId).catch(() => null));
+  }, [api, groupId]);
 
   const leave = useCallback(() => {
     Alert.alert('Leave this group?', 'You keep any roll links you already have.', [
@@ -311,7 +347,6 @@ export function GroupScreen({
     );
   }
 
-  const lens = lensFor(group.id);
 
 
   return (
@@ -351,20 +386,12 @@ export function GroupScreen({
 
         <View style={styles.identity}>
           {/*
-            The crest: a letter on the room's own lens, and a letter is what a
-            *named* room has. A room called "Ana, Jack + 2 more" has no
-            initial worth drawing — the A would be a fact about Ana — so an
-            unnamed one wears the first thing in its title all the same, which
-            is a person, and reads as a person.
-
-            The deck of members belongs here too and is not drawn yet: this
-            screen is fetched through `GroupView`, which carries `people`
-            rather than the deck the lists carry. `RoomMark` on the Chats tab
-            is the shape it should take when it does.
+            The crest: the same mark the room's row in the list wears — its
+            own picture if a member gave it one, else the other members'
+            faces, else a letter. See `RoomMark`. Opening a room no longer
+            swaps its icon for a letter.
           */}
-          <View style={[styles.crest, { backgroundColor: lens.fill }]}>
-            <Text style={[styles.crestLetter, { color: lens.ink }]}>{initialOf(group.name)}</Text>
-          </View>
+          <RoomMark room={{ ...group, title: group.name }} size={56} t={t} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.h1, { color: t.fg }]} numberOfLines={2}>
               {group.name}
@@ -610,6 +637,9 @@ export function GroupScreen({
           // Two people is a conversation, not a room. See `GroupMore`.
           nameable={group.memberCount > 2}
           onName={rename}
+          photoUrl={group.photoUrl}
+          onChoosePhoto={choosePhoto}
+          onRemovePhoto={removePhoto}
           onLeave={leave}
           onClose={() => setMore(false)}
         />
@@ -772,7 +802,7 @@ function AlbumTile({
 }
 
 /**
- * Everything else about the room — which is now two things: naming it, and
+ * Everything else about the room: naming it, giving it a picture, and
  * leaving it.
  *
  * ## Why naming lives here and not on the way in
@@ -802,6 +832,9 @@ function GroupMore({
   named,
   nameable,
   onName,
+  photoUrl,
+  onChoosePhoto,
+  onRemovePhoto,
   onLeave,
   onClose,
 }: {
@@ -818,11 +851,16 @@ function GroupMore({
   /** False for a conversation with one person. See above. */
   nameable: boolean;
   onName: (name: string) => Promise<void>;
+  /** The room's own picture, if it has one. */
+  photoUrl: string | null;
+  onChoosePhoto: () => Promise<boolean>;
+  onRemovePhoto: () => Promise<void>;
   onLeave: () => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(named ?? '');
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Nothing to do when the field says what the room already says. Trimmed on
   // both sides, so adding a space is not a change somebody can submit.
@@ -870,6 +908,58 @@ function GroupMore({
                 primary
                 t={t}
               />
+
+              {/*
+                The room's picture, under its name: the group's profile
+                picture. Without one it wears its members' faces, and naming
+                it no longer changes that — see `RoomMark`. Offered where the
+                name is, because a room of two is drawn as the other person
+                and the server refuses both for the same reason.
+              */}
+              <Text style={[styles.label, { color: t.fg }]}>Group photo</Text>
+              <View style={styles.photoRow}>
+                {photoUrl ? (
+                  <ExpoImage
+                    source={{ uri: photoUrl }}
+                    style={[styles.photoThumb, { backgroundColor: t.line }]}
+                    contentFit="cover"
+                    transition={120}
+                  />
+                ) : null}
+                <Text style={[styles.small, { color: t.dim, flex: 1 }]}>
+                  {photoUrl
+                    ? 'Everyone in the group sees it as the group’s picture.'
+                    : 'Until it has one, the group shows the faces of the people in it.'}
+                </Text>
+              </View>
+              <Button
+                label={photoBusy ? 'Sending…' : photoUrl ? 'Change photo' : 'Add a group photo'}
+                onPress={() => {
+                  if (photoBusy) return;
+                  setPhotoBusy(true);
+                  void onChoosePhoto().then((done) => {
+                    setPhotoBusy(false);
+                    if (done) onClose();
+                  });
+                }}
+                disabled={photoBusy}
+                t={t}
+              />
+              {photoUrl && (
+                <Button
+                  label="Remove photo"
+                  onPress={() => {
+                    if (photoBusy) return;
+                    setPhotoBusy(true);
+                    void onRemovePhoto().finally(() => {
+                      setPhotoBusy(false);
+                      onClose();
+                    });
+                  }}
+                  disabled={photoBusy}
+                  t={t}
+                />
+              )}
             </>
           )}
 
@@ -1053,8 +1143,6 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
   /* The room's letter on its lens, at the size the Groups tab's tile draws it.
      Never a photograph borrowed from inside — see the note at the call site. */
-  crest: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  crestLetter: { fontSize: 24, fontWeight: '700' },
   h1: { fontSize: 26, fontWeight: '700', letterSpacing: -0.3, lineHeight: 29 },
 
   /*
@@ -1081,6 +1169,8 @@ const styles = StyleSheet.create({
   /* The one field on this screen. Sized like the album's own name field, on
      the sheet's background rather than its card, so it reads as a hole in the
      panel rather than a second panel on it. */
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  photoThumb: { width: 48, height: 48, borderRadius: 12 },
   nameField: {
     borderWidth: 1,
     borderRadius: 12,

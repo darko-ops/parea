@@ -1639,17 +1639,22 @@ export function ChatsTab({
   );
 }
 /**
- * What a room is drawn as: a letter on a colour, or the people in it.
+ * What a room is drawn as: its own picture, the people in it, or a letter.
  *
- * ## Two icons, and the room chooses
+ * ## Three icons, in order
  *
- * A **named** room keeps the letter on its lens colour, which is the shape
- * this product has meant by "a group" since the Groups tab was written.
+ * A room a member has given a **picture** wears it — the group's profile
+ * picture, set from the group's settings under its name.
  *
- * A room **nobody has named** has no letter to wear — its title is a sentence
- * about who is in it, and the first character of "Ana, Jack + 2 more" is a
- * fact about Ana. So it wears the people instead: one square for a chat with
- * one person, and a deck of overlapping squares for a room with more.
+ * Otherwise it wears the **people**: one square for a chat with one person,
+ * and a deck of overlapping squares for a room with more. That holds whether
+ * or not the room has a name. It used to be only the unnamed ones — a named
+ * room swapped its faces for the first letter of the name the moment somebody
+ * typed one, which read as the icon being taken away rather than the room
+ * being named.
+ *
+ * The **letter** on the room's lens colour is what is left: a room with
+ * nobody else's face to show yet.
  *
  * ## It is not the photograph rule being broken
  *
@@ -1674,7 +1679,7 @@ export function ChatsTab({
  * the tile's own square whatever it holds: one picture fills it, three sit
  * across it, and the row's text starts at the same x either way.
  */
-function RoomMark({
+export function RoomMark({
   room,
   size,
   t,
@@ -1682,9 +1687,11 @@ function RoomMark({
   room: {
     id: string;
     title: string;
-    kind: GroupKind;
+    kind?: GroupKind;
     /** Optional only so the render cannot die of an older server. See below. */
     deck?: { name: string; avatarUrl: string | null }[];
+    /** The room's own picture, which a member gave it. Wins over the deck. */
+    photoUrl?: string | null;
   };
   size: number;
   t: { bg: string; line: string; dim: string };
@@ -1702,7 +1709,28 @@ function RoomMark({
    */
   const deck = room.deck ?? [];
 
-  if (room.kind === 'named' || deck.length === 0) {
+  /*
+   * The room's own picture, if a member gave it one — its profile picture.
+   *
+   * Otherwise the people, and that is so for a *named* room as much as an
+   * unnamed one. Naming a room used to swap its faces for the first letter of
+   * the new name, which read as the icon being taken away by typing a title:
+   * the name is a word about the room, not a new picture of it. The letter is
+   * what is left for a room with nobody else's face to show.
+   */
+  if (room.photoUrl) {
+    return (
+      <Image
+        source={{ uri: room.photoUrl }}
+        style={{ width: size, height: size, borderRadius: radius, backgroundColor: t.line }}
+        contentFit="cover"
+        transition={120}
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
+
+  if (deck.length === 0) {
     return (
       <View
         style={[

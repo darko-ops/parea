@@ -37,6 +37,8 @@ export function GroupChatScreen({
      */
     kind: 'named' | 'direct' | 'unnamed';
     deck: Deck;
+    /** The room's own picture, if a member gave it one. See `RoomMark`. */
+    photoUrl?: string | null;
   };
 }) {
   return (
@@ -59,6 +61,7 @@ export function GroupChatScreen({
           title={group.name}
           kind={group.kind}
           deck={group.deck}
+          photoUrl={group.photoUrl}
           lens={group.lens}
           size={40}
           className="chat-head-tile"

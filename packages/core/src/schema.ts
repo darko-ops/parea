@@ -516,6 +516,13 @@ export const groups = pgTable('groups', {
   slug: text('slug').unique(),
   /** Asked once at creation. Groups can be findable; photos never are. */
   findable: boolean('findable').notNull().default(false),
+  /**
+   * The room's own picture, set by a member — its profile picture.
+   *
+   * One per group, keyed by the group rather than by content, like an avatar:
+   * replacing it overwrites it. Null means the room wears its members' faces.
+   */
+  photoKey: text('photo_key'),
   createdAt: createdAt(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });

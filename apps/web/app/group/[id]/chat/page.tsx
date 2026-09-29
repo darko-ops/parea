@@ -75,6 +75,7 @@ export default async function GroupChatPage({
           lens: lensFor(group.id),
           kind: room.kind,
           deck: room.deck,
+          photoUrl: room.photoUrl,
         }}
       />
     </Shell>
