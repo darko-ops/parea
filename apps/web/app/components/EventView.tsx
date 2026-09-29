@@ -646,6 +646,18 @@ export function EventView({
                     >
                       Download all as JPEG
                     </button>
+                    {/* Only the ones you starred — the Favorites tab, as a zip. */}
+                    {favourites.length > 0 && (
+                      <button
+                        disabled={downloading}
+                        onClick={() => {
+                          close();
+                          void download('original', favourites.map((photo) => photo.id));
+                        }}
+                      >
+                        Download favorites
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         close();
@@ -710,6 +722,18 @@ export function EventView({
                       >
                         Download all as JPEG
                       </button>
+                      {favourites.length > 0 && (
+                        <button
+                          className="narrow-only"
+                          disabled={downloading}
+                          onClick={() => {
+                            close();
+                            void download('original', favourites.map((photo) => photo.id));
+                          }}
+                        >
+                          Download favorites
+                        </button>
+                      )}
                       <button
                         className="narrow-only"
                         onClick={() => {

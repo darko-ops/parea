@@ -2865,40 +2865,62 @@ function EventScreen({
   const saveAll = useCallback(async () => {
     if (!feed || feed.photos.length === 0) return;
 
-    const bytes = feed.photos.reduce((sum, p) => sum + (p.byteSize ?? 0), 0);
-    const run = async (kind: 'original' | 'full') => {
-      setSaving('Starting…');
-      try {
-        const { saved, failed } = await saveToCameraRoll(
-          feed.photos.map((p) => ({
-            id: p.id,
-            url: kind === 'original' ? p.original : p.full,
-            mime: kind === 'original' ? p.mime : 'image/jpeg',
-          })),
-          (done, total) => setSaving(`Saving ${done} of ${total}`),
-        );
-        Alert.alert(
-          'Saved',
-          failed > 0
-            ? `${saved} photos saved, ${failed} could not be saved.`
-            : `${saved} photos are in your camera roll.`,
-        );
-      } catch (err) {
-        Alert.alert('Could not save', err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(null);
-      }
+    /** The size question, about whichever set was chosen. */
+    const ask = (photos: FeedPhoto[]) => {
+      const bytes = photos.reduce((sum, p) => sum + (p.byteSize ?? 0), 0);
+      const run = async (kind: 'original' | 'full') => {
+        setSaving('Starting…');
+        try {
+          const { saved, failed } = await saveToCameraRoll(
+            photos.map((p) => ({
+              id: p.id,
+              url: kind === 'original' ? p.original : p.full,
+              mime: kind === 'original' ? p.mime : 'image/jpeg',
+            })),
+            (done, total) => setSaving(`Saving ${done} of ${total}`),
+          );
+          Alert.alert(
+            'Saved',
+            failed > 0
+              ? `${saved} photos saved, ${failed} could not be saved.`
+              : `${saved} photos are in your camera roll.`,
+          );
+        } catch (err) {
+          Alert.alert('Could not save', err instanceof Error ? err.message : String(err));
+        } finally {
+          setSaving(null);
+        }
+      };
+
+      Alert.alert(
+        `Save ${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`,
+        `Full quality is about ${formatSize(bytes)}. Smaller copies are quicker and fine for looking at.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Smaller copies', onPress: () => void run('full') },
+          { text: 'Full quality', onPress: () => void run('original') },
+        ],
+      );
     };
 
-    Alert.alert(
-      `Save ${feed.photos.length} photos`,
-      `Full quality is about ${formatSize(bytes)}. Smaller copies are quicker and fine for looking at.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Smaller copies', onPress: () => void run('full') },
-        { text: 'Full quality', onPress: () => void run('original') },
-      ],
-    );
+    /*
+     * Everything, or only the ones you starred.
+     *
+     * Asked first, and only when the answer could differ — no favourites, or
+     * every photograph a favourite, and there is nothing to choose. A step of
+     * its own rather than a fourth button on the size question: Android's
+     * alert draws three at most and drops the rest without a word.
+     */
+    const favourites = feed.photos.filter((p) => p.favourite);
+    if (favourites.length === 0 || favourites.length === feed.photos.length) {
+      ask(feed.photos);
+      return;
+    }
+    Alert.alert('Download which?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: `Favorites (${favourites.length})`, onPress: () => ask(favourites) },
+      { text: `All ${feed.photos.length} photos`, onPress: () => ask(feed.photos) },
+    ]);
   }, [feed]);
 
   /**
