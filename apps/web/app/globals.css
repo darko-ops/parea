@@ -2201,7 +2201,7 @@ button.secondary {
 /* The heading and its filters on one line, wrapping to two on a phone. */
 .you-events-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+  gap: 6px 12px; flex-wrap: wrap; margin-bottom: 8px;
 }
 .you-events-head h2 { margin: 0; }
 
@@ -4542,6 +4542,11 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .you-email { margin: 0; font-size: 14px; }
 .you-events { margin: 28px 0; }
 .you-events h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+/* Moments, then the rolls, close enough to read as one page rather than two
+   blocks with a gap between them: the strip's own bottom padding (kept for the
+   badge rows elsewhere) and the section's top margin were 48px together. */
+.moments-row:has(+ .you-events) { padding-bottom: 8px; }
+.moments-row + .you-events { margin-top: 12px; }
 
 /* A picture where the letter was. Same box either way, so the header does not
    change height when one arrives. */
