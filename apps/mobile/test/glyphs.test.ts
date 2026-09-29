@@ -319,3 +319,33 @@ describe('the bubble', () => {
     expect(Math.max(...numbers)).toBeLessThanOrEqual(24);
   });
 });
+
+/**
+ * Who spoke last on a one-to-one: an arrow out for you, a bubble for them.
+ *
+ * The line under a chat with one person used to lead with a name, and the
+ * row's title is already that name — so the line says which of the two of you
+ * it was with a mark instead. The same arrow on both clients, path for path.
+ */
+describe('sent and received', () => {
+  const paths = (source: string, from: string) =>
+    source.slice(source.indexOf(from)).match(/d="[^"]+"/g)?.slice(0, 2);
+
+  it('draws the same arrow as the web', () => {
+    expect(paths(GLYPH, "case 'sent':")).toEqual(paths(RAIL, "glyph === 'sent' &&"));
+    expect(paths(GLYPH, "case 'sent':")).toEqual(['d="M4.5 12h14"', 'd="M13 6.5 18.5 12 13 17.5"']);
+  });
+
+  it('marks a one-to-one line, and leaves a group’s line its bold name', () => {
+    const events = read('src/Events.tsx');
+    expect(events).toMatch(/direct=\{group\.kind === 'direct'\}/);
+    expect(events).toMatch(/<Glyph name=\{last\.mine \? 'sent' : 'bubble'\} size=\{15\} color=\{t\.fg\} \/>/);
+    expect(events).toMatch(/\{!direct && \(/);
+    const chats = readFileSync(
+      fileURLToPath(new URL('../../web/app/components/GroupChats.tsx', import.meta.url).href),
+      'utf8',
+    );
+    expect(chats).toMatch(/chat\.kind === 'direct' \? \(/);
+    expect(chats).toMatch(/<RailIcon glyph=\{chat\.last\.mine \? 'sent' : 'bubble'\} \/>/);
+  });
+});

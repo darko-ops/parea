@@ -40,8 +40,8 @@
  */
 
 import { LeaveGroup } from './LeaveGroup';
+import { RailIcon } from './RailIcon';
 import { RoomMark, type Deck } from './RoomMark';
-import { PersonFace } from './PersonFace';
 
 export type ChatRow = {
   id: string;
@@ -147,25 +147,32 @@ export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }
                 {chat.last ? (
                   <span className={`chat-said${chat.unread > 0 ? ' chat-said-new' : ''}`}>
                     {/*
-                      Who said it, as their own photograph — and as their
-                      initial in their own colour where they have none, which
-                      is the same hash the marks use, so one person is one
-                      colour wherever they turn up.
-
-                      This was only ever the letter. A list of conversations is
-                      a list of people, and it was the one place in the product
-                      where somebody with a picture did not have one.
+                      Who said it, as their name in bold at the head of the
+                      line and no circle before it. The row's own icon already
+                      says which room this is; a second, smaller mark beside
+                      it said less than the name it sat next to.
                     */}
-                    <PersonFace
-                      name={chat.last.author}
-                      avatarUrl={chat.last.avatarUrl}
-                      lens={chat.last.lens}
-                    />
-                    {/* "You" rather than your own name read back at you, which
-                        is what every card in this product does. */}
-                    <span className="chat-sayer">
-                      {chat.last.mine ? 'You' : chat.last.author}
-                    </span>{' '}
+                    {/*
+                      On a one-to-one, a mark instead of a name: an arrow
+                      pointing right for what you sent, a speech bubble for
+                      what they sent you. The row's title is already their
+                      name, so the line only has to say which of you it was.
+                    */}
+                    {chat.kind === 'direct' ? (
+                      <span
+                        className="chat-sayer-mark"
+                        role="img"
+                        aria-label={chat.last.mine ? 'You sent' : 'Received'}
+                      >
+                        <RailIcon glyph={chat.last.mine ? 'sent' : 'bubble'} />
+                      </span>
+                    ) : (
+                      /* "You" rather than your own name read back at you,
+                         which is what every card in this product does. */
+                      <span className="chat-sayer">
+                        {chat.last.mine ? 'You' : chat.last.author}
+                      </span>
+                    )}{' '}
                     <span className="chat-body">{chat.last.body}</span>
                   </span>
                 ) : (

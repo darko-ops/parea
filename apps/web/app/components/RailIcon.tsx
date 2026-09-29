@@ -63,7 +63,9 @@ export type RailGlyph =
    * A favourite, or not — the one glyph here that is also a state, which is
    * why it is the one that takes a fill. See `filled`.
    */
-  | 'star';
+  | 'star'
+  /* You sent the last thing in a one-to-one. The app's `sent`, path for path. */
+  | 'sent';
 
 /**
  * The star, as a path.
@@ -145,6 +147,12 @@ export function RailIcon({
           <path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
           <circle cx="12" cy="8" r="1.05" strokeWidth={weight * 0.8} />
           <path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={weight * 0.8} />
+        </>
+      )}
+      {glyph === 'sent' && (
+        <>
+          <path d="M4.5 12h14" />
+          <path d="M13 6.5 18.5 12 13 17.5" />
         </>
       )}
       {glyph === 'bubble' && (

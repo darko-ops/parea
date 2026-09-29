@@ -1570,13 +1570,12 @@ export function ChatsTab({
       ) : (
         <>
           {/*
-            The rooms, one row each: a letter on the group's own colour, the
-            name, and the last thing said in it.
+            The rooms, one row each: the room's mark, the name, and the last
+            thing said in it.
 
-            Never a photograph on the tile. A group has no picture of its own,
-            and borrowing one out of an evening inside it would put something
-            from a room on the way in to it — the same rule the doors on Find
-            follow.
+            Never a photograph borrowed out of an evening inside the room —
+            that would put something from a room on the way in to it. The mark
+            is the room's own picture or its people. See `RoomMark`.
           */}
           {groupChats.length > 0 && (
             <View style={{ gap: 2 }}>
@@ -1609,6 +1608,7 @@ export function ChatsTab({
                         line={group}
                         fallback="Nobody has said anything yet."
                         t={t}
+                        direct={group.kind === 'direct'}
                       />
                     </View>
                   </Pressable>
@@ -1820,6 +1820,7 @@ function ConversationLine({
   fallback,
   t,
   dot = false,
+  direct = false,
   onPress,
 }: {
   line: ThreadLine;
@@ -1834,6 +1835,15 @@ function ConversationLine({
   t: TabTheme;
   /** A dot rather than a count. See above. */
   dot?: boolean;
+  /**
+   * A conversation with one person, where who spoke is one of two answers.
+   *
+   * So it is an arrow rather than a name: pointing right for what you sent,
+   * a speech bubble for what they sent you. The row's title is already their
+   * name, and saying it again at the head of the line only told you which of
+   * the two of you it was — which a mark can say at a glance.
+   */
+  direct?: boolean;
   onPress?: () => void;
 }) {
   const unread = line.unreadCount > 0;
@@ -1843,18 +1853,36 @@ function ConversationLine({
     <>
       {last ? (
         <>
-          <View style={[styles.sayerFace, { backgroundColor: lensFor(last.author).fill }]}>
-            <Text style={[styles.sayerInitial, { color: lensFor(last.author).ink }]}>
-              {initialOf(last.author)}
-            </Text>
-          </View>
+          {/*
+            Who spoke, as their name in bold at the head of the line — and no
+            circle with their initial before it. The row's own icon already
+            says which room this is; a second, smaller mark beside it was one
+            more round thing to read past on the way to the words, and it said
+            less than the name it sat next to.
+          */}
+          {direct && (
+            <View
+              accessible
+              accessibilityLabel={last.mine ? 'You sent' : 'Received'}
+              style={styles.sayerMark}
+            >
+              <Glyph name={last.mine ? 'sent' : 'bubble'} size={15} color={t.fg} />
+            </View>
+          )}
           <Text
             style={[styles.said, { color: unread ? t.fg : t.dim }]}
             numberOfLines={1}
           >
             {/* "You" rather than your own name read back at you — the same
-                thing every card in this product does. */}
-            <Text style={styles.sayer}>{last.mine ? 'You' : last.author}</Text>{' '}
+                thing every card in this product does. On a one-to-one the
+                mark before the line says it instead. */}
+            {!direct && (
+              <>
+                <Text style={[styles.sayer, { color: t.fg }]}>
+                  {last.mine ? 'You' : last.author}
+                </Text>{' '}
+              </>
+            )}
             {last.body}
           </Text>
           <Text style={[styles.saidWhen, { color: t.dim }]}>
@@ -3982,7 +4010,9 @@ const styles = StyleSheet.create({
   sayerInitial: { fontSize: 11, fontWeight: '700' },
   said: { flex: 1, minWidth: 0, fontSize: 13.5 },
   /* The name carries the weight; the message is the same size beside it. */
-  sayer: { fontWeight: '600' },
+  sayer: { fontWeight: '700' },
+  /* The sent or received mark on a one-to-one, in the name's place. */
+  sayerMark: { width: 16, alignItems: 'center' },
   saidWhen: { fontSize: 12.5 },
   /* A number on a group — it is busy and the number is the useful part. */
   /* Exactly a `RoundButton`, drawing nothing. Sized from the same constant so

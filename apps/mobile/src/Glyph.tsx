@@ -51,6 +51,7 @@ export type GlyphName =
   | 'portrait'
   | 'star'
   | 'ripple'
+  | 'sent'
   | 'chevron';
 
 /**
@@ -435,6 +436,19 @@ function paths(name: GlyphName, weight: number) {
      */
     case 'chevron':
       return <Path d="M9 6l6 6-6 6" />;
+    /*
+     * An arrow pointing right: you sent the last thing in a conversation.
+     *
+     * A shaft as well as a head, unlike the chevron above — the chevron means
+     * "a way through", and this has to read as something that went out.
+     */
+    case 'sent':
+      return (
+        <>
+          <Path d="M4.5 12h14" />
+          <Path d="M13 6.5 18.5 12 13 17.5" />
+        </>
+      );
 
     /*
      * A door with a handle, for leaving. Not an arrow through a doorway, which

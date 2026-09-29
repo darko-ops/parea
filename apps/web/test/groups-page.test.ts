@@ -40,6 +40,7 @@ const RAIL = await read('../app/components/Rail.tsx');
 const API = await read('../app/api/groups/route.ts');
 const GROUP = await read('../app/components/GroupView.tsx');
 const CARD = await read('../app/components/CreateGroupCard.tsx');
+const EVENTS = await read('../../mobile/src/Events.tsx');
 const CHATS = await read('../app/components/GroupChats.tsx');
 const FIND = await read('../app/components/FindView.tsx');
 const SCREEN = await read('../app/components/GroupChatScreen.tsx');
@@ -245,28 +246,21 @@ describe('what a row shows', () => {
     expect(GROUPS_SRC).toMatch(/export async function roomOf/);
   });
 
-  it('shows who spoke last as their own picture', () => {
+  it('shows who spoke last as their name in bold, with no face beside it', () => {
     /*
-     * A list of conversations is a list of people, and this was the one place
-     * in the product where somebody with a photograph did not have one: the
-     * row drew their initial on a lens colour and nothing else.
-     *
-     * The letter stays as the fallback, which is what somebody with no picture
-     * sees anyway — and what an expired presigned URL becomes, rather than a
-     * broken glyph in the middle of the list.
+     * It was their picture, and their initial on a lens colour before that.
+     * The row's own icon already says which room this is, and a second,
+     * smaller mark beside the line said less than the name it sat next to —
+     * so the line leads with the name, in bold, on both clients.
      */
-    expect(CHATS).toMatch(/<PersonFace/);
-    expect(SAYER).toMatch(/useImageFailure/);
-    expect(SAYER).toMatch(/if \(!avatarUrl \|\| failed\)/);
-    /*
-     * Keyed on who they are, not on what they are called. A lens hashed off a
-     * display name changes colour the day somebody fills one in.
-     */
-    expect(PAGE).toMatch(/lensFor\(group\.lastMessage\.authorKey\)/);
-    // And the key itself is signed before it leaves the server, on both paths.
-    expect(PAGE).toMatch(/avatarUrl: group\.lastMessage\.avatarUrl/);
-    expect(API).toMatch(/avatarUrl: await avatarUrl\(avatarKey\)/);
-    expect(API).not.toMatch(/avatarKey: /);
+    const line = CHATS.slice(CHATS.indexOf('chat.last ?'), CHATS.indexOf('Nobody has said anything yet.'));
+    expect(line).not.toMatch(/<PersonFace/);
+    expect(line).toMatch(/<span className="chat-sayer">/);
+    expect(CSS).toMatch(/\.chat-sayer \{ font-weight: 700;/);
+    const phone = EVENTS.slice(EVENTS.indexOf('function ConversationLine'), EVENTS.indexOf('function ConversationLine') + 3000);
+    expect(phone).not.toMatch(/sayerFace/);
+    expect(phone).toMatch(/<Text style=\{\[styles\.sayer, \{ color: t\.fg \}\]\}>/);
+    expect(EVENTS).toMatch(/sayer: \{ fontWeight: '700' \},/);
   });
 
   it('says which screen the no-photograph rule governs', () => {
