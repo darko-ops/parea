@@ -16,6 +16,7 @@
  */
 
 import { ActivityList } from '@/../app/components/ActivityList';
+import { PageMark } from '@/../app/components/PageMark';
 import { PendingRequests } from '@/../app/components/PendingRequests';
 import { Shell } from '@/../app/components/Shell';
 import { SiteFooter } from '@/../app/components/SiteFooter';
@@ -84,7 +85,10 @@ export default async function ActivityPage() {
         <div className="lately-head">
           {/* The greeting is the heading, and the page's name is the
               fallback for a reader it cannot name. See `HomeView`. */}
-          <h1 className="home-title">{greeting ?? 'Lately'}</h1>
+          <div className="page-greet">
+            <h1 className="home-title">{greeting ?? 'Lately'}</h1>
+          </div>
+          <PageMark />
         </div>
 
         {/*

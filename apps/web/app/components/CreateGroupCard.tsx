@@ -39,6 +39,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Face } from './Faces';
+import { PageMark } from './PageMark';
 import { RailIcon } from './RailIcon';
 
 export type ClusterPerson = { actorId: string; name: string; avatarUrl: string | null };
@@ -398,12 +399,15 @@ export function NewGroupPanel({
           reaching for never ends up under their cursor.
         */}
         {!searching && (
-          <div className="groups-title">
+          <div className="groups-title page-greet">
             {/* The greeting is the heading, and the page's name is the
-                fallback for a reader it cannot name. See `HomeView`. */}
+                fallback for a reader it cannot name. See `HomeView`. On a
+                laptop it sits on the leading side, just clear of the search
+                disc, and the mark takes the middle — see `PageMark`. */}
             <h1 className="home-title">{greeting ?? 'Chat'}</h1>
           </div>
         )}
+        {!searching && <PageMark />}
         {/*
           A `+` in the corner, which is the app's own Chats tab and now Home's
           too: the one thing this page makes, in the corner the eye finishes

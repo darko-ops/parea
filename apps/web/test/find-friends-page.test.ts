@@ -64,11 +64,13 @@ describe('the control in the corner of Find', () => {
     expect(FIND).toMatch(/<RailIcon glyph="add-person" \/>/);
   });
 
-  it('has something opposite it, so the greeting stays centred', () => {
-    // A single control on the right with nothing on the left pushes the word
-    // half a disc across — close enough to read as centred and not be, which is
-    // the version that looks like a mistake. The app's `PageHead` trick.
-    expect(FIND).toMatch(/<span className="find-top-side" \/>/);
+  it('has a side opposite it, so the mark between them stays centred', () => {
+    // Equal sides either way of the middle — the app's `PageHead` trick. The
+    // middle is the mark now, on a laptop; the greeting is in the leading
+    // side, and a single control on the right with no counterweight would
+    // push the mark half a disc across.
+    expect(FIND).toMatch(/<span className="find-top-side find-top-leading">/);
+    expect(FIND).toMatch(/<PageMark \/>/);
     expect(FIND).toMatch(/className="find-top-side find-top-trailing"/);
   });
 });

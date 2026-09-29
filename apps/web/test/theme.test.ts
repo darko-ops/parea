@@ -37,3 +37,26 @@ describe('appearance', () => {
     expect(read('app/components/AccountView.tsx')).toMatch(/<Appearance \/>/);
   });
 });
+
+describe('the page header on a laptop', () => {
+  it('puts the greeting on the leading side and the mark in the middle, on every page but the profile', () => {
+    for (const file of [
+      'app/components/HomeView.tsx',
+      'app/components/CreateGroupCard.tsx',
+      'app/activity/page.tsx',
+      'app/components/FindView.tsx',
+    ]) {
+      const source = read(file);
+      expect(source, file).toMatch(/<PageMark \/>/);
+      expect(source, file).toMatch(/page-greet/);
+    }
+    expect(read('app/components/AccountView.tsx')).not.toMatch(/PageMark/);
+    expect(read('app/components/PersonView.tsx')).not.toMatch(/PageMark/);
+
+    const css = read('app/globals.css');
+    // Clear of Chat's search disc, and the same indent everywhere.
+    expect(css).toMatch(/\.page-greet \{ padding-left: 48px; text-align: left; pointer-events: none; \}/);
+    // And not on a phone.
+    expect(css).toMatch(/@media \(max-width: 720px\) \{\s*\.page-mark \{ display: none; \}/);
+  });
+});

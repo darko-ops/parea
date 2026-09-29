@@ -42,6 +42,7 @@ import type { WireMoment } from '@/moments';
 
 import { CreateMenu } from './CreateMenu';
 import { MomentsBar } from './MomentsBar';
+import { PageMark } from './PageMark';
 import { SearchControl } from './SearchControl';
 
 
@@ -77,7 +78,7 @@ export function HomeView({
   return (
     <>
       <div className="home-head">
-        <div>
+        <div className="page-greet">
           {/*
             The greeting *is* the heading now.
 
@@ -101,6 +102,8 @@ export function HomeView({
           */}
           <h1 className="home-title">{greeting ?? 'Your Parea'}</h1>
         </div>
+
+        <PageMark />
 
         <div className="home-actions">
           {/*

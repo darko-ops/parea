@@ -4927,3 +4927,56 @@ button.link {
 }
 .appearance button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); }
 
+
+/* ---------------------------------------------------------------------------
+   The page header, on a laptop: the greeting on the leading side, the mark in
+   the middle, what you can do on the right. Home, Chat, Notifications and
+   Find all open this way; your profile keeps its own head.
+
+   The greeting is indented by the width of a disc and its gap — the search
+   disc Chat keeps in that corner — so it sits just clear of it there and at
+   the same place on every other page, rather than hard against the edge on
+   three pages and pushed over on one. It takes no pointer: on Chat it shares
+   the corner cell with that disc, and a heading lying over a button must not
+   be what a click lands on.
+
+   Every item names its row as well as its column. Two items given the same
+   column and no row are auto-placed onto two rows, which is how a header
+   quietly becomes two lines.
+   --------------------------------------------------------------------------- */
+.page-greet { padding-left: 48px; text-align: left; pointer-events: none; }
+.page-mark { display: flex; align-items: center; justify-content: center; line-height: 0; }
+
+.home-head > .page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
+.home-head > .page-mark { grid-column: 2; grid-row: 1; }
+.home-head > .home-actions { grid-row: 1; }
+
+.groups-head > .groups-seek { grid-row: 1; }
+.groups-head > .groups-title.page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
+.groups-head > .page-mark { grid-column: 2; grid-row: 1; }
+.groups-head .groups-new { grid-row: 1; }
+
+.lately-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
+  text-align: left;
+}
+.lately-head > .page-greet { grid-column: 1; grid-row: 1; }
+.lately-head > .page-mark { grid-column: 2; grid-row: 1; }
+
+.find-top-leading .find-title { text-align: left; }
+
+/* On a phone the header is the greeting, centred, as it was: the rail's bar
+   already carries the name, and a second logo a thumb's width under it is
+   the same thing said twice. */
+@media (max-width: 720px) {
+  .page-mark { display: none; }
+  .page-greet { padding-left: 0; text-align: center; }
+  .home-head > .page-greet,
+  .groups-head > .groups-title.page-greet { grid-column: 2; justify-self: center; text-align: center; }
+  .lately-head { display: block; text-align: center; }
+  /* Find's row has a disc on the trailing side and nothing on the leading
+     one, so centring within the leading side would not be centred on the
+     page — it is placed across the whole row instead. */
+  .find-top { position: relative; }
+  .find-top-leading .find-title { position: absolute; left: 0; right: 0; text-align: center; }
+}

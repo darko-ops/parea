@@ -69,6 +69,7 @@ import { matches } from '@/search';
 
 import { CreateGroupCard, type ClusterPerson } from './CreateGroupCard';
 import { Face } from './Faces';
+import { PageMark } from './PageMark';
 import { PersonFace } from './PersonFace';
 import { RoomMark, type Deck } from './RoomMark';
 import { RailIcon } from './RailIcon';
@@ -586,8 +587,10 @@ export function FindView({
         which is close enough to read as centred and not be.
       */}
       <div className="find-top">
-        <span className="find-top-side" />
-        <h1 className="find-title">{greeting ?? 'Find'}</h1>
+        <span className="find-top-side find-top-leading">
+          <h1 className="find-title page-greet">{greeting ?? 'Find'}</h1>
+        </span>
+        <PageMark />
         <span className="find-top-side find-top-trailing">
           {/*
             The other half of finding, and the half nobody can type.
