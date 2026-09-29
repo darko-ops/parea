@@ -50,6 +50,8 @@ describe('the page header on a laptop', () => {
       expect(source, file).toMatch(/<PageMark \/>/);
       expect(source, file).toMatch(/page-greet/);
     }
+    // The page header's centre is the wordmark; the rail wears the glyph.
+    expect(read('app/components/PageMark.tsx')).toMatch(/<span className="wordmark">Parea<\/span>/);
     expect(read('app/components/AccountView.tsx')).not.toMatch(/PageMark/);
     expect(read('app/components/PersonView.tsx')).not.toMatch(/PageMark/);
 

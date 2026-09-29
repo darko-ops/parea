@@ -220,14 +220,19 @@ describe('the head of the shell', () => {
   const CSS = read(join(APP, 'globals.css'));
   const MOBILE = CSS.slice(CSS.indexOf('@media (max-width: 720px)'));
 
-  it('is the wordmark alone, with no mark beside it', () => {
+  it('is the icon glyph on a laptop and the wordmark in the phone bar', () => {
     const lockup = RAIL.slice(
       RAIL.indexOf('className="rail-mark"'),
       RAIL.indexOf('className="rail-create"'),
     );
+    // Both are in the head; CSS shows one. The glyph carries the name for a
+    // screen reader, since the word is display:none on a laptop.
     expect(lockup).toMatch(/className="wordmark">Parea</);
+    expect(lockup).toMatch(/<IconGlyph size=\{34\} label="Parea" \/>/);
+    expect(CSS).toMatch(/\.rail-mark \.wordmark \{ display: none; \}/);
+    expect(MOBILE).toMatch(/\.rail-mark \.wordmark \{ display: inline; \}\s*\.rail-glyph \{ display: none; \}/);
+    // The coloured lockup is not in the rail — the icon's own glyph is.
     expect(lockup).not.toMatch(/<Mark/);
-    // Gone from the file, not merely from the row.
     expect(RAIL).not.toMatch(/import \{ Mark \}/);
     /*
      * And still the mark everywhere it is the only thing saying what this is:

@@ -4946,9 +4946,14 @@ button.link {
    --------------------------------------------------------------------------- */
 .page-greet { padding-left: 48px; text-align: left; pointer-events: none; }
 .page-mark {
-  display: flex; align-items: center; justify-content: center; line-height: 0;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
   color: var(--fg);
 }
+/* The rail's head on a laptop is the icon's glyph; the word is in the page
+   header instead (see `PageMark`). On a phone the bar keeps the word — the
+   rule for that is in the phone block below. */
+.rail-mark .wordmark { display: none; }
+.rail-glyph { display: flex; color: var(--fg); line-height: 0; }
 
 .home-head > .page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
 .home-head > .page-mark { grid-column: 2; grid-row: 1; }
@@ -4973,6 +4978,8 @@ button.link {
    the same thing said twice. */
 @media (max-width: 720px) {
   .page-mark { display: none; }
+  .rail-mark .wordmark { display: inline; }
+  .rail-glyph { display: none; }
   .page-greet { padding-left: 0; text-align: center; }
   .home-head > .page-greet,
   .groups-head > .groups-title.page-greet { grid-column: 2; justify-self: center; text-align: center; }

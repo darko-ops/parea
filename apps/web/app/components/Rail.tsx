@@ -66,6 +66,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CreateMenu } from './CreateMenu';
+import { IconGlyph } from './IconGlyph';
 import { InvitesBadge } from './InvitesBadge';
 import { RailIcon, type RailGlyph } from './RailIcon';
 
@@ -243,8 +244,22 @@ export function Rail({ current }: { current: RailPage }) {
         and the figure over an empty thread — places with nothing else in them
         to say what this is.
       */}
+      {/*
+        The icon's glyph on a laptop, the name in the phone's bar.
+
+        They traded places with the page header: at the top of the rail the
+        glyph — the shape people know from their home screen — and the word
+        itself in the middle of each page's header, where a name reads as a
+        title. On a phone there is no page header to put the name in, so the
+        bar keeps it. Both are here and CSS shows one; the glyph carries the
+        name for a screen reader, and the word is hidden from one on a laptop
+        by `display: none`, which takes it out of the tree too.
+      */}
       <div className="rail-mark">
         <span className="wordmark">Parea</span>
+        <span className="rail-glyph">
+          <IconGlyph size={34} label="Parea" />
+        </span>
       </div>
 
       {/*
