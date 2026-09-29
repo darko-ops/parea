@@ -4965,7 +4965,7 @@ button.link {
 /* On the light page, a light grey rather than the page's black ink: the
    glyph is the brand at rest in the corner, and full black there was the
    heaviest thing on a white screen. White on dark, as it is on the icon. */
-:root[data-theme="light"] .rail-glyph { color: #c4c7ce; }
+:root[data-theme="light"] .rail-glyph { color: #9a9ea7; }
 
 .home-head > .page-greet { grid-column: 1; grid-row: 1; justify-self: start; text-align: left; }
 .home-head > .page-mark { grid-column: 2; grid-row: 1; }
