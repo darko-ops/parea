@@ -2552,9 +2552,11 @@ button.secondary {
   gap: 12px; align-items: start;
 }
 .masonry-column { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-@media (max-width: 1200px) { .masonry { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 900px) { .masonry { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .masonry { grid-template-columns: 1fr; } }
+/* How many columns is decided in `EventView` (`COLUMN_BREAKS`) and set on
+   the element, because the same number decides which photograph goes in
+   which column — a stylesheet that drew a different count from the one the
+   layout was worked out for is how a fourth column ended up stacked under
+   the first. */
 
 /* One photograph, with its chrome on top of it. */
 .tile { position: relative; border-radius: 14px; overflow: hidden; }

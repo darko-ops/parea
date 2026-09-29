@@ -8,10 +8,10 @@ import { useImageFailure } from './useImageFailure';
 /**
  * How wide a tile actually is, so `srcset` can be answered rather than guessed.
  *
- * These track the column counts in `.masonry` and nothing else — four columns
- * above 1200, then three, two and one. Approximate on purpose: a browser uses
- * this to choose between two candidates, not to lay anything out, and the
- * layout is the stylesheet's job. `vw` rather than exact pixels because the
+ * These track the column counts in `COLUMN_BREAKS` (`EventView`) and nothing
+ * else — four columns above 1200, then three, two and one. Approximate on
+ * purpose: a browser uses this to choose between two candidates, not to lay
+ * anything out. `vw` rather than exact pixels because the
  * rail takes a fixed 212 off the left on a wide screen and the arithmetic for
  * that would be a second copy of the layout, kept in step by hand.
  */

@@ -1244,7 +1244,46 @@ function SectionHead({
  * Measuring after load means the whole gallery reflows under the reader's hand
  * as each photograph arrives.
  */
-const COLUMN_COUNTS = 4;
+/**
+ * How many columns, at which widths — the one table both halves read.
+ *
+ * The layout was always worked out for four columns while the stylesheet
+ * drew three below 1200px, two below 900 and one below 600. With a handful
+ * of photographs that did not show: the fourth column was empty. The moment
+ * somebody added enough to fill it, it had nowhere to go in a three-column
+ * row and dropped underneath the first — so a roll that opened as a collage
+ * grew a vertical stack of its newest pictures under it. The count now comes
+ * from the width the gallery is actually drawn at, and the grid is told the
+ * same number, so the two cannot disagree.
+ */
+const COLUMN_BREAKS: [minWidth: number, columns: number][] = [
+  [1201, 4],
+  [901, 3],
+  [601, 2],
+  [0, 1],
+];
+
+function columnsFor(width: number): number {
+  return COLUMN_BREAKS.find(([min]) => width >= min)![1];
+}
+
+/**
+ * The column count for this window, following it as it is resized.
+ *
+ * Four before the browser has said how wide it is — the server's render and
+ * the first frame — which is right for the widest windows and corrected on
+ * the next frame for the rest.
+ */
+function useColumnCount(): number {
+  const [count, setCount] = useState(4);
+  useEffect(() => {
+    const measure = () => setCount(columnsFor(window.innerWidth));
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  return count;
+}
 
 function Masonry({
   photos,
@@ -1264,14 +1303,15 @@ function Masonry({
   /** The contribute tile, which is first in the first column. */
   lead: React.ReactNode;
 }) {
+  const count = useColumnCount();
   const columns = useMemo(() => {
     const out: { photo: Photo; ratio: number }[][] = Array.from(
-      { length: COLUMN_COUNTS },
+      { length: count },
       () => [],
     );
     // Heights in units of column width. The lead tile is a fixed 210px in a
     // ~290px column, so it starts its column part-filled.
-    const heights = Array.from({ length: COLUMN_COUNTS }, (_, i) =>
+    const heights = Array.from({ length: count }, (_, i) =>
       i === 0 && lead ? 0.72 : 0,
     );
     for (const photo of photos) {
@@ -1286,12 +1326,15 @@ function Masonry({
       heights[shortest]! += ratio;
     }
     return out;
-  }, [photos, lead]);
+  }, [count, photos, lead]);
 
   if (photos.length === 0 && !lead) return null;
 
   return (
-    <div className="masonry">
+    <div
+      className="masonry"
+      style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
+    >
       {columns.map((column, i) => (
         <div className="masonry-column" key={i}>
           {i === 0 && lead}
