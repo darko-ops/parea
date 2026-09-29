@@ -6284,8 +6284,20 @@ function PhotoActions({
       Alert.alert(label, done);
       await onChanged();
       onClose();
-    } catch {
-      Alert.alert('That did not work', 'Try again in a moment.');
+    } catch (err) {
+      /*
+       * The two refusals somebody can act on, said as what to do. Asking for a
+       * photo to come down needs an account now — it hides the photo if the
+       * host does not answer, so it is not something a passing browser may do
+       * — and every action here is limited.
+       */
+      if (err instanceof ApiError && err.code === 'sign_in_required') {
+        Alert.alert('Sign in first', 'Asking for a photo to come down needs an account. Open You and sign in.');
+      } else if (err instanceof ApiError && err.code === 'too_many_requests') {
+        Alert.alert('That is a lot at once', 'Wait a while and try again.');
+      } else {
+        Alert.alert('That did not work', 'Try again in a moment.');
+      }
     } finally {
       setBusy(false);
     }

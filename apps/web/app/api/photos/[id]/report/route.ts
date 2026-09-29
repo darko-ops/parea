@@ -25,6 +25,12 @@ import { NextResponse } from 'next/server';
 import { guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { findPhotoWithEvent } from '@/moderation';
+import {
+  QUARANTINE_ON_REPORT_LIMIT,
+  REPORT_LIMIT,
+  withinLimit,
+  withinLimitFor,
+} from '@/ratelimit';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -59,6 +65,14 @@ export async function POST(
 
   const note = typeof body.note === 'string' ? body.note.slice(0, 2000) : null;
   const reporter = await currentActorId();
+
+  // Open to anybody who can see the photo — a report of a child being abused
+  // should cost nothing to make — and limited per source, because one that
+  // hides a photo and wakes a person cannot be free to send a thousand of.
+  const secret = process.env.SESSION_SECRET;
+  if (!(await withinLimit(db, REPORT_LIMIT, secret))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
   await db.insert(schema.reports).values({
     photoId: id,
     reporterActorId: reporter,
@@ -66,8 +80,23 @@ export async function POST(
     note,
   });
 
-  if (QUARANTINES_ON_RECEIPT.has(kind)) {
-    await quarantineOnReport(db, found.photo, found.event.id, reporter);
+  /*
+   * Hidden on receipt — within reason.
+   *
+   * A photo already quarantined is not quarantined again, and nobody is woken
+   * twice for it. And one reporter can hide only so many photos an hour before
+   * a person has looked: past that the report above still stands and is
+   * reviewed like any other, but the photo stays up. Otherwise one account, or
+   * one browser, could empty an album a report at a time and page the
+   * responder once per photograph.
+   */
+  if (QUARANTINES_ON_RECEIPT.has(kind) && found.photo.status !== 'quarantined') {
+    const withinQuarantineBudget = reporter
+      ? await withinLimitFor(db, QUARANTINE_ON_REPORT_LIMIT, secret, reporter)
+      : await withinLimit(db, QUARANTINE_ON_REPORT_LIMIT, secret);
+    if (withinQuarantineBudget) {
+      await quarantineOnReport(db, found.photo, found.event.id, reporter);
+    }
   }
 
   // The same answer either way. A reporter learning that this particular kind

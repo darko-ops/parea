@@ -13,12 +13,18 @@
  */
 
 import { autoHideDeadline, schema } from '@parea/core';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { guard, toResponse } from '@/access';
+import { guard, isSignedIn, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { findPhotoWithEvent } from '@/moderation';
+import {
+  REMOVAL_REQUEST_LIMIT,
+  REMOVAL_REQUESTS_OPEN_PER_EVENT,
+  withinLimit,
+  withinLimitFor,
+} from '@/ratelimit';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -43,6 +49,47 @@ export async function POST(
   }
 
   const actorId = await currentActorId();
+
+  /*
+   * An account, and a limit.
+   *
+   * An unanswered request hides its photo after 48 hours, and anybody who
+   * could see an album — signed out, through a forwarded link — could file one
+   * against every photo in it, with nothing to stop them. Two days later the
+   * album was gone unless the host declined each by hand. Asking for a photo
+   * of you to come down is something a person does, and they are signed in to
+   * do it; a limit per hour and a cap per album bound what one account can do.
+   */
+  if (!actorId || !(await isSignedIn(db, actorId))) {
+    return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
+  }
+  const secret = process.env.SESSION_SECRET;
+  if (
+    !(await withinLimit(db, REMOVAL_REQUEST_LIMIT, secret)) ||
+    !(await withinLimitFor(db, REMOVAL_REQUEST_LIMIT, secret, actorId))
+  ) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+  const [{ open } = { open: 0 }] = await db
+    .select({ open: count() })
+    .from(schema.reports)
+    .where(
+      and(
+        eq(schema.reports.reporterActorId, actorId),
+        eq(schema.reports.kind, 'removal_request'),
+        eq(schema.reports.status, 'open'),
+        inArray(
+          schema.reports.photoId,
+          db
+            .select({ id: schema.photos.id })
+            .from(schema.photos)
+            .where(eq(schema.photos.eventId, found.event.id)),
+        ),
+      ),
+    );
+  if (open >= REMOVAL_REQUESTS_OPEN_PER_EVENT) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
 
   // One open request per photo per person, so repeated taps do not stack up
   // deadlines or spam the host.

@@ -385,6 +385,55 @@ export const CREATE_GROUP_LIMIT: Limit = {
   windowSeconds: 3600,
 };
 
+/**
+ * Asking for photographs to come down, per account.
+ *
+ * An unanswered request hides its photo after 48 hours, so each one is a
+ * small lever on somebody else's album. Anybody who could see an album could
+ * pull it on every photo in it, signed in or not, with no limit — and two days
+ * later the album was gone unless the host declined each request by hand.
+ * Twenty an hour is more than somebody going through a party's photos of
+ * themselves; `REMOVAL_REQUESTS_OPEN_PER_EVENT` bounds the rest.
+ */
+export const REMOVAL_REQUEST_LIMIT: Limit = {
+  name: 'removal-request',
+  max: 20,
+  windowSeconds: 3600,
+};
+
+/** How many requests one person may have waiting on one album at a time. */
+export const REMOVAL_REQUESTS_OPEN_PER_EVENT = 30;
+
+/**
+ * Reporting photographs, per source.
+ *
+ * Open to anybody who can see the photo, signed in or not, on purpose: a
+ * report of a child being abused should cost the person making it nothing.
+ * But a child-safety report hides the photo on receipt and wakes a person, so
+ * an unlimited route was a way to empty an album and page the responder once
+ * per photograph. Twenty an hour is far past anybody reporting in good faith.
+ */
+export const REPORT_LIMIT: Limit = {
+  name: 'report',
+  max: 20,
+  windowSeconds: 3600,
+};
+
+/**
+ * How many photos one reporter's child-safety reports may hide, per hour,
+ * before a person has looked.
+ *
+ * Past this the report is still recorded — nothing a reporter says is thrown
+ * away — but the photo stays up until somebody reviews it. Five is more than
+ * a real report ever needs at once, and it stops one account quarantining an
+ * album a photograph at a time.
+ */
+export const QUARANTINE_ON_REPORT_LIMIT: Limit = {
+  name: 'quarantine-on-report',
+  max: 5,
+  windowSeconds: 3600,
+};
+
 export const JOIN_CODE_LIMIT: Limit = {
   name: 'join-code',
   max: 20,

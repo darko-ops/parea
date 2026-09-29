@@ -510,6 +510,10 @@ function PhotoActions({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(action === 'block' ? { photoId } : {}),
       });
+      if (res.status === 401) {
+        throw new Error('Sign in first. Asking for a photo to come down needs an account.');
+      }
+      if (res.status === 429) throw new Error('That is a lot at once. Wait a while and try again.');
       if (!res.ok) throw new Error('That did not work. Try again.');
       // The message stays and the page stays, including after a block — where
       // what is on screen is now one of the photographs you will not be shown
