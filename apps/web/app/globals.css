@@ -3320,17 +3320,28 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-body { padding: 0 28px 34px; display: flex; gap: 28px; align-items: flex-start; }
 .photo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 
-/* `contain`, so nothing is cropped — this is the one place in the product
-   where the whole frame is the point. The bed shows through whatever the
-   photograph does not fill, in the page's own grey rather than in black. */
+/* The photograph alone, whole — nothing is cropped, and nothing is drawn
+   around it. It had a grey bed showing through wherever it did not fill the
+   box, which read as a second, larger square behind the picture; now the box
+   only holds the height, so the controls under it do not move from one photo
+   to the next, and the corners belong to the photograph.
+
+   No focus ring. The frame takes focus on arrival so the arrow keys work
+   without a click first, but nothing about it can be pressed, and the ring
+   was a blue box drawn round a picture every time one opened. */
 .photo-frame {
-  height: 560px; border-radius: 16px; overflow: hidden;
-  background: var(--photo-bed);
+  height: 560px;
   display: flex; align-items: center; justify-content: center;
 }
-.photo-frame:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.photo-frame picture { display: flex; width: 100%; height: 100%; }
-.photo-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.photo-frame:focus, .photo-frame:focus-visible { outline: none; }
+.photo-frame picture {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
+.photo-frame img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  border-radius: 16px; display: block;
+}
 @media (min-height: 1000px) { .photo-frame { height: min(62vh, 720px); } }
 /* Said out loud, and the frame keeps its height: the actions under it are how
    somebody reports a photograph, and they must not jump up the screen. */
