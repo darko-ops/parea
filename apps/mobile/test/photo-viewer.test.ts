@@ -230,7 +230,10 @@ describe('reacting to a photograph', () => {
     // Share there is still somebody's own press.
     expect(GESTURE).toMatch(/\{onRipple && \(/);
     expect(APP).toMatch(/seed=\{rippling\}/);
-    expect(APP).toMatch(/url: selected\.original, mime: selected\.mime/);
+    // The JPEG rendition: an iPhone original is HEIC, which the moment route
+    // refuses as `unsupported_type`.
+    expect(APP).toMatch(/url: selected\.full,/);
+    expect(APP).toMatch(/mime: selected\.full === selected\.original \? selected\.mime : 'image\/jpeg'/);
   });
 
   it('prints the handle, without an `@`, and never an actor id', () => {

@@ -4953,12 +4953,24 @@ function EventScreen({
             downloading={savingOne === selected.id}
             /*
               Only for somebody who could post one — the same account a
-              comment needs. The original, because a moment is the whole
-              photograph and not a rendition of it.
+              comment needs.
+
+              The 2560 rendition, not the original. An iPhone original is
+              HEIC and the moment route cannot decode HEIC, so every ripple of
+              a phone photo came back refused as `unsupported_type`. `full` is
+              always a JPEG (only the small kinds get an AVIF), and the route
+              shrinks a moment to 2048 anyway, so nothing is lost. Before the
+              deriver has run `full` *is* the original, and then it goes as
+              what it is.
             */
             onRipple={
               feed?.canPost
-                ? () => setRippling({ id: selected.id, url: selected.original, mime: selected.mime })
+                ? () =>
+                    setRippling({
+                      id: selected.id,
+                      url: selected.full,
+                      mime: selected.full === selected.original ? selected.mime : 'image/jpeg',
+                    })
                 : undefined
             }
           />

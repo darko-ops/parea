@@ -491,8 +491,8 @@ export async function fetchForCover(url: string, id: string): Promise<File> {
 /**
  * A roll's photograph, brought down to this phone to be posted as a moment.
  *
- * `fetchForCover`'s shape, with the file's own extension: the moment is its
- * original, and the storage slot is signed for that file's size and type.
+ * `fetchForCover`'s shape, with the file's own extension: the storage slot is
+ * signed for this file's size and type, so the local copy has to be it.
  */
 export async function fetchForMoment(url: string, id: string, mime: string): Promise<string> {
   const target = new File(Paths.cache, `parea-moment-${id}${extensionFor(mime)}`);

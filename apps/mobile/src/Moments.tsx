@@ -168,7 +168,7 @@ export function AddMoment({
   /**
    * A photograph already chosen — the ripple in a roll's viewer.
    *
-   * Its original is fetched to this phone first, because a moment's bytes go
+   * It is fetched to this phone first, because a moment's bytes go
    * phone → storage and the upload reads a local file. The frame waits on a
    * spinner meanwhile; somebody can still pick something else instead.
    */
