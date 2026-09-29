@@ -1273,7 +1273,23 @@ export default function App() {
   useEffect(() => {
     (async () => {
       const token = await loadActorToken();
-      if (token) api.setToken(token);
+      if (token) {
+        api.setToken(token);
+        /*
+         * Traded for a current one, in the background.
+         *
+         * A token minted before sessions were recorded names an actor and no
+         * session, and nothing could revoke it: not signing out, not "sign
+         * out everywhere", not deleting the account. The server now answers
+         * one of those with a token backed by a session, and this is where
+         * the phone asks. A token that is already current comes back as it
+         * went, and a phone with no signal keeps the one it has.
+         */
+        void api
+          .startSession()
+          .then((fresh) => (fresh !== token ? saveActorToken(fresh) : undefined))
+          .catch(() => {});
+      }
       setRemembered(await loadEvents());
       setReady(true);
       // Both after the token: one asks who this device is, the other answers

@@ -75,6 +75,7 @@ import {
   loadSearches,
   rememberSearch,
   saveActorToken,
+  currentPushToken,
   signOutDevice,
   type RecentSearch,
 } from './platform';
@@ -3486,6 +3487,9 @@ export function AccountCard({
           text: 'Sign out',
           style: 'destructive',
           onPress: async () => {
+            // The server first, while this phone still holds the token that
+            // says which session to end. See `signOut` in `api.ts`.
+            await api.signOut(await currentPushToken());
             await signOutDevice();
             // The client keeps the token in memory as well as the keychain,
             // and the next request would carry it happily.

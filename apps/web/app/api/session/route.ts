@@ -75,8 +75,28 @@ export async function POST(request: Request) {
      * that has been getting its `last_seen_at` bumped, which is what the list
      * is for.
      */
+    /*
+     * A token from before sessions were recorded names an actor and nothing
+     * else, and there is no row to revoke — so signing out, "sign out
+     * everywhere" and deleting the account all passed it by. Presented here,
+     * it is traded for one that has a session behind it; the phone stores the
+     * answer (see the launch in `App.tsx`) and the old one stops mattering the
+     * day the old format stops being accepted.
+     */
+    const sessionId =
+      existing.sessionId ??
+      (
+        await startSession(db, {
+          actorId: existing.actorId,
+          kind,
+          userAgent: await userAgent(),
+          // How it was first signed in is not recorded anywhere a token this
+          // old could say; `guest` claims the least.
+          method: 'guest',
+        })
+      ).id;
     return NextResponse.json({
-      actorToken: actorToken(existing.actorId, existing.sessionId),
+      actorToken: actorToken(existing.actorId, sessionId),
     });
   }
 

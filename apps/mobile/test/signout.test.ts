@@ -126,3 +126,45 @@ describe('what the tabs keep', () => {
     expect(events).toMatch(/await signOutDevice\(\);[\s\S]{0,200}api\.setToken\(null\)/);
   });
 });
+
+/*
+ * And the server is told, not only the keychain. It used to clear the keychain
+ * and nothing else: the token stayed valid for up to 440 days, the phone stayed
+ * on the Devices screen, and its push token went on receiving the account's
+ * notifications.
+ */
+const read = (path: string) =>
+  readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+const EVENTS = read('src/Events.tsx');
+const API = read('src/api.ts');
+const APP = read('App.tsx');
+
+describe('signing out ends the session on the server', () => {
+  it('tells the server before the phone forgets the token that says who', () => {
+    const told = EVENTS.indexOf('await api.signOut(await currentPushToken());');
+    expect(told).toBeGreaterThan(-1);
+    expect(told).toBeLessThan(EVENTS.indexOf('await signOutDevice();', told));
+  });
+
+  it('ends the session and stops the notifications, and never blocks on either', () => {
+    const signOut = API.slice(API.indexOf('async signOut(pushToken'), API.indexOf('endOtherDevices('));
+    expect(signOut).toMatch(/'\/api\/devices', \{\s*method: 'DELETE'/);
+    expect(signOut).toMatch(/'\/api\/account\/session', \{ method: 'DELETE' \}\)\.catch\(\(\) => \{\}\)/);
+  });
+
+  it('asks nothing on the way out', () => {
+    // The push token is read only if notifications are already allowed.
+    const current = platform.slice(
+      platform.indexOf('export async function currentPushToken'),
+      platform.indexOf('export async function registerForPush'),
+    );
+    expect(current).not.toMatch(/requestPermissionsAsync/);
+  });
+});
+
+describe('an old token', () => {
+  it('is traded for a current one at launch', () => {
+    expect(APP).toMatch(/\.startSession\(\)\s*\.then\(\(fresh\) => \(fresh !== token \? saveActorToken\(fresh\) : undefined\)\)/);
+  });
+});

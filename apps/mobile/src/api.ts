@@ -1964,6 +1964,29 @@ export class Api {
     return this.call(`/api/account/devices/${id}`, { method: 'DELETE' });
   }
 
+  /**
+   * Ends this phone's session on the server, and stops its notifications.
+   *
+   * Signing out used to clear the keychain and nothing else. The token went on
+   * being valid on the server for up to 440 days of disuse, the phone stayed
+   * on the Devices screen as signed in, and its push token kept receiving the
+   * account's notifications. Anybody who had copied the token — a backup, a
+   * debugging session — still held a live credential.
+   *
+   * Both calls are best-effort and neither is waited on for permission: a
+   * phone signing out with no signal still forgets everything locally, and a
+   * sign-out that could fail would be a worse bug than the one this fixes.
+   */
+  async signOut(pushToken: string | null): Promise<void> {
+    if (pushToken) {
+      await this.call('/api/devices', {
+        method: 'DELETE',
+        body: JSON.stringify({ pushToken }),
+      }).catch(() => {});
+    }
+    await this.call('/api/account/session', { method: 'DELETE' }).catch(() => {});
+  }
+
   endOtherDevices(): Promise<{ ended: number }> {
     return this.call('/api/account/devices', { method: 'DELETE' });
   }

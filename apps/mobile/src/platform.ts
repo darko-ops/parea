@@ -752,6 +752,25 @@ export async function markLibraryAsked(): Promise<void> {
   });
 }
 
+/**
+ * This phone's push token, if notifications are already allowed — and never a
+ * prompt.
+ *
+ * For signing out, which has to tell the server to stop sending this phone
+ * somebody's notifications. Asking for permission on the way out would be the
+ * wrong question at the wrong moment, and a phone that never allowed them has
+ * nothing registered to take back.
+ */
+export async function currentPushToken(): Promise<string | null> {
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    if (!existing.granted) return null;
+    return (await Notifications.getExpoPushTokenAsync()).data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function registerForPush(): Promise<string | null> {
   // Recorded before the prompt, not after: asking twice is worse than never
   // learning the answer, and a crash mid-prompt should not re-ask.
