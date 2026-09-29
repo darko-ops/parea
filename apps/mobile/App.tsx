@@ -2283,6 +2283,8 @@ function EventScreen({
   const [uploading, setUploading] = useState(0);
   const [waitingForNetwork, setWaitingForNetwork] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  /** Which button the progress belongs to: the whole roll, or its favourites. */
+  const [savingScope, setSavingScope] = useState<'all' | 'favourites' | null>(null);
   const [selected, setSelected] = useState<FeedPhoto | null>(null);
   /**
    * The photograph being made a moment, from the viewer's ripple.
@@ -2862,14 +2864,17 @@ function EventScreen({
    * the native client's terminal action quietly returned downscaled copies of
    * photos the product promises at full quality.
    */
-  const saveAll = useCallback(async () => {
-    if (!feed || feed.photos.length === 0) return;
+  const saveSet = useCallback((scope: 'all' | 'favourites') => {
+    if (!feed) return;
+    const chosen = scope === 'all' ? feed.photos : feed.photos.filter((p) => p.favourite);
+    if (chosen.length === 0) return;
 
     /** The size question, about whichever set was chosen. */
     const ask = (photos: FeedPhoto[]) => {
       const bytes = photos.reduce((sum, p) => sum + (p.byteSize ?? 0), 0);
       const run = async (kind: 'original' | 'full') => {
         setSaving('Starting…');
+        setSavingScope(scope);
         try {
           const { saved, failed } = await saveToCameraRoll(
             photos.map((p) => ({
@@ -2889,6 +2894,7 @@ function EventScreen({
           Alert.alert('Could not save', err instanceof Error ? err.message : String(err));
         } finally {
           setSaving(null);
+          setSavingScope(null);
         }
       };
 
@@ -2903,24 +2909,7 @@ function EventScreen({
       );
     };
 
-    /*
-     * Everything, or only the ones you starred.
-     *
-     * Asked first, and only when the answer could differ — no favourites, or
-     * every photograph a favourite, and there is nothing to choose. A step of
-     * its own rather than a fourth button on the size question: Android's
-     * alert draws three at most and drops the rest without a word.
-     */
-    const favourites = feed.photos.filter((p) => p.favourite);
-    if (favourites.length === 0 || favourites.length === feed.photos.length) {
-      ask(feed.photos);
-      return;
-    }
-    Alert.alert('Download which?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: `Favorites (${favourites.length})`, onPress: () => ask(favourites) },
-      { text: `All ${feed.photos.length} photos`, onPress: () => ask(feed.photos) },
-    ]);
+    ask(chosen);
   }, [feed]);
 
   /**
@@ -4650,12 +4639,14 @@ function EventScreen({
           policy={policy}
           policyError={policyError}
           saving={saving}
+          savingScope={savingScope}
           Button={ButtonEl}
           onClose={() => setSheetOpen(false)}
           copied={copied}
           feedError={feedError}
           onCopyLink={copyLink}
-          onSaveAll={saveAll}
+          onSaveAll={() => saveSet('all')}
+          onSaveFavourites={() => saveSet('favourites')}
           onDelete={deleteAlbum}
           onLeave={leaveAlbum}
           onEditCover={framer}
@@ -5417,6 +5408,8 @@ function HostSheet({
   onClose,
   onCopyLink,
   onSaveAll,
+  onSaveFavourites,
+  savingScope,
   onDelete,
   onLeave,
   onEditCover,
@@ -5449,6 +5442,9 @@ function HostSheet({
   onClose: () => void;
   onCopyLink: () => void;
   onSaveAll: () => void;
+  /** Only the starred ones — the same size question, about fewer photos. */
+  onSaveFavourites: () => void;
+  savingScope: 'all' | 'favourites' | null;
   onDelete: () => void;
   onLeave: () => void;
   onEditCover: () => void;
@@ -5505,6 +5501,7 @@ function HostSheet({
   const host = feed?.event.canAdminister === true;
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
   const photos = feed?.photos.length ?? 0;
+  const favourites = feed?.photos.filter((p) => p.favourite).length ?? 0;
 
   /*
    * The album's co-hosts, and the people about to be asked to be one.
@@ -5606,13 +5603,27 @@ function HostSheet({
               <Action
                 t={t}
                 icon="download"
-                label={saving ?? 'Download Roll'}
+                label={(savingScope === 'all' && saving) || 'Download Roll'}
                 onPress={onSaveAll}
                 /* Nothing to download from an empty album, and a live button
                    that can only apologise is worse than one that is plainly
                    not yet for you. */
                 disabled={photos === 0 || saving !== null}
               />
+              {/*
+                Just the ones you starred, beside the whole roll. Only drawn
+                when there are some: a button that can only say "you have none"
+                is a quarter of the row spent on nothing.
+              */}
+              {favourites > 0 && (
+                <Action
+                  t={t}
+                  icon="star"
+                  label={(savingScope === 'favourites' && saving) || 'Download Favorites'}
+                  onPress={onSaveFavourites}
+                  disabled={saving !== null}
+                />
+              )}
               {/*
                 Empty until the answer is in, rather than wrong until then.
 

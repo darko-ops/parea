@@ -2,8 +2,9 @@
  * Downloading only the photographs you starred.
  *
  * The route already takes a selection — `Select images` sends one — so this is
- * the Favorites tab's list handed to it, in both of the menus the download
- * lives in, and only when there is something starred to send.
+ * the Favorites tab's list handed to it, in both of the web's download menus
+ * and as its own button in the phone's roll sheet — only when there is
+ * something starred to send.
  */
 
 import { readFileSync } from 'node:fs';
@@ -24,9 +25,11 @@ describe('download favorites', () => {
     expect(EVENT.match(/\{favourites\.length > 0 && \(/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
-  it('is asked on the phone before the size, and only when it could differ', () => {
-    expect(APP).toMatch(/const favourites = feed\.photos\.filter\(\(p\) => p\.favourite\);/);
-    expect(APP).toMatch(/favourites\.length === 0 \|\| favourites\.length === feed\.photos\.length/);
-    expect(APP).toMatch(/text: `Favorites \(\$\{favourites\.length\}\)`, onPress: \(\) => ask\(favourites\)/);
+  it('is its own button in the phone roll sheet, beside Download Roll', () => {
+    const at = APP.indexOf("label={(savingScope === 'favourites' && saving) || 'Download Favorites'}");
+    expect(at).toBeGreaterThan(APP.indexOf("|| 'Download Roll'}"));
+    // Only when there are some to download.
+    expect(APP).toMatch(/\{favourites > 0 && \(\s*<Action/);
+    expect(APP).toMatch(/onSaveFavourites=\{\(\) => saveSet\('favourites'\)\}/);
   });
 });

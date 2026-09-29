@@ -45,9 +45,10 @@ describe('the row of three', () => {
     expect(SHEET).not.toBe('');
   });
 
-  it('is copy, download, and the way out', () => {
+  it('is copy, download, your favorites, and the way out', () => {
     expect(SHEET).toMatch(/icon="share"[\s\S]{0,400}'Copy link'/);
-    expect(SHEET).toMatch(/icon="download"[\s\S]{0,120}label=\{saving \?\? 'Download Roll'\}/);
+    expect(SHEET).toMatch(/icon="download"[\s\S]{0,120}label=\{\(savingScope === 'all' && saving\) \|\| 'Download Roll'\}/);
+    expect(SHEET).toMatch(/icon="star"[\s\S]{0,120}'Download Favorites'/);
     expect(SHEET).toMatch(/icon="trash" label="Delete Roll"/);
     expect(SHEET).toMatch(/icon="door" label="Leave Roll"/);
   });
