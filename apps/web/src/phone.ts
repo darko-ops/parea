@@ -42,7 +42,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
@@ -239,20 +239,52 @@ export async function confirmVerification(
     .limit(1);
 
   if (!row) return { ok: false, reason: 'no_code' };
-  if (row.attempts >= MAX_PHONE_ATTEMPTS) return { ok: false, reason: 'too_many' };
-  if (row.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: 'expired' };
+
+  /*
+   * The attempt is taken before the code is compared, in one statement.
+   *
+   * The same race `consumeCode` had: read, compare, then write `attempts + 1`
+   * from what was read, so guesses sent together all read zero and the ceiling
+   * only held for guesses made one at a time. Here it would let somebody prove
+   * a number that is not theirs and be found by it. Claiming the attempt in the
+   * database first makes the fifth guess the last however many arrive at once.
+   */
+  const [claimed] = await db
+    .update(schema.phoneCodes)
+    .set({ attempts: sql`${schema.phoneCodes.attempts} + 1` })
+    .where(
+      and(
+        eq(schema.phoneCodes.id, row.id),
+        isNull(schema.phoneCodes.consumedAt),
+        lt(schema.phoneCodes.attempts, MAX_PHONE_ATTEMPTS),
+        gt(schema.phoneCodes.expiresAt, now),
+      ),
+    )
+    .returning({ codeHash: schema.phoneCodes.codeHash });
+
+  if (!claimed) {
+    const [current] = await db
+      .select()
+      .from(schema.phoneCodes)
+      .where(eq(schema.phoneCodes.id, row.id))
+      .limit(1);
+    if (!current || current.consumedAt) return { ok: false, reason: 'no_code' };
+    if (current.attempts >= MAX_PHONE_ATTEMPTS) return { ok: false, reason: 'too_many' };
+    return { ok: false, reason: 'expired' };
+  }
 
   const expected = hashCode(secret, actorId, code);
-  const stored = Buffer.from(row.codeHash);
+  const stored = Buffer.from(claimed.codeHash);
   const matches = stored.length === expected.length && timingSafeEqual(stored, expected);
+  if (!matches) return { ok: false, reason: 'wrong' };
 
-  if (!matches) {
-    await db
-      .update(schema.phoneCodes)
-      .set({ attempts: row.attempts + 1 })
-      .where(eq(schema.phoneCodes.id, row.id));
-    return { ok: false, reason: 'wrong' };
-  }
+  // Spent once, by whichever of two simultaneous right answers gets here first.
+  const [spent] = await db
+    .update(schema.phoneCodes)
+    .set({ consumedAt: now })
+    .where(and(eq(schema.phoneCodes.id, row.id), isNull(schema.phoneCodes.consumedAt)))
+    .returning({ id: schema.phoneCodes.id });
+  if (!spent) return { ok: false, reason: 'no_code' };
 
   /*
    * Every outstanding row for this actor, not only the one just read.

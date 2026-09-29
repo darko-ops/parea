@@ -157,6 +157,37 @@ describe('presenting a code', () => {
     });
   });
 
+  it('holds at five guesses when they all arrive at once', async () => {
+    /*
+     * The ceiling used to be read, compared and then written back, so guesses
+     * sent together all read "no attempts yet" and every one of them was
+     * checked. Twenty at once is the shape of the attack: spread over enough
+     * addresses, a six-digit code could be walked in the ten minutes it lives.
+     */
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const guesses = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        consumeCode(db, SECRET, 'sam@example.com', String(100000 + i).padStart(6, '0')),
+      ),
+    );
+    expect(guesses.filter((g) => !g.ok && g.reason === 'wrong')).toHaveLength(MAX_CODE_ATTEMPTS);
+    expect(guesses.filter((g) => !g.ok && g.reason === 'too_many')).toHaveLength(20 - MAX_CODE_ATTEMPTS);
+    // The budget is spent, so the right code does not get through either.
+    expect(await consumeCode(db, SECRET, 'sam@example.com', '123456')).toEqual({
+      ok: false,
+      reason: 'too_many',
+    });
+  });
+
+  it('signs in once when the right code arrives twice at the same moment', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const both = await Promise.all([
+      consumeCode(db, SECRET, 'sam@example.com', '123456'),
+      consumeCode(db, SECRET, 'sam@example.com', '123456'),
+    ]);
+    expect(both.filter((c) => c.ok)).toHaveLength(1);
+  });
+
   it('expires', async () => {
     const past = new Date(Date.now() - 60 * 60_000);
     await storeCode(db, SECRET, 'sam@example.com', '123456', past);
@@ -842,5 +873,18 @@ describe('signing in with an actor that no longer exists', () => {
       .where(eq(schema.actors.id, actor!.id));
     expect(row!.accountId).toBeTruthy();
     expect(await accountFor(db, actor!.id)).toMatchObject({ email: 'real@example.com' });
+  });
+});
+
+describe('the route that takes a code', () => {
+  it('bounds guesses per address as well as per source', () => {
+    // Many sources converging on one account each had their own allowance.
+    const route = readFileSync(
+      fileURLToPath(new URL('../app/api/account/session/route.ts', import.meta.url)),
+      'utf8',
+    );
+    const perAddress = route.indexOf('withinLimitFor(db, SIGN_IN_VERIFY_ADDRESS_LIMIT, secret, email)');
+    expect(perAddress).toBeGreaterThan(-1);
+    expect(perAddress).toBeLessThan(route.indexOf('consumeCode(db, secret, email, code)'));
   });
 });

@@ -24,7 +24,12 @@ import { NextResponse } from 'next/server';
 import { accountFor, consumeCode, signIn } from '@/accounts';
 import { getDb } from '@/db';
 import { hasPasskey, passkeyOwnerHasAccount, verifyAuthentication } from '@/passkeys';
-import { SIGN_IN_VERIFY_LIMIT, withinLimit } from '@/ratelimit';
+import {
+  SIGN_IN_VERIFY_ADDRESS_LIMIT,
+  SIGN_IN_VERIFY_LIMIT,
+  withinLimit,
+  withinLimitFor,
+} from '@/ratelimit';
 import {
   actorToken,
   currentActorId,
@@ -189,6 +194,16 @@ async function provenByCode(
     return {
       ok: false,
       response: NextResponse.json({ error: 'not_configured' }, { status: 503 }),
+    };
+  }
+
+  // And per address, so many sources cannot converge on one account. Counted
+  // for every address presented, so a refusal says nothing about whether it
+  // has an account. See the note on the limit.
+  if (!(await withinLimitFor(db, SIGN_IN_VERIFY_ADDRESS_LIMIT, secret, email))) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'too_many_requests' }, { status: 429 }),
     };
   }
 

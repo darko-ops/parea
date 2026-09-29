@@ -147,6 +147,30 @@ export const SIGN_IN_VERIFY_LIMIT: Limit = {
 };
 
 /**
+ * Presenting a code, per address — the other half of the bound above.
+ *
+ * `SIGN_IN_VERIFY_LIMIT` stops one source spraying many addresses. Nothing
+ * stopped many sources converging on one: each got its own thirty, so a
+ * thousand addresses were thirty thousand guesses an hour at somebody's
+ * account. The attempt counter on the row now holds at five however the
+ * guesses arrive, and this caps the rest — fresh codes requested to reset it.
+ *
+ * Twenty-five is exactly the honest ceiling: five codes an hour can reach an
+ * address (`SIGN_IN_ADDRESS_LIMIT`) and each allows five tries. It is counted
+ * for every address presented, with or without an account behind it, so being
+ * refused says nothing about whether one exists.
+ *
+ * The cost is known and accepted: somebody can spend an address's allowance
+ * and keep its owner from signing in *by code* for up to an hour. A passkey
+ * still works, and an hour of that is a much smaller harm than the account.
+ */
+export const SIGN_IN_VERIFY_ADDRESS_LIMIT: Limit = {
+  name: 'sign-in-verify-address',
+  max: 25,
+  windowSeconds: 3600,
+};
+
+/**
  * Starting a WebAuthn ceremony, per source.
  *
  * Not a guessing bound — a passkey assertion is a signature over a challenge

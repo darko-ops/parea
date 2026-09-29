@@ -138,23 +138,65 @@ export async function consumeCode(
     .limit(1);
 
   if (!row) return { ok: false, reason: 'no_code' };
-  if (row.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, reason: 'too_many' };
-  if (row.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: 'expired' };
+
+  /*
+   * The attempt is taken before the code is compared, in one statement.
+   *
+   * This read the row, compared, and then wrote `attempts + 1` from what it had
+   * read — so twenty guesses sent at once all read `attempts = 0`, all passed
+   * the check, and all wrote 1. The ceiling of five was a ceiling on guesses
+   * made one after another, and none at all on guesses made together: with
+   * enough addresses to spread them over, a six-digit code could be walked in
+   * the ten minutes it lives. Claiming the attempt in the database, and only
+   * comparing when the claim succeeds, makes the fifth guess the last one
+   * however many arrive at once.
+   */
+  const [claimed] = await db
+    .update(schema.signInCodes)
+    .set({ attempts: sql`${schema.signInCodes.attempts} + 1` })
+    .where(
+      and(
+        eq(schema.signInCodes.id, row.id),
+        isNull(schema.signInCodes.consumedAt),
+        lt(schema.signInCodes.attempts, MAX_CODE_ATTEMPTS),
+        gt(schema.signInCodes.expiresAt, now),
+      ),
+    )
+    .returning({ codeHash: schema.signInCodes.codeHash });
+
+  if (!claimed) {
+    // Why there was nothing to claim, read fresh: another request may have
+    // spent the last attempt, or the code, since the row above was read.
+    const [current] = await db
+      .select()
+      .from(schema.signInCodes)
+      .where(eq(schema.signInCodes.id, row.id))
+      .limit(1);
+    if (!current || current.consumedAt) return { ok: false, reason: 'no_code' };
+    if (current.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, reason: 'too_many' };
+    return { ok: false, reason: 'expired' };
+  }
 
   const expected = hashCode(secret, email, code);
-  const stored = Buffer.from(row.codeHash);
+  const stored = Buffer.from(claimed.codeHash);
   const matches =
     stored.length === expected.length && timingSafeEqual(stored, expected);
 
-  if (!matches) {
-    // Counted against the code, not the request: a fresh code would otherwise
-    // reset the budget and there would be no ceiling at all.
-    await db
-      .update(schema.signInCodes)
-      .set({ attempts: row.attempts + 1 })
-      .where(eq(schema.signInCodes.id, row.id));
-    return { ok: false, reason: 'wrong' };
-  }
+  // Counted already, against the code rather than the request: a fresh code
+  // would otherwise reset the budget and there would be no ceiling at all.
+  if (!matches) return { ok: false, reason: 'wrong' };
+
+  /*
+   * Spent once. Two requests carrying the right code at the same moment both
+   * reach here, and only the one whose update finds the row unconsumed signs
+   * anybody in.
+   */
+  const [spent] = await db
+    .update(schema.signInCodes)
+    .set({ consumedAt: now })
+    .where(and(eq(schema.signInCodes.id, row.id), isNull(schema.signInCodes.consumedAt)))
+    .returning({ id: schema.signInCodes.id });
+  if (!spent) return { ok: false, reason: 'no_code' };
 
   /*
    * Every outstanding row for this address, not only the one just read.

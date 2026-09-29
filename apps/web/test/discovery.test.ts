@@ -212,6 +212,23 @@ describe('the code that proves it', () => {
     });
   });
 
+  it('holds at five guesses when they all arrive at once', async () => {
+    // The same race the sign-in code had: here it would let somebody prove a
+    // number that is not theirs, and be found by it.
+    const me = await person('me');
+    await startVerification(db, SECRET, me, '+15550104477', '123456');
+    const guesses = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        confirmVerification(db, SECRET, me, String(200000 + i).padStart(6, '0')),
+      ),
+    );
+    expect(guesses.filter((g) => !g.ok && g.reason === 'wrong')).toHaveLength(MAX_PHONE_ATTEMPTS);
+    expect(await confirmVerification(db, SECRET, me, '123456')).toEqual({
+      ok: false,
+      reason: 'too_many',
+    });
+  });
+
   it('expires, and says so rather than failing to match', async () => {
     const me = await person('me');
     const longAgo = new Date(Date.now() - PHONE_CODE_TTL_MS - 1000);
