@@ -461,17 +461,29 @@ export async function avatarUrl(key: string | null): Promise<string | null> {
 }
 
 /**
- * Deletes the account, and only the account.
+ * Deletes the account, and everything about the person that is not somebody
+ * else's too.
  *
- * The actor survives as a guest, keeping its uploads. That is a judgement
- * worth stating: the photos are in other people's events, and the person can
- * still remove any of them one at a time or all at once — `deleteEverything`
- * below is offered next to this in the UI. Silently tombstoning a shared event
- * because someone closed an account would take away other people's copies of
- * an evening they were also at.
+ * The actor survives as a nameless guest, keeping its uploads. That is a
+ * judgement worth stating: the photos are in other people's events, and the
+ * person can still remove any of them one at a time or all at once —
+ * `deleteEverything` below is offered next to this in the UI. Silently
+ * tombstoning a shared event because someone closed an account would take away
+ * other people's copies of an evening they were also at.
  *
- * What is deleted here is what an account *is*: the address, and the link
- * between it and this person's devices.
+ * Everything else goes. This used to delete the address and the passkeys and
+ * nothing more, so a "deleted" person kept their name, handle, bio, picture
+ * and phone number on the actor that survived; every message they had
+ * written; their friendships, groups, reactions, tags and history; and every
+ * session and push token, so their phones stayed signed in — as a guest — and
+ * went on receiving their notifications. The privacy page promised more, and
+ * so does Apple (guideline 5.1.1(v): the account *and its data*).
+ *
+ * What is kept, on purpose, and said so on the privacy page: the photographs
+ * (see above), the events and groups they made, which belong to everybody in
+ * them, and the safety and moderation records — reports they filed, incidents
+ * about what they uploaded — which a reviewer may need long after, and which
+ * the law may require.
  */
 export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
   const [actor] = await db
@@ -481,6 +493,7 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
     .limit(1);
   if (!actor?.accountId) return false;
 
+  let avatarKeys: string[] = [];
   await db.transaction(async (tx) => {
     /*
      * The passkeys go, and they go first.
@@ -503,13 +516,95 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
       .where(eq(schema.actors.accountId, actor.accountId!));
     await tx.delete(schema.passkeys).where(inArray(schema.passkeys.actorId, theirs));
 
+    const ids = (await theirs).map((row) => row.id);
+    avatarKeys = await eraseActors(tx as unknown as Db, ids);
+
     await tx
       .update(schema.actors)
       .set({ accountId: null, kind: 'guest' })
       .where(eq(schema.actors.accountId, actor.accountId!));
     await tx.delete(schema.accounts).where(eq(schema.accounts.id, actor.accountId!));
   });
+
+  // The pictures, after the rows that pointed at them are gone. Best-effort:
+  // a stray object nobody can address is a cost, not an exposure.
+  for (const key of avatarKeys) {
+    try {
+      await getStorage().delete(key);
+    } catch (err) {
+      console.error(`account deletion could not remove ${key}: ${err}`);
+    }
+  }
   return true;
+}
+
+/**
+ * Everything about these actors that is theirs alone. See `deleteAccount`.
+ *
+ * Returns the profile pictures to delete from storage once the transaction has
+ * committed. Every statement is scoped to the actors' own ids; nothing here
+ * touches a row that is somebody else's — a block somebody made against them
+ * stays, because it protects the other person.
+ */
+async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `);
+
+  const avatars = (await db.execute(sql`
+    select avatar_key as key from "actor" where id in (${list}) and avatar_key is not null
+  `)) as unknown as { key: string }[] | { rows: { key: string }[] };
+  const avatarKeys = (Array.isArray(avatars) ? avatars : avatars.rows).map((row) => row.key);
+
+  // Who they were: nothing that names or reaches them survives on the actor.
+  await db.execute(sql`
+    update "actor" set
+      display_name = null, handle = null, bio = null, link = null, avatar_key = null,
+      phone_hash = null, phone_last2 = null, phone_verified_at = null,
+      discoverable = false
+    where id in (${list})
+  `);
+
+  // Signed out everywhere, and no phone of theirs is sent anything again.
+  await db.execute(sql`update "session" set revoked_at = now() where actor_id in (${list}) and revoked_at is null`);
+  for (const table of [
+    'device',
+    'phone_code',
+    'webauthn_challenge',
+    'friendship',
+    'group_member',
+    'group_invite',
+    'group_join_request',
+    'event_participant',
+    'event_invite',
+    'event_access_request',
+    'event_host_request',
+    'photo_favourite',
+    'photo_reaction',
+    'message_reaction',
+    'group_message_reaction',
+    'moment_reaction',
+    'moment_view',
+    'moment_comment',
+    'event_thread_read',
+    'group_thread_read',
+    'hidden_activity',
+    'observation',
+  ]) {
+    await db.execute(sql`delete from ${sql.identifier(table)} where actor_id in (${list})`);
+  }
+  // The other ends of what they were part of.
+  await db.execute(sql`delete from "friendship" where friend_actor_id in (${list})`);
+  await db.execute(sql`delete from "friend_request" where from_actor_id in (${list}) or to_actor_id in (${list})`);
+  await db.execute(sql`delete from "block" where blocker_actor_id in (${list})`);
+  // Where they are in somebody's photograph, and who they said was in one.
+  await db.execute(sql`delete from "photo_tag" where actor_id in (${list})`);
+  // What they said, blanked the way deleting a single message blanks it.
+  await db.execute(sql`update "event_message" set body = '', deleted_at = coalesce(deleted_at, now()) where author_actor_id in (${list})`);
+  await db.execute(sql`update "group_message" set body = '', deleted_at = coalesce(deleted_at, now()) where author_actor_id in (${list})`);
+  // A moment is theirs alone; it goes whichever kind of deletion this is.
+  await db.execute(sql`update "moment" set deleted_at = coalesce(deleted_at, now()) where actor_id in (${list})`);
+
+  return avatarKeys;
 }
 
 /** Tombstones every photo this actor uploaded. The purge job removes the bytes. */

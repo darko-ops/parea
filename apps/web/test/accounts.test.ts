@@ -668,6 +668,84 @@ describe('deleting an account', () => {
   it('says nothing happened for someone with no account', async () => {
     expect(await deleteAccount(db, await actor())).toBe(false);
   });
+
+  it('takes everything about the person that is not somebody else’s too', async () => {
+    /*
+     * It used to take the address and the passkeys and nothing more: the name,
+     * handle, picture and phone stayed on the actor, every message stayed, and
+     * every phone stayed signed in and went on getting notifications.
+     */
+    const me = await actor();
+    const other = await actor();
+    await signIn(db, 'sam@example.com', me);
+    await db
+      .update(schema.actors)
+      .set({
+        displayName: 'Sam',
+        handle: 'sam',
+        bio: 'hello',
+        link: 'https://example.com',
+        avatarKey: 'avatars/sam.jpg',
+        phoneHash: 'hash-of-a-number',
+        phoneLast2: '42',
+        phoneVerifiedAt: new Date(),
+        discoverable: true,
+      })
+      .where(eq(schema.actors.id, me));
+    await db.insert(schema.sessions).values({ actorId: me, kind: 'ios', method: 'code' });
+    await db.insert(schema.devices).values({ actorId: me, platform: 'ios', pushToken: 'push-token' });
+    await db.insert(schema.friendships).values([
+      { actorId: me, friendActorId: other },
+      { actorId: other, friendActorId: me },
+    ]);
+    const [room] = await db.insert(schema.groups).values({ name: 'Crew', slug: 'crew' }).returning();
+    await db.insert(schema.groupMembers).values([
+      { groupId: room!.id, actorId: me },
+      { groupId: room!.id, actorId: other },
+    ]);
+    const roll = await event(other);
+    const theirPhoto = await photo(roll, other);
+    await db.insert(schema.eventMessages).values({ eventId: roll, authorActorId: me, body: 'my words' });
+    await db.insert(schema.photoReactions).values({ photoId: theirPhoto, actorId: me, emoji: '❤️' });
+    await db.insert(schema.moments).values({ actorId: me, key: 'moments/x.jpg', width: 1, height: 1 });
+    await db.insert(schema.blocks).values([
+      { blockerActorId: me, blockedActorId: other },
+      { blockerActorId: other, blockedActorId: me },
+    ]);
+    await db.insert(schema.reports).values({ photoId: theirPhoto, reporterActorId: me, kind: 'abuse' });
+
+    expect(await deleteAccount(db, me)).toBe(true);
+
+    const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, me));
+    expect(row).toMatchObject({
+      displayName: null,
+      handle: null,
+      bio: null,
+      link: null,
+      avatarKey: null,
+      phoneHash: null,
+      phoneLast2: null,
+      phoneVerifiedAt: null,
+      discoverable: false,
+    });
+    const [session] = await db.select().from(schema.sessions);
+    expect(session!.revokedAt, 'signed out everywhere').not.toBeNull();
+    expect(await db.select().from(schema.devices)).toHaveLength(0);
+    expect(await db.select().from(schema.friendships)).toHaveLength(0);
+    expect((await db.select().from(schema.groupMembers)).map((m) => m.actorId)).toEqual([other]);
+    const [message] = await db.select().from(schema.eventMessages);
+    expect(message).toMatchObject({ body: '' });
+    expect(message!.deletedAt).not.toBeNull();
+    expect(await db.select().from(schema.photoReactions)).toHaveLength(0);
+    const [moment] = await db.select().from(schema.moments);
+    expect(moment!.deletedAt).not.toBeNull();
+
+    // What is somebody else's, or a safety record, stays.
+    const blocks = await db.select().from(schema.blocks);
+    expect(blocks.map((b) => b.blockerActorId)).toEqual([other]);
+    expect(await db.select().from(schema.reports)).toHaveLength(1);
+    expect(await db.select().from(schema.groups)).toHaveLength(1);
+  });
 });
 
 /**

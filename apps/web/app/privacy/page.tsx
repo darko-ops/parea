@@ -612,10 +612,17 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Delete your account</strong> at <a href="/account">/account</a>,
-              or in the app. Two separate things are offered: removing the
-              account and the email address, which leaves your photos in other
-              people&rsquo;s rolls where they can still be removed one at a
-              time; or removing the account and everything you ever uploaded.
+              or in the app. Either way your email address, name, handle,
+              picture, bio, link and phone number are removed; so are your
+              friendships, your place in every group, your messages and
+              comments, your reactions, your tags, your moments and your
+              history in the app, and every device you were signed in on is
+              signed out and stops getting notifications. Then you choose what
+              happens to your photos: left in other people&rsquo;s rolls, with
+              no name on them, where they can still be removed one at a time;
+              or removed as well. The rolls and groups you made stay, because
+              they belong to everyone in them, and so do safety and moderation
+              records, which may have to be kept by law.
             </li>
             <li>
               <strong>Ask us for a copy of what is held about you</strong>, or ask
