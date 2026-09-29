@@ -4286,8 +4286,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   .event-head-row { flex-wrap: wrap; gap: 0 10px; }
   /* `auto`, not `100%`. At 100% the text takes the whole first line and the
      back chevron beside it is pushed onto a line of its own — a row containing
-     one glyph, which is the opposite of the point. The actions below carry the
-     full basis instead, and they are what wraps. */
+     one glyph, which is the opposite of the point. */
   .event-head-text { flex: 1 1 auto; min-width: 0; }
   /*
    * `1 1 0`, not `1 1 auto`. With `auto` the basis is this block's max-content
@@ -4319,9 +4318,12 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   .event-who { margin-top: 4px !important; font-size: 12.5px; }
   .event-said { margin-top: 6px !important; font-size: 13px; }
 
-  .event-actions {
-    flex: 1 1 100%; margin-top: 12px; gap: 8px;
-  }
+  /* On the title's line, in the top right corner — the `···` is all that is
+     left of the actions on a phone, and a line of its own put it at the
+     header's lower left, with its panel hanging off the screen's left edge
+     from there. In the corner the panel opens leftward onto the page. */
+  .event-actions { flex: none; align-self: flex-start; gap: 8px; }
+  .event-actions .dots-body { max-width: calc(100vw - 32px); }
   /* The one thing the page is for takes the room the others do not need. */
   /* Invite and the download menu fold into the `···`, which is where the
      event's other settings already are. */
