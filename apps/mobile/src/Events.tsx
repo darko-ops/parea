@@ -1838,8 +1838,8 @@ function ConversationLine({
   /**
    * A conversation with one person, where who spoke is one of two answers.
    *
-   * So it is an arrow rather than a name: pointing right for what you sent,
-   * a speech bubble for what they sent you. The row's title is already their
+   * So it is a bird rather than a name: one flying off for what you sent, one
+   * perched for what they sent you. The row's title is already their
    * name, and saying it again at the head of the line only told you which of
    * the two of you it was — which a mark can say at a glance.
    */
@@ -1866,7 +1866,7 @@ function ConversationLine({
               accessibilityLabel={last.mine ? 'You sent' : 'Received'}
               style={styles.sayerMark}
             >
-              <Glyph name={last.mine ? 'sent' : 'bubble'} size={15} color={t.fg} />
+              <Glyph name={last.mine ? 'bird-flying' : 'bird-perched'} size={15} color={t.fg} />
             </View>
           )}
           <Text

@@ -153,9 +153,9 @@ export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }
                       it said less than the name it sat next to.
                     */}
                     {/*
-                      On a one-to-one, a mark instead of a name: an arrow
-                      pointing right for what you sent, a speech bubble for
-                      what they sent you. The row's title is already their
+                      On a one-to-one, a mark instead of a name: a bird
+                      flying off for what you sent, a bird perched for what
+                      they sent you. The row's title is already their
                       name, so the line only has to say which of you it was.
                     */}
                     {chat.kind === 'direct' ? (
@@ -164,7 +164,7 @@ export function GroupChats({ chats, query }: { chats: ChatRow[]; query: string }
                         role="img"
                         aria-label={chat.last.mine ? 'You sent' : 'Received'}
                       >
-                        <RailIcon glyph={chat.last.mine ? 'sent' : 'bubble'} />
+                        <RailIcon glyph={chat.last.mine ? 'bird-flying' : 'bird-perched'} />
                       </span>
                     ) : (
                       /* "You" rather than your own name read back at you,

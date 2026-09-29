@@ -64,8 +64,10 @@ export type RailGlyph =
    * why it is the one that takes a fill. See `filled`.
    */
   | 'star'
-  /* You sent the last thing in a one-to-one. The app's `sent`, path for path. */
-  | 'sent';
+  /* Who spoke last on a one-to-one: flying off for you, perched for them.
+     The app's two birds, path for path. */
+  | 'bird-flying'
+  | 'bird-perched';
 
 /**
  * The star, as a path.
@@ -149,10 +151,16 @@ export function RailIcon({
           <path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={weight * 0.8} />
         </>
       )}
-      {glyph === 'sent' && (
+      {glyph === 'bird-flying' && <path d="M2.5 12.5c2.5-3.6 5.9-4 8.3-.8L12 13.4l1.2-1.7c2.4-3.2 5.8-2.8 8.3.8" />}
+      {glyph === 'bird-perched' && (
         <>
-          <path d="M4.5 12h14" />
-          <path d="M13 6.5 18.5 12 13 17.5" />
+          <circle cx="15" cy="6.5" r="2.6" />
+          <path d="M17.6 6 20.4 7 17.6 7.9" />
+          <path d="M12.8 8.7C9.3 9.3 7 11.3 7 13.8h7.4c2.2-1.5 3.2-3.5 2.9-5.4" />
+          <path d="M7 13.8 3.9 16.2" />
+          <path d="M10.3 13.8v4.2" />
+          <path d="M13 13.8v4.2" />
+          <path d="M4 18h16" />
         </>
       )}
       {glyph === 'bubble' && (

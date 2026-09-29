@@ -51,7 +51,8 @@ export type GlyphName =
   | 'portrait'
   | 'star'
   | 'ripple'
-  | 'sent'
+  | 'bird-flying'
+  | 'bird-perched'
   | 'chevron';
 
 /**
@@ -437,16 +438,27 @@ function paths(name: GlyphName, weight: number) {
     case 'chevron':
       return <Path d="M9 6l6 6-6 6" />;
     /*
-     * An arrow pointing right: you sent the last thing in a conversation.
+     * The two birds on a one-to-one's last line: one flying off, for what you
+     * sent, and one settled on a branch, for what came to you.
      *
-     * A shaft as well as a head, unlike the chevron above — the chevron means
-     * "a way through", and this has to read as something that went out.
+     * The flying one is a gull's two wings and nothing else — the shape a
+     * child draws for a bird in the sky, which is why it reads at 15 points
+     * where a body and a beak would close up. The perched one needs its
+     * branch and its legs: without them it is a bird, not a bird that has
+     * landed, and landing is the whole of what it says.
      */
-    case 'sent':
+    case 'bird-flying':
+      return <Path d="M2.5 12.5c2.5-3.6 5.9-4 8.3-.8L12 13.4l1.2-1.7c2.4-3.2 5.8-2.8 8.3.8" />;
+    case 'bird-perched':
       return (
         <>
-          <Path d="M4.5 12h14" />
-          <Path d="M13 6.5 18.5 12 13 17.5" />
+          <Circle cx={15} cy={6.5} r={2.6} />
+          <Path d="M17.6 6 20.4 7 17.6 7.9" />
+          <Path d="M12.8 8.7C9.3 9.3 7 11.3 7 13.8h7.4c2.2-1.5 3.2-3.5 2.9-5.4" />
+          <Path d="M7 13.8 3.9 16.2" />
+          <Path d="M10.3 13.8v4.2" />
+          <Path d="M13 13.8v4.2" />
+          <Path d="M4 18h16" />
         </>
       );
 
