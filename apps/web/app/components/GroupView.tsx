@@ -137,6 +137,59 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   }, [group.id]);
 
   /**
+   * Taking somebody out, which an admin can and nobody else can.
+   *
+   * Two presses, and the second is on the page rather than in a dialog: the
+   * menu picks who, and the line under the faces asks — naming them, and
+   * saying what it costs — before anything is sent. `removing` is who that
+   * line is about; null is no line.
+   *
+   * Nobody is taken off the strip until the server has said so, for the
+   * reason an answered request is not: an optimistic removal that failed
+   * would leave somebody in the room while the admin believed they were out.
+   * `router.refresh()` then redraws the faces from what is actually there.
+   */
+  const [removing, setRemoving] = useState<GroupPerson | null>(null);
+  const [removed, setRemoved] = useState<string | null>(null);
+  const remove = useCallback(
+    async (person: GroupPerson) => {
+      setBusy(true);
+      setError(null);
+      setRemoved(null);
+      try {
+        const res = await fetch(
+          `/api/groups/${group.id}/members?actorId=${encodeURIComponent(person.actorId)}`,
+          { method: 'DELETE' },
+        );
+        if (res.ok || res.status === 404) {
+          // 404 is somebody already gone — by leaving, or another admin
+          // getting there first. Either way the strip is what is wrong.
+          setRemoved(
+            res.ok
+              ? `${person.firstName} was removed. They can come back only if an admin invites them.`
+              : `${person.firstName} is not in the group any more.`,
+          );
+          setRemoving(null);
+          router.refresh();
+          return;
+        }
+        throw new Error(
+          res.status === 409
+            ? `${person.firstName} runs this group too. Admins cannot remove each other.`
+            : res.status === 403
+              ? 'Only someone who runs this group can remove people.'
+              : 'Could not remove them. Try again.',
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [group.id, router],
+  );
+
+  /**
    * Sending the guest list.
    *
    * One call for the whole selection rather than one per person, matching the
@@ -298,6 +351,9 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       </main>
     );
   }
+
+  /** Who an admin may take out: members, which leaves out every admin and so themselves. */
+  const removable = group.people.filter((person) => person.role === 'member');
 
   /** Where a tab points. Albums is the bare path, like an album's photographs. */
   const hrefFor = (id: GroupTab) =>
@@ -602,7 +658,66 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             </button>
           )}
         </div>
+        {/*
+          Removing somebody, for an admin, and only over the people who can be
+          removed: members, never another admin — the server refuses that —
+          and never yourself, which is `Leave this group` in the menu above.
+          An admin is never in `removable`, so the second rule is the first.
+
+          One menu beside the row rather than one on each face. The row
+          scrolls sideways, and a scrolling box clips whatever hangs out of
+          it — a panel opened from a face would be cut off at the strip's
+          edge. Beside it, the panel has the page to hang into.
+        */}
+        {group.role === 'admin' && removable.length > 0 && (
+          <Menu label="Remove somebody from this group" glyph="···" tone="round" className="strip-remove">
+            {(close) => (
+              <>
+                {removable.map((person) => (
+                  <button
+                    key={person.actorId}
+                    role="menuitem"
+                    className="menu-danger"
+                    onClick={() => {
+                      close();
+                      setRemoved(null);
+                      setError(null);
+                      setRemoving(person);
+                    }}
+                  >
+                    Remove {person.name} from group
+                  </button>
+                ))}
+              </>
+            )}
+          </Menu>
+        )}
       </section>
+
+      {/*
+        The second press. The consequence is said here, where it is decided,
+        because it is not the obvious one: somebody removed cannot let
+        themselves back in, even with a link — only an admin inviting them.
+      */}
+      {removing && group.role === 'admin' && (
+        <div className="strip-confirm" role="group" aria-label="Confirm removal">
+          <span>
+            Remove {removing.name}? They can come back only if an admin invites them.
+          </span>
+          <button
+            type="button"
+            className="danger"
+            disabled={busy}
+            onClick={() => void remove(removing)}
+          >
+            {busy ? 'Removing…' : 'Remove'}
+          </button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => setRemoving(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {removed && <p className="photo-said strip-said">{removed}</p>}
 
       {inviting && group.role === 'admin' && (
         <div className="group-invite">

@@ -4121,6 +4121,19 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .strip-add:hover .strip-invite { border-color: var(--accent); color: var(--accent-ink); }
 .strip-add:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
 .strip-add .strip-name { color: var(--dim-soft); }
+/* Beside the row, not in it: the row scrolls, and a scrolling box clips the
+   panel. Long groups get a menu that scrolls rather than one taller than the
+   screen. */
+.strip-remove { align-self: center; }
+.strip-remove .dots-body { max-height: 320px; overflow-y: auto; }
+/* The second press, under the faces it is about. */
+.strip-confirm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  margin-top: 12px; font-size: 13.5px; color: var(--fg);
+}
+.strip-confirm button { padding: 8px 14px; font-size: 14px; }
+.strip-confirm span { flex: 1 1 240px; }
+.strip-said { margin-top: 12px; }
 
 /* The panel the ＋ opens. Under the strip it belongs to rather than over it:
    picking people is a list, and a popover holding a list is a list you cannot

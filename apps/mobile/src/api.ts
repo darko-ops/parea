@@ -2529,6 +2529,23 @@ export class Api {
     return this.call(`/api/groups/${id}/members`, { method: 'DELETE' });
   }
 
+  /**
+   * An admin taking somebody else out of a group.
+   *
+   * Leaving's own route with a name on it, because it is the same row going.
+   * What differs is afterwards: somebody removed cannot ask their way back in,
+   * and only an admin inviting them again undoes it. Refused with 403
+   * `not_admin`, 404 `not_member`, and 409 `is_admin` — admins cannot remove
+   * each other, so a room is never emptied of the people who run it by one of
+   * them.
+   */
+  removeGroupMember(groupId: string, actorId: string): Promise<{ removed: true }> {
+    return this.call(
+      `/api/groups/${encodeURIComponent(groupId)}/members?actorId=${encodeURIComponent(actorId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
   async joinRequests(id: string): Promise<JoinRequest[]> {
     const { requests } = await this.call<{ requests: JoinRequest[] }>(
       `/api/groups/${id}/requests`,

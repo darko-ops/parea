@@ -65,7 +65,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
 
-import type { Api, GroupAlbum, GroupView, JoinRequest } from './api';
+import { ApiError, type Api, type GroupAlbum, type GroupPerson, type GroupView, type JoinRequest } from './api';
 import { RoomMark } from './Events';
 import { uploadCover } from './platform';
 import { Glyph, type GlyphName } from './Glyph';
@@ -316,6 +316,60 @@ export function GroupScreen({
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
       await api.resolveRequest(groupId, requestId, action).catch(() => {});
       await load();
+    },
+    [api, groupId, load],
+  );
+
+  /**
+   * An admin taking somebody out of the room.
+   *
+   * Asked first, because it does not undo itself: somebody removed cannot ask
+   * their way back in, and the sentence under the question says so rather
+   * than leaving the admin to find out. Only an admin inviting them again lets
+   * them back, which is the thing the confirmation after it repeats.
+   *
+   * The room is read again rather than the row dropped from the one in hand —
+   * the count, the "every album" line and the faces in the head all move with
+   * it, and `load` is what already keeps those agreeing with each other.
+   */
+  const removeMember = useCallback(
+    (person: GroupPerson) => {
+      Alert.alert(
+        `Remove ${person.firstName}?`,
+        'They will not be able to rejoin unless an admin invites them.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await api.removeGroupMember(groupId, person.actorId);
+                await load();
+                Alert.alert('Removed', 'They can come back only if an admin invites them.');
+              } catch (err) {
+                // 404 is somebody already gone — left, or removed by the other
+                // admin a moment ago — and the fresh list is the whole answer.
+                if (err instanceof ApiError && err.status === 404) {
+                  await load();
+                  return;
+                }
+                Alert.alert(
+                  'Could not remove them',
+                  err instanceof ApiError && err.status === 409
+                    ? 'Admins cannot remove each other.'
+                    : err instanceof ApiError && err.status === 403
+                      ? 'Only an admin can remove people.'
+                      : 'Try again in a moment.',
+                );
+                // A 403 or 409 means this screen's idea of who runs the room
+                // is stale; read it again so the offer goes where it should.
+                await load();
+              }
+            },
+          },
+        ],
+      );
     },
     [api, groupId, load],
   );
@@ -614,6 +668,19 @@ export function GroupScreen({
               <View style={styles.gutter}>
                 {group.people.map((person) => {
                   const own = lensFor(person.actorId);
+                  /*
+                    Who an admin may take out: anybody who does not run the
+                    room. The viewer is an admin to be offered this at all, so
+                    "not an admin" already leaves them off — nobody removes
+                    themselves by holding their own name; that is Leave.
+
+                    A long press, as a message's verbs are in the thread: a
+                    Remove on every row would be a standing invitation on a
+                    list that is mostly for looking at, and the tap is already
+                    taken by opening their page. The actions rotor is the way
+                    to it for somebody who cannot hold a finger still.
+                  */
+                  const removable = group.role === 'admin' && person.role !== 'admin';
                   return (
                     <Pressable
                       key={person.actorId}
@@ -622,8 +689,20 @@ export function GroupScreen({
                          does nothing is worse than a label that never
                          offered. */
                       onPress={person.handle ? () => onOpenPerson(person.handle!) : undefined}
-                      disabled={!person.handle}
-                      accessibilityRole={person.handle ? 'button' : 'text'}
+                      onLongPress={removable ? () => removeMember(person) : undefined}
+                      delayLongPress={320}
+                      disabled={!person.handle && !removable}
+                      accessibilityRole={person.handle || removable ? 'button' : 'text'}
+                      accessibilityActions={
+                        removable ? [{ name: 'longpress', label: 'Remove from group' }] : undefined
+                      }
+                      onAccessibilityAction={
+                        removable
+                          ? (e) => {
+                              if (e.nativeEvent.actionName === 'longpress') removeMember(person);
+                            }
+                          : undefined
+                      }
                       style={({ pressed }) => [styles.personRow, { opacity: pressed ? 0.6 : 1 }]}
                     >
                       {person.avatarUrl ? (
