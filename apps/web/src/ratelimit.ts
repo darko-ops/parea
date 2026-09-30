@@ -45,7 +45,20 @@ import { headers } from 'next/headers';
 
 import type { Db } from './db';
 
-export type Limit = { name: string; max: number; windowSeconds: number };
+export type Limit = {
+  name: string;
+  max: number;
+  windowSeconds: number;
+  /**
+   * Refuse when the count cannot be taken, rather than allow.
+   *
+   * Most limits fail open on a database error, deliberately — a bound on
+   * abuse is not worth taking the site down for. The ones guarding a guess at
+   * a secret are different: a database that errors under load is exactly
+   * when a flood of guesses would otherwise go uncounted.
+   */
+  failClosed?: boolean;
+};
 
 /**
  * Presigning, per source.
@@ -144,6 +157,7 @@ export const SIGN_IN_VERIFY_LIMIT: Limit = {
   name: 'sign-in-verify',
   max: 30,
   windowSeconds: 3600,
+  failClosed: true,
 };
 
 /**
@@ -168,6 +182,7 @@ export const SIGN_IN_VERIFY_ADDRESS_LIMIT: Limit = {
   name: 'sign-in-verify-address',
   max: 25,
   windowSeconds: 3600,
+  failClosed: true,
 };
 
 /**
@@ -201,7 +216,12 @@ export async function sourceKey(secret: string): Promise<string | null> {
   const header = await headers();
   // Leftmost is the client on a proxy that overwrites the header, which is the
   // documented Vercel behaviour. See the caveat at the top of this file.
-  const forwarded = header.get('x-forwarded-for')?.split(',')[0]?.trim();
+  // Vercel's own header first: it is set by the platform and a client cannot
+  // supply it. `x-forwarded-for` is the fallback for anywhere else, where its
+  // leftmost entry is only trustworthy behind a proxy that overwrites it.
+  const forwarded =
+    header.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
+    header.get('x-forwarded-for')?.split(',')[0]?.trim();
   const address = forwarded || header.get('x-real-ip')?.trim();
   if (!address) return null;
   return createHmac('sha256', secret).update(address).digest('hex').slice(0, 32);
@@ -264,7 +284,7 @@ export async function withinLimit(
   if (!key) return true;
 
   const verdict = await consume(db, key, limit).catch(() => null);
-  if (!verdict) return true;
+  if (!verdict) return !limit.failClosed;
 
   if (!verdict.allowed) {
     // Worth a log line: these are set far above real use, so one firing is
@@ -298,7 +318,7 @@ export async function withinLimitFor(
     .slice(0, 32);
 
   const verdict = await consume(db, key, limit).catch(() => null);
-  if (!verdict) return true;
+  if (!verdict) return !limit.failClosed;
 
   if (!verdict.allowed) {
     console.warn(`rate limit: ${limit.name} at ${verdict.count}/${verdict.max}`);
@@ -434,10 +454,31 @@ export const QUARANTINE_ON_REPORT_LIMIT: Limit = {
   windowSeconds: 3600,
 };
 
+/** Looking up places, per source. Somebody naming a few events, not a script. */
+export const PLACES_LIMIT: Limit = {
+  name: 'places',
+  max: 120,
+  windowSeconds: 3600,
+};
+
+/**
+ * New guest identities from the app, per source.
+ *
+ * Each is an actor and a session row, minted for any caller that is not a
+ * browser, with nothing counting them. A phone makes one, once; twenty an hour
+ * from one address is somebody making them on purpose.
+ */
+export const GUEST_SESSION_LIMIT: Limit = {
+  name: 'guest-session',
+  max: 20,
+  windowSeconds: 3600,
+};
+
 export const JOIN_CODE_LIMIT: Limit = {
   name: 'join-code',
   max: 20,
   windowSeconds: 3600,
+  failClosed: true,
 };
 
 export const PEOPLE_SEARCH_LIMIT: Limit = {
@@ -501,4 +542,5 @@ export const PHONE_VERIFY_LIMIT: Limit = {
   name: 'phone-verify',
   max: 20,
   windowSeconds: 3600,
+  failClosed: true,
 };

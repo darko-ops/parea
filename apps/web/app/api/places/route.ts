@@ -29,6 +29,11 @@
 
 import { NextResponse } from 'next/server';
 
+import { isSignedIn } from '@/access';
+import { getDb } from '@/db';
+import { PLACES_LIMIT, withinLimit } from '@/ratelimit';
+import { currentActorId } from '@/session';
+
 export const runtime = 'nodejs';
 
 /** Enough to choose from, few enough to read without scrolling. */
@@ -41,6 +46,19 @@ export type Place = { label: string };
 export async function GET(request: Request) {
   const query = (new URL(request.url).searchParams.get('q') ?? '').trim();
   if (query.length < MIN) return NextResponse.json({ places: [] });
+
+  /*
+   * For somebody naming an event, which takes an account — and a limited
+   * number of times. Every lookup is a paid request to the provider, and this
+   * answered anybody, as often as they liked.
+   */
+  const db = getDb();
+  if (!(await isSignedIn(db, await currentActorId()))) {
+    return NextResponse.json({ places: [] });
+  }
+  if (!(await withinLimit(db, PLACES_LIMIT, process.env.SESSION_SECRET))) {
+    return NextResponse.json({ places: [] });
+  }
 
   const token = process.env.PLACES_TOKEN;
   if (!token) return NextResponse.json({ places: [] });

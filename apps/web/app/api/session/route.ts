@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { actorToken, currentCredential, fromBrowser, userAgent } from '@/session';
 import { startSession } from '@/sessions';
+import { GUEST_SESSION_LIMIT, withinLimit } from '@/ratelimit';
 
 export const runtime = 'nodejs';
 
@@ -98,6 +99,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       actorToken: actorToken(existing.actorId, sessionId),
     });
+  }
+
+  // New identities are limited per source. See `GUEST_SESSION_LIMIT`.
+  if (!(await withinLimit(db, GUEST_SESSION_LIMIT, process.env.SESSION_SECRET))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
 
   // Deliberately not `ensureActor`: that sets the cookie, and native shares
