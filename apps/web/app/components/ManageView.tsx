@@ -309,6 +309,10 @@ export function ManageView({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action }),
       });
+      if (res.status === 409) {
+        // Held for review by Parea; it waits rather than being decided here.
+        throw new Error('This photo is being reviewed by Parea. It stays hidden until that is done.');
+      }
       if (!res.ok) throw new Error('Could not save that.');
       await loadReports();
     } catch (err) {

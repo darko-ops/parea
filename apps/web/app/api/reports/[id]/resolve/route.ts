@@ -8,7 +8,7 @@
  */
 
 import { recordModeration, REASON, schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
@@ -33,7 +33,23 @@ export async function POST(
     .select({ report: schema.reports, photo: schema.photos })
     .from(schema.reports)
     .innerJoin(schema.photos, eq(schema.reports.photoId, schema.photos.id))
-    .where(eq(schema.reports.id, id))
+    /*
+     * Only an open removal request is the host's to answer.
+     *
+     * This loaded any report by id and asked only whether the caller hosted
+     * the album — so a host could "decline" an abuse report, or a child-safety
+     * report about their own upload, and lift the hide it had put on the
+     * photograph. Those are reports to Parea, about the host's album as much
+     * as anybody's, and answering them is a reviewer's job. Anything else
+     * answers the same as a report that does not exist.
+     */
+    .where(
+      and(
+        eq(schema.reports.id, id),
+        eq(schema.reports.kind, 'removal_request'),
+        eq(schema.reports.status, 'open'),
+      ),
+    )
     .limit(1);
 
   if (!found) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -48,8 +64,35 @@ export async function POST(
     return toResponse(err);
   }
 
+  /*
+   * And not on a photo held for child safety.
+   *
+   * Removing it would put it on the path to purge and declining would lift
+   * its hide; either is a decision about evidence that belongs to whoever
+   * reviews the incident, not to the album's host. The request stays open
+   * and waits.
+   */
+  if (found.photo.status === 'quarantined') {
+    return NextResponse.json({ error: 'under_review' }, { status: 409 });
+  }
+
   const actorId = await currentActorId();
   const now = new Date();
+
+  /*
+   * Claimed before anything is done, so two presses — or two hosts — cannot
+   * both act on one request.
+   */
+  const [claimed] = await db
+    .update(schema.reports)
+    .set({
+      status: action === 'remove' ? 'actioned' : 'declined',
+      resolvedAt: now,
+      resolvedBy: actorId,
+    })
+    .where(and(eq(schema.reports.id, id), eq(schema.reports.status, 'open')))
+    .returning({ id: schema.reports.id });
+  if (!claimed) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   if (action === 'remove') {
     await db
@@ -73,15 +116,6 @@ export async function POST(
     actorId,
     reason: action === 'remove' ? REASON.hostRemoved : REASON.hostDeclined,
   });
-
-  await db
-    .update(schema.reports)
-    .set({
-      status: action === 'remove' ? 'actioned' : 'declined',
-      resolvedAt: now,
-      resolvedBy: actorId,
-    })
-    .where(eq(schema.reports.id, id));
 
   // The person who asked may have no account and no reason to come back, so
   // this is the only way they learn the answer.
