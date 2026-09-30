@@ -26,8 +26,7 @@
         "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
       },
       "ios": {
-        "buildConfiguration": "Release",
-        "credentialsSource": "local"
+        "buildConfiguration": "Release"
       },
       "android": {
         "buildType": "apk"
