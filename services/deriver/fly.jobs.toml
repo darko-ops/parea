@@ -1,7 +1,17 @@
 # The scheduled jobs, as a separate app so they cannot be starved by ingest.
 #
-#   fly deploy -c fly.jobs.toml
-#   fly machine run --schedule hourly ... (see docs/deploy.md)
+# It runs as ONE scheduled machine (`parea-jobs-hourly`), not as a Fly Launch
+# app — so do NOT `fly deploy` this file: that creates always-on "jobs"
+# machines that crash-loop, and leaves the scheduled one on the old code. To
+# ship new code, build and push an image, then point the machine at it:
+#
+#   flyctl deploy . --config services/deriver/fly.jobs.toml \
+#     --dockerfile services/deriver/Dockerfile --build-only --push --image-label <label>
+#   flyctl machine update <machine id> -a parea-jobs \
+#     --image registry.fly.io/parea-jobs:<label> --yes
+#
+# (retry the update if it says MANIFEST_UNKNOWN), then `flyctl machine start`
+# it once and check `exit_code=0` in `flyctl machine status`.
 #
 # auto-hide is the one with a deadline attached: a removal request that nobody
 # answers hides the photo after 48 hours, and that only happens if this runs.

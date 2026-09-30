@@ -344,14 +344,17 @@ credentials work, 401 means they do not. It is the newest line and it exists
 because everything else in the probe verified that the container could process
 a photograph and nothing verified it could reach one.
 
-Jobs run on a schedule from the same image:
+Jobs run hourly from the same image, as one scheduled machine. Created once:
 
 ```
 flyctl deploy . --config services/deriver/fly.jobs.toml \
-  --dockerfile services/deriver/Dockerfile
-flyctl machine run --schedule daily IMAGE_REF -a parea-jobs \
-  -- node_modules/.bin/tsx services/deriver/src/jobs.ts
+  --dockerfile services/deriver/Dockerfile --build-only --push --image-label first
+flyctl machine run registry.fly.io/parea-jobs:first --schedule hourly -a parea-jobs \
+  --restart no -- node_modules/.bin/tsx services/deriver/src/jobs.ts
 ```
+
+After that, never `fly deploy` it — update the machine's image instead, as the
+top of `services/deriver/fly.jobs.toml` describes.
 
 Running it with no argument also prints the §18 metrics — the concept's own
 test, *does anyone other than the creator upload?*, plus what a bad number

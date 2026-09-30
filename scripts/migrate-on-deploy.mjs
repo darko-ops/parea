@@ -42,6 +42,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +51,9 @@ import { fileURLToPath } from 'node:url';
    repository around it — it has to, because the web app depends on
    `@parea/core`, and the migrations live in that package. */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** How many pre-migration snapshot branches to keep. */
+const KEEP_SNAPSHOTS = 3;
 
 const where = process.env.VERCEL_ENV;
 
@@ -65,5 +69,109 @@ if (!process.env.DATABASE_URL) {
   process.exit(2);
 }
 
-console.log('migrations: applying any that are pending…');
+/*
+ * From git, or not at all — security review M15.
+ *
+ * A deploy from a laptop builds whatever is in that working tree, including a
+ * migration nobody has committed, and applies it to the production database. A
+ * rollback in the dashboard then puts the old code back and leaves the new
+ * schema, because nothing rolls a migration back. Vercel sets
+ * `VERCEL_GIT_PROVIDER` only for a deploy made from a pushed commit, so its
+ * absence is a CLI deploy and this stops before touching the database.
+ * `ALLOW_CLI_MIGRATION=1` is the deliberate way past, for an emergency.
+ */
+if (!process.env.VERCEL_GIT_PROVIDER && process.env.ALLOW_CLI_MIGRATION !== '1') {
+  console.error(
+    'migrations: refusing — this production deploy did not come from git.\n' +
+      '  Push the commit instead. In an emergency, set ALLOW_CLI_MIGRATION=1.',
+  );
+  process.exit(3);
+}
+
+const pending = await pendingMigrations();
+if (pending === 0) {
+  console.log('migrations: none pending.');
+  process.exit(0);
+}
+
+await snapshotBeforeMigrating(pending);
+
+console.log(`migrations: applying ${pending ?? 'any'} pending…`);
 execFileSync('npm', ['run', 'db:migrate'], { cwd: ROOT, stdio: 'inherit' });
+
+/**
+ * How many migrations the repository has that the database has not applied.
+ * Null when that cannot be told, which is treated as "some".
+ */
+async function pendingMigrations() {
+  try {
+    const journal = JSON.parse(
+      readFileSync(join(ROOT, 'packages/core/drizzle/meta/_journal.json'), 'utf8'),
+    );
+    const { default: postgres } = await import('postgres');
+    const sql = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 10 });
+    try {
+      const [row] = await sql`select count(*)::int as n from drizzle.__drizzle_migrations`;
+      return Math.max(0, journal.entries.length - row.n);
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  } catch (err) {
+    console.warn(`migrations: could not count pending (${err?.message ?? err}); assuming some.`);
+    return null;
+  }
+}
+
+/**
+ * A Neon branch of production, taken just before a migration — M15.
+ *
+ * A branch is a copy-on-write snapshot: free to take, and restorable by
+ * pointing `DATABASE_URL` at it or by Neon's "restore from branch". Only when
+ * something is about to change, so a deploy with nothing to migrate makes
+ * nothing. Needs `NEON_API_KEY` and `NEON_PROJECT_ID`; without them it says
+ * so and carries on, because Neon's own point-in-time restore still covers
+ * the window. With them, a failed snapshot stops the deploy: the whole point
+ * is not migrating without one. Keeps the newest few and deletes older ones,
+ * since a plan has a branch limit.
+ */
+async function snapshotBeforeMigrating(pending) {
+  const key = process.env.NEON_API_KEY;
+  const project = process.env.NEON_PROJECT_ID;
+  if (!key || !project) {
+    console.warn(
+      'migrations: no NEON_API_KEY/NEON_PROJECT_ID, so no snapshot branch before migrating. ' +
+        "Neon's point-in-time restore is the fallback — see docs/backup-restore.md.",
+    );
+    return;
+  }
+  const api = `https://console.neon.tech/api/v2/projects/${project}/branches`;
+  const headers = { authorization: `Bearer ${key}`, 'content-type': 'application/json' };
+  const sha = (process.env.VERCEL_GIT_COMMIT_SHA ?? 'unknown').slice(0, 7);
+  const name = `pre-migrate-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}-${sha}`;
+
+  const made = await fetch(api, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ branch: { name } }),
+  });
+  if (!made.ok) {
+    console.error(`migrations: snapshot branch failed (${made.status}); not migrating without one.`);
+    process.exit(4);
+  }
+  console.log(`migrations: snapshot branch ${name} taken before ${pending ?? 'pending'} migration(s).`);
+
+  try {
+    const listed = await fetch(api, { headers });
+    const { branches = [] } = await listed.json();
+    const old = branches
+      .filter((b) => typeof b.name === 'string' && b.name.startsWith('pre-migrate-'))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .slice(KEEP_SNAPSHOTS);
+    for (const branch of old) {
+      await fetch(`${api}/${branch.id}`, { method: 'DELETE', headers });
+      console.log(`migrations: removed old snapshot ${branch.name}`);
+    }
+  } catch (err) {
+    console.warn(`migrations: could not prune old snapshots (${err?.message ?? err}).`);
+  }
+}
