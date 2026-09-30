@@ -37,3 +37,40 @@ describe('report controls', () => {
     expect(read('report.ts')).toContain("fetch('/api/reports'");
   });
 });
+
+/*
+ * And the person behind a message, a comment or a profile can be blocked from
+ * the same place it can be reported, through one helper, each surface telling
+ * `/api/blocks` which thing it was looking at by the key the route reads.
+ */
+const BLOCKS: [string, string[]][] = [
+  ['Thread.tsx', ['{ messageId: id }', '{ groupMessageId: id }']],
+  ['MomentComments.tsx', ['blockPerson({ momentCommentId: comment.id })']],
+  ['PersonView.tsx', ['blockPerson({ actorId: person.actorId })']],
+];
+
+describe('block controls', () => {
+  it.each(BLOCKS)('%s blocks through the shared helper', (file, needles) => {
+    const source = read(file);
+    expect(source).toMatch(/import \{[^}]*\bblockPerson\b[^}]*\} from '\.\/report'/);
+    expect(source).toContain('blockAsk(');
+    for (const needle of needles) expect(source).toContain(needle);
+  });
+
+  it('the thread picks the key by the room it is in', () => {
+    expect(read('Thread.tsx')).toMatch(
+      /room\.kind === 'group' \? \{ groupMessageId: id \} : \{ messageId: id \}/,
+    );
+  });
+
+  it('the helper posts to the one route, and nothing else does', () => {
+    expect(read('report.ts')).toContain("fetch('/api/blocks'");
+    for (const [file] of BLOCKS) expect(read(file)).not.toContain("'/api/blocks'");
+  });
+
+  it('asks before it blocks, in words that say it is both ways and undoable', () => {
+    const source = read('report.ts');
+    expect(source).toContain("You won't see each other's messages, photos, comments or albums");
+    expect(source).toContain('You can undo this in Settings');
+  });
+});

@@ -211,7 +211,7 @@ describe('the safety actions', () => {
 
   it('still ask twice before a block', () => {
     expect(VIEW).toMatch(/Block this person/);
-    expect(VIEW).toMatch(/Block — hide all their photos/);
+    expect(VIEW).toMatch(/Block — hide each other everywhere/);
     expect(VIEW).toMatch(/confirming/);
   });
 
@@ -223,7 +223,7 @@ describe('the safety actions', () => {
     );
     expect(VIEW).toContain('Reported. Someone will look at it.');
     expect(VIEW).toContain(
-      'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+      'Blocked. You will not see each other any more, anywhere. They are not told, and you can undo it in Settings → Blocked.',
     );
   });
 });

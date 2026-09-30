@@ -160,6 +160,53 @@ describe('the blocked list', () => {
   });
 });
 
+describe('blocking from what somebody wrote, or from their profile', () => {
+  const post = (body: unknown) =>
+    blocks.POST(new Request('https://parea.test/api/blocks', { method: 'POST', body: JSON.stringify(body) }));
+
+  it('blocks the author of a message in a group you are in', async () => {
+    const { postGroupMessage } = await import('@/groupMessages');
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: `g-${crypto.randomUUID()}` }).returning();
+    await addMember(db, group!.id, ada);
+    await addMember(db, group!.id, sam);
+    const said = await postGroupMessage(db, group!.id, sam, 'hey');
+
+    as(ada);
+    expect((await post({ groupMessageId: said })).status).toBe(200);
+    expect(await blockedEitherWay(db, ada, sam)).toBe(true);
+  });
+
+  it('will not name the author of a message you cannot see', async () => {
+    const { postGroupMessage } = await import('@/groupMessages');
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: `g-${crypto.randomUUID()}` }).returning();
+    await addMember(db, group!.id, sam);
+    const said = await postGroupMessage(db, group!.id, sam, 'hey');
+
+    as(ada);
+    expect((await post({ groupMessageId: said })).status).toBe(404);
+    expect(await blockedEitherWay(db, ada, sam)).toBe(false);
+  });
+
+  it('blocks from a profile, and not yourself', async () => {
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    as(ada);
+    expect((await post({ actorId: sam })).status).toBe(200);
+    expect(await blockedEitherWay(db, ada, sam)).toBe(true);
+    expect((await post({ actorId: ada })).status).toBe(400);
+  });
+
+  it('blocks the author of an album message', async () => {
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    const event = await roll(ada);
+    const said = await postMessage(db, event, sam, 'hi');
+    as(ada);
+    expect((await post({ messageId: said })).status).toBe(200);
+    expect(await blockedEitherWay(db, ada, sam)).toBe(true);
+  });
+});
+
 describe('albums made by somebody across a block', () => {
   async function scene() {
     const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];

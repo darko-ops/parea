@@ -33,7 +33,7 @@ import { REACTIONS } from '@/reactions';
 import { Face } from './Faces';
 import { IconGlyph } from './IconGlyph';
 import { Menu } from './Menu';
-import { reportContent, reportSaid } from './report';
+import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid } from './report';
 import { SignIn, useSession } from './SignIn';
 import { useImageFailure } from './useImageFailure';
 
@@ -118,6 +118,12 @@ export function Thread({
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /*
+   * What happened to a block, said here rather than on the row: a block that
+   * worked takes every line that person wrote out of the thread, the row it
+   * was made from included, so a note kept on the row goes with it.
+   */
+  const [blocked, setBlocked] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const live = messages.filter((m) => !m.deleted || m.body === '');
@@ -215,6 +221,24 @@ export function Thread({
     [onChanged],
   );
 
+  /*
+   * Blocking whoever wrote a line. The route is told which line, in which
+   * table, and works out who from that; the feed is then fetched again, and
+   * everything they said leaves the thread because the server no longer
+   * sends it — not because this page hid it.
+   */
+  const block = useCallback(
+    async (id: string) => {
+      setBlocked(null);
+      const result = await blockPerson(
+        room.kind === 'group' ? { groupMessageId: id } : { messageId: id },
+      );
+      setBlocked(blockSaid(result));
+      if (result.ok) await onChanged();
+    },
+    [room.kind, onChanged],
+  );
+
   const save = useCallback(
     async (id: string, body: string) => {
       const text = body.trim();
@@ -288,6 +312,7 @@ export function Thread({
             onSave={(body) => save(message.id, body)}
             onDelete={() => remove(message.id)}
             onReact={(emoji) => react(message.id, emoji)}
+            onBlock={() => block(message.id)}
             reportAs={room.kind === 'group' ? 'group_message' : 'event_message'}
             about={aboutOf(message.photoId)}
           />
@@ -295,6 +320,7 @@ export function Thread({
       </div>
 
       <div className="thread-composer">
+        {blocked && <p className="photo-said">{blocked}</p>}
         {canPost ? (
           <Composer
             draft={draft}
@@ -467,6 +493,7 @@ function Row({
   onSave,
   onDelete,
   onReact,
+  onBlock,
   reportAs,
   about,
 }: {
@@ -478,6 +505,8 @@ function Row({
   onSave: (body: string) => void;
   onDelete: () => void;
   onReact: (emoji: string) => void;
+  /** Blocks whoever wrote this line. Says how it went at the thread's foot. */
+  onBlock: () => Promise<void>;
   /** Which table the line is in, which is what `/api/reports` is told. */
   reportAs: 'event_message' | 'group_message';
   /** The photograph this line is about, and its page. Null where there is none. */
@@ -581,7 +610,9 @@ function Row({
           )}
           {!message.author.mine && (
             <OthersMenu
+              name={blockName(message.author.name)}
               onReport={async () => setSaid(reportSaid(await reportContent(reportAs, message.id)))}
+              onBlock={onBlock}
             />
           )}
         </div>
@@ -736,17 +767,54 @@ function MessageMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () =>
 }
 
 /**
- * The same three dots on somebody else's message, with the one thing you can
+ * The same three dots on somebody else's message, with the two things you can
  * do about it. Reachable, as the photograph's report is, without being a word
  * sitting under every line anybody wrote.
+ *
+ * Block is a two-step inside the panel, as leaving a group is: the first press
+ * says what it costs and turns the item into the question, the second does it.
+ * It reaches further than the message it was pressed on — every thread, album
+ * and group the two of you share — so it is not one mis-tap away.
  */
-function OthersMenu({ onReport }: { onReport: () => void }) {
+function OthersMenu({
+  name,
+  onReport,
+  onBlock,
+}: {
+  /** Their first name, or "this person". */
+  name: string;
+  onReport: () => void;
+  onBlock: () => Promise<void>;
+}) {
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
   return (
     <Menu label="Options for this message">
       {(close) => (
-        <button role="menuitem" onClick={() => { close(); onReport(); }}>
-          Report
-        </button>
+        <>
+          <button role="menuitem" onClick={() => { close(); setSure(false); onReport(); }}>
+            Report
+          </button>
+          {sure && <p className="menu-note">{blockAsk(name)}</p>}
+          <button
+            role="menuitem"
+            className="menu-danger"
+            disabled={busy}
+            onClick={async () => {
+              if (!sure) {
+                setSure(true);
+                return;
+              }
+              setBusy(true);
+              await onBlock();
+              setBusy(false);
+              setSure(false);
+              close();
+            }}
+          >
+            {sure ? `Yes, block ${name}` : `Block ${name}`}
+          </button>
+        </>
       )}
     </Menu>
   );

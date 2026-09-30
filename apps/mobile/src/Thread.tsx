@@ -155,6 +155,14 @@ export type ThreadActions = {
    * see `reportContent` in `report.ts`, which both rooms use.
    */
   report?: (messageId: string) => Promise<unknown>;
+  /**
+   * Blocking whoever wrote somebody else's message, from the message.
+   *
+   * Named by the message for the reason `report` is. True once the block is
+   * made — see `blockAuthor` in `block.ts`, which asks first — and the thread
+   * reloads on it, so everything of theirs goes from the room at once.
+   */
+  block?: (messageId: string) => Promise<boolean>;
 };
 
 export function Thread({
@@ -447,6 +455,13 @@ export function Thread({
                   ? () => void actions.report!(item.id)
                   : undefined
               }
+              /* Nor block: there is nobody to stop seeing. */
+              onBlock={
+                actions.block && !item.author.mine
+                  ? () =>
+                      void actions.block!(item.id).then((done) => (done ? onChanged() : undefined))
+                  : undefined
+              }
             />
           )}
         />
@@ -628,6 +643,7 @@ export function ThreadRow({
   onEdit,
   onUnreact,
   onReport,
+  onBlock,
   about,
   onOpenPhoto,
   onOpenMoment,
@@ -656,6 +672,11 @@ export function ThreadRow({
    * the caller has no route to report this room's rows through.
    */
   onReport?: () => void;
+  /**
+   * Blocking whoever wrote it. Absent where `onReport` is, and for the same
+   * reasons — and where the caller has not offered it.
+   */
+  onBlock?: () => void;
   /** The photograph this comment is about, where it is about one. */
   about?: { id: string; src: string } | null;
   onOpenPhoto?: (photoId: string) => void;
@@ -692,7 +713,8 @@ export function ThreadRow({
    * with nothing else to do about what is said in it.
    */
   const report = !mine ? onReport : undefined;
-  const holdable = mine || (canPost && canReact) || report != null;
+  const block = !mine ? onBlock : undefined;
+  const holdable = mine || (canPost && canReact) || report != null || block != null;
   const lens = lensFor(message.author.key);
 
   /**
@@ -836,6 +858,7 @@ export function ThreadRow({
             onEdit={null}
             onDelete={takeBack ?? null}
             onReport={null}
+            onBlock={null}
             deleteLabel="Remove my reaction"
             deleteNote="The line goes with it."
             onClose={() => setHeld(false)}
@@ -941,9 +964,13 @@ export function ThreadRow({
                         ? 'React, edit or delete'
                         : canPost && canReact
                           ? report
-                            ? 'React or report'
+                            ? block
+                              ? 'React, report or block'
+                              : 'React or report'
                             : 'React'
-                          : 'Report',
+                          : block
+                            ? 'Report or block'
+                            : 'Report',
                     },
                   ]
                 : undefined
@@ -1101,6 +1128,7 @@ export function ThreadRow({
           onEdit={mine && onEdit ? () => setEditing(message.body) : null}
           onDelete={mine ? onDelete : null}
           onReport={report ?? null}
+          onBlock={block ?? null}
           deleteLabel="Delete this comment"
           deleteNote="It leaves a gap saying it was deleted."
           onClose={() => setHeld(false)}
@@ -1154,6 +1182,7 @@ function HeldSheet({
   onEdit,
   onDelete,
   onReport,
+  onBlock,
   deleteLabel,
   deleteNote,
   onClose,
@@ -1170,6 +1199,8 @@ function HeldSheet({
   onDelete: (() => void) | null;
   /** Null on your own, and where the room has no way to report. */
   onReport: (() => void) | null;
+  /** Null wherever `onReport` is, and where the caller offers no block. */
+  onBlock: (() => void) | null;
   deleteLabel: string;
   /** What removing it actually does, beside the button that does it. */
   deleteNote: string;
@@ -1224,7 +1255,7 @@ function HeldSheet({
             </View>
           )}
 
-          {reactions && (onEdit || onDelete || onReport) && (
+          {reactions && (onEdit || onDelete || onReport || onBlock) && (
             <View style={[styles.heldRule, { backgroundColor: t.line }]} />
           )}
 
@@ -1275,6 +1306,28 @@ function HeldSheet({
               <Text style={[styles.heldDoText, { color: t.fg }]}>Report</Text>
               <Text style={[styles.heldNote, { color: t.dim }]}>
                 Comes to us rather than to whoever wrote it.
+              </Text>
+            </Pressable>
+          )}
+
+          {/*
+            And after it, the other thing to do about somebody: stop seeing
+            them. Report first — the roll's sheet in that order, one tells us
+            and the other only changes what you see. Warm like Delete, since
+            it takes a room's worth of someone away; the question comes next.
+          */}
+          {onBlock && (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onBlock();
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.heldDo, pressed && { opacity: 0.5 }]}
+            >
+              <Text style={[styles.heldDoText, { color: t.warn }]}>Block</Text>
+              <Text style={[styles.heldNote, { color: t.dim }]}>
+                Neither of you sees the other any more. They are not told.
               </Text>
             </Pressable>
           )}

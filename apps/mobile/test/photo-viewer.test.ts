@@ -554,20 +554,16 @@ describe('the photo options', () => {
     expect(sheet).toMatch(/They are not told/);
   });
 
-  it('does not offer an undo it does not have', () => {
+  it('says where the undo is, now that there is one', () => {
     /*
-     * `DELETE /api/blocks` exists and nothing on either client calls it, and
-     * it is keyed by a photograph of the person being unblocked — which the
-     * block has just hidden. Until a block list exists somewhere, the
-     * confirmation must not tell somebody the door opens again.
+     * It used to say nothing, because there was no undo: `DELETE /api/blocks`
+     * was keyed by a photograph the block had just hidden. The Blocked list in
+     * settings is that undo, so the confirmation points at it.
      */
-    // `code` first: the reason there is no undo is written in a comment two
-    // lines above the confirmation, and a test that reads comments would pass
-    // on the explanation while the screen made the promise.
     const sheet = code(
       APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---')),
     );
-    expect(sheet).not.toMatch(/undo it in Settings|You can undo/i);
+    expect(sheet).toMatch(/undo (it|this) in Settings → Blocked/);
   });
 
   it('tells one story about a takedown on both clients', () => {
@@ -591,7 +587,7 @@ describe('the photo options', () => {
     const sentences = [
       'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
       'Reported. Someone will look at it.',
-      'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+      'Blocked. You will not see each other any more, anywhere. They are not told, and you can undo it in Settings → Blocked.',
     ];
     for (const said of sentences) {
       expect(web).toContain(said);

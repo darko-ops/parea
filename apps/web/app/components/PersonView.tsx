@@ -51,6 +51,7 @@
  * over, every time they visited the page.
  */
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { CardEvent } from '@/cards';
@@ -63,7 +64,7 @@ import { EventCard } from './EventCard';
 import { FrostedGlass } from './FrostedGlass';
 import { Menu } from './Menu';
 import { MomentStrip } from './MomentStrip';
-import { reportContent, reportSaid } from './report';
+import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid } from './report';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -246,6 +247,11 @@ export function PersonView({
   }, [armed]);
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  const router = useRouter();
+  /** The `···`'s Block item has been pressed once and is asking. */
+  const [sure, setSure] = useState(false);
+  /** Blocked from here, and the page is now only the note saying so. */
+  const [gone, setGone] = useState(false);
 
   /*
    * Their name, or their handle standing in for one.
@@ -376,6 +382,51 @@ export function PersonView({
     },
     [person.requestId],
   );
+
+  /**
+   * Blocking them, from their own page.
+   *
+   * Two presses inside the `···`, as leaving a group is: the first says what
+   * it costs, the second does it. Afterwards the page is not refreshed in
+   * place — across a block this profile is a 404, so a refresh would replace
+   * the one sentence saying what just happened with a page saying nobody is
+   * here. What is left is that sentence and the way home; the next page is
+   * fetched fresh and already without them.
+   */
+  const block = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    const result = await blockPerson({ actorId: person.actorId });
+    setBusy(false);
+    setSure(false);
+    if (result.ok) {
+      setGone(true);
+      return;
+    }
+    setError(blockSaid(result));
+  }, [person.actorId]);
+
+  if (gone) {
+    return (
+      <section className="person-blocked">
+        <p className="photo-said">{blockSaid({ ok: true })}</p>
+        <p>
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              // Replace, so Back does not land on a profile that is now a 404.
+              router.replace('/');
+              router.refresh();
+            }}
+          >
+            Back to Home
+          </a>
+        </p>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -557,19 +608,40 @@ export function PersonView({
             idiom: reachable in one press, not a third pill on the row. What it
             covers is what this page shows of them: the name, the picture, the
             bio and the link. Never on yourself, which this page never is.
+
+            Block under it, asking first — see `block`.
           */}
           {standing !== 'self' && (
             <Menu label="More about this person" glyph="···" tone="quiet" align="right">
               {(close) => (
-                <button
-                  role="menuitem"
-                  onClick={async () => {
-                    close();
-                    setSaid(reportSaid(await reportContent('profile', person.actorId)));
-                  }}
-                >
-                  Report
-                </button>
+                <>
+                  <button
+                    role="menuitem"
+                    onClick={async () => {
+                      close();
+                      setSure(false);
+                      setSaid(reportSaid(await reportContent('profile', person.actorId)));
+                    }}
+                  >
+                    Report
+                  </button>
+                  {sure && <p className="menu-note">{blockAsk(blockName(name))}</p>}
+                  <button
+                    role="menuitem"
+                    className="menu-danger"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!sure) {
+                        setSure(true);
+                        return;
+                      }
+                      close();
+                      void block();
+                    }}
+                  >
+                    {sure ? `Yes, block ${blockName(name)}` : `Block ${blockName(name)}`}
+                  </button>
+                </>
               )}
             </Menu>
           )}

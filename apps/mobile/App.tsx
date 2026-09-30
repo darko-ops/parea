@@ -91,6 +91,7 @@ import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
 import { Waiting } from './src/Waiting';
 import { reportContent } from './src/report';
+import { blockAuthor } from './src/block';
 import {
   PICKED,
   adoptIntoOutbox,
@@ -3496,6 +3497,8 @@ function EventScreen({
       unreact: (photoId: string, emoji: string) => api.reactToPhoto(photoId, emoji),
       /* Somebody else's line, to us. `Thread` keeps it off your own. */
       report: (id: string) => reportContent(api, 'event_message', id),
+      /* And whoever wrote it, after asking. `Thread` reloads when it lands. */
+      block: (id: string) => blockAuthor(api, { messageId: id }),
     }),
     [api, event.id],
   );
@@ -6262,7 +6265,7 @@ const DONE = {
     'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
   report: 'Reported. Someone will look at it.',
   block:
-    'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+    'Blocked. You will not see each other any more, anywhere. They are not told, and you can undo it in Settings → Blocked.',
 } as const;
 
 /**
@@ -6332,17 +6335,14 @@ function PhotoActions({
    * report is a block they will not use on the person they most want to stop
    * seeing.
    *
-   * It does not offer an undo, because there is not one. `DELETE /api/blocks`
-   * exists and no screen on either client calls it, and it is keyed by a
-   * photograph of the person being unblocked — which the block has just hidden.
-   * Saying "you can undo this in Settings" would be the product promising
-   * something no button does. Until a block list exists somewhere, this says
-   * what it does and stops there.
+   * It says where the undo is: the Blocked list in settings, which is the only
+   * place it can be, because a block hides the very photograph it was made
+   * from.
    */
   const confirmBlock = () =>
     Alert.alert(
       'Block this person?',
-      'Their photographs disappear from every roll you share, here and anywhere else. They are not told, and nobody else is affected.',
+      "You won't see each other's photos, messages, comments or albums, even in rolls and groups you share. They are not told, and nobody else is affected. You can undo this in Settings → Blocked.",
       [
         { text: 'Cancel', style: 'cancel' },
         {

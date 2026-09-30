@@ -2750,6 +2750,28 @@ export class Api {
     });
   }
 
+  /**
+   * Blocking whoever said something, or somebody by name.
+   *
+   * By what was said rather than by who said it, wherever there is a line to
+   * point at: the phone has the message's id in hand and not always its
+   * author's, and the server works out who wrote it. Exactly one of these —
+   * an album's line or a photograph's comment (`event_message`), a group's
+   * line, a moment's comment, or a person from their page.
+   */
+  blockAuthor(
+    target:
+      | { messageId: string }
+      | { groupMessageId: string }
+      | { momentCommentId: string }
+      | { actorId: string },
+  ): Promise<unknown> {
+    return this.call('/api/blocks', {
+      method: 'POST',
+      body: JSON.stringify(target),
+    });
+  }
+
   /** Everybody this account has blocked, newest first. Only the blocker sees it. */
   blocked(): Promise<{ blocked: BlockedPerson[] }> {
     return this.call<{ blocked: BlockedPerson[] }>('/api/blocks');

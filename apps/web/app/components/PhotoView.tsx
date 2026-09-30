@@ -466,7 +466,7 @@ const DONE: Record<Action, string> = {
     'Asked the host to take it down. If they have not answered in 48 hours it is hidden automatically.',
   report: 'Reported. Someone will look at it.',
   block:
-    'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.',
+    'Blocked. You will not see each other any more, anywhere. They are not told, and you can undo it in Settings → Blocked.',
 };
 
 /**
@@ -588,7 +588,7 @@ function PhotoActions({
                     onClick={() => { close(); setConfirming(false); void act('block'); }}
                     disabled={busy}
                   >
-                    Block — hide all their photos
+                    Block — hide each other everywhere
                   </button>
                 ) : (
                   <button onClick={() => setConfirming(true)} disabled={busy}>

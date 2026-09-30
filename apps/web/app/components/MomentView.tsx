@@ -332,7 +332,7 @@ function MomentActions({
     setBusy(false);
     setSaid(
       res?.ok
-        ? 'Blocked. You will not see their photos any more. They are not told, and nobody else is affected.'
+        ? 'Blocked. You will not see each other any more, anywhere. They are not told, and you can undo it in Settings → Blocked.'
         : 'That did not work. Try again.',
     );
   }
@@ -359,7 +359,7 @@ function MomentActions({
                   onClick={() => { close(); setConfirming(false); void block(); }}
                   disabled={busy}
                 >
-                  Block — hide all their photos
+                  Block — hide each other everywhere
                 </button>
               ) : (
                 <button onClick={() => setConfirming(true)} disabled={busy}>

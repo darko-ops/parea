@@ -29,6 +29,7 @@ import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import type { Api, GroupKind, Message } from './api';
+import { blockAuthor } from './block';
 import { RoomMark } from './Events';
 import type { GroupTheme } from './Groups';
 import { reportContent } from './report';
@@ -173,6 +174,8 @@ export function GroupChat({
       react: (id: string, emoji: string) => api.reactToGroupMessage(id, emoji),
       /* Somebody else's message, to us. `Thread` keeps it off your own. */
       report: (id: string) => reportContent(api, 'group_message', id),
+      /* And whoever wrote it, after asking. `Thread` reloads when it lands. */
+      block: (id: string) => blockAuthor(api, { groupMessageId: id }),
     }),
     [api, group.id],
   );

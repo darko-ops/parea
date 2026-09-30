@@ -1006,7 +1006,7 @@ export function MomentsViewer({
                   <Button
                     t={t}
                     primary
-                    label="Block — hide everything of theirs"
+                    label="Block — hide each other everywhere"
                     onPress={async () => {
                       closeOptions();
                       try {

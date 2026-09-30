@@ -55,6 +55,7 @@ import {
 } from 'react-native';
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
+import { blockAuthor } from './block';
 import { HangingTab, TAB_H } from './HangingTab';
 import { Back, More, RoundButton } from './RoundButton';
 import { FrostedGlass } from './FrostedGlass';
@@ -843,6 +844,10 @@ export function PersonScreen({
         same weight as Chat and read as something you do to people.
 
         Not on your own page, which is the one person you cannot report.
+
+        And blocking them, under Report, as the roll's sheet has it. Once it
+        lands this page goes back: it will not load across a block, so staying
+        on it would be looking at somebody the block has just taken away.
       */}
       {standing !== 'self' && (
         <View style={[styles.corner, styles.cornerRight]}>
@@ -853,6 +858,14 @@ export function PersonScreen({
                 {
                   text: 'Report',
                   onPress: () => void reportContent(api, 'profile', person.actorId),
+                },
+                {
+                  text: 'Block',
+                  style: 'destructive',
+                  onPress: () =>
+                    void blockAuthor(api, { actorId: person.actorId }).then(
+                      (done) => done && onBack(),
+                    ),
                 },
                 { text: 'Cancel', style: 'cancel' },
               ])

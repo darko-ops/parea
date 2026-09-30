@@ -48,6 +48,7 @@ import {
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import type { Api, FeedPhoto, Message } from './api';
+import { blockAuthor } from './block';
 import { EmojiPicker } from './Emoji';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
@@ -1298,6 +1299,15 @@ export function PhotoViewer({
                         moment ? 'moment_comment' : 'event_message',
                         message.id,
                       )
+                    }
+                    /* And blocking whoever wrote it, named the same way. The
+                       feed reloads on it, which is what takes their lines —
+                       and their photographs — out from under this sheet. */
+                    onBlock={() =>
+                      void blockAuthor(
+                        api,
+                        moment ? { momentCommentId: message.id } : { messageId: message.id },
+                      ).then((done) => (done ? onChanged() : undefined))
                     }
                     about={null}
                   />

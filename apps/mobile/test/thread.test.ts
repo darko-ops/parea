@@ -228,10 +228,10 @@ describe('the rules carried over from the web', () => {
      * Held by anybody who has something to do to it: yours for edit and
      * delete, somebody else's when there is a reaction to leave on it or it
      * can be reported. A row with none takes no long press, so nothing opens
-     * an empty sheet — and Report is never offered on your own.
+     * an empty sheet — and Report, like Block, is never offered on your own.
      */
     expect(THREAD).toMatch(/const report = !mine \? onReport : undefined;/);
-    expect(THREAD).toMatch(/const holdable = mine \|\| \(canPost && canReact\) \|\| report != null;/);
+    expect(THREAD).toMatch(/const holdable = mine \|\| \(canPost && canReact\) \|\| report != null \|\| block != null;/);
     expect(THREAD).toMatch(/onLongPress=\{holdable \? open : undefined\}/);
     /*
      * Shortened from the 500ms default. This is the only way to reach any of

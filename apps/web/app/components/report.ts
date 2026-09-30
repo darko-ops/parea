@@ -50,3 +50,57 @@ export function reportSaid(result: ReportResult): string {
       return 'That did not work. Try again.';
   }
 }
+
+/*
+ * Blocking the person behind something, from wherever it was said.
+ *
+ * Beside Report because it is the other answer to the same moment — "this is
+ * not OK" and "I do not want this person here" — and one call so a message, a
+ * comment and a profile block the same way. The route works out whose it was;
+ * the page only says which thing it was looking at.
+ *
+ * Photographs and moments keep their own calls, as they do for reports.
+ */
+
+export type BlockTarget =
+  | { messageId: string }
+  | { groupMessageId: string }
+  | { momentCommentId: string }
+  | { actorId: string };
+
+export type BlockResult = { ok: true } | { ok: false; reason: 'self' | 'failed' };
+
+export async function blockPerson(target: BlockTarget): Promise<BlockResult> {
+  const res = await fetch('/api/blocks', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(target),
+  }).catch(() => null);
+  if (res?.ok) return { ok: true };
+  if (res?.status === 400) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (body.error === 'cannot_block_self') return { ok: false, reason: 'self' };
+  }
+  return { ok: false, reason: 'failed' };
+}
+
+/**
+ * Who a block is about, in a sentence: their first name, or "this person".
+ * A handle standing in for a name is still a name, without its `@`.
+ */
+export function blockName(name: string | null | undefined): string {
+  const first = (name ?? '').replace(/^@/, '').trim().split(/\s+/)[0];
+  return first || 'this person';
+}
+
+/** What a block costs, said before it is done. The same words on every surface. */
+export function blockAsk(name: string): string {
+  return `Block ${name}? You won't see each other's messages, photos, comments or albums, even in groups you share. They won't be told. You can undo this in Settings.`;
+}
+
+/** What to put on the page afterwards, where the control was. */
+export function blockSaid(result: BlockResult): string {
+  if (result.ok) return 'Blocked. You can undo this in Settings → Blocked.';
+  if (result.reason === 'self') return 'That is you. There is nobody to block.';
+  return 'That did not work. Try again.';
+}
