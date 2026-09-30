@@ -34,6 +34,7 @@ import { ShareProfile } from './ShareProfile';
 import { SignIn } from './SignIn';
 import { SiteFooter } from './SiteFooter';
 
+import { sameOriginPath } from '@/redirect';
 /**
  * What `/api/events` hands back, narrowed to what a card needs.
  *
@@ -156,11 +157,14 @@ export function AccountView() {
   }, [load]);
 
   const afterSignIn = useCallback(async () => {
-    const next = new URLSearchParams(globalThis.location.search).get('next');
     // Same-origin paths only. `next` arrives in a URL anyone can hand over, and
     // an open redirect on the sign-in page is how a link that looks like ours
-    // ends up delivering someone somewhere else.
-    if (next?.startsWith('/') && !next.startsWith('//')) {
+    // ends up delivering someone somewhere else. See `sameOriginPath`.
+    const next = sameOriginPath(
+      new URLSearchParams(globalThis.location.search).get('next'),
+      globalThis.location.origin,
+    );
+    if (next) {
       globalThis.location.href = next;
       return;
     }
