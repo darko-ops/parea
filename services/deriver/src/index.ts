@@ -77,7 +77,7 @@ const POLL_INTERVAL_MS = Number(process.env.DERIVER_POLL_MS ?? 5000);
  * constant is a thing that can drift; an import here would make a worker that
  * runs in its own container depend on the Next.js app to start.
  */
-// \`parea-prod\` (Neon project still-dust-88337211). It named the old project's
+// `parea-prod` (Neon project still-dust-88337211). It named the old project's
 // endpoint until 2026-09-30, which meant a laptop pointed at the real
 // production database got no warning at all — keep it in step if production
 // ever moves again.
