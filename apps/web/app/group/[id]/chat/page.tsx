@@ -57,7 +57,7 @@ export default async function GroupChatPage({
    */
   const [people, albums, room] = await Promise.all([
     memberCount(db, group.id),
-    groupEvents(db, group.id),
+    groupEvents(db, group.id, actorId),
     // The title and the mark off one query — `titleOf` answered only the
     // first, and asking for the second separately is the same query twice for
     // one row. See `roomOf`.

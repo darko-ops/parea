@@ -21,9 +21,10 @@
 
 import { CARD_FACES } from '@parea/cards';
 import { schema } from '@parea/core';
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 
 /** Enough of a photo to build a signed thumbnail URL from, and no more. */
 export type MosaicPhoto = {
@@ -339,6 +340,9 @@ export async function eventsFor(
     .where(
       and(
         isNull(schema.events.deletedAt),
+        // Not an album made by somebody across a block from this person,
+        // either way round — even one they are in. See `decide`.
+        not(blockedBetween(actorId, schema.events.createdBy)),
         or(
           sql`exists (
             select 1 from "event_participant" ep

@@ -27,6 +27,9 @@ const { messagesFor, postMessage, toggleReaction } = await import('@/messages');
 const { tagPhoto, tagsForPhotos } = await import('@/photoTags');
 const { blockedEitherWay } = await import('@/moderation');
 const blocks = await import('../app/api/blocks/route');
+const { decide } = await import('@/access');
+const { eventsFor } = await import('@/events');
+const { addMember, groupArchive, groupEvents } = await import('@/groups');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -40,7 +43,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await db.execute(sql`
-    truncate "actor", "event", "photo", "block", "event_message", "message_reaction", "photo_tag"
+    truncate "actor", "event", "photo", "block", "groups", "group_member", "event_participant", "event_message", "message_reaction", "photo_tag"
     restart identity cascade
   `);
   headerBag.clear();
@@ -154,6 +157,54 @@ describe('the blocked list', () => {
       }),
     );
     expect(await blockedEitherWay(db, ada, sam)).toBe(true);
+  });
+});
+
+describe('albums made by somebody across a block', () => {
+  async function scene() {
+    const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: `g-${crypto.randomUUID()}` }).returning();
+    for (const who of [ada, sam, tom]) await addMember(db, group!.id, who);
+    const [samsAlbum] = await db
+      .insert(schema.events)
+      .values({ name: 'Sam’s', linkToken: newLinkToken(), createdBy: sam, groupId: group!.id })
+      .returning();
+    const [tomsAlbum] = await db
+      .insert(schema.events)
+      .values({ name: 'Tom’s', linkToken: newLinkToken(), createdBy: tom, groupId: group!.id })
+      .returning();
+    return { ada, sam, tom, group: group!.id, samsAlbum: samsAlbum!, tomsAlbum: tomsAlbum! };
+  }
+
+  it('cannot be opened, from either side, and look deleted', async () => {
+    const { ada, sam, tom, samsAlbum } = await scene();
+    await block(ada, sam);
+    const view = (who: string) => decide(db, samsAlbum as never, 'view', { actorId: who } as never);
+    expect(await view(ada)).toEqual({ allow: false, reason: 'event_deleted' });
+    expect((await view(tom)).allow).toBe(true);
+    expect((await view(sam)).allow).toBe(true);
+  });
+
+  it('are left out of the home list and the shared group, both ways', async () => {
+    const { ada, sam, group, samsAlbum, tomsAlbum } = await scene();
+    const [adasAlbum] = await db
+      .insert(schema.events)
+      .values({ name: 'Ada’s', linkToken: newLinkToken(), createdBy: ada, groupId: group })
+      .returning();
+    await block(ada, sam);
+
+    const home = async (who: string) => (await eventsFor(db, who)).map((e) => e.id).sort();
+    expect(await home(ada)).toEqual([adasAlbum!.id, tomsAlbum.id].sort());
+    expect(await home(sam)).toEqual([samsAlbum.id, tomsAlbum.id].sort());
+
+    const inGroup = async (who: string) => (await groupEvents(db, group, who)).map((e) => e.id).sort();
+    expect(await inGroup(ada)).not.toContain(samsAlbum.id);
+    expect(await inGroup(sam)).not.toContain(adasAlbum!.id);
+
+    const strip = async (who: string) =>
+      (await groupArchive(db, group, who, new Date(0))).map((e: { id: string }) => e.id);
+    expect(await strip(ada)).not.toContain(samsAlbum.id);
+    expect(await strip(ada)).toContain(tomsAlbum.id);
   });
 });
 

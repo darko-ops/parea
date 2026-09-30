@@ -121,8 +121,8 @@ export default function TermsPage() {
           <p className="muted">
             You can block anyone. Blocking hides the two of you from each other
             &mdash; photos, messages, comments, reactions and moments, even in
-            rolls and groups you share &mdash; and stops them joining rolls you
-            created. They are not told.
+            rolls and groups you share &mdash; and each of you stops seeing the
+            rolls the other made. They are not told.
           </p>
           <p className="muted">
             Reach a human at <a href={`mailto:${SAFETY_CONTACT}`}>{SAFETY_CONTACT}</a>.

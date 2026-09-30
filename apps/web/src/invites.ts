@@ -14,9 +14,10 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, ne, not, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 import { eventsFor, type EventListing } from './events';
 
 /**
@@ -282,6 +283,8 @@ export async function pendingInvites(
         // An invitation to an event that has since been deleted is not an
         // invitation; it is a row pointing at nothing.
         isNull(schema.events.deletedAt),
+        // Nor one into an album made by somebody across a block.
+        not(blockedBetween(actorId, schema.events.createdBy)),
       ),
     )
     .orderBy(desc(schema.eventInvites.createdAt));

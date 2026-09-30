@@ -51,7 +51,7 @@ export default function SafetyPage() {
             straight away. You can also block someone. The two of you then stop
             seeing each other&rsquo;s photos, messages, comments, reactions and
             moments everywhere, even in rolls and groups you are both in, and
-            they cannot join rolls you created. Blocking is private — they are
+            neither of you sees the rolls the other made. Blocking is private — they are
             not told — and you can undo it from the Blocked list in your
             settings.
           </p>

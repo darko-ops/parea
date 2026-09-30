@@ -30,7 +30,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, ne, isNull, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, isNull, isNotNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import {
@@ -41,6 +41,7 @@ import {
 } from './parea';
 import type { Db } from './db';
 import { imageSrc } from './images';
+import { blockedBetween } from './moderation';
 
 /*
  * A friend request appears here answered, never open.
@@ -346,6 +347,8 @@ export async function activityFor(
       .innerJoin(schema.actors, eq(schema.actors.id, schema.photoReactions.actorId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.photos.uploaderId, actorId),
           ne(schema.photoReactions.actorId, actorId),
           isNull(schema.photos.deletedAt),
@@ -421,6 +424,8 @@ export async function activityFor(
       .innerJoin(schema.actors, eq(schema.actors.id, schema.eventMessages.authorActorId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.photos.uploaderId, actorId),
           ne(schema.eventMessages.authorActorId, actorId),
           isNull(schema.eventMessages.deletedAt),
@@ -461,6 +466,8 @@ export async function activityFor(
       .innerJoin(schema.actors, eq(schema.actors.id, schema.eventMessages.authorActorId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           ne(schema.eventMessages.authorActorId, actorId),
           // Not your photograph — that is `photo_comment`, above.
           ne(schema.photos.uploaderId, actorId),
@@ -503,6 +510,8 @@ export async function activityFor(
       .innerJoin(schema.actors, eq(schema.actors.id, schema.photoTags.taggedBy))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.photoTags.actorId, actorId),
           ne(schema.photoTags.taggedBy, actorId),
           isNull(schema.photos.deletedAt),
@@ -525,6 +534,8 @@ export async function activityFor(
       .innerJoin(schema.events, eq(schema.events.id, schema.eventParticipants.eventId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.eventParticipants.actorId, actorId),
           ne(schema.events.createdBy, actorId),
           isNull(schema.events.deletedAt),
@@ -570,6 +581,8 @@ export async function activityFor(
       )
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.photos.status, 'ready'),
           isNull(schema.photos.deletedAt),
           isNull(schema.photos.hiddenAt),
@@ -624,6 +637,8 @@ export async function activityFor(
       .innerJoin(schema.events, eq(schema.events.id, schema.eventAccessRequests.eventId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.eventAccessRequests.actorId, actorId),
           eq(schema.eventAccessRequests.status, 'approved'),
           isNotNull(schema.eventAccessRequests.resolvedAt),
@@ -696,6 +711,8 @@ export async function activityFor(
       .innerJoin(schema.actors, eq(schema.actors.id, schema.eventParticipants.actorId))
       .where(
         and(
+          // Never an album made by somebody across a block, either way.
+          not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.events.createdBy, actorId),
           ne(schema.eventParticipants.actorId, actorId),
           isNull(schema.events.deletedAt),

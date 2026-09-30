@@ -13,10 +13,11 @@
  */
 
 import { schema } from '@parea/core';
-import { and, asc, count, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 import { invitable } from './friends';
 import { EMPTY_SUMMARY, groupThreadSummaries } from './groupMessages';
 import { imageSrc } from './images';
@@ -225,7 +226,7 @@ export async function ensureAdmin(db: Db, groupId: string): Promise<string | nul
  * photos: a photo is only ever reachable through an event, which is what keeps
  * a future per-collection access rule expressible.
  */
-export async function groupEvents(db: Db, groupId: string) {
+export async function groupEvents(db: Db, groupId: string, viewer: string | null) {
   return db
     .select({
       id: schema.events.id,
@@ -241,7 +242,15 @@ export async function groupEvents(db: Db, groupId: string) {
       endsAt: schema.events.endsAt,
     })
     .from(schema.events)
-    .where(and(eq(schema.events.groupId, groupId), isNull(schema.events.deletedAt)))
+    .where(
+      and(
+        eq(schema.events.groupId, groupId),
+        isNull(schema.events.deletedAt),
+        // A group can hold an album made by somebody across a block from this
+        // viewer; it is not theirs to see. See `decide`.
+        viewer ? not(blockedBetween(viewer, schema.events.createdBy)) : undefined,
+      ),
+    )
     .orderBy(desc(schema.events.createdAt));
 }
 
@@ -1229,7 +1238,13 @@ export async function groupArchive(
       fresh: actorId ? FRESH(actorId, since) : sql<number>`0`,
     })
     .from(schema.events)
-    .where(and(eq(schema.events.groupId, groupId), isNull(schema.events.deletedAt)))
+    .where(
+      and(
+        eq(schema.events.groupId, groupId),
+        isNull(schema.events.deletedAt),
+        actorId ? not(blockedBetween(actorId, schema.events.createdBy)) : undefined,
+      ),
+    )
     .orderBy(desc(schema.events.lastActiveAt))
     .limit(limit ?? 200);
 

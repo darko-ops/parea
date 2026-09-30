@@ -350,7 +350,7 @@ describe('what membership buys', () => {
       })
       .returning();
 
-    const [row] = await groupEvents(db, club.id);
+    const [row] = await groupEvents(db, club.id, null);
     expect(row!.id).toBe(event!.id);
     expect(row!.startsAt).not.toBeNull();
     expect(row!.endsAt).not.toBeNull();
@@ -362,7 +362,7 @@ describe('what membership buys', () => {
     await eventIn(house.id, host);
     await eventIn(null, host);
 
-    const events = await groupEvents(db, house.id);
+    const events = await groupEvents(db, house.id, null);
     expect(events).toHaveLength(1);
     // Events, never photos: a photo is only reachable through an event.
     expect(Object.keys(events[0]!)).not.toContain('photos');
@@ -376,7 +376,7 @@ describe('what membership buys', () => {
       .update(schema.events)
       .set({ deletedAt: new Date() })
       .where(eq(schema.events.id, event.id));
-    expect(await groupEvents(db, house.id)).toHaveLength(0);
+    expect(await groupEvents(db, house.id, null)).toHaveLength(0);
   });
 });
 

@@ -16,6 +16,7 @@ import type { Capability, Decision, PolicyEvent } from '@parea/core';
 import { and, eq, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { blockedEitherWay } from './moderation';
 
 export type Requester = {
   actorId: string | null;
@@ -164,10 +165,20 @@ export async function decide(
   capability: Capability,
   requester: Requester,
 ): Promise<Decision> {
-  const [facts, signedIn] = await Promise.all([
+  const [facts, signedIn, blocked] = await Promise.all([
     resolveFacts(db, event, requester),
     isSignedIn(db, requester.actorId),
+    acrossABlock(db, event, requester.actorId),
   ]);
+  /*
+   * An album made by somebody a block stands between you and — either way
+   * round — does not exist, as far as you are concerned: not its cover, not
+   * its photographs, not its thread. Answered as `event_deleted`, a 404, so
+   * the refusal is indistinguishable from an album that is gone and says
+   * nothing about the block. Before `authorize`, because no credential —
+   * the link, a code, being in its group — outranks it.
+   */
+  if (blocked) return { allow: false, reason: 'event_deleted' };
   return authorize(
     requester.actorId ? { id: requester.actorId, hasAccount: signedIn } : null,
     capability,
@@ -179,6 +190,16 @@ export async function decide(
       ...facts,
     },
   );
+}
+
+/** Whether the album's creator and this requester are across a block. */
+async function acrossABlock(
+  db: Db,
+  event: EventRow,
+  actorId: string | null,
+): Promise<boolean> {
+  if (!actorId || !event.createdBy || event.createdBy === actorId) return false;
+  return blockedEitherWay(db, actorId, event.createdBy);
 }
 
 export class AccessError extends Error {
